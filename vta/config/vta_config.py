@@ -54,14 +54,6 @@ def main():
                         help="print the target")
     parser.add_argument("--cfg-str", action="store_true",
                         help="print the configuration string")
-    parser.add_argument("--get-aluen", action="store_true",
-                        help="returns whether ALU is enabled")
-    parser.add_argument("--get-mulen", action="store_true",
-                        help="returns whether mul in ALU is enabled")
-    parser.add_argument("--get-gemmii", action="store_true",
-                        help="returns the GEMM core II")
-    parser.add_argument("--get-taluii", action="store_true",
-                        help="returns the tensor ALU core II")
     parser.add_argument("--get-inpwidth", action="store_true",
                         help="returns log of input bitwidth")
     parser.add_argument("--get-wgtwidth", action="store_true",
@@ -118,7 +110,7 @@ def main():
         - cfg["LOG_ACC_WIDTH"]) 
     # Generate bitstream config string.
     # Needs to match the BITSTREAM string in python/vta/environment.py
-    cfg["BITSTREAM"] = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns_gii{}".format(
+    cfg["BITSTREAM"] = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
         cfg["TARGET"],
         (1 << cfg["LOG_BATCH"]),
         (1 << cfg["LOG_BLOCK_IN"]),
@@ -132,12 +124,7 @@ def main():
         cfg["LOG_WGT_BUFF_SIZE"],
         cfg["LOG_ACC_BUFF_SIZE"],
         cfg["HW_FREQ"],
-        cfg["HW_CLK_TARGET"],
-        cfg["GEMM_II"])
-    if cfg["ALU_EN"]:
-        cfg["BITSTREAM"] += "_aii{}".format(cfg["TALU_II"])
-    if cfg["MUL_EN"] and cfg["ALU_EN"]:
-        cfg["BITSTREAM"] += "_mul"
+        cfg["HW_CLK_TARGET"])
     pkg = get_pkg_config(cfg)
 
     if args.target:
@@ -169,18 +156,6 @@ def main():
 
     if args.cfg_str:
         print(cfg["BITSTREAM"])
-
-    if args.get_aluen:
-        print(cfg["ALU_EN"])
-
-    if args.get_mulen:
-        print(cfg["MUL_EN"])
-
-    if args.get_gemmii:
-        print(cfg["GEMM_II"])
-
-    if args.get_taluii:
-        print(cfg["TALU_II"])
 
     if args.get_inpwidth:
         print(cfg["LOG_INP_WIDTH"])

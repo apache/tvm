@@ -1,12 +1,8 @@
 {
-  "TARGET" : "pynq",
+  "TARGET" : "sim",
   "HW_VER" : "0.0.0",
   "HW_FREQ" : 100,
   "HW_CLK_TARGET" : 7,
-  "ALU_EN" : true,
-  "MUL_EN" : false,
-  "GEMM_II" : 1,
-  "TALU_II" : 2,
   "LOG_INP_WIDTH" : 3,
   "LOG_WGT_WIDTH" : 3,
   "LOG_ACC_WIDTH" : 5,
@@ -16,7 +12,7 @@
   "LOG_BLOCK_OUT" : 4,
   "LOG_BUS_WIDTH" : 6,
   "LOG_UOP_BUFF_SIZE" : 15,
-  "LOG_INP_BUFF_SIZE" : 15,
+  "LOG_INP_BUFF_SIZE" :15,
   "LOG_WGT_BUFF_SIZE" : 18,
   "LOG_ACC_BUFF_SIZE" : 17
 }

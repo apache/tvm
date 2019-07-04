@@ -155,19 +155,21 @@ class Environment(object):
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
         self.OUT_ELEM_BYTES = self.OUT_ELEM_BITS // 8
         # Configuration bitstream name
-        self.BITSTREAM = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_{}MHz_{}ns_v{}.bit".format(
+        self.BITSTREAM = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
+            cfg["TARGET"],
             (1 << cfg["LOG_BATCH"]),
             (1 << cfg["LOG_BLOCK_IN"]),
             (1 << cfg["LOG_BLOCK_OUT"]),
             (1 << cfg["LOG_INP_WIDTH"]),
             (1 << cfg["LOG_WGT_WIDTH"]),
+            (1 << cfg["LOG_OUT_WIDTH"]),
+            (1 << cfg["LOG_ACC_WIDTH"]),
             cfg["LOG_UOP_BUFF_SIZE"],
             cfg["LOG_INP_BUFF_SIZE"],
             cfg["LOG_WGT_BUFF_SIZE"],
             cfg["LOG_ACC_BUFF_SIZE"],
             cfg["HW_FREQ"],
-            cfg["HW_CLK_TARGET"],
-            cfg["HW_VER"].replace('.', '_'))
+            cfg["HW_CLK_TARGET"])
         # dtypes
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH

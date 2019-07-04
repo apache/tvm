@@ -27,24 +27,23 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 }
 
 # Parse argument list, derive the clock to utilize
-if { [llength $argv] eq 14 } {
+if { [llength $argv] eq 13 } {
   set target [lindex $argv 0]
   set ip_path [lindex $argv 1]
   set num_threads [lindex $argv 2]
   set clock_freq [lindex $argv 3]
-  set gemm_ii [lindex $argv 4]
-  set inp_width [expr 1 << [lindex $argv 5]]
-  set wgt_width [expr 1 << [lindex $argv 6]]
-  set out_width [expr 1 << [lindex $argv 7]]
-  set batch [expr 1 << [lindex $argv 8]]
+  set inp_width [expr 1 << [lindex $argv 4]]
+  set wgt_width [expr 1 << [lindex $argv 5]]
+  set out_width [expr 1 << [lindex $argv 6]]
+  set batch [expr 1 << [lindex $argv 7]]
+  set in_block [expr 1 << [lindex $argv 8]]
   set out_block [expr 1 << [lindex $argv 9]]
-  set in_block [expr 1 << [lindex $argv 10]]
-  set inp_mem_size [expr 1 << [lindex $argv 11]]
-  set wgt_mem_size [expr 1 << [lindex $argv 12]]
-  set out_mem_size [expr 1 << [lindex $argv 13]]
+  set inp_mem_size [expr 1 << [lindex $argv 10]]
+  set wgt_mem_size [expr 1 << [lindex $argv 11]]
+  set out_mem_size [expr 1 << [lindex $argv 12]]
 } else {
   puts "Arg list incomplete: <target> <path to ip dir> <num threads> <clock freq> \
-    <gemm ii> <inp width> <wgt_width> <out_width> <batch> <batch> <out_block> <in_block> \
+    <inp width> <wgt_width> <out_width> <batch> <in_block> <out_block> \
     <inp_mem_size> <wgt_mem_size> <out_mem_size>"
   return 1
 }
@@ -53,7 +52,7 @@ if { [llength $argv] eq 14 } {
 set max_bus_width 1024
 
 # Derive input mem parameters
-set inp_mem_width [expr $inp_width * $batch * $in_block / $gemm_ii]
+set inp_mem_width [expr $inp_width * $batch * $in_block]
 set inp_bus_width $max_bus_width
 set inp_part [expr $inp_mem_width / $inp_bus_width]
 if {[expr $inp_part == 0]} {
@@ -63,7 +62,7 @@ if {[expr $inp_part == 0]} {
 set inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $inp_part)]
 
 # Derive weight mem parameters
-set wgt_mem_width [expr $wgt_width * $out_block * $in_block / $gemm_ii]
+set wgt_mem_width [expr $wgt_width * $out_block * $in_block]
 set wgt_bus_width $max_bus_width
 set wgt_part [expr $wgt_mem_width / $wgt_bus_width]
 if {[expr $wgt_part == 0]} {
@@ -73,7 +72,7 @@ if {[expr $wgt_part == 0]} {
 set wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $wgt_part)]
 
 # Derive output mem parameters
-set out_mem_width [expr $out_width * $batch * $out_block / $gemm_ii]
+set out_mem_width [expr $out_width * $batch * $out_block]
 set out_bus_width $max_bus_width
 set out_part [expr $out_mem_width / $out_bus_width]
 if {[expr $out_part == 0]} {

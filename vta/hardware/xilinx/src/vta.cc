@@ -260,7 +260,7 @@ void gemm(
 
       // Iterate over micro op
       READ_GEMM_UOP: for (int upc = insn.uop_bgn; upc < insn.uop_end; upc++) {
-
+#pragma HLS PIPELINE II = 1
         // Read micro-op fields
         uop_T uop = uop_mem[upc];
 
@@ -348,6 +348,7 @@ void alu(
     EXE_IN_LOOP: for (int it_in = 0; it_in < insn.iter_in; it_in++) {
       // Iterate over micro op
       READ_ALU_UOP: for (int upc = insn.uop_bgn; upc < insn.uop_end; upc++) {
+#pragma HLS PIPELINE II = 2
         // Read micro-op fields
         uop_T uop = uop_mem[upc];
 
