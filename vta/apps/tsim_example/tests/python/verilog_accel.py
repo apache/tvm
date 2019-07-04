@@ -21,7 +21,7 @@ import tsim
 
 def test_accel():
     rmax = 64
-    n = 8
+    n = np.random.randint(1, rmax)
     c = np.random.randint(0, rmax)
     ctx = tvm.cpu(0)
     a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)

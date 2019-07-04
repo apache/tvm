@@ -17,37 +17,23 @@
  * under the License.
  */
 
-package test
+package vta.dpi
 
 import chisel3._
-import vta.dpi._
-import accel._
-import chisel3.experimental.MultiIOModule
+import chisel3.util._
+import vta.util.config._
+import vta.interface.axi._
+import vta.shell._
 
-/** Test accelerator.
+/** Sim DPI module.
   *
-  * Instantiate and connect the simulation-shell and the accelerator.
-  *
+  * Wrapper for Sim Verilog DPI module.
   */
-class TestAccel extends MultiIOModule {
-  val sim_clock = IO(Input(Clock()))
-  val sim_wait = IO(Output(Bool()))
-  val host = Module(new VTAHostDPI)
-  val mem = Module(new VTAMemDPI)
-  val sim = Module(new VTASimDPI)
-  val vta = Module(new Accel)
-  mem.io.clock := clock
-  mem.io.reset := reset
-  host.io.clock := clock
-  host.io.reset := reset
-  sim.io.clock := sim_clock
-  sim.io.reset := reset
-  vta.io.host <> host.io.dpi
-  mem.io.dpi <> vta.io.mem
-  sim_wait := sim.io.dpi_wait
-}
-
-/** Generate TestAccel as top module */
-object Elaborate extends App {
-  chisel3.Driver.execute(args, () => new TestAccel)
+class VTASimDPI extends BlackBox with HasBlackBoxResource {
+  val io = IO(new Bundle {
+    val clock = Input(Clock())
+    val reset = Input(Bool())
+    val dpi_wait = Output(Bool())
+  })
+  setResource("/verilog/VTASimDPI.v")
 }
