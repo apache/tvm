@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file test_lib.cpp
  * \brief Test library for the VTA design simulation and driver tests.
  */
