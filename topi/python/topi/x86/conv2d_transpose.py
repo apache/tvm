@@ -54,9 +54,6 @@ def _declaration_conv2d_transpose_impl(cfg, data, kernel, strides, padding, out_
     dh = tvm.reduce_axis((0, filter_h), name='dh')
     dw = tvm.reduce_axis((0, filter_w), name='dw')
 
-    print("padding: ", padding)
-    print("strides: ", strides)
-
     Output = tvm.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
@@ -83,23 +80,19 @@ def schedule_conv2d_transpose(cfg, outs):
                     traverse(tensor.op)
 
         if 'conv2d_transpose_nchw' in op.tag:
-            conv = op.output(0)
-            kernel = op.input_tensors[1]
-            data = op.input_tensors[0]
-
-            C = conv
+            C = op.output(0)
 
             N, OC, OH, OW = C.op.axis
             rc, ry, rx = C.op.reduce_axis
 
-            OH, oh = s[C].split(OH, factor=1)
+            OH, oh = s[C].split(OH, factor=2)
             OC, oc = s[C].split(OC, factor=32)
             IC, ic = s[C].split(rc, factor=32)
 
-            s[C].reorder(N, OC, OH, oh, OW, oc, IC, ry, rx, ic)
+            s[C].reorder(N, OC, OH, OW, oc, IC, ry, rx, ic)
+            N = s[C].fuse(N, OC)
             s[C].vectorize(oc)
             s[C].parallel(N)
-
 
         scheduled_ops.append(op)
 
