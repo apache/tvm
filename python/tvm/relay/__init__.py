@@ -86,6 +86,7 @@ TupleGetItem = expr.TupleGetItem
 RefCreate = expr.RefCreate
 RefRead = expr.RefRead
 RefWrite = expr.RefWrite
+Fatal = expr.Fatal
 
 # ADT
 PatternWildcard = adt.PatternWildcard

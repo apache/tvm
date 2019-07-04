@@ -210,7 +210,7 @@ Expr ExprMutator::VisitExpr_(const MatchNode* m) {
   for (const Clause& p : m->clauses) {
     clauses.push_back(VisitClause(p));
   }
-  return MatchNode::make(VisitExpr(m->data), clauses);
+  return MatchNode::make(VisitExpr(m->data), clauses, m->complete);
 }
 
 Expr ExprMutator::VisitExpr_(const FatalNode* f) {

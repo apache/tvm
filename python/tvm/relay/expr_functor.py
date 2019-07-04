@@ -248,7 +248,7 @@ class ExprMutator(ExprFunctor):
         return con
 
     def visit_match(self, m):
-        return Match(self.visit(m.data), [Clause(c.lhs, self.visit(c.rhs)) for c in m.pattern])
+        return Match(self.visit(m.data), [Clause(c.lhs, self.visit(c.rhs)) for c in m.pattern], m.complete)
 
     def visit_ref_create(self, r):
         return RefCreate(self.visit(r.value))
@@ -258,3 +258,6 @@ class ExprMutator(ExprFunctor):
 
     def visit_ref_read(self, r):
         return RefRead(self.visit(r.ref))
+
+    def visit_fatal(self, r):
+        pass

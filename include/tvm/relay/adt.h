@@ -241,14 +241,18 @@ class MatchNode : public ExprNode {
   /*! \brief The match node clauses. */
   tvm::Array<Clause> clauses;
 
+  /*! \brief Is the match complete (cover all cases)? */
+  bool complete;
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
     v->Visit("clause", &clauses);
+    v->Visit("complete", &complete);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern);
+  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
 
   static constexpr const char* _type_key = "relay.Match";
   TVM_DECLARE_NODE_TYPE_INFO(MatchNode, ExprNode);
