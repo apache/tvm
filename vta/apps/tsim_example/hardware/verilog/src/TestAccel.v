@@ -55,6 +55,14 @@ module TestAccel
   logic [MEM_DATA_BITS-1:0] mem_rd_bits;
   logic                     mem_rd_ready;
 
+  VTASimDPI sim
+  (
+    .clock          (sim_clock),
+    .reset          (reset),
+
+    .dpi_wait       (sim_wait)
+  );
+
   VTAHostDPI host
   (
     .clock          (clock),
@@ -116,45 +124,5 @@ module TestAccel
     .mem_rd_bits     (mem_rd_bits),
     .mem_rd_ready    (mem_rd_ready)
   );
-
-  typedef logic        dpi1_t;
-  typedef logic  [7:0] dpi8_t;
-
-  dpi1_t  __reset;
-  dpi8_t  __wait;
-
-  import "DPI-C" function void VTASimDPI
-  (
-    output byte unsigned sim_wait
-  );
-
-  always_ff @(posedge sim_clock) begin
-    __reset <= reset;
-  end
-
-  always_ff @(posedge sim_clock) begin
-    if (reset | __reset) begin
-      __wait = 0;
-    end
-    else begin
-      VTASimDPI(
-        __wait);
-    end
-  end
-
-  logic wait_reg;
-
-  always_ff @(posedge sim_clock) begin
-    if (reset | __reset) begin
-      wait_reg <= 1'b0;
-    end else if (__wait == 1) begin
-      $display("Verilog wait");
-      wait_reg <= 1'b1;
-    end else begin
-      wait_reg <= 1'b0;
-    end
-  end
-
-  assign sim_wait = wait_reg;
 
 endmodule

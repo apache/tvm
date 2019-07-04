@@ -99,17 +99,6 @@ module VTAHostDPI #
     end
   end
 
-  logic [63:0] cycles;
-
-  always_ff @(posedge clock) begin
-    if (reset | __reset) begin
-      cycles <= 'd0;
-    end
-    else begin
-      cycles <= cycles + 1'b1;
-    end
-  end
-
   always_ff @(posedge clock) begin
     if (__exit == 'd1) begin
       $finish;
