@@ -48,7 +48,7 @@ class LetList {
  public:
   ~LetList() {
     if (lets_.size() > 0 && !used_) {
-      std::cout << "Warning: letlist not used" << std::endl;
+      LOG(WARNING) << "letlist not used";
     }
   }
   /*!

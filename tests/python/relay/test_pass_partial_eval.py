@@ -307,10 +307,10 @@ def test_double():
 
 
 if __name__ == '__main__':
-    test_empty_ad()
-    test_tuple()
-    test_const_inline()
     test_ref()
+    test_tuple()
+    test_empty_ad()
+    test_const_inline()
     test_ad()
     test_if_ref()
     test_function_invalidate()
