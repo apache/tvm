@@ -139,6 +139,7 @@ class TypeVisitor : public TypeFunctor<void(const Type& n)> {
 // Mutator that transform a type to another one.
 class TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
+  Type VisitType(const Type& t) override;
   Type VisitType_(const TypeVarNode* op) override;
   Type VisitType_(const TensorTypeNode* op) override;
   Type VisitType_(const IncompleteTypeNode* op) override;

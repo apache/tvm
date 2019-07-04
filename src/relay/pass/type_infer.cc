@@ -172,6 +172,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
+    CHECK(ret.defined());
     KindCheck(ret, mod_);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;

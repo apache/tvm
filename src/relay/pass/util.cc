@@ -425,6 +425,16 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
     Var VisitVar(const Var& v) final {
       return Downcast<Var>(VisitExpr(v));
     }
+
+    Pattern VisitPattern(const Pattern& p) final {
+      return PatternMutator::VisitPattern(p);
+    }
+
+    Clause VisitClause(const Clause& c) final {
+      Pattern pat = VisitPattern(c->lhs);
+      return ClauseNode::make(pat, VisitExpr(c->rhs));
+    }
+
    private:
     const tvm::Map<TypeVar, Type>& subst_map_;
   };
