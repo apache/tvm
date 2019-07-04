@@ -20,6 +20,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <vta/dpi/module.h>
+#include <unistd.h>
 
 namespace vta {
 namespace driver {
@@ -64,6 +65,9 @@ class Device {
     this->Init();
     this->Launch(c, length, inp, out);
     cycles = this->WaitForCompletion();
+    dev_->Wait();
+    sleep(1);
+    dev_->Resume();
     dev_->Finish();
     return cycles;
   }

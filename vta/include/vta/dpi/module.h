@@ -56,6 +56,10 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
 /*! \brief Finish hardware simulation */
   virtual void Finish() = 0;
 
+  virtual void Wait() = 0;
+
+  virtual void Resume() = 0;
+
   static tvm::runtime::Module Load(std::string dll_name);
 };
 

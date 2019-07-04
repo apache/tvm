@@ -243,11 +243,19 @@ class DPIModule final : public DPIModuleNode {
     CHECK(ftsim_ != nullptr);
   }
 
+  void Wait() {
+    sim_device_.Wait();
+  }
+
+  void Resume() {
+    sim_device_.Resume();
+  }
+
   void Launch(uint64_t max_cycles) {
     auto frun = [this, max_cycles]() {
       (*ftsim_)(max_cycles);
     };
-    vsim_thread_ = std::thread(frun);
+    tsim_thread_ = std::thread(frun);
   }
 
   void WriteReg(int addr, uint32_t value) {
@@ -266,7 +274,7 @@ class DPIModule final : public DPIModuleNode {
 
   void Finish() {
     host_device_.Exit();
-    vsim_thread_.join();
+    tsim_thread_.join();
   }
 
  protected:
@@ -274,12 +282,10 @@ class DPIModule final : public DPIModuleNode {
   SimDevice sim_device_;
   HostDevice host_device_;
   MemDevice mem_device_;
-  std::thread vsim_thread_;
+  std::thread tsim_thread_;
 
-  void SimDPI(dpi8_t* wait,
-               dpi8_t* resume) {
+  void SimDPI(dpi8_t* wait) {
     *wait = sim_device_.GetWaitStatus();
-    *resume = !sim_device_.GetWaitStatus();
   }
 
   void HostDPI(dpi8_t* exit,
@@ -325,10 +331,9 @@ class DPIModule final : public DPIModuleNode {
 
   static void VTASimDPI(
       VTAContextHandle self,
-      dpi8_t* wait,
-      dpi8_t* resume) {
+      dpi8_t* wait) {
     static_cast<DPIModule*>(self)->SimDPI(
-        wait, resume);
+        wait);
   }
 
   static void VTAHostDPI(

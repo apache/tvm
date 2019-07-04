@@ -33,10 +33,9 @@ static VTASimDPIFunc _sim_dpi = nullptr;
 static VTAHostDPIFunc _host_dpi = nullptr;
 static VTAMemDPIFunc _mem_dpi = nullptr;
 
-void VTASimDPI(dpi8_t* wait,
-                dpi8_t* resume) {
+void VTASimDPI(dpi8_t* wait) {
   assert(_sim_dpi != nullptr);
-  (*_sim_dpi)(_ctx, wait, resume);
+  (*_sim_dpi)(_ctx, wait);
 }
 
 void VTAHostDPI(dpi8_t* exit,
@@ -125,12 +124,14 @@ int VTADPISim(uint64_t max_cycles) {
 
   // start simulation
   while (!Verilated::gotFinish() && trace_count < max_cycles) {
+    top->sim_clock = 0;
     top->clock = 0;
     top->eval();
 #if VM_TRACE
     if (trace_count >= start)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
+    top->sim_clock = 1;
     top->clock = 1;
     top->eval();
 #if VM_TRACE
@@ -138,6 +139,15 @@ int VTADPISim(uint64_t max_cycles) {
       tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
 #endif
     trace_count++;
+    while (top->sim_wait) {
+      top->clock = 0;
+      sleep(1);
+      printf("wake up\n");
+      top->sim_clock = 0;
+      top->eval();
+      top->sim_clock = 1;
+      top->eval();
+    }
   }
 
 #if VM_TRACE

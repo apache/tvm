@@ -38,8 +38,7 @@ typedef void* VTAContextHandle;
 
 typedef void (*VTASimDPIFunc)(
     VTAContextHandle self,
-    dpi8_t* wait,
-    dpi8_t* resume);
+    dpi8_t* wait);
 
 /*!
  * \brief Host DPI callback function that is invoked in VTAHostDPI.v every clock cycle
