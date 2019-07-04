@@ -243,22 +243,22 @@ class DPIModule final : public DPIModuleNode {
     CHECK(ftsim_ != nullptr);
   }
 
-  void Launch(uint64_t max_cycles) {
+  void SimLaunch(uint64_t max_cycles) {
     auto frun = [this, max_cycles]() {
       (*ftsim_)(max_cycles);
     };
     tsim_thread_ = std::thread(frun);
   }
 
-  void Wait() {
+  void SimWait() {
     sim_device_.Wait();
   }
 
-  void Resume() {
+  void SimResume() {
     sim_device_.Resume();
   }
 
-  void Finish() {
+  void SimFinish() {
     sim_device_.Exit();
     tsim_thread_.join();
   }

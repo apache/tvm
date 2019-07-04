@@ -41,8 +41,16 @@ class Profiler {
 
 class DPILoader {
  public:
+  ~DPILoader() {
+    dpi_->SimResume();
+    dpi_->SimFinish();
+  }
+
   void Init(Module module) {
     mod_ = module;
+    dpi_ = this->Get();
+    dpi_->SimLaunch(wait_cycles_);
+    dpi_->SimWait();
   }
 
   DPIModuleNode* Get() {
@@ -54,13 +62,18 @@ class DPILoader {
     return &inst;
   }
 
+  // wait cycles
+  uint32_t wait_cycles_{100000000};
+  // TVM module
   Module mod_;
+  // DPI Module
+  DPIModuleNode* dpi_{nullptr};
 };
 
 class Device {
  public:
   Device() {
-    dpi_ = DPILoader::Global();
+    loader_ = DPILoader::Global();
     prof_ = Profiler::Global();
   }
 
@@ -82,13 +95,13 @@ class Device {
                  insn_count,
                  wait_cycles);
     this->WaitForCompletion(wait_cycles);
-    dev_->Finish();
     return 0;
   }
 
  private:
   void Init() {
-    dev_ = dpi_->Get();
+    dpi_ = loader_->Get();
+    dpi_->SimResume();
   }
 
   void Launch(vta_phy_addr_t insn_phy_addr,
@@ -99,43 +112,42 @@ class Device {
               vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
-    // launch simulation thread
-    dev_->Launch(wait_cycles);
     // set counter to zero
-    dev_->WriteReg(0x04, 0);
-    dev_->WriteReg(0x08, insn_count);
-    dev_->WriteReg(0x0c, insn_phy_addr);
-    dev_->WriteReg(0x10, insn_phy_addr >> 32);
-    dev_->WriteReg(0x14, 0);
-    dev_->WriteReg(0x18, uop_phy_addr >> 32);
-    dev_->WriteReg(0x1c, 0);
-    dev_->WriteReg(0x20, inp_phy_addr >> 32);
-    dev_->WriteReg(0x24, 0);
-    dev_->WriteReg(0x28, wgt_phy_addr >> 32);
-    dev_->WriteReg(0x2c, 0);
-    dev_->WriteReg(0x30, acc_phy_addr >> 32);
-    dev_->WriteReg(0x34, 0);
-    dev_->WriteReg(0x38, out_phy_addr >> 32);
+    dpi_->WriteReg(0x04, 0);
+    dpi_->WriteReg(0x08, insn_count);
+    dpi_->WriteReg(0x0c, insn_phy_addr);
+    dpi_->WriteReg(0x10, insn_phy_addr >> 32);
+    dpi_->WriteReg(0x14, 0);
+    dpi_->WriteReg(0x18, uop_phy_addr >> 32);
+    dpi_->WriteReg(0x1c, 0);
+    dpi_->WriteReg(0x20, inp_phy_addr >> 32);
+    dpi_->WriteReg(0x24, 0);
+    dpi_->WriteReg(0x28, wgt_phy_addr >> 32);
+    dpi_->WriteReg(0x2c, 0);
+    dpi_->WriteReg(0x30, acc_phy_addr >> 32);
+    dpi_->WriteReg(0x34, 0);
+    dpi_->WriteReg(0x38, out_phy_addr >> 32);
     // start
-    dev_->WriteReg(0x00, 0x1);
+    dpi_->WriteReg(0x00, 0x1);
   }
 
   void WaitForCompletion(uint32_t wait_cycles) {
     uint32_t i, val;
     for (i = 0; i < wait_cycles; i++) {
-      val = dev_->ReadReg(0x00);
+      val = dpi_->ReadReg(0x00);
       val &= 0x2;
       if (val == 0x2) break;  // finish
     }
-    prof_->cycle_count = dev_->ReadReg(0x04);
+    prof_->cycle_count = dpi_->ReadReg(0x04);
+    dpi_->SimWait();
   }
 
   // Profiler
   Profiler* prof_;
   // DPI loader
-  DPILoader* dpi_;
+  DPILoader* loader_;
   // DPI Module
-  DPIModuleNode* dev_;
+  DPIModuleNode* dpi_;
 };
 
 using tvm::runtime::TVMRetValue;

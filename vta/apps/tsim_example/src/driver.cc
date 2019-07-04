@@ -38,15 +38,15 @@ using tvm::runtime::Module;
 class DPILoader {
  public:
   ~DPILoader() {
-    dpi_->Resume();
-    dpi_->Finish();
+    dpi_->SimResume();
+    dpi_->SimFinish();
   }
 
   void Init(Module module) {
     mod_ = module;
     dpi_ = this->Get();
-    dpi_->Launch(wait_cycles_);
-    dpi_->Wait();
+    dpi_->SimLaunch(wait_cycles_);
+    dpi_->SimWait();
   }
 
   DPIModuleNode* Get() {
@@ -83,7 +83,7 @@ class Device {
  private:
   void Init() {
     dpi_ = loader_->Get();
-    dpi_->Resume();
+    dpi_->SimResume();
   }
 
   void Launch(uint32_t c, uint32_t length, void* inp, void* out) {
@@ -103,7 +103,7 @@ class Device {
       if (val == 2) break; // finish
     }
     val = dpi_->ReadReg(0x04);
-    dpi_->Wait();
+    dpi_->SimWait();
     return val;
   }
 
