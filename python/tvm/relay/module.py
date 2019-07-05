@@ -156,6 +156,25 @@ class Module(RelayNode):
         """
         return _module.Module_GetGlobalTypeVar(self, name)
 
+    def get_constructor(self, tag):
+        """Look up an ADT constructor by tag.
+
+        Parameters
+        ----------
+        tag: int
+            The tag for a constructor.
+
+        Returns
+        -------
+        constructor: Constructor
+           The constructor associated with the given tag,
+
+        Raises
+        ------
+        tvm.TVMError if the corresponding constructor cannot be found.
+        """
+        return _module.Module_LookupTag(self, tag)
+
     @staticmethod
     def from_expr(expr):
         return _module.Module_FromExpr(expr)
