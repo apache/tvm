@@ -103,7 +103,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                               p->stream << "RefValueNode(" << node->value << ")";
                             });
 
-ConstructorValue ConstructorValueNode::make(int tag,
+ConstructorValue ConstructorValueNode::make(int32_t tag,
                                             tvm::Array<Value> fields,
                                             Constructor constructor) {
   NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
