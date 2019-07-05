@@ -92,7 +92,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#   python3 -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
 #
@@ -155,7 +155,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+#   python3 -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 1 Android device.
 # the output can be
@@ -180,7 +180,7 @@ from tvm.contrib.download import download_testdata
 # .. code-block:: bash
 #
 #   cd /workspace/apps/android_rpc
-#   python tests/android_rpc_test.py
+#   python3 tests/android_rpc_test.py
 #
 
 ######################################################################
