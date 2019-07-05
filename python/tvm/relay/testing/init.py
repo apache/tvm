@@ -153,7 +153,7 @@ def create_workload(net, initializer=None, seed=0):
     mod = relay.Module.from_expr(net)
     mod = relay.transform.InferType()(mod)
     shape_dict = {
-        v.name_hint : v.checked_type for v in mod.main.params}
+        v.name_hint : v.checked_type for v in mod["main"].params}
     np.random.seed(seed)
     initializer = initializer if initializer else Xavier()
     params = {}

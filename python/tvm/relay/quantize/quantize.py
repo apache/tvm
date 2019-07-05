@@ -365,4 +365,4 @@ def quantize(graph, params=None, dataset=None):
         mod = optimize(mod)
         mod = quantize_seq(mod)
 
-    return mod.main
+    return mod["main"]

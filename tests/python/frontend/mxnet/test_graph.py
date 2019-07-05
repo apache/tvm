@@ -22,7 +22,7 @@ import model_zoo
 def compare_graph(lhs_mod, rhs_mod):
     lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
-    assert relay.analysis.alpha_equal(lhs_mod.main, rhs_mod.main)
+    assert relay.analysis.alpha_equal(lhs_mod["main"], rhs_mod["main"])
 
 def test_mlp():
     shape = {"data": (1, 1, 28, 28)}

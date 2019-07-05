@@ -751,7 +751,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     auto mod = ModuleNode::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup(mod->entry_func);
+    auto entry_func = mod->Lookup("main");
     auto fused_infered =
         expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
@@ -1018,7 +1018,6 @@ Expr PostProcess(const Expr& e) {
 }  // namespace partial_eval
 
 Module PartialEval(const Module& m) {
-  CHECK(m->entry_func.defined());
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {

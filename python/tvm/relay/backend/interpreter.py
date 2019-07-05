@@ -289,7 +289,7 @@ class Interpreter(Executor):
             assert self.mod is not None
         def _interp_wrapper(*args, **kwargs):
             if expr is None:
-                args = self._convert_args(self.mod.main, args, kwargs)
+                args = self._convert_args(self.mod["main"], args, kwargs)
             else:
                 args = self._convert_args(expr, args, kwargs)
 
@@ -301,17 +301,17 @@ class Interpreter(Executor):
             if expr is None:
                 pass
             elif isinstance(expr, GlobalVar):
-                self.mod.main = self.mod[expr]
+                self.mod["main"] = self.mod[expr]
             else:
                 assert isinstance(expr, Function)
                 func = Function([], Call(expr, relay_args))
                 relay_args = []
                 if self.mod:
-                    self.mod.main = func
+                    self.mod["main"] = func
                 else:
                     self.mod = module.Module.from_expr(func)
 
             mod = self.optimize()
-            opt_expr = Call(mod.main, relay_args)
+            opt_expr = Call(mod["main"], relay_args)
             return self._intrp(opt_expr)
         return _interp_wrapper
