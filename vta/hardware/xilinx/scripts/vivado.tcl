@@ -27,77 +27,83 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 }
 
 # Parse argument list, derive the clock to utilize
-if { [llength $argv] eq 13 } {
-  set target [lindex $argv 0]
-  set ip_path [lindex $argv 1]
-  set num_threads [lindex $argv 2]
-  set clock_freq [lindex $argv 3]
-  set inp_width [expr 1 << [lindex $argv 4]]
-  set wgt_width [expr 1 << [lindex $argv 5]]
-  set out_width [expr 1 << [lindex $argv 6]]
-  set batch [expr 1 << [lindex $argv 7]]
-  set in_block [expr 1 << [lindex $argv 8]]
-  set out_block [expr 1 << [lindex $argv 9]]
-  set inp_mem_size [expr 1 << [lindex $argv 10]]
-  set wgt_mem_size [expr 1 << [lindex $argv 11]]
-  set out_mem_size [expr 1 << [lindex $argv 12]]
+if { [llength $argv] eq 2 } {
+  set ip_path     [lindex $argv 0]
+  set vta_config  [lindex $argv 1]
 } else {
-  puts "Arg list incomplete: <target> <path to ip dir> <num threads> <clock freq> \
-    <inp width> <wgt_width> <out_width> <batch> <in_block> <out_block> \
-    <inp_mem_size> <wgt_mem_size> <out_mem_size>"
+  puts "Arg list incomplete: <path to ip dir> <path to vta_config.py>"
   return 1
 }
+
+# Get the VTA configuration paramters
+set ::target        [exec python $vta_config --target]
+set ::clock_freq    [exec python $vta_config --get-fpgafreq]
+set ::inp_width     [exec python $vta_config --get-inpwidth]
+set ::wgt_width     [exec python $vta_config --get-wgtwidth]
+set ::acc_width     [exec python $vta_config --get-accwidth]
+set ::out_width     [exec python $vta_config --get-outwidth]
+set ::batch         [exec python $vta_config --get-batch]
+set ::block_in      [exec python $vta_config --get-blockin]
+set ::block_out     [exec python $vta_config --get-blockout]
+set ::bus_width     [exec python $vta_config --get-buswidth]
+set ::uop_buff_size [exec python $vta_config --get-uopbuffsize]
+set inp_buff_size [exec python $vta_config --get-inpbuffsize]
+set wgt_buff_size [exec python $vta_config --get-wgtbuffsize]
+set out_buff_size [exec python $vta_config --get-accbuffsize]
 
 # Max bus width supported by Vivado
 set max_bus_width 1024
 
 # Derive input mem parameters
-set inp_mem_width [expr $inp_width * $batch * $in_block]
-set inp_bus_width $max_bus_width
-set inp_part [expr $inp_mem_width / $inp_bus_width]
-if {[expr $inp_part == 0]} {
-  set inp_part 1
-  set inp_bus_width $inp_mem_width
+set inp_mem_width [expr {(1 << ($::inp_width + $::block_in + $::batch))}]
+set ::inp_bus_width $max_bus_width
+set ::inp_part [expr $inp_mem_width / $::inp_bus_width]
+if {[expr $::inp_part == 0]} {
+  set ::inp_part 1
+  set ::inp_bus_width $inp_mem_width
 }
-set inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $inp_part)]
+set inp_mem_size [expr 1 << $inp_buff_size]
+set ::inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $::inp_part)]
 
 # Derive weight mem parameters
-set wgt_mem_width [expr $wgt_width * $out_block * $in_block]
-set wgt_bus_width $max_bus_width
-set wgt_part [expr $wgt_mem_width / $wgt_bus_width]
-if {[expr $wgt_part == 0]} {
-  set wgt_part 1
-  set wgt_bus_width $wgt_mem_width
+set wgt_mem_width [expr {(1 << ($::wgt_width + $::block_in + $::block_out))}]
+set ::wgt_bus_width $max_bus_width
+set ::wgt_part [expr $wgt_mem_width / $::wgt_bus_width]
+if {[expr $::wgt_part == 0]} {
+  set ::wgt_part 1
+  set ::wgt_bus_width $wgt_mem_width
 }
-set wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $wgt_part)]
+set wgt_mem_size [expr 1 << $wgt_buff_size]
+set ::wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $::wgt_part)]
 
 # Derive output mem parameters
-set out_mem_width [expr $out_width * $batch * $out_block]
-set out_bus_width $max_bus_width
-set out_part [expr $out_mem_width / $out_bus_width]
-if {[expr $out_part == 0]} {
-  set out_part 1
-  set out_bus_width $out_mem_width
+set out_mem_width [expr {(1 << ($::out_width + $::block_out + $::batch))}]
+set ::out_bus_width $max_bus_width
+set ::out_part [expr $out_mem_width / $::out_bus_width]
+if {[expr $::out_part == 0]} {
+  set ::out_part 1
+  set ::out_bus_width $out_mem_width
 }
-set out_mem_depth [expr $out_mem_size * 8 / ($out_mem_width * $out_part)]
+set out_mem_size [expr 1 << $out_buff_size]
+set ::out_mem_depth [expr $out_mem_size * 8 / ($out_mem_width * $::out_part)]
 
 # Paths to IP library of VTA modules
 set proj_name vta
 set design_name $proj_name
 set proj_path "."
 set ip_lib "ip_lib"
-set fetch_ip "${ip_path}/vta_fetch/solution0/impl/ip/xilinx_com_hls_fetch_1_0.zip"
-set load_ip "${ip_path}/vta_load/solution0/impl/ip/xilinx_com_hls_load_1_0.zip"
-set compute_ip "${ip_path}/vta_compute/solution0/impl/ip/xilinx_com_hls_compute_1_0.zip"
-set store_ip "${ip_path}/vta_store/solution0/impl/ip/xilinx_com_hls_store_1_0.zip"
+set fetch_ip "${ip_path}/vta_fetch/soln/impl/ip/xilinx_com_hls_fetch_1_0.zip"
+set load_ip "${ip_path}/vta_load/soln/impl/ip/xilinx_com_hls_load_1_0.zip"
+set compute_ip "${ip_path}/vta_compute/soln/impl/ip/xilinx_com_hls_compute_1_0.zip"
+set store_ip "${ip_path}/vta_store/soln/impl/ip/xilinx_com_hls_store_1_0.zip"
 
 # Create custom project
-if { ${target} eq "pynq" } {
+if { $::target eq "pynq" } {
   create_project -force $proj_name $proj_path -part xc7z020clg484-1
-} elseif { ${target} eq "ultra96" } {
+} elseif { $::target eq "ultra96" } {
   create_project -force $proj_name $proj_path -part xczu3eg-sbva484-1-e
   set_property BOARD_PART em.avnet.com:ultra96:part0:1.0 [current_project]
-} elseif { ${target} eq "zcu102" } {
+} elseif { $::target eq "zcu102" } {
   create_project -force $proj_name $proj_path -part xczu9eg-ffvb1156-2-e
   set_property BOARD_PART xilinx.com:zcu102:part0:3.2 [current_project]
 }
@@ -117,38 +123,37 @@ current_bd_design $design_name
 
 # Procedure to create entire design.
 # Mostly auto-generated by Vivado.
-proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_bus_width inp_mem_depth wgt_bus_width wgt_mem_depth out_bus_width out_mem_depth } {
+proc create_root_design { parentCell } {
 
-  variable script_folder
+  # variable script_folder
 
-  if { $parentCell eq "" } {
-     set parentCell [get_bd_cells /]
-  }
+  # if { $parentCell eq "" } {
+  #    set parentCell [get_bd_cells /]
+  # }
 
-  # Get object for parentCell
-  set parentObj [get_bd_cells $parentCell]
-  if { $parentObj == "" } {
-     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
-     return
-  }
+  # # Get object for parentCell
+  # set parentObj [get_bd_cells $parentCell]
+  # if { $parentObj == "" } {
+  #    catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+  #    return
+  # }
 
-  # Make sure parentObj is hier blk
-  set parentType [get_property TYPE $parentObj]
-  if { $parentType ne "hier" } {
-     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = \
-      <$parentType>. Expected to be <hier>."}
-     return
-  }
+  # # Make sure parentObj is hier blk
+  # set parentType [get_property TYPE $parentObj]
+  # if { $parentType ne "hier" } {
+  #    catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = \
+  #     <$parentType>. Expected to be <hier>."}
+  #    return
+  # }
 
-  # Save current instance; Restore later
-  set oldCurInst [current_bd_instance .]
+  # # Save current instance; Restore later
+  # set oldCurInst [current_bd_instance .]
 
-  # Set parent object as current
-  current_bd_instance $parentObj
-
+  # # Set parent object as current
+  # current_bd_instance $parentObj
 
   # Create interface ports
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     set DDR [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 DDR ]
     set FIXED_IO [ create_bd_intf_port -mode Master \
       -vlnv xilinx.com:display_processing_system7:fixedio_rtl:1.0 FIXED_IO ]
@@ -161,21 +166,21 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   # Create instance: pll_clk, and set properties
   set pll_clk [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 pll_clk ]
   set_property -dict [ list \
-   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ $clk \
+   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ $::clock_freq \
    CONFIG.RESET_PORT {resetn} \
    CONFIG.RESET_TYPE {ACTIVE_LOW} \
    CONFIG.USE_LOCKED {false} \
  ] $pll_clk
 
   # Create as many SMCs as there are memory channels
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     # Create instance: axi_smc0, and set properties
     set axi_smc0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc0 ]
     set_property -dict [ list \
       CONFIG.NUM_MI {1} \
       CONFIG.NUM_SI {5} \
     ] $axi_smc0
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102" } {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102" } {
     # Create instance: axi_smc0, and set properties
     set axi_smc0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc0 ]
     set_property -dict [ list \
@@ -199,10 +204,10 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   ] $axi_xbar
 
   # Set appropriate cache, prot signals
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     set axi_cache "1111"
     set axi_prot "000"
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102" } {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102" } {
     set axi_cache "1111"
     set axi_prot "010"
   }
@@ -289,8 +294,8 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Create and connect inp_mem partitions
-  if {${inp_part} > 1} {
-    for {set i 0} {$i < ${inp_part}} {incr i} {
+  if {$::inp_part > 1} {
+    for {set i 0} {$i < $::inp_part} {incr i} {
       # Create instance: inp_mem, and set properties
       set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem_${i} ]
       set_property -dict [ list \
@@ -299,16 +304,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $inp_bus_width \
-        CONFIG.Read_Width_B $inp_bus_width \
+        CONFIG.Read_Width_A $::inp_bus_width \
+        CONFIG.Read_Width_B $::inp_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $inp_mem_depth \
-        CONFIG.Write_Width_A $inp_bus_width \
-        CONFIG.Write_Width_B $inp_bus_width \
+        CONFIG.Write_Depth_A $::inp_mem_depth \
+        CONFIG.Write_Width_A $::inp_bus_width \
+        CONFIG.Write_Width_B $::inp_bus_width \
       ] $inp_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_inp_mem_${i}_V_PORTA \
@@ -327,16 +332,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $inp_bus_width \
-        CONFIG.Read_Width_B $inp_bus_width \
+        CONFIG.Read_Width_A $::inp_bus_width \
+        CONFIG.Read_Width_B $::inp_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $inp_mem_depth \
-        CONFIG.Write_Width_A $inp_bus_width \
-        CONFIG.Write_Width_B $inp_bus_width \
+        CONFIG.Write_Depth_A $::inp_mem_depth \
+        CONFIG.Write_Width_A $::inp_bus_width \
+        CONFIG.Write_Width_B $::inp_bus_width \
       ] $inp_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_inp_mem_V_PORTA \
@@ -348,8 +353,8 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Create and connect wgt_mem partitions
-  if {${wgt_part} > 1} {
-    for {set i 0} {$i < ${wgt_part}} {incr i} {
+  if {$::wgt_part > 1} {
+    for {set i 0} {$i < $::wgt_part} {incr i} {
       # Create instance: wgt_mem, and set properties
       set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem_${i} ]
       set_property -dict [ list \
@@ -358,16 +363,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $wgt_bus_width \
-        CONFIG.Read_Width_B $wgt_bus_width \
+        CONFIG.Read_Width_A $::wgt_bus_width \
+        CONFIG.Read_Width_B $::wgt_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $wgt_mem_depth \
-        CONFIG.Write_Width_A $wgt_bus_width \
-        CONFIG.Write_Width_B $wgt_bus_width \
+        CONFIG.Write_Depth_A $::wgt_mem_depth \
+        CONFIG.Write_Width_A $::wgt_bus_width \
+        CONFIG.Write_Width_B $::wgt_bus_width \
       ] $wgt_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_wgt_mem_${i}_V_PORTA \
@@ -386,16 +391,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $wgt_bus_width \
-        CONFIG.Read_Width_B $wgt_bus_width \
+        CONFIG.Read_Width_A $::wgt_bus_width \
+        CONFIG.Read_Width_B $::wgt_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $wgt_mem_depth \
-        CONFIG.Write_Width_A $wgt_bus_width \
-        CONFIG.Write_Width_B $wgt_bus_width \
+        CONFIG.Write_Depth_A $::wgt_mem_depth \
+        CONFIG.Write_Width_A $::wgt_bus_width \
+        CONFIG.Write_Width_B $::wgt_bus_width \
       ] $wgt_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_wgt_mem_V_PORTA \
@@ -407,8 +412,8 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Create and connect out_mem partitions
-  if {${out_part} > 1} {
-    for {set i 0} {$i < ${out_part}} {incr i} {
+  if {$::out_part > 1} {
+    for {set i 0} {$i < $::out_part} {incr i} {
       # Create instance: out_mem, and set properties
       set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem_${i} ]
       set_property -dict [ list \
@@ -417,16 +422,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $out_bus_width \
-        CONFIG.Read_Width_B $out_bus_width \
+        CONFIG.Read_Width_A $::out_bus_width \
+        CONFIG.Read_Width_B $::out_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $out_mem_depth \
-        CONFIG.Write_Width_A $out_bus_width \
-        CONFIG.Write_Width_B $out_bus_width \
+        CONFIG.Write_Depth_A $::out_mem_depth \
+        CONFIG.Write_Width_A $::out_bus_width \
+        CONFIG.Write_Width_B $::out_bus_width \
       ] $out_mem
       # Create interface connections
       connect_bd_intf_net -intf_net compute_0_out_mem_${i}_V_PORTA \
@@ -445,16 +450,16 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $out_bus_width \
-        CONFIG.Read_Width_B $out_bus_width \
+        CONFIG.Read_Width_A $::out_bus_width \
+        CONFIG.Read_Width_B $::out_bus_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
-        CONFIG.Write_Depth_A $out_mem_depth \
-        CONFIG.Write_Width_A $out_bus_width \
-        CONFIG.Write_Width_B $out_bus_width \
+        CONFIG.Write_Depth_A $::out_mem_depth \
+        CONFIG.Write_Width_A $::out_bus_width \
+        CONFIG.Write_Width_B $::out_bus_width \
       ] $out_mem
       # Create interface connections
       connect_bd_intf_net -intf_net compute_0_out_mem_V_PORTA \
@@ -466,7 +471,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Create instance: processing_system, and set properties
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     set processing_system7_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system7_1 ]
     set_property -dict [ list \
       CONFIG.PCW_CAN0_PERIPHERAL_ENABLE {0} \
@@ -494,7 +499,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
       CONFIG.PCW_USE_S_AXI_HP3 {0} \
       CONFIG.preset {ZC702} \
     ] $processing_system7_1
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102" } {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102" } {
     set ps_e_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.2 ps_e_0 ]
     set_property -dict [ list \
      CONFIG.CAN0_BOARD_INTERFACE {custom} \
@@ -1939,7 +1944,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   connect_bd_intf_net -intf_net g2s_queue_M_AXIS [get_bd_intf_pins g2s_queue/M_AXIS] [get_bd_intf_pins store_0/g2s_dep_queue_V]
   connect_bd_intf_net -intf_net s2g_queue_M_AXIS [get_bd_intf_pins compute_0/s2g_dep_queue_V] [get_bd_intf_pins s2g_queue/M_AXIS]
 
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
     connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
     connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
@@ -1950,7 +1955,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
     # External interface connections only apply to Pynq
     connect_bd_intf_net -intf_net processing_system7_1_ddr [get_bd_intf_ports DDR] [get_bd_intf_pins processing_system7_1/DDR]
     connect_bd_intf_net -intf_net processing_system7_1_fixed_io [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins processing_system7_1/FIXED_IO]
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102"} {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102"} {
     connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
     connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc1/S00_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
     connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
@@ -1965,7 +1970,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   connect_bd_net -net proc_sys_reset_interconnect_aresetn \
     [get_bd_pins axi_xbar/ARESETN] \
     [get_bd_pins proc_sys_reset/interconnect_aresetn]
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     connect_bd_net -net proc_sys_reset_peripheral_aresetn \
       [get_bd_pins proc_sys_reset/peripheral_aresetn] \
       [get_bd_pins axi_smc0/aresetn] \
@@ -2015,7 +2020,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
       [get_bd_pins pll_clk/resetn] \
       [get_bd_pins proc_sys_reset/ext_reset_in] \
       [get_bd_pins processing_system7_1/FCLK_RESET0_N]
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102"} {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102"} {
     connect_bd_net -net proc_sys_reset_peripheral_aresetn \
       [get_bd_pins proc_sys_reset/peripheral_aresetn] \
       [get_bd_pins axi_smc0/aresetn] \
@@ -2071,7 +2076,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Create address segments
-  if { ${target} eq "pynq" } {
+  if { $::target eq "pynq" } {
     create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
     create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
     create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
@@ -2096,7 +2101,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
     create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
     create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
     create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
-  } elseif { ${target} eq "ultra96" || ${target} eq "zcu102"} {
+  } elseif { $::target eq "ultra96" || $::target eq "zcu102"} {
     create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
     create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs ps_e_0/SAXIGP1/HPC1_DDR_LOW] SEG_ps_e_0_HPC1_DDR_LOW
     create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
@@ -2109,7 +2114,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
   }
 
   # Restore current instance
-  current_bd_instance $oldCurInst
+  # current_bd_instance $oldCurInst
 
   save_bd_design
 }
@@ -2120,9 +2125,7 @@ proc create_root_design { parentCell target clk inp_part wgt_part out_part inp_b
 # MAIN FLOW
 ##################################################################
 
-create_root_design "" $target $clock_freq $inp_part $wgt_part $out_part $inp_bus_width \
-  $inp_mem_depth $wgt_bus_width $wgt_mem_depth $out_bus_width $out_mem_depth
-
+create_root_design ""
 # Create top-level wrapper file
 make_wrapper -files \
   [get_files $proj_path/$proj_name.srcs/sources_1/bd/$proj_name/$proj_name.bd] -top
@@ -2131,8 +2134,7 @@ update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
 
 # Run bistream generation on 8 threads with performance oriented P&R strategy
-# create_run impl_1 -parent_run synth_1 -flow {Vivado Implementation 2017} \
-#   -strategy "Performance_ExplorePostRoutePhysOpt"
+set num_threads 8
 launch_runs impl_1 -to_step write_bitstream -jobs $num_threads
 wait_on_run impl_1
 

@@ -45,10 +45,11 @@ def get_bitstream_path():
     # Derive destination path
     cache_dir = os.getenv("VTA_CACHE_PATH", os.path.join(os.getenv("HOME"), ".vta_cache/"))
     cache_dir = os.path.join(cache_dir, env.TARGET)
+    cache_dir = os.path.join(cache_dir, env.HW_VER.replace('.', '_'))
     # Create the directory if it didn't exist
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    bit_path = os.path.join(cache_dir, env.BITSTREAM)
+    bit_path = os.path.join(cache_dir, env.BITSTREAM) + ".bit"
 
     return bit_path
 

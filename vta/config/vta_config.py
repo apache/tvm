@@ -30,7 +30,6 @@ def get_pkg_config(cfg):
     PkgConfig = libpkg["PkgConfig"]
     return PkgConfig(cfg, proj_root)
 
-
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
@@ -94,8 +93,6 @@ def main():
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
     path_list = [
-        os.path.join(proj_root, "vta_config.json"),
-        os.path.join(proj_root, "build", "vta_config.json"),
         os.path.join(proj_root, "vta/config/vta_config.json")
     ]
     if args.use_cfg:
@@ -104,27 +101,14 @@ def main():
     if not ok_path_list:
         raise RuntimeError("Cannot find config in %s" % str(path_list))
     cfg = json.load(open(ok_path_list[0]))
+
+    # Derive the output buffer size from the accumulator buffer size
+    # and the ratio between output width, and accumulator width
     cfg["LOG_OUT_BUFF_SIZE"] = (
         cfg["LOG_ACC_BUFF_SIZE"] 
         + cfg["LOG_OUT_WIDTH"]
         - cfg["LOG_ACC_WIDTH"]) 
-    # Generate bitstream config string.
-    # Needs to match the BITSTREAM string in python/vta/environment.py
-    cfg["BITSTREAM"] = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
-        cfg["TARGET"],
-        (1 << cfg["LOG_BATCH"]),
-        (1 << cfg["LOG_BLOCK_IN"]),
-        (1 << cfg["LOG_BLOCK_OUT"]),
-        (1 << cfg["LOG_INP_WIDTH"]),
-        (1 << cfg["LOG_WGT_WIDTH"]),
-        (1 << cfg["LOG_OUT_WIDTH"]),
-        (1 << cfg["LOG_ACC_WIDTH"]),
-        cfg["LOG_UOP_BUFF_SIZE"],
-        cfg["LOG_INP_BUFF_SIZE"],
-        cfg["LOG_WGT_BUFF_SIZE"],
-        cfg["LOG_ACC_BUFF_SIZE"],
-        cfg["HW_FREQ"],
-        cfg["HW_CLK_TARGET"])
+
     pkg = get_pkg_config(cfg)
 
     if args.target:
@@ -155,7 +139,7 @@ def main():
             fo.write(pkg.cfg_json)
 
     if args.cfg_str:
-        print(cfg["BITSTREAM"])
+        print(pkg.bitstream)
 
     if args.get_inpwidth:
         print(cfg["LOG_INP_WIDTH"])

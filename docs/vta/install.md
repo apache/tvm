@@ -118,7 +118,7 @@ cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
 # Copy pynq specific configuration
-cp vta/config/pynq_sample.json build/vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 cd build
 cmake ..
 make runtime vta -j2

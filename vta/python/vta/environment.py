@@ -154,27 +154,13 @@ class Environment(object):
         self.WGT_ELEM_BYTES = self.WGT_ELEM_BITS // 8
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
         self.OUT_ELEM_BYTES = self.OUT_ELEM_BITS // 8
-        # Configuration bitstream name
-        self.BITSTREAM = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
-            cfg["TARGET"],
-            (1 << cfg["LOG_BATCH"]),
-            (1 << cfg["LOG_BLOCK_IN"]),
-            (1 << cfg["LOG_BLOCK_OUT"]),
-            (1 << cfg["LOG_INP_WIDTH"]),
-            (1 << cfg["LOG_WGT_WIDTH"]),
-            (1 << cfg["LOG_OUT_WIDTH"]),
-            (1 << cfg["LOG_ACC_WIDTH"]),
-            cfg["LOG_UOP_BUFF_SIZE"],
-            cfg["LOG_INP_BUFF_SIZE"],
-            cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"],
-            cfg["HW_FREQ"],
-            cfg["HW_CLK_TARGET"])
         # dtypes
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
         self.out_dtype = "int%d" % self.OUT_WIDTH
+        # Bistream name
+        self.BITSTREAM = self.pkg_config().bitstream
         # lazy cached members
         self.mock_mode = False
         self._mock_env = None
@@ -323,16 +309,12 @@ def _init_env():
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
     path_list = [
-        os.path.join(curr_path, "vta_config.json"),
-        os.path.join(proj_root, "build", "vta_config.json"),
-        os.path.join(proj_root, "vta_config.json"),
         os.path.join(proj_root, "vta/config/vta_config.json")
     ]
     path_list = [p for p in path_list if os.path.exists(p)]
     if not path_list:
         raise RuntimeError(
-            "Error: {} not found.make sure you have config.json in your vta root"
-            .format(filename))
+            "Error: vta_config.json not found.")
     return Environment(json.load(open(path_list[0])))
 
 Environment.current = _init_env()

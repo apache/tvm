@@ -38,9 +38,9 @@ class PkgConfig(object):
     """
     cfg_keys = [
         "TARGET",
+        "HW_VER",
         "HW_FREQ",
         "HW_CLK_TARGET",
-        "HW_VER",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
@@ -48,11 +48,13 @@ class PkgConfig(object):
         "LOG_BATCH",
         "LOG_BLOCK_IN",
         "LOG_BLOCK_OUT",
+        "LOG_BUS_WIDTH",
         "LOG_UOP_BUFF_SIZE",
         "LOG_INP_BUFF_SIZE",
         "LOG_WGT_BUFF_SIZE",
         "LOG_ACC_BUFF_SIZE",
     ]
+
     def __init__(self, cfg, proj_root):
         # include path
         self.include_path = [
@@ -80,6 +82,24 @@ class PkgConfig(object):
                 "-l:libcma.so"]
         else:
             self.ldflags = []
+
+        # Derive bitstream
+        # Generate bitstream config string.
+        self.bitstream = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
+            cfg["TARGET"],
+            (1 << cfg["LOG_BATCH"]),
+            (1 << cfg["LOG_BLOCK_IN"]),
+            (1 << cfg["LOG_BLOCK_OUT"]),
+            (1 << cfg["LOG_INP_WIDTH"]),
+            (1 << cfg["LOG_WGT_WIDTH"]),
+            (1 << cfg["LOG_OUT_WIDTH"]),
+            (1 << cfg["LOG_ACC_WIDTH"]),
+            cfg["LOG_UOP_BUFF_SIZE"],
+            cfg["LOG_INP_BUFF_SIZE"],
+            cfg["LOG_WGT_BUFF_SIZE"],
+            cfg["LOG_ACC_BUFF_SIZE"],
+            cfg["HW_FREQ"],
+            cfg["HW_CLK_TARGET"])
 
     @property
     def cflags(self):
