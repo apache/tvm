@@ -53,6 +53,7 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     CHECK(!n->global_type_var_map_.count(kv.first->var->name_hint))
       << "Duplicate global type definition name " << kv.first->var->name_hint;
     n->global_type_var_map_.Set(kv.first->var->name_hint, kv.first);
+    n->RegisterConstructors(kv.first, kv.second);
   }
 
   return Module(n);
@@ -108,15 +109,25 @@ void ModuleNode::Add(const GlobalVar& var,
   AddUnchecked(var, checked_func);
 }
 
+void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
+  // We hash the global type var name to use as a globally unique prefix for tags.
+  // The hash will be used as the most significant byte of the tag, with the index of
+  // the constructor in the less significant bytes
+  size_t hash = std::hash<std::string>()(var->var->name_hint);
+  int32_t prefix = static_cast<int32_t>(hash & 0xff) << 24;
+  for (size_t i = 0; i < type->constructors.size(); ++i) {
+    type->constructors[i]->tag = prefix | static_cast<int32_t>(i);
+    constructor_tag_map_[type->constructors[i]->tag] = type->constructors[i];
+  }
+}
+
 void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
   this->type_definitions.Set(var, type);
   // set global type var map
   CHECK(!global_type_var_map_.count(var->var->name_hint))
     << "Duplicate global type definition name " << var->var->name_hint;
   global_type_var_map_.Set(var->var->name_hint, var);
-  for (size_t i = 0; i < type->constructors.size(); ++i) {
-    type->constructors[i]->tag = i;
-  }
+  RegisterConstructors(var, type);
 
   // need to kind check at the end because the check can look up
   // a definition potentially
@@ -157,6 +168,13 @@ TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
 TypeData ModuleNode::LookupDef(const std::string& name) const {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
   return this->LookupDef(id);
+}
+
+Constructor ModuleNode::LookupTag(const int32_t tag) {
+  auto it = constructor_tag_map_.find(tag);
+  CHECK(it != constructor_tag_map_.end())
+    << "There is no constructor with the tag " << tag;
+  return (*it).second;
 }
 
 void ModuleNode::Update(const Module& mod) {
@@ -235,6 +253,11 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
 .set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
   return mod->LookupDef(var);
 });
+
+TVM_REGISTER_API("relay._module.Module_LookupTag")
+.set_body_typed<Constructor(Module, int32_t)>([](Module mod, int32_t tag) {
+    return mod->LookupTag(tag);
+  });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
 .set_body_typed<Module(Expr)>([](Expr e) {

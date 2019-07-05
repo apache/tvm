@@ -114,17 +114,18 @@ class RefValue(Value):
             _make.RefValue, value)
 
 
-def _arg_to_ast(arg):
+def _arg_to_ast(mod, arg):
     if isinstance(arg, TensorValue):
         return Constant(arg.data.copyto(nd.cpu(0)))
     elif isinstance(arg, TupleValue):
-        return Tuple([_arg_to_ast(field) for field in arg.fields])
+        return Tuple([_arg_to_ast(mod, field) for field in arg.fields])
     elif isinstance(arg, tuple):
-        return Tuple([_arg_to_ast(field) for field in arg])
+        return Tuple([_arg_to_ast(mod, field) for field in arg])
     elif isinstance(arg, RefValue):
-        return RefCreate(_arg_to_ast(arg.value))
+        return RefCreate(_arg_to_ast(mod, arg.value))
     elif isinstance(arg, ConstructorValue):
-        return Call(arg.constructor, [_arg_to_ast(field) for field in arg.fields])
+        return Call(mod.get_constructor(arg.tag),
+                    [_arg_to_ast(mod, field) for field in arg.fields])
     elif isinstance(arg, np.ndarray):
         return Constant(nd.array(arg))
     elif isinstance(arg, Constant):
@@ -231,7 +232,7 @@ class Executor(object):
         if binds:
             scope_builder = ScopeBuilder()
             for key, value in binds.items():
-                scope_builder.let(key, _arg_to_ast(value))
+                scope_builder.let(key, _arg_to_ast(self.mod, value))
             scope_builder.ret(expr)
             expr = scope_builder.get()
 
@@ -294,7 +295,7 @@ class Interpreter(Executor):
 
             relay_args = []
             for arg in args:
-                relay_args.append(_arg_to_ast(arg))
+                relay_args.append(_arg_to_ast(self.mod, arg))
 
             # Set the entry function for the module.
             if expr is None:
