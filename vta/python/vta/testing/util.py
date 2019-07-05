@@ -54,8 +54,12 @@ def run(run_func):
 
     elif env.TARGET == "pynq":
 
+        # The environment variables below should be set if we are using
+        # a tracker to obtain a remote for a test device
         tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
         tracket_port = os.environ.get("TVM_TRACKER_PORT", None)
+        # Otherwise, we can set the variables below to directly
+        # obtain a remote from a test device
         pynq_host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
         pynq_port = os.environ.get("VTA_PYNQ_RPC_PORT", None)
         # Run device from fleet node if env variables are defined
