@@ -2122,7 +2122,7 @@ class GraphProto(object):
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(analysis.free_vars(out), out)
-        self._mod[self._mod.entry_func] = func
+        self._mod["main"] = func
         return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
