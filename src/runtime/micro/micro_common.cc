@@ -176,9 +176,8 @@ size_t GetSectionSize(const std::string& binary_path,
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
-  size_t size = (*f)(binary_path, SectionToString(section), toolchain_prefix);
-  size = UpperAlignValue(size, align);
-  return size;
+  int size = (*f)(binary_path, SectionToString(section), toolchain_prefix);
+  return UpperAlignValue(size, align);
 }
 
 }  // namespace runtime
