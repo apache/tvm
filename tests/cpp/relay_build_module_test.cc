@@ -84,12 +84,12 @@ TEST(Relay, BuildModule) {
   auto ctx = A->ctx;
   auto pfr = tvm::runtime::Registry::Get("tvm.graph_runtime.create");
   tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)ctx.device_type, (int)ctx.device_id);
-  auto set_input_f = run_mod.GetFunction("set_input", false);
+  auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
   auto get_output_f = run_mod.GetFunction("get_output", false);
-  set_input_f("a", A);
-  set_input_f("b", B);
-  set_input_f("c", C);
+  set_input_f("a", &A.ToDLPack()->dl_tensor);
+  set_input_f("b", &B.ToDLPack()->dl_tensor);
+  set_input_f("c", &C.ToDLPack()->dl_tensor);
   run_f();
   tvm::runtime::NDArray Y = get_output_f(0);
   auto pY = (float*)Y.ToDLPack()->dl_tensor.data;
