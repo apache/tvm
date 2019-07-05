@@ -52,9 +52,25 @@ cd apps/android_rpc
 gradle clean build
 ```
 
-In `app/build/outputs/apk` you'll find `app-release-unsigned.apk`, use `dev_tools/gen_keystore.sh` to generate a signature and use `dev_tools/sign_apk.sh` to get the signed apk file `app/build/outputs/apk/tvmrpc-release.apk`.
+In `app/build/outputs/apk` you'll find `app-release-unsigned.apk`, use `dev_tools/gen_keystore.sh` to generate a signature and use `dev_tools/sign_apk.sh` to get the signed apk file `app/build/outputs/apk/release/tvmrpc-release.apk`.
 
-Upload `tvmrpc-release.apk` to your Android device and install it.
+Upload `tvmrpc-release.apk` to your Android device and install it:
+
+```bash
+$ANDROID_HOME/platform-tools/adb install app/build/outputs/apk/release/tvmrpc-release.apk
+```
+
+If you see error:
+
+    adb: failed to install app/build/outputs/apk/release/tvmrpc-release.apk:
+      Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE:
+      Package ml.dmlc.tvm.tvmrpc signatures do not match the previously installed version; ignoring!]
+
+Run uninstall first:
+
+```bash
+$ANDROID_HOME/platform-tools/adb uninstall ml.dmlc.tvm.tvmrpc
+```
 
 ### Build with OpenCL
 
