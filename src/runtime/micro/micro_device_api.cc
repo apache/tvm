@@ -50,30 +50,19 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    auto session_ = MicroSession::Global();
-    // If there is an allocation for a reference to an invalid session, then
-    // something has gone very wrong. All allocations should be contained within
-    // the `with` block for the corresponding `MicroSession`.
-    CHECK(session_->valid()) << "data space alloc on invalid session";
-
-    void* data = session_->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
+    void* data = session->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
-    DeviceSpace* dev_space = new DeviceSpace();
+    MicroDevSpace* dev_space = new MicroDevSpace();
     dev_space->data = data;
-    dev_space->session = session_;
+    dev_space->session = session;
     return static_cast<void*>(dev_space);
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    auto session_ = MicroSession::Global();
-    // It is possible (and usually the case) to have dangling references to a
-    // session after the session has ended (due to Python scoping). In this
-    // case, freeing is a no-op.
-    if (!session_->valid()) return;
-
-    DeviceSpace* dev_space = static_cast<DeviceSpace*>(ptr);
-    session_->FreeInSection(SectionKind::kHeap,
-                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(ptr);
+    dev_space->session->FreeInSection(
+      SectionKind::kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
     delete dev_space;
   }
 
@@ -86,32 +75,45 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMType type_hint,
                       TVMStreamHandle stream) final {
-    auto session_ = MicroSession::Global();
-    if (!session_->valid()) return;
-
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
-    const std::shared_ptr<LowLevelDevice>& lld = session_->low_level_device();
-
     if (type_from_to == std::make_tuple(kDLMicroDev, kDLMicroDev)) {
       // Copying from the device to the device.
+
+      MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
+      MicroDevSpace* to_space = static_cast<MicroDevSpace*>(const_cast<void*>(to));
+      CHECK(from_space->session == to_space->session)
+          << "attempt to copy data between different micro sessions (" << from_space->session
+          << " != " << to_space->session << ")";
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
+      std::shared_ptr<MicroSession> session = from_space->session;
+      const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
-      DevBaseOffset from_dev_offset = GetDevLoc(from, from_offset);
-      DevBaseOffset to_dev_offset = GetDevLoc(to, to_offset);
+      DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
+      DevBaseOffset to_dev_offset = GetDevLoc(to_space, to_offset);
 
       std::vector<uint8_t> buffer(size);
       lld->Read(from_dev_offset, static_cast<void*>(buffer.data()), size);
       lld->Write(to_dev_offset, static_cast<void*>(buffer.data()), size);
     } else if (type_from_to == std::make_tuple(kDLMicroDev, kDLCPU)) {
       // Reading from the device.
-      DevBaseOffset from_dev_offset = GetDevLoc(from, from_offset);
+
+      MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
+      std::shared_ptr<MicroSession> session = from_space->session;
+      const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
+
+      DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
       void* to_host_ptr = GetHostLoc(to, to_offset);
       lld->Read(from_dev_offset, to_host_ptr, size);
     } else if (type_from_to == std::make_tuple(kDLCPU, kDLMicroDev)) {
       // Writing to the device.
+
+      MicroDevSpace* to_space = static_cast<MicroDevSpace*>(const_cast<void*>(to));
+      std::shared_ptr<MicroSession> session = to_space->session;
+      const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
+
       void* from_host_ptr = GetHostLoc(from, from_offset);
-      DevBaseOffset to_dev_offset = GetDevLoc(to, to_offset);
+      DevBaseOffset to_dev_offset = GetDevLoc(to_space, to_offset);
       lld->Write(to_dev_offset, from_host_ptr, size);
     } else {
       LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";
@@ -122,24 +124,21 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    auto session_ = MicroSession::Global();
-    CHECK(session_->valid()) << "workspace alloc on invalid session";
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
 
-    void* data = session_->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
+    void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << size << " bytes on device workspace";
-    DeviceSpace* dev_space = new DeviceSpace();
+    MicroDevSpace* dev_space = new MicroDevSpace();
     dev_space->data = data;
-    dev_space->session = session_;
+    dev_space->session = session;
     return static_cast<void*>(dev_space);
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    auto session_ = MicroSession::Global();
-    if (!session_->valid()) return;
-
-    DeviceSpace* dev_space = static_cast<DeviceSpace*>(data);
-    session_->FreeInSection(SectionKind::kWorkspace,
-                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(data);
+    std::shared_ptr<MicroSession> session = dev_space->session;
+    session->FreeInSection(SectionKind::kWorkspace,
+                           DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
     delete dev_space;
   }
 
@@ -148,16 +147,12 @@ class MicroDeviceAPI final : public DeviceAPI {
    * \return global shared pointer to MicroDeviceAPI
    */
   static const std::shared_ptr<MicroDeviceAPI>& Global() {
-    static std::shared_ptr<MicroDeviceAPI> inst =
-        std::make_shared<MicroDeviceAPI>();
+    static std::shared_ptr<MicroDeviceAPI> inst = std::make_shared<MicroDeviceAPI>();
     return inst;
   }
 
  private:
-  DevBaseOffset GetDevLoc(const void* ptr, size_t offset) {
-    auto session_ = MicroSession::Global();
-    DeviceSpace* dev_space = static_cast<DeviceSpace*>(const_cast<void*>(ptr));
-    CHECK(dev_space->session == session_) << "session mismatch";
+  DevBaseOffset GetDevLoc(MicroDevSpace* dev_space, size_t offset) {
     DevBaseOffset dev_offset =
         DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data) + offset);
     return dev_offset;

@@ -33,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "low_level_device.h"
 #include "device/utvm_runtime.h"
@@ -44,8 +45,24 @@ namespace runtime {
 /*!
  * \brief session for facilitating micro device interaction
  */
-class MicroSession {
+class MicroSession : public ModuleNode {
  public:
+  /*!
+   * \brief Get member function to front-end
+   * \param name The name of the function.
+   * \param sptr_to_self The pointer to the module node.
+   * \return The corresponding member function.
+   */
+  virtual PackedFunc GetFunction(const std::string& name,
+                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+
+  /*!
+   * \return The type key of the executor.
+   */
+  const char* type_key() const final {
+    return "MicroSession";
+  }
+
   /*!
    * \brief constructor
    */
@@ -56,25 +73,40 @@ class MicroSession {
    */
   ~MicroSession();
 
+  // TODO(weberlo): It'd be nice to have both `Global` and `SetGlobal` methods,
+  // but storing `curr_session` as a static class variable seems to cause
+  // undefined reference errors.  Are there alternatives?
+
   /*!
    * \brief get MicroSession global singleton
    * \return pointer to the micro session global singleton
    */
-  static std::shared_ptr<MicroSession>& Global(bool make_new = false) {
-    static std::shared_ptr<MicroSession> inst = nullptr;
-    if (make_new) {
-      inst = std::make_shared<MicroSession>();
+  static std::shared_ptr<MicroSession> Global(
+      bool set_global = false, std::shared_ptr<MicroSession> session = nullptr) {
+    static std::shared_ptr<MicroSession> curr_session;
+    if (set_global) {
+      curr_session = session;
+    } else {
+      CHECK(curr_session != nullptr) << "null global session";
     }
-    CHECK(inst != nullptr) << "null global session";
-    return inst;
+    return curr_session;
   }
 
+  // /*!
+  //  * \brief get MicroSession global singleton
+  //  * \return pointer to the micro session global singleton
+  //  */
+  // static void SetGlobal(std::shared_ptr<MicroSession> session) {
+  //   MicroSession::curr_session = session;
+  // }
+
   /*!
-   * \brief initializes session by setting up a low-level device and initting allocators for it
+   * \brief creates session by setting up a low-level device and initting allocators for it
    * \param args TVMArgs passed into the micro.init packedfunc
-   * \note must be called upon first call to Global()
    */
-  void InitSession(const TVMArgs& args);
+  void CreateSession(const std::string& device_type,
+                     const std::string& binary_path,
+                     const std::string& toolchain_prefix);
 
   /*!
    * \brief ends the session by destructing the low-level device and its allocators
@@ -140,18 +172,12 @@ class MicroSession {
    * \note assumes low-level device has been initialized
    */
   const std::shared_ptr<LowLevelDevice> low_level_device() const {
-    if (!valid()) return nullptr;
-
     CHECK(low_level_device_ != nullptr) << "attempt to get uninitialized low-level device";
     return low_level_device_;
   }
 
   SymbolMap& init_symbol_map() {
     return init_stub_info_.symbol_map;
-  }
-
-  bool valid() const {
-    return valid_;
   }
 
  private:
@@ -172,8 +198,6 @@ class MicroSession {
   DevBaseOffset utvm_main_symbol_;
   /*! \brief offset of the init stub exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
-  /*! \brief whether the session is able to be interacted with */
-  bool valid_;
 
   /*!
    * \brief sets up and loads init stub into the low-level device memory
@@ -223,7 +247,7 @@ class MicroSession {
  * We use this to store a reference to the session in each allocated object and
  * only deallocate the session once there are no more references to it.
  */
-struct DeviceSpace {
+struct MicroDevSpace {
   void* data;
   std::shared_ptr<MicroSession> session;
 };

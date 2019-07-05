@@ -29,7 +29,7 @@ from tvm.relay.testing import resnet
 DEVICE_TYPE = "host"
 TOOLCHAIN_PREFIX = ""
 
-def create_micro_mod(c_mod, binutil_prefix):
+def create_micro_mod(c_mod, toolchain_prefix):
     """Produces a micro module from a given module.
 
     Parameters
@@ -37,8 +37,8 @@ def create_micro_mod(c_mod, binutil_prefix):
     c_mod : tvm.module.Module
         module with "c" as its target backend
 
-    binutil_prefix : str
-        binutil prefix to be used (see `tvm.micro.Session` docs)
+    toolchain_prefix : str
+        toolchain prefix to be used (see `tvm.micro.create_session` docs)
 
     Return
     ------
@@ -52,12 +52,12 @@ def create_micro_mod(c_mod, binutil_prefix):
     with open(lib_src_path, "w") as f:
         f.write(mod_src)
     # Compile to object file.
-    lib_obj_path = micro.create_micro_lib(lib_src_path, binutil_prefix)
+    lib_obj_path = micro.create_micro_lib(lib_src_path, toolchain_prefix)
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     return micro_mod
 
 
-def relay_micro_build(func, binutil_prefix, params=None):
+def relay_micro_build(func, toolchain_prefix, params=None):
     """Create a graph runtime module with a micro device context from a Relay function.
 
     Parameters
@@ -83,10 +83,20 @@ def relay_micro_build(func, binutil_prefix, params=None):
 
 
 # TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
-# TODO(weberlo): Add test for loading multiple modules.
+
+def test_alloc():
+    """Test tensor allocation on the device."""
+    shape = (1024,)
+    dtype = "float32"
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+        ctx = tvm.micro_dev(0)
+        np_tensor = np.random.uniform(size=shape).astype(dtype)
+        micro_tensor = tvm.nd.array(np_tensor, ctx)
+        tvm.testing.assert_allclose(np_tensor, micro_tensor.asnumpy())
+
 
 def test_add():
-    """Test a program which performs addition."""
+    """Test a module which performs addition."""
     shape = (1024,)
     dtype = "float32"
 
@@ -100,7 +110,7 @@ def test_add():
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
@@ -114,7 +124,7 @@ def test_add():
 
 
 def test_workspace_add():
-    """Test a program which uses a workspace."""
+    """Test a module which uses a workspace to compute an intermediate value."""
     shape = (1024,)
     dtype = "float32"
 
@@ -129,7 +139,7 @@ def test_workspace_add():
     func_name = "fadd_two_workspace"
     c_mod = tvm.build(s, [A, C], target="c", name=func_name)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
@@ -152,7 +162,7 @@ def test_graph_runtime():
     z = relay.add(xx, relay.const(1.0))
     func = relay.Function([x], z)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         mod = relay_micro_build(func, TOOLCHAIN_PREFIX)
 
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
@@ -161,6 +171,57 @@ def test_graph_runtime():
 
         tvm.testing.assert_allclose(
                 result, x_in * x_in + 1.0)
+
+
+def test_multiple_modules():
+    """Test loading multiple modules on the device simultaneously."""
+    shape = (1024,)
+    dtype = "float32"
+
+    # Construct Relay add program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    ret = relay.add(x, relay.const(1.0))
+    add_func = relay.Function([x], ret)
+    # Construct Relay subtract program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    ret = relay.subtract(x, relay.const(1.0))
+    sub_func = relay.Function([x], ret)
+
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+        add_mod = relay_micro_build(add_func, TOOLCHAIN_PREFIX)
+        sub_mod = relay_micro_build(sub_func, TOOLCHAIN_PREFIX)
+
+        x_in = np.random.uniform(size=shape[0]).astype(dtype)
+        add_mod.run(x=x_in)
+        add_result = add_mod.get_output(0).asnumpy()
+        sub_mod.run(x=x_in)
+        sub_result = sub_mod.get_output(0).asnumpy()
+
+        tvm.testing.assert_allclose(
+                add_result, x_in + 1.0)
+        tvm.testing.assert_allclose(
+                sub_result, x_in - 1.0)
+
+
+def test_interleave_sessions():
+    """Test closing and reopening sessions."""
+    shape = (1024,)
+    dtype = "float32"
+
+    sess_a = micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_b = micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    with sess_a:
+        ctx = tvm.micro_dev(0)
+        np_tensor_a = np.random.uniform(size=shape).astype(dtype)
+        micro_tensor_a = tvm.nd.array(np_tensor_a, ctx)
+    with sess_b:
+        ctx = tvm.micro_dev(0)
+        np_tensor_b = np.random.uniform(size=shape).astype(dtype)
+        micro_tensor_b = tvm.nd.array(np_tensor_b, ctx)
+    with sess_a:
+        tvm.testing.assert_allclose(np_tensor_a, micro_tensor_a.asnumpy())
+    with sess_b:
+        tvm.testing.assert_allclose(np_tensor_b, micro_tensor_b.asnumpy())
 
 
 def test_resnet_random():
@@ -173,7 +234,7 @@ def test_resnet_random():
                                        resnet_func.body.args[0],
                                        resnet_func.ret_type)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         # TODO(weberlo): Use `resnet_func` once we have libc support.
         mod = relay_micro_build(resnet_func_no_sm, TOOLCHAIN_PREFIX, params=params)
         # Generate random input.
@@ -223,7 +284,7 @@ def test_resnet_pretrained():
     func, params = relay.frontend.from_mxnet(block,
                                              shape={"data": image.shape})
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.create_session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         mod = relay_micro_build(func, TOOLCHAIN_PREFIX, params=params)
         # Execute with `image` as the input.
         mod.run(data=image)
@@ -236,7 +297,10 @@ def test_resnet_pretrained():
 
 
 if __name__ == "__main__":
+    test_alloc()
     test_add()
     test_workspace_add()
     test_graph_runtime()
+    test_multiple_modules()
+    test_interleave_sessions()
     test_resnet_random()

@@ -30,6 +30,23 @@ from .cross_compile import create_lib
 
 SUPPORTED_DEVICE_TYPES = ["host"]
 
+def create_session(device_type, toolchain_prefix):
+    if device_type not in SUPPORTED_DEVICE_TYPES:
+        raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
+
+    # First, find and compile runtime library.
+    micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
+                                    "src", "runtime", "micro", "device")
+    runtime_src_path = os.path.join(micro_device_dir, "utvm_runtime.c")
+    tmp_dir = util.tempdir()
+    runtime_lib_path = tmp_dir.relpath("utvm_runtime.obj")
+    runtime_lib_path = create_micro_lib(
+        runtime_src_path, toolchain_prefix, obj_path=runtime_lib_path)
+
+    return Session(_CreateSession(device_type, runtime_lib_path, toolchain_prefix))
+
+
 class Session:
     """MicroTVM Session
 
@@ -43,7 +60,7 @@ class Session:
           sess.create_micro_mod(c_mod)
     """
 
-    def __init__(self, device_type, toolchain_prefix):
+    def __init__(self, module):
         """Stores parameters for initializing a micro device session.
 
         The session is not initialized until the constructed object is used
@@ -60,31 +77,14 @@ class Session:
             the compiler and "riscv64-unknown-elf-ld" is used as the linker,
             etc.
         """
-        if device_type not in SUPPORTED_DEVICE_TYPES:
-            raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
-
-        self.device_type = device_type
-        self.toolchain_prefix = toolchain_prefix
+        self.module = module
+        self._enter = module["enter"]
 
     def __enter__(self):
-        # First, find and compile runtime library.
-        micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-        micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
-                                        "src", "runtime", "micro", "device")
-        runtime_src_path = os.path.join(micro_device_dir, "utvm_runtime.c")
-        tmp_dir = util.tempdir()
-        runtime_lib_path = tmp_dir.relpath("utvm_runtime.obj")
-        runtime_lib_path = create_micro_lib(
-            runtime_src_path, self.toolchain_prefix, obj_path=runtime_lib_path)
-
-        # Then, initialize the session (includes loading the compiled runtime lib).
-        _InitSession(self.device_type, runtime_lib_path, self.toolchain_prefix)
-
-        # Return `self` to bind the session as a variable in the `with` block.
-        return self
+        self._enter()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        _EndSession()
+        pass
 
 
 def create_micro_lib(src_path, toolchain_prefix, obj_path=None):

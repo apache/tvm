@@ -80,7 +80,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
-    binary_path, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
+        binary_path, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
     """Relocates sections in the binary to new addresses
 
     Parameters

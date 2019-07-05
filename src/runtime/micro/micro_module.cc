@@ -73,7 +73,6 @@ class MicroModuleNode final : public ModuleNode {
    * \param args type-erased arguments passed to the function
    */
   void RunFunction(const std::string& func_name, DevBaseOffset func_offset, const TVMArgs& args) {
-    if (!session_->valid()) return;
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -101,7 +100,7 @@ class MicroModuleNode final : public ModuleNode {
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
     const DevBaseOffset lib_hole_offset = symbol_map()[func_name_underscore.str()];
-    session_->low_level_device()->Write(lib_hole_offset, &init_impl_addr, sizeof(void*));
+    session_->DevSymbolWrite(symbol_map(), func_name_underscore.str(), init_impl_addr);
   }
 };
 
@@ -118,7 +117,6 @@ class MicroWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    if (!session_->valid()) return;
     m_->RunFunction(func_name_, func_offset_, args);
   }
 
