@@ -54,21 +54,25 @@ def run(run_func):
 
     elif env.TARGET == "pynq":
 
+        # The environment variables below should be set if we are using
+        # a tracker to obtain a remote for a test device
         tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
-        tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+        tracket_port = os.environ.get("TVM_TRACKER_PORT", None)
+        # Otherwise, we can set the variables below to directly
+        # obtain a remote from a test device
         pynq_host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
-        pynq_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", None))
+        pynq_port = os.environ.get("VTA_PYNQ_RPC_PORT", None)
         # Run device from fleet node if env variables are defined
         if tracket_host and tracket_port:
             remote = autotvm.measure.request_remote(env.TARGET,
                                                     tracket_host,
-                                                    tracket_port,
+                                                    int(tracket_port),
                                                     timeout=10000)
             run_func(env, remote)
         else:
             # Next, run on PYNQ if env variables are defined
             if pynq_host and pynq_port:
-                remote = rpc.connect(pynq_host, pynq_port)
+                remote = rpc.connect(pynq_host, int(pynq_port))
                 run_func(env, remote)
             else:
                 raise RuntimeError(
