@@ -120,7 +120,9 @@ def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
             "\".o\" suffix in \"%s\" has been replaced with \".obj\"", obj_path)
         obj_path = replace_suffix(obj_path, "obj")
 
-    options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]
+    options = ["-I" + path for path in find_include_path()]
+    options += ["-fno-stack-protector"]
+    options += ["-mcmodel=large"]
     # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
     create_lib(obj_path, src_path, options, "{}gcc".format(toolchain_prefix))
     return obj_path
