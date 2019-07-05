@@ -20,9 +20,9 @@
 package test
 
 import chisel3._
+import chisel3.experimental.MultiIOModule
 import vta.dpi._
 import accel._
-import chisel3.experimental.MultiIOModule
 
 /** VTA simulation shell.
   *
