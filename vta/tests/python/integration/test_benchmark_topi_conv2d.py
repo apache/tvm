@@ -185,6 +185,9 @@ def run_conv2d(env, remote, wl, target,
             simulator.clear_stats()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
             stats = simulator.stats()
+    elif env.TARGET == "tsim":
+        local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
+        cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
     else:
         cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
 
@@ -211,11 +214,18 @@ def run_conv2d(env, remote, wl, target,
 
     return correct, cost, stats
 
+def tsim_init():
+    """Test save/store output command"""
+    def _run(env, remote):
+        if env.TARGET == "tsim":
+            simulator.tsim_init("libvta_hw")
+    vta.testing.run(_run)
+
 def test_conv2d(device="vta"):
     def _run(env, remote):
         if device == "vta":
             target = env.target
-            if env.TARGET != "sim":
+            if env.TARGET not in ["sim", "tsim"]:
                 assert tvm.module.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)
@@ -228,5 +238,6 @@ def test_conv2d(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
+    tsim_init()
     test_conv2d(device="arm_cpu")
     test_conv2d(device="vta")
