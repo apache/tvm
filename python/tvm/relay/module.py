@@ -199,6 +199,6 @@ class Module(RelayNode):
             where expr is set as the entry point
             (wrapped in a function if necessary)
         """
-        return _module.Module_FromExpr(expr,
-                                       functions if functions is not None else {},
-                                       type_defs if type_defs is not None else {})
+        funcs = functions if functions is not None else {}
+        defs = type_defs if type_defs is not None else {}
+        return _module.Module_FromExpr(expr, funcs, defs)
