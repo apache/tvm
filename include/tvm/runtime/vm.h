@@ -60,14 +60,13 @@ enum class Opcode {
   AllocDatatype = 7U,
   AllocClosure = 8U,
   GetField = 9U,
-  If = 10U,
-  Select = 11U,
+  Ifi = 10U,
+  Selecti = 11U,
   LoadConst = 12U,
   Goto = 13U,
   GetTag = 14U,
-  Cmpi = 15U,
-  LoadConsti = 16U,
-  Fatal = 19U,
+  LoadConsti = 15U,
+  Fatal = 16U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -132,21 +131,25 @@ struct Instruction {
       RegName* packed_args;
     };
     struct /* Select Operands */ {
-      /*! \brief The condition of select. */
-      RegName select_cond;
+      /*! \brief The test value of select. */
+      RegName test;
+      /*! \brief The target value of select. */
+      RegName target;
       /*! \brief The true branch. */
-      RegName select_op1;
+      RegName op1;
       /*! \brief The false branch. */
-      RegName select_op2;
-    };
+      RegName op2;
+    } selecti;
     struct /* If Operands */ {
-      /*! \brief The register containing the condition value. */
-      RegName if_cond;
+      /*! \brief The register containing the test value. */
+      RegName test;
+      /*! \brief The register containing the target value. */
+      RegName target;
       /*! \brief The program counter offset for the true branch. */
       Index true_offset;
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
-    };
+    } ifi;
     struct /* Invoke Operands */ {
       /*! \brief The function to call. */
       Index func_index;
@@ -196,13 +199,14 @@ struct Instruction {
   };
 
   /*! \brief Construct a select instruction.
-   *  \param cond The condition register.
+   *  \param test The test register.
+   *  \param target The target register.
    *  \param op1 The true register.
    *  \param op2 The false register.
    *  \param dst The destination register.
    *  \return The select instruction.
    */
-  static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
+  static Instruction Selecti(RegName test, RegName target, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
    *  \param return_reg The register containing the return value.
    *  \return The return instruction.
@@ -212,13 +216,6 @@ struct Instruction {
    *  \return The fatal instruction.
    * */  
   static Instruction Fatal();
-  /*! \brief Construct a cmpi instruction.
-   *  \param op1 The first register.
-   *  \param op2 The second register.
-   *  \param dst The register containing the return value.
-   *  \return The cmpi instruction.
-   * */
-  static Instruction Cmpi(RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a invoke packed instruction.
    *  \param packed_index The index of the packed function.
    *  \param arity The arity of the function.
@@ -274,12 +271,13 @@ struct Instruction {
    */
   static Instruction GetTag(RegName object_reg, RegName dst);
   /*! \brief Construct an if instruction.
-   *  \param cond_reg The register containing the condition.
+   *  \param test The register containing the test value.
+   *  \param target The register containing the target value.
    *  \param true_branch The offset to the true branch.
    *  \param false_branch The offset to the false branch.
    *  \return The if instruction.
    */
-  static Instruction If(RegName cond_reg, Index true_branch, Index false_branch);
+  static Instruction Ifi(RegName test, RegName target, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.
@@ -436,6 +434,12 @@ struct VirtualMachine {
    *  \return The read object.
    */
   inline Object ReadRegister(RegName reg) const;
+
+  /*! \brief Read a VM register and cast it to int32_t
+   *  \param reg The register to read from.
+   *  \return The read scalar.
+   */
+  int32_t LoadScalarInt(RegName reg) const;
 
   /*! \brief Invoke a VM function.
    * \param func The function.

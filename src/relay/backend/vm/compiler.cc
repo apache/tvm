@@ -206,18 +206,17 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::GetTag:
       case Opcode::LoadConst:
       case Opcode::LoadConsti:
-      case Opcode::Select:
+      case Opcode::Selecti:
       case Opcode::Invoke:
       case Opcode::AllocClosure:
       case Opcode::Move:
-      case Opcode::Cmpi:
       case Opcode::InvokeClosure:
         last_register = instr.dst;
         break;
       case Opcode::InvokePacked:
         last_register = instr.packed_args[instr.arity - 1];
         break;
-      case Opcode::If:
+      case Opcode::Ifi:
       case Opcode::Ret:
       case Opcode::Goto:
       case Opcode::Fatal:
@@ -291,11 +290,12 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   void VisitExpr_(const IfNode* if_node) {
     this->VisitExpr(if_node->cond);
 
-    size_t cond_register = last_register;
+    size_t test_register = last_register;
 
+    this->Emit(Instruction::LoadConsti(1, NewRegister()));
     auto after_cond = this->instructions.size();
-
-    this->Emit(Instruction::If(cond_register, 0, 0));
+    auto target_register = this->last_register;
+    this->Emit(Instruction::Ifi(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
     size_t true_register = last_register;
@@ -322,13 +322,14 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     // we patch up the if instruction, and goto.
     auto true_offset = 1;
     auto false_offset = after_true - after_cond;
-    this->instructions[after_cond].true_offset = true_offset;
-    this->instructions[after_cond].false_offset = false_offset;
+    this->instructions[after_cond].ifi.true_offset = true_offset;
+    this->instructions[after_cond].ifi.false_offset = false_offset;
 
     // Patch the Goto.
     this->instructions[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    Emit(Instruction::Select(cond_register, true_register, false_register, NewRegister()));
+    Emit(Instruction::Selecti(test_register, target_register, true_register,
+                              false_register, NewRegister()));
   }
 
   Instruction AllocTensorFromType(const TensorTypeNode* ttype) {
@@ -571,21 +572,6 @@ struct TagCompare : ConditionNode {
   ~TagCompare() {}
 };
 
-void CompileCondition(ConditionNodePtr condition, VMCompiler* compiler) {
-  if (std::dynamic_pointer_cast<TagCompare>(condition)) {
-    auto cond = std::dynamic_pointer_cast<TagCompare>(condition);
-    auto r = CompileMatchValue(cond->obj, compiler);
-    compiler->Emit(Instruction::GetTag(r, compiler->NewRegister()));
-    auto operand1 = compiler->last_register;
-    compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
-    auto operand2 = compiler->last_register;
-    compiler->Emit(Instruction::Cmpi(operand1, operand2, compiler->NewRegister()));
-  } else if (std::dynamic_pointer_cast<VarBinding>(condition)) {
-    auto cond = std::dynamic_pointer_cast<VarBinding>(condition);
-    compiler->var_register_map[cond->var] = CompileMatchValue(cond->val, compiler);
-  }
-}
-
 using TreeNodePtr = relay::TreeNodePtr;
 using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
 
@@ -597,11 +583,16 @@ void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
     compiler->Emit(Instruction::Fatal());
   } else if (std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
     auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree);
-    CompileCondition(node->cond, compiler);
     if (std::dynamic_pointer_cast<TagCompare>(node->cond)) {
       // For Tag compariton, generate branches
-      auto cond = compiler->last_register;
-      compiler->Emit(Instruction::If(cond, 1, 0));
+      auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond);
+      auto r = CompileMatchValue(cond->obj, compiler);
+      compiler->Emit(Instruction::GetTag(r, compiler->NewRegister()));
+      auto operand1 = compiler->last_register;
+      compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
+      auto operand2 = compiler->last_register;
+
+      compiler->Emit(Instruction::Ifi(operand1, operand2, 1, 0));
       auto cond_offset = compiler->instructions.size() - 1;
       CompileTreeNode(node->then_branch, compiler);
       auto if_reg = compiler->last_register;
@@ -609,13 +600,16 @@ void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
       auto goto_offset = compiler->instructions.size() - 1;
       CompileTreeNode(node->else_branch, compiler);
       auto else_reg = compiler->last_register;
-      compiler->Emit(Instruction::Select(cond, if_reg, else_reg, compiler->NewRegister()));
+      compiler->Emit(Instruction::Selecti(operand1, operand2, if_reg,
+                                          else_reg, compiler->NewRegister()));
       auto else_offset = compiler->instructions.size() - 1;
       // Fixing offsets
-      compiler->instructions[cond_offset].false_offset = goto_offset - cond_offset + 1;
+      compiler->instructions[cond_offset].ifi.false_offset = goto_offset - cond_offset + 1;
       compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset;
     } else {
       // For other non-branch conditions, move to then_branch directly
+      auto cond = std::dynamic_pointer_cast<VarBinding>(node->cond);
+      compiler->var_register_map[cond->var] = CompileMatchValue(cond->val, compiler);
       CompileTreeNode(node->then_branch, compiler);
     }
   }

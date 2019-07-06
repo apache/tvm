@@ -58,15 +58,10 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::Move:
       this->from = instr.from;
       return;
-    case Opcode::Cmpi:
-      this->cmpi = instr.cmpi;
-      return;
     case Opcode::Fatal:
       return;
-    case Opcode::Select:
-      this->select_cond = instr.select_cond;
-      this->select_op1 = instr.select_op1;
-      this->select_op2 = instr.select_op2;
+    case Opcode::Selecti:
+      this->selecti = instr.selecti;
       return;
     case Opcode::Ret:
       this->result = instr.result;
@@ -107,10 +102,8 @@ Instruction::Instruction(const Instruction& instr) {
       this->num_args = instr.num_args;
       this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
       return;
-    case Opcode::If:
-      this->if_cond = instr.if_cond;
-      this->true_offset = instr.true_offset;
-      this->false_offset = instr.false_offset;
+    case Opcode::Ifi:
+      this->ifi = instr.ifi;
       return;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
@@ -150,18 +143,13 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::Move:
       this->from = instr.from;
       return *this;
-    case Opcode::Cmpi:
-      this->cmpi = instr.cmpi;
-      return *this;
     case Opcode::Fatal:
       return *this;
     case Opcode::LoadConsti:
       this->load_consti = instr.load_consti;
       return *this;
-    case Opcode::Select:
-      this->select_cond = instr.select_cond;
-      this->select_op1 = instr.select_op1;
-      this->select_op2 = instr.select_op2;
+    case Opcode::Selecti:
+      this->selecti = instr.selecti;
       return *this;
     case Opcode::Ret:
       this->result = instr.result;
@@ -207,10 +195,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       FreeIf(this->invoke_args_registers);
       this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
       return *this;
-    case Opcode::If:
-      this->if_cond = instr.if_cond;
-      this->true_offset = instr.true_offset;
-      this->false_offset = instr.false_offset;
+    case Opcode::Ifi:
+      this->ifi = instr.ifi;
       return *this;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
@@ -235,15 +221,14 @@ Instruction& Instruction::operator=(const Instruction& instr) {
 Instruction::~Instruction() {
   switch (this->op) {
     case Opcode::Move:
-    case Opcode::Select:
+    case Opcode::Selecti:
     case Opcode::Ret:
     case Opcode::AllocTensorReg:
-    case Opcode::If:
+    case Opcode::Ifi:
     case Opcode::LoadConst:
     case Opcode::GetField:
     case Opcode::GetTag:
     case Opcode::Goto:
-    case Opcode::Cmpi:
     case Opcode::LoadConsti:
     case Opcode::Fatal:
       return;
@@ -281,15 +266,6 @@ Instruction Instruction::Ret(RegName result) {
 Instruction Instruction::Fatal() {
   Instruction instr;
   instr.op = Opcode::Fatal;
-  return instr;
-}
-
-Instruction Instruction::Cmpi(RegName op1, RegName op2, RegName dst) {
-  Instruction instr;
-  instr.op = Opcode::Cmpi;
-  instr.dst = dst;
-  instr.cmpi.op1 = op1;
-  instr.cmpi.op2 = op2;
   return instr;
 }
 
@@ -374,22 +350,24 @@ Instruction Instruction::GetTag(RegName object, RegName dst) {
   return instr;
 }
 
-Instruction Instruction::If(RegName cond, Index true_branch, Index false_branch) {
+Instruction Instruction::Ifi(RegName test, RegName target, Index true_branch, Index false_branch) {
   Instruction instr;
-  instr.op = Opcode::If;
-  instr.if_cond = cond;
-  instr.true_offset = true_branch;
-  instr.false_offset = false_branch;
+  instr.op = Opcode::Ifi;
+  instr.ifi.test = test;
+  instr.ifi.target = target;
+  instr.ifi.true_offset = true_branch;
+  instr.ifi.false_offset = false_branch;
   return instr;
 }
 
-Instruction Instruction::Select(RegName cond, RegName op1, RegName op2, RegName dst) {
+Instruction Instruction::Selecti(RegName test, RegName target, RegName op1, RegName op2, RegName dst) {
   Instruction instr;
-  instr.op = Opcode::Select;
+  instr.op = Opcode::Selecti;
   instr.dst = dst;
-  instr.select_cond = cond;
-  instr.select_op1 = op1;
-  instr.select_op2 = op2;
+  instr.selecti.test = test;
+  instr.selecti.target = target;
+  instr.selecti.op1 = op1;
+  instr.selecti.op2 = op2;
   return instr;
 }
 
@@ -498,10 +476,6 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "fatal";
       break;
     }
-    case Opcode::Cmpi: {
-      os << "cmpi $" << instr.dst << " " << instr.cmpi.op1 << " " << instr.cmpi.op2;
-      break;
-    }
     case Opcode::InvokePacked: {
       os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
          << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
@@ -535,9 +509,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << ")";
       break;
     }
-    case Opcode::If: {
-      os << "if " << "$" << instr.if_cond << " " << instr.true_offset << " "
-         << instr.false_offset;
+    case Opcode::Ifi: {
+      os << "ifi " << "$" << instr.ifi.test << " " << instr.ifi.target << " " 
+         << instr.ifi.true_offset << " " << instr.ifi.false_offset;
       break;
     }
     case Opcode::Invoke: {
@@ -573,9 +547,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "goto " << instr.pc_offset;
       break;
     }
-    case Opcode::Select: {
-      os << "select $" << instr.dst << " $" << instr.select_cond << " $"
-         << instr.select_op1 << " $" << instr.select_op2;
+    case Opcode::Selecti: {
+      os << "selecti $" << instr.dst << " $" << instr.selecti.test << " $" << instr.selecti.target
+         << " $" << instr.selecti.op1 << " $" << instr.selecti.op2;
       break;
     }
     default:
@@ -690,6 +664,21 @@ inline Object VirtualMachine::ReadRegister(Index r) const {
   return frames.back().register_file[r];
 }
 
+inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
+  int32_t result;
+  const auto& obj = ReadRegister(r);
+  NDArray array = ToNDArray(obj).CopyTo({kDLCPU, 0});
+
+  if (array->dtype.bits <= 8) {
+    result = reinterpret_cast<int8_t*>(array->data)[0];
+  } else if (array->dtype.bits <= 16) {
+    result = reinterpret_cast<int16_t*>(array->data)[0];          
+  } else {
+    result = reinterpret_cast<int32_t*>(array->data)[0];
+  }
+  return result;
+}
+
 void VirtualMachine::Run() {
   CHECK(this->code);
   this->pc = 0;
@@ -753,27 +742,6 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
-      case Opcode::Cmpi: {
-        auto op1_obj = ReadRegister(instr.cmpi.op1);
-        auto op2_obj = ReadRegister(instr.cmpi.op2);
-
-        NDArray op1 = ToNDArray(op1_obj).CopyTo({kDLCPU, 0});
-        NDArray op2 = ToNDArray(op2_obj).CopyTo({kDLCPU, 0});
-        auto op1_val = reinterpret_cast<int32_t*>(op1->data)[0];
-        auto op2_val = reinterpret_cast<int32_t*>(op2->data)[0];
-
-        if (op1_val == op2_val) {
-          auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
-          reinterpret_cast<int32_t*>(tensor->data)[0] = 1;
-          WriteRegister(instr.dst, Object::Tensor(tensor));
-        } else {
-          auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
-          reinterpret_cast<int32_t*>(tensor->data)[0] = 0;
-          WriteRegister(instr.dst, Object::Tensor(tensor));
-        }
-        pc++;
-        goto main_loop;
-      }
       case Opcode::InvokeClosure: {
         auto object = ReadRegister(instr.closure);
         const auto& closure = object.AsClosure();
@@ -817,21 +785,16 @@ void VirtualMachine::Run() {
         pc += instr.pc_offset;
         goto main_loop;
       }
-      case Opcode::If: {
-        // How do we do this efficiently?
-        DLContext cpu_ctx;
-        cpu_ctx.device_type = kDLCPU;
-        cpu_ctx.device_id = 0;
+      case Opcode::Ifi: {
+        int32_t test_val = LoadScalarInt(instr.ifi.test);
+        int32_t target_val = LoadScalarInt(instr.ifi.target);
 
-        const auto& cond = ReadRegister(instr.if_cond);
-        NDArray cpu_array = ToNDArray(cond).CopyTo(cpu_ctx);
-        // CHECK_EQ(cpu_array->dtype, Bool());
-        bool branch = reinterpret_cast<uint8_t*>(cpu_array->data)[0];
-
-        if (branch) {
-          pc += instr.true_offset;
+        if (test_val == target_val) {
+          CHECK_NE(instr.ifi.true_offset, 0);
+          pc += instr.ifi.true_offset;
         } else {
-          pc += instr.false_offset;
+          CHECK_NE(instr.ifi.false_offset, 0);
+          pc += instr.ifi.false_offset;
         }
 
         goto main_loop;
@@ -886,21 +849,15 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
-      case Opcode::Select: {
-        DLContext cpu_ctx;
-        cpu_ctx.device_type = kDLCPU;
-        cpu_ctx.device_id = 0;
+      case Opcode::Selecti: {
+        int32_t test_val = LoadScalarInt(instr.selecti.test);
+        int32_t target_val = LoadScalarInt(instr.selecti.target);
 
-        auto cond = ReadRegister(instr.select_cond);
-        NDArray cpu_array = ToNDArray(cond).CopyTo(cpu_ctx);
-        // CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
-        bool branch = reinterpret_cast<uint8_t*>(cpu_array->data)[0];
-
-        if (branch) {
-          auto op1 = ReadRegister(instr.select_op1);
+        if (test_val == target_val) {
+          auto op1 = ReadRegister(instr.selecti.op1);
           WriteRegister(instr.dst, op1);
         } else {
-          auto op2 = ReadRegister(instr.select_op2);
+          auto op2 = ReadRegister(instr.selecti.op2);
           WriteRegister(instr.dst, op2);
         }
         pc++;
