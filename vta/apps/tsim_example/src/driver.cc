@@ -45,7 +45,7 @@ class DPILoader {
   void Init(Module module) {
     mod_ = module;
     dpi_ = this->Get();
-    dpi_->SimLaunch(wait_cycles_);
+    dpi_->SimLaunch();
     dpi_->SimWait();
   }
 
@@ -58,8 +58,6 @@ class DPILoader {
     return &inst;
   }
 
-  // wait cycles
-  uint32_t wait_cycles_{100000000};
   // TVM module
   Module mod_;
   // DPI Module

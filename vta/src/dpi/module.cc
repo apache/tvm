@@ -243,9 +243,9 @@ class DPIModule final : public DPIModuleNode {
     CHECK(ftsim_ != nullptr);
   }
 
-  void SimLaunch(uint64_t max_cycles) {
-    auto frun = [this, max_cycles]() {
-      (*ftsim_)(max_cycles);
+  void SimLaunch() {
+    auto frun = [this]() {
+      (*ftsim_)();
     };
     tsim_thread_ = std::thread(frun);
   }

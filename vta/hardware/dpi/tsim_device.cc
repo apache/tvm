@@ -87,7 +87,7 @@ void vl_finish(const char* filename, int linenum, const char* hier) {
   Verilated::gotFinish(true);
 }
 
-int VTADPISim(uint64_t max_cycles) {
+int VTADPISim() {
   uint64_t trace_count = 0;
   Verilated::flushCall();
   Verilated::gotFinish(false);
