@@ -24,7 +24,6 @@ You can use make function to build the IR node.
 """
 from __future__ import absolute_import as _abs
 from ._ffi.function import _init_api
-from ._ffi.runtime_ctypes import TVMType
 
 
 def range_by_min_extent(min_value, extent):
