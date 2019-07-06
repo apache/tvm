@@ -29,7 +29,7 @@ from tvm.relay.testing import ctx_list
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
     mod = _transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
 

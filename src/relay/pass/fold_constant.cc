@@ -161,7 +161,7 @@ class ConstantFolder : public ExprMutator {
     auto mod = ModuleNode::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup(mod->entry_func);
+    auto entry_func = mod->Lookup("main");
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return ValueToExpr(executor_(expr));
   }

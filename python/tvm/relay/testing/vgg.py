@@ -124,8 +124,8 @@ def get_workload(batch_size,
 
     Returns
     -------
-    net : nnvm.Symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a VGG network.
 
     params : dict of str to NDArray
         The parameters.

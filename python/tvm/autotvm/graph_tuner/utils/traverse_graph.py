@@ -85,7 +85,7 @@ def _infer_type(node):
     """A method to infer the type of a relay expression."""
     mod = relay.Module.from_expr(node)
     mod = transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(node, relay.Function) else entry.body
 
 

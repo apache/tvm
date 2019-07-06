@@ -142,7 +142,7 @@ class BaseGraphTuner(object):
 
         # Generate workload and schedule dictionaries.
         if isinstance(graph, relay.Module):
-            graph = graph[graph.entry_func]
+            graph = graph["main"]
 
         if isinstance(graph, relay.expr.Function):
             node_dict = {}

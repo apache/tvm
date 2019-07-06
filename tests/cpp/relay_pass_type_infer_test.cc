@@ -35,7 +35,7 @@ TEST(Relay, SelfReference) {
   auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
   auto mod = relay::ModuleNode::FromExpr(fx);
   mod = relay::transform::InferType()(mod);
-  auto type_fx = mod->Lookup(mod->entry_func);
+  auto type_fx = mod->Lookup("main");
 
   auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
   CHECK(AlphaEqual(type_fx->checked_type(), expected));

@@ -110,5 +110,5 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
 
     mod = relay.Module.from_expr(updated_expr)
     mod = transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(updated_expr, relay.Function) else entry.body

@@ -25,7 +25,7 @@ def test_dup_type():
     b = relay.Var("b", t)
     mod = relay.Module.from_expr(make_id(b))
     mod = transform.InferType()(mod)
-    inferred = mod[mod.entry_func].body
+    inferred = mod["main"].body
     assert inferred.checked_type == relay.TupleType([t, t])
 
 
@@ -39,9 +39,9 @@ def test_id_type():
     make_id = relay.Var("make_id", relay.FuncType([b], id_type(b), [b]))
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    mod[mod.entry_func] = relay.Function([], make_id(b))
+    mod["main"] = relay.Function([], make_id(b))
     mod = transform.InferType()(mod)
-    assert mod[mod.entry_func].body.checked_type == id_type(t)
+    assert mod["main"].body.checked_type == id_type(t)
 
 
 if __name__ == "__main__":

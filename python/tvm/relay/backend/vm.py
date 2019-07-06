@@ -45,7 +45,7 @@ def optimize(mod):
     ret : tvm.relay.Module
         The optimized module.
     """
-    main_func = mod[mod.entry_func]
+    main_func = mod["main"]
 
     opt_passes = []
     if not main_func.params and isinstance(main_func.body, GlobalVar):
@@ -134,8 +134,8 @@ class VMExecutor(Executor):
         expr = expr if expr else self.mod
         assert expr, "either expr or self.mod should be not null."
         if isinstance(expr, Expr):
-            self.mod[self.mod.entry_func] = expr
-        main = self.mod[self.mod.entry_func]
+            self.mod["main"] = expr
+        main = self.mod["main"]
 
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)

@@ -434,7 +434,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = Optimize(relay_module, targets_, params);
     CHECK(relay_module.defined());
     // Get the updated function.
-    func = relay_module->Lookup(relay_module->entry_func->name_hint);
+    func = relay_module->Lookup("main");
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());

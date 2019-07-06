@@ -24,7 +24,7 @@ from tvm.relay.testing import ctx_list
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
     mod = relay.transform.InferType()(mod)
-    return mod[mod.entry_func]
+    return mod["main"]
 
 
 def sigmoid(x):

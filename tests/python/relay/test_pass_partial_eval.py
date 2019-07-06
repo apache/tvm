@@ -41,7 +41,7 @@ def run_opt_pass(expr, passes):
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
        mod = seq(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
@@ -57,10 +57,10 @@ def dcpe(expr, mod=None, grad=False):
         expr = gradient(expr)
     if mod:
         assert isinstance(expr, Function)
-        mod[mod.entry_func] = expr
+        mod["main"] = expr
         seq = transform.Sequential(passes)
         mod = seq(mod)
-        return mod[mod.entry_func]
+        return mod["main"]
     return run_opt_pass(expr, passes)
 
 
@@ -192,8 +192,8 @@ def test_map():
     orig = p.map(f, p.cons(const(1), p.cons(const(2), p.cons(const(3), p.nil()))))
     expected = p.cons((const(1)), p.cons((const(2)), p.cons((const(3)), p.nil())))
     expected = Function([], expected)
-    mod[mod.entry_func] = expected
-    expected = mod[mod.entry_func]
+    mod["main"] = expected
+    expected = mod["main"]
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
     assert alpha_equal(res.body, expected.body)
@@ -206,8 +206,8 @@ def test_loop():
     loop = GlobalVar("loop")
     mod[loop] = Function([x], loop(x), t, [t])
     expected = Call(loop, [const(1)])
-    mod[mod.entry_func] = Function([], expected)
-    expected = mod[mod.entry_func].body
+    mod["main"] = Function([], expected)
+    expected = mod["main"].body
     call = Function([], loop(const(1)))
     res = dcpe(call, mod=mod)
     assert alpha_equal(res.body, expected)

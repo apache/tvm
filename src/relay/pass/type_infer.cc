@@ -774,7 +774,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
     // type check it anyway; afterwards we can just recover type
     // from the type-checked function to avoid doing unnecessary work.
 
-    Function func = mod->Lookup(mod->entry_func);
+    Function func = mod->Lookup("main");
 
     // FromExpr wraps a naked expression as a function, we will unbox
     // it here.
@@ -784,7 +784,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
       return func->body;
     }
   } else {
-    auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
+    auto e = TypeInferencer(mod_ref, mod_ref->GetGlobalVar("main")).Infer(expr);
     CHECK(WellFormed(e));
     auto free_tvars = FreeTypeVars(e, mod_ref);
     CHECK(free_tvars.size() == 0)

@@ -20,11 +20,10 @@ from tvm.relay import transform
 from model_zoo import c2_squeezenet, relay_squeezenet
 
 
-def compare_graph(lhs_mod, func):
-    rhs_mod = relay.Module.from_expr(func)
+def compare_graph(lhs_mod, rhs_mod):
+    lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
-    assert relay.analysis.alpha_equal(lhs_mod[lhs_mod.entry_func],
-                                      rhs_mod[rhs_mod.entry_func])
+    assert relay.analysis.alpha_equal(lhs_mod["main"], rhs_mod["main"])
 
 
 def test_squeeze_net():
@@ -32,8 +31,8 @@ def test_squeeze_net():
     dtype_dict = {'data': 'float32'}
     mod, _, = relay.frontend.from_caffe2(
         c2_squeezenet.init_net, c2_squeezenet.predict_net, shape_dict, dtype_dict)
-    relay_func, _ = relay_squeezenet()
-    compare_graph(mod, relay_func)
+    relay_mod, _ = relay_squeezenet()
+    compare_graph(mod, relay_mod)
 
 
 if __name__ == '__main__':
