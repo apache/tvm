@@ -27,7 +27,6 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-#include "compute_expr.h"
 
 namespace tvm {
 namespace arith {
@@ -127,18 +126,18 @@ class LinearEqDetector
   Expr AddCombine(Expr a, Expr b) {
     if (!a.defined()) return b;
     if (!b.defined()) return a;
-    return ComputeExpr<Add>(a, b);
+    return a + b;
   }
   Expr SubCombine(Expr a, Expr b) {
     // Check b first in case they are both undefined
     if (!b.defined()) return a;
     if (!a.defined()) return -b;
-    return ComputeExpr<Sub>(a, b);
+    return a - b;
   }
   Expr MulCombine(Expr a, Expr b) {
     if (!a.defined()) return a;
     if (!b.defined()) return b;
-    return ComputeExpr<Mul>(a, b);
+    return a * b;
   }
 };
 
