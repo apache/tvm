@@ -18,8 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- *
  * Lower warp memory to use local memory
  * and shuffle intrinsics.
  *

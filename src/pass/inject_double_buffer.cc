@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,6 +26,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/expr_operator.h>
 #include "ir_util.h"
 #include "../arithmetic/compute_expr.h"
 
@@ -100,8 +101,8 @@ class DoubleBufferInjector : public IRMutator {
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      it->second.stride = arith::ComputeReduce<Mul>
-          (op->extents, Expr()) * op->type.lanes();
+      it->second.stride = arith::ComputeReduce<Mul>(
+          op->extents, Expr()) * op->type.lanes();
       Stmt stmt = IRMutator::Mutate_(op, s);
       op = stmt.as<Allocate>();
       Array<Expr> new_extents{make_const(op->extents[0].type(), 2)};
@@ -135,11 +136,11 @@ class DoubleBufferInjector : public IRMutator {
             << "It is better to split with multiple of 2";
         CHECK(is_zero(old_loop->min));
         Expr zero = old_loop->min;
-        Expr new_ext = arith::ComputeExpr<Sub>(
-            old_loop->extent, make_const(old_loop->loop_var.type(), 1));
+        Expr new_ext =
+            old_loop->extent - make_const(old_loop->loop_var.type(), 1);
         Expr factor = make_const(new_ext.type(), split_loop_);
-        Expr outer_ext = arith::ComputeExpr<Div>(new_ext, factor);
-        Expr tail_base = arith::ComputeExpr<Mul>(outer_ext, factor);
+        Expr outer_ext = new_ext / factor;
+        Expr tail_base = outer_ext * factor;
         Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.type());
         std::unordered_map<const Variable*, Expr> vmap;
         std::vector<Stmt> loop_seq;
