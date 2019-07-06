@@ -69,12 +69,18 @@ def test_save_load_out():
         x_nd = tvm.nd.array(x_np, ctx)
         y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
 
+        if env.TARGET in ["sim", "tsim"]:
+            simulator.clear_stats()
+
         f(x_nd, y_nd)
 
         np.testing.assert_equal(y_np, y_nd.asnumpy())
 
-        if env.TARGET == "tsim":
-            print("Load/store test took {} clock cycles".format(simulator.tsim_cycles()))
+        if env.TARGET in ["sim", "tsim"]:
+            sim_stats = simulator.stats()
+            print("Save load execution statistics:")
+            for k, v in sim_stats.items():
+                print("\t{:<16}: {:>16}".format(k, v))
 
     vta.testing.run(_run)
 
@@ -132,12 +138,18 @@ def test_padded_load():
         x_nd = tvm.nd.array(x_np, ctx)
         y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
 
+        if env.TARGET in ["sim", "tsim"]:
+            simulator.clear_stats()
+
         f(x_nd, y_nd)
 
         np.testing.assert_equal(y_np, y_nd.asnumpy())
 
-        if env.TARGET == "tsim":
-            print("Padded load test took {} clock cycles".format(simulator.tsim_cycles()))
+        if env.TARGET in ["sim", "tsim"]:
+            sim_stats = simulator.stats()
+            print("Padded load execution statistics:")
+            for k, v in sim_stats.items():
+                print("\t{:<16}: {:>16}".format(k, v))
 
     vta.testing.run(_run)
 
@@ -207,17 +219,18 @@ def test_gemm():
             y_np = np.right_shift(y_np, 8)
             y_np = np.clip(y_np, 0, (1<<(env.INP_WIDTH-1))-1).astype(y.dtype)
 
-            if env.TARGET == "sim":
+            if env.TARGET in ["sim", "tsim"]:
                 simulator.clear_stats()
-                f(x_nd, w_nd, y_nd)
-                print(simulator.stats())
-            else:
-                f(x_nd, w_nd, y_nd)
+
+            f(x_nd, w_nd, y_nd)
 
             np.testing.assert_equal(y_np, y_nd.asnumpy())
 
-            if env.TARGET == "tsim":
-                print("GEMM schedule:{} test took {} clock cycles".format(name, simulator.tsim_cycles()))
+            if env.TARGET in ["sim", "tsim"]:
+                sim_stats = simulator.stats()
+                print("GEMM schedule:{} execution statistics:".format(name))
+                for k, v in sim_stats.items():
+                    print("\t{:<16}: {:>16}".format(k, v))
 
         def test_schedule1():
             # default schedule with no smt
@@ -365,6 +378,9 @@ def test_alu():
             res_nd = tvm.nd.array(
                 np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
 
+            if env.TARGET in ["sim", "tsim"]:
+                simulator.clear_stats()
+
             if use_imm:
                 f(a_nd, res_nd)
             else:
@@ -373,8 +389,11 @@ def test_alu():
 
             np.testing.assert_equal(res_np, res_nd.asnumpy())
 
-            if env.TARGET == "tsim":
-                print("ALU {} imm:{} test took {} clock cycles".format(test_name, use_imm, simulator.tsim_cycles()))
+            if env.TARGET in ["sim", "tsim"]:
+                sim_stats = simulator.stats()
+                print("ALU {} execution statistics:".format(test_name))
+                for k, v in sim_stats.items():
+                    print("\t{:<16}: {:>16}".format(k, v))
 
         check_alu(lambda x, y: x << y, np.left_shift, use_imm=True, test_name="SHL")
         check_alu(tvm.max, np.maximum, use_imm=True, test_name="MAX")
@@ -439,12 +458,18 @@ def test_relu():
         res_nd = tvm.nd.array(
             np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
 
+        if env.TARGET in ["sim", "tsim"]:
+            simulator.clear_stats()
+
         f(a_nd, res_nd)
 
         np.testing.assert_equal(res_np, res_nd.asnumpy())
 
-        if env.TARGET == "tsim":
-            print("Relu test took {} clock cycles".format(simulator.tsim_cycles()))
+        if env.TARGET in ["sim", "tsim"]:
+            sim_stats = simulator.stats()
+            print("Relu execution statistics:")
+            for k, v in sim_stats.items():
+                print("\t{:<16}: {:>16}".format(k, v))
 
     vta.testing.run(_run)
 
@@ -505,12 +530,16 @@ def test_shift_and_scale():
 
         if env.TARGET in ["sim", "tsim"]:
             simulator.clear_stats()
-            f(a_nd, res_nd)
-            print("Shift/scale stats:", simulator.stats())
-        else:
-            f(a_nd, res_nd)
+
+        f(a_nd, res_nd)
 
         np.testing.assert_equal(res_np, res_nd.asnumpy())
+
+        if env.TARGET in ["sim", "tsim"]:
+            sim_stats = simulator.stats()
+            print("Shift and scale execution statistics:")
+            for k, v in sim_stats.items():
+                print("\t{:<16}: {:>16}".format(k, v))
 
     vta.testing.run(_run)
 
@@ -528,10 +557,10 @@ def test_runtime_array():
 
 
 if __name__ == "__main__":
-    #test_runtime_array()
-    #test_save_load_out()
-    #test_padded_load()
-    #test_gemm()
-    #test_alu()
-    #test_relu()
+    test_runtime_array()
+    test_save_load_out()
+    test_padded_load()
+    test_gemm()
+    test_alu()
+    test_relu()
     test_shift_and_scale()
