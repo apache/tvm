@@ -90,8 +90,8 @@ def test_const_fold4():
     assert isinstance(x2, tvm.expr.IntImm) and x2.value == 9
     x3 = x2 / 3
     assert isinstance(x3, tvm.expr.IntImm) and x3.value == 3
-    x4 = x3 + 0.5
-    assert isinstance(x4, tvm.expr.FloatImm) and x4.value == 3.5
+    x4 = x3 + 0.55
+    assert isinstance(x4, tvm.expr.FloatImm) and abs(x4.value - 3.55) < 1e-6
     x5 = tvm.ceil(x4)
     assert isinstance(x5, tvm.expr.FloatImm) and x5.value == 4
     x6 = x5.astype('int')
