@@ -44,7 +44,7 @@ def main():
     parser.add_argument("--update", action="store_true",
                         help="Print out the json option.")
     parser.add_argument("--ldflags", action="store_true",
-                        help="print the cflags")
+                        help="print the ldflags")
     parser.add_argument("--cfg-json", action="store_true",
                         help="print all the config json")
     parser.add_argument("--save-cfg-json", type=str, default="",
@@ -79,9 +79,35 @@ def main():
                         help="returns log of accum buffer size in B")
     parser.add_argument("--get-outbuffsize", action="store_true",
                         help="returns log of output buffer size in B")
-    parser.add_argument("--get-fpgafreq", action="store_true",
+    parser.add_argument("--get-inp-mem-banks", action="store_true",
+                        help="returns number of input memory banks that have an axi-width read/write port")
+    parser.add_argument("--get-inp-mem-width", action="store_true",
+                        help="returns input memory read/write port width")
+    parser.add_argument("--get-inp-mem-depth", action="store_true",
+                        help="returns input memory depth")
+    parser.add_argument("--get-inp-mem-axi-ratio", action="store_true",
+                        help="returns ratio between input memory bus width (for whole tensor element) and axi width")
+    parser.add_argument("--get-wgt-mem-banks", action="store_true",
+                        help="returns number of weight memory banks that have an axi-width read/write port")
+    parser.add_argument("--get-wgt-mem-width", action="store_true",
+                        help="returns weight memory read/write port width")
+    parser.add_argument("--get-wgt-mem-depth", action="store_true",
+                        help="returns weight memory depth")
+    parser.add_argument("--get-wgt-mem-axi-ratio", action="store_true",
+                        help="returns ratio between weight memory bus width (for whole tensor element) and axi width")
+    parser.add_argument("--get-out-mem-banks", action="store_true",
+                        help="returns number of output memory banks that have an axi-width read/write port")
+    parser.add_argument("--get-out-mem-width", action="store_true",
+                        help="returns output memory read/write port width")
+    parser.add_argument("--get-out-mem-depth", action="store_true",
+                        help="returns output memory depth")
+    parser.add_argument("--get-out-mem-axi-ratio", action="store_true",
+                        help="returns ratio between output memory bus width (for whole tensor element) and axi width")
+    parser.add_argument("--get-fpga-dev", action="store_true",
+                        help="returns FPGA device target")
+    parser.add_argument("--get-fpga-freq", action="store_true",
                         help="returns FPGA frequency")
-    parser.add_argument("--get-fpgaper", action="store_true",
+    parser.add_argument("--get-fpga-per", action="store_true",
                         help="returns HLS target clock period")
     args = parser.parse_args()
 
@@ -180,11 +206,50 @@ def main():
     if args.get_accbuffsize:
         print(cfg["LOG_ACC_BUFF_SIZE"])
 
-    if args.get_fpgafreq:
-        print(cfg["HW_FREQ"])
+    if args.get_inp_mem_banks:
+        print(pkg.inp_mem_banks)
 
-    if args.get_fpgaper:
-        print(cfg["HW_CLK_TARGET"])
+    if args.get_inp_mem_width:
+        print(pkg.inp_mem_width)
+
+    if args.get_inp_mem_depth:
+        print(pkg.inp_mem_depth)
+
+    if args.get_inp_mem_axi_ratio:
+        print(pkg.inp_mem_axi_ratio)
+
+    if args.get_wgt_mem_banks:
+        print(pkg.wgt_mem_banks)
+
+    if args.get_wgt_mem_width:
+        print(pkg.wgt_mem_width)
+
+    if args.get_wgt_mem_depth:
+        print(pkg.wgt_mem_depth)
+
+    if args.get_wgt_mem_axi_ratio:
+        print(pkg.wgt_mem_axi_ratio)
+
+    if args.get_out_mem_banks:
+        print(pkg.out_mem_banks)
+
+    if args.get_out_mem_width:
+        print(pkg.out_mem_width)
+
+    if args.get_out_mem_depth:
+        print(pkg.out_mem_depth)
+
+    if args.get_out_mem_axi_ratio:
+        print(pkg.out_mem_axi_ratio)
+
+    if args.get_fpga_dev:
+        print(pkg.fpga_device)
+
+    if args.get_fpga_freq:
+        print(pkg.fpga_freq)
+
+    if args.get_fpga_per:
+        print(pkg.fpga_per)
 
 if __name__ == "__main__":
     main()

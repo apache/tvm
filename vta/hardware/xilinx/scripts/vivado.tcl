@@ -37,55 +37,18 @@ if { [llength $argv] eq 2 } {
 
 # Get the VTA configuration paramters
 set ::target        [exec python $vta_config --target]
-set ::clock_freq    [exec python $vta_config --get-fpgafreq]
-set ::inp_width     [exec python $vta_config --get-inpwidth]
-set ::wgt_width     [exec python $vta_config --get-wgtwidth]
-set ::acc_width     [exec python $vta_config --get-accwidth]
-set ::out_width     [exec python $vta_config --get-outwidth]
-set ::batch         [exec python $vta_config --get-batch]
-set ::block_in      [exec python $vta_config --get-blockin]
-set ::block_out     [exec python $vta_config --get-blockout]
-set ::bus_width     [exec python $vta_config --get-buswidth]
-set ::uop_buff_size [exec python $vta_config --get-uopbuffsize]
-set inp_buff_size [exec python $vta_config --get-inpbuffsize]
-set wgt_buff_size [exec python $vta_config --get-wgtbuffsize]
-set out_buff_size [exec python $vta_config --get-accbuffsize]
+set ::clock_freq    [exec python $vta_config --get-fpga-freq]
 
-# Max bus width supported by Vivado
-set max_bus_width 1024
-
-# Derive input mem parameters
-set inp_mem_width [expr {(1 << ($::inp_width + $::block_in + $::batch))}]
-set ::inp_bus_width $max_bus_width
-set ::inp_part [expr $inp_mem_width / $::inp_bus_width]
-if {[expr $::inp_part == 0]} {
-  set ::inp_part 1
-  set ::inp_bus_width $inp_mem_width
-}
-set inp_mem_size [expr 1 << $inp_buff_size]
-set ::inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $::inp_part)]
-
-# Derive weight mem parameters
-set wgt_mem_width [expr {(1 << ($::wgt_width + $::block_in + $::block_out))}]
-set ::wgt_bus_width $max_bus_width
-set ::wgt_part [expr $wgt_mem_width / $::wgt_bus_width]
-if {[expr $::wgt_part == 0]} {
-  set ::wgt_part 1
-  set ::wgt_bus_width $wgt_mem_width
-}
-set wgt_mem_size [expr 1 << $wgt_buff_size]
-set ::wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $::wgt_part)]
-
-# Derive output mem parameters
-set out_mem_width [expr {(1 << ($::out_width + $::block_out + $::batch))}]
-set ::out_bus_width $max_bus_width
-set ::out_part [expr $out_mem_width / $::out_bus_width]
-if {[expr $::out_part == 0]} {
-  set ::out_part 1
-  set ::out_bus_width $out_mem_width
-}
-set out_mem_size [expr 1 << $out_buff_size]
-set ::out_mem_depth [expr $out_mem_size * 8 / ($out_mem_width * $::out_part)]
+# SRAM dimensions
+set ::inp_part      [exec python $vta_config --get-inp-mem-banks]
+set ::inp_mem_width [exec python $vta_config --get-inp-mem-width]
+set ::inp_mem_depth [exec python $vta_config --get-inp-mem-depth]
+set ::wgt_part      [exec python $vta_config --get-wgt-mem-banks]
+set ::wgt_mem_width [exec python $vta_config --get-wgt-mem-width]
+set ::wgt_mem_depth [exec python $vta_config --get-wgt-mem-depth]
+set ::out_part      [exec python $vta_config --get-out-mem-banks]
+set ::out_mem_width [exec python $vta_config --get-out-mem-width]
+set ::out_mem_depth [exec python $vta_config --get-out-mem-depth]
 
 # Paths to IP library of VTA modules
 set proj_name vta
@@ -98,13 +61,13 @@ set compute_ip "${ip_path}/vta_compute/soln/impl/ip/xilinx_com_hls_compute_1_0.z
 set store_ip "${ip_path}/vta_store/soln/impl/ip/xilinx_com_hls_store_1_0.zip"
 
 # Create custom project
-if { $::target eq "pynq" } {
-  create_project -force $proj_name $proj_path -part xc7z020clg484-1
-} elseif { $::target eq "ultra96" } {
-  create_project -force $proj_name $proj_path -part xczu3eg-sbva484-1-e
+set device [exec python $vta_config --get-fpga-dev]
+create_project -force $proj_name $proj_path -part $device
+
+# Set project parameters based on targeted board
+if { $::target eq "ultra96" } {
   set_property BOARD_PART em.avnet.com:ultra96:part0:1.0 [current_project]
 } elseif { $::target eq "zcu102" } {
-  create_project -force $proj_name $proj_path -part xczu9eg-ffvb1156-2-e
   set_property BOARD_PART xilinx.com:zcu102:part0:3.2 [current_project]
 }
 
@@ -304,16 +267,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::inp_bus_width \
-        CONFIG.Read_Width_B $::inp_bus_width \
+        CONFIG.Read_Width_A $::inp_mem_width \
+        CONFIG.Read_Width_B $::inp_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::inp_mem_depth \
-        CONFIG.Write_Width_A $::inp_bus_width \
-        CONFIG.Write_Width_B $::inp_bus_width \
+        CONFIG.Write_Width_A $::inp_mem_width \
+        CONFIG.Write_Width_B $::inp_mem_width \
       ] $inp_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_inp_mem_${i}_V_PORTA \
@@ -332,16 +295,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::inp_bus_width \
-        CONFIG.Read_Width_B $::inp_bus_width \
+        CONFIG.Read_Width_A $::inp_mem_width \
+        CONFIG.Read_Width_B $::inp_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::inp_mem_depth \
-        CONFIG.Write_Width_A $::inp_bus_width \
-        CONFIG.Write_Width_B $::inp_bus_width \
+        CONFIG.Write_Width_A $::inp_mem_width \
+        CONFIG.Write_Width_B $::inp_mem_width \
       ] $inp_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_inp_mem_V_PORTA \
@@ -363,16 +326,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::wgt_bus_width \
-        CONFIG.Read_Width_B $::wgt_bus_width \
+        CONFIG.Read_Width_A $::wgt_mem_width \
+        CONFIG.Read_Width_B $::wgt_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::wgt_mem_depth \
-        CONFIG.Write_Width_A $::wgt_bus_width \
-        CONFIG.Write_Width_B $::wgt_bus_width \
+        CONFIG.Write_Width_A $::wgt_mem_width \
+        CONFIG.Write_Width_B $::wgt_mem_width \
       ] $wgt_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_wgt_mem_${i}_V_PORTA \
@@ -391,16 +354,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::wgt_bus_width \
-        CONFIG.Read_Width_B $::wgt_bus_width \
+        CONFIG.Read_Width_A $::wgt_mem_width \
+        CONFIG.Read_Width_B $::wgt_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::wgt_mem_depth \
-        CONFIG.Write_Width_A $::wgt_bus_width \
-        CONFIG.Write_Width_B $::wgt_bus_width \
+        CONFIG.Write_Width_A $::wgt_mem_width \
+        CONFIG.Write_Width_B $::wgt_mem_width \
       ] $wgt_mem
       # Create interface connections
       connect_bd_intf_net -intf_net load_0_wgt_mem_V_PORTA \
@@ -422,16 +385,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::out_bus_width \
-        CONFIG.Read_Width_B $::out_bus_width \
+        CONFIG.Read_Width_A $::out_mem_width \
+        CONFIG.Read_Width_B $::out_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::out_mem_depth \
-        CONFIG.Write_Width_A $::out_bus_width \
-        CONFIG.Write_Width_B $::out_bus_width \
+        CONFIG.Write_Width_A $::out_mem_width \
+        CONFIG.Write_Width_B $::out_mem_width \
       ] $out_mem
       # Create interface connections
       connect_bd_intf_net -intf_net compute_0_out_mem_${i}_V_PORTA \
@@ -450,16 +413,16 @@ proc create_root_design { parentCell } {
         CONFIG.Enable_32bit_Address {true} \
         CONFIG.Enable_B {Use_ENB_Pin} \
         CONFIG.Memory_Type {True_Dual_Port_RAM} \
-        CONFIG.Read_Width_A $::out_bus_width \
-        CONFIG.Read_Width_B $::out_bus_width \
+        CONFIG.Read_Width_A $::out_mem_width \
+        CONFIG.Read_Width_B $::out_mem_width \
         CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
         CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
         CONFIG.Use_Byte_Write_Enable {true} \
         CONFIG.Use_RSTA_Pin {true} \
         CONFIG.Use_RSTB_Pin {true} \
         CONFIG.Write_Depth_A $::out_mem_depth \
-        CONFIG.Write_Width_A $::out_bus_width \
-        CONFIG.Write_Width_B $::out_bus_width \
+        CONFIG.Write_Width_A $::out_mem_width \
+        CONFIG.Write_Width_B $::out_mem_width \
       ] $out_mem
       # Create interface connections
       connect_bd_intf_net -intf_net compute_0_out_mem_V_PORTA \

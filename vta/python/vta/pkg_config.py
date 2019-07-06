@@ -39,8 +39,6 @@ class PkgConfig(object):
     cfg_keys = [
         "TARGET",
         "HW_VER",
-        "HW_FREQ",
-        "HW_CLK_TARGET",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
@@ -83,9 +81,8 @@ class PkgConfig(object):
         else:
             self.ldflags = []
 
-        # Derive bitstream
-        # Generate bitstream config string.
-        self.bitstream = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns".format(
+        # Derive bitstream config string.
+        self.bitstream = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}".format(
             cfg["TARGET"],
             (1 << cfg["LOG_BATCH"]),
             (1 << cfg["LOG_BLOCK_IN"]),
@@ -97,9 +94,66 @@ class PkgConfig(object):
             cfg["LOG_UOP_BUFF_SIZE"],
             cfg["LOG_INP_BUFF_SIZE"],
             cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"],
-            cfg["HW_FREQ"],
-            cfg["HW_CLK_TARGET"])
+            cfg["LOG_ACC_BUFF_SIZE"])
+
+        # Derive FPGA parameters from target
+        #   - device:           part number
+        #   - freq:             PLL frequency
+        #   - per:              clock period to achieve in HLS
+        #                       (how aggressively design is pipelined)
+        #   - axi_bus_width:    axi bus width used for DMA transactions
+        #                       (property of FPGA memory interface)
+        #   - max_bus_width:    maximum bus width allowed
+        #                       (property of FPGA vendor toolchains)
+        # By default, we use the pynq parameters
+        self.fpga_device = "xc7z020clg484-1"
+        self.fpga_freq = 100
+        self.fpga_per = 7
+        self.fpga_axi_bus_width = 64
+        fpga_max_bus_width = 1024
+
+        # Derive SRAM parameters
+        # The goal here is to determine how many memory banks are needed,
+        # how deep and wide each bank needs to be. This is derived from
+        # the size of each memory element (result of data width, and tensor shape),
+        # and also how wide a memory can be as permitted by the FPGA tools.
+        #
+        # The mem axi ratio is a parameter used by HLS to resize memories
+        # so memory read/write ports are the same size as the design axi bus width.
+        #
+        # Input memory
+        inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
+                                  cfg["LOG_BATCH"] + \
+                                  cfg["LOG_BLOCK_IN"])
+        self.inp_mem_size_B = 1 << cfg["LOG_INP_BUFF_SIZE"]
+        self.inp_mem_banks = (inp_mem_bus_width + \
+                              fpga_max_bus_width - 1) // \
+                              fpga_max_bus_width
+        self.inp_mem_width = min(inp_mem_bus_width, fpga_max_bus_width)
+        self.inp_mem_depth = self.inp_mem_size_B * 8 // inp_mem_bus_width
+        self.inp_mem_axi_ratio = self.inp_mem_width // self.fpga_axi_bus_width
+        # Weight memory
+        wgt_mem_bus_width = 1 << (cfg["LOG_WGT_WIDTH"] + \
+                                  cfg["LOG_BLOCK_IN"] + \
+                                  cfg["LOG_BLOCK_OUT"])
+        self.wgt_mem_size_B = 1 << cfg["LOG_WGT_BUFF_SIZE"]
+        self.wgt_mem_banks = (wgt_mem_bus_width + \
+                              fpga_max_bus_width - 1) // \
+                              fpga_max_bus_width
+        self.wgt_mem_width = min(wgt_mem_bus_width, fpga_max_bus_width)
+        self.wgt_mem_depth = self.wgt_mem_size_B * 8 // wgt_mem_bus_width
+        self.wgt_mem_axi_ratio = self.wgt_mem_width // self.fpga_axi_bus_width
+        # Output memory
+        out_mem_bus_width = 1 << (cfg["LOG_OUT_WIDTH"] + \
+                                  cfg["LOG_BATCH"] + \
+                                  cfg["LOG_BLOCK_OUT"])
+        self.out_mem_size_B = 1 << cfg["LOG_OUT_BUFF_SIZE"]
+        self.out_mem_banks = (out_mem_bus_width + \
+                              fpga_max_bus_width - 1) // \
+                              fpga_max_bus_width
+        self.out_mem_width = min(out_mem_bus_width, fpga_max_bus_width)
+        self.out_mem_depth = self.out_mem_size_B * 8 // out_mem_bus_width
+        self.out_mem_axi_ratio = self.out_mem_width // self.fpga_axi_bus_width
 
     @property
     def cflags(self):

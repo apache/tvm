@@ -17,13 +17,10 @@
 
 # Directories
 ROOTDIR = $(CURDIR)
-BUILD_NAME = build
-BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/xilinx
-SCRIPT_DIR = $(ROOTDIR)/scripts
-SRC_DIR = $(ROOTDIR)/src
-SIM_DIR = $(ROOTDIR)/sim
-TEST_DIR = $(ROOTDIR)/../../tests/hardware/common
-INCLUDE_DIR = $(ROOTDIR)/../../include
+VTA_DIR = $(CURDIR)/../..
+BUILD_DIR = $(VTA_DIR)/build/hardware/xilinx
+SCRIPT_DIR = $(CURDIR)/scripts
+SRC_DIR = $(CURDIR)/src
 
 # Executables
 VIVADO_HLS = vivado_hls
@@ -55,10 +52,7 @@ $(IP_PATH): $(SRC_DIR)/*
 		$(VIVADO_HLS) \
 		-f $(SCRIPT_DIR)/hls.tcl \
 		-tclargs \
-			$(SRC_DIR) \
-			$(SIM_DIR) \
-			$(TEST_DIR) \
-			$(INCLUDE_DIR) \
+			$(VTA_DIR) \
 			${VTA_CONFIG}
 
 $(BIT_PATH): $(IP_PATH)
