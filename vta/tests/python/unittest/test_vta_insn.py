@@ -24,13 +24,6 @@ import vta
 import vta.testing
 from vta.testing import simulator
 
-def tsim_init():
-    """Test save/store output command"""
-    def _run(env, remote):
-        if env.TARGET == "tsim":
-            simulator.tsim_init("libvta_hw")
-    vta.testing.run(_run)
-
 
 def test_save_load_out():
     """Test save/store output command"""
@@ -535,7 +528,6 @@ def test_runtime_array():
 
 
 if __name__ == "__main__":
-    tsim_init()
     #test_runtime_array()
     #test_save_load_out()
     #test_padded_load()
