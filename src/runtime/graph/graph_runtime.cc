@@ -136,6 +136,19 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   dl_managed->deleter = DefaultDeleter;
   data_entry_[eid] = NDArray::FromDLPack(dl_managed);
   SetDLTensorEntry(eid);
+  for (auto& op_arg : op_args_) {
+    if (op_arg) {
+      const auto it = op_arg->input_entry_ids.find(eid);
+      if (it != op_arg->input_entry_ids.end()) {
+        for (const auto i : it->second) {
+          TVMValue v;
+          DLTensor* t = &dl_managed->dl_tensor;
+          v.v_handle = t;
+          op_arg->arg_values[i] = v;
+        }
+      }
+    }
+  }
 }
 /*!
  * \brief Get the number of outputs
@@ -346,10 +359,12 @@ void GraphRuntime::SetupOpExecs() {
     if (inode.op_type == "null") continue;
     std::vector<std::shared_ptr<DLTensor> > args;
     std::vector<std::shared_ptr<DLTensor> > flatten_args;
+    std::vector<uint32_t> input_entry_ids;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
       args.push_back(dltensor_entry_[eid]);
       flatten_args.push_back(flatten_dltensor_entry_[eid]);
+      input_entry_ids.push_back(eid);
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
@@ -360,6 +375,16 @@ void GraphRuntime::SetupOpExecs() {
 
     std::tie(op_execs_[nid], op_args_[nid]) =
         CreateTVMOp(inode.param, args, flatten_args, inode.inputs.size());
+    auto& entry_to_input_pos = op_args_[nid]->input_entry_ids;
+    for (uint32_t i = 0; i < input_entry_ids.size(); ++i) {
+      const auto eid = input_entry_ids[i];
+      auto it = entry_to_input_pos.find(eid);
+      if (it == entry_to_input_pos.end()) {
+        entry_to_input_pos.emplace(eid, std::vector<uint32_t>{i});
+      } else {
+        it->second.push_back(i);
+      }
+    }
   }
 }
 

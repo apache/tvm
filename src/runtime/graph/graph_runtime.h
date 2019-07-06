@@ -71,6 +71,7 @@ class GraphRuntime : public ModuleNode {
   struct OpArgs {
     std::vector<std::shared_ptr<DLTensor> > args;
     std::vector<std::shared_ptr<DLTensor> > flatten_args;
+    std::unordered_map<uint32_t, std::vector<uint32_t> > input_entry_ids;
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
