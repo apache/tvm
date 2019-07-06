@@ -54,6 +54,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype)
 
 def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype):
+    """Implementation of conv2d transpose"""
     batch, in_c, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides

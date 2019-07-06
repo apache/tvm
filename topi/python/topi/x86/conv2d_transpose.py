@@ -21,10 +21,6 @@ import tvm
 from tvm import autotvm
 from .. import generic, tag
 from ..nn.conv2d_transpose import conv2d_transpose_nchw, declaration_conv2d_transpose_impl
-from ..nn.dilate import dilate
-from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
-from ..util import simplify
 
 @autotvm.register_topi_compute(conv2d_transpose_nchw, 'cpu', ['direct'])
 def _declaration_conv2d_transpose(cfg, data, kernel, strides, padding, out_dtype):
