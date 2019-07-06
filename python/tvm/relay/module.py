@@ -78,8 +78,11 @@ class Module(RelayNode):
     def _add(self, var, val, update=False):
         if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
-                var = _expr.GlobalVar(var)
-            _make.Module_Add(self, var, val, update)
+                if _module.Module_ContainGlobalVar(self, var):
+                    var = _module.Module_GetGlobalVar(self, var)
+                else:
+                    var = _expr.GlobalVar(var)
+            _module.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
             if isinstance(var, _base.string_types):
@@ -155,6 +158,25 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global type var.
         """
         return _module.Module_GetGlobalTypeVar(self, name)
+
+    def get_constructor(self, tag):
+        """Look up an ADT constructor by tag.
+
+        Parameters
+        ----------
+        tag: int
+            The tag for a constructor.
+
+        Returns
+        -------
+        constructor: Constructor
+           The constructor associated with the given tag,
+
+        Raises
+        ------
+        tvm.TVMError if the corresponding constructor cannot be found.
+        """
+        return _module.Module_LookupTag(self, tag)
 
     @staticmethod
     def from_expr(expr):

@@ -52,10 +52,10 @@ Object EvaluateModule(const Module& module, const std::vector<TVMContext> ctxs,
   // TODO(zhiics): This measurement is for temporary usage. Remove it later. We
   // need to introduce a better profiling method.
 #if ENABLE_PROFILING
-  DLOG(INFO) << "Entry function is " << module->entry_func << std::endl;
+  DLOG(INFO) << "Entry function is main." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
 #endif  // ENABLE_PROFILING
-  Object res = vm.Invoke(module->entry_func->name_hint, vm_args);
+  Object res = vm.Invoke("main", vm_args);
 #if ENABLE_PROFILING
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

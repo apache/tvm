@@ -31,7 +31,7 @@ def run_opt_pass(expr, passes):
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
-    return mod[mod.entry_func]
+    return mod["main"]
 
 
 def test_redundant_annotation():

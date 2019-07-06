@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/expr_mutator.cc
  * \brief A wrapper around ExprFunctor which functionally updates the AST.
  *
@@ -26,6 +26,7 @@
  * the cost of using functional updates.
  */
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include "type_functor.h"
 
 namespace tvm {
@@ -353,7 +354,7 @@ TVM_REGISTER_API("relay._analysis.post_order_visit")
   });
 
 // Implement bind.
-class ExprBinder : public ExprMutator {
+class ExprBinder : public ExprMutator, PatternMutator {
  public:
   explicit ExprBinder(const tvm::Map<Var, Expr>& args_map)
     : args_map_(args_map) {
@@ -383,13 +384,26 @@ class ExprBinder : public ExprMutator {
     }
   }
 
+  Pattern VisitPattern(const Pattern& p) final {
+    return PatternMutator::VisitPattern(p);
+  }
+
+  Clause VisitClause(const Clause& c) final {
+    Pattern pat = VisitPattern(c->lhs);
+    return ClauseNode::make(pat, VisitExpr(c->rhs));
+  }
+
+  Var VisitVar(const Var& v) final {
+    return Downcast<Var>(VisitExpr(v));
+  }
+
  private:
   const tvm::Map<Var, Expr>& args_map_;
 };
 
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
-    Expr new_body = ExprBinder(args_map).Mutate(func->body);
+    Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
     for (Var param : func->params) {
       if (!args_map.count(param)) {
@@ -406,7 +420,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
                               func->type_params,
                               func->attrs);
   } else {
-    return ExprBinder(args_map).Mutate(expr);
+    return ExprBinder(args_map).VisitExpr(expr);
   }
 }
 

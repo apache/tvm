@@ -412,7 +412,7 @@ def infer_type(node):
     """A method to infer the type of an intermediate node in the relay graph."""
     mod = _module.Module.from_expr(node)
     mod = _transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(node, _expr.Function) else entry.body
 
 def infer_shape(inputs):

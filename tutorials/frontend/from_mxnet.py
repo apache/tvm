@@ -84,7 +84,7 @@ print('x', x.shape)
 shape_dict = {'data': x.shape}
 mod, params = relay.frontend.from_mxnet(block, shape_dict)
 ## we want a probability so add a softmax operator
-func = mod[mod.entry_func]
+func = mod["main"]
 func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
 ######################################################################

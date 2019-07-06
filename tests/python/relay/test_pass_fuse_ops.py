@@ -357,7 +357,7 @@ def test_tuple_intermediate():
     m = fuse2(relay.Module.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(x), transform.InferType())
-    assert relay.analysis.alpha_equal(m[m.entry_func], after)
+    assert relay.analysis.alpha_equal(m["main"], after)
 
 
 def test_tuple_consecutive():
@@ -412,7 +412,7 @@ def test_tuple_consecutive():
     m = fuse2(relay.Module.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m[m.entry_func], after)
+    assert relay.analysis.alpha_equal(m["main"], after)
 
 
 def test_inception_like():
@@ -479,7 +479,7 @@ def test_inception_like():
     m = fuse2(relay.Module.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m[m.entry_func], after)
+    assert relay.analysis.alpha_equal(m["main"], after)
 
 
 def test_fuse_parallel_injective():

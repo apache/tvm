@@ -125,7 +125,7 @@ def test_plan_memory():
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
     mod = relay.transform.FuseOps(0)(mod)
-    func = mod[mod.entry_func]
+    func = mod["main"]
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()

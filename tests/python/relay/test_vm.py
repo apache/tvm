@@ -121,7 +121,7 @@ def test_simple_call():
     mod[sum_up] = func
     i_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg], sum_up(iarg))
+    mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data)
     tvm.testing.assert_allclose(result.asnumpy(), i_data)
 
@@ -140,7 +140,7 @@ def test_count_loop():
     mod[sum_up] = func
     i_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg], sum_up(iarg))
+    mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data)
     tvm.testing.assert_allclose(result.asnumpy(), i_data)
 
@@ -163,7 +163,7 @@ def test_sum_loop():
     accum_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
     aarg = relay.var('accum', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
+    mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
     result = veval(mod, i_data, accum_data)
     tvm.testing.assert_allclose(result.asnumpy(), sum(range(1, loop_bound + 1)))
 
@@ -212,7 +212,7 @@ def test_list_constructor():
     one4 = cons(relay.const(3), one3)
     f = relay.Function([], one4)
 
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
     result = veval(mod)()
     obj = to_list(result)
@@ -284,7 +284,7 @@ def test_compose():
     mod[add_one] = add_one_func
 
     f = relay.Function([y], add_two_body)
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
     x_data = np.array(np.random.rand()).astype('float32')
     result = veval(mod)(x_data)

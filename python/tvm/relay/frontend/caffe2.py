@@ -451,7 +451,7 @@ class Caffe2NetDef(object):
             outputs = out[0]
 
         func = _expr.Function(analysis.free_vars(outputs), outputs)
-        self._mod[self._mod.entry_func] = func
+        self._mod["main"] = func
 
         return self._mod, self._params
 

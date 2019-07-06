@@ -105,8 +105,8 @@ def get_workload(densenet_size=121, classes=1000, batch_size=4,
 
     Returns
     -------
-    net: relay.Function
-        The computation graph representing densenet.
+    mod: tvm.relay.Module
+        The relay module that contains a DenseNet network.
 
     params : dict of str to NDArray
         The benchmark paraeters.

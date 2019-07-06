@@ -172,6 +172,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
+    CHECK(ret.defined());
     KindCheck(ret, mod_);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
@@ -773,7 +774,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
     // type check it anyway; afterwards we can just recover type
     // from the type-checked function to avoid doing unnecessary work.
 
-    Function func = mod->Lookup(mod->entry_func);
+    Function func = mod->Lookup("main");
 
     // FromExpr wraps a naked expression as a function, we will unbox
     // it here.
@@ -783,7 +784,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
       return func->body;
     }
   } else {
-    auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
+    auto e = TypeInferencer(mod_ref, mod_ref->GetGlobalVar("main")).Infer(expr);
     CHECK(WellFormed(e));
     auto free_tvars = FreeTypeVars(e, mod_ref);
     CHECK(free_tvars.size() == 0)

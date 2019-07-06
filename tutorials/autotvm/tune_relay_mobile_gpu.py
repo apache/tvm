@@ -82,28 +82,29 @@ def get_network(name, batch_size):
 
     if "resnet" in name:
         n_layer = int(name.split('-')[1])
-        net, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif "vgg" in name:
         n_layer = int(name.split('-')[1])
-        net, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif name == 'mobilenet':
-        net, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'squeezenet_v1.1':
-        net, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
+        mod, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
     elif name == 'inception_v3':
         input_shape = (1, 3, 299, 299)
-        net, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'mxnet':
         # an example for mxnet model
         from mxnet.gluon.model_zoo.vision import get_model
         block = get_model('resnet18_v1', pretrained=True)
         mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
-        net = mod[mod.entry_func]
+        net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
+        mod = relay.Module.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
-    return net, params, input_shape, output_shape
+    return mod, params, input_shape, output_shape
 
 
 #################################################################
@@ -300,8 +301,10 @@ def tune_tasks(tasks,
 def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
-    net, params, input_shape, _ = get_network(network, batch_size=1)
-    tasks = autotvm.task.extract_from_program(net, target=target, target_host=target_host,
+    mod, params, input_shape, _ = get_network(network, batch_size=1)
+    tasks = autotvm.task.extract_from_program(mod["main"],
+                                              target=target,
+                                              target_host=target_host,
                                               params=params, ops=(relay.op.nn.conv2d,))
 
     # run tuning tasks
@@ -313,7 +316,7 @@ def tune_and_evaluate(tuning_opt):
         print("Compile...")
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build_module.build(
-                net, target=target, params=params, target_host=target_host)
+                mod, target=target, params=params, target_host=target_host)
         # export library
         tmp = tempdir()
         if use_android:

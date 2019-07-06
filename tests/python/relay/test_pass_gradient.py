@@ -185,9 +185,9 @@ def test_pow():
     i = relay.var("i", t)
     func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
     func = gradient(func, mod=mod)
-    mod[mod.entry_func] = func
+    mod["main"] = func
     m = transform.InferType()(mod)
-    back_func = m[m.entry_func]
+    back_func = m["main"]
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     i_nd = rand(dtype, *shape)
     ex = create_executor(mod=mod)

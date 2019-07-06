@@ -30,7 +30,7 @@ def run_opt_pass(expr, passes):
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
        mod = seq(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
@@ -195,7 +195,7 @@ def test_gradient_if():
     net = relay.Function([cond,x,y], net)
     mod = relay.Module.from_expr(net)
     mod = relay.transform.ToANormalForm()(mod)
-    mod[mod.entry_func] = relay.transform.gradient(mod[mod.entry_func], mode='higher_order')
+    mod["main"] = relay.transform.gradient(mod["main"], mode='higher_order')
     mod = relay.transform.ToANormalForm()(mod)
 
 
