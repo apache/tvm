@@ -81,6 +81,10 @@ def test_canonical_mixed():
     z = tvm.const(3, "int32")
     ck.verify(x / (z*z) - x / (z*z), 0)
     ck.verify(x / (z+z) - x / (z+z), 0)
+    ck.verify(x - 2 < 3, x < 5)
+    ck.verify(tvm.max(x, 1) - tvm.max(x, 1), 0)
+    ck.verify(tvm.min(x, 1) - tvm.min(x, 1), 0)
+    ck.verify(x * x - x * x, 0)
 
 
 def test_reduce_combiner_simplify():
@@ -209,6 +213,8 @@ def test_complex_cases():
                  + ((((x*1024) + y) % 256)/16)) + (((x*1024) + y) % 16)) - (y/256)) -
               ((y % 256)/16))  - (y % 16)) - (x*4))
     ck.verify(res3, ((((x*1024) + y)/256) - (y/256)) - (x*4))
+
+
 
 
 if __name__ == "__main__":
