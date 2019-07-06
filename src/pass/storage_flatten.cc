@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -211,7 +211,7 @@ class StorageFlattener : public IRMutator {
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
-          stride = arith::ComputeExpr<Mul>(stride, shape[dim]);
+          stride = stride * shape[dim];
         }
         strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
       }
@@ -237,7 +237,7 @@ class StorageFlattener : public IRMutator {
         int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, storage_type,
-            {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
+            {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
@@ -414,8 +414,7 @@ class StorageFlattener : public IRMutator {
     if (be.bounds.size() != 0) {
       CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
-        begins.push_back(
-            arith::ComputeExpr<Sub>(tuple->args[2 * i], be.bounds[i]->min));
+        begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
         extents.push_back(tuple->args[2 * i + 1]);
       }
     } else {
