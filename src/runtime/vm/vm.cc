@@ -360,7 +360,8 @@ Instruction Instruction::Ifi(RegName test, RegName target, Index true_branch, In
   return instr;
 }
 
-Instruction Instruction::Selecti(RegName test, RegName target, RegName op1, RegName op2, RegName dst) {
+Instruction Instruction::Selecti(RegName test, RegName target,
+                                 RegName op1, RegName op2, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Selecti;
   instr.dst = dst;
@@ -510,7 +511,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::Ifi: {
-      os << "ifi " << "$" << instr.ifi.test << " " << instr.ifi.target << " " 
+      os << "ifi " << "$" << instr.ifi.test << " " << instr.ifi.target << " "
          << instr.ifi.true_offset << " " << instr.ifi.false_offset;
       break;
     }
@@ -672,7 +673,7 @@ inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
   if (array->dtype.bits <= 8) {
     result = reinterpret_cast<int8_t*>(array->data)[0];
   } else if (array->dtype.bits <= 16) {
-    result = reinterpret_cast<int16_t*>(array->data)[0];          
+    result = reinterpret_cast<int16_t*>(array->data)[0];
   } else {
     result = reinterpret_cast<int32_t*>(array->data)[0];
   }
