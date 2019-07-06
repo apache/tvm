@@ -46,8 +46,6 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
 
-  n->entry_func = GlobalVarNode::make("main");
-
   for (const auto& kv : n->type_definitions) {
     // set global typevar map
     CHECK(!n->global_type_var_map_.count(kv.first->var->name_hint))
@@ -57,6 +55,10 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
   }
 
   return Module(n);
+}
+
+bool ModuleNode::ContainGlobalVar(const std::string& name) const {
+  return global_var_map_.find(name) != global_var_map_.end();
 }
 
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
@@ -194,7 +196,8 @@ Module ModuleNode::FromExpr(
   } else {
     func = FunctionNode::make({}, expr, Type(), {}, {});
   }
-  mod->Add(mod->entry_func, func);
+  auto main_gv = GlobalVarNode::make("main");
+  mod->Add(main_gv, func);
   return mod;
 }
 
@@ -203,7 +206,7 @@ TVM_REGISTER_NODE_TYPE(ModuleNode);
 TVM_REGISTER_API("relay._make.Module")
 .set_body_typed(ModuleNode::make);
 
-TVM_REGISTER_API("relay._make.Module_Add")
+TVM_REGISTER_API("relay._module.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Module mod = args[0];
   GlobalVar var = args[1];
@@ -230,6 +233,9 @@ TVM_REGISTER_API("relay._module.Module_AddDef")
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalVar);
+
+TVM_REGISTER_API("relay._module.Module_ContainGlobalVar")
+.set_body_method<Module>(&ModuleNode::ContainGlobalVar);
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalTypeVar);
