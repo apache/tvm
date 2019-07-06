@@ -65,16 +65,12 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from global type vars to ADT type data. */
   tvm::Map<GlobalTypeVar, TypeData> type_definitions;
 
-  /*! \brief The entry function (i.e. "main"). */
-  GlobalVar entry_func;
-
   ModuleNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
-    v->Visit("entry_func", &entry_func);
     v->Visit("global_type_var_map_", &global_type_var_map_);
   }
 
@@ -118,6 +114,13 @@ class ModuleNode : public RelayNode {
    * \param var The name of the global function to update.
    */
   TVM_DLL void Remove(const GlobalVar& var);
+
+  /*!
+   * \brief Check if the global_var_map_ contains a global variable.
+   * \param name The variable name.
+   * \returns true if contains, otherise false.
+   */
+  TVM_DLL bool ContainGlobalVar(const std::string& name) const;
 
   /*!
    * \brief Lookup a global function by its variable.
@@ -180,10 +183,10 @@ class ModuleNode : public RelayNode {
    * Allows one to optionally pass a global function map as
    * well.
    *
-   * \param expr The expression to set as the entry point to the module.
+   * \param expr The expression to set as the main function to the module.
    * \param global_funcs The global function map.
    *
-   * \returns A module with expr set as the entry point.
+   * \returns A module with expr set as the main function.
    */
   TVM_DLL static Module FromExpr(
     const Expr& expr,

@@ -45,7 +45,7 @@ def _infer_type(node):
     """A method to infer the type of an intermediate node in the relay graph."""
     mod = _module.Module.from_expr(node)
     mod = transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(node, _expr.Function) else entry.body
 
 def _mx_fully_connected(inputs, attrs):
@@ -1200,5 +1200,5 @@ def from_mxnet(symbol,
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
-    mod[mod.entry_func] = func
+    mod["main"] = func
     return mod, params

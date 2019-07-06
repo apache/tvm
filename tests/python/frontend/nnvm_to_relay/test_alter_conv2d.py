@@ -77,7 +77,7 @@ def test_alter_layout_conv2d():
             with autotvm.tophub.context(target):
                 mod = relay.Module.from_expr(N)
                 mod = transform.AlterOpLayout()(mod)
-                O = mod[mod.entry_func]
+                O = mod["main"]
 
                 # graph should differ
                 assert not relay.analysis.alpha_equal(N, O)

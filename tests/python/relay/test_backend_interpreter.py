@@ -224,9 +224,8 @@ def test_tuple_passing():
 
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
     mod = relay.Module({})
-    gv = relay.GlobalVar('fn')
+    gv = relay.GlobalVar('main')
     mod[gv] = fn
-    mod.entry_func = gv
     mod = relay.transform.InferType()(mod)
 
     ctx = tvm.cpu()

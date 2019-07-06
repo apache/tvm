@@ -58,7 +58,7 @@ def test_canonicalize_cast():
                                      _transform.InferType()])
         with _transform.PassContext(opt_level=3):
             mod = seq(mod)
-        y = mod[mod.entry_func.name_hint]
+        y = mod["main"]
         y_expected = expected(data, conv_weight, bias1, bias2)
         gv = relay.GlobalVar("expected")
         mod[gv] = y_expected

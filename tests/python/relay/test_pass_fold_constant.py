@@ -25,7 +25,7 @@ def run_opt_pass(expr, opt_pass):
 
     mod = relay.Module.from_expr(expr)
     mod = opt_pass(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
 

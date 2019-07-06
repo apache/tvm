@@ -64,7 +64,7 @@ def test_has_multiple_inputs():
 
 
 def test_expr2graph():
-    net, _ = resnet.get_workload(num_layers=50, batch_size=1)
+    mod, _ = resnet.get_workload(num_layers=50, batch_size=1)
     node_dict = {}
     node_list = []
     target_ops = ["conv2d"]
@@ -80,9 +80,9 @@ def test_expr2graph():
             op_name_list.append("Tuple")
         else:
             op_name_list.append("null")
-    relay.analysis.post_order_visit(net, _count_node)
+    relay.analysis.post_order_visit(mod["main"], _count_node)
 
-    expr2graph(net, target_ops, node_dict, node_list)
+    expr2graph(mod["main"], target_ops, node_dict, node_list)
     for i, item in enumerate(zip(op_name_list, node_list)):
         op_name, node = item
         assert op_name == node["op"], "%dth Node operator mismatch: expecting %s but got %s" \

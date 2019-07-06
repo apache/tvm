@@ -177,7 +177,7 @@ def build(mod, target=None, target_host=None, params=None):
         The parameters of the final graph.
     """
     if isinstance(mod, _Module):
-        func = mod[mod.entry_func]
+        func = mod["main"]
     elif isinstance(mod, _expr.Function):
         func = mod
         warnings.warn(
@@ -233,8 +233,8 @@ class GraphExecutor(_interpreter.Executor):
 
     def _make_executor(self, expr=None):
         if expr:
-            self.mod[self.mod.entry_func] = expr
-        ret_type = self.mod[self.mod.entry_func].checked_type.ret_type
+            self.mod["main"] = expr
+        ret_type = self.mod["main"].checked_type.ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(self.mod, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
@@ -242,7 +242,7 @@ class GraphExecutor(_interpreter.Executor):
             gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
-            args = self._convert_args(self.mod[self.mod.entry_func], args, kwargs)
+            args = self._convert_args(self.mod["main"], args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)

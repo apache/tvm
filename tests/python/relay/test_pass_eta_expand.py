@@ -26,7 +26,7 @@ def test_eta_expand_basic():
     with _transform.PassContext(opt_level=3):
         mod = seq(mod)
 
-    got = mod[mod.entry_func.name_hint]
+    got = mod["main"]
 
     y = relay.var('y', 'int32')
     expected = relay.Function([y], orig(y))

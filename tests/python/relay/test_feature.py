@@ -49,7 +49,7 @@ def test_ad():
     func = relay.Function([x], x + x)
     mod = relay.Module.from_expr(gradient(func))
     mod = relay.transform.InferType()(mod)
-    back_func = mod[mod.entry_func]
+    back_func = mod["main"]
     feats = detect_feature(back_func)
     assert feats == set([
         Feature.fVar,

@@ -29,7 +29,7 @@ def test_compile_engine():
         f = relay.Function([x], z)
         mod = relay.Module.from_expr(f)
         mod = relay.transform.InferType()(mod)
-        return mod[mod.entry_func]
+        return mod["main"]
     z1 = engine.lower(get_func((10,)), "llvm")
     z2 = engine.lower(get_func((10,)), "llvm")
     z3 = engine.lower(get_func(()), "llvm")

@@ -78,8 +78,11 @@ class Module(RelayNode):
     def _add(self, var, val, update=False):
         if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
-                var = _expr.GlobalVar(var)
-            _make.Module_Add(self, var, val, update)
+                if _module.Module_ContainGlobalVar(self, var):
+                    var = _module.Module_GetGlobalVar(self, var)
+                else:
+                    var = _expr.GlobalVar(var)
+            _module.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
             if isinstance(var, _base.string_types):

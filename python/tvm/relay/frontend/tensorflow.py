@@ -240,7 +240,7 @@ def _infer_type(node):
     """A method to infer the type of an intermediate node in the relay graph."""
     mod = _module.Module.from_expr(node)
     mod = _transform.InferType()(mod)
-    entry = mod[mod.entry_func]
+    entry = mod["main"]
     return entry if isinstance(node, _expr.Function) else entry.body
 
 def _infer_shape(node, params=None):
@@ -2122,7 +2122,7 @@ class GraphProto(object):
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(analysis.free_vars(out), out)
-        self._mod[self._mod.entry_func] = func
+        self._mod["main"] = func
         return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):

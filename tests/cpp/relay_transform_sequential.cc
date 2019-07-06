@@ -84,9 +84,9 @@ TEST(Relay, Sequential) {
   }
 
   CHECK(mod.defined());
-  auto entry_func = mod->entry_func;
+  auto entry_func = mod->GetGlobalVar("main");
   CHECK(entry_func.defined());
-  relay::Function f = mod->Lookup(entry_func->name_hint);
+  relay::Function f = mod->Lookup("main");
   CHECK(f.defined());
 
   // Expected function
@@ -102,7 +102,7 @@ TEST(Relay, Sequential) {
   // Infer type for the expected function.
   auto mod1 = relay::ModuleNode::FromExpr(expected_func);
   mod1 = relay::transform::InferType()(mod1);
-  auto expected = mod1->Lookup(mod1->entry_func);
+  auto expected = mod1->Lookup("main");
   CHECK(relay::AlphaEqual(f, expected));
 }
 

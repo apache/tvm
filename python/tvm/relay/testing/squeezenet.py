@@ -149,8 +149,8 @@ def get_workload(batch_size=1,
 
     Returns
     -------
-    net : nnvm.Symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a SqueezeNet network.
 
     params : dict of str to NDArray
         The parameters.

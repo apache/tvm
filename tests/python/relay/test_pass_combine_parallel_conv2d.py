@@ -21,13 +21,13 @@ from tvm.relay import transform
 def run_combine_parallel(expr, min_num_branches=3):
     mod = relay.Module.from_expr(expr)
     mod = transform.CombineParallelConv2D(min_num_branches)(mod)
-    return mod[mod.entry_func]
+    return mod["main"]
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
     mod = relay.Module.from_expr(expr)
     mod = opt_pass(mod)
-    return mod[mod.entry_func]
+    return mod["main"]
 
 
 def test_combine_parallel_conv2d():
