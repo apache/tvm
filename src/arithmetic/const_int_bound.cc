@@ -24,7 +24,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir_functor_ext.h>
 #include <algorithm>
-#include "int_op_overflow.h"
+#include "int_operator.h"
 #include "pattern_match.h"
 
 namespace tvm {

@@ -29,7 +29,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
-#include "int_op_overflow.h"
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {

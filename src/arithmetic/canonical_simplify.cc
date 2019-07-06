@@ -59,24 +59,26 @@ class CanonicalExprNode : public BaseExprNode {
 };
 
 enum DivMode {
-  /*! \brief Trucated division. */
-  kTrucDiv,
+  /*! \brief Truncated division. */
+  kTruncDiv,
   /*! \brief Floor division. */
   kFloorDiv
 };
 
 inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
-  if (mode == kTrucDiv) {
+  if (mode == kTruncDiv) {
     return a % b;
   } else {
+    CHECK_EQ(mode, kFloorDiv);
     return floormod(a, b);
   }
 }
 
 inline Expr DivImpl(Expr a, Expr b, DivMode mode) {
-  if (mode == kTrucDiv) {
+  if (mode == kTruncDiv) {
     return a / b;
   } else {
+    CHECK_EQ(mode, kFloorDiv);
     return floordiv(a, b);
   }
 }
@@ -103,7 +105,7 @@ class SplitExprNode : public CanonicalExprNode {
   /*! \brief scale to the expression. */
   int64_t scale{1};
   /*! \brief Division mode. */
-  DivMode div_mode{kTrucDiv};
+  DivMode div_mode{kTruncDiv};
 
   /*! \brief verify that this is a valid entry. */
   void Verify() const {
@@ -310,12 +312,12 @@ class SumExprNode : public CanonicalExprNode {
           //  Thus, lhs = rhs
           //
           // The above proof is for the floordiv.
-          // The same rule also holds for trucdiv(division rule in C).
+          // The same rule also holds for truncdiv(division rule in C).
           // Because both sides only involve mul, div and mod,
           // we can take abs of x, c and s, apply the floordiv proof,
           // and finally add the sign back.
           //
-          // Rule 2:  (x / s) * s + x % s = x  (true for both truc and floor div)
+          // Rule 2:  (x / s) * s + x % s = x  (true for both trunc and floor div)
           //
           // General merge condition and proof:
           // - x = lhs->index % lhs->upper_factor
@@ -467,7 +469,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    */
   SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
   /*!
-   * f\brief Separate psum into divisible and non-divisible parts.
+   * \brief Separate psum into divisible and non-divisible parts.
    * \param psum The sum expression.
    * \param coeff The co-efficient.
    * \param out_divisible The result divisible component.
@@ -507,11 +509,16 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
     n->type = expr.type();
     n->index = std::move(expr);
-    n->div_mode = kTrucDiv;
+    n->div_mode = kTruncDiv;
     return SplitExpr(n);
   }
   /*!
-   * \brief Convert div mode of expr to a new one
+   * \brief Convert expr to an equivalent SplitExpr
+   *        that has the specified div_mode.
+   *
+   * This function will return the same expr if its
+   * div_mode already satisfies the need.
+   *
    * \param expr The input expr.
    * \param div_mode The new div_mode.
    * \return The transformed SplitExpr.
@@ -673,7 +680,7 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
   CHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
-  // the following rule works for both floordiv and trucdiv
+  // the following rule works for both floordiv and truncdiv
   if (lhs->scale % cval == 0) {
     lhs.CopyOnWrite()->scale /= cval;
     return lhs;
@@ -747,7 +754,7 @@ Mutate_(const Div* op, const Expr& self) {
           // if 0 <= extra < cval, it means the extra can be eliminated.
           if (TryCompare(temp, cval) != kLT) {
             lhs.CopyOnWrite()->AddToSelf(
-                SplitDivConst(ToSplitExpr(temp), cval, kTrucDiv), 1);
+                SplitDivConst(ToSplitExpr(temp), cval, kTruncDiv), 1);
           }
         }
         return std::move(lhs);
@@ -759,7 +766,7 @@ Mutate_(const Div* op, const Expr& self) {
         return make_zero(a.type());
       }
     }
-    return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTrucDiv);
+    return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
   }
   // normal path
   a = Normalize(a);
@@ -926,7 +933,7 @@ Mutate_(const Mod* op, const Expr& self) {
           cbound->min_value - psum->base + new_base >= 0) {
         SumExpr sum_expr(std::move(a.node_));
         sum_expr.CopyOnWrite()->base = new_base;
-        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTrucDiv);
+        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
@@ -935,7 +942,7 @@ Mutate_(const Mod* op, const Expr& self) {
         return a;
       }
     }
-    return SplitModConst(ToSplitExpr(std::move(a)), cval, kTrucDiv);
+    return SplitModConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
   }
   // normal path
   a = Normalize(a);
