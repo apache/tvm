@@ -48,35 +48,6 @@ def range_by_min_extent(min_value, extent):
     return _range_by_min_extent(min_value, extent)
 
 
-def static_cast(dtype, expr):
-    """Cast expr to dtype.
-
-    If expr is scalar and dtype is a corresponding vector
-    type, a Broadcast is generated. Otherwise it is a Cast.
-
-    Parameters
-    ----------
-    dtype : str
-        The target data type.
-
-    expr : Expr
-        The expression to be casted.
-
-    Returns
-    -------
-    casted : Expr
-        The casted expression.
-    """
-    target_type = TVMType(dtype)
-    src_type = TVMType(expr.dtype)
-    if target_type.type_code == src_type.type_code and src_type.bits == target_type.bits:
-        if src_type.lanes == target_type.lanes:
-            return expr
-        if src_type.lanes == 1 and target_type.lanes > 1:
-            return Broadcast(expr, target_type.lanes)
-    return Cast(dtype, expr)
-
-
 def node(type_key, **kwargs):
     """Make a new DSL node by its type key and fields
 
