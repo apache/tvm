@@ -112,8 +112,6 @@ class Device {
               vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
-    // set counter to zero
-    dpi_->WriteReg(0x04, 0);
     dpi_->WriteReg(0x08, insn_count);
     dpi_->WriteReg(0x0c, insn_phy_addr);
     dpi_->WriteReg(0x10, insn_phy_addr >> 32);

@@ -119,6 +119,9 @@ if env.TARGET not in ["sim", "tsim"]:
 else:
     remote = rpc.LocalSession()
 
+if env.TARGET == "tsim":
+    simulator.tsim_init("libvta_hw")
+
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
@@ -229,9 +232,6 @@ image = np.repeat(image, env.BATCH, axis=0)
 m.set_input(**params)
 m.set_input('data', image)
 
-if env.TARGET == "tsim":
-    simulator.tsim_init("libvta_hw")
-
 # Perform inference and gather execution statistics
 # More on: https://docs.tvm.ai/api/python/module.html#tvm.module.Module.time_evaluator
 num = 4 # number of times we run module for a single measurement
@@ -249,7 +249,8 @@ if env.TARGET == "sim":
         # Therefore we divide the overall stats by (num * rep + 1)
         print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
 elif env.TARGET == "tsim":
-    print("ResNet-18 took {} clock cycles".format(simulator.tsim_cycles()))
+    timer()
+    print("ResNet took {} clock cycles".format(simulator.tsim_cycles()))
 else:
     tcost = timer()
     std = np.std(tcost.results) * 1000 / env.BATCH

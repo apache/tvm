@@ -125,7 +125,7 @@ int VTADPISim(uint64_t max_cycles) {
   top->reset = 0;
 
   // start simulation
-  while (!Verilated::gotFinish() && trace_count < max_cycles) {
+  while (!Verilated::gotFinish()) {
     top->sim_clock = 0;
     top->clock = 0;
     top->eval();
