@@ -20,6 +20,7 @@ import json
 import sys
 import os
 import tvm
+from ..environment import get_env
 from ..libinfo import find_libvta
 
 def _load_lib():
@@ -47,18 +48,23 @@ def clear_stats():
 
 
 def stats():
-    """Clear profiler statistics
+    """Get profiler statistics
 
     Returns
     -------
     stats : dict
         Current profiler statistics
     """
-    x = tvm.get_global_func("vta.simulator.profiler_status")()
+    env = get_env()
+    if env.TARGET == "sim":
+        x = tvm.get_global_func("vta.simulator.profiler_status")()
+    else:
+        x = tvm.get_global_func("vta.tsim.profiler_status")()
     return json.loads(x)
 
+
 def tsim_init(hw_lib):
-    """Init hardware shared library for TSIM
+    """Init hardware shared library and launch simulation thread
 
      Parameters
      ------------
@@ -70,19 +76,28 @@ def tsim_init(hw_lib):
     if not hw_lib.endswith(("dylib", "so")):
         hw_lib += ".dylib" if sys.platform == "darwin" else ".so"
     lib = os.path.join(vta_build_path, hw_lib)
-    f = tvm.get_global_func("tvm.vta.tsim.init")
+    f = tvm.get_global_func("vta.tsim.init")
     m = tvm.module.load(lib, "vta-tsim")
     f(m)
 
-def tsim_cycles():
-    """Get tsim clock cycles
+
+def tsim_clear_stats():
+    """Clear profiler statistics"""
+    f = tvm.get_global_func("vta.tsim.profiler_clear", True)
+    if f:
+        f()
+
+
+def tsim_stats():
+    """Return profiler statistics
 
     Returns
     -------
-    stats : int
-        tsim clock cycles
+    stats : dict
+        Current profiler statistics
     """
-    return tvm.get_global_func("tvm.vta.tsim.cycles")()
+    return json.loads(x)
+
 
 # debug flag to skip execution.
 DEBUG_SKIP_EXEC = 1

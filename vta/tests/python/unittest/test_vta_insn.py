@@ -510,12 +510,14 @@ def test_shift_and_scale():
         res_nd = tvm.nd.array(
             np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
 
-        f(a_nd, res_nd)
+        if env.TARGET in ["sim", "tsim"]:
+            simulator.clear_stats()
+            f(a_nd, res_nd)
+            print("Shift/scale stats:", simulator.stats())
+        else:
+            f(a_nd, res_nd)
 
         np.testing.assert_equal(res_np, res_nd.asnumpy())
-
-        if env.TARGET == "tsim":
-            print("Shift/scale test took {} clock cycles".format(simulator.tsim_cycles()))
 
     vta.testing.run(_run)
 
@@ -534,10 +536,10 @@ def test_runtime_array():
 
 if __name__ == "__main__":
     tsim_init()
-    test_runtime_array()
-    test_save_load_out()
-    test_padded_load()
-    test_gemm()
-    test_alu()
-    test_relu()
+    #test_runtime_array()
+    #test_save_load_out()
+    #test_padded_load()
+    #test_gemm()
+    #test_alu()
+    #test_relu()
     test_shift_and_scale()

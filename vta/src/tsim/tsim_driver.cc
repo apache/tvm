@@ -30,13 +30,51 @@ using vta::dpi::DPIModuleNode;
 
 class Profiler {
  public:
-  /*! \brief cycle counter */
-  uint64_t cycle_count{0};
+  Profiler() {
+    counters_ = new int[num_counters_];
+    this->ClearAll();
+  }
+
+  ~Profiler() {
+    delete [] counters_;
+  }
+
+  /*! \brief update one event counter */
+  void Update(uint32_t idx, uint32_t value) {
+    counters_[idx] += value;
+  }
+
+  /*! \brief clear one event counter*/
+  void Clear(uint32_t idx) {
+    counters_[idx] = 0;
+  }
+
+  /*! \brief clear all event counters */
+  void ClearAll() {
+    for (uint32_t i = 0; i < num_counters_; i++) {
+      counters_[i] = 0;
+    }
+  }
+
+  /*! \brief return counters as json */
+  std::string AsJSON() {
+    std::ostringstream os;
+    os << "{\n"
+       << " \"cycle_count\":" << counters_[0] << "\n"
+       <<"}\n";
+    return os.str();
+  }
 
   static Profiler* Global() {
     static Profiler inst;
     return &inst;
   }
+
+ private:
+  /*! \brief total number of event counters */
+  uint32_t num_counters_{1};
+  /*! \brief event counters */
+  int* counters_{nullptr};
 };
 
 class DPILoader {
@@ -110,6 +148,7 @@ class Device {
               vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
+    dpi_->WriteReg(0x04, 0);
     dpi_->WriteReg(0x08, insn_count);
     dpi_->WriteReg(0x0c, insn_phy_addr);
     dpi_->WriteReg(0x10, insn_phy_addr >> 32);
@@ -134,7 +173,7 @@ class Device {
       val &= 0x2;
       if (val == 0x2) break;  // finish
     }
-    prof_->cycle_count = dpi_->ReadReg(0x04);
+    prof_->Update(0, dpi_->ReadReg(0x04));
     dpi_->SimWait();
   }
 
@@ -149,15 +188,20 @@ class Device {
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
 
-TVM_REGISTER_GLOBAL("tvm.vta.tsim.init")
+TVM_REGISTER_GLOBAL("vta.tsim.init")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     DPILoader::Global()->Init(m);
   });
 
-TVM_REGISTER_GLOBAL("tvm.vta.tsim.cycles")
+TVM_REGISTER_GLOBAL("vta.tsim.profiler_clear")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = static_cast<int>(Profiler::Global()->cycle_count);
+    Profiler::Global()->ClearAll();
+  });
+
+TVM_REGISTER_GLOBAL("vta.tsim.profiler_status")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = Profiler::Global()->AsJSON();
   });
 
 }  // namespace tsim
