@@ -95,7 +95,7 @@ def test_const_fold4():
     x5 = tvm.ceil(x4)
     assert isinstance(x5, tvm.expr.FloatImm) and x5.value == 4
     x6 = x5.astype('int')
-    assert isinstance(x6, tvm.expr.IntImm) and x6.value == 4
+    assert isinstance(x6, tvm.expr.IntImm) and x6.value == 4, "x6={}".format(x6)
     y = (tvm.round((tvm.const(6.5, 'float32') - 1) / 1.5) + 2).astype('int')
     assert isinstance(y, tvm.expr.IntImm) and y.value == 6
 
