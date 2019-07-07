@@ -69,7 +69,7 @@ if env.TARGET == "pynq":
     vta.program_fpga(remote, bitstream=None)
 
 # In simulation mode, host the RPC server locally.
-elif env.TARGET == "sim":
+elif env.TARGET in ["sim", "tsim"]:
     remote = rpc.LocalSession()
 
 ######################################################################
@@ -352,8 +352,19 @@ data_nd = tvm.nd.array(data_packed, ctx)
 weight_nd = tvm.nd.array(weight_packed, ctx)
 res_nd = tvm.nd.array(np.zeros(output_shape).astype(res.dtype), ctx)
 
+# Clear stats
+if env.TARGET in ["sim", "tsim"]:
+    simulator.clear_stats()
+
 # Invoke the module to perform the computation
 f(data_nd, weight_nd, res_nd)
+
+# Print stats
+if env.TARGET in ["sim", "tsim"]:
+    sim_stats = simulator.stats()
+    print("Execution statistics:")
+    for k, v in sim_stats.items():
+        print("\t{:<16}: {:>16}".format(k, v))
 
 # Verify against numpy implementation
 res_ref = np.dot(data_np.astype(env.acc_dtype),

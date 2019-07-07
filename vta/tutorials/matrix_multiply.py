@@ -447,7 +447,7 @@ f(A_nd, B_nd, C_nd)
 # Print stats
 if env.TARGET in ["sim", "tsim"]:
     sim_stats = simulator.stats()
-    print("Save load execution statistics:")
+    print("Execution statistics:")
     for k, v in sim_stats.items():
         print("\t{:<16}: {:>16}".format(k, v))
 
