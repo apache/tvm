@@ -180,6 +180,11 @@ The performance metrics measured on the Pynq board will be reported for each con
 
 You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
 
+## VTA DE10-Nano Based Test Setup
+
+Similar like [PYNQ based test setup](#vta-pynq-based-test-setup), this section describes the method to run FPGA hardware tests of the complete TVM and VTA software-hardware stack. In terms of hardware components, the [DE10-Nano](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=205&No=1046&PartNo=1) development kit, which contains the cables and power supplies, is required to run the following setup steps. 
+
+
 
 ## VTA FPGA Toolchain Installation
 
