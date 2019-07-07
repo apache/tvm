@@ -35,14 +35,14 @@ def _load_sw():
 
 def _load_all():
     """Load hardware library for tsim."""
-    _load_sw()
+    lib = _load_sw()
     env = get_env()
     if env.TARGET == "tsim":
         lib = find_libvta("libvta_hw", optional=True)
         f = tvm.get_global_func("vta.tsim.init")
         m = tvm.module.load(lib[0], "vta-tsim")
         f(m)
-    return
+    return lib
 
 
 def enabled():
