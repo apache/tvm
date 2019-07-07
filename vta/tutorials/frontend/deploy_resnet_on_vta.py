@@ -119,9 +119,6 @@ if env.TARGET not in ["sim", "tsim"]:
 else:
     remote = rpc.LocalSession()
 
-if env.TARGET == "tsim":
-    simulator.tsim_init("libvta_hw")
-
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
@@ -238,7 +235,7 @@ num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
-if env.TARGET == "sim":
+if env.TARGET in ["sim", "tsim"]:
     simulator.clear_stats()
     timer()
     sim_stats = simulator.stats()
@@ -248,9 +245,6 @@ if env.TARGET == "sim":
         # Note that there is always one warm up run
         # Therefore we divide the overall stats by (num * rep + 1)
         print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
-elif env.TARGET == "tsim":
-    timer()
-    print("ResNet took {} clock cycles".format(simulator.tsim_cycles()))
 else:
     tcost = timer()
     std = np.std(tcost.results) * 1000 / env.BATCH
