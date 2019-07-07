@@ -178,9 +178,15 @@ def run_conv2d(env, remote, wl, target,
         # runtime on the fly when varying the VTA designs)
         local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
         if local_rpc:
-            remote.get_function("vta.simulator.profiler_clear")()
+            if env.TARGET == "sim":
+                remote.get_function("vta.simulator.profiler_clear")()
+            else:
+                remote.get_function("vta.tsim.profiler_clear")()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
-            stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
+            if env.TARGET == "sim":
+                stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
+            else:
+                stats = json.loads(remote.get_function("vta.tsim.profiler_status")())
         else:
             simulator.clear_stats()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
