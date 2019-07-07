@@ -342,4 +342,4 @@ def cast(x, dtype):
     if isinstance(x, tvm.tensor.Tensor):
         return tvm.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
-    return tvm.make.static_cast(dtype, x)
+    return tvm.make._cast(dtype, x)
