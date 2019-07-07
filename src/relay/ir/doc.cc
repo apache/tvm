@@ -118,7 +118,7 @@ Doc PrintString(const std::string& value) {
   return doc << "\"" << value << "\"";
 }
 
-Doc PrintNewLine(int ident ) {
+Doc PrintNewLine(int ident) {
   Doc doc;
   return doc << Line(ident);
 }
