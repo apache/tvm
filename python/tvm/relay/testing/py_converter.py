@@ -94,7 +94,7 @@ class PythonConverter(ExprFunctor):
         opts = relay.transform.Sequential([relay.transform.SimplifyInference(),
                                            relay.transform.FuseOps(fuse_opt_level=0)])
         mod = opts(mod)
-        optimized = mod[mod.entry_func]
+        optimized = mod['main']
         return optimized if isinstance(unwrapped, Function) else optimized.body
 
 
