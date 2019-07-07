@@ -342,13 +342,16 @@ Mutate_(const Sub* op, const Expr& self) {
                        c1.Eval()->value != 0 &&
                        c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
+    // Proof in the case of floordiv, need positive condition.
+    // let x = a * c3 + r
+    // (x + c1) / c3 - x / c3 => (r + c1) / c3
     TVM_TRY_REWRITE_IF((x + c1) / c3  - (x + c2) / c3,
-                       ((x + (c1 % c3)) % c3 + (c1 - c2)) / c3,
+                       ((x + ((c2 % c3) + c3) % c3) % c3 + (c1 - c2)) / c3,
                        CanProveGreaterEqual(x.Eval(), -c2.Eval()->value) &&
                        c1.Eval()->value >= c2.Eval()->value &&
                        c3.Eval()->value > 0);
     TVM_TRY_REWRITE_IF((x + c1) / c3  - x / c3,
-                       ((x + (c1 % c3)) % c3 + c1) / c3,
+                       (x % c3 + c1) / c3,
                        CanProveGreaterEqual(x.Eval(), 0) &&
                        c1.Eval()->value >= 0 &&
                        c3.Eval()->value > 0);
