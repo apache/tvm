@@ -288,7 +288,8 @@ def test_sub_index_simplify():
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(-1000, 1000), override=True)
     ck.verify(x - fld(x, 3) * 3, flm(x, 3))
-    ck.verify(fld(x + 5, 3) - fld(x, 3), fld(flm(x + 2, 3) + 5, 3))
+    ck.verify(fld(x + 5, 3) - fld(x, 3), fld(flm(x, 3) + 5, 3))
+    ck.verify(fld(x + 5, 3) - fld(x + 2, 3), fld(flm(x + 2, 3), 3) + 1)
 
     ck.verify(fld(y, 3) * 3 - y, 0 - flm(y, 3))
     ck.verify(y - fld(y - 6, 5) * 5, flm(y + (-6), 5) + 6)

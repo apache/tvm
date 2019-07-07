@@ -395,10 +395,10 @@ Mutate_(const Sub* op, const Expr& self) {
                        c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c3) - floordiv(x + c2, c3),
-                       floordiv(floormod(x + floormod(c1, c3), c3) + (c1 - c2), c3),
+                       floordiv(floormod(x + floormod(c2, c3), c3) + (c1 - c2), c3),
                        c3.Eval()->value > 0);
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c3)  - floordiv(x, c3),
-                       floordiv(floormod(x + floormod(c1, c3), c3) + c1, c3),
+                       floordiv(floormod(x, c3) + c1, c3),
                        c3.Eval()->value > 0);
 
     // canonicalization rule

@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file int_operator.h
- * \brief Additional useful operators for intteger.
+ * \brief Additional useful operators for integer.
  */
 #ifndef TVM_ARITHMETIC_INT_OPERATOR_H_
 #define TVM_ARITHMETIC_INT_OPERATOR_H_
