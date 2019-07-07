@@ -419,13 +419,6 @@ if env.TARGET in ["sim", "tsim"]:
 # Invoke the module to perform the computation
 f(data_nd, kernel_nd, res_nd)
 
-# Print stats
-if env.TARGET in ["sim", "tsim"]:
-    sim_stats = simulator.stats()
-    print("Execution statistics:")
-    for k, v in sim_stats.items():
-        print("\t{:<16}: {:>16}".format(k, v))
-
 # Verify against numpy implementation
 res_ref = conv2d_nchw_python(data_np.astype(env.acc_dtype),
                             kernel_np.astype(env.acc_dtype),
@@ -441,6 +434,14 @@ res_ref = res_ref.reshape((batch_size // env.BATCH,
                            fout_height,
                            fout_width)).transpose((0, 2, 4, 5, 1, 3))
 tvm.testing.assert_allclose(res_ref, res_nd.asnumpy())
+
+# Print stats
+if env.TARGET in ["sim", "tsim"]:
+    sim_stats = simulator.stats()
+    print("Execution statistics:")
+    for k, v in sim_stats.items():
+        print("\t{:<16}: {:>16}".format(k, v))
+
 print("Successful 2D convolution test!")
 
 ######################################################################

@@ -359,13 +359,6 @@ if env.TARGET in ["sim", "tsim"]:
 # Invoke the module to perform the computation
 f(data_nd, weight_nd, res_nd)
 
-# Print stats
-if env.TARGET in ["sim", "tsim"]:
-    sim_stats = simulator.stats()
-    print("Execution statistics:")
-    for k, v in sim_stats.items():
-        print("\t{:<16}: {:>16}".format(k, v))
-
 # Verify against numpy implementation
 res_ref = np.dot(data_np.astype(env.acc_dtype),
                  weight_np.T.astype(env.acc_dtype))
@@ -377,6 +370,14 @@ res_ref = res_ref.reshape(batch_size // env.BATCH,
                           out_channels // env.BLOCK_OUT,
                           env.BLOCK_OUT).transpose((0, 2, 1, 3))
 np.testing.assert_equal(res_ref, res_nd.asnumpy())
+
+# Print stats
+if env.TARGET in ["sim", "tsim"]:
+    sim_stats = simulator.stats()
+    print("Execution statistics:")
+    for k, v in sim_stats.items():
+        print("\t{:<16}: {:>16}".format(k, v))
+
 print("Successful blocked matrix multiply test!")
 
 ######################################################################

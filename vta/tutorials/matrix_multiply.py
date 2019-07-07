@@ -444,13 +444,6 @@ if env.TARGET in ["sim", "tsim"]:
 # Invoke the module to perform the computation
 f(A_nd, B_nd, C_nd)
 
-# Print stats
-if env.TARGET in ["sim", "tsim"]:
-    sim_stats = simulator.stats()
-    print("Execution statistics:")
-    for k, v in sim_stats.items():
-        print("\t{:<16}: {:>16}".format(k, v))
-
 ######################################################################
 # Verifying Correctness
 # ---------------------
@@ -463,8 +456,15 @@ C_ref = np.dot(A_orig.astype(env.acc_dtype),
 C_ref = C_ref.reshape(
     o, env.BATCH, m, env.BLOCK_OUT).transpose((0, 2, 1, 3))
 np.testing.assert_equal(C_ref, C_nd.asnumpy())
-print("Successful matrix multiply test!")
 
+# Print stats
+if env.TARGET in ["sim", "tsim"]:
+    sim_stats = simulator.stats()
+    print("Execution statistics:")
+    for k, v in sim_stats.items():
+        print("\t{:<16}: {:>16}".format(k, v))
+
+print("Successful matrix multiply test!")
 
 ######################################################################
 # Summary
