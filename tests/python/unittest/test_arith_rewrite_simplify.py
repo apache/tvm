@@ -236,7 +236,9 @@ def test_sub_index_simplify():
     # div pattern
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.verify(x - (x / 3) * 3, x % 3)
-    ck.verify((x + 5) / 3 - x / 3, (((x + 2) % 3) + 5)/ 3)
+
+    ck.verify((x + 5) / 3 - x / 3, ((x % 3) + 5)/ 3)
+    ck.verify((x + 5) / 3 - (x + 1) / 3, (((x + 1) % 3) + 4)/ 3)
 
     ck.verify(y - (y / (-5)) * (-5), y % 5)
     ck.verify((y / 3) * 3 - y, 0 - y % 3)
@@ -257,6 +259,7 @@ def test_sub_index_simplify():
     ck.verify(5 * y - 10 * ((y - z) / 2), ((y - z) % 2 + z) * 5)
     ck.verify(6 * ((y + z) / 3) - y * 2, (z - (y + z) % 3) * 2)
     ck.verify(((y - z) / 3) * 6 - 2 * y, (0 - (y - z) % 3 - z) * 2)
+
 
 def test_mul_index_simplify():
     ck = RewriteChecker()
