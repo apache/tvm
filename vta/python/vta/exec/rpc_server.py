@@ -42,7 +42,7 @@ def server_start():
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
-    dll_path = find_libvta()[0]
+    dll_path = find_libvta("libvta")[0]
     cfg_path = os.path.abspath(os.path.join(proj_root, "build/vta_config.json"))
     runtime_dll = []
     _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
