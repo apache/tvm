@@ -75,11 +75,6 @@ void VTADeviceFree(VTADeviceHandle handle);
  * \brief Launch the instructions block until done.
  * \param device The device handle.
  * \param insn_phy_addr The physical address of instruction stream.
- * \param uop_phy_addr The physical address of micro-ops stream.
- * \param inp_phy_addr The physical address of inputs.
- * \param wgt_phy_addr The physical address of weigths.
- * \param acc_phy_addr The physical address of biases.
- * \param out_phy_addr The physical address of outputs.
  * \param insn_count Instruction count.
  * \param wait_cycles The maximum of cycles to wait
  *

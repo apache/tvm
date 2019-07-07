@@ -98,6 +98,7 @@ typedef int (*VTADPISimFunc)();
 /*!
  * \brief Set Host and Memory DPI functions
  * \param handle DPI Context handle
+ * \param sim_dpi Sim DPI function
  * \param host_dpi Host DPI function
  * \param mem_dpi Memory DPI function
  */
