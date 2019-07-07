@@ -498,9 +498,7 @@ if {$make_assignments} {
 	export_assignments
 
   load_package flow 
-  execute_module -tool map
-  execute_module -tool fit
-  execute_module -tool asm
+  execute_flow -compile
 	
   # Close project
 	if {$need_to_close_project} {

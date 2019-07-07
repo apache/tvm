@@ -3,15 +3,13 @@ ROOTDIR = $(CURDIR)
 BUILD_NAME = build
 BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel
 SCRIPT_DIR = $(ROOTDIR)/scripts
-SRC_DIR = $(ROOTDIR)/src
+SRC_DIR = $(ROOTDIR)/ip
 SIM_DIR = $(ROOTDIR)/sim
 TEST_DIR = $(ROOTDIR)/../../tests/hardware/common
 INCLUDE_DIR = $(ROOTDIR)/../../include
 
 # Executables
-CXX = i++
 TCLSH = quartus_sh
-HSI = hsi
 
 # HLS mode, options: skip_sim, sim
 MODE = skip_sim
@@ -97,16 +95,11 @@ VTA_HW_COMP_THREADS = 8
 
 # Derive config name
 CONF = $(shell ${VTA_CONFIG} --cfg-str)
-IP_BUILD_PATH = $(BUILD_DIR)/hls/$(CONF)
-HW_BUILD_PATH = $(BUILD_DIR)/qsys/$(CONF)
-
-ifeq ($(SLURM), true)
-	IP_BUILD_PATH = /scratch/hls/$(CONF)
-	HW_BUILD_PATH = /scratch/qsys/$(CONF)
-endif
+IP_BUILD_PATH = $(BUILD_DIR)/chisel/$(CONF)
+HW_BUILD_PATH = $(BUILD_DIR)/quartus/$(CONF)
 
 # IP file path
-IP_PATH = $(BUILD_DIR)/chisel/$(CONF)/solution0/impl/ip/intel_fpga_com_chisel_vta_1_0.zip
+IP_PATH = $(BUILD_DIR)/chisel/$(CONF)/solution0/impl/ip/intel_fpga_com_chisel_vta_1_0.tgz
 
 # Bitstream file path
 BIT_PATH = $(BUILD_DIR)/quartus/$(CONF)/export/$(CONF).rbf
@@ -117,19 +110,19 @@ all: bit
 ip: $(IP_PATH)
 bit: $(BIT_PATH)
 
-$(IP_PATH): $(SRC_DIR)/*
+$(IP_PATH): $(SRC_DIR)
 	mkdir -p $(IP_BUILD_PATH)
 	cd $(IP_BUILD_PATH) && \
-	  $(CXX) $(HLS_CXX_FLAGS) -march=$(DEVICE) $(SRC_DIR)/vta.cc \
-    $(SIM_DIR)/vta_test.cc $(TEST_DIR)/test_lib.cc -o $(IP_BUILD_PATH)/vta
+    mkdir -p $(shell dirname $(IP_PATH)) && \
+    cd $(SRC_DIR)/.. && \
+    tar zcvf $(IP_PATH) ip
 
-$(BIT_PATH):
+$(BIT_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
-    quartus_map -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
-    quartus_fit -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
-    quartus_asm -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
-    cd ..
+    cp -r $(ROOTDIR)/ip $(HW_BUILD_PATH)/.. && \
+    cp $(ROOTDIR)/scripts/* $(HW_BUILD_PATH) && \
+    $(TCLSH) -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl
 
 clean:
 	rm -rf *.out *.log *.sb figures

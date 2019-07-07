@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 
+import os, sys
+
+thisdir = os.path.abspath(os.path.dirname(__file__))
+ippath = os.path.join(thisdir, '..', 'ip', 'vta_adaptor')
+
 def set_attrs():
-    fname = "VTA.v"
-    fname_out = "IntelShell.v"
+    fname = os.path.join(ippath, "VTA.DefaultDe10Config.v")
+    fname_out = op.path.join(ippath, "IntelShell.v")
     out = ""
     with open(fname, 'rt') as fp:
         module = ''
