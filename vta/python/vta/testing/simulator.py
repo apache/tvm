@@ -17,8 +17,6 @@
 """Utilities to start simulator."""
 import ctypes
 import json
-import sys
-import os
 import tvm
 from ..environment import get_env
 from ..libinfo import find_libvta
@@ -44,6 +42,7 @@ def _load_all():
         f = tvm.get_global_func("vta.tsim.init")
         m = tvm.module.load(lib[0], "vta-tsim")
         f(m)
+    return
 
 
 def enabled():
