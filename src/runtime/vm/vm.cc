@@ -695,11 +695,7 @@ void VirtualMachine::Run() {
     switch (instr.op) {
       case Opcode::Move: {
         Object from_obj;
-        if (instr.from == 0) {
-          from_obj = return_register;
-        } else {
-          from_obj = ReadRegister(instr.from);
-        }
+        from_obj = ReadRegister(instr.from);
         WriteRegister(instr.dst, from_obj);
         pc++;
         goto main_loop;
