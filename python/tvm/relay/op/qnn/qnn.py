@@ -19,3 +19,49 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
+
+def requantize(input_data, input_zero_point, input_scale, output_zero_point,
+        output_scale, out_dtype="int32", use_int_compute=False):
+    r"""Requantized operator.
+
+    The requantize operator converts one quantized tensor to another quantized
+    tensor. For the output tensor, we are provided with output scale and zero
+    point. The computation looks like this
+
+    Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+
+    The above computation can be done in floating point as the scales are in
+    FP32. Alternatively, we can approximate floating point with fixed point
+    computation. This is controlled by use_int_compute.
+
+    Parameters
+    ----------
+    quantized_data : tvm.relay.Expr
+        The input quantized_data to the operator.
+
+    input_scale: float
+           The float scalar to scale the quantized_data int8 values back to FP32.
+
+    output_scale: float
+           The float scalar to scale the quantized_output int8 values back to FP32.
+
+    input_zero_point: int
+           The zero point of the quantized_data distribution.
+
+    output_zero_point: int
+           The zero point of the quantized_output distribution.
+
+    out_dtype : str, optional
+        Specifies the output quantized_data type for mixed precision conv2d.
+
+    use_int_compute : bool, optional
+        Use fully integer computation for requantizing.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.requantize(input_data, input_zero_point, input_scale,
+                            output_zero_point, output_scale, out_dtype,
+                            use_int_compute)
