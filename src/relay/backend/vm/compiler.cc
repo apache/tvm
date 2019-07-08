@@ -216,7 +216,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::InvokePacked:
         last_register = instr.packed_args[instr.arity - 1];
         break;
-      case Opcode::Ifi:
+      case Opcode::If:
       case Opcode::Ret:
       case Opcode::Goto:
       case Opcode::Fatal:
@@ -295,7 +295,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     this->Emit(Instruction::LoadConsti(1, NewRegister()));
     auto after_cond = this->instructions.size();
     auto target_register = this->last_register;
-    this->Emit(Instruction::Ifi(test_register, target_register, 0, 0));
+    this->Emit(Instruction::If(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
     size_t true_register = last_register;
@@ -322,8 +322,8 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     // we patch up the if instruction, and goto.
     auto true_offset = 1;
     auto false_offset = after_true - after_cond;
-    this->instructions[after_cond].ifi.true_offset = true_offset;
-    this->instructions[after_cond].ifi.false_offset = false_offset;
+    this->instructions[after_cond].if_op.true_offset = true_offset;
+    this->instructions[after_cond].if_op.false_offset = false_offset;
 
     // Patch the Goto.
     this->instructions[after_true - 1].pc_offset = (after_false - after_true) + 1;
@@ -592,7 +592,7 @@ void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
       compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
       auto operand2 = compiler->last_register;
 
-      compiler->Emit(Instruction::Ifi(operand1, operand2, 1, 0));
+      compiler->Emit(Instruction::If(operand1, operand2, 1, 0));
       auto cond_offset = compiler->instructions.size() - 1;
       CompileTreeNode(node->then_branch, compiler);
       auto if_reg = compiler->last_register;
@@ -604,7 +604,7 @@ void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
                                           else_reg, compiler->NewRegister()));
       auto else_offset = compiler->instructions.size() - 1;
       // Fixing offsets
-      compiler->instructions[cond_offset].ifi.false_offset = goto_offset - cond_offset + 1;
+      compiler->instructions[cond_offset].if_op.false_offset = goto_offset - cond_offset + 1;
       compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset;
     } else {
       // For other non-branch conditions, move to then_branch directly

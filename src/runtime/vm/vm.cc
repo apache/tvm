@@ -102,8 +102,8 @@ Instruction::Instruction(const Instruction& instr) {
       this->num_args = instr.num_args;
       this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
       return;
-    case Opcode::Ifi:
-      this->ifi = instr.ifi;
+    case Opcode::If:
+      this->if_op = instr.if_op;
       return;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
@@ -195,8 +195,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       FreeIf(this->invoke_args_registers);
       this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
       return *this;
-    case Opcode::Ifi:
-      this->ifi = instr.ifi;
+    case Opcode::If:
+      this->if_op = instr.if_op;
       return *this;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
@@ -224,7 +224,7 @@ Instruction::~Instruction() {
     case Opcode::Selecti:
     case Opcode::Ret:
     case Opcode::AllocTensorReg:
-    case Opcode::Ifi:
+    case Opcode::If:
     case Opcode::LoadConst:
     case Opcode::GetField:
     case Opcode::GetTag:
@@ -350,13 +350,13 @@ Instruction Instruction::GetTag(RegName object, RegName dst) {
   return instr;
 }
 
-Instruction Instruction::Ifi(RegName test, RegName target, Index true_branch, Index false_branch) {
+Instruction Instruction::If(RegName test, RegName target, Index true_branch, Index false_branch) {
   Instruction instr;
-  instr.op = Opcode::Ifi;
-  instr.ifi.test = test;
-  instr.ifi.target = target;
-  instr.ifi.true_offset = true_branch;
-  instr.ifi.false_offset = false_branch;
+  instr.op = Opcode::If;
+  instr.if_op.test = test;
+  instr.if_op.target = target;
+  instr.if_op.true_offset = true_branch;
+  instr.if_op.false_offset = false_branch;
   return instr;
 }
 
@@ -510,9 +510,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << ")";
       break;
     }
-    case Opcode::Ifi: {
-      os << "ifi " << "$" << instr.ifi.test << " " << instr.ifi.target << " "
-         << instr.ifi.true_offset << " " << instr.ifi.false_offset;
+    case Opcode::If: {
+      os << "if " << "$" << instr.if_op.test << " " << instr.if_op.target << " "
+         << instr.if_op.true_offset << " " << instr.if_op.false_offset;
       break;
     }
     case Opcode::Invoke: {
@@ -786,16 +786,16 @@ void VirtualMachine::Run() {
         pc += instr.pc_offset;
         goto main_loop;
       }
-      case Opcode::Ifi: {
-        int32_t test_val = LoadScalarInt(instr.ifi.test);
-        int32_t target_val = LoadScalarInt(instr.ifi.target);
+      case Opcode::If: {
+        int32_t test_val = LoadScalarInt(instr.if_op.test);
+        int32_t target_val = LoadScalarInt(instr.if_op.target);
 
         if (test_val == target_val) {
-          CHECK_NE(instr.ifi.true_offset, 0);
-          pc += instr.ifi.true_offset;
+          CHECK_NE(instr.if_op.true_offset, 0);
+          pc += instr.if_op.true_offset;
         } else {
-          CHECK_NE(instr.ifi.false_offset, 0);
-          pc += instr.ifi.false_offset;
+          CHECK_NE(instr.if_op.false_offset, 0);
+          pc += instr.if_op.false_offset;
         }
 
         goto main_loop;

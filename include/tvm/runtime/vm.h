@@ -60,7 +60,7 @@ enum class Opcode {
   AllocDatatype = 7U,
   AllocClosure = 8U,
   GetField = 9U,
-  Ifi = 10U,
+  If = 10U,
   Selecti = 11U,
   LoadConst = 12U,
   Goto = 13U,
@@ -149,7 +149,7 @@ struct Instruction {
       Index true_offset;
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
-    } ifi;
+    } if_op;
     struct /* Invoke Operands */ {
       /*! \brief The function to call. */
       Index func_index;
@@ -277,7 +277,7 @@ struct Instruction {
    *  \param false_branch The offset to the false branch.
    *  \return The if instruction.
    */
-  static Instruction Ifi(RegName test, RegName target, Index true_branch, Index false_branch);
+  static Instruction If(RegName test, RegName target, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.
