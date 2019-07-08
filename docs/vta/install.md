@@ -298,6 +298,27 @@ We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take 
 
 Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
+### Chisel-based Custom VTA Bitstream Compilation
+
+Similar to the HLS-based design, high-level hardware parameters are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+
+For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
+
+If you just want to generate the Chisel-based VTA IP core for the DE10-Nano board without compiling the design for the FPGA hardware, enter:
+```bash
+cd <tvmroot>/vta/hardware/intel
+make ip
+```
+Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
+
+If you want to run the full hardware compilation and generate the VTA bitstream for the `de10-nano` board, run:
+```bash
+make
+```
+This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of core available on your PC and try to utilize all of them to perform such process.
+
+Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/DE10_NANO_SoC_GHRD.qpf` to look around the generated reports.
+
 ### Use the Custom Bitstream
 
 We can program the new VTA FPGA bitstream by setting the bitstream path of the `vta.program_fpga()` function in the tutorial examples, or in the `test_program_rpc.py` script.
