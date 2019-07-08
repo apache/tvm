@@ -64,7 +64,10 @@ class VTAMem(implicit p: Parameters) extends Module {
 
 /** VTASim.
   *
-  * This module is used to handle simulation, including wait, resume, and exit.
+  * This module is used to handle hardware simulation thread, such as halting
+  * or terminating the simulation thread. The sim_wait port is used to halt
+  * the simulation thread when it is asserted and resume it when it is
+  * de-asserted.
   */
 class VTASim(implicit p: Parameters) extends MultiIOModule {
   val sim_wait = IO(Output(Bool()))
@@ -75,8 +78,9 @@ class VTASim(implicit p: Parameters) extends MultiIOModule {
 }
 /** SimShell.
   *
-  * The simulation shell instantiate a host and memory simulation modules and it is
-  * intended to be connected to the VTAShell.
+  * The simulation shell instantiate the sim, host and memory DPI modules that
+  * are connected to the VTAShell. An extra clock, sim_clock, is used to eval
+  * the VTASim DPI function when the main simulation clock is on halt state.
   */
 class SimShell(implicit p: Parameters) extends MultiIOModule {
   val mem = IO(new AXIClient(p(ShellKey).memParams))
