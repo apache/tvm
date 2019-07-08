@@ -30,6 +30,37 @@
 namespace tvm {
 namespace relay {
 
+struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
+  int32_t output_zero_point;
+  double output_scale;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
+    TVM_ATTR_FIELD(out_dtype)
+        .describe("Output data type, can be one of [int8 or uint8].");
+
+    TVM_ATTR_FIELD(output_zero_point)
+        .describe("The zero_point for the activation of this op.");
+
+    TVM_ATTR_FIELD(output_scale)
+        .describe("The scale for the activation of this op.");
+  }
+};
+
+struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
+  int32_t input_zero_point;
+  double input_scale;
+
+  TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
+
+    TVM_ATTR_FIELD(input_zero_point)
+        .describe("The zero_point for the input tensor of this op.");
+
+    TVM_ATTR_FIELD(input_scale)
+        .describe("The scale for the input tensor of this op.");
+  }
+};
+
 
 
 }  // namespace relay

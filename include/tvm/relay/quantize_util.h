@@ -68,15 +68,15 @@ inline bool is_quantized_type(const DataType& dtype) {
 }
 
 enum class QuantizeOpType : uint8_t {
-  Quantize_Requantize,
+  Quantize,
   Dequantize,
   Requantize
 };
 
 inline bool is_valid_quantized_op_input_type(const QuantizeOpType &op_type, const DataType &in_dtype) {
   switch(op_type) {
-    case QuantizeOpType::Quantize_Requantize:
-      return is_Float32(in_dtype) || is_quantized_type(in_dtype);
+    case QuantizeOpType::Quantize:
+      return is_Float32(in_dtype);
     case QuantizeOpType ::Dequantize:
       return is_quantized_type(in_dtype);
     case QuantizeOpType ::Requantize:
@@ -88,7 +88,7 @@ inline bool is_valid_quantized_op_input_type(const QuantizeOpType &op_type, cons
 
 inline bool is_valid_quantized_op_output_type(const QuantizeOpType &op_type, const DataType &in_dtype) {
   switch(op_type) {
-    case QuantizeOpType::Quantize_Requantize:
+    case QuantizeOpType::Quantize:
       return is_quantized_type(in_dtype);
     case QuantizeOpType::Dequantize:
       return is_Float32(in_dtype);
