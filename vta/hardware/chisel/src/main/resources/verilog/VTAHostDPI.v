@@ -35,7 +35,6 @@ module VTAHostDPI #
 
   import "DPI-C" function void VTAHostDPI
   (
-    output byte unsigned exit,
     output byte unsigned req_valid,
     output byte unsigned req_opcode,
     output byte unsigned req_addr,
@@ -50,7 +49,6 @@ module VTAHostDPI #
   typedef logic [31:0] dpi32_t;
 
   dpi1_t  __reset;
-  dpi8_t  __exit;
   dpi8_t  __req_valid;
   dpi8_t  __req_opcode;
   dpi8_t  __req_addr;
@@ -80,7 +78,6 @@ module VTAHostDPI #
   // evaluate DPI function
   always_ff @(posedge clock) begin
     if (reset | __reset) begin
-      __exit = 0;
       __req_valid = 0;
       __req_opcode = 0;
       __req_addr = 0;
@@ -88,7 +85,6 @@ module VTAHostDPI #
     end
     else begin
       VTAHostDPI(
-        __exit,
         __req_valid,
         __req_opcode,
         __req_addr,
@@ -96,23 +92,6 @@ module VTAHostDPI #
         __req_deq,
         __resp_valid,
         __resp_bits);
-    end
-  end
-
-  logic [63:0] cycles;
-
-  always_ff @(posedge clock) begin
-    if (reset | __reset) begin
-      cycles <= 'd0;
-    end
-    else begin
-      cycles <= cycles + 1'b1;
-    end
-  end
-
-  always_ff @(posedge clock) begin
-    if (__exit == 'd1) begin
-      $finish;
     end
   end
 

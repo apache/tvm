@@ -173,14 +173,20 @@ def run_conv2d(env, remote, wl, target,
     # In vta sim mode, collect simulator runtime statistics
     stats = {}
     cost = None
-    if env.TARGET == "sim":
+    if env.TARGET in ["sim", "tsim"]:
         # Check if we're in local RPC mode (allows us to rebuild the
         # runtime on the fly when varying the VTA designs)
         local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
         if local_rpc:
-            remote.get_function("vta.simulator.profiler_clear")()
+            if env.TARGET == "sim":
+                remote.get_function("vta.simulator.profiler_clear")()
+            else:
+                remote.get_function("vta.tsim.profiler_clear")()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
-            stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
+            if env.TARGET == "sim":
+                stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
+            else:
+                stats = json.loads(remote.get_function("vta.tsim.profiler_status")())
         else:
             simulator.clear_stats()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
@@ -215,7 +221,7 @@ def test_conv2d(device="vta"):
     def _run(env, remote):
         if device == "vta":
             target = env.target
-            if env.TARGET != "sim":
+            if env.TARGET not in ["sim", "tsim"]:
                 assert tvm.module.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)

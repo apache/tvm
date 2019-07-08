@@ -17,20 +17,32 @@
 """Utilities to start simulator."""
 import ctypes
 import json
-import sys
-import os
 import tvm
+from ..environment import get_env
 from ..libinfo import find_libvta
 
-def _load_lib():
-    """Load local library, assuming they are simulator."""
-    lib_path = find_libvta(optional=True)
-    if not lib_path:
+
+def _load_sw():
+    """Load software library, assuming they are simulator."""
+    lib_sw = find_libvta("libvta", optional=True)
+    if not lib_sw:
         return []
     try:
-        return [ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)]
+        return [ctypes.CDLL(lib_sw[0], ctypes.RTLD_GLOBAL)]
     except OSError:
         return []
+
+
+def _load_all():
+    """Load hardware library for tsim."""
+    lib = _load_sw()
+    env = get_env()
+    if env.TARGET == "tsim":
+        lib = find_libvta("libvta_hw", optional=True)
+        f = tvm.get_global_func("vta.tsim.init")
+        m = tvm.module.load(lib[0], "vta-tsim")
+        f(m)
+    return lib
 
 
 def enabled():
@@ -40,49 +52,31 @@ def enabled():
 
 
 def clear_stats():
-    """Clear profiler statistics"""
-    f = tvm.get_global_func("vta.simulator.profiler_clear", True)
+    """Clear profiler statistics."""
+    env = get_env()
+    if env.TARGET == "sim":
+        f = tvm.get_global_func("vta.simulator.profiler_clear", True)
+    else:
+        f = tvm.get_global_func("vta.tsim.profiler_clear", True)
     if f:
         f()
 
 
 def stats():
-    """Clear profiler statistics
+    """Get profiler statistics
 
     Returns
     -------
     stats : dict
         Current profiler statistics
     """
-    x = tvm.get_global_func("vta.simulator.profiler_status")()
+    env = get_env()
+    if env.TARGET == "sim":
+        x = tvm.get_global_func("vta.simulator.profiler_status")()
+    else:
+        x = tvm.get_global_func("vta.tsim.profiler_status")()
     return json.loads(x)
 
-def tsim_init(hw_lib):
-    """Init hardware shared library for TSIM
-
-     Parameters
-     ------------
-     hw_lib : str
-        Name of hardware shared library
-    """
-    cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
-    if not hw_lib.endswith(("dylib", "so")):
-        hw_lib += ".dylib" if sys.platform == "darwin" else ".so"
-    lib = os.path.join(vta_build_path, hw_lib)
-    f = tvm.get_global_func("tvm.vta.tsim.init")
-    m = tvm.module.load(lib, "vta-tsim")
-    f(m)
-
-def tsim_cycles():
-    """Get tsim clock cycles
-
-    Returns
-    -------
-    stats : int
-        tsim clock cycles
-    """
-    return tvm.get_global_func("tvm.vta.tsim.cycles")()
 
 # debug flag to skip execution.
 DEBUG_SKIP_EXEC = 1
@@ -97,4 +91,4 @@ def debug_mode(flag):
     tvm.get_global_func("vta.simulator.profiler_debug_mode")(flag)
 
 
-LIBS = _load_lib()
+LIBS = _load_all()

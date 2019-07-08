@@ -18,6 +18,7 @@ import tvm
 import numpy as np
 from tvm.contrib import util
 import vta.testing
+from vta.testing import simulator
 
 
 def test_gemm():
@@ -104,7 +105,14 @@ def test_gemm():
             res_ref = np.right_shift(res_ref, 8)
             res_ref = np.clip(res_ref, 0, (1<<(env.INP_WIDTH-1))-1).astype(res.dtype)
             time_f = f.time_evaluator("gemm", ctx, number=20)
+            if env.TARGET in ["sim", "tsim"]:
+                simulator.clear_stats()
             cost = time_f(data_arr, weight_arr, res_arr)
+            if env.TARGET in ["sim", "tsim"]:
+                stats = simulator.stats()
+                print("Execution statistics:")
+                for k, v in stats.items():
+                    print("\t{:<16}: {:>16}".format(k, v))
             res_unpack = res_arr.asnumpy().reshape(batch_size // env.BATCH,
                                                    channel // env.BLOCK_OUT,
                                                    env.BATCH,

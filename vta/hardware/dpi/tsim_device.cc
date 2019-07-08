@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <chrono>
+#include <thread>
 #include <vta/dpi/tsim.h>
 
 #if VM_TRACE
@@ -29,11 +31,17 @@
 #endif
 
 static VTAContextHandle _ctx = nullptr;
-static VTAMemDPIFunc _mem_dpi = nullptr;
+static VTASimDPIFunc _sim_dpi = nullptr;
 static VTAHostDPIFunc _host_dpi = nullptr;
+static VTAMemDPIFunc _mem_dpi = nullptr;
 
-void VTAHostDPI(dpi8_t* exit,
-                dpi8_t* req_valid,
+void VTASimDPI(dpi8_t* wait,
+               dpi8_t* exit) {
+  assert(_sim_dpi != nullptr);
+  (*_sim_dpi)(_ctx, wait, exit);
+}
+
+void VTAHostDPI(dpi8_t* req_valid,
                 dpi8_t* req_opcode,
                 dpi8_t* req_addr,
                 dpi32_t* req_value,
@@ -41,7 +49,7 @@ void VTAHostDPI(dpi8_t* exit,
                 dpi8_t resp_valid,
                 dpi32_t resp_value) {
   assert(_host_dpi != nullptr);
-  (*_host_dpi)(_ctx, exit, req_valid, req_opcode,
+  (*_host_dpi)(_ctx, req_valid, req_opcode,
                req_addr, req_value, req_deq,
                resp_valid, resp_value);
 }
@@ -63,9 +71,11 @@ void VTAMemDPI(dpi8_t req_valid,
 }
 
 void VTADPIInit(VTAContextHandle handle,
+                VTASimDPIFunc sim_dpi,
                 VTAHostDPIFunc host_dpi,
                 VTAMemDPIFunc mem_dpi) {
   _ctx = handle;
+  _sim_dpi = sim_dpi;
   _host_dpi = host_dpi;
   _mem_dpi = mem_dpi;
 }
@@ -77,7 +87,7 @@ void vl_finish(const char* filename, int linenum, const char* hier) {
   Verilated::gotFinish(true);
 }
 
-int VTADPISim(uint64_t max_cycles) {
+int VTADPISim() {
   uint64_t trace_count = 0;
   Verilated::flushCall();
   Verilated::gotFinish(false);
@@ -115,13 +125,15 @@ int VTADPISim(uint64_t max_cycles) {
   top->reset = 0;
 
   // start simulation
-  while (!Verilated::gotFinish() && trace_count < max_cycles) {
+  while (!Verilated::gotFinish()) {
+    top->sim_clock = 0;
     top->clock = 0;
     top->eval();
 #if VM_TRACE
     if (trace_count >= start)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
+    top->sim_clock = 1;
     top->clock = 1;
     top->eval();
 #if VM_TRACE
@@ -129,6 +141,14 @@ int VTADPISim(uint64_t max_cycles) {
       tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
 #endif
     trace_count++;
+    while (top->sim_wait) {
+      top->clock = 0;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      top->sim_clock = 0;
+      top->eval();
+      top->sim_clock = 1;
+      top->eval();
+    }
   }
 
 #if VM_TRACE

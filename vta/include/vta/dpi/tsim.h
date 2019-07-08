@@ -36,9 +36,13 @@ typedef unsigned long long dpi64_t; // NOLINT(*)
 /*! \brief the context handle */
 typedef void* VTAContextHandle;
 
+typedef void (*VTASimDPIFunc)(
+    VTAContextHandle self,
+    dpi8_t* wait,
+    dpi8_t* exit);
+
 /*!
  * \brief Host DPI callback function that is invoked in VTAHostDPI.v every clock cycle
- * \param exit Host kill simulation
  * \param req_valid Host has a valid request for read or write a register in Accel
  * \param req_opcode Host request type, opcode=0 for read and opcode=1 for write
  * \param req_addr Host request register address
@@ -50,7 +54,6 @@ typedef void* VTAContextHandle;
  */
 typedef void (*VTAHostDPIFunc)(
     VTAContextHandle self,
-    dpi8_t* exit,
     dpi8_t* req_valid,
     dpi8_t* req_opcode,
     dpi8_t* req_addr,
@@ -84,28 +87,28 @@ typedef void (*VTAMemDPIFunc)(
 
 /*! \brief The type of VTADPIInit function pointer */
 typedef void (*VTADPIInitFunc)(VTAContextHandle handle,
+                            VTASimDPIFunc sim_dpi,
                             VTAHostDPIFunc host_dpi,
                             VTAMemDPIFunc mem_dpi);
 
 
 /*! \brief The type of VTADPISim function pointer */
-typedef int (*VTADPISimFunc)(uint64_t max_cycles);
+typedef int (*VTADPISimFunc)();
 
 /*!
  * \brief Set Host and Memory DPI functions
  * \param handle DPI Context handle
+ * \param sim_dpi Sim DPI function
  * \param host_dpi Host DPI function
  * \param mem_dpi Memory DPI function
  */
 TVM_DLL void VTADPIInit(VTAContextHandle handle,
+                VTASimDPIFunc sim_dpi,
                 VTAHostDPIFunc host_dpi,
                 VTAMemDPIFunc mem_dpi);
 
-/*!
- * \brief Instantiate VTA design and generate clock/reset
- * \param max_cycles The maximum number of simulation cycles
- */
-TVM_DLL int VTADPISim(uint64_t max_cycles);
+/*! \brief VTA hardware simulation thread */
+TVM_DLL int VTADPISim();
 
 #ifdef __cplusplus
 }
