@@ -294,7 +294,7 @@ def test_list_hd():
     three = hd(one4)
     f = relay.Function([], three)
 
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
     result = veval(mod)()
     tvm.testing.assert_allclose(result.asnumpy(), 3)
@@ -310,7 +310,7 @@ def test_list_tl_empty_list():
 
     f = relay.Function([], tl(nil()))
 
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
     result = veval(mod)()
     print(result)
@@ -330,7 +330,7 @@ def test_list_tl():
 
     f = relay.Function([], tl(one4))
 
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2,1]))
@@ -350,7 +350,7 @@ def test_list_nth():
             l = cons(relay.const(i), l)
 
         f = relay.Function([], nth(l, relay.const(i)))
-        mod[mod.entry_func] = f
+        mod["main"] = f
         result = veval(mod)()
         tvm.testing.assert_allclose(result.asnumpy(), expected[i])
 
@@ -374,7 +374,7 @@ def test_list_update():
         l = update(l, relay.const(i), relay.const(v))
 
     f = relay.Function([], l)
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
 
@@ -396,7 +396,7 @@ def test_list_length():
     l = length(l)
 
     f = relay.Function([], l)
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(result.asnumpy(), 10)
 
@@ -414,7 +414,7 @@ def test_list_map():
     l = cons(relay.const(2), cons(relay.const(1), nil()))
 
     f = relay.Function([], map(add_one_func, l))
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
@@ -432,7 +432,7 @@ def test_list_foldl():
 
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldl(rev_dup_func, nil(), l))
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
@@ -450,7 +450,7 @@ def test_list_foldr():
 
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldr(identity_func, nil(), l))
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
@@ -464,7 +464,7 @@ def test_list_sum():
 
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], sum(l))
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(result.asnumpy(), 6)
 
@@ -484,7 +484,7 @@ def test_list_filter():
                     cons(relay.const(5),
                         cons(relay.const(1), nil())))))
     f = relay.Function([], filter(greater_than_one, l))
-    mod[mod.entry_func] = f
+    mod["main"] = f
     result = veval(mod)()
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
 
