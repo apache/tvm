@@ -529,7 +529,7 @@ def CanonicalizeCast():
     return _transform.CanonicalizeCast()
 
 
-def DebugPrint():
+def PrintIR():
     """
     Print the IR for a module to help debugging.
 
@@ -538,7 +538,7 @@ def DebugPrint():
     ret : tvm.relay.Pass
         The registered pass that prints the module IR.
     """
-    return _transform.DebugPrint()
+    return _transform.PrintIR()
 
 
 def gradient(expr, mod=None, mode='higher_order'):

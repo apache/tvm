@@ -504,7 +504,7 @@ def test_sequential_with_scoping():
     assert analysis.alpha_equal(zz, zexpected)
 
 
-def test_debug_print():
+def test_print_ir():
     shape = (1, 2, 3)
     tp = relay.TensorType(shape, "float32")
     x = relay.var("x", tp)
@@ -515,7 +515,7 @@ def test_debug_print():
     seq = _transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
-        relay.transform.DebugPrint(),
+        relay.transform.PrintIR(),
         relay.transform.DeadCodeElimination()
     ])
 
@@ -568,4 +568,4 @@ if __name__ == "__main__":
     test_sequential_pass()
     test_sequential_with_scoping()
     test_pass_info()
-    test_debug_print()
+    test_print_ir()

@@ -20,7 +20,7 @@
 /*!
  * Copyright (c) 2019 by Contributors
  *
- * \file src/relay/pass/debug_print.cc
+ * \file src/relay/pass/print_ir.cc
  *
  * \brief Print the module IR to help debugging.
  */
@@ -32,17 +32,17 @@ namespace relay {
 
 namespace transform {
 
-Pass DebugPrint() {
+Pass PrintIR() {
   runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
     [=](Module m, PassContext pc) {
       LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m);
       return m;
   };
-  return CreateModulePass(pass_func, 0, "DebugPrint", {});
+  return CreateModulePass(pass_func, 0, "PrintIR", {});
 }
 
-TVM_REGISTER_API("relay._transform.DebugPrint")
-.set_body_typed(DebugPrint);
+TVM_REGISTER_API("relay._transform.PrintIR")
+.set_body_typed(PrintIR);
 
 }  // namespace transform
 

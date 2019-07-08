@@ -545,7 +545,7 @@ TVM_DLL Pass EtaExpand();
  *
  * \return the pass.
  */
-TVM_DLL Pass DebugPrint();
+TVM_DLL Pass PrintIR();
 
 }  // namespace transform
 
