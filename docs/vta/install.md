@@ -311,11 +311,13 @@ make ip
 ```
 Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
 
-If you want to run the full hardware compilation and generate the VTA bitstream for the `de10-nano` board, run:
+Before performing the full hardware compilation, it is necessary to download the corresponding CD-ROM from [Terasic](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=205&No=1046&PartNo=4) and extract and merge the `/Demonstrations/SoC_FPGA/DE10_NANO_SoC_GHRD/ip` directory in the downloaded zip archive with `<tvmroot>/vta/hardware/intel/ip` directory.
+Then you would be able to run the full hardware compilation for the `de10-nano` board:
 ```bash
 make
 ```
-This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of core available on your PC and try to utilize all of them to perform such process.
+
+This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
 Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/DE10_NANO_SoC_GHRD.qpf` to look around the generated reports.
 
