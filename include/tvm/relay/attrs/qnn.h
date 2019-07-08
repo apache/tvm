@@ -30,7 +30,31 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attribute for requantize operator */
+struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
+  double input_scale;
+  int32_t input_zero_point;
+  double output_scale;
+  int32_t output_zero_point;
+  bool use_int_compute;
+  DataType out_dtype;
 
+  TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
+    TVM_ATTR_FIELD(input_zero_point)
+        .describe("The zero point of the input tensor.");
+    TVM_ATTR_FIELD(output_zero_point)
+        .describe("The zero point of the output tensor.");
+    TVM_ATTR_FIELD(input_scale)
+        .describe("The scale of the input tensor.");
+    TVM_ATTR_FIELD(output_scale)
+        .describe("The scale of the output tensor.");
+    TVM_ATTR_FIELD(use_int_compute).set_default(false)
+        .describe("When true, the integer computation is used to handle output scale");
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
 
 }  // namespace relay
 }  // namespace tvm
