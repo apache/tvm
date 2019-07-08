@@ -96,6 +96,29 @@ TEST(Relay, BuildModule) {
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
+  // mutate the input a bit and run it again
+  for (int i = 0; i < 6; ++i) {
+    pB[i] = i + 3;
+  }
+  run_f();
+  tvm::runtime::NDArray Y2 = get_output_f(0);
+  auto pY2 = (float*)Y2.ToDLPack()->dl_tensor.data;
+  for (int i = 0; i < 6; ++i) {
+    CHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
+  }
+  // attach a different input and run it again
+  auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto pC2 = (float*)C2.ToDLPack()->dl_tensor.data;
+  for (int i = 0; i < 6; ++i) {
+    pC2[i] = i + 4;
+  }
+  set_input_f("c", &C2.ToDLPack()->dl_tensor);
+  run_f();
+  tvm::runtime::NDArray Y3 = get_output_f(0);
+  auto pY3 = (float*)Y3.ToDLPack()->dl_tensor.data;
+  for (int i = 0; i < 6; ++i) {
+    CHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
+  }
 }
 
 int main(int argc, char ** argv) {
