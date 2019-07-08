@@ -299,7 +299,6 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     this->VisitExpr(if_node->true_branch);
 
     size_t true_register = last_register;
-
     Emit(Instruction::Goto(0));
 
     // Finally store how many instructions there are in the
@@ -310,6 +309,8 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
     size_t false_register = last_register;
 
+    // In else-branch, override the then-branch register
+    Emit(Instruction::Move(false_register, true_register));
     // Compute the total number of instructions
     // after generating false.
     auto after_false = this->instructions.size();
@@ -328,8 +329,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     // Patch the Goto.
     this->instructions[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    Emit(Instruction::Selecti(test_register, target_register, true_register,
-                              false_register, NewRegister()));
+    this->last_register = true_register;
   }
 
   Instruction AllocTensorFromType(const TensorTypeNode* ttype) {
@@ -600,12 +600,12 @@ void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
       auto goto_offset = compiler->instructions.size() - 1;
       CompileTreeNode(node->else_branch, compiler);
       auto else_reg = compiler->last_register;
-      compiler->Emit(Instruction::Selecti(operand1, operand2, if_reg,
-                                          else_reg, compiler->NewRegister()));
+      compiler->Emit(Instruction::Move(else_reg, if_reg));
+      compiler->last_register = if_reg;
       auto else_offset = compiler->instructions.size() - 1;
       // Fixing offsets
       compiler->instructions[cond_offset].if_op.false_offset = goto_offset - cond_offset + 1;
-      compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset;
+      compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset + 1;
     } else {
       // For other non-branch conditions, move to then_branch directly
       auto cond = std::dynamic_pointer_cast<VarBinding>(node->cond);
