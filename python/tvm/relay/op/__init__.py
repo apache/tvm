@@ -26,6 +26,7 @@ from .tensor import *
 from .transform import *
 from .algorithm import *
 from . import nn
+from . import qnn
 from . import annotation
 from . import image
 from . import vision
