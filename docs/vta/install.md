@@ -180,15 +180,9 @@ The performance metrics measured on the Pynq board will be reported for each con
 
 You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
 
-## VTA DE10-Nano Based Test Setup
-
-Similar like [PYNQ based test setup](#vta-pynq-based-test-setup), this section describes the method to run FPGA hardware tests of the complete TVM and VTA software-hardware stack. In terms of hardware components, the [DE10-Nano](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=205&No=1046&PartNo=1) development kit, which contains the cables and power supplies, is required to run the following setup steps. 
-
-
-
 ## VTA FPGA Toolchain Installation
 
-This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx compilation toolchains.
+This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel (a.k.a Altera) compilation toolchains.
 
 ### Xilinx Toolchain Installation
 
@@ -240,7 +234,38 @@ export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.2
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 ```
 
-### Custom VTA Bitstream Compilation
+### Intel Toolchain Installation
+
+It is recommended to use `Intel Quartus Prime 18.0`, since the test scripts contained in this document have been tested on this version. 
+
+You would need to install Intel's FPGA compilation toolchain, [Quartus Prime Lite](http://fpgasoftware.intel.com/?edition=lite), which is a license-free version of the Intel Quartus Prime software.
+
+#### Obtaining and Launching the Quartus GUI Installer
+
+1. Go to the [download center](http://fpgasoftware.intel.com/?edition=lite), and download the linux version of `Quartus Prime (include Nios II EDS)` and `Cyclone V device support` files in the `Separate file` tab. This avoid downloading unused device support files.
+2. Sign in the form if you have an account, or register on the right side of the web page to create an account.
+3. After signed in, you are able to download the installer and the device support files.
+4. Now that the files are downloaded, go to your `Downloads` directory, and change the file permissions:
+```bash
+chmod u+x QuartusLiteSetup-18.0.0.614-linux.run
+```
+5. Now ensure both the installer and device support files are in the same directory, and you can run the install with:
+```bash
+./QuartusLiteSetup-18.0.0.614-linux.run
+```
+6. Follow the instructions on the pop-up GUI form, and install all the content in the `/usr/local` directory. After installation, `/usr/local/intelFPGA_lite/18.0` would be created and the Quartus program along with other programs would be available in the folder.
+
+#### Environment Setup
+
+Similar to what should be done for Xilinx toolchain, the following line should be added to your `~/.bashrc`.
+```bash
+# Intel Quartus 18.0 environment
+export QUARTUS_ROOTDIR="/usr/local/intelFPGA_lite/18.0/quartus"
+export PATH=${QUARTUS_ROOTDIR}/bin:${PATH}
+```
+This would add quartus binary path into your `PATH` environment variable, so you can launch compilation scripts from the command line.
+
+### HLS-based Custom VTA Bitstream Compilation
 
 High-level hardware parameters are listed in the VTA configuration file and can be customized by the user.
 For this custom VTA bitstream compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
