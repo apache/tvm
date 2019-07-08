@@ -93,10 +93,6 @@ struct Instruction {
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
     } alloc_tensor;
-    struct /* Cmpi Operands*/ {
-      RegName op1;
-      RegName op2;
-    } cmpi;
     struct /* AllocTensorReg Operands */ {
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
