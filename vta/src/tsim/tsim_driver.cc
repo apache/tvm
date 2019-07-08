@@ -17,32 +17,78 @@
  * under the License.
  */
 
-#include <vta/driver.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
+#include <vta/driver.h>
 #include <vta/dpi/module.h>
 
 namespace vta {
 namespace tsim {
 
-using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
+using vta::dpi::DPIModuleNode;
 
 class Profiler {
  public:
-  /*! \brief cycle counter */
-  uint64_t cycle_count{0};
+  Profiler() {
+    counters_ = new int[num_counters_];
+    this->ClearAll();
+  }
+
+  ~Profiler() {
+    delete [] counters_;
+  }
+
+  /*! \brief update one event counter */
+  void Update(uint32_t idx, uint32_t value) {
+    counters_[idx] += value;
+  }
+
+  /*! \brief clear one event counter*/
+  void Clear(uint32_t idx) {
+    counters_[idx] = 0;
+  }
+
+  /*! \brief clear all event counters */
+  void ClearAll() {
+    for (uint32_t i = 0; i < num_counters_; i++) {
+      counters_[i] = 0;
+    }
+  }
+
+  /*! \brief return counters as json */
+  std::string AsJSON() {
+    std::ostringstream os;
+    os << "{\n"
+       << " \"cycle_count\":" << counters_[0] << "\n"
+       <<"}\n";
+    return os.str();
+  }
 
   static Profiler* Global() {
     static Profiler inst;
     return &inst;
   }
+
+ private:
+  /*! \brief total number of event counters */
+  uint32_t num_counters_{1};
+  /*! \brief event counters */
+  int* counters_{nullptr};
 };
 
 class DPILoader {
  public:
+  ~DPILoader() {
+    dpi_->SimResume();
+    dpi_->SimFinish();
+  }
+
   void Init(Module module) {
     mod_ = module;
+    dpi_ = this->Get();
+    dpi_->SimLaunch();
+    dpi_->SimWait();
   }
 
   DPIModuleNode* Get() {
@@ -54,13 +100,16 @@ class DPILoader {
     return &inst;
   }
 
+  // TVM module
   Module mod_;
+  // DPI Module
+  DPIModuleNode* dpi_{nullptr};
 };
 
 class Device {
  public:
   Device() {
-    dpi_ = DPILoader::Global();
+    loader_ = DPILoader::Global();
     prof_ = Profiler::Global();
   }
 
@@ -82,13 +131,13 @@ class Device {
                  insn_count,
                  wait_cycles);
     this->WaitForCompletion(wait_cycles);
-    dev_->Finish();
     return 0;
   }
 
  private:
   void Init() {
-    dev_ = dpi_->Get();
+    dpi_ = loader_->Get();
+    dpi_->SimResume();
   }
 
   void Launch(vta_phy_addr_t insn_phy_addr,
@@ -99,57 +148,60 @@ class Device {
               vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
-    // launch simulation thread
-    dev_->Launch(wait_cycles);
-    // set counter to zero
-    dev_->WriteReg(0x04, 0);
-    dev_->WriteReg(0x08, insn_count);
-    dev_->WriteReg(0x0c, insn_phy_addr);
-    dev_->WriteReg(0x10, insn_phy_addr >> 32);
-    dev_->WriteReg(0x14, 0);
-    dev_->WriteReg(0x18, uop_phy_addr >> 32);
-    dev_->WriteReg(0x1c, 0);
-    dev_->WriteReg(0x20, inp_phy_addr >> 32);
-    dev_->WriteReg(0x24, 0);
-    dev_->WriteReg(0x28, wgt_phy_addr >> 32);
-    dev_->WriteReg(0x2c, 0);
-    dev_->WriteReg(0x30, acc_phy_addr >> 32);
-    dev_->WriteReg(0x34, 0);
-    dev_->WriteReg(0x38, out_phy_addr >> 32);
+    dpi_->WriteReg(0x04, 0);
+    dpi_->WriteReg(0x08, insn_count);
+    dpi_->WriteReg(0x0c, insn_phy_addr);
+    dpi_->WriteReg(0x10, insn_phy_addr >> 32);
+    dpi_->WriteReg(0x14, 0);
+    dpi_->WriteReg(0x18, uop_phy_addr >> 32);
+    dpi_->WriteReg(0x1c, 0);
+    dpi_->WriteReg(0x20, inp_phy_addr >> 32);
+    dpi_->WriteReg(0x24, 0);
+    dpi_->WriteReg(0x28, wgt_phy_addr >> 32);
+    dpi_->WriteReg(0x2c, 0);
+    dpi_->WriteReg(0x30, acc_phy_addr >> 32);
+    dpi_->WriteReg(0x34, 0);
+    dpi_->WriteReg(0x38, out_phy_addr >> 32);
     // start
-    dev_->WriteReg(0x00, 0x1);
+    dpi_->WriteReg(0x00, 0x1);
   }
 
   void WaitForCompletion(uint32_t wait_cycles) {
     uint32_t i, val;
     for (i = 0; i < wait_cycles; i++) {
-      val = dev_->ReadReg(0x00);
+      val = dpi_->ReadReg(0x00);
       val &= 0x2;
       if (val == 0x2) break;  // finish
     }
-    prof_->cycle_count = dev_->ReadReg(0x04);
+    prof_->Update(0, dpi_->ReadReg(0x04));
+    dpi_->SimWait();
   }
 
   // Profiler
   Profiler* prof_;
   // DPI loader
-  DPILoader* dpi_;
+  DPILoader* loader_;
   // DPI Module
-  DPIModuleNode* dev_;
+  DPIModuleNode* dpi_;
 };
 
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
 
-TVM_REGISTER_GLOBAL("tvm.vta.tsim.init")
+TVM_REGISTER_GLOBAL("vta.tsim.init")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     DPILoader::Global()->Init(m);
   });
 
-TVM_REGISTER_GLOBAL("tvm.vta.tsim.cycles")
+TVM_REGISTER_GLOBAL("vta.tsim.profiler_clear")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = static_cast<int>(Profiler::Global()->cycle_count);
+    Profiler::Global()->ClearAll();
+  });
+
+TVM_REGISTER_GLOBAL("vta.tsim.profiler_status")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = Profiler::Global()->AsJSON();
   });
 
 }  // namespace tsim

@@ -19,21 +19,48 @@ from __future__ import absolute_import
 import sys
 import os
 
-def _get_lib_name():
+def _get_lib_name(lib_name):
+    """Get lib name with extension
+
+    Returns
+    -------
+    lib_name_ext : str
+        Name of VTA shared library with extension
+
+    Parameters
+    ------------
+    lib_name : str
+        Name of VTA shared library
+    """
     if sys.platform.startswith('win32'):
-        return "vta.dll"
+        return lib_name + ".dll"
     if sys.platform.startswith('darwin'):
-        return "libvta.dylib"
-    return "libvta.so"
+        return lib_name + ".dylib"
+    return lib_name + ".so"
 
 
-def find_libvta(optional=False):
-    """Find VTA library"""
+def find_libvta(lib_vta, optional=False):
+    """Find VTA library
+
+    Returns
+    -------
+    lib_found : str
+        Library path
+
+    Parameters
+    ------------
+    lib_vta : str
+        Name of VTA shared library
+
+    optional : bool
+        Enable error check
+    """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     lib_search = [curr_path]
+    lib_search += [os.path.join(curr_path, "..", "..", "build",)]
     lib_search += [os.path.join(curr_path, "..", "..", "..", "build",)]
     lib_search += [os.path.join(curr_path, "..", "..", "..", "build", "Release")]
-    lib_name = _get_lib_name()
+    lib_name = _get_lib_name(lib_vta)
     lib_path = [os.path.join(x, lib_name) for x in lib_search]
     lib_found = [x for x in lib_path if os.path.exists(x)]
     if not lib_found and not optional:

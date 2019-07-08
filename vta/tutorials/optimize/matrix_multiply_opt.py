@@ -69,7 +69,7 @@ if env.TARGET == "pynq":
     vta.program_fpga(remote, bitstream=None)
 
 # In simulation mode, host the RPC server locally.
-elif env.TARGET == "sim":
+elif env.TARGET in ["sim", "tsim"]:
     remote = rpc.LocalSession()
 
 ######################################################################
@@ -352,6 +352,10 @@ data_nd = tvm.nd.array(data_packed, ctx)
 weight_nd = tvm.nd.array(weight_packed, ctx)
 res_nd = tvm.nd.array(np.zeros(output_shape).astype(res.dtype), ctx)
 
+# Clear stats
+if env.TARGET in ["sim", "tsim"]:
+    simulator.clear_stats()
+
 # Invoke the module to perform the computation
 f(data_nd, weight_nd, res_nd)
 
@@ -366,6 +370,14 @@ res_ref = res_ref.reshape(batch_size // env.BATCH,
                           out_channels // env.BLOCK_OUT,
                           env.BLOCK_OUT).transpose((0, 2, 1, 3))
 np.testing.assert_equal(res_ref, res_nd.asnumpy())
+
+# Print stats
+if env.TARGET in ["sim", "tsim"]:
+    sim_stats = simulator.stats()
+    print("Execution statistics:")
+    for k, v in sim_stats.items():
+        print("\t{:<16}: {:>16}".format(k, v))
+
 print("Successful blocked matrix multiply test!")
 
 ######################################################################

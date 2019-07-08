@@ -17,21 +17,23 @@
  * under the License.
  */
 
-package vta.test
+package vta.dpi
 
 import chisel3._
-import chisel3.experimental.MultiIOModule
+import chisel3.util._
 import vta.util.config._
+import vta.interface.axi._
 import vta.shell._
 
-/** Test. This generates a testbench file for simulation */
-class Test(implicit p: Parameters) extends MultiIOModule {
-  val sim_clock = IO(Input(Clock()))
-  val sim_wait = IO(Output(Bool()))
-  val sim_shell = Module(new SimShell)
-  val vta_shell = Module(new VTAShell)
-  sim_shell.sim_clock := sim_clock
-  sim_wait := sim_shell.sim_wait
-  sim_shell.mem <> vta_shell.io.mem
-  vta_shell.io.host <> sim_shell.host
+/** Sim DPI module.
+  *
+  * Wrapper for Sim Verilog DPI module.
+  */
+class VTASimDPI extends BlackBox with HasBlackBoxResource {
+  val io = IO(new Bundle {
+    val clock = Input(Clock())
+    val reset = Input(Bool())
+    val dpi_wait = Output(Bool())
+  })
+  setResource("/verilog/VTASimDPI.v")
 }

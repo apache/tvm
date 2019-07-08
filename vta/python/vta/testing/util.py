@@ -22,6 +22,7 @@ from tvm import rpc, autotvm
 from ..environment import get_env
 from . import simulator
 
+
 def run(run_func):
     """Run test function on all available env.
 

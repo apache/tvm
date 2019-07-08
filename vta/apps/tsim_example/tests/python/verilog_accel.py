@@ -26,12 +26,13 @@ def test_accel():
     ctx = tvm.cpu(0)
     a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)
     b = tvm.nd.array(np.zeros(n).astype("uint64"), ctx)
-    f = tsim.driver("verilog")
+    f = tsim.load_module()
     cycles = f(a, b, c)
     msg = "cycles:{0:4} n:{1:2} c:{2:2}".format(cycles, n, c)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + c, err_msg = "[FAIL] " + msg)
     print("[PASS] " + msg)
 
 if __name__ == "__main__":
+    tsim.init("verilog")
     for i in range(10):
         test_accel()

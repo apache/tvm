@@ -89,7 +89,7 @@ stop_pack="nn.global_avg_pool2d"
 # When target is 'pynq', reconfigure FPGA and runtime.
 # Otherwise, if target is 'sim', execute locally.
 
-if env.TARGET != "sim":
+if env.TARGET not in ["sim", "tsim"]:
 
     # Get remote from tracker node if environment variable is set.
     # To set up the tracker, you'll need to follow the "Auto-tuning
@@ -235,7 +235,7 @@ num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
-if env.TARGET == "sim":
+if env.TARGET in ["sim", "tsim"]:
     simulator.clear_stats()
     timer()
     sim_stats = simulator.stats()

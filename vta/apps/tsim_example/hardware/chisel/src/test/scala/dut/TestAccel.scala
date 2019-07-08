@@ -20,6 +20,7 @@
 package test
 
 import chisel3._
+import chisel3.experimental.MultiIOModule
 import vta.dpi._
 import accel._
 
@@ -28,19 +29,23 @@ import accel._
   * Instantiate Host and Memory DPI modules.
   *
   */
-class VTASimShell extends Module {
-  val io = IO(new Bundle {
-    val host = new VTAHostDPIMaster
-    val mem = new VTAMemDPIClient
-  })
-  val host = Module(new VTAHostDPI)
-  val mem = Module(new VTAMemDPI)
-  mem.io.dpi <> io.mem
-  mem.io.reset := reset
-  mem.io.clock := clock
-  io.host <> host.io.dpi
-  host.io.reset := reset
-  host.io.clock := clock
+class VTASimShell extends MultiIOModule {
+  val host = IO(new VTAHostDPIMaster)
+  val mem = IO(new VTAMemDPIClient)
+  val sim_clock = IO(Input(Clock()))
+  val sim_wait = IO(Output(Bool()))
+  val mod_sim = Module(new VTASimDPI)
+  val mod_host = Module(new VTAHostDPI)
+  val mod_mem = Module(new VTAMemDPI)
+  mod_mem.io.clock := clock
+  mod_mem.io.reset := reset
+  mod_mem.io.dpi <> mem
+  mod_host.io.clock := clock
+  mod_host.io.reset := reset
+  host <> mod_host.io.dpi
+  mod_sim.io.clock := sim_clock
+  mod_sim.io.reset := reset
+  sim_wait := mod_sim.io.dpi_wait
 }
 
 /** Test accelerator.
@@ -48,12 +53,15 @@ class VTASimShell extends Module {
   * Instantiate and connect the simulation-shell and the accelerator.
   *
   */
-class TestAccel extends Module {
-  val io = IO(new Bundle {})
+class TestAccel extends MultiIOModule {
+  val sim_clock = IO(Input(Clock()))
+  val sim_wait = IO(Output(Bool()))
   val sim_shell = Module(new VTASimShell)
   val vta_accel = Module(new Accel)
-  vta_accel.io.host <> sim_shell.io.host
-  sim_shell.io.mem <> vta_accel.io.mem
+  sim_shell.sim_clock := sim_clock
+  sim_wait := sim_shell.sim_wait
+  sim_shell.mem <> vta_accel.io.mem
+  vta_accel.io.host <> sim_shell.host
 }
 
 /** Generate TestAccel as top module */

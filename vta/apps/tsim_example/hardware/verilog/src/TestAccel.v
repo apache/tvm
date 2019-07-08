@@ -25,7 +25,9 @@
 module TestAccel
 (
   input clock,
-  input reset
+  input reset,
+  input sim_clock,
+  output sim_wait
 );
 
   localparam HOST_ADDR_BITS = 8;
@@ -52,6 +54,14 @@ module TestAccel
   logic                     mem_rd_valid;
   logic [MEM_DATA_BITS-1:0] mem_rd_bits;
   logic                     mem_rd_ready;
+
+  VTASimDPI sim
+  (
+    .clock          (sim_clock),
+    .reset          (reset),
+
+    .dpi_wait       (sim_wait)
+  );
 
   VTAHostDPI host
   (
@@ -114,4 +124,5 @@ module TestAccel
     .mem_rd_bits     (mem_rd_bits),
     .mem_rd_ready    (mem_rd_ready)
   );
+
 endmodule
