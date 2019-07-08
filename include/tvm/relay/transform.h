@@ -540,6 +540,13 @@ TVM_DLL Pass CanonicalizeCast();
  */
 TVM_DLL Pass EtaExpand();
 
+/*!
+ * \brief Print the IR for a module to help debugging.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass PrintIR();
+
 }  // namespace transform
 
 /*!
