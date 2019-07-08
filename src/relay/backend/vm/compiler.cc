@@ -206,7 +206,6 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::GetTag:
       case Opcode::LoadConst:
       case Opcode::LoadConsti:
-      case Opcode::Selecti:
       case Opcode::Invoke:
       case Opcode::AllocClosure:
       case Opcode::Move:

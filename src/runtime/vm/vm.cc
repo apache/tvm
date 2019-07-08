@@ -60,9 +60,6 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::Fatal:
       return;
-    case Opcode::Selecti:
-      this->selecti = instr.selecti;
-      return;
     case Opcode::Ret:
       this->result = instr.result;
       return;
@@ -148,9 +145,6 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::LoadConsti:
       this->load_consti = instr.load_consti;
       return *this;
-    case Opcode::Selecti:
-      this->selecti = instr.selecti;
-      return *this;
     case Opcode::Ret:
       this->result = instr.result;
       return *this;
@@ -221,7 +215,6 @@ Instruction& Instruction::operator=(const Instruction& instr) {
 Instruction::~Instruction() {
   switch (this->op) {
     case Opcode::Move:
-    case Opcode::Selecti:
     case Opcode::Ret:
     case Opcode::AllocTensorReg:
     case Opcode::If:
@@ -357,18 +350,6 @@ Instruction Instruction::If(RegName test, RegName target, Index true_branch, Ind
   instr.if_op.target = target;
   instr.if_op.true_offset = true_branch;
   instr.if_op.false_offset = false_branch;
-  return instr;
-}
-
-Instruction Instruction::Selecti(RegName test, RegName target,
-                                 RegName op1, RegName op2, RegName dst) {
-  Instruction instr;
-  instr.op = Opcode::Selecti;
-  instr.dst = dst;
-  instr.selecti.test = test;
-  instr.selecti.target = target;
-  instr.selecti.op1 = op1;
-  instr.selecti.op2 = op2;
   return instr;
 }
 
@@ -546,11 +527,6 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::Goto: {
       os << "goto " << instr.pc_offset;
-      break;
-    }
-    case Opcode::Selecti: {
-      os << "selecti $" << instr.dst << " $" << instr.selecti.test << " $" << instr.selecti.target
-         << " $" << instr.selecti.op1 << " $" << instr.selecti.op2;
       break;
     }
     default:
@@ -843,20 +819,6 @@ void VirtualMachine::Run() {
           free_vars.push_back(ReadRegister(instr.free_vars[i]));
         }
         WriteRegister(instr.dst, Object::Closure(instr.func_index, free_vars));
-        pc++;
-        goto main_loop;
-      }
-      case Opcode::Selecti: {
-        int32_t test_val = LoadScalarInt(instr.selecti.test);
-        int32_t target_val = LoadScalarInt(instr.selecti.target);
-
-        if (test_val == target_val) {
-          auto op1 = ReadRegister(instr.selecti.op1);
-          WriteRegister(instr.dst, op1);
-        } else {
-          auto op2 = ReadRegister(instr.selecti.op2);
-          WriteRegister(instr.dst, op2);
-        }
         pc++;
         goto main_loop;
       }

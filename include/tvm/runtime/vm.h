@@ -61,12 +61,11 @@ enum class Opcode {
   AllocClosure = 8U,
   GetField = 9U,
   If = 10U,
-  Selecti = 11U,
-  LoadConst = 12U,
-  Goto = 13U,
-  GetTag = 14U,
-  LoadConsti = 15U,
-  Fatal = 16U,
+  LoadConst = 11U,
+  Goto = 12U,
+  GetTag = 13U,
+  LoadConsti = 14U,
+  Fatal = 15U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -130,16 +129,6 @@ struct Instruction {
       /*! \brief The arguments to pass to the packed function. */
       RegName* packed_args;
     };
-    struct /* Select Operands */ {
-      /*! \brief The test value of select. */
-      RegName test;
-      /*! \brief The target value of select. */
-      RegName target;
-      /*! \brief The true branch. */
-      RegName op1;
-      /*! \brief The false branch. */
-      RegName op2;
-    } selecti;
     struct /* If Operands */ {
       /*! \brief The register containing the test value. */
       RegName test;
@@ -198,15 +187,6 @@ struct Instruction {
     };
   };
 
-  /*! \brief Construct a select instruction.
-   *  \param test The test register.
-   *  \param target The target register.
-   *  \param op1 The true register.
-   *  \param op2 The false register.
-   *  \param dst The destination register.
-   *  \return The select instruction.
-   */
-  static Instruction Selecti(RegName test, RegName target, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
    *  \param return_reg The register containing the return value.
    *  \return The return instruction.
