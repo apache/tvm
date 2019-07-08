@@ -118,3 +118,15 @@ def abs_grad(orig, grad):
     zeros = zeros_like(x)
     ones = ones_like(x)
     return [where(less(x, zeros), -ones * grad, ones * grad)]
+
+@register_gradient("clip")
+def clip_grad(orig, grad):
+    """Returns grad * (select(x < min || max < x , 0, 1))."""
+    x = orig.args[0]
+    a_min = orig.attrs.get_int("a_min")
+    a_max = orig.attrs.get_int("a_max")
+    a_mins = broadcast_to_like(const(a_min), x)
+    a_maxs = broadcast_to_like(const(a_max), x)
+    zeros = zeros_like(x)
+    ones = ones_like(x)
+    return [where(less(x, a_mins), zeros, where(less(a_maxs, x), zeros, ones * grad))]
