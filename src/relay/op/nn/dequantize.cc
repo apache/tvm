@@ -23,9 +23,6 @@
  * \brief Quantize and requantize operator
  */
 
-//#include <tvm/data_layout.h>
-//#include <tvm/relay/op_attr_types.h>
-//#include <tvm/relay/pass.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/qnn.h>
 #include <tvm/relay/quantize_util.h>
