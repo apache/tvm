@@ -265,7 +265,7 @@ export PATH=${QUARTUS_ROOTDIR}/bin:${PATH}
 ```
 This would add quartus binary path into your `PATH` environment variable, so you can launch compilation scripts from the command line.
 
-### HLS-based Custom VTA Bitstream Compilation
+### HLS-based Custom VTA Bitstream Compilation for PYNQ
 
 High-level hardware parameters are listed in the VTA configuration file and can be customized by the user.
 For this custom VTA bitstream compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
@@ -298,9 +298,9 @@ We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take 
 
 Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
-### Chisel-based Custom VTA Bitstream Compilation
+### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
 
