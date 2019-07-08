@@ -413,14 +413,15 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
   // unify the data type
   CHECK_EQ(ref_args.size(), args.size());
   DataType dtype;
-  if (nptrs[0]->dtype == cfg->dtype_activation) {
-    DataType dtype = cfg->dtype_activation;
-    ret.Set(1, Cast(ret[1], dtype));
-  } else if (nptrs[1]->dtype == cfg->dtype_input) {
-    DataType dtype = cfg->dtype_input;
-    ret.Set(0, Cast(ret[0], dtype));
+  if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
+    dtype = cfg->dtype_input;
   } else {
-    LOG(FATAL) << "should not touch here.";
+    dtype = cfg->dtype_activation;
+  }
+  for (size_t i = 0; i < ret.size(); ++i) {
+    if (nptrs[i]->dtype != dtype) {
+      ret.Set(i, Cast(ret[i], dtype));
+    }
   }
 
   // unify the dom_scale

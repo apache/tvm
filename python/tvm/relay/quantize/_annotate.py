@@ -260,7 +260,6 @@ def add_rewrite(ref_call, new_args, ctx):
         if isinstance(rhs_expr, _expr.Constant):
             # quantize rhs to WEIGHT field if it is Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
-            assert lhs_kind == QAnnotateKind.ACTIVATION
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
         else:
