@@ -103,14 +103,27 @@ class PkgConfig(object):
         #                       (how aggressively design is pipelined)
         #   - axi_bus_width:    axi bus width used for DMA transactions
         #                       (property of FPGA memory interface)
+        #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
+        #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
         #   - max_bus_width:    maximum bus width allowed
         #                       (property of FPGA vendor toolchains)
-        # By default, we use the pynq parameters
-        self.fpga_device = "xc7z020clg484-1"
-        self.fpga_freq = 100
-        self.fpga_per = 7
-        self.fpga_axi_bus_width = 64
-        fpga_max_bus_width = 1024
+        if self.target == "ultra96":
+            self.fpga_device = "xczu3eg-sbva484-1-e"
+            self.fpga_freq = 333
+            self.fpga_per = 2
+            self.fpga_axi_bus_width = 128
+            self.axi_cache_bits = '1111'  # write-back read and write allocate
+            self.axi_prot_bits = '010'
+            fpga_max_bus_width = 1024
+        else:
+            # By default, we use the pynq parameters
+            self.fpga_device = "xc7z020clg484-1"
+            self.fpga_freq = 100
+            self.fpga_per = 7
+            self.fpga_axi_bus_width = 64
+            self.axi_cache_bits = '1111'  # write-back read and write allocate
+            self.axi_prot_bits = '000'
+            fpga_max_bus_width = 1024
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,

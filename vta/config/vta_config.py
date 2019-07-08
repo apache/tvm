@@ -103,6 +103,10 @@ def main():
                         help="returns output memory depth")
     parser.add_argument("--get-out-mem-axi-ratio", action="store_true",
                         help="returns ratio between output memory bus width (for whole tensor element) and axi width")
+    parser.add_argument("--get-axi-cache-bits", action="store_true",
+                        help="returns AXI system ARCACHE/AWCACHE hardcoded bit value")
+    parser.add_argument("--get-axi-prot-bits", action="store_true",
+                        help="returns AXI system ARPROT/AWPROT hardcoded bit value")
     parser.add_argument("--get-fpga-dev", action="store_true",
                         help="returns FPGA device target")
     parser.add_argument("--get-fpga-freq", action="store_true",
@@ -241,6 +245,12 @@ def main():
 
     if args.get_out_mem_axi_ratio:
         print(pkg.out_mem_axi_ratio)
+
+    if args.get_axi_cache_bits:
+        print(pkg.axi_cache_bits)
+
+    if args.get_axi_prot_bits:
+        print(pkg.axi_prot_bits)
 
     if args.get_fpga_dev:
         print(pkg.fpga_device)

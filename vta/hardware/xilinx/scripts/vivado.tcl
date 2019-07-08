@@ -50,6 +50,10 @@ set out_part        [exec python $vta_config --get-out-mem-banks]
 set out_mem_width   [exec python $vta_config --get-out-mem-width]
 set out_mem_depth   [exec python $vta_config --get-out-mem-depth]
 
+# AXI bus signals
+set axi_cache       [exec python $vta_config --get-axi-cache-bits]
+set axi_prot        [exec python $vta_config --get-axi-prot-bits]
+
 # Paths to IP library of VTA modules
 set proj_name vta
 set design_name $proj_name
@@ -134,15 +138,6 @@ set_property -dict [ list \
   CONFIG.NUM_MI {4} \
   CONFIG.NUM_SI {1} \
 ] $axi_xbar
-
-# Set appropriate cache, prot signals
-if { $target eq "pynq" } {
-  set axi_cache "1111"
-  set axi_prot "000"
-} elseif { $target eq "ultra96" || $target eq "zcu102" } {
-  set axi_cache "1111"
-  set axi_prot "010"
-}
 
 # Create instance: fetch_0, and set properties
 set fetch_0 [ create_bd_cell -type ip -vlnv xilinx.com:hls:fetch:1.0 fetch_0 ]
