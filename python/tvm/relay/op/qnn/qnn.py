@@ -14,11 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=wildcard-import, redefined-builtin
-"""Automatic quantization utilities."""
+#pylint: disable=invalid-name, too-many-lines
+"""Neural network operations."""
 from __future__ import absolute_import as _abs
+from . import _make
 
-from .quantize import *
-from .rewrite import *
-from ._annotate import register_annotate_function
-from .kl_divergence import kl_divergence_scale

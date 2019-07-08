@@ -14,11 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=wildcard-import, redefined-builtin
-"""Automatic quantization utilities."""
-from __future__ import absolute_import as _abs
+#pylint: disable=unused-argument
+"""Automatic quantization toolkit."""
+from __future__ import absolute_import
 
-from .quantize import *
-from .rewrite import *
-from ._annotate import register_annotate_function
-from .kl_divergence import kl_divergence_scale
+from . import _quantize
+from .. import expr as _expr
+
+def rewrite(expr):
+    """
+    Rewrites the high-level quantized ops into low-level exisiting Relay ops.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+        The output expression.
+    """
+    return _quantize.rewrite(expr)
