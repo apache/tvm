@@ -21,22 +21,21 @@ from . import _make
 
 def quantize(input_data, output_zero_point, output_scale, out_dtype='int8'):
     r""" Quantize op
-     This operator takes floating point 32 or quantized int8 and unit8 as input and produces
-    quantized int8 or unit8 as output. The output shape is the same as input shape. The input
-    tensor can be of any shape.
+     This operator takes float32 as input and produces quantized int8 or unit8 as output. The input tensor can be of
+     any shape. The output shape is the same as input shape.
      ..math::
             \mbox{out}[x] =
                 \mbox{clamp(round(input_tensor/output_scale) + output_zero_point); out_dtype::min, out_dtype::max}
      Parameters
     ----------
     input_data : tvm.relay.Expr
-        The input tensor to be quantized. Can be of type [float32, int8, uint8].
+        The input tensor to be quantized. Can be of type float32.
     output_zero_point :
         The output zero_point.
     output_scale:
         The output scale.
     input_dtype:
-        The data type of the input tensor. Can be [int8, uint8, float32]
+        The data type of the input tensor. Can be [int8, uint8]
     Returns
     -------
     result : tvm.relay.Expr
@@ -53,7 +52,7 @@ def dequantize(input_data, input_zero_point, input_scale):
      Parameters
     ----------
     input_data : tvm.relay.Expr
-        The input tensor to be quantized. Can be of type [float32, int8, uint8].
+        The input tensor to be dequantized. Can be of type [int8, uint8].
     input_zero_point :
         The output zero_point.
     input_scale:

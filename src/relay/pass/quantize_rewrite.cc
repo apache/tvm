@@ -46,9 +46,10 @@ Expr QuantizeForwardRewrite(const Call& ref_call, const Array<Expr>& new_args, c
   const int32_t max_val = get_qmax(out_dtype);
   auto scale_data = Cast(Round(Divide(data, scale)), Int(32));
   // we are trying to do - std::min(std::max(unclamped, min_val), max_val);
-  auto unclamped = Cast(Add(scale_data, output_zero_point), out_dtype);
-  auto clamped_output = Clip(unclamped, min_val, max_val);
-  return clamped_output;
+  auto add_zero_point = Add(scale_data, output_zero_point);
+  auto clamped_output = Clip(add_zero_point, min_val, max_val);
+  auto clamp_out_dtype = Cast(clamped_output, out_dtype);
+  return clamp_out_dtype;
 }
 
 RELAY_REGISTER_OP("qnn.quantize")

@@ -60,7 +60,7 @@ Expr MakeDequantize(Expr data,
 RELAY_REGISTER_OP("qnn.dequantize")
     .describe(R"code(Quantizes the input and produces quantized output.
 
-The input is always quantized (int8, uint8) and will be converted to float32 given input scale and shift.
+The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.DequantizeAttrs")
