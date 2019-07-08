@@ -3,7 +3,7 @@ ROOTDIR = $(CURDIR)
 BUILD_NAME = build
 BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel
 SCRIPT_DIR = $(ROOTDIR)/scripts
-SRC_DIR = $(ROOTDIR)/ip
+SRC_DIR = $(ROOTDIR)/../chisel
 SIM_DIR = $(ROOTDIR)/sim
 TEST_DIR = $(ROOTDIR)/../../tests/hardware/common
 INCLUDE_DIR = $(ROOTDIR)/../../include
@@ -15,8 +15,6 @@ TCLSH = quartus_sh
 MODE = skip_sim
 # Debug flag
 DEBUG = false
-# SLURM
-SLURM = false
 # Prevent generation of DSP
 NO_DSP = false
 # Prevent generation of ALU
@@ -28,9 +26,6 @@ ifeq ($(MODE), sim)
 else
   DEVICE = 5CSEBA6U23I7
 endif
-
-# Add header files into cxx flags
-HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8 -I$(INCLUDE_DIR)
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
@@ -112,16 +107,17 @@ bit: $(BIT_PATH)
 
 $(IP_PATH): $(SRC_DIR)
 	mkdir -p $(IP_BUILD_PATH)
-	cd $(IP_BUILD_PATH) && \
-    mkdir -p $(shell dirname $(IP_PATH)) && \
-    cd $(SRC_DIR)/.. && \
-    tar zcvf $(IP_PATH) ip
+	cd $(ROOTDIR)/../chisel && \
+    make CONFIG=DefaultDe10Config chisel_build_dir=$(IP_BUILD_PATH) verilog && \
+    cd $(IP_BUILD_PATH) && \
+    tar zcvf $(IP_PATH) VTA.DefaultDe10Config.v
 
 $(BIT_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
     cp -r $(ROOTDIR)/ip $(HW_BUILD_PATH)/.. && \
     cp $(ROOTDIR)/scripts/* $(HW_BUILD_PATH) && \
+    python3 $(ROOTDIR)/scripts/set_attrs.py -i $(IP_BUILD_PATH)/VTA.DefaultDe10Config.v -o $(HW_BUILD_PATH)/../ip/vta_adaptor/IntelShell.v && \
     $(TCLSH) -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl
 
 clean:
