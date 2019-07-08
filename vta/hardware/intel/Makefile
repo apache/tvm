@@ -35,7 +35,7 @@ HW_BUILD_PATH = $(BUILD_DIR)/quartus/$(CONF)
 IP_PATH = $(BUILD_DIR)/chisel/$(CONF)/solution0/impl/ip/intel_fpga_com_chisel_vta_1_0.tgz
 
 # Bitstream file path
-BIT_PATH = $(BUILD_DIR)/quartus/$(CONF)/export/$(CONF).rbf
+BIT_PATH = $(BUILD_DIR)/quartus/$(CONF)/export/vta.rbf
 
 .PHONY: all ip bit bsp clean clean_all
 
