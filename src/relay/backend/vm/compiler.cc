@@ -145,7 +145,7 @@ struct AccessField : MatchValue {
   // Field index
   size_t index;
   // Runtime register num after compiling the access field path
-  RegName reg{9999999};
+  RegName reg{-1};
 
   AccessField(MatchValuePtr parent, size_t index)
   : parent(parent), index(index) {}
