@@ -112,8 +112,8 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
 
     with tvm.target.create(TARGET_NAME):
         conv = topi.nn.conv2d_NCHWc(data, kernel, stride=hstride,
-                                    padding=hpad, layout='NCHWc',
-                                    out_layout='NCHWc', out_dtype=out_dtype)
+                                    padding=hpad, dilation=(1, 1),
+                                    layout='NCHWc', out_layout='NCHWc', out_dtype=out_dtype)
         out = topi.nn.relu(conv)
         sch = tvm.create_schedule(out.op)
         func = tvm.build(sch, [data, kernel, out], target=TARGET_NAME, name='out')
