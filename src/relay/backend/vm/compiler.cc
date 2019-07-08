@@ -571,7 +571,9 @@ struct TagCompare : ConditionNode {
   ~TagCompare() {}
 };
 
-using TreeNodePtr = relay::TreeNodePtr;
+using TreeNodePtr = typename relay::TreeNode<ConditionNodePtr>::pointer;
+using TreeLeafNode = relay::TreeLeafNode<ConditionNodePtr>;
+using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionNodePtr>;
 using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
 
 void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {

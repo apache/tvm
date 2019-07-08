@@ -109,12 +109,16 @@ inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
 
+template<typename ConditionNodePtr>
 struct TreeNode {
+  typedef std::shared_ptr<TreeNode<ConditionNodePtr>> pointer;
   virtual ~TreeNode() {}
 };
-using TreeNodePtr = std::shared_ptr<TreeNode>;
 
-struct TreeLeafNode : TreeNode {
+template<typename ConditionNodePtr>
+struct TreeLeafNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
   Expr body;
 
   explicit TreeLeafNode(Expr body): body(body) {}
@@ -126,7 +130,10 @@ struct TreeLeafNode : TreeNode {
   ~TreeLeafNode() {}
 };
 
-struct TreeLeafFatalNode : TreeNode {
+template<typename ConditionNodePtr>
+struct TreeLeafFatalNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
   TreeLeafFatalNode() = default;
 
   static TreeNodePtr Make() {
@@ -137,7 +144,9 @@ struct TreeLeafFatalNode : TreeNode {
 };
 
 template<typename ConditionNodePtr>
-struct TreeBranchNode : TreeNode {
+struct TreeBranchNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
   ConditionNodePtr cond;
   TreeNodePtr then_branch;
   TreeNodePtr else_branch;
