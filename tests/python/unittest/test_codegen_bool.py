@@ -24,7 +24,8 @@ def test_cmp_load_store():
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) > B(*i), name='C')
-    D = tvm.compute(C.shape, lambda *i: tvm.all(C(*i), A(*i) > 1), name="D")
+    D = tvm.compute(C.shape, lambda *i: tvm.all(C(*i),
+                                                A(*i) > 1).astype('float32'), name="D")
 
 
     def check_llvm():
@@ -43,7 +44,7 @@ def test_cmp_load_store():
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
         f(a, b, d)
         np.testing.assert_equal(
-            d.asnumpy(), np.logical_and(a.asnumpy()> b.asnumpy(), a.asnumpy() > 1))
+            d.asnumpy(), np.logical_and(a.asnumpy() > b.asnumpy(), a.asnumpy() > 1).astype('float32'))
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -61,7 +62,7 @@ def test_cmp_load_store():
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
         f(a, b, d)
         np.testing.assert_equal(
-            d.asnumpy(), np.logical_and(a.asnumpy()> b.asnumpy(), a.asnumpy() > 1))
+            d.asnumpy(), np.logical_and(a.asnumpy() > b.asnumpy(), a.asnumpy() > 1).astype('float32'))
 
 
     check_llvm()
