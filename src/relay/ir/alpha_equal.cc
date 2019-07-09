@@ -41,7 +41,7 @@ class AlphaEqualHandler:
       public PatternFunctor<bool(const Pattern&, const Pattern&)> {
  public:
   explicit AlphaEqualHandler(bool map_free_var)
-      : map_free_var_(map_free_var) {}
+    : map_free_var_(map_free_var) { }
 
   /*!
    * Check equality of two nodes.
@@ -60,6 +60,19 @@ class AlphaEqualHandler:
       if (!rhs->derived_from<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
+    if (const auto lhsm = lhs.as<ModuleNode>()) {
+      auto rhsm = rhs.as<ModuleNode>();
+      if (!rhsm) return false;
+      if (lhsm->functions.size() != rhsm->functions.size()) return false;
+      for (const auto& p : lhsm->functions) {
+        if (!Equal(p.second, rhsm->Lookup(p.first->name_hint))) return false;
+      }
+      if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
+      for (const auto& p : lhsm->type_definitions) {
+        if (!Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) return false;
+      }
+      return true;
+    }
     return AttrEqual(lhs, rhs);
   }
 
@@ -70,6 +83,17 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
+    if (&lhs == &rhs) return true;
+    auto lhsd = lhs.as<DictAttrsNode>();
+    if (lhsd) {
+      auto rhsd = lhs.as<DictAttrsNode>();
+      if (!rhsd) return false;
+      if (lhsd->dict.size() != rhsd->dict.size()) return false;
+      for (const auto& k : lhsd->dict) {
+        if (!Equal(k.second, rhsd->dict[k.first])) return false;
+      }
+      return true;
+    }
     return AttrsEqualHandler::Equal(lhs, rhs);
   }
   /*!
@@ -334,6 +358,7 @@ class AlphaEqualHandler:
       }
       // check return types.
       if (!TypeEqual(lhs->ret_type, rhs->ret_type)) return false;
+      if (!AttrEqual(lhs->attrs, rhs->attrs)) return false;
       return ExprEqual(lhs->body, rhs->body);
     } else {
       return false;
@@ -490,7 +515,7 @@ class AlphaEqualHandler:
 
  private:
   // whether to map open terms.
-  bool map_free_var_{false};
+  bool map_free_var_;
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, NodeRef, NodeHash, NodeEqual> equal_map_;
 };
@@ -506,17 +531,18 @@ bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._make._alpha_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-    return AlphaEqualHandler(false).Equal(a, b);
-  });
+  return AlphaEqualHandler(false).Equal(a, b);
+});
 
 TVM_REGISTER_API("relay._make._type_alpha_equal")
 .set_body_typed<bool(Type, Type)>([](Type a, Type b) {
-    return AlphaEqualHandler(false).TypeEqual(a, b);
-  });
+  return AlphaEqualHandler(false).TypeEqual(a, b);
+});
 
 TVM_REGISTER_API("relay._make._graph_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-    return AlphaEqualHandler(true).Equal(a, b);
-  });
+  return AlphaEqualHandler(true).Equal(a, b);
+});
+
 }  // namespace relay
 }  // namespace tvm

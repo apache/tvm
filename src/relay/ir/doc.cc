@@ -60,6 +60,11 @@ Doc& Doc::operator<<(const std::string& right) {
   return *this << Doc(right);
 }
 
+Doc& Doc::operator<<(const DocAtom& right) {
+  this->stream_.push_back(right);
+  return *this;
+}
+
 Doc Indent(int indent, const Doc& doc) {
   Doc ret;
   for (auto atom : doc.stream_) {
@@ -111,6 +116,11 @@ Doc PrintString(const std::string& value) {
   // TODO(M.K.): add escape.
   Doc doc;
   return doc << "\"" << value << "\"";
+}
+
+Doc PrintNewLine(int ident) {
+  Doc doc;
+  return doc << Line(ident);
 }
 
 }  // namespace relay
