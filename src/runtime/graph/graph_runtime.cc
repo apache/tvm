@@ -104,7 +104,7 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
 void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  auto& shape = dltensor_entry_shapes_[eid];
+  const auto& shape = dltensor_entry_shapes_[eid];
 
   // check the consistency of input shape
   CHECK_EQ(data_alignment_[eid], GetDataAlignment(*data_ref));
@@ -460,13 +460,6 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->NumOutputs();
       });
-  } else if (name == "get_output_name") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      int index = args[0];
-      CHECK_LT(static_cast<size_t>(index), outputs_.size());
-      uint32_t eid = this->entry_id(outputs_[index]);
-      *rv = this->GetNodeName(eid);
-    });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
