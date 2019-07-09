@@ -23,7 +23,6 @@
 #include <tvm/ir_pass.h>
 
 TEST(IRVisitor, CountVar) {
-  using namespace HalideIR::Internal;
   using namespace tvm;
   int n_var = 0;
   Var x("x"), y;

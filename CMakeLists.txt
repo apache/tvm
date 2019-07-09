@@ -76,7 +76,6 @@ if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
   add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
-  add_definitions(-DHalide_SHARED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
@@ -112,8 +111,8 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "3rdparty/HalideIR/src/*.cpp" "nnvm/src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "3rdparty/HalideIR/src/*.h"
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "nnvm/src/*.cc")
+FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h"
                                 "nnvm/src/*.h" "nnvm/include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
@@ -127,6 +126,7 @@ file(GLOB COMPILER_SRCS
     src/lang/*.cc
     src/pass/*.cc
     src/op/*.cc
+    src/node/*.cc
     src/schedule/*.cc
     )
 
@@ -154,12 +154,7 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
 file(GLOB TOPI_SRCS
     topi/src/*.cc
 )
-file(GLOB_RECURSE HALIDEIR_SRCS
-  3rdparty/HalideIR/src/base/*.cpp
-  3rdparty/HalideIR/src/ir/*.cpp
-  3rdparty/HalideIR/src/tvm/*.cpp
-)
-list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
+
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
@@ -245,7 +240,6 @@ target_link_libraries(nnvm_compiler tvm)
 # Related headers
 target_include_directories(
   tvm
-  PUBLIC "3rdparty/HalideIR/src"
   PUBLIC "topi/include")
 target_include_directories(
   tvm_topi
@@ -295,11 +289,6 @@ if (INSTALL_DEV)
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "3rdparty/HalideIR/src/." DESTINATION "include/HalideIR"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
-  install(
     DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
@@ -319,8 +308,6 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
-  target_compile_definitions(tvm PRIVATE -DHalide_EXPORTS)
-  target_compile_definitions(tvm_runtime PRIVATE -DHalide_EXPORTS)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)

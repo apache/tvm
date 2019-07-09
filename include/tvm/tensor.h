@@ -24,7 +24,6 @@
 #ifndef TVM_TENSOR_H_
 #define TVM_TENSOR_H_
 
-#include <ir/FunctionBase.h>
 #include <tvm/node/container.h>
 #include <string>
 #include <vector>
@@ -42,8 +41,6 @@ namespace tvm {
 class TensorNode;
 // internal node container for Operation
 class OperationNode;
-
-using HalideIR::IR::FunctionRef;
 
 /*!
  * \brief Tensor structure representing a possible input,
@@ -140,7 +137,7 @@ class Tensor : public NodeRef {
 };
 
 /*! \brief Operation that produces tensors */
-class Operation : public FunctionRef {
+class Operation : public ir::FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}

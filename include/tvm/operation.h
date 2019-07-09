@@ -53,7 +53,7 @@ struct TensorDom {
 /*!
  * \brief Base class of all operation nodes
  */
-class OperationNode : public FunctionBaseNode {
+class OperationNode : public ir::FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
   std::string name;
@@ -463,7 +463,7 @@ class ExternOpNode : public OperationNode {
     v->Visit("output_placeholders", &output_placeholders);
     v->Visit("body", &body);
   }
-  EXPORT static Operation make(std::string name,
+  TVM_DLL static Operation make(std::string name,
                                std::string tag,
                                Map<std::string, NodeRef> attrs,
                                Array<Tensor> inputs,
@@ -530,12 +530,12 @@ class HybridOpNode : public OperationNode {
     v->Visit("axis", &axis);
     v->Visit("body", &body);
   }
-  EXPORT static Operation make(std::string name,
-                               std::string tag,
-                               Map<std::string, NodeRef> attrs,
-                               Array<Tensor> inputs,
-                               Array<Tensor> outputs,
-                               Stmt body);
+  TVM_DLL static Operation make(std::string name,
+                                std::string tag,
+                                Map<std::string, NodeRef> attrs,
+                                Array<Tensor> inputs,
+                                Array<Tensor> outputs,
+                                Stmt body);
 
   static constexpr const char* _type_key = "HybridOp";
   TVM_DECLARE_NODE_TYPE_INFO(HybridOpNode, OperationNode);

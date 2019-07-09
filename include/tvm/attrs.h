@@ -89,8 +89,8 @@ inline TNodeRef NullValue() {
 }
 
 template<>
-inline Type NullValue<Type>() {
-  return Type(Type::Handle, 0, 0);
+inline DataType NullValue<DataType>() {
+  return DataType(kHandle, 0, 0);
 }
 
 /*! \brief Error thrown during attribute checking. */

@@ -144,7 +144,7 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
   return TNodeRef(sptr);
 }
 
-inline TVMArgValue::operator HalideIR::Expr() const {
+inline TVMArgValue::operator tvm::Expr() const {
   if (type_code_ == kNull) return Expr();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
@@ -240,21 +240,21 @@ inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  /
 }
 
 // type related stuffs
-inline TVMRetValue& TVMRetValue::operator=(const HalideIR::Type& t) {
-  return this->operator=(Type2TVMType(t));
+inline TVMRetValue& TVMRetValue::operator=(const DataType& t) {
+  return this->operator=(t.operator DLDataType());
 }
 
-inline TVMRetValue::operator HalideIR::Type() const {
-  return TVMType2Type(operator TVMType());
+inline TVMRetValue::operator tvm::DataType() const {
+  return DataType(operator DLDataType());
 }
 
-inline TVMArgValue::operator HalideIR::Type() const {
-  return TVMType2Type(operator TVMType());
+inline TVMArgValue::operator tvm::DataType() const {
+  return DataType(operator DLDataType());
 }
 
 inline void TVMArgsSetter::operator()(
-    size_t i, const HalideIR::Type& t) const {
-  this->operator()(i, Type2TVMType(t));
+    size_t i, const DataType& t) const {
+  this->operator()(i, t.operator DLDataType());
 }
 }  // namespace runtime
 }  // namespace tvm
