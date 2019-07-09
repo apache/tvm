@@ -393,11 +393,6 @@ void alu(
               reg_T shr_val = src_0 >> shft_by;
               dst_tensor[i][b] = shr_val;
               o_tensor[i][b] = (out_T) shr_val.range(VTA_OUT_WIDTH - 1, 0);
-            } else if (insn.alu_opcode == VTA_ALU_OPCODE_MUL) {
-              // Compute Product
-              reg_T prod_val = src_0 * mul_by;
-              dst_tensor[i][b] = prod_val;
-              o_tensor[i][b] = (out_T) prod_val.range(VTA_OUT_WIDTH - 1, 0);
             }
           }
         }
@@ -497,12 +492,9 @@ void compute(
     }
   } else if (insn.generic.opcode == VTA_OPCODE_GEMM) {
     gemm(raw_copy, uop_mem, acc_mem, inp_mem, wgt_mem, out_mem);
-  }
-#ifdef ALU_EN
-  else if (insn.generic.opcode == VTA_OPCODE_ALU) {
+  } else if (insn.generic.opcode == VTA_OPCODE_ALU) {
     alu(raw_copy, uop_mem, acc_mem, inp_mem, wgt_mem, out_mem);
   }
-#endif // VTA_ALU_EN
 
   // Push dependence token if instructed
   if (insn.generic.push_prev_dep) {

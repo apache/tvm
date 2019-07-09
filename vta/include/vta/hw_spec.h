@@ -35,7 +35,7 @@ extern "C" {
 #define VTA_BUS_WIDTH (1 << VTA_LOG_BUS_WIDTH)
 
 /*! Register file width */
-#define VTA_REG_WIDTH 24
+#define VTA_REG_WIDTH 32
 
 /*! log2 of instruction data type width */
 #define VTA_LOG_INS_WIDTH 7
@@ -124,7 +124,7 @@ extern "C" {
 /*! Instruction opcode field bitwidth */
 #define VTA_OPCODE_BIT_WIDTH 3
 /*! ALU opcode field bitwidth */
-#define VTA_ALU_OPCODE_BIT_WIDTH 3
+#define VTA_ALU_OPCODE_BIT_WIDTH 2
 
 /*! Opcode: load encoding */
 #define VTA_OPCODE_LOAD 0
@@ -145,8 +145,6 @@ extern "C" {
 #define VTA_ALU_OPCODE_ADD 2
 /*! ALU opcode: shift right by immediate op */
 #define VTA_ALU_OPCODE_SHR 3
-/*! ALU opcode: shift right by immediate op */
-#define VTA_ALU_OPCODE_MUL 4
 
 /*! Memory type field bitwidth */
 #define VTA_MEMOP_ID_BIT_WIDTH 2

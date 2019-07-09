@@ -81,6 +81,13 @@ class PkgConfig(object):
         else:
             self.ldflags = []
 
+        # Derive output buffer size
+        # derive output buffer size
+        cfg["LOG_OUT_BUFF_SIZE"] = (
+            cfg["LOG_ACC_BUFF_SIZE"] +
+            cfg["LOG_OUT_WIDTH"] -
+            cfg["LOG_ACC_WIDTH"])
+
         # Derive bitstream config string.
         self.bitstream = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}".format(
             cfg["TARGET"],
@@ -106,8 +113,6 @@ class PkgConfig(object):
         #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
         #                       (e.g. 1111 is write-back read and write allocate)
         #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
-        #   - max_bus_width:    maximum bus width allowed
-        #                       (property of FPGA vendor toolchains)
         if self.target == "ultra96":
             self.fpga_device = "xczu3eg-sbva484-1-e"
             self.fpga_freq = 333
@@ -115,7 +120,6 @@ class PkgConfig(object):
             self.fpga_axi_bus_width = 128
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
-            fpga_max_bus_width = 1024
         else:
             # By default, we use the pynq parameters
             self.fpga_device = "xc7z020clg484-1"
@@ -124,7 +128,6 @@ class PkgConfig(object):
             self.fpga_axi_bus_width = 64
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '000'
-            fpga_max_bus_width = 1024
 
         # Derive FPGA memory mapped registers map
         if self.target == "ultra96":
@@ -153,6 +156,8 @@ class PkgConfig(object):
         # The mem axi ratio is a parameter used by HLS to resize memories
         # so memory read/write ports are the same size as the design axi bus width.
         #
+        # Max bus width allowed (property of FPGA vendor toolchain)
+        fpga_max_bus_width = 1024
         # Input memory
         inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
                                   cfg["LOG_BATCH"] + \
