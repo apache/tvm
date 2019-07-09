@@ -65,27 +65,6 @@ uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 /*! \brief VTA configuration register done value */
 #define VTA_DONE 0x1
 
-/*! \brief VTA fetch stage configuration register address
-*   from auto-generated XPAR_FETCH_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
-*/
-#define VTA_FETCH_ADDR    0x43C00000
-/*! \brief VTA compute stage configuration register address
-*   from auto-generated XPAR_COMPUTE_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
-*/
-#define VTA_COMPUTE_ADDR  0x43C10000
-/*! \brief VTA compute stage configuration register address
-*   from auto-generated XPAR_LOAD_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
-*/
-#define VTA_LOAD_ADDR     0x43C20000
-/*! \brief VTA store stage configuration register address
-*   from auto-generated XPAR_STORE_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
-*/
-#define VTA_STORE_ADDR    0x43C30000
-
 #ifdef __cplusplus
 }
 #endif

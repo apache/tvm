@@ -104,6 +104,7 @@ class PkgConfig(object):
         #   - axi_bus_width:    axi bus width used for DMA transactions
         #                       (property of FPGA memory interface)
         #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
+        #                       (e.g. 1111 is write-back read and write allocate)
         #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
         #   - max_bus_width:    maximum bus width allowed
         #                       (property of FPGA vendor toolchains)
@@ -112,7 +113,7 @@ class PkgConfig(object):
             self.fpga_freq = 333
             self.fpga_per = 2
             self.fpga_axi_bus_width = 128
-            self.axi_cache_bits = '1111'  # write-back read and write allocate
+            self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
             fpga_max_bus_width = 1024
         else:
@@ -121,9 +122,27 @@ class PkgConfig(object):
             self.fpga_freq = 100
             self.fpga_per = 7
             self.fpga_axi_bus_width = 64
-            self.axi_cache_bits = '1111'  # write-back read and write allocate
+            self.axi_cache_bits = '1111'
             self.axi_prot_bits = '000'
             fpga_max_bus_width = 1024
+
+        # Derive FPGA memory mapped registers map
+        if self.target == "ultra96":
+            self.fetch_base_addr = "0xA0001000"
+            self.load_base_addr = "0xA0002000"
+            self.compute_base_addr = "0xA0003000"
+            self.store_base_addr = "0xA0004000"
+        else:
+            # By default, we use the pynq parameters
+            self.fetch_base_addr = "0x43C00000"
+            self.load_base_addr = "0x43C20000"
+            self.compute_base_addr = "0x43C10000"
+            self.store_base_addr = "0x43C30000"
+        # Add to the macro defs
+        self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
+        self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
+        self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
+        self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,

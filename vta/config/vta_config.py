@@ -107,6 +107,14 @@ def main():
                         help="returns AXI system ARCACHE/AWCACHE hardcoded bit value")
     parser.add_argument("--get-axi-prot-bits", action="store_true",
                         help="returns AXI system ARPROT/AWPROT hardcoded bit value")
+    parser.add_argument("--get-fetch-base-addr", action="store_true",
+                        help="returns fetch module base address")
+    parser.add_argument("--get-load-base-addr", action="store_true",
+                        help="returns load module base address")
+    parser.add_argument("--get-compute-base-addr", action="store_true",
+                        help="returns compute module base address")
+    parser.add_argument("--get-store-base-addr", action="store_true",
+                        help="returns store module base address")
     parser.add_argument("--get-fpga-dev", action="store_true",
                         help="returns FPGA device target")
     parser.add_argument("--get-fpga-freq", action="store_true",
@@ -251,6 +259,18 @@ def main():
 
     if args.get_axi_prot_bits:
         print(pkg.axi_prot_bits)
+
+    if args.get_fetch_base_addr:
+        print(pkg.fetch_base_addr)
+
+    if args.get_load_base_addr:
+        print(pkg.load_base_addr)
+
+    if args.get_compute_base_addr:
+        print(pkg.compute_base_addr)
+
+    if args.get_store_base_addr:
+        print(pkg.store_base_addr)
 
     if args.get_fpga_dev:
         print(pkg.fpga_device)

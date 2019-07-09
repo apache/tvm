@@ -36,23 +36,29 @@ if { [llength $argv] eq 2 } {
 }
 
 # Get the VTA configuration paramters
-set target          [exec python $vta_config --target]
-set clock_freq      [exec python $vta_config --get-fpga-freq]
+set target            [exec python $vta_config --target]
+set clock_freq        [exec python $vta_config --get-fpga-freq]
 
 # SRAM dimensions
-set inp_part        [exec python $vta_config --get-inp-mem-banks]
-set inp_mem_width   [exec python $vta_config --get-inp-mem-width]
-set inp_mem_depth   [exec python $vta_config --get-inp-mem-depth]
-set wgt_part        [exec python $vta_config --get-wgt-mem-banks]
-set wgt_mem_width   [exec python $vta_config --get-wgt-mem-width]
-set wgt_mem_depth   [exec python $vta_config --get-wgt-mem-depth]
-set out_part        [exec python $vta_config --get-out-mem-banks]
-set out_mem_width   [exec python $vta_config --get-out-mem-width]
-set out_mem_depth   [exec python $vta_config --get-out-mem-depth]
+set inp_part          [exec python $vta_config --get-inp-mem-banks]
+set inp_mem_width     [exec python $vta_config --get-inp-mem-width]
+set inp_mem_depth     [exec python $vta_config --get-inp-mem-depth]
+set wgt_part          [exec python $vta_config --get-wgt-mem-banks]
+set wgt_mem_width     [exec python $vta_config --get-wgt-mem-width]
+set wgt_mem_depth     [exec python $vta_config --get-wgt-mem-depth]
+set out_part          [exec python $vta_config --get-out-mem-banks]
+set out_mem_width     [exec python $vta_config --get-out-mem-width]
+set out_mem_depth     [exec python $vta_config --get-out-mem-depth]
 
 # AXI bus signals
-set axi_cache       [exec python $vta_config --get-axi-cache-bits]
-set axi_prot        [exec python $vta_config --get-axi-prot-bits]
+set axi_cache         [exec python $vta_config --get-axi-cache-bits]
+set axi_prot          [exec python $vta_config --get-axi-prot-bits]
+
+# Address map
+set fetch_base_addr   [exec python $vta_config --get-fetch-base-addr]
+set load_base_addr    [exec python $vta_config --get-load-base-addr]
+set compute_base_addr [exec python $vta_config --get-compute-base-addr]
+set store_base_addr   [exec python $vta_config --get-store-base-addr]
 
 # Paths to IP library of VTA modules
 set proj_name vta
@@ -399,7 +405,7 @@ if {$out_part > 1} {
 
 # Create instance: processing_system, and set properties
 if { $target eq "pynq" } {
-  set processing_system7_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system7_1 ]
+  set processing_system [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system ]
   set_property -dict [ list \
     CONFIG.PCW_CAN0_PERIPHERAL_ENABLE {0} \
     CONFIG.PCW_ENET0_PERIPHERAL_ENABLE {0} \
@@ -425,9 +431,9 @@ if { $target eq "pynq" } {
     CONFIG.PCW_USE_S_AXI_HP2 {0} \
     CONFIG.PCW_USE_S_AXI_HP3 {0} \
     CONFIG.preset {ZC702} \
-  ] $processing_system7_1
+  ] $processing_system
 } elseif { $target eq "ultra96" || $target eq "zcu102" } {
-  set ps_e_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.2 ps_e_0 ]
+  set processing_system [ create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.2 processing_system ]
   set_property -dict [ list \
     CONFIG.CAN0_BOARD_INTERFACE {custom} \
     CONFIG.CAN1_BOARD_INTERFACE {custom} \
@@ -1848,7 +1854,7 @@ if { $target eq "pynq" } {
     CONFIG.UART1_BOARD_INTERFACE {custom} \
     CONFIG.USB0_BOARD_INTERFACE {custom} \
     CONFIG.USB1_BOARD_INTERFACE {custom} \
-  ] $ps_e_0
+  ] $processing_system
 }
 
 # Create interface connections
@@ -1877,20 +1883,20 @@ if { $target eq "pynq" } {
   connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
   connect_bd_intf_net -intf_net compute_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S03_AXI] [get_bd_intf_pins compute_0/m_axi_data_port]
   connect_bd_intf_net -intf_net store_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S04_AXI] [get_bd_intf_pins store_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins processing_system7_1/S_AXI_ACP]
-  connect_bd_intf_net -intf_net processing_system7_1_m_axi_gp0 [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins processing_system7_1/M_AXI_GP0]
+  connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_ACP]
+  connect_bd_intf_net -intf_net processing_system_m_axi_gp0 [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins processing_system/M_AXI_GP0]
   # External interface connections only apply to Pynq
-  connect_bd_intf_net -intf_net processing_system7_1_ddr [get_bd_intf_ports DDR] [get_bd_intf_pins processing_system7_1/DDR]
-  connect_bd_intf_net -intf_net processing_system7_1_fixed_io [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins processing_system7_1/FIXED_IO]
+  connect_bd_intf_net -intf_net processing_system_ddr [get_bd_intf_ports DDR] [get_bd_intf_pins processing_system/DDR]
+  connect_bd_intf_net -intf_net processing_system_fixed_io [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins processing_system/FIXED_IO]
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
   connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
   connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc1/S00_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
   connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
   connect_bd_intf_net -intf_net compute_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_data_port]
   connect_bd_intf_net -intf_net store_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S03_AXI] [get_bd_intf_pins store_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins ps_e_0/S_AXI_HPC0_FPD]
-  connect_bd_intf_net -intf_net axi_smc1_M00_AXI [get_bd_intf_pins axi_smc1/M00_AXI] [get_bd_intf_pins ps_e_0/S_AXI_HPC1_FPD]
-  connect_bd_intf_net -intf_net ps_e_0_M_AXI_HPM0_FPD [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins ps_e_0/M_AXI_HPM0_FPD]
+  connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_HPC0_FPD]
+  connect_bd_intf_net -intf_net axi_smc1_M00_AXI [get_bd_intf_pins axi_smc1/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_HPC1_FPD]
+  connect_bd_intf_net -intf_net processing_system_M_AXI_HPM0_FPD [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins processing_system/M_AXI_HPM0_FPD]
 }
 
 # Create port connections
@@ -1919,8 +1925,8 @@ if { $target eq "pynq" } {
     [get_bd_pins s2g_queue/s_aresetn]
   connect_bd_net -net ps_clk_net \
     [get_bd_pins pll_clk/clk_in1] \
-    [get_bd_pins processing_system7_1/FCLK_CLK0]
-  connect_bd_net -net processing_system7_1_FCLK_CLK \
+    [get_bd_pins processing_system/FCLK_CLK0]
+  connect_bd_net -net processing_system_FCLK_CLK \
     [get_bd_pins pll_clk/clk_out1] \
     [get_bd_pins proc_sys_reset/slowest_sync_clk] \
     [get_bd_pins axi_smc0/aclk] \
@@ -1941,12 +1947,12 @@ if { $target eq "pynq" } {
     [get_bd_pins g2l_queue/s_aclk] \
     [get_bd_pins g2s_queue/s_aclk] \
     [get_bd_pins s2g_queue/s_aclk] \
-    [get_bd_pins processing_system7_1/M_AXI_GP0_ACLK] \
-    [get_bd_pins processing_system7_1/S_AXI_ACP_ACLK]
-  connect_bd_net -net processing_system7_1_fclk_reset0_n \
+    [get_bd_pins processing_system/M_AXI_GP0_ACLK] \
+    [get_bd_pins processing_system/S_AXI_ACP_ACLK]
+  connect_bd_net -net processing_system_fclk_reset0_n \
     [get_bd_pins pll_clk/resetn] \
     [get_bd_pins proc_sys_reset/ext_reset_in] \
-    [get_bd_pins processing_system7_1/FCLK_RESET0_N]
+    [get_bd_pins processing_system/FCLK_RESET0_N]
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
   connect_bd_net -net proc_sys_reset_peripheral_aresetn \
     [get_bd_pins proc_sys_reset/peripheral_aresetn] \
@@ -1970,8 +1976,8 @@ if { $target eq "pynq" } {
     [get_bd_pins s2g_queue/s_aresetn]
   connect_bd_net -net ps_clk_net \
     [get_bd_pins pll_clk/clk_in1] \
-    [get_bd_pins ps_e_0/pl_clk0]
-  connect_bd_net -net ps_e_0_clk \
+    [get_bd_pins processing_system/pl_clk0]
+  connect_bd_net -net processing_system_clk \
     [get_bd_pins axi_smc0/aclk] \
     [get_bd_pins axi_smc1/aclk] \
     [get_bd_pins pll_clk/clk_out1] \
@@ -1993,51 +1999,47 @@ if { $target eq "pynq" } {
     [get_bd_pins g2l_queue/s_aclk] \
     [get_bd_pins g2s_queue/s_aclk] \
     [get_bd_pins s2g_queue/s_aclk] \
-    [get_bd_pins ps_e_0/maxihpm0_fpd_aclk] \
-    [get_bd_pins ps_e_0/saxihpc1_fpd_aclk] \
-    [get_bd_pins ps_e_0/saxihpc0_fpd_aclk]
-  connect_bd_net -net ps_e_0_reset \
+    [get_bd_pins processing_system/maxihpm0_fpd_aclk] \
+    [get_bd_pins processing_system/saxihpc1_fpd_aclk] \
+    [get_bd_pins processing_system/saxihpc0_fpd_aclk]
+  connect_bd_net -net processing_system_reset \
     [get_bd_pins pll_clk/resetn] \
     [get_bd_pins proc_sys_reset/ext_reset_in] \
-    [get_bd_pins ps_e_0/pl_resetn0]
+    [get_bd_pins processing_system/pl_resetn0]
 }
+create_bd_addr_seg -range 0x00001000 -offset $fetch_base_addr [get_bd_addr_spaces processing_system/Data] [get_bd_addr_segs fetch_0/s_axi_CONTROL_BUS/Reg] SEG_fetch_0_Reg
+create_bd_addr_seg -range 0x00001000 -offset $load_base_addr [get_bd_addr_spaces processing_system/Data] [get_bd_addr_segs load_0/s_axi_CONTROL_BUS/Reg] SEG_load_0_Reg
+create_bd_addr_seg -range 0x00001000 -offset $compute_base_addr [get_bd_addr_spaces processing_system/Data] [get_bd_addr_segs compute_0/s_axi_CONTROL_BUS/Reg] SEG_compute_0_Reg
+create_bd_addr_seg -range 0x00001000 -offset $store_base_addr [get_bd_addr_spaces processing_system/Data] [get_bd_addr_segs store_0/s_axi_CONTROL_BUS/Reg] SEG_store_0_Reg
 
 # Create address segments
 if { $target eq "pynq" } {
-  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
-  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
-  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
-  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
-  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
-  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
-  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
-  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
-  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
-  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
-  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
-  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
-  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
-  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
-  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
-  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
-  create_bd_addr_seg -range 0x00010000 -offset 0x43C00000 [get_bd_addr_spaces processing_system7_1/Data] [get_bd_addr_segs fetch_0/s_axi_CONTROL_BUS/Reg] SEG_fetch_0_Reg
-  create_bd_addr_seg -range 0x00010000 -offset 0x43C10000 [get_bd_addr_spaces processing_system7_1/Data] [get_bd_addr_segs compute_0/s_axi_CONTROL_BUS/Reg] SEG_compute_0_Reg
-  create_bd_addr_seg -range 0x00010000 -offset 0x43C20000 [get_bd_addr_spaces processing_system7_1/Data] [get_bd_addr_segs load_0/s_axi_CONTROL_BUS/Reg] SEG_load_0_Reg
-  create_bd_addr_seg -range 0x00010000 -offset 0x43C30000 [get_bd_addr_spaces processing_system7_1/Data] [get_bd_addr_segs store_0/s_axi_CONTROL_BUS/Reg] SEG_store_0_Reg
-  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system7_1_ACP_DDR_LOWOCM
-  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system7_1_ACP_HIGH_OCM
-  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_IOP] SEG_processing_system7_1_ACP_IOP
-  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system7_1/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system7_1_ACP_M_AXI_GP0
+  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system_ACP_DDR_LOWOCM
+  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system_ACP_DDR_LOWOCM
+  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system_ACP_HIGH_OCM
+  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system_ACP_HIGH_OCM
+  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_IOP] SEG_processing_system_ACP_IOP
+  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_IOP] SEG_processing_system_ACP_IOP
+  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
+  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
+  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system_ACP_DDR_LOWOCM
+  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system_ACP_HIGH_OCM
+  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_IOP] SEG_processing_system_ACP_IOP
+  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
+  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system_ACP_DDR_LOWOCM
+  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system_ACP_HIGH_OCM
+  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_IOP] SEG_processing_system_ACP_IOP
+  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
+  create_bd_addr_seg -range 0x40000000 -offset 0x00000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_DDR_LOWOCM] SEG_processing_system_ACP_DDR_LOWOCM
+  create_bd_addr_seg -range 0x00040000 -offset 0xFFFC0000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_HIGH_OCM] SEG_processing_system_ACP_HIGH_OCM
+  create_bd_addr_seg -range 0x00400000 -offset 0xE0000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_IOP] SEG_processing_system_ACP_IOP
+  create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs ps_e_0/SAXIGP1/HPC1_DDR_LOW] SEG_ps_e_0_HPC1_DDR_LOW
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs ps_e_0/SAXIGP0/HPC0_DDR_LOW] SEG_ps_e_0_HPC0_DDR_LOW
-  create_bd_addr_seg -range 0x00001000 -offset 0xA0001000 [get_bd_addr_spaces ps_e_0/Data] [get_bd_addr_segs fetch_0/s_axi_CONTROL_BUS/Reg] SEG_fetch_0_Reg
-  create_bd_addr_seg -range 0x00001000 -offset 0xA0002000 [get_bd_addr_spaces ps_e_0/Data] [get_bd_addr_segs load_0/s_axi_CONTROL_BUS/Reg] SEG_load_0_Reg
-  create_bd_addr_seg -range 0x00001000 -offset 0xA0003000 [get_bd_addr_spaces ps_e_0/Data] [get_bd_addr_segs compute_0/s_axi_CONTROL_BUS/Reg] SEG_compute_0_Reg
-  create_bd_addr_seg -range 0x00001000 -offset 0xA0004000 [get_bd_addr_spaces ps_e_0/Data] [get_bd_addr_segs store_0/s_axi_CONTROL_BUS/Reg] SEG_store_0_Reg
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP1/HPC1_DDR_LOW] SEG_processing_system_HPC1_DDR_LOW
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
 }
 
 save_bd_design
