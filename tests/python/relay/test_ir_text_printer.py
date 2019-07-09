@@ -21,7 +21,7 @@ from tvm import relay
 
 do_print = [False]
 
-SEMVER = "v0.0.1\n"
+SEMVER = "v0.0.3\n"
 
 def show(text):
     if do_print[0]:
@@ -175,23 +175,23 @@ def test_call_node_order():
     assert relay.Call(relay.Function([x], x), [relay.Call(relay.Function([y], y), [relay.const(1)])]).astext() == SEMVER + \
         ("%0 = fn (%y) {\n"
          "  %y\n"
-         "}\n"
-         "%1 = %0(1)\n"
+         "};\n"
+         "%1 = %0(1);\n"
          "%2 = fn (%x) {\n"
          "  %x\n"
-         "}\n"
+         "};\n"
          "%2(%1)")
 
 def test_let_inlining():
     tup = relay.Tuple([relay.const(0), relay.const(0)])
     x = relay.var("x")
     assert relay.Let(x, tup, tup).astext() == SEMVER + \
-        ("%0 = (0, 0)\n"
-         "let %x = %0\n"
+        ("%0 = (0, 0);\n"
+         "let %x = %0;\n"
          "%0")
 
     assert relay.Let(x, tup, x).astext() == SEMVER + \
-        ("let %x = (0, 0)\n"
+        ("let %x = (0, 0);\n"
          "%x")
 
 if __name__ == "__main__":

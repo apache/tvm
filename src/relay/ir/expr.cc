@@ -130,6 +130,8 @@ Function FunctionNode::make(tvm::Array<Var> params,
                             tvm::Array<TypeVar> type_params,
                             tvm::Attrs attrs) {
   NodePtr<FunctionNode> n = make_node<FunctionNode>();
+  CHECK(params.defined());
+  CHECK(type_params.defined());
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);

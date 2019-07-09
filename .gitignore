@@ -217,7 +217,7 @@ patched.txt
 .mypy_cache/
 .pyre/
 
-# pipenv file
+# pipenv files
 Pipfile
 Pipfile.lock
 
@@ -225,5 +225,10 @@ Pipfile.lock
 conda/Dockerfile.cuda*
 conda/pkg
 
+# nix files
 .envrc
 *.nix
+
+# antlr files
+*.tokens
+*.interp
