@@ -145,9 +145,10 @@ const char* getOpcodeString(int opcode, bool use_imm) {
     }
   } else if (opcode == VTA_ALU_OPCODE_SHR) {
     return "shr";
-  } else if (opcode == VTA_ALU_OPCODE_MUL) {
-    return "mul";
   }
+  // else if (opcode == VTA_ALU_OPCODE_MUL) {
+  //   return "mul";
+  // }
   return "unknown op";
 }
 
@@ -747,10 +748,11 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
     } else if (opcode == VTA_ALU_OPCODE_SHR) {
       immediate[b] = static_cast<acc_T>(
           rand_r(&globalSeed) % (1LL << (VTA_SHR_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_SHR_ARG_BIT_WIDTH - 2)));
-    } else if (opcode == VTA_ALU_OPCODE_MUL) {
-      immediate[b] = static_cast<acc_T>(
-          rand_r(&globalSeed) % (1LL << (VTA_MUL_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_MUL_ARG_BIT_WIDTH - 2)));
     }
+    // else if (opcode == VTA_ALU_OPCODE_MUL) {
+    //   immediate[b] = static_cast<acc_T>(
+    //       rand_r(&globalSeed) % (1LL << (VTA_MUL_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_MUL_ARG_BIT_WIDTH - 2)));
+    // }
   }
 
   // Initialize instructions
@@ -825,10 +827,11 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
       } else if (opcode == VTA_ALU_OPCODE_SHR) {
         inputs[i][j] = static_cast<acc_T>(
             rand_r(&globalSeed) % (1LL << (VTA_SHR_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_SHR_ARG_BIT_WIDTH - 2)));
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-        inputs[i][j] = static_cast<acc_T>(
-            rand_r(&globalSeed) % (1LL << (VTA_MUL_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_MUL_ARG_BIT_WIDTH - 2)));
       }
+      // else if (opcode == VTA_ALU_OPCODE_MUL) {
+      //   inputs[i][j] = static_cast<acc_T>(
+      //       rand_r(&globalSeed) % (1LL << (VTA_MUL_ARG_BIT_WIDTH - 1)) - (1LL << (VTA_MUL_ARG_BIT_WIDTH - 2)));
+      // }
     }
   }
 
@@ -871,13 +874,14 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
             out_val = inputs[i][j] << (0 - imm_val);
           }
         }
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-        if (!use_imm) {
-          out_val = inputs[i][j] * src_val;
-        } else {
-          out_val = inputs[i][j] * imm_val;
-        }
       }
+      // else if (opcode == VTA_ALU_OPCODE_MUL) {
+      //   if (!use_imm) {
+      //     out_val = inputs[i][j] * src_val;
+      //   } else {
+      //     out_val = inputs[i][j] * imm_val;
+      //   }
+      // }
       // Set
       outputs_ref[i][j] = (out_T) out_val;
     }
