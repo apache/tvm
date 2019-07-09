@@ -462,6 +462,9 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
       return Select(value, IntImm(dst_type, 1), IntImm(dst_type, 0));
     } else if (to.is_uint()) {
       return Select(value, UIntImm(dst_type, 1), UIntImm(dst_type, 0));
+    } else if (to.is_float()) {
+      return MakeValue(spv::OpConvertUToF, dst_type,
+                       Select(value, UIntImm(t_uint32_, 1), UIntImm(t_uint32_, 0)));
     } else {
       LOG(FATAL) << "cannot cast from " << from << " to " << to;
       return Value();
