@@ -582,6 +582,41 @@ def test_forward_pad():
 
 
 #######################################################################
+# Pack
+# -------------
+
+def _test_pack(data, axis):
+    """ One iteration of pack """
+
+    assert len(data) >= 1
+
+    with tf.Graph().as_default():
+        in_data = [
+            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
+            for idx, tensor in enumerate(data)]
+        out = array_ops.pack(in_data, axis=axis)
+        name = ["in_{}:0".format(idx) for idx in range(len(data))]
+
+        compare_tflite_with_tvm(data, name, in_data, [out])
+
+
+def test_forward_pack():
+    """ Pack """
+    _test_pack(
+        [np.arange(6).reshape((1, 2, 1, 3)),
+        np.arange(6).reshape((1, 2, 1, 3))], 1)
+
+    _test_pack(
+        [np.arange(6).reshape((3, 2)),
+         np.arange(6).reshape((3, 2))], 1)
+
+    _test_pack(
+        [np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3))], 1)
+
+
+#######################################################################
 # Logistic
 # --------
 
@@ -750,6 +785,7 @@ if __name__ == '__main__':
     # Transforms
     test_forward_concatenation()
     test_forward_pad()
+    test_forward_pack()
     test_forward_reshape()
     test_all_resize()
     test_forward_squeeze()
