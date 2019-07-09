@@ -114,28 +114,12 @@ set_property -dict [ list \
   CONFIG.USE_LOCKED {false} \
 ] $pll_clk
 
-# Create as many SMCs as there are memory channels
-if { $target eq "pynq" } {
-  # Create instance: axi_smc0, and set properties
-  set axi_smc0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc0 ]
-  set_property -dict [ list \
-    CONFIG.NUM_MI {1} \
-    CONFIG.NUM_SI {5} \
-  ] $axi_smc0
-} elseif { $target eq "ultra96" || $target eq "zcu102" } {
-  # Create instance: axi_smc0, and set properties
-  set axi_smc0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc0 ]
-  set_property -dict [ list \
-    CONFIG.NUM_MI {1} \
-    CONFIG.NUM_SI {4} \
-  ] $axi_smc0
-  # Create instance: axi_smc1, and set properties
-  set axi_smc1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc1 ]
-  set_property -dict [ list \
-    CONFIG.NUM_MI {1} \
-    CONFIG.NUM_SI {1} \
-  ] $axi_smc1
-}
+# Create instance: axi_smc0, and set properties
+set axi_smc0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc0 ]
+set_property -dict [ list \
+  CONFIG.NUM_MI {1} \
+  CONFIG.NUM_SI {5} \
+] $axi_smc0
 
 # Create instance: axi_xbar, and set properties
 set axi_xbar \
@@ -1876,26 +1860,20 @@ connect_bd_intf_net -intf_net l2g_queue_M_AXIS [get_bd_intf_pins compute_0/l2g_d
 connect_bd_intf_net -intf_net g2l_queue_M_AXIS [get_bd_intf_pins g2l_queue/M_AXIS] [get_bd_intf_pins load_0/g2l_dep_queue_V]
 connect_bd_intf_net -intf_net g2s_queue_M_AXIS [get_bd_intf_pins g2s_queue/M_AXIS] [get_bd_intf_pins store_0/g2s_dep_queue_V]
 connect_bd_intf_net -intf_net s2g_queue_M_AXIS [get_bd_intf_pins compute_0/s2g_dep_queue_V] [get_bd_intf_pins s2g_queue/M_AXIS]
+connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
+connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
+connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
+connect_bd_intf_net -intf_net compute_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S03_AXI] [get_bd_intf_pins compute_0/m_axi_data_port]
+connect_bd_intf_net -intf_net store_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S04_AXI] [get_bd_intf_pins store_0/m_axi_data_port]
 
 if { $target eq "pynq" } {
-  connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
-  connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
-  connect_bd_intf_net -intf_net compute_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S03_AXI] [get_bd_intf_pins compute_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net store_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S04_AXI] [get_bd_intf_pins store_0/m_axi_data_port]
   connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_ACP]
   connect_bd_intf_net -intf_net processing_system_m_axi_gp0 [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins processing_system/M_AXI_GP0]
   # External interface connections only apply to Pynq
   connect_bd_intf_net -intf_net processing_system_ddr [get_bd_intf_ports DDR] [get_bd_intf_pins processing_system/DDR]
   connect_bd_intf_net -intf_net processing_system_fixed_io [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins processing_system/FIXED_IO]
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
-  connect_bd_intf_net -intf_net fetch_0_m_axi_ins_port [get_bd_intf_pins axi_smc0/S00_AXI] [get_bd_intf_pins fetch_0/m_axi_ins_port]
-  connect_bd_intf_net -intf_net load_0_m_axi_data_port [get_bd_intf_pins axi_smc1/S00_AXI] [get_bd_intf_pins load_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net compute_0_m_axi_uop_port [get_bd_intf_pins axi_smc0/S01_AXI] [get_bd_intf_pins compute_0/m_axi_uop_port]
-  connect_bd_intf_net -intf_net compute_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S02_AXI] [get_bd_intf_pins compute_0/m_axi_data_port]
-  connect_bd_intf_net -intf_net store_0_m_axi_data_port [get_bd_intf_pins axi_smc0/S03_AXI] [get_bd_intf_pins store_0/m_axi_data_port]
   connect_bd_intf_net -intf_net axi_smc0_M00_AXI [get_bd_intf_pins axi_smc0/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_HPC0_FPD]
-  connect_bd_intf_net -intf_net axi_smc1_M00_AXI [get_bd_intf_pins axi_smc1/M00_AXI] [get_bd_intf_pins processing_system/S_AXI_HPC1_FPD]
   connect_bd_intf_net -intf_net processing_system_M_AXI_HPM0_FPD [get_bd_intf_pins axi_xbar/S00_AXI] [get_bd_intf_pins processing_system/M_AXI_HPM0_FPD]
 }
 
@@ -1903,30 +1881,30 @@ if { $target eq "pynq" } {
 connect_bd_net -net proc_sys_reset_interconnect_aresetn \
   [get_bd_pins axi_xbar/ARESETN] \
   [get_bd_pins proc_sys_reset/interconnect_aresetn]
+connect_bd_net -net proc_sys_reset_peripheral_aresetn \
+  [get_bd_pins proc_sys_reset/peripheral_aresetn] \
+  [get_bd_pins axi_smc0/aresetn] \
+  [get_bd_pins axi_xbar/M00_ARESETN] \
+  [get_bd_pins axi_xbar/M01_ARESETN] \
+  [get_bd_pins axi_xbar/M02_ARESETN] \
+  [get_bd_pins axi_xbar/M03_ARESETN] \
+  [get_bd_pins axi_xbar/S00_ARESETN] \
+  [get_bd_pins fetch_0/ap_rst_n] \
+  [get_bd_pins load_0/ap_rst_n] \
+  [get_bd_pins store_0/ap_rst_n] \
+  [get_bd_pins compute_0/ap_rst_n] \
+  [get_bd_pins load_queue/s_aresetn] \
+  [get_bd_pins gemm_queue/s_aresetn] \
+  [get_bd_pins store_queue/s_aresetn] \
+  [get_bd_pins l2g_queue/s_aresetn] \
+  [get_bd_pins g2l_queue/s_aresetn] \
+  [get_bd_pins g2s_queue/s_aresetn] \
+  [get_bd_pins s2g_queue/s_aresetn]
 if { $target eq "pynq" } {
-  connect_bd_net -net proc_sys_reset_peripheral_aresetn \
-    [get_bd_pins proc_sys_reset/peripheral_aresetn] \
-    [get_bd_pins axi_smc0/aresetn] \
-    [get_bd_pins axi_xbar/M00_ARESETN] \
-    [get_bd_pins axi_xbar/M01_ARESETN] \
-    [get_bd_pins axi_xbar/M02_ARESETN] \
-    [get_bd_pins axi_xbar/M03_ARESETN] \
-    [get_bd_pins axi_xbar/S00_ARESETN] \
-    [get_bd_pins fetch_0/ap_rst_n] \
-    [get_bd_pins load_0/ap_rst_n] \
-    [get_bd_pins store_0/ap_rst_n] \
-    [get_bd_pins compute_0/ap_rst_n] \
-    [get_bd_pins load_queue/s_aresetn] \
-    [get_bd_pins gemm_queue/s_aresetn] \
-    [get_bd_pins store_queue/s_aresetn] \
-    [get_bd_pins l2g_queue/s_aresetn] \
-    [get_bd_pins g2l_queue/s_aresetn] \
-    [get_bd_pins g2s_queue/s_aresetn] \
-    [get_bd_pins s2g_queue/s_aresetn]
   connect_bd_net -net ps_clk_net \
     [get_bd_pins pll_clk/clk_in1] \
     [get_bd_pins processing_system/FCLK_CLK0]
-  connect_bd_net -net processing_system_FCLK_CLK \
+  connect_bd_net -net processing_system_clk \
     [get_bd_pins pll_clk/clk_out1] \
     [get_bd_pins proc_sys_reset/slowest_sync_clk] \
     [get_bd_pins axi_smc0/aclk] \
@@ -1954,34 +1932,13 @@ if { $target eq "pynq" } {
     [get_bd_pins proc_sys_reset/ext_reset_in] \
     [get_bd_pins processing_system/FCLK_RESET0_N]
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
-  connect_bd_net -net proc_sys_reset_peripheral_aresetn \
-    [get_bd_pins proc_sys_reset/peripheral_aresetn] \
-    [get_bd_pins axi_smc0/aresetn] \
-    [get_bd_pins axi_smc1/aresetn] \
-    [get_bd_pins axi_xbar/M00_ARESETN] \
-    [get_bd_pins axi_xbar/M01_ARESETN] \
-    [get_bd_pins axi_xbar/M02_ARESETN] \
-    [get_bd_pins axi_xbar/M03_ARESETN] \
-    [get_bd_pins axi_xbar/S00_ARESETN] \
-    [get_bd_pins fetch_0/ap_rst_n] \
-    [get_bd_pins load_0/ap_rst_n] \
-    [get_bd_pins store_0/ap_rst_n] \
-    [get_bd_pins compute_0/ap_rst_n] \
-    [get_bd_pins load_queue/s_aresetn] \
-    [get_bd_pins gemm_queue/s_aresetn] \
-    [get_bd_pins store_queue/s_aresetn] \
-    [get_bd_pins l2g_queue/s_aresetn] \
-    [get_bd_pins g2l_queue/s_aresetn] \
-    [get_bd_pins g2s_queue/s_aresetn] \
-    [get_bd_pins s2g_queue/s_aresetn]
   connect_bd_net -net ps_clk_net \
     [get_bd_pins pll_clk/clk_in1] \
     [get_bd_pins processing_system/pl_clk0]
   connect_bd_net -net processing_system_clk \
-    [get_bd_pins axi_smc0/aclk] \
-    [get_bd_pins axi_smc1/aclk] \
     [get_bd_pins pll_clk/clk_out1] \
     [get_bd_pins proc_sys_reset/slowest_sync_clk] \
+    [get_bd_pins axi_smc0/aclk] \
     [get_bd_pins axi_xbar/ACLK] \
     [get_bd_pins axi_xbar/M00_ACLK] \
     [get_bd_pins axi_xbar/M01_ACLK] \
@@ -2000,7 +1957,6 @@ if { $target eq "pynq" } {
     [get_bd_pins g2s_queue/s_aclk] \
     [get_bd_pins s2g_queue/s_aclk] \
     [get_bd_pins processing_system/maxihpm0_fpd_aclk] \
-    [get_bd_pins processing_system/saxihpc1_fpd_aclk] \
     [get_bd_pins processing_system/saxihpc0_fpd_aclk]
   connect_bd_net -net processing_system_reset \
     [get_bd_pins pll_clk/resetn] \
@@ -2036,7 +1992,7 @@ if { $target eq "pynq" } {
   create_bd_addr_seg -range 0x40000000 -offset 0x40000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/S_AXI_ACP/ACP_M_AXI_GP0] SEG_processing_system_ACP_M_AXI_GP0
 } elseif { $target eq "ultra96" || $target eq "zcu102"} {
   create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces fetch_0/Data_m_axi_ins_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
-  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP1/HPC1_DDR_LOW] SEG_processing_system_HPC1_DDR_LOW
+  create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces load_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP1/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
   create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_uop_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
   create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces compute_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
   create_bd_addr_seg -range 0x80000000 -offset 0x00000000 [get_bd_addr_spaces store_0/Data_m_axi_data_port] [get_bd_addr_segs processing_system/SAXIGP0/HPC0_DDR_LOW] SEG_processing_system_HPC0_DDR_LOW
