@@ -23,8 +23,10 @@
  * \brief session to manage multiple micro modules
  */
 
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <memory>
+#include <stack>
 #include <vector>
 #include "micro_session.h"
 #include "low_level_device.h"
@@ -34,16 +36,27 @@
 namespace tvm {
 namespace runtime {
 
-PackedFunc MicroSession::GetFunction(
-    const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  if (name == "enter") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      MicroSession::Global(true, std::dynamic_pointer_cast<MicroSession>(sptr_to_self));
-    });
-  } else {
-    return PackedFunc();
-  }
+struct TVMMicroSessionThreadLocalEntry {
+  std::stack<std::shared_ptr<MicroSession>> session_stack;
+};
+
+typedef dmlc::ThreadLocalStore<TVMMicroSessionThreadLocalEntry> TVMMicroSessionThreadLocalStore;
+
+std::shared_ptr<MicroSession> MicroSession::Current() {
+  TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
+  CHECK_GT(entry->session_stack.size(), 0) << "No current session";
+  return entry->session_stack.top();
+}
+
+void MicroSession::EnterWithScope(std::shared_ptr<MicroSession> session) {
+  TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
+  entry->session_stack.push(session);
+}
+
+void MicroSession::ExitWithScope() {
+  TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
+  CHECK(!entry->session_stack.empty());
+  entry->session_stack.pop();
 }
 
 MicroSession::MicroSession() {
@@ -68,8 +81,8 @@ MicroSession::~MicroSession() {
 }
 
 void MicroSession::CreateSession(const std::string& device_type,
-                               const std::string& binary_path,
-                               const std::string& toolchain_prefix) {
+                                 const std::string& binary_path,
+                                 const std::string& toolchain_prefix) {
   // TODO(weberlo): make device type enum
   if (device_type == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(memory_size_);
@@ -318,6 +331,22 @@ void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
                                   const T& value) {
   DevBaseOffset sym_offset = symbol_map[symbol];
   low_level_device()->Write(sym_offset, &value, sizeof(T));
+}
+
+PackedFunc MicroSession::GetFunction(
+    const std::string& name,
+    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+  if (name == "enter") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      MicroSession::EnterWithScope(std::dynamic_pointer_cast<MicroSession>(sptr_to_self));
+    });
+  } else if (name == "exit") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      MicroSession::ExitWithScope();
+    });
+  } else {
+    return PackedFunc();
+  }
 }
 
 // create micro session and low-level device from Python frontend

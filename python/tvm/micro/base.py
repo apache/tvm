@@ -31,7 +31,18 @@ from .cross_compile import create_lib
 SUPPORTED_DEVICE_TYPES = ["host"]
 
 class Session:
-    """MicroTVM Session
+    """MicroTVM Device Session
+
+    Parameters
+    ----------
+    device_type : str
+        type of low-level device
+
+    toolchain_prefix : str
+        toolchain prefix to be used. For example, a prefix of
+        "riscv64-unknown-elf-" means "riscv64-unknown-elf-gcc" is used as
+        the compiler and "riscv64-unknown-elf-ld" is used as the linker,
+        etc.
 
     Example
     --------
@@ -44,46 +55,34 @@ class Session:
     """
 
     def __init__(self, device_type, toolchain_prefix):
-        """Stores parameters for initializing a micro device session.
-
-        The session is not initialized until the constructed object is used
-        in a `with` block.
-
-        Parameters
-        ----------
-        device_type : str
-            type of low-level device
-
-        toolchain_prefix : str
-            toolchain prefix to be used. For example, a prefix of
-            "riscv64-unknown-elf-" means "riscv64-unknown-elf-gcc" is used as
-            the compiler and "riscv64-unknown-elf-ld" is used as the linker,
-            etc.
-        """
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
 
         # First, find and compile runtime library.
-        micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-        micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
-                                        "src", "runtime", "micro", "device")
-        runtime_src_path = os.path.join(micro_device_dir, "utvm_runtime.c")
+        runtime_src_path = os.path.join(get_micro_device_dir(), "utvm_runtime.c")
         tmp_dir = util.tempdir()
-        runtime_lib_path = tmp_dir.relpath("utvm_runtime.obj")
-        runtime_lib_path = create_micro_lib(
-            runtime_src_path, toolchain_prefix, obj_path=runtime_lib_path)
+        runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
+        create_micro_lib(runtime_src_path, runtime_obj_path, toolchain_prefix)
 
-        self.module = _CreateSession(device_type, runtime_lib_path, toolchain_prefix)
+        self.module = _CreateSession(device_type, runtime_obj_path, toolchain_prefix)
         self._enter = self.module["enter"]
+        self._exit = self.module["exit"]
 
     def __enter__(self):
         self._enter()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        pass
+        self._exit()
 
 
-def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
+def get_micro_device_dir():
+    micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
+                                    "src", "runtime", "micro", "device")
+    return micro_device_dir
+
+
+def create_micro_lib(src_path, obj_path, toolchain_prefix):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -92,13 +91,10 @@ def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
         path to source file
 
     obj_path : str, optional
-        path to generated object file (defaults to same directory as
-        `src_path`)
+        path to generated object file (defaults to same directory as `src_path`)
 
-    Return
-    ------
-    obj_path : bytearray
-        compiled binary file path (will match input `obj_path`, if it was specified)
+    toolchain_prefix : str
+        toolchain prefix to be used
     """
     def replace_suffix(s, new_suffix):
         if "." in os.path.basename(s):
@@ -109,9 +105,6 @@ def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
         # No existing extension; we can just append.
         return s + "." + new_suffix
 
-    if obj_path is None:
-        obj_name = replace_suffix(src_path, "obj")
-        obj_path = os.path.join(os.path.dirname(src_path), obj_name)
     # uTVM object files cannot have an ".o" suffix, because it triggers the
     # code path for creating shared objects in `tvm.module.load`.  So we replace
     # ".o" suffixes with ".obj".
@@ -120,12 +113,12 @@ def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
             "\".o\" suffix in \"%s\" has been replaced with \".obj\"", obj_path)
         obj_path = replace_suffix(obj_path, "obj")
 
+    sources = [src_path]
     options = ["-I" + path for path in find_include_path()]
     options += ["-fno-stack-protector"]
     options += ["-mcmodel=large"]
     # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
-    create_lib(obj_path, src_path, options, "{}gcc".format(toolchain_prefix))
-    return obj_path
+    create_lib(obj_path, sources, options, "{}gcc".format(toolchain_prefix))
 
 
 _init_api("tvm.micro", "tvm.micro.base")

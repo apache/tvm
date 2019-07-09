@@ -55,7 +55,7 @@ class MicroModuleNode final : public ModuleNode {
    * \param binary_path path of the binary to be loaded
    */
   void InitMicroModule(const std::string& binary_path) {
-    session_ = MicroSession::Global();
+    session_ = MicroSession::Current();
     low_level_device_ = session_->low_level_device();
     binary_path_ = binary_path;
     binary_info_ = session_->LoadBinary(binary_path_);

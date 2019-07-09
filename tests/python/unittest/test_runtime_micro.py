@@ -48,14 +48,12 @@ def create_micro_mod(c_mod, toolchain_prefix):
     temp_dir = util.tempdir()
     # Save module source to temp file.
     lib_src_path = temp_dir.relpath("dev_lib.c")
-    # mod_src = c_mod.get_source()
-    hardcoded_resnet_path = os.path.join(os.path.dirname(__file__), "resnet_18.c")
-    with open(hardcoded_resnet_path, "r") as f:
-        mod_src = f.read()
+    mod_src = c_mod.get_source()
     with open(lib_src_path, "w") as f:
         f.write(mod_src)
     # Compile to object file.
-    lib_obj_path = micro.create_micro_lib(lib_src_path, toolchain_prefix)
+    lib_obj_path = temp_dir.relpath("dev_lib.obj")
+    micro.create_micro_lib(lib_src_path, lib_obj_path, toolchain_prefix)
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     return micro_mod
 
@@ -184,47 +182,82 @@ def test_multiple_modules():
     # Construct Relay add program.
     x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
     ret = relay.add(x, relay.const(1.0))
-    add_func = relay.Function([x], ret)
+    add_const_func = relay.Function([x], ret)
     # Construct Relay subtract program.
     x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
     ret = relay.subtract(x, relay.const(1.0))
-    sub_func = relay.Function([x], ret)
+    sub_const_func = relay.Function([x], ret)
 
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        add_mod = relay_micro_build(add_func, TOOLCHAIN_PREFIX)
-        sub_mod = relay_micro_build(sub_func, TOOLCHAIN_PREFIX)
+        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        sub_const_mod = relay_micro_build(sub_const_func, TOOLCHAIN_PREFIX)
 
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
-        add_mod.run(x=x_in)
-        add_result = add_mod.get_output(0).asnumpy()
-        sub_mod.run(x=x_in)
-        sub_result = sub_mod.get_output(0).asnumpy()
+        add_const_mod.run(x=x_in)
+        add_result = add_const_mod.get_output(0).asnumpy()
+        sub_const_mod.run(x=x_in)
+        sub_result = sub_const_mod.get_output(0).asnumpy()
 
         tvm.testing.assert_allclose(
                 add_result, x_in + 1.0)
         tvm.testing.assert_allclose(
                 sub_result, x_in - 1.0)
 
-
 def test_interleave_sessions():
     """Test closing and reopening sessions."""
     shape = (1024,)
     dtype = "float32"
 
+    # Construct Relay add program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    ret = relay.add(x, relay.const(1.0))
+    add_const_func = relay.Function([x], ret)
+
     sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
     sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
     with sess_a:
-        ctx = tvm.micro_dev(0)
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
-        micro_tensor_a = tvm.nd.array(np_tensor_a, ctx)
+        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
     with sess_b:
-        ctx = tvm.micro_dev(0)
         np_tensor_b = np.random.uniform(size=shape).astype(dtype)
-        micro_tensor_b = tvm.nd.array(np_tensor_b, ctx)
+        micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
     with sess_a:
-        tvm.testing.assert_allclose(np_tensor_a, micro_tensor_a.asnumpy())
+        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod.run(x=micro_tensor_a)
+        add_result = add_const_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(
+                add_result, np_tensor_a + 1.0)
     with sess_b:
-        tvm.testing.assert_allclose(np_tensor_b, micro_tensor_b.asnumpy())
+        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod.run(x=micro_tensor_b)
+        add_result = add_const_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(
+                add_result, np_tensor_b + 1.0)
+
+
+def test_nested_sessions():
+    """Test entering and exiting nested session contexts."""
+    shape = (1024,)
+    dtype = "float32"
+
+    # Construct Relay add program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    ret = relay.add(x, relay.const(1.0))
+    add_const_func = relay.Function([x], ret)
+
+    sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    with sess_a:
+        np_tensor_a = np.random.uniform(size=shape).astype(dtype)
+        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
+        with sess_b:
+            np_tensor_b = np.random.uniform(size=shape).astype(dtype)
+            micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
+        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod.run(x=micro_tensor_a)
+        add_result = add_const_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(
+                add_result, np_tensor_a + 1.0)
 
 
 def test_resnet_random():
@@ -300,10 +333,11 @@ def test_resnet_pretrained():
 
 
 if __name__ == "__main__":
-    # test_alloc()
-    # test_add()
-    # test_workspace_add()
-    # test_graph_runtime()
-    # test_multiple_modules()
-    # test_interleave_sessions()
+    test_alloc()
+    test_add()
+    test_workspace_add()
+    test_graph_runtime()
+    test_multiple_modules()
+    test_interleave_sessions()
+    test_nested_sessions()
     test_resnet_random()

@@ -73,32 +73,7 @@ class MicroSession : public ModuleNode {
    */
   ~MicroSession();
 
-  // TODO(weberlo): It'd be nice to have both `Global` and `SetGlobal` methods,
-  // but storing `curr_session` as a static class variable seems to cause
-  // undefined reference errors.  Are there alternatives?
-
-  /*!
-   * \brief get MicroSession global singleton
-   * \return pointer to the micro session global singleton
-   */
-  static std::shared_ptr<MicroSession> Global(
-      bool set_global = false, std::shared_ptr<MicroSession> session = nullptr) {
-    static std::shared_ptr<MicroSession> curr_session;
-    if (set_global) {
-      curr_session = session;
-    } else {
-      CHECK(curr_session != nullptr) << "null global session";
-    }
-    return curr_session;
-  }
-
-  // /*!
-  //  * \brief get MicroSession global singleton
-  //  * \return pointer to the micro session global singleton
-  //  */
-  // static void SetGlobal(std::shared_ptr<MicroSession> session) {
-  //   MicroSession::curr_session = session;
-  // }
+  static std::shared_ptr<MicroSession> Current();
 
   /*!
    * \brief creates session by setting up a low-level device and initting allocators for it
@@ -239,6 +214,17 @@ class MicroSession : public ModuleNode {
   std::shared_ptr<MicroSectionAllocator> GetAllocator(SectionKind kind) {
     return section_allocators_[static_cast<size_t>(kind)];
   }
+
+  /*!
+    * \brief Push a new session context onto the thread-local stack.
+    *  The session on top of the stack is used as the current global session.
+    */
+  static void EnterWithScope(std::shared_ptr<MicroSession> session);
+  /*!
+    * \brief Pop a session off the thread-local context stack,
+    *  restoring the previous session as the current context.
+    */
+  static void ExitWithScope();
 };
 
 /*!

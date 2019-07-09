@@ -50,7 +50,7 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Current();
     void* data = session->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
     MicroDevSpace* dev_space = new MicroDevSpace();
@@ -124,7 +124,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Current();
 
     void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << size << " bytes on device workspace";
