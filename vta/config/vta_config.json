@@ -1,6 +1,6 @@
 {
   "TARGET" : "sim",
-  "HW_VER" : "0.0.0",
+  "HW_VER" : "0.0.1",
   "LOG_INP_WIDTH" : 3,
   "LOG_WGT_WIDTH" : 3,
   "LOG_ACC_WIDTH" : 5,

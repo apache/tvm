@@ -64,7 +64,7 @@ def download_bitstream():
     bit = get_bitstream_path()
     url = os.path.join(BITSTREAM_URL, env.TARGET)
     url = os.path.join(url, env.HW_VER)
-    url = os.path.join(url, env.BITSTREAM)
+    url = os.path.join(url, env.BITSTREAM + ".bit")
 
     try:
         download(url, bit)

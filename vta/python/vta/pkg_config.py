@@ -38,7 +38,6 @@ class PkgConfig(object):
     """
     cfg_keys = [
         "TARGET",
-        "HW_VER",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
@@ -89,8 +88,7 @@ class PkgConfig(object):
             cfg["LOG_ACC_WIDTH"])
 
         # Derive bitstream config string.
-        self.bitstream = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}".format(
-            cfg["TARGET"],
+        self.bitstream = "{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}".format(
             (1 << cfg["LOG_BATCH"]),
             (1 << cfg["LOG_BLOCK_IN"]),
             (1 << cfg["LOG_BLOCK_OUT"]),

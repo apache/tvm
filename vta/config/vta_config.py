@@ -177,7 +177,7 @@ def main():
             fo.write(pkg.cfg_json)
 
     if args.cfg_str:
-        print(pkg.bitstream)
+        print(cfg["TARGET"] + "_" + pkg.bitstream)
 
     if args.get_inpwidth:
         print(cfg["LOG_INP_WIDTH"])
