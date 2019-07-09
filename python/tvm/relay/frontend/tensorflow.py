@@ -361,8 +361,12 @@ def _conv(opname):
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
             tmp_shape = attr['_input_shapes'][inputs[1]]
-            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
-            inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            if opname == 'conv':
+                tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            else:
+                tmp_shape = [tmp_shape[ii] for ii in (2, 3, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             attr['_input_shapes'][inputs[1]] = tmp_shape
 
         input_shape = attr['_input_shapes'][inputs[0]]
@@ -394,12 +398,12 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
-            depth_mult, _, kernel_h, kernel_w = weights_shape
+            _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
                 attr['channels'] = weights_shape[0]
             else:
-                attr['channels'] = input_shape[0] * depth_mult
+                attr['channels'] = input_shape[1] * depth_mult
                 if attr['channels'] < 0:
                     attr['channels'] *= -1
 
@@ -411,8 +415,10 @@ def _conv(opname):
                   'not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
-
         if opname == 'depthwise':
+            if depth_mult > 1:
+                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative'
+                                                 ' is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding
