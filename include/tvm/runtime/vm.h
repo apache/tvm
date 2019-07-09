@@ -61,9 +61,11 @@ enum class Opcode {
   AllocClosure = 8U,
   GetField = 9U,
   If = 10U,
-  Select = 11U,
-  LoadConst = 12U,
-  Goto = 13U
+  LoadConst = 11U,
+  Goto = 12U,
+  GetTag = 13U,
+  LoadConsti = 14U,
+  Fatal = 15U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -123,22 +125,16 @@ struct Instruction {
       /*! \brief The arguments to pass to the packed function. */
       RegName* packed_args;
     };
-    struct /* Select Operands */ {
-      /*! \brief The condition of select. */
-      RegName select_cond;
-      /*! \brief The true branch. */
-      RegName select_op1;
-      /*! \brief The false branch. */
-      RegName select_op2;
-    };
     struct /* If Operands */ {
-      /*! \brief The register containing the condition value. */
-      RegName if_cond;
+      /*! \brief The register containing the test value. */
+      RegName test;
+      /*! \brief The register containing the target value. */
+      RegName target;
       /*! \brief The program counter offset for the true branch. */
       Index true_offset;
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
-    };
+    } if_op;
     struct /* Invoke Operands */ {
       /*! \brief The function to call. */
       Index func_index;
@@ -151,6 +147,10 @@ struct Instruction {
       /* \brief The index into the constant pool. */
       Index const_index;
     };
+    struct /* LoadConsti Operands */ {
+      /* \brief The index into the constant pool. */
+      size_t val;
+    } load_consti;
     struct /* Jump Operands */ {
       /*! \brief The jump offset. */
       Index pc_offset;
@@ -161,6 +161,10 @@ struct Instruction {
       /*! \brief The field to read out. */
       Index field_index;
     };
+    struct /* GetTag Operands */ {
+      /*! \brief The register to project from. */
+      RegName object;
+    } get_tag;
     struct /* AllocDatatype Operands */ {
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
@@ -179,19 +183,15 @@ struct Instruction {
     };
   };
 
-  /*! \brief Construct a select instruction.
-   *  \param cond The condition register.
-   *  \param op1 The true register.
-   *  \param op2 The false register.
-   *  \param dst The destination register.
-   *  \return The select instruction.
-   */
-  static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
    *  \param return_reg The register containing the return value.
    *  \return The return instruction.
    * */
   static Instruction Ret(RegName return_reg);
+  /*! \brief Construct a fatal instruction.
+   *  \return The fatal instruction.
+   * */  
+  static Instruction Fatal();
   /*! \brief Construct a invoke packed instruction.
    *  \param packed_index The index of the packed function.
    *  \param arity The arity of the function.
@@ -240,13 +240,20 @@ struct Instruction {
    *  \return The get field instruction.
    */
   static Instruction GetField(RegName object_reg, Index field_index, RegName dst);
+  /*! \brief Construct a get_tag instruction.
+   *  \param object_reg The register containing the object to project from.
+   *  \param dst The destination register.
+   *  \return The get_tag instruction.
+   */
+  static Instruction GetTag(RegName object_reg, RegName dst);
   /*! \brief Construct an if instruction.
-   *  \param cond_reg The register containing the condition.
+   *  \param test The register containing the test value.
+   *  \param target The register containing the target value.
    *  \param true_branch The offset to the true branch.
    *  \param false_branch The offset to the false branch.
    *  \return The if instruction.
    */
-  static Instruction If(RegName cond_reg, Index true_branch, Index false_branch);
+  static Instruction If(RegName test, RegName target, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.
@@ -272,6 +279,12 @@ struct Instruction {
    *  \return The load constant instruction.
    */
   static Instruction LoadConst(Index const_index, RegName dst);
+  /*! \brief Construct a load_constanti instruction.
+   *  \param val The interger constant value.
+   *  \param dst The destination register.
+   *  \return The load_constanti instruction.
+   */
+  static Instruction LoadConsti(size_t val, RegName dst);
   /*! \brief Construct a move instruction.
    *  \param src The source register.
    *  \param dst The destination register.
@@ -397,6 +410,12 @@ struct VirtualMachine {
    *  \return The read object.
    */
   inline Object ReadRegister(RegName reg) const;
+
+  /*! \brief Read a VM register and cast it to int32_t
+   *  \param reg The register to read from.
+   *  \return The read scalar.
+   */
+  int32_t LoadScalarInt(RegName reg) const;
 
   /*! \brief Invoke a VM function.
    * \param func The function.

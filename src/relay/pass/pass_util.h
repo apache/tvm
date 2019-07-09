@@ -21,7 +21,7 @@
  *  Copyright (c) 2018 by Contributors.
  *
  * \file tvm/relay/pass/pass_util.h
- * \brief Utilities for writing
+ * \brief Utilities for writing passes
  */
 #ifndef TVM_RELAY_PASS_PASS_UTIL_H_
 #define TVM_RELAY_PASS_PASS_UTIL_H_
@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <memory>
 #include <unordered_map>
 
 namespace tvm {
@@ -107,6 +108,63 @@ inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr&
 inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
+
+template<typename ConditionNodePtr>
+struct TreeNode {
+  typedef std::shared_ptr<TreeNode<ConditionNodePtr>> pointer;
+  virtual ~TreeNode() {}
+};
+
+template<typename ConditionNodePtr>
+struct TreeLeafNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
+  Expr body;
+
+  explicit TreeLeafNode(Expr body): body(body) {}
+
+  static TreeNodePtr Make(Expr body) {
+    return std::make_shared<TreeLeafNode>(body);
+  }
+
+  ~TreeLeafNode() {}
+};
+
+template<typename ConditionNodePtr>
+struct TreeLeafFatalNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
+  TreeLeafFatalNode() = default;
+
+  static TreeNodePtr Make() {
+    return std::make_shared<TreeLeafFatalNode>();
+  }
+
+  ~TreeLeafFatalNode() {}
+};
+
+template<typename ConditionNodePtr>
+struct TreeBranchNode : TreeNode<ConditionNodePtr> {
+  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+
+  ConditionNodePtr cond;
+  TreeNodePtr then_branch;
+  TreeNodePtr else_branch;
+
+  TreeBranchNode(ConditionNodePtr cond,
+                 TreeNodePtr then_branch,
+                 TreeNodePtr else_branch)
+  : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
+
+
+  static TreeNodePtr Make(ConditionNodePtr cond,
+                          TreeNodePtr then_branch,
+                          TreeNodePtr else_branch) {
+    return std::make_shared<TreeBranchNode>(cond, then_branch, else_branch);
+  }
+
+  ~TreeBranchNode() {}
+};
 
 }  // namespace relay
 }  // namespace tvm
