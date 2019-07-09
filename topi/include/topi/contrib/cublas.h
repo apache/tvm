@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief External function interface to cuBLAS libraries
- * \file tags.h
+ * \file cublas.h
  */
 #ifndef TOPI_CONTRIB_CUBLAS_H_
 #define TOPI_CONTRIB_CUBLAS_H_
 
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "topi/detail/extern.h"
 
 namespace topi {

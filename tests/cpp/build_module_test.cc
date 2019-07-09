@@ -20,8 +20,8 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <topi/cuda/injective.h>
-#include <tvm/tvm.h>
 #include <tvm/operation.h>
+#include <tvm/packed_func_ext.h>
 #include <tvm/build_module.h>
 
 #include <string>
