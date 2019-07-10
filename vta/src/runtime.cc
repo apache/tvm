@@ -604,25 +604,23 @@ class InsnQueue : public BaseQueue {
   // Helper function: Get Opcode string
   const char* getOpcodeString(int opcode, bool use_imm) {
       // The string name
-      if (opcode == VTA_ALU_OPCODE_MIN) {
+      switch (opcode) {
+        case VTA_ALU_OPCODE_MIN:
           if (use_imm) {
               return "min imm";
-          } else {
-              return "min";
           }
-      } else if (opcode == VTA_ALU_OPCODE_MAX) {
+          return "min";
+        case VTA_ALU_OPCODE_MAX:
           if (use_imm) {
               return "max imm";
-          } else {
-              return "max";
           }
-      } else if (opcode == VTA_ALU_OPCODE_ADD) {
+          return "max";
+        case VTA_ALU_OPCODE_ADD:
           if (use_imm) {
               return "add imm";
-          } else {
-              return "add";
           }
-      } else if (opcode == VTA_ALU_OPCODE_SHR) {
+          return "add";
+        case VTA_ALU_OPCODE_SHR:
           return "shr";
       }
 
@@ -848,22 +846,35 @@ class InsnQueue : public BaseQueue {
   }
   // Get stage of the computation
   static PipelineStage GetPipelineStage(VTAMemInsn* insn) {
-    if (insn->opcode == VTA_OPCODE_GEMM) return kComputeStage;
-    if (insn->opcode == VTA_OPCODE_ALU) return kComputeStage;
-    if (insn->opcode == VTA_OPCODE_LOAD) {
-      if (insn->x_size == 0) return kNoneStage;
-      if (insn->memory_type == VTA_MEM_ID_ACC) return kComputeStage;
-      if (insn->memory_type == VTA_MEM_ID_UOP) return kComputeStage;
-      return kLoadStage;
+    PipelineStage stage = kNoneStage;
+    switch (insn->opcode) {
+        case VTA_OPCODE_GEMM:
+            stage = kComputeStage;
+            break;
+        case VTA_OPCODE_ALU:
+            stage = kComputeStage;
+            break;
+        case VTA_OPCODE_LOAD:
+            if (insn->x_size == 0) {
+                stage = kNoneStage;
+            } else if (insn->memory_type == VTA_MEM_ID_ACC) {
+                stage = kComputeStage;
+            } else if (insn->memory_type == VTA_MEM_ID_UOP) {
+                stage =  kComputeStage;
+            } else {
+                stage = kLoadStage;
+            }
+            break;
+        case VTA_OPCODE_STORE:
+            // FIXME: Right now memory_type is a 2-bit field which means that
+            // VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
+            // checking the memory_type to avoid an CHECKion error...
+            stage = kStoreStage;
+            break;
+        default:
+             LOG(FATAL) << "not reached";
     }
-    if (insn->opcode == VTA_OPCODE_STORE) {
-      // FIXME: Right now memory_type is a 2-bit field which means that
-      //        VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
-      //        checking the memory_type to avoid an CHECKion error...
-      return kStoreStage;
-    }
-    LOG(FATAL) << "not reached";
-    return kNoneStage;
+    return stage;
   }
   // Push no-op
   void PushNoop(int stage,
@@ -1218,27 +1229,31 @@ class CommandQueue {
     insn->use_imm = kernel->use_imm_;
     insn->imm = kernel->imm_val_;
     const std::vector<UopKernel::LoopEntry> &loop = kernel->loop();
-    if (loop.size() == 0) {
-      insn->iter_out = 1;
-      insn->dst_factor_out = 0;
-      insn->src_factor_out = 0;
-      insn->iter_in = 1;
-      insn->dst_factor_in = 0;
-      insn->src_factor_in = 0;
-    } else if (loop.size() == 1) {
-      insn->iter_out = 1;
-      insn->dst_factor_out = 0;
-      insn->src_factor_out = 0;
-      insn->iter_in = loop[0].extent;
-      insn->dst_factor_in = loop[0].dst_factor;
-      insn->src_factor_in = loop[0].src_factor;
-    } else {
-      insn->iter_out = loop[0].extent;
-      insn->dst_factor_out = loop[0].dst_factor;
-      insn->src_factor_out = loop[0].src_factor;
-      insn->iter_in = loop[1].extent;
-      insn->dst_factor_in = loop[1].dst_factor;
-      insn->src_factor_in = loop[1].src_factor;
+    switch (loop.size()) {
+        case 0:
+            insn->iter_out = 1;
+            insn->dst_factor_out = 0;
+            insn->src_factor_out = 0;
+            insn->iter_in = 1;
+            insn->dst_factor_in = 0;
+            insn->src_factor_in = 0;
+            break;
+        case 1:
+            insn->iter_out = 1;
+            insn->dst_factor_out = 0;
+            insn->src_factor_out = 0;
+            insn->iter_in = loop[0].extent;
+            insn->dst_factor_in = loop[0].dst_factor;
+            insn->src_factor_in = loop[0].src_factor;
+            break;
+        default:
+            insn->iter_out = loop[0].extent;
+            insn->dst_factor_out = loop[0].dst_factor;
+            insn->src_factor_out = loop[0].src_factor;
+            insn->iter_in = loop[1].extent;
+            insn->dst_factor_in = loop[1].dst_factor;
+            insn->src_factor_in = loop[1].src_factor;
+            break;
     }
   }
 
