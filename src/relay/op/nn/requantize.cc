@@ -59,7 +59,8 @@ Expr MakeRequantize(Expr data,
                     int32_t output_zero_point,
                     double output_scale,
                     DataType out_dtype,
-                    bool use_int_compute) {
+                    bool use_int_compute,
+                    std::string rounding_mode) {
   auto attrs = make_node<RequantizeAttrs>();
   attrs->out_dtype = std::move(out_dtype);
   attrs->input_zero_point = std::move(input_zero_point);
@@ -67,6 +68,7 @@ Expr MakeRequantize(Expr data,
   attrs->input_scale = std::move(input_scale);
   attrs->output_scale = std::move(output_scale);
   attrs->use_int_compute = std::move(use_int_compute);
+  attrs->rounding_mode = std::move(rounding_mode);
   static const Op& op = Op::Get("qnn.requantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
