@@ -129,6 +129,7 @@ class ExprPack(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
+        """ Visit the children. """
         # First visit the children.
         oshape = _get_shape(call)
         odtype = call.checked_type.dtype
