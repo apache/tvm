@@ -19,9 +19,9 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
-
 def requantize(input_data, input_zero_point, input_scale, output_zero_point,
-        output_scale, out_dtype="int32", use_int_compute=False):
+        output_scale, out_dtype="int32", use_int_compute=False,
+        rounding_mode="FE_UPWARD"):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor to another quantized
@@ -57,11 +57,18 @@ def requantize(input_data, input_zero_point, input_scale, output_zero_point,
     use_int_compute : bool, optional
         Use fully integer computation for requantizing.
 
+    rounding_mode : string, optional
+        Defines the rounding direction when the value is midway between two
+        representable values.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
+    assert rounding_mode in ("FE_UPWARD", "FE_AWAY_FROM_ZERO"),\
+            "Unsupported rounding mode"
+
     return _make.requantize(input_data, input_zero_point, input_scale,
                             output_zero_point, output_scale, out_dtype,
-                            use_int_compute)
+                            use_int_compute, rounding_mode)
