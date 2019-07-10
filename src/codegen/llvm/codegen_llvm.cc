@@ -970,7 +970,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
              op->call_type == Call::PureExtern) {
     return CreateCallExtern(op);
   } else {
-    LOG(FATAL) << "Unknown call type ";
+    LOG(FATAL) << "Unknown call type " <<
+      "name= " << op->name <<
+      " call_type= " << op->call_type;
     return nullptr;
   }
 }
