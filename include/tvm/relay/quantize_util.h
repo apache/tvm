@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file nnvm/compiler/quantize_util.h
+ * \file tvm/relay/quantize_util.h
  * \brief Utility methods needs for quantized ops that can be shared
  */
 
