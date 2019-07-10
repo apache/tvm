@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -35,12 +35,23 @@ namespace Internal {
 
 using tvm::ir::CommReducerNode;
 using tvm::ir::Reduce;
+using tvm::ir::Any;
 using tvm::ir::AttrStmt;
 
 template<>
 void ExprNode<Reduce>::accept(IRVisitor *v, const Expr&) const {
-  LOG(FATAL) << "Reduce do not work with old Visitor, use IRFunctor style visitor";
+  LOG(FATAL) << "Reduce does not work with old Visitor, use IRFunctor style visitor";
 }
+
+template<>
+void ExprNode<Any>::accept(IRVisitor *v, const Expr&) const {
+  LOG(FATAL) << "Any does not work with old Visitor, use IRFunctor style visitor";
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<Any>([](const Any *op, IRPrinter *p) {
+  p->stream << "?";
+});
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Reduce>([](const Reduce *op, IRPrinter *p) {
@@ -116,8 +127,14 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   return Expr(n);
 }
 
+Expr Any::make() {
+  auto n = make_node<Any>();
+  return Expr(n);
+}
+
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
 TVM_REGISTER_NODE_TYPE(Reduce);
+TVM_REGISTER_NODE_TYPE(Any);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
 
 TVM_REGISTER_NODE_TYPE(FloatImm);

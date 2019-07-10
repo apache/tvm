@@ -42,7 +42,6 @@ class WithScope(object):
         else:
             self._exit_cb()
 
-
 def _make_lets(bindings, ret_value):
     """Make a nested let expressions.
 
@@ -175,6 +174,24 @@ class ScopeBuilder(object):
                 partial_if.true_branch,
                 false_branch)
         return WithScope(None, _on_exit)
+
+
+    def type_of(self, expr):
+        """
+        Compute the type of an expression.
+
+        Parameters
+        ----------
+        expr: relay.Expr
+            The expression to compute the type of.
+        """
+        if isinstance(expr, _expr.Var):
+            return expr.type_annotation
+
+        ity = _ty.IncompleteType()
+        var = _expr.var("unify", ity)
+        self.let(var, expr)
+        return ity
 
     def ret(self, value):
         """Set the return value of this scope.
