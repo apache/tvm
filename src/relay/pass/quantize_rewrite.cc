@@ -93,7 +93,7 @@ void GetFixedPointMultiplierShift(double double_multiplier,
  *
  */
 Expr RequantizeInt(const Expr& input_tensor,
-    const RequantizeAttrs*& param, const DataType& idtype,
+    const RequantizeAttrs* param, const DataType& idtype,
     const Array<IndexExpr>& out_shape) {
 
   double double_multiplier = param->input_scale/param->output_scale;
@@ -183,7 +183,7 @@ Expr RequantizeInt(const Expr& input_tensor,
  * the input_tensor, round to nearest integer and then cast back to int32.
  */
 Expr RequantizeFloat(const Expr& input_tensor,
-    const RequantizeAttrs*& param, const DataType& idtype,
+    const RequantizeAttrs* param, const DataType& idtype,
     const Array<IndexExpr>& out_shape) {
   double double_multiplier = param->input_scale/param->output_scale;
   auto scalar_multiplier = MakeConstantScalar(Float(32), double_multiplier);
