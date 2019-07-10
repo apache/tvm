@@ -39,9 +39,6 @@ scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural network easily.
 
-.. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
-.. _Block: https://mxnet.incubator.apache.org/_modules/mxnet/gluon/block.html
-
 The design of the Relay pass infra is largely inspired by the the hierarchical
 pass manager used in LLVM and the block style containers used in the popular
 deep learning frameworks. The major goals of the pass infra include:
@@ -76,8 +73,6 @@ level the pass will be enabled, and ``required`` represents the passes that are
 required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
 more details).
 
-.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
-
 .. code:: c++
 
     class PassInfoNode : public RelayNode {
@@ -94,7 +89,10 @@ example, it contains the error reporting system so optimization authors can
 provide diagnostics about why an optimization fails. ``PassContext`` is also
 designed to replace the old ``BuildConfig`` which was used to help users
 configure the compilation options, including optimization level and
-required/disabled passes, etc. 
+required/disabled passes, etc. For instance, we may have a configuration which
+performs all passes at ``opt_level=3`` with some disabled passes using
+``disabled_pass=xx`` provided by ``PassContext``. Now  we could glob all passes
+at ``opt_level=3`` and exclude those in disabled pass list.
 
 This class is designed as a thread local so that users can conveniently use the
 Python ``with`` syntax to perform optimizations under a certain configuration.
@@ -148,8 +146,8 @@ subclasses at the module level, function level, or a sequence of passes..
                                 const PassContext& pass_ctx) const = 0;
     };
 
-The functor shows how a pass will be realized, i.e. it always works on a Relay
-module under a certain context. All passes are designed in a ``Module`` to
+The functor shows how a pass will be realized, i.e. it always works on a `Relay
+module`_ under a certain context. All passes are designed in a ``Module`` to
 ``Module`` manner. Therefore, optimizations governed by the pass infra will
 always update the whole module.
 
@@ -158,17 +156,16 @@ passes, e.g. function-level passes, module-level passes, and sequential passes.
 Each subclass itself could act as a pass manager. For instance, they could glob
 the require passes and execute them or build a dependency graph based on the
 given meta data. The full definition of them could be found in
-`src/relay/pass/pass_manager.cc
-<https://github.com/dmlc/tvm/blob/master/src/relay/pass/pass_manager.cc>`_
+`src/relay/pass/pass_manager.cc`_
 
-Module-level Passes
+Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
 
 Module level passes are geared mainly for global and inter-procedural
 optimizations (IPO), which is similar to the module pass used in LLVM. Some
 typical passes in Relay that need the global picture of a module, such as to
 a normal form conversion and lambda lifting, etc, fall in this set. At this
-level, uses can even add and/or delete functions in a module.
+level, users can even add and/or delete functions in a module.
 
 .. code:: c++
 
@@ -187,7 +184,7 @@ including the unused functions in the module. Note that this field is designed
 as a packed function, which enables the implementation of the optimization in
 both C++ and Python.
 
-Function-level Passes
+Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
 Function-level passes are used to implement various intra function level
@@ -219,11 +216,7 @@ Sequential Passes
 ^^^^^^^^^^^^^^^^^
 
 SequentialPass is similar to Pytorch nn.Sequential that contains a host of
-passes for execution. It also has a disabled list that contains the list of
-disabled passes. For example, we may have a configuration which performs all
-passes at ``opt_level=3`` with some disabled passes using ``disabled_pass=xx``
-provided by ``PassContext``. Now using ``SequentialPass``, we could glob all
-passes at ``opt_level=3`` and exclude those in disabled.
+passes for execution 
 
 .. code:: c++
 
@@ -231,8 +224,6 @@ passes at ``opt_level=3`` and exclude those in disabled.
       PassInfo pass_info;
       // Passes need to be executed.
       Array<Pass> passes;
-      // Passes are disabled during optimization
-      std::vector<std::string> disabled;
       bool PassEnabled(const PassInfo& info) const;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
     };
@@ -370,8 +361,7 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relay function (found in
-`src/relay/pass/fold_constant.cc
-<https://github.com/dmlc/tvm/blob/master/src/relay/pass/fold_constant.cc>`_).
+`src/relay/pass/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -412,8 +402,6 @@ Python when needed.
 To allow other C++ modules to apply this pass, we declare a free function in
 `include/tvm/relay/transform.h`_ as the following:
 
-.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
-
 .. code:: c++
 
     TVM_DLL Pass FoldConstant();
@@ -423,12 +411,9 @@ Python Frontend
 
 Only some simple APIs are needed for the frontend side. For example, we can
 provide users the following APIs to create and execute a pass (full
-implementation is provided in `python/tvm/relay/transform.py`__). The backend
+implementation is provided in `python/tvm/relay/transform.py`_). The backend
 receives the information and decides which function it should use to create
 a Pass object.
-
-.. _transformpy: https://github.com/dmlc/tvm/blob/master/python/tvm/relay/transform.py
-__ transformpy_
 
 PassContext
 ^^^^^^^^^^^
@@ -480,7 +465,7 @@ example, ``module_pass``, ``function_pass``, and ``sequential`` are provided to
 users so that they can customize their own pass or pass pipeline.
 
 For all the passes that are implemented in the C++ backend, we provide
-a corresponding Python API in ``python/tvm/relay/transform.py``. For instance,
+a corresponding Python API in `python/tvm/relay/transform.py`_. For instance,
 const folding has a Python API like the following:
 
 .. code:: python
@@ -579,7 +564,7 @@ using ``Sequential`` associated with other types of passes.
     # Create a module to perform optimizations.
     mod = relay.Module({"main": func})
     
-    # User can disable any passes that they don't want to execute by providing
+    # Users can disable any passes that they don't want to execute by providing
     # a list, e.g. disabled_pass=["EliminateCommonSubexpr"].
     with relay.build_config(opt_level=3):
         with tvm.target.create("llvm"):
@@ -587,7 +572,7 @@ using ``Sequential`` associated with other types of passes.
             mod = seq(mod)
 
 Debugging
----------
+~~~~~~~~~
 
 The pass infra provides a special pass (``PrintIR``) to dump the IR of the
 whole module after applying a certain pass. A slightly modified version of the
@@ -609,7 +594,23 @@ dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 pass after any pass they want to debug for viewing the optimization effect.
 
 For more pass infra related examples in Python and C++, please refer to
-`tests/python/relay/test_pass_manager.py
-<https://github.com/dmlc/tvm/blob/master/tests/python/relay/test_pass_manager.py>`_ and
-`tests/cpp/relay_transform_sequential.cc
-<https://github.com/dmlc/tvm/blob/master/tests/cpp/relay_transform_sequential.cc>`_, respectively.
+`tests/python/relay/test_pass_manager.py`_ and
+`tests/cpp/relay_transform_sequential.cc`_, respectively.
+
+.. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
+
+.. _Block: https://mxnet.incubator.apache.org/_modules/mxnet/gluon/block.html
+
+.. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions 
+
+.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
+
+.. _src/relay/pass/pass_manager.cc: https://github.com/dmlc/tvm/blob/master/src/relay/pass/pass_manager.cc
+
+.. _src/relay/pass/fold_constant.cc: https://github.com/dmlc/tvm/blob/master/src/relay/pass/fold_constant.cc
+
+.. _python/tvm/relay/transform.py: https://github.com/dmlc/tvm/blob/master/python/tvm/relay/transform.py
+
+.. _tests/python/relay/test_pass_manager.py: https://github.com/dmlc/tvm/blob/master/tests/python/relay/test_pass_manager.py
+
+.. _tests/cpp/relay_transform_sequential.cc: https://github.com/dmlc/tvm/blob/master/tests/cpp/relay_transform_sequential.cc
