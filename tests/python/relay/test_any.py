@@ -14,18 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 
 import tvm
 from tvm import relay
 from tvm.relay import Kind, transform
 from tvm.relay.loops import while_loop
-import numpy as np
-
-def infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod[mod.entry_func]
-    return entry if isinstance(expr, relay.Function) else entry.body
+from tvm.relay.testing import run_infer_type as infer_type
 
 def int32(val):
     return relay.const(val, 'int32')
