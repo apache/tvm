@@ -479,7 +479,8 @@ def extern(shape,
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
-    shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
+    if shape == () or isinstance(shape[0], (_expr.Expr, _Integral)):
+        shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):

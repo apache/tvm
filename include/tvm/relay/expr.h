@@ -561,6 +561,9 @@ inline const TTypeNode* ExprNode::type_as() const {
   return node;
 }
 
+/*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
+std::string PrettyPrint(const NodeRef& node);
+
 /*!
  * \brief Render the node as a string in the Relay text format.
  * \param node The node to be rendered.

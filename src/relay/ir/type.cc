@@ -228,5 +228,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "RefTypeNode(" << node->value << ")";
 });
 
+TVM_REGISTER_API("relay._make.Any")
+.set_body_typed<IndexExpr()>([]() { return Any::make(); });
+
+
 }  // namespace relay
 }  // namespace tvm

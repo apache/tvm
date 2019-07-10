@@ -87,6 +87,11 @@ Type ConcreteBroadcast(const TensorType& t1,
       oshape.push_back(s2);
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
+    } else if (s1.as<Any>() && EqualConstInt(s2, 1)) {
+      // TODO(@jroesch): we need to come back to this
+      oshape.push_back(s2);
+    } else if (s2.as<Any>() && EqualConstInt(s1, 1)) {
+      oshape.push_back(s1);
     } else {
       RELAY_ERROR(
           "Incompatible broadcast type "

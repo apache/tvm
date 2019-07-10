@@ -63,6 +63,7 @@ TupleType = ty.TupleType
 TensorType = ty.TensorType
 Kind = ty.Kind
 TypeVar = ty.TypeVar
+ShapeVar = ty.ShapeVar
 TypeConstraint = ty.TypeConstraint
 FuncType = ty.FuncType
 TypeRelation = ty.TypeRelation
@@ -71,6 +72,7 @@ scalar_type = ty.scalar_type
 RefType = ty.RefType
 GlobalTypeVar = ty.GlobalTypeVar
 TypeCall = ty.TypeCall
+Any = ty.Any
 
 # Expr
 Expr = expr.Expr
