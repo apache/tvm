@@ -37,6 +37,7 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   double output_scale;
   int32_t output_zero_point;
   bool use_int_compute;
+  std::string rounding_mode;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
@@ -48,13 +49,21 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         .describe("The scale of the input tensor.");
     TVM_ATTR_FIELD(output_scale)
         .describe("The scale of the output tensor.");
-    TVM_ATTR_FIELD(use_int_compute).set_default(false)
-        .describe("When true, the integer computation is used to handle output scale");
+    TVM_ATTR_FIELD(use_int_compute).set_default(true)
+      .describe("When true, the integer computation is used to handle output scale."
+                "The float compuation can be used as reference implementation or in"
+                "cases where FP32 computation for requantize is not expensive");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
+    TVM_ATTR_FIELD(rounding_mode).set_default("FE_UPWARD")
+        .describe("Defines the rounding direction when the value is midway between"
+                  "two representable values. There are two supported modes - FE_UPWARD"
+                  "or FE_AWAY_FROM_ZERO. More context can be found at"
+                  "https://www.gnu.org/software/libc/manual/html_node/Rounding.html");
   }
 };
+
 
 }  // namespace relay
 }  // namespace tvm
