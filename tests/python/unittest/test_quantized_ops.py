@@ -61,7 +61,6 @@ def test_requantize():
                 func)
         func = run_infer_type(func)
         func = relay.quantize.rewrite(func)
-        print(func)
         return func
 
 

@@ -20,8 +20,8 @@ from __future__ import absolute_import as _abs
 from . import _make
 
 def requantize(input_data, input_zero_point, input_scale, output_zero_point,
-        output_scale, out_dtype="int32", use_int_compute=False,
-        rounding_mode="FE_UPWARD"):
+               output_scale, out_dtype="int32", use_int_compute=False,
+               rounding_mode="FE_UPWARD"):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor to another quantized
