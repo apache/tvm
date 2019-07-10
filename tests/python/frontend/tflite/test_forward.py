@@ -197,18 +197,6 @@ def test_forward_split():
     _test_split((1, 3, 6, 5), -2, 3, 'float32')
     _test_split((1, 3, 5, 6), -1, 3, 'float32')
 
-    # # rank 1
-    # _test_split((3,), 0, 1, 'float32')
-    # _test_split((3,), 0, 3, 'float32')
-    # _test_split((6,), 0, 3, 'float32')
-    # # rank 2
-    # _test_split((6, 2), 0, 3, 'float32')
-    # # rank 3
-    # _test_split((6, 2, 4), 0, 2, 'int32')
-    # # rank 4
-    # _test_split((6, 1, 3, 5), 0, 3, 'float32')
-    # _test_split((6, 1, 3, 5), -2, 3, 'float32')
-
 #######################################################################
 # Pooling
 # -------

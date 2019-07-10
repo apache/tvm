@@ -725,14 +725,14 @@ class OperatorConverter(object):
         input_tensor_idx = input_tensor.tensor_idx
 
         assert op.BuiltinOptionsType() == BuiltinOptions.SplitOptions
-
-        in_expr = self.get_expr(input_tensor_idx)
         op_options = op.BuiltinOptions()
         split_options = SplitOptions()
         split_options.Init(op_options.Bytes, op_options.Pos)
         num_splits = split_options.NumSplits()
-        retval = _op.split(in_expr, num_splits, axis=int(split_axis))
-        return retval
+
+        in_expr = self.get_expr(input_tensor_idx)
+        out = _op.split(in_expr, num_splits, axis=int(split_axis))
+        return out
 
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
