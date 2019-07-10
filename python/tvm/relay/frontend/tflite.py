@@ -719,6 +719,8 @@ class OperatorConverter(object):
 
         assert len(input_tensors) == 2, "input tensors length should be == 2"
 
+        axis_tensor = input_tensors[0]
+        split_axis = self.get_tensor_value(axis_tensor)
         input_tensor = input_tensors[1]
         input_tensor_idx = input_tensor.tensor_idx
 
@@ -729,7 +731,7 @@ class OperatorConverter(object):
         split_options = SplitOptions()
         split_options.Init(op_options.Bytes, op_options.Pos)
         num_splits = split_options.NumSplits()
-        retval = _op.split(in_expr, num_splits, axis=0)
+        retval = _op.split(in_expr, num_splits, axis=int(split_axis))
         return retval
 
     def convert_pool2d(self, op, pool_type):

@@ -163,29 +163,51 @@ def with_fused_activation_function(input_tensor, fn_name):
         return math_ops.tanh(input_tensor)
     raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
 
-def _test_split(in_shape, num_Splits, dtype):
+def _test_split(in_shape, axis, num_Splits, dtype):
     '''internal split tester taking as parameters in_shape, number of tensors to split into
        and dtype (data type)'''
     np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=in_shape, dtype=dtype)
-        out = array_ops.split(in_data, num_Splits)
+        out = array_ops.split(in_data, num_Splits, axis=axis)
         compare_tflite_with_tvm(np_data, 'Placeholder:0',  [in_data], out,
                                 out_names=[f'out:{n}' for n in range(num_Splits)])
 
 def test_forward_split():
     '''test split layer'''
     # rank 1
-    _test_split((3,), 1, 'float32')
-    _test_split((3,), 3, 'float32')
-    _test_split((6,), 3, 'float32')
+    _test_split((3,), 0, 1, 'float32')
+    _test_split((3,), 0, 3, 'float32')
+    _test_split((6,), 0, 3, 'float32')
     # rank 2
-    _test_split((6, 2), 3, 'float32')
+    _test_split((6, 2), 0, 3, 'float32')
+    _test_split((2, 6), 1, 6, 'float32')
     # rank 3
-    _test_split((6, 2, 4), 2, 'int32')
+    _test_split((6, 2, 4), 0, 2, 'int32')
+    _test_split((2, 6, 4), 1, 3, 'float32')
+    _test_split((2, 4, 6), 2, 1, 'float32')
     # rank 4
-    _test_split((6, 1, 3, 5), 3, 'float32')
-    _test_split((6, 1, 3, 5), 3, 'float32')
+    _test_split((6, 1, 3, 5), 0, 3, 'float32')
+    _test_split((1, 6, 3, 5), 1, 3, 'float32')
+    _test_split((1, 3, 6, 5), 2, 3, 'float32')
+    _test_split((1, 3, 5, 6), 3, 3, 'float32')
+    # split along negative axis
+    _test_split((6, 1, 3, 5), -4, 3, 'float32')
+    _test_split((1, 6, 3, 5), -3, 3, 'float32')
+    _test_split((1, 3, 6, 5), -2, 3, 'float32')
+    _test_split((1, 3, 5, 6), -1, 3, 'float32')
+
+    # # rank 1
+    # _test_split((3,), 0, 1, 'float32')
+    # _test_split((3,), 0, 3, 'float32')
+    # _test_split((6,), 0, 3, 'float32')
+    # # rank 2
+    # _test_split((6, 2), 0, 3, 'float32')
+    # # rank 3
+    # _test_split((6, 2, 4), 0, 2, 'int32')
+    # # rank 4
+    # _test_split((6, 1, 3, 5), 0, 3, 'float32')
+    # _test_split((6, 1, 3, 5), -2, 3, 'float32')
 
 #######################################################################
 # Pooling
