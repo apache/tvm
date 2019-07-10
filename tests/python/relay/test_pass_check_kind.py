@@ -17,8 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.analysis import check_kind
-from nose.tools import raises
-
+import pytest
 
 def test_typevar_kind():
     # returns the same kind
@@ -111,7 +110,7 @@ def test_typecall_kind():
     assert check_kind(call, new_mod) == relay.Kind.Type
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_invalid_tuple_kind():
     tp1 = relay.TypeVar('tp1', relay.Kind.Shape)
     tp2 = relay.TypeVar('tp2', relay.Kind.BaseType)
@@ -122,7 +121,7 @@ def test_invalid_tuple_kind():
     check_kind(tup_ty)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_invalid_func_kind():
     tp1 = relay.TypeVar('tp1', relay.Kind.Shape)
     tp2 = relay.TypeVar('tp2', relay.Kind.BaseType)
@@ -137,14 +136,14 @@ def test_invalid_func_kind():
     check_kind(tf)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_invalid_ref_kind():
     tp = relay.TypeVar('tp', relay.Kind.Shape)
     rt = relay.RefType(tp)
     check_kind(rt)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_invalid_relation_kind():
     tp1 = relay.TypeVar('tp1', relay.Kind.Shape)
     tp2 = relay.TypeVar('tp2', relay.Kind.BaseType)
@@ -156,14 +155,14 @@ def test_invalid_relation_kind():
     check_kind(tr)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_typecall_invalid_callee():
     # global type var must be an ADT handle
     gtv = relay.GlobalTypeVar('v1', relay.Kind.Type)
     check_kind(relay.TypeCall(gtv, []))
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_typecall_invalid_args():
     # args must all be type kind
     mod = relay.Module()
@@ -174,7 +173,7 @@ def test_typecall_invalid_args():
     check_kind(relay.TypeCall(gtv, [data]))
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_typecall_invalid_num_args():
     mod = relay.Module()
     gtv = relay.GlobalTypeVar('v1')
@@ -184,7 +183,7 @@ def test_typecall_invalid_num_args():
     check_kind(relay.TypeCall(gtv, []))
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_func_with_invalid_ret_type():
     tp1 = relay.TypeVar('tp1', relay.Kind.Type)
     tp2 = relay.TypeVar('tp2', relay.Kind.Shape)
@@ -193,7 +192,7 @@ def test_func_with_invalid_ret_type():
     check_kind(tf)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_func_with_invalid_arg_types():
     tp1 = relay.TypeVar('tp1', relay.Kind.Shape)
     tp2 = relay.TypeVar('tp2', relay.Kind.Type)
@@ -202,7 +201,7 @@ def test_func_with_invalid_arg_types():
     check_kind(tf)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_func_with_invalid_tuple():
     tp1 = relay.TypeVar('tp1', relay.Kind.Shape)
 
@@ -212,7 +211,7 @@ def test_func_with_invalid_tuple():
     check_kind(tf)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_func_with_invalid_relation():
     tp1 = relay.TypeVar('tp1', relay.Kind.Type)
     tp2 = relay.TypeVar('tp2', relay.Kind.Shape)
@@ -225,7 +224,7 @@ def test_func_with_invalid_relation():
     check_kind(tf)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_tuple_with_invalid_func():
     tensor_type = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
 

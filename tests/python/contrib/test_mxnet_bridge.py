@@ -17,7 +17,7 @@
 def mxnet_check():
     """This is a simple test function for MXNet bridge
 
-    It is not included as nosetests, because of its dependency on mxnet
+    It is not included as pytests, because of its dependency on mxnet
 
     User can directly run this script to verify correctness.
     """
