@@ -103,6 +103,7 @@ class PkgConfig(object):
 
         # Derive FPGA parameters from target
         #   - device:           part number
+        #   - family:           fpga family
         #   - freq:             PLL frequency
         #   - per:              clock period to achieve in HLS
         #                       (how aggressively design is pipelined)
@@ -113,6 +114,7 @@ class PkgConfig(object):
         #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
         if self.target == "ultra96":
             self.fpga_device = "xczu3eg-sbva484-1-e"
+            self.fpga_family = "zynq-ultrascale+"
             self.fpga_freq = 333
             self.fpga_per = 2
             self.fpga_axi_bus_width = 128
@@ -121,6 +123,7 @@ class PkgConfig(object):
         else:
             # By default, we use the pynq parameters
             self.fpga_device = "xc7z020clg484-1"
+            self.fpga_family = "zynq-7000"
             self.fpga_freq = 100
             self.fpga_per = 7
             self.fpga_axi_bus_width = 64

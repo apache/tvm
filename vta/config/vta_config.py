@@ -80,29 +80,29 @@ def main():
     parser.add_argument("--get-outbuffsize", action="store_true",
                         help="returns log of output buffer size in B")
     parser.add_argument("--get-inp-mem-banks", action="store_true",
-                        help="returns number of input memory banks that have an axi-width read/write port")
+                        help="returns number of input memory banks")
     parser.add_argument("--get-inp-mem-width", action="store_true",
                         help="returns input memory read/write port width")
     parser.add_argument("--get-inp-mem-depth", action="store_true",
                         help="returns input memory depth")
     parser.add_argument("--get-inp-mem-axi-ratio", action="store_true",
-                        help="returns ratio between input memory bus width (for whole tensor element) and axi width")
+                        help="returns ratio between input element width and axi width")
     parser.add_argument("--get-wgt-mem-banks", action="store_true",
-                        help="returns number of weight memory banks that have an axi-width read/write port")
+                        help="returns number of weight memory banks")
     parser.add_argument("--get-wgt-mem-width", action="store_true",
                         help="returns weight memory read/write port width")
     parser.add_argument("--get-wgt-mem-depth", action="store_true",
                         help="returns weight memory depth")
     parser.add_argument("--get-wgt-mem-axi-ratio", action="store_true",
-                        help="returns ratio between weight memory bus width (for whole tensor element) and axi width")
+                        help="returns ratio between weight element width and axi width")
     parser.add_argument("--get-out-mem-banks", action="store_true",
-                        help="returns number of output memory banks that have an axi-width read/write port")
+                        help="returns number of output memory banks")
     parser.add_argument("--get-out-mem-width", action="store_true",
                         help="returns output memory read/write port width")
     parser.add_argument("--get-out-mem-depth", action="store_true",
                         help="returns output memory depth")
     parser.add_argument("--get-out-mem-axi-ratio", action="store_true",
-                        help="returns ratio between output memory bus width (for whole tensor element) and axi width")
+                        help="returns ratio between output element width and axi width")
     parser.add_argument("--get-axi-cache-bits", action="store_true",
                         help="returns AXI system ARCACHE/AWCACHE hardcoded bit value")
     parser.add_argument("--get-axi-prot-bits", action="store_true",
@@ -117,6 +117,8 @@ def main():
                         help="returns store module base address")
     parser.add_argument("--get-fpga-dev", action="store_true",
                         help="returns FPGA device target")
+    parser.add_argument("--get-fpga-family", action="store_true",
+                        help="returns FPGA device family")
     parser.add_argument("--get-fpga-freq", action="store_true",
                         help="returns FPGA frequency")
     parser.add_argument("--get-fpga-per", action="store_true",
@@ -274,6 +276,9 @@ def main():
 
     if args.get_fpga_dev:
         print(pkg.fpga_device)
+
+    if args.get_fpga_family:
+        print(pkg.fpga_family)
 
     if args.get_fpga_freq:
         print(pkg.fpga_freq)
