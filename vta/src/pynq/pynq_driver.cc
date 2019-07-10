@@ -15,12 +15,9 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
-
-/*!
- *  Copyright (c) 2018 by Contributors
+ *
  * \file pynq_driver.c
- * \brief VTA driver for Pynq board.
+ * \brief VTA driver for FPGA SoC boards with Pynq support.
  */
 
 #include <vta/driver.h>
