@@ -91,12 +91,46 @@ GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
   return (*it).second;
 }
 
+template<typename T>
+tvm::Array<T> concat(const tvm::Array<T>& l, const tvm::Array<T>& r) {
+  tvm::Array<T> ret(l);
+  for (const T& t : r) {
+    ret.push_back(t);
+  }
+  return ret;
+}
+
 void ModuleNode::Add(const GlobalVar& var,
                      const Function& f,
                      bool update) {
   Function func = Downcast<Function>(DeDup(f));
   // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
+  auto fv = FreeVars(func);
+  auto ftv = FreeTypeVars(func, mod);
+  if (fv.size() != 0) {
+    LOG(WARNING)
+      << "There are free variables: "
+      << fv
+      << " in function: "
+      << AsText(func, false)
+      << std::endl;
+  }
+  if (ftv.size() != 0) {
+    LOG(WARNING)
+      << "There are free type variables: "
+      << ftv
+      << " in function: "
+      << AsText(func, false)
+      << std::endl;
+  }
+  func =
+    FunctionNode::make(concat(func->params, fv),
+                       func->body,
+                       func->ret_type,
+                       concat(func->type_params, ftv),
+                       func->attrs);
+  // Type check the item before we add it to the module.
   Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();
   CHECK(type.as<IncompleteTypeNode>() == nullptr);
@@ -195,7 +229,7 @@ Module ModuleNode::FromExpr(
   if (func_node) {
     func = GetRef<Function>(func_node);
   } else {
-    func = FunctionNode::make({}, expr, Type(), {}, {});
+    func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, mod), {});
   }
   auto main_gv = GlobalVarNode::make("main");
   mod->Add(main_gv, func);

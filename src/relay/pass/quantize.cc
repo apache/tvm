@@ -674,8 +674,16 @@ Pass QuantizeAnnotate() {
 
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-      return Downcast<Function>(
-          ForwardRewrite(f, "FQAnnotateRewrite", fmulti_ref));
+      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", fmulti_ref));
+      auto new_params = func->params;
+      for (const auto& x : FreeVars(func)) {
+        new_params.push_back(x);
+      }
+      return FunctionNode::make(new_params,
+                                func->body,
+                                func->ret_type,
+                                func->type_params,
+                                func->attrs);
   };
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
