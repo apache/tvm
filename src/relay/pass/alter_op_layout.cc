@@ -29,7 +29,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
-#include <tvm/tvm.h>
+#include <tvm/operation.h>
 #include <tuple>
 #include <vector>
 #include <functional>

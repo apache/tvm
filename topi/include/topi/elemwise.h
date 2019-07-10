@@ -28,7 +28,6 @@
 #include <string>
 
 #include "topi/tags.h"
-#include "tvm/tvm.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
 #include "broadcast.h"
