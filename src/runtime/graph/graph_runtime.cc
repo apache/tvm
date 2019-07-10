@@ -106,10 +106,12 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   const DLTensor* old_t = data_entry_[eid].operator->();
 
-  // check the consistency of input shape
+  // check the consistency of input
   CHECK_EQ(data_alignment_[eid], GetDataAlignment(*data_ref));
-  CHECK(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment == 0);
+  CHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
   CHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
+  CHECK_EQ(old_t->ctx.device_type, data_ref->ctx.device_type);
+  CHECK_EQ(old_t->ctx.device_id, data_ref->ctx.device_id);
   for (auto i = 0; i < data_ref->ndim; ++i) {
     CHECK_EQ(old_t->shape[i], data_ref->shape[i]);
   }
