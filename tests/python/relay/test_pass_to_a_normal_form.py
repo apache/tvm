@@ -100,17 +100,16 @@ def test_if():
 def test_recursion():
     """
     Program:
-       let sum_twice(n: i32) -> i32 = {
+       let f(n: i32) -> i32 = {
           m = (n * 2)
           if (n == 0) {
               return m;
           } else {
-              return m + sum(n - 1);
+              return m + f(n - 1);
           }
        }
-       sum_twice(5);
+       f(5);
     """
-    return # cannot be run as fuse_ops need to recursively visit
     mod = relay.Module()
     i64 = relay.TensorType((), 'int64')
     f = relay.GlobalVar("f")
