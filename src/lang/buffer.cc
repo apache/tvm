@@ -246,13 +246,20 @@ inline Expr MergeMulMod(const Expr &base) {
 inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
-    CHECK_EQ(n->shape.size(), index.size());
-    if (index.size() > 0) {
-      Expr offset = index[0];
-      for (size_t i = 1; i < index.size(); ++i) {
-        offset = MergeMulMod(offset * n->shape[i] + index[i]);
+    // Scalar case
+    if (n->shape.size() == 0 && index.size() == 1) {
+      auto is_int = index[0].as<IntImm>();
+      CHECK(is_int && is_int->value == 0);
+      base = base + index[0];
+    } else {
+      CHECK_EQ(n->shape.size(), index.size());
+      if (index.size() > 0) {
+        Expr offset = index[0];
+        for (size_t i = 1; i < index.size(); ++i) {
+          offset = MergeMulMod(offset * n->shape[i] + index[i]);
+        }
+        base = base + offset;
       }
-      base = base + offset;
     }
   } else {
     CHECK_EQ(n->strides.size(), index.size());

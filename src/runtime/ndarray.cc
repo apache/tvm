@@ -184,6 +184,10 @@ void NDArray::CopyFromTo(DLTensor* from,
     from_size, from->ctx, to->ctx, from->dtype, stream);
 }
 
+std::vector<int64_t> NDArray::Shape() const {
+  return data_->shape_;
+}
+
 }  // namespace runtime
 }  // namespace tvm
 
