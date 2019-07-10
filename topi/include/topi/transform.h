@@ -35,7 +35,8 @@
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 #include "tvm/data_layout.h"
 
 namespace topi {
