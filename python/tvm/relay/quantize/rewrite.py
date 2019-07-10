@@ -19,7 +19,6 @@
 from __future__ import absolute_import
 
 from . import _quantize
-from .. import expr as _expr
 
 def rewrite(expr):
     """

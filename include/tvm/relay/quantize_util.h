@@ -22,10 +22,11 @@
  * \brief Utility methods needs for quantized ops that can be shared
  */
 
-#ifndef TVM_QUANTIZE_UTIL_H
-#define TVM_QUANTIZE_UTIL_H
+#ifndef TVM_RELAY_QUANTIZE_UTIL_H_
+#define TVM_RELAY_QUANTIZE_UTIL_H_
 
 #include <tvm/expr.h>
+#include<limits>
 #include "./base.h"
 
 namespace tvm {
@@ -68,14 +69,15 @@ inline bool is_quantized_type(const DataType& dtype) {
 }
 
 enum class QuantizeOpType : uint8_t {
-  Quantize_Requantize,
+  Quantize,
   Dequantize,
   Requantize
 };
 
-inline bool is_valid_quantized_op_input_type(const QuantizeOpType &op_type, const DataType &in_dtype) {
-  switch(op_type) {
-    case QuantizeOpType::Quantize_Requantize:
+inline bool is_valid_quantized_op_input_type(const QuantizeOpType &op_type,
+        const DataType &in_dtype) {
+  switch (op_type) {
+    case QuantizeOpType::Quantize:
       return is_Float32(in_dtype) || is_quantized_type(in_dtype);
     case QuantizeOpType ::Dequantize:
       return is_quantized_type(in_dtype);
@@ -86,9 +88,10 @@ inline bool is_valid_quantized_op_input_type(const QuantizeOpType &op_type, cons
   }
 }
 
-inline bool is_valid_quantized_op_output_type(const QuantizeOpType &op_type, const DataType &in_dtype) {
-  switch(op_type) {
-    case QuantizeOpType::Quantize_Requantize:
+inline bool is_valid_quantized_op_output_type(const QuantizeOpType &op_type,
+        const DataType &in_dtype) {
+  switch (op_type) {
+    case QuantizeOpType::Quantize:
       return is_quantized_type(in_dtype);
     case QuantizeOpType::Dequantize:
       return is_Float32(in_dtype);
@@ -134,6 +137,6 @@ inline const int32_t get_qmax(const DataType&  dtype) {
   return -1;
 }
 
-} // namespace relay
-} // namespace tvm
-#endif //TVM_QUANTIZE_UTIL_H
+}  // namespace relay
+}  // namespace tvm
+#endif  // TVM_RELAY_QUANTIZE_UTIL_H_
