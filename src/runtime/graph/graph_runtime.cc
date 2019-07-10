@@ -104,21 +104,14 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
 void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  const auto& shape = dltensor_entry_shapes_[eid];
+  const DLTensor* old_t = data_entry_[eid].operator->();
 
   // check the consistency of input shape
   CHECK_EQ(data_alignment_[eid], GetDataAlignment(*data_ref));
   CHECK(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment == 0);
-  if (shape.size() == static_cast<size_t>(data_ref->ndim)) {
-    for (auto i = 0; i < data_ref->ndim; ++i) {
-      CHECK_EQ(shape[i], data_ref->shape[i]);
-    }
-  } else {
-    int64_t acc_prev =
-        std::accumulate(shape.data(), shape.data() + shape.size(), 1, std::multiplies<int64_t>());
-    int64_t acc = std::accumulate(data_ref->shape, data_ref->shape + data_ref->ndim, 1,
-                                  std::multiplies<int64_t>());
-    CHECK_EQ(acc_prev, acc);
+  CHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
+  for (auto i = 0; i < data_ref->ndim; ++i) {
+    CHECK_EQ(old_t->shape[i], data_ref->shape[i]);
   }
 
   // Update the data pointer for each argument of each op
@@ -246,10 +239,6 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
     CHECK_GT(data_entry_[eid].use_count(), 1);
     const DLTensor* tmp = data_entry_[eid].operator->();
     data_alignment_[eid] = GetDataAlignment(*tmp);
-    dltensor_entry_shapes_[eid].resize(tmp->ndim);
-    for (size_t j = 0; j < dltensor_entry_shapes_[eid].size(); ++j) {
-      dltensor_entry_shapes_[eid][j] = tmp->shape[j];
-    }
   }
   this->SetupOpExecs();
 }
@@ -312,7 +301,6 @@ void GraphRuntime::SetupStorage() {
   // memory assignment for each node entry. The allocated memory on each device
   // is mapped to this pool.
   data_entry_.resize(num_node_entries());
-  dltensor_entry_shapes_.resize(num_node_entries());
   data_alignment_.resize(num_node_entries());
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
@@ -321,10 +309,6 @@ void GraphRuntime::SetupStorage() {
         storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = GetDataAlignment(*tmp);
-    dltensor_entry_shapes_[i].resize(tmp->ndim);
-    for (size_t j = 0; j < dltensor_entry_shapes_[i].size(); ++j) {
-      dltensor_entry_shapes_[i][j] = tmp->shape[j];
-    }
   }
 }
 

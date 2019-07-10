@@ -415,8 +415,6 @@ class GraphRuntime : public ModuleNode {
   std::vector<NDArray> data_entry_;
   /*! \brief Data alignment of each node. */
   std::vector<size_t> data_alignment_;
-  /*! \brief Shape of each DLTensor of each node. */
-  std::vector<std::vector<int64_t> > dltensor_entry_shapes_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
   /*! \brief Arg info of TVM ops */
