@@ -183,11 +183,11 @@ def test_function_taking_adt_ref_tuple():
     prelude = relay.prelude.Prelude(mod)
     intrp = create_executor("debug", mod)
 
-    nil_value = ConstructorValue(prelude.nil.tag, [], prelude.nil, [])
+    nil_value = ConstructorValue(prelude.nil.tag, [], prelude.nil)
     cons_value = ConstructorValue(prelude.cons.tag, [
         TensorValue(np.random.rand(1, 10).astype('float32')),
         nil_value
-    ], prelude.cons, [relay.TensorType((1, 10), 'float32')])
+    ], prelude.cons)
 
     ref_value = RefValue(TensorValue(np.random.rand(1, 10).astype('float32')))
     tuple_value = TupleValue(*[
