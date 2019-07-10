@@ -15,11 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay Pass Infra: the Pass Manager
+Relay Pass Infra
 ==================================
 
 Relay features a series of optimization passes which improve performance metrics
-of models such as mean inference, memory footprint, power consumption, or for
+of models such as mean inference, memory footprint, or power consumption for
 specific devices. There are a suite of standard optimizations as well as machine
 learning specific optimizations including constant folding, dead code
 elimination, operator layout alteration, and operator fusion, etc. Each of these
@@ -33,8 +33,8 @@ will contain hundreds of individual passes. Often external users will want to
 have custom passes correctly scheduled without having to modify a single
 handcrafted pass order.
 
-One the other hand, modern deep learning frameworks, such as Pytorch and MXNet
-Gluon, also have the tendency to enable pass manager style layer construction
+On the other hand, modern deep learning frameworks, such as Pytorch and MXNet
+Gluon, also have the tendency to enable pass style layer construction
 scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural network easily.
@@ -42,20 +42,20 @@ containers and build up neural network easily.
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 .. _Block: https://mxnet.incubator.apache.org/_modules/mxnet/gluon/block.html
 
-The design of the Relay pass manager is largely inspired by the the hierarchical
+The design of the Relay pass infra is largely inspired by the the hierarchical
 pass manager used in LLVM and the block style containers used in the popular
-deep learning frameworks. The major goals of the pass manager include:
+deep learning frameworks. The major goals of the pass infra include:
 
 #) enabling better programmatic orchestration of optimizations. This allows
    users to flexibly customize and build their own optimization pipelines.
 
 #) providing a user friendly way to debug optimization passes.
 
-#) alleviating developers's from manually and respectively resolving the
+#) alleviating developers from manually and respectively resolving the
    dependencies between passes.
 
 #) simplifying the implementation of new passes for developers. For example, we
-   allow users to implement a pass in Python and let the pass manager manipulate
+   allow users to implement a pass in Python and let the pass infra manipulate
    its execution.
 
 The Design
@@ -64,7 +64,7 @@ The Design
 We focus on ease of extension for users, making it possible for users to quickly
 add new passes without loss of backward compatibility. The design contains both
 the backend and the frontend. The former implements the main logic of the pass
-manager. The latter provides simple APIs for users to interact with, i.e.
+infra. The latter provides simple APIs for users to interact with, i.e.
 allowing users to quickly create their own optimization pipelines.
 
 C++ Backend
@@ -73,8 +73,10 @@ C++ Backend
 We provide a ``PassInfo`` object to contain the basic information needed by
 a pass. ``name`` is the pass name, ``opt_level`` indicates at which optimization
 level the pass will be enabled, and ``required`` represents the passes that are
-required to execute a certain pass (see ``include/tvm/relay/transform.h`` for
+required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
 more details).
+
+.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
 
 .. code:: c++
 
@@ -132,9 +134,9 @@ to create a compilation pipeline using pass context.
 Pass Constructs
 ^^^^^^^^^^^^^^^
 
-The pass manager is designed in a hierarchical manner, and it could work at
+The pass infra is designed in a hierarchical manner, and it could work at
 various granularity of a Relay program. A pure virtual class ``PassNode`` is
-introduced to sever as the base of the different optimization passes. This class
+introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that will be implemented by the
 subclasses at the module level, function level, or a sequence of passes..
 
@@ -148,7 +150,7 @@ subclasses at the module level, function level, or a sequence of passes..
 
 The functor shows how a pass will be realized, i.e. it always works on a Relay
 module under a certain context. All passes are designed in a ``Module`` to
-``Module`` manner. Therefore, optimizations governed by the pass manager will
+``Module`` manner. Therefore, optimizations governed by the pass infra will
 always update the whole module.
 
 Several subclasses are created to implement different types of optimization
@@ -156,7 +158,8 @@ passes, e.g. function-level passes, module-level passes, and sequential passes.
 Each subclass itself could act as a pass manager. For instance, they could glob
 the require passes and execute them or build a dependency graph based on the
 given meta data. The full definition of them could be found in
-``src/relay/pass/pass_manager.cc``
+`src/relay/pass/pass_manager.cc
+<https://github.com/dmlc/tvm/blob/master/src/relay/pass/pass_manager.cc>`_
 
 Module-level Passes
 ^^^^^^^^^^^^^^^^^^^
@@ -218,8 +221,8 @@ Sequential Passes
 SequentialPass is similar to Pytorch nn.Sequential that contains a host of
 passes for execution. It also has a disabled list that contains the list of
 disabled passes. For example, we may have a configuration which performs all
-passes at ``opt_level=3`` with some disabled passes using disabled_pass=xx
-provided by ``PassContext``. Now using ``SequentailPass``, we could glob all
+passes at ``opt_level=3`` with some disabled passes using ``disabled_pass=xx``
+provided by ``PassContext``. Now using ``SequentialPass``, we could glob all
 passes at ``opt_level=3`` and exclude those in disabled.
 
 .. code:: c++
@@ -234,16 +237,15 @@ passes at ``opt_level=3`` and exclude those in disabled.
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
     };
 
-Only a few passes currently in Relay is put in this group. For example,
+Only a few passes currently in Relay are put in this group. For example,
 ``FoldScaleAxis`` requires to dispatch ``ForwardFoldScaleAxis`` and
 ``BackwardFoldScaleAxis`` internally. In addition, ``BackwardFoldScaleAxis`` is
 recommended to be fulfilled first. This pass, hence, is an ideal candidate for
-``SequentailPass``.
+``SequentialPass``.
 
 The following code shows how individual passes in a sequential pass is invoked.
 Essentially, we sequentially execute each pass in a sequential pass using the
-order that they were appended to the pass list without the consideration of
-their orders. The pass phase ordering problem might be considered in the future.
+order that they were appended to the pass list.
 
 .. code:: c++
 
@@ -267,10 +269,9 @@ their orders. The pass phase ordering problem might be considered in the future.
 Upon the invocation of a pass, we first check if this pass is enabled. This is
 done by first checking if the pass is explicitly disabled by a user, followed by
 inspecting if it is specified as a required pass by the user. If it is still
-indetermined that whether this pass is enabled, its ``opt_level`` will be
-checked. This pass will be enabled and therefore executed only when its
-optimization level not less than the configured optimization level in the pass
-context.
+undetermined whether this pass is enabled, its ``opt_level`` will be checked.
+This pass will be enabled and therefore executed only when its optimization
+level not is less than the configured optimization level in the pass context.
 
 To execute the pass, we need first to retrieve the registered pass in the TVM
 packed function registry using the pass name. This is possible because every
@@ -309,12 +310,12 @@ favorably use Python APIs to create a specific pass object.
 C++ Sequential Example
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Let's now take an example to illustrate how the pass manager works on
+Let's now take an example to illustrate how the pass infra works on
 ``SequentialPass``. For illustrative purpose, only a code snippet is provided.
 First, we create a simple Relay program, ``y = f(x)``. Then, we build a module
 based on the function. After creating the module, we instantiate a sequential
 pass object which contains some standard Relay optimization passes, including
-typer inference, dead code elimination, common subexpression elimination, and
+type inference, dead code elimination, common subexpression elimination, and
 layout alteration.
 
 Finally, a pass context is constructed and the passes will be executed
@@ -369,7 +370,8 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relay function (found in
-``src/relay/pass/fold_constant.cc``).
+`src/relay/pass/fold_constant.cc
+<https://github.com/dmlc/tvm/blob/master/src/relay/pass/fold_constant.cc>`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -377,13 +379,13 @@ An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
     Expr FoldConstant(const Expr& expr);
 
-In order to register this pass to the pass manager, we first need to decide at
+In order to register this pass to the pass infra, we first need to decide at
 which level this pass will be performed. As const folding happens on individual
 functions, we should intuitively create a ``FunctionPass`` for it through
 ``CreateFunctionPass``. The ``pass_func`` is returned as a packed function that
 invokes the ``Expr`` to ``Expr`` API on each function in a Relay module. ``{}``
 indicates that no prerequisite is required for this pass. Otherwise, the pass
-develop has to identify and list them.
+developer has to identify and list them.
 
 Meanwhile, a pass API endpoint is registered with the name
 ``relay._transform.FoldConstant``. This pass, therefore, becomes an entry in the
@@ -408,7 +410,9 @@ Python when needed.
     }  // namespace transform
 
 To allow other C++ modules to apply this pass, we declare a free function in
-`include/tvm/relay/transform.h` as the following:
+`include/tvm/relay/transform.h`_ as the following:
+
+.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
 
 .. code:: c++
 
@@ -419,9 +423,12 @@ Python Frontend
 
 Only some simple APIs are needed for the frontend side. For example, we can
 provide users the following APIs to create and execute a pass (full
-implementation is provided in ``python/tvm/relay/transform.py``). The backend
+implementation is provided in `python/tvm/relay/transform.py`__). The backend
 receives the information and decides which function it should use to create
 a Pass object.
+
+.. _transformpy: https://github.com/dmlc/tvm/blob/master/python/tvm/relay/transform.py
+__ transformpy_
 
 PassContext
 ^^^^^^^^^^^
@@ -467,12 +474,12 @@ to invoke the execution of a pass.
        def __call__(self, mod):
            return _transform.RunPass(self, mod)
 
-Some auxiliary APIs are provided to enable to easy creation of passes from
-the Python frontend and let the pass manager to control the execution. For
+Some auxiliary APIs are provided to enable easy creation of passes from
+the Python frontend and to let the pass infra control the execution. For
 example, ``module_pass``, ``function_pass``, and ``sequential`` are provided to
 users so that they can customize their own pass or pass pipeline.
 
-For all the passes that implemented in the C++ backend, we provide
+For all the passes that are implemented in the C++ backend, we provide
 a corresponding Python API in ``python/tvm/relay/transform.py``. For instance,
 const folding has a Python API like the following:
 
@@ -501,7 +508,7 @@ Users can build a pass through decoration like the following:
 
 The ``transform`` function here adds an ``abs`` function to the input module,
 but it could be any customized optimizations at the module level. After
-creating this `module_pass`, users can apply it on any Relay module. For
+creating this ``module_pass``, users can apply it on any Relay module. For
 example, we can build an empty module and apply this pass to add an ``abs``
 function.
 
@@ -510,7 +517,7 @@ function.
     mod = relay.Module()
     mod = module_pass(mod)
 
-Correspondingly, we also offer such functionality for `function_pass`. For
+Correspondingly, we also offer such functionality for ``function_pass``. For
 instance, an example function-level pass could be written as the following:
 
 .. code:: python
@@ -535,15 +542,15 @@ instance, an example function-level pass could be written as the following:
 
 
 Alternatively, users can also directly register a pass without using the
-decroators and then invoke it. Let's use ``Sequential`` to demo this scenario.
+decorators and then invoke it. Let's use ``Sequential`` to demo this scenario.
 
 Python Sequential Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This example not only illustrates how users can directly create a sequential
 pass using Python APIs (this could be applied to module- and function- level
-passes as well), but only explains we can build an optimization pipeline using
-``Sequential`` associated with other types of passes.
+passes as well), but also explains how we can build an optimization pipeline
+using ``Sequential`` associated with other types of passes.
 
 .. code:: python
 
@@ -572,7 +579,7 @@ passes as well), but only explains we can build an optimization pipeline using
     # Create a module to perform optimizations.
     mod = relay.Module({"main": func})
     
-    # User can disable any passes that their don't want to execute by providing
+    # User can disable any passes that they don't want to execute by providing
     # a list, e.g. disabled_pass=["EliminateCommonSubexpr"].
     with relay.build_config(opt_level=3):
         with tvm.target.create("llvm"):
@@ -582,7 +589,7 @@ passes as well), but only explains we can build an optimization pipeline using
 Debugging
 ---------
 
-The pass manager provides a special pass (``PrintIR``) to dump the IR of the
+The pass infra provides a special pass (``PrintIR``) to dump the IR of the
 whole module after applying a certain pass. A slightly modified version of the
 sequential pass example could be like the following to enable IR dumping for
 ``FoldConstant`` optimization.
@@ -597,10 +604,12 @@ sequential pass example could be like the following to enable IR dumping for
         relay.transform.AlterOpLayout()
     ])
 
-By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass manager will
+By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
 dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 pass after any pass they want to debug for viewing the optimization effect.
 
-For more pass manager related examples in Python and C++, please refer to
-``tests/python/relay/test_pass_manager.py`` and
-``tests/cpp/relay_transform_sequential.cc``, respectively.
+For more pass infra related examples in Python and C++, please refer to
+`tests/python/relay/test_pass_manager.py
+<https://github.com/dmlc/tvm/blob/master/tests/python/relay/test_pass_manager.py>`_ and
+`tests/cpp/relay_transform_sequential.cc
+<https://github.com/dmlc/tvm/blob/master/tests/cpp/relay_transform_sequential.cc>`_, respectively.
