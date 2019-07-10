@@ -86,7 +86,7 @@ def test_requantize():
                 for use_int_compute in [True, False]:
                     func = get_func(data_shape=(32, ),
                                     data_dtype='int32',
-                                    out_dtype="int32",
+                                    out_dtype='int8',
                                     use_int_compute=use_int_compute,
                                     rounding_mode=rounding_mode,
                                     input_scale=1,
@@ -189,7 +189,7 @@ def test_requantize():
                 for use_int_compute in [True, False]:
                     func = get_func(data_shape=(32, ),
                                     data_dtype='int32',
-                                    out_dtype="int32",
+                                    out_dtype='int8',
                                     use_int_compute=use_int_compute,
                                     rounding_mode=rounding_mode,
                                     input_scale=1,
@@ -218,7 +218,7 @@ def test_requantize():
                 for use_int_compute in [True, False]:
                     func = get_func(data_shape=(32, ),
                                     data_dtype='int32',
-                                    out_dtype="int32",
+                                    out_dtype='int8',
                                     use_int_compute=use_int_compute,
                                     rounding_mode=rounding_mode,
                                     input_scale=1,
