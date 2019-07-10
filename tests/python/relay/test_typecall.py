@@ -39,7 +39,7 @@ def test_id_type():
     make_id = relay.Var("make_id", relay.FuncType([b], id_type(b), [b]))
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    mod["main"] = relay.Function([], make_id(b))
+    mod["main"] = relay.Function([make_id, b], make_id(b))
     mod = transform.InferType()(mod)
     assert mod["main"].body.checked_type == id_type(t)
 
