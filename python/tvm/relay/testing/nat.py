@@ -168,8 +168,8 @@ def make_nat_value(prelude, n):
     constructs a ConstructorValue representing that value as a nat.
     """
     if n == 0:
-        return ConstructorValue(prelude.z.tag, [], None, [])
-    return ConstructorValue(prelude.s.tag, [make_nat_value(prelude, n - 1)], None, [])
+        return ConstructorValue(prelude.z.tag, [], None)
+    return ConstructorValue(prelude.s.tag, [make_nat_value(prelude, n - 1)], None)
 
 
 def make_nat_expr(prelude, n):

@@ -75,9 +75,9 @@ iterate = p.iterate
 # this is an example of creating the adt value in python side
 def make_nat(n):
     if n != 0:
-        return ConstructorValue(s, [make_nat(n - 1)], [])
+        return ConstructorValue(s, [make_nat(n - 1)])
     else:
-        return ConstructorValue(z, [], [])
+        return ConstructorValue(z, [])
 
 def make_nat_expr(n):
     assert n >= 0

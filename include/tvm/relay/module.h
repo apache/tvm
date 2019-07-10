@@ -180,17 +180,19 @@ class ModuleNode : public RelayNode {
 
   /*! \brief Construct a module from a standalone expression.
    *
-   * Allows one to optionally pass a global function map as
-   * well.
+   * Allows one to optionally pass a global function map and
+   * map of type definitions as well.
    *
    * \param expr The expression to set as the main function to the module.
    * \param global_funcs The global function map.
+   * \param type_definitions Map of global type definitions
    *
    * \returns A module with expr set as the main function.
    */
   TVM_DLL static Module FromExpr(
     const Expr& expr,
-    const tvm::Map<GlobalVar, Function>& global_funcs = {});
+    const tvm::Map<GlobalVar, Function>& global_funcs = {},
+    const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   static constexpr const char* _type_key = "relay.Module";
   TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
