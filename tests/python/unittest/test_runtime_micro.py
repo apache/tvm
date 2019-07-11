@@ -262,13 +262,15 @@ def test_nested_sessions():
 
 def test_resnet_random():
     """Test ResNet18 inference with random weights and inputs."""
-    resnet_func, params = resnet.get_workload(num_classes=10,
-                                              num_layers=18,
-                                              image_shape=(3, 32, 32))
+    resnet_mod, params = resnet.get_workload(num_classes=10,
+                                             num_layers=18,
+                                             image_shape=(3, 32, 32))
+    resnet_func = resnet_mod["main"]
     # Remove the final softmax layer, because uTVM does not currently support it.
     resnet_func_no_sm = relay.Function(resnet_func.params,
                                        resnet_func.body.args[0],
                                        resnet_func.ret_type)
+    resnet_mod["main"] = resnet_func_no_sm
 
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         # TODO(weberlo): Use `resnet_func` once we have libc support.

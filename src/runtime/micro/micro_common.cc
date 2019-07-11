@@ -53,7 +53,7 @@ size_t GetDefaultSectionSize(SectionKind kind) {
     case SectionKind::kHeap:
       return 0xF000000;
     case SectionKind::kWorkspace:
-      return 0xF00000;
+      return 0xF000000;
     default:
       LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
       return 0;
