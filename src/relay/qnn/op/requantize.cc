@@ -25,7 +25,7 @@
 
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/analysis.h>
-#include "../include/attrs.h"
+#include <tvm/relay/qnn/attrs.h>
 #include "../include/util.h"
 
 namespace tvm {
