@@ -31,7 +31,6 @@
 #include <vector>
 #include "micro_session.h"
 #include "low_level_device.h"
-#include "host_low_level_device.h"
 #include "target_data_layout_encoder.h"
 
 namespace tvm {
