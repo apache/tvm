@@ -38,8 +38,8 @@ char* utvm_workspace_curr = NULL;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t utvm_num_active_allocs = 0;
 
-const char* last_error = NULL;  // NOLINT(*)
-int32_t return_code = 0;  // NOLINT(*)
+const char* utvm_last_error = NULL;  // NOLINT(*)
+int32_t utvm_return_code = 0;  // NOLINT(*)
 
 // We use a dummy function to signal execution is finished for device
 // backends which require breakpoints.
@@ -48,9 +48,9 @@ void UTVMDone() { }
 void UTVMMain() {
   utvm_workspace_curr = utvm_workspace_begin;
   utvm_num_active_allocs = 0;
-  last_error = NULL;  // NOLINT(*)
-  return_code = 0;
-  return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
+  utvm_last_error = NULL;  // NOLINT(*)
+  utvm_return_code = 0;
+  utvm_return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
                           task.num_args);
   UTVMDone();
 }
@@ -87,7 +87,7 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
 }
 
 void TVMAPISetLastError(const char* msg) {
-  last_error = msg;
+  utvm_last_error = msg;
 }
 
 #ifdef __cplusplus

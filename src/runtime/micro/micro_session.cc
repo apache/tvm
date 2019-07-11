@@ -219,10 +219,10 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 }
 
 void MicroSession::CheckDeviceError() {
-  int32_t return_code = DevSymbolRead<int32_t>(init_symbol_map(), "return_code");
+  int32_t return_code = DevSymbolRead<int32_t>(init_symbol_map(), "utvm_return_code");
 
   if (return_code) {
-    std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(init_symbol_map(), "last_error");
+    std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(init_symbol_map(), "utvm_last_error");
     std::string last_error_str;
     if (last_error) {
       DevBaseOffset last_err_offset = low_level_device()->ToDevOffset(DevPtr(last_error));
