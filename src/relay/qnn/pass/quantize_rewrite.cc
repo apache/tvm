@@ -26,9 +26,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/quantize_util.h>
-#include <tvm/relay/attrs/qnn.h>
-#include "pattern_util.h"
+#include "../include/attrs.h"
+#include "../include/util.h"
+#include "../../pass/pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -170,8 +170,8 @@ Expr RequantizeInt(const Expr& input_tensor,
   // clip_min and clip_max are within the dtype range of the input tensor to the
   // clip operator. For example, if the input to clip operator is int8, but the
   // out_dtype is uint8, we will get incorrect results, if we set max as 255.
-  auto q_min = std::max(get_qmin(param->out_dtype), get_qmin(idtype));
-  auto q_max = std::min(get_qmax(param->out_dtype), get_qmax(idtype));
+  auto q_min = std::max(GetQmin(param->out_dtype), GetQmin(idtype));
+  auto q_max = std::min(GetQmax(param->out_dtype), GetQmax(idtype));
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
   auto requantized_output = Cast(clipped_t, param->out_dtype);
   return requantized_output;
@@ -196,15 +196,15 @@ Expr RequantizeFloat(const Expr& input_tensor,
   auto multiplied_t = Multiply(casted_t, scalar_multiplier);
   auto shifted_multiplied_t = Add(output_zp, multiplied_t);
   auto rounded_t = Round(shifted_multiplied_t);
-  auto q_imin = get_qmin(idtype);
-  auto q_imax = get_qmax(idtype);
+  auto q_imin = GetQmin(idtype);
+  auto q_imax = GetQmax(idtype);
   auto scaled_int32_t = Cast(Clip(rounded_t, q_imin, q_imax),
           idtype);
 
   // Clip to the out_dtype min/max.
   // Clip limits must be smaller than the dtype of the input tensor.
-  auto q_min = std::max(get_qmin(param->out_dtype), get_qmin(idtype));
-  auto q_max = std::min(get_qmax(param->out_dtype), get_qmax(idtype));
+  auto q_min = std::max(GetQmin(param->out_dtype), GetQmin(idtype));
+  auto q_max = std::min(GetQmax(param->out_dtype), GetQmax(idtype));
   auto clipped_t = Clip(scaled_int32_t, q_min, q_max);
   auto requantized_output = Cast(clipped_t, param->out_dtype);
   return requantized_output;
