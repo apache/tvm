@@ -50,7 +50,7 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Current();
+    std::shared_ptr<MicroSession>& session = MicroSession::Current();
     void* data = session->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
     MicroDevSpace* dev_space = new MicroDevSpace();
@@ -86,7 +86,7 @@ class MicroDeviceAPI final : public DeviceAPI {
           << " != " << to_space->session << ")";
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
-      std::shared_ptr<MicroSession> session = from_space->session;
+      std::shared_ptr<MicroSession>& session = from_space->session;
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
@@ -99,7 +99,7 @@ class MicroDeviceAPI final : public DeviceAPI {
       // Reading from the device.
 
       MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
-      std::shared_ptr<MicroSession> session = from_space->session;
+      std::shared_ptr<MicroSession>& session = from_space->session;
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
@@ -109,7 +109,7 @@ class MicroDeviceAPI final : public DeviceAPI {
       // Writing to the device.
 
       MicroDevSpace* to_space = static_cast<MicroDevSpace*>(const_cast<void*>(to));
-      std::shared_ptr<MicroSession> session = to_space->session;
+      std::shared_ptr<MicroSession>& session = to_space->session;
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       void* from_host_ptr = GetHostLoc(from, from_offset);
@@ -124,7 +124,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Current();
+    std::shared_ptr<MicroSession>& session = MicroSession::Current();
 
     void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << size << " bytes on device workspace";
@@ -136,7 +136,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(data);
-    std::shared_ptr<MicroSession> session = dev_space->session;
+    std::shared_ptr<MicroSession>& session = dev_space->session;
     session->FreeInSection(SectionKind::kWorkspace,
                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
     delete dev_space;

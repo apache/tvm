@@ -43,7 +43,7 @@ class MicroSectionAllocator {
     : start_offset_(region.start),
       size_(0),
       capacity_(region.size) {
-      CHECK(start_offset_.value() % 8 == 0) << "micro section not aligned to 8 bytes";
+      CHECK_EQ(start_offset_.value() % 8, 0) << "micro section not aligned to 8 bytes";
     }
 
   /*!

@@ -114,7 +114,7 @@ class MicroWrappedFunc {
     func_offset_ = func_offset;
   }
 
-  void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+  void operator()(TVMArgs args, TVMRetValue* rv) const {
     m_->RunFunction(func_name_, func_offset_, args);
   }
 
@@ -134,7 +134,7 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   DevBaseOffset func_offset = session_->low_level_device()->ToDevOffset(symbol_map()[name]);
   MicroWrappedFunc f(this, session_, name, func_offset);
-  return PackFuncVoidAddr(f, std::vector<TVMType>());
+  return PackedFunc(f);
 }
 
 // register loadfile function to load module from Python frontend

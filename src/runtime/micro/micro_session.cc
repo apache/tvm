@@ -42,7 +42,7 @@ struct TVMMicroSessionThreadLocalEntry {
 
 typedef dmlc::ThreadLocalStore<TVMMicroSessionThreadLocalEntry> TVMMicroSessionThreadLocalStore;
 
-std::shared_ptr<MicroSession> MicroSession::Current() {
+std::shared_ptr<MicroSession>& MicroSession::Current() {
   TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
   CHECK_GT(entry->session_stack.size(), 0) << "No current session";
   return entry->session_stack.top();

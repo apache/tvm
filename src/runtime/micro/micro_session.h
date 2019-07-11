@@ -73,7 +73,7 @@ class MicroSession : public ModuleNode {
    */
   ~MicroSession();
 
-  static std::shared_ptr<MicroSession> Current();
+  static std::shared_ptr<MicroSession>& Current();
 
   /*!
    * \brief creates session by setting up a low-level device and initting allocators for it

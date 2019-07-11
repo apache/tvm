@@ -125,6 +125,8 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
     compile_cmd = "{}g++".format(toolchain_prefix)
 
     if include_dev_lib_header:
+        # Create a temporary copy of the source, so we can inject the dev lib
+        # header without modifying the original.
         tmp_dir = util.tempdir()
         temp_src_path = tmp_dir.relpath("temp.c")
         with open(src_path, "r") as f:
