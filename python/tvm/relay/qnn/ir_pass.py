@@ -18,7 +18,7 @@
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 
-from . import _quantize
+from . import _qnn
 
 def rewrite(expr):
     """
@@ -34,4 +34,4 @@ def rewrite(expr):
     expr : tvm.relay.Expr
         The output expression.
     """
-    return _quantize.rewrite(expr)
+    return _qnn.rewrite(expr)
