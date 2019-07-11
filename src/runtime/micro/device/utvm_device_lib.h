@@ -22,8 +22,8 @@
  * \file utvm_device_lib.h
  * \brief utvm device library definitions
  */
-#ifndef TVM_RUNTIME_MICRO_UTVM_DEVICE_LIB_H_
-#define TVM_RUNTIME_MICRO_UTVM_DEVICE_LIB_H_
+#ifndef TVM_RUNTIME_MICRO_DEVICE_UTVM_DEVICE_LIB_H_
+#define TVM_RUNTIME_MICRO_DEVICE_UTVM_DEVICE_LIB_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,4 +52,4 @@ void TVMAPISetLastError(const char* msg) {
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif
-#endif  // TVM_RUNTIME_MICRO_UTVM_DEVICE_LIB_H_
+#endif  // TVM_RUNTIME_MICRO_DEVICE_UTVM_DEVICE_LIB_H_

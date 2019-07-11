@@ -34,6 +34,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tuple>
 
 #include "low_level_device.h"
 #include "device/utvm_runtime.h"
