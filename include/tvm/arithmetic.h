@@ -591,7 +591,7 @@ IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<Expr, IntSet, ExprHash, ExprEqual>;
+using ExprIntSetMap = std::unordered_map<Expr, IntSet, NodeHash, NodeEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
