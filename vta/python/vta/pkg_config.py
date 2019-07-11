@@ -63,7 +63,9 @@ class PkgConfig(object):
         # List of source files that can be used to build standalone library.
         self.lib_source = []
         self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
-        self.lib_source += glob.glob("%s/vta/src/%s/*.cc" % (proj_root, cfg["TARGET"]))
+        if cfg["TARGET"] in ["pynq", "ultra96"]:
+            # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
+            self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
         # macro keys
         self.macro_defs = []
         self.cfg_dict = {}

@@ -231,6 +231,8 @@ class Environment(object):
         """The target host"""
         if self.TARGET == "pynq":
             return "llvm -target=armv7-none-linux-gnueabihf"
+        if self.TARGET == "ultra96":
+            return "llvm -target=aarch64-linux-gnu"
         if self.TARGET == "sim" or self.TARGET == "tsim":
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
