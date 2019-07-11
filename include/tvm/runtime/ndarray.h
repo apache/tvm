@@ -33,8 +33,6 @@
 namespace tvm {
 namespace runtime {
 
-size_t GetDataAlignment(const DLTensor& arr);
-
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
