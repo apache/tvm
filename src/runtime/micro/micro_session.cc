@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 #include <memory>
 #include <stack>
+#include <tuple>
 #include <vector>
 #include "micro_session.h"
 #include "low_level_device.h"
@@ -106,32 +107,6 @@ void MicroSession::CreateSession(const std::string& device_type,
   DevSymbolWrite(init_symbol_map(), "utvm_workspace_end", workspace_end_addr);
 }
 
-DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
-  return GetAllocator(type)->Allocate(size);
-}
-
-void MicroSession::FreeInSection(SectionKind type, DevBaseOffset ptr) {
-  return GetAllocator(type)->Free(ptr);
-}
-
-std::string MicroSession::ReadString(DevBaseOffset str_offset) {
-  std::stringstream result;
-  const size_t buf_size = 256;
-  std::vector<char> buf(buf_size, 0);
-  size_t i = buf_size;
-  while (i == buf_size) {
-    low_level_device()->Read(str_offset, buf.data(), buf_size);
-    i = 0;
-    while (i < buf_size) {
-      if (buf[i] == 0) break;
-      result << buf[i];
-      i++;
-    }
-    str_offset = str_offset + i;
-  }
-  return result.str();
-}
-
 void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
   int32_t (*func_dev_addr)(void*, void*, int32_t) =
       reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(
@@ -143,7 +118,7 @@ void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
       low_level_device()->base_addr() + GetAllocator(SectionKind::kArgs)->curr_end_offset();
   TargetDataLayoutEncoder encoder(args_addr);
 
-  EncoderAppend(&encoder, args);
+  std::tuple<DevAddr, DevAddr> arg_field_addrs = EncoderAppend(&encoder, args);
   // Flush `stream` to device memory.
   DevBaseOffset stream_dev_offset =
       GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
@@ -153,71 +128,21 @@ void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
 
   UTVMTask task = {
       .func = func_dev_addr,
-      .args = args_addr.cast_to<UTVMArgs*>(),
+      .arg_values = std::get<0>(arg_field_addrs).cast_to<TVMValue*>(),
+      .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
+      .num_args = args.num_args,
   };
   // Write the task.
   low_level_device()->Write(init_symbol_map()["task"], &task, sizeof(UTVMTask));
-
   low_level_device()->Execute(utvm_main_symbol_, utvm_done_symbol_);
-
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
 }
 
-BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
-  DevMemRegion text_section;
-  DevMemRegion rodata_section;
-  DevMemRegion data_section;
-  DevMemRegion bss_section;
-
-  text_section.size = GetSectionSize(binary_path, SectionKind::kText, toolchain_prefix_);
-  rodata_section.size = GetSectionSize(binary_path, SectionKind::kRodata, toolchain_prefix_);
-  data_section.size = GetSectionSize(binary_path, SectionKind::kData, toolchain_prefix_);
-  bss_section.size = GetSectionSize(binary_path, SectionKind::kBss, toolchain_prefix_);
-
-  text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
-  rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
-  data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
-  bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
-  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
-        data_section.start != nullptr && bss_section.start != nullptr)
-      << "not enough space to load module on device";
-
-  const DevBaseAddr base_addr = low_level_device_->base_addr();
-  std::string relocated_bin = RelocateBinarySections(
-      binary_path,
-      text_section.start + base_addr,
-      rodata_section.start + base_addr,
-      data_section.start + base_addr,
-      bss_section.start + base_addr,
-      toolchain_prefix_);
-  std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);
-  std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
-  std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
-  std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
-  low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
-  low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
-  low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
-  low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
-  SymbolMap symbol_map {relocated_bin, base_addr, toolchain_prefix_};
-  return BinaryInfo {
-      .text_section = text_section,
-      .rodata_section = rodata_section,
-      .data_section = data_section,
-      .bss_section = bss_section,
-      .symbol_map = symbol_map,
-  };
-}
-
-void MicroSession::SetInitBinaryPath(std::string path) {
-  init_binary_path_ = path;
-}
-
-DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
-  auto utvm_args_slot = encoder->Alloc<UTVMArgs>();
-
+std::tuple<DevAddr, DevAddr> MicroSession::EncoderAppend(
+    TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
@@ -256,13 +181,7 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMA
   }
   type_codes_slot.WriteArray(type_codes, num_args);
 
-  UTVMArgs dev_args = {
-    .values = tvm_vals_slot.start_addr().cast_to<TVMValue*>(),
-    .type_codes = type_codes_slot.start_addr().cast_to<int*>(),
-    .num_args = num_args,
-  };
-  utvm_args_slot.WriteValue(dev_args);
-  return utvm_args_slot.start_addr();
+  return std::make_tuple(tvm_vals_slot.start_addr(), type_codes_slot.start_addr());
 }
 
 DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
@@ -315,6 +234,81 @@ void MicroSession::CheckDeviceError() {
                << "  dev str addr: 0x" << std::hex << last_error << "\n"
                << "  dev str data: " << last_error_str << std::endl;
   }
+}
+
+BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
+  DevMemRegion text_section;
+  DevMemRegion rodata_section;
+  DevMemRegion data_section;
+  DevMemRegion bss_section;
+
+  text_section.size = GetSectionSize(binary_path, SectionKind::kText, toolchain_prefix_);
+  rodata_section.size = GetSectionSize(binary_path, SectionKind::kRodata, toolchain_prefix_);
+  data_section.size = GetSectionSize(binary_path, SectionKind::kData, toolchain_prefix_);
+  bss_section.size = GetSectionSize(binary_path, SectionKind::kBss, toolchain_prefix_);
+
+  text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
+  rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
+  data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
+  bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
+  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
+        data_section.start != nullptr && bss_section.start != nullptr)
+      << "not enough space to load module on device";
+
+  const DevBaseAddr base_addr = low_level_device_->base_addr();
+  std::string relocated_bin = RelocateBinarySections(
+      binary_path,
+      text_section.start + base_addr,
+      rodata_section.start + base_addr,
+      data_section.start + base_addr,
+      bss_section.start + base_addr,
+      toolchain_prefix_);
+  std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);
+  std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
+  std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
+  std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
+  low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
+  low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
+  low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
+  low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
+  SymbolMap symbol_map {relocated_bin, base_addr, toolchain_prefix_};
+  return BinaryInfo {
+      .text_section = text_section,
+      .rodata_section = rodata_section,
+      .data_section = data_section,
+      .bss_section = bss_section,
+      .symbol_map = symbol_map,
+  };
+}
+
+void MicroSession::SetInitBinaryPath(std::string path) {
+  init_binary_path_ = path;
+}
+
+std::string MicroSession::ReadString(DevBaseOffset str_offset) {
+  std::stringstream result;
+  const size_t buf_size = 256;
+  std::vector<char> buf(buf_size, 0);
+  size_t i = buf_size;
+  while (i == buf_size) {
+    low_level_device()->Read(str_offset, buf.data(), buf_size);
+    i = 0;
+    while (i < buf_size) {
+      if (buf[i] == 0) break;
+      result << buf[i];
+      i++;
+    }
+    str_offset = str_offset + i;
+  }
+  return result.str();
+}
+
+DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
+  return GetAllocator(type)->Allocate(size);
+}
+
+void MicroSession::FreeInSection(SectionKind type, DevBaseOffset ptr) {
+  return GetAllocator(type)->Free(ptr);
 }
 
 template <typename T>

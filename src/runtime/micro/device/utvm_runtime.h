@@ -32,25 +32,17 @@ extern "C" {
 #include <tvm/runtime/c_runtime_api.h>
 
 /*!
- * \brief POD variant of TVMArgs
- */
-typedef struct {
-  /*! \brief Array of values */
-  TVMValue* values;
-  /*! \brief Array of type codes for each value */
-  int* type_codes;
-  /*! \brief Number of arguments */
-  int32_t num_args;
-} UTVMArgs;
-
-/*!
  * \brief Task structure for uTVM
  */
 typedef struct {
   /*! \brief Pointer to function to call for this task */
   int32_t (*func)(void*, void*, int32_t);
-  /*! \brief Arguments for this task's function call */
-  UTVMArgs* args;
+  /*! \brief Array of argument values */
+  TVMValue* arg_values;
+  /*! \brief Array of type codes for each argument value */
+  int* arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
 } UTVMTask;
 
 /*!

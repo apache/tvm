@@ -32,13 +32,13 @@ extern "C" {
 UTVMTask task;
 
 // These pointers are patched at load time to point to the workspace section.
-char *utvm_workspace_begin = NULL;  // NOLINT(*)
-char *utvm_workspace_end = NULL;  // NOLINT(*)
-char *utvm_workspace_curr = NULL;  // NOLINT(*)
+char* utvm_workspace_begin = NULL;  // NOLINT(*)
+char* utvm_workspace_end = NULL;  // NOLINT(*)
+char* utvm_workspace_curr = NULL;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
-size_t num_active_allocs = 0;
+size_t utvm_num_active_allocs = 0;
 
-const char *last_error = NULL;  // NOLINT(*)
+const char* last_error = NULL;  // NOLINT(*)
 int32_t return_code = 0;  // NOLINT(*)
 
 // We use a dummy function to signal execution is finished for device
@@ -47,11 +47,11 @@ void UTVMDone() { }
 
 void UTVMMain() {
   utvm_workspace_curr = utvm_workspace_begin;
-  num_active_allocs = 0;
+  utvm_num_active_allocs = 0;
   last_error = NULL;  // NOLINT(*)
   return_code = 0;
-  return_code = task.func((void*) task.args->values, (void*) task.args->type_codes,  // NOLINT(*)
-                          task.args->num_args);
+  return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
+                          task.num_args);
   UTVMDone();
 }
 
@@ -65,19 +65,19 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
   }
   void* ret_ptr = (void*) utvm_workspace_curr;  // NOLINT(*)
   utvm_workspace_curr += size;
-  num_active_allocs++;
+  utvm_num_active_allocs++;
   return ret_ptr;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  num_active_allocs--;
-  if (num_active_allocs < 0) {
+  utvm_num_active_allocs--;
+  if (utvm_num_active_allocs < 0) {
     TVMAPISetLastError("free called with no active workspace allocations");
     // Reset allocations and workspace (for future task executions).
-    num_active_allocs = 0;
+    utvm_num_active_allocs = 0;
     utvm_workspace_curr = utvm_workspace_begin;
     return -1;
-  } else if (num_active_allocs == 0) {
+  } else if (utvm_num_active_allocs == 0) {
     // No more allocations.  Reset workspace.
     utvm_workspace_curr = utvm_workspace_begin;
     return 0;
