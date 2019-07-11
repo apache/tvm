@@ -54,17 +54,17 @@ class Expr : public NodeRef {
    * \brief construct from integer.
    * \param value The value to be constructed.
    */
-  Expr(int32_t value);  // NOLINT(*)
+  TVM_DLL Expr(int32_t value);  // NOLINT(*)
   /*!
    * \brief construct from float.
    * \param value The value to be constructed.
    */
-  Expr(float value);  // NOLINT(*)
+  TVM_DLL Expr(float value);  // NOLINT(*)
   /*!
    * \brief construct from string.
    * \param str The value to be constructed.
    */
-  Expr(std::string str);  // NOLINT(*)
+  TVM_DLL Expr(std::string str);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
   DataType type() const {
