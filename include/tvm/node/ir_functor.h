@@ -54,7 +54,7 @@ namespace tvm {
  * \endcode
  *
  * \tparam FType function signiture
- *  This type if only defined for FType with function signiture
+ *  This type if only defined for FType with function signature
  */
 template<typename FType>
 class IRFunctor;
