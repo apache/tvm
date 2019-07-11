@@ -27,7 +27,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
-#include "../include/util.h"
+#include "../util.h"
 #include "../../pass/pattern_util.h"
 
 namespace tvm {
