@@ -54,6 +54,8 @@ Expr DataType::max() const {
       return FloatImm::make(*this, std::numeric_limits<double>::max());
     } else if (bits() == 32) {
       return FloatImm::make(*this, std::numeric_limits<float>::max());
+    } else if (bits() == 16) {
+      return FloatImm::make(*this, 65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << *this;
@@ -78,6 +80,8 @@ Expr DataType::min() const {
       return FloatImm::make(*this, std::numeric_limits<double>::lowest());
     } else if (bits() == 32) {
       return FloatImm::make(*this, std::numeric_limits<float>::lowest());
+    } else if (bits() == 16) {
+      return FloatImm::make(*this, -65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << *this;

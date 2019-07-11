@@ -122,8 +122,9 @@ class Variable : public ExprNode {
 /*! \brief a named variable in TVM */
 class Var : public Expr {
  public:
+  Var() {}
   explicit Var(NodePtr<Node> n) : Expr(n) {}
-  TVM_DLL explicit Var(std::string name_hint = "v",
+  TVM_DLL explicit Var(std::string name_hint,
                        Type t = Int(32));
   /*!
    * \brief Make a new copy of var with same type, append suffix

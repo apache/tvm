@@ -70,7 +70,9 @@ struct NodeTypeChecker<Array<T> > {
     if (!sptr->is_type<ArrayNode>()) return false;
     ArrayNode* n = static_cast<ArrayNode*>(sptr);
     for (const auto& p : n->data) {
-      if (!NodeTypeChecker<T>::Check(p.get())) return false;
+      if (!NodeTypeChecker<T>::Check(p.get())) {
+        return false;
+      }
     }
     return true;
   }

@@ -77,7 +77,7 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<Expr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::Expr> >("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<ir::StringImm>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
