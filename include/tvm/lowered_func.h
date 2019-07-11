@@ -25,7 +25,6 @@
 #ifndef TVM_LOWERED_FUNC_H_
 #define TVM_LOWERED_FUNC_H_
 
-#include <ir/FunctionBase.h>
 #include <string>
 
 #include "base.h"
@@ -42,7 +41,7 @@ class LoweredFuncNode;
  * \brief LoweredFunc represents function after lowering.
  *  This is the final IR representation before codegen.
  */
-class LoweredFunc : public FunctionRef {
+class LoweredFunc : public ir::FunctionRef {
  public:
   LoweredFunc() {}
   explicit LoweredFunc(NodePtr<Node> n) : FunctionRef(n) {}
@@ -66,7 +65,7 @@ enum LoweredFuncType : int {
 };
 
 /*! \brief Node container of LoweredFunc */
-class LoweredFuncNode : public FunctionBaseNode {
+class LoweredFuncNode : public ir::FunctionBaseNode {
  public:
   /*! \brief The name of the function */
   std::string name;

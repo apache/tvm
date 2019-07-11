@@ -221,7 +221,7 @@ class Layout : public NodeRef {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i]->var.get()->name_hint == axis.name()) return static_cast<int32_t>(i);
+      if (axes[i]->var->name_hint == axis.name()) return static_cast<int32_t>(i);
     }
     return -1;
   }
@@ -243,7 +243,7 @@ class Layout : public NodeRef {
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
     for (const IterVar var : operator->()->axes) {
-      if (var->var.get()->name_hint == axis.name()) {
+      if (var->var->name_hint == axis.name()) {
         return true;
       }
     }

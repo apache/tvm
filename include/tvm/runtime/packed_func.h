@@ -42,14 +42,6 @@
 #include "object.h"
 #include "node_base.h"
 
-namespace HalideIR {
-// Forward declare type for extensions
-// The header works fine without depending on this.
-struct Type;
-struct Expr;
-}
-
-
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
 #define TVM_RUNTIME_HEADER_ONLY 0
@@ -58,6 +50,8 @@ struct Expr;
 namespace tvm {
 // forward declarations
 class Integer;
+class DataType;
+class Expr;
 
 namespace runtime {
 
@@ -626,8 +620,8 @@ class TVMArgValue : public TVMPODValue_ {
            typename = typename std::enable_if<
              std::is_class<TNodeRef>::value>::type>
   inline bool IsNodeType() const;
-  inline operator HalideIR::Type() const;
-  inline operator HalideIR::Expr() const;
+  inline operator tvm::DataType() const;
+  inline operator tvm::Expr() const;
   inline operator tvm::Integer() const;
   // get internal node ptr, if it is node
   inline NodePtr<Node>& node_sptr();
@@ -835,8 +829,8 @@ class TVMRetValue : public TVMPODValue_ {
   inline TVMRetValue& operator=(const NodeRef& other);
   inline TVMRetValue& operator=(const NodePtr<Node>& other);
   // type related
-  inline operator HalideIR::Type() const;
-  inline TVMRetValue& operator=(const HalideIR::Type& other);
+  inline operator tvm::DataType() const;
+  inline TVMRetValue& operator=(const tvm::DataType& other);
 
  private:
   template<typename T>
@@ -1184,7 +1178,7 @@ class TVMArgsSetter {
   inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
-  inline void operator()(size_t i, const HalideIR::Type& t) const;
+  inline void operator()(size_t i, const tvm::DataType& t) const;
 
  private:
   /*! \brief The values fields */

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,6 +26,7 @@
 #define TVM_PASS_STORAGE_ACCESS_H_
 
 #include <tvm/ir.h>
+#include <tvm/attrs.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
 #include <vector>
@@ -56,7 +57,7 @@ class StorageAccessVisitor : public IRVisitor {
     /*! \brief The thread index that access this entry */
     Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
-    VarExpr buffer;
+    Var buffer = NullValue<Var>();
     /*! \brief The access data type */
     Type dtype;
     /*! \brief The touched access range */
@@ -66,7 +67,7 @@ class StorageAccessVisitor : public IRVisitor {
     /*! \brief The storage scope */
     StorageScope scope;
     /*! \brief Whether the access is double buffer write */
-    bool double_buffer_write{false};
+    bool double_buffer_write = false;
   };
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {

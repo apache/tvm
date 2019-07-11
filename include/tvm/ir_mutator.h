@@ -25,6 +25,7 @@
 #define TVM_IR_MUTATOR_H_
 
 #include <unordered_map>
+#include <utility>
 #include "expr.h"
 #include "ir.h"
 #include "tvm/node/ir_functor.h"

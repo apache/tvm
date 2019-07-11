@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -25,72 +24,107 @@
 #ifndef TVM_EXPR_H_
 #define TVM_EXPR_H_
 
-#include <ir/Expr.h>
-#include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
 #include <unordered_map>
 #include "base.h"
+#include "dtype.h"
+#include "node/container.h"
+#include "node/ir_functor.h"
 #include "runtime/c_runtime_api.h"
 
 namespace tvm {
 
-using HalideIR::Type;
-using HalideIR::Float;
-using HalideIR::Bool;
-using HalideIR::Int;
-using HalideIR::UInt;
-using HalideIR::Handle;
-using HalideIR::ExprHash;
-using HalideIR::ExprEqual;
+/*! \brief Base node of all expressions. */
+class ExprNode : public Node {
+ public:
+  /*! \brief The data type of the expression. */
+  DataType type;
 
-using HalideIR::Expr;
-using HalideIR::VarExpr;
-using HalideIR::IR::RangeNode;
-using HalideIR::IR::FunctionRef;
-using HalideIR::IR::FunctionBaseNode;
-using HalideIR::Internal::IntImm;
-using HalideIR::Internal::Stmt;
-using HalideIR::Internal::IRPrinter;
-using HalideIR::Internal::Variable;
+  static constexpr const char* _type_key = "Expr";
+  TVM_DECLARE_BASE_NODE_INFO(ExprNode, Node);
+};
 
-inline Type TVMShapeIndexType() {
-  if (std::is_signed<tvm_index_t>::value) {
-    return Int(sizeof(tvm_index_t) * 8);
-  } else {
-    return UInt(sizeof(tvm_index_t) * 8);
+/*! \brief Container of all expressions. */
+class Expr : public NodeRef {
+ public:
+  Expr() {}
+  explicit Expr(NodePtr<Node> ptr) : NodeRef(ptr) {}
+  /*!
+   * \brief construct from integer.
+   * \param value The value to be constructed.
+   */
+  TVM_DLL Expr(int32_t value);  // NOLINT(*)
+  /*!
+   * \brief construct from float.
+   * \param value The value to be constructed.
+   */
+  TVM_DLL Expr(float value);  // NOLINT(*)
+  /*!
+   * \brief construct from string.
+   * \param str The value to be constructed.
+   */
+  TVM_DLL Expr(std::string str);  // NOLINT(*)
+
+  /*! \return the data type of this expression. */
+  DataType type() const {
+    return static_cast<const ExprNode*>(get())->type;
   }
-}
 
-inline Type TVMType2Type(TVMType t) {
-  return Type(static_cast<halideir_type_code_t>(t.code), t.bits, t.lanes);
-}
+  /*! \brief type indicate the container type */
+  using ContainerType = ExprNode;
+};
 
-inline TVMType Type2TVMType(Type t) {
-  TVMType ret;
-  ret.code = static_cast<uint8_t>(t.code());
-  ret.bits = static_cast<uint8_t>(t.bits());
-  ret.lanes = static_cast<uint16_t>(t.lanes());
-  return ret;
-}
+/*! \brief Base node of all statements. */
+class StmtNode : public Node {
+ public:
+  static constexpr const char* _type_key = "Stmt";
+  TVM_DECLARE_BASE_NODE_INFO(StmtNode, Node);
+};
 
-// Get number of bytes considering vector type.
-inline int GetVectorBytes(Type dtype) {
-  int data_bits = dtype.bits() * dtype.lanes();
-  // allow bool to exist
-  if (dtype == Bool()) return 1;
-  CHECK_EQ(data_bits % 8, 0U)
-      << "Need to load/store by multiple of bytes";
-  return data_bits / 8;
-}
+/*! \brief Container of all statements */
+class Stmt : public NodeRef {
+ public:
+  TVM_DEFINE_NODE_REF_METHODS(Stmt, NodeRef, StmtNode);
+};
+
+class Var;
+/*!
+ * \brief A variable node in the IR.
+ *
+ * A vraible is uniquely identified by its address.
+ *
+ * Each variable is only binded once in the following nodes:
+ * - Allocate
+ * - For
+ * - Let
+ * - LetStmt
+ */
+class Variable : public ExprNode {
+ public:
+  /*!
+   * \brief The hint to the variable name.
+   * \note Each variable is uniquely identified by its address.
+   */
+  std::string name_hint;
+
+  static Var make(DataType dtype, std::string name_hint);
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("dtype", &type);
+    v->Visit("name", &name_hint);
+  }
+
+  static constexpr const char* _type_key = "Variable";
+  TVM_DECLARE_NODE_TYPE_INFO(Variable, ExprNode);
+};
 
 /*! \brief a named variable in TVM */
-class Var : public HalideIR::VarExpr {
+class Var : public Expr {
  public:
-  EXPORT explicit Var(const std::string& name_hint = "v",
-               Type t = Int(32)) : VarExpr(name_hint, t) {}
-  explicit Var(NodePtr<Node> n) : VarExpr(n) {}
-  explicit Var(VarExpr v) : VarExpr(v) {}
+  explicit Var(NodePtr<Node> n) : Expr(n) {}
+  TVM_DLL explicit Var(std::string name_hint = "v",
+                       Type t = Int(32));
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
@@ -99,10 +133,47 @@ class Var : public HalideIR::VarExpr {
   Var copy_with_suffix(const std::string& suffix) const {
     return Var((*this)->name_hint + suffix, (*this)->type);
   }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const Variable* operator->() const {
+    return get();
+  }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const Variable* get() const {
+    return static_cast<Variable*>(node_.get());
+  }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
 };
 
+// Backward compatibility, will be removed later.
+using VarExpr = Var;
+using BaseExprNode = ExprNode;
+using ExprHash = NodeHash;
+using ExprEqual = NodeEqual;
+
+class Integer;
+/*! \brief ExprNode: constant integer. */
+class IntImm : public ExprNode {
+ public:
+  /*! \brief the Internal value. */
+  int64_t value;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("dtype", &type);
+    v->Visit("value", &value);
+  }
+
+  TVM_DLL static Integer make(DataType t, int64_t value);
+
+  static constexpr const char* _type_key = "IntImm";
+  TVM_DECLARE_NODE_TYPE_INFO(IntImm, ExprNode);
+};
 
 /*!
  * \brief Container of constant integer (IntImm).
@@ -148,33 +219,51 @@ class Integer : public Expr {
   using ContainerType = IntImm;
 };
 
-
-/*! \brief container class of iteration variable. */
-class IterVarNode;
-
-/*!
- * \brief same as HalideIR::IR::Range
- *  except it provide an constructor with (begin, end)
- *
- *  \note Traditional Halide's Range have a constructor with
- *   (begin, extent), which does not match the convention in e.g. python.
- *   We decided to correct it by removing the constructor in HalideIR,
- *   and add it back in TVM's range.
- */
-class Range : public HalideIR::IR::Range {
+/*! \brief range over one dimension */
+class RangeNode : public Node {
  public:
+  /*! \brief beginning of the node */
+  Expr min;
+  /*! \brief the extend of range */
+  Expr extent;
   /*! \brief constructor */
-  Range() {}
-  explicit Range(NodePtr<Node> n) : HalideIR::IR::Range(n) {}
+  RangeNode() {}
+  RangeNode(Expr min, Expr extent) : min(min), extent(extent) {}
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("min", &min);
+    v->Visit("extent", &extent);
+  }
+
+  static constexpr const char* _type_key = "Range";
+  TVM_DECLARE_NODE_TYPE_INFO(RangeNode, Node);
+};
+
+/*! \brief Range constainer  */
+class Range : public NodeRef {
+ public:
   /*!
    * \brief constructor by begin and end
    * \param begin The begin of the range.
    * \param end The end of the range.
    */
   TVM_DLL Range(Expr begin, Expr end);
-
-  TVM_DLL static Range make_by_min_extent(Expr min, Expr extent);
+  /*!
+   * \brief construct a new range with min and extent
+   *  The corresponding constructor is removed,
+   *  because that is counter convention of tradition meaning
+   *  of range(begin, end)
+   *
+   * \param min The minimum range.
+   * \param extent The extent of the range.
+   */
+  static Range make_by_min_extent(Expr min, Expr extent);
+  // declare range.
+  TVM_DEFINE_NODE_REF_METHODS(Range, NodeRef, RangeNode);
 };
+
+/*! \brief container class of iteration variable. */
+class IterVarNode;
 
 using Region = Array<Range>;
 
@@ -289,9 +378,6 @@ TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 using Domain = Array<Range>;
 
-// print functions for expr
-TVM_DLL std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
-
 /*!
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
@@ -364,7 +450,7 @@ inline const char* IterVarType2String(IterVarType t) {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(const std::string& name_hint, Type t = Int(32));
+TVM_DLL Var var(std::string name_hint, Type t = Int(32));
 
 /*
  * \brief Template function to convert Map to unordered_map
@@ -381,6 +467,32 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
     ret[kv.first] = kv.second;
   }
   return ret;
+}
+
+// Printer infra.
+/*! \brief A Pretty printer class to print the IR. */
+class IRPrinter {
+ public:
+  /*! \brief The output stream */
+  std::ostream& stream;
+  /*! \brief The indentation level. */
+  int indent{0};
+  explicit IRPrinter(std::ostream& stream)  // NOLINT(*)
+      : stream(stream) {}
+
+  /*! \brief The node to be printed. */
+  TVM_DLL void Print(const NodeRef& node);
+  /*! \brief Print indent to the stream */
+  TVM_DLL void PrintIndent();
+  // Allow registration to be printer.
+  using FType = IRFunctor<void(const NodeRef&, IRPrinter *)>;
+  TVM_DLL static FType& vtable();
+};
+
+// default print function for all nodes
+inline std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
+  IRPrinter(os).Print(n);
+  return os;
 }
 }  // namespace tvm
 

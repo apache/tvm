@@ -125,7 +125,7 @@ class ConstIntBoundAnalyzer::Impl :
   // Override visitor behaviors
   Entry VisitExprDefault_(const Node* op) final {
     return Everything(
-        static_cast<const ir::BaseExprNode*>(op)->type);
+        static_cast<const ExprNode*>(op)->type);
   }
 
   Entry VisitExpr(const Expr& expr) final {
