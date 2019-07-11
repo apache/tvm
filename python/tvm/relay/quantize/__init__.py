@@ -19,5 +19,4 @@
 from __future__ import absolute_import as _abs
 
 from .quantize import *
-from .rewrite import *
 from ._annotate import register_annotate_function

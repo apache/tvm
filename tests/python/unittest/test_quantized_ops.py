@@ -47,7 +47,7 @@ def test_requantize():
             output_zero_point=0):
         quantized_data = relay.var("quantized_data", shape=data_shape,
                 dtype=data_dtype)
-        func = relay.op.qnn.requantize(
+        func = relay.qnn.op.requantize(
                 quantized_data,
                 input_zero_point=input_zero_point,
                 output_zero_point=output_zero_point,
@@ -60,7 +60,7 @@ def test_requantize():
         func = relay.Function(relay.analysis.free_vars(func),
                 func)
         func = run_infer_type(func)
-        func = relay.quantize.rewrite(func)
+        func = relay.qnn.ir_pass.rewrite(func)
         return func
 
 

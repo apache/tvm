@@ -85,11 +85,11 @@ void GetFixedPointMultiplierShift(double double_multiplier,
  * The whole computation this can be broken down into following steps
  * 1) Calculate the integer multiplier and integer shift.
  * 2) Subtract the input integer point.
- * 2) Multiply the integer fixed point multiplier with quantized tensor.
- * 3) Round the result.
- * 4) Right shift the result.
- * 5) Add the output_zero_point.
- * 6) Cast to the out_dtype.
+ * 3) Multiply the integer fixed point multiplier with quantized tensor.
+ * 4) Round the result.
+ * 5) Right shift the result.
+ * 6) Add the output_zero_point.
+ * 7) Cast to the out_dtype.
  *
  */
 Expr RequantizeInt(const Expr& input_tensor,
@@ -252,11 +252,11 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
 RELAY_REGISTER_OP("qnn.requantize")
 .set_attr<FForwardRewrite>("FQuantizeForwardRewrite", RequantizeForwardRewrite);
 
-TVM_REGISTER_API("relay._quantize.rewrite")
+TVM_REGISTER_API("relay._qnn.rewrite")
 .set_body_typed<Expr(Expr)>([](const Expr& e) {
-          Expr ret = ForwardRewrite(e, "FQuantizeForwardRewrite", nullptr, nullptr);
-            return ret;
-            });
+  Expr ret = ForwardRewrite(e, "FQuantizeForwardRewrite", nullptr, nullptr);
+  return ret;
+});
 
 }  // namespace relay
 }  // namespace tvm
