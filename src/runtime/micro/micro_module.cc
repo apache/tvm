@@ -95,11 +95,9 @@ class MicroModuleNode final : public ModuleNode {
    * \param func_name name of the function pointer being patched
    */
   void PatchImplHole(const std::string& func_name) {
-    const DevBaseOffset init_impl_offset = session_->init_symbol_map()[func_name];
-    void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).cast_to<void*>();
+    void* init_impl_addr = session_->init_symbol_map()[func_name].cast_to<void*>();
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
-    const DevBaseOffset lib_hole_offset = symbol_map()[func_name_underscore.str()];
     session_->DevSymbolWrite(symbol_map(), func_name_underscore.str(), init_impl_addr);
   }
 };
@@ -134,8 +132,8 @@ class MicroWrappedFunc {
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  DevBaseOffset func_offset = symbol_map()[name];
-  MicroWrappedFunc f(this, this->session_, name, func_offset);
+  DevBaseOffset func_offset = session_->low_level_device()->ToDevOffset(symbol_map()[name]);
+  MicroWrappedFunc f(this, session_, name, func_offset);
   return PackFuncVoidAddr(f, std::vector<TVMType>());
 }
 

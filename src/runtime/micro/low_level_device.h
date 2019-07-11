@@ -67,16 +67,33 @@ class LowLevelDevice {
   virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
 
   /*!
-   * \brief getter function for base_addr
-   * \return the base address of the device memory region
+   * \brief convert from base offset to absolute address
+   * \param offset base offset
    */
-  virtual DevBaseAddr base_addr() const = 0;
+  DevPtr ToDevPtr(DevBaseOffset offset) {
+    return DevPtr(base_addr() + offset.value());
+  }
+
+  /*!
+   * \brief convert from absolute address to base offset
+   * \param ptr absolute address
+   */
+  DevBaseOffset ToDevOffset(DevPtr ptr) {
+    return DevBaseOffset(ptr.value() - base_addr());
+  }
 
   /*!
    * \brief getter function for low-level device type
    * \return string containing device type
    */
   virtual const char* device_type() const = 0;
+
+ protected:
+  /*!
+   * \brief getter function for base_addr
+   * \return the base address of the device memory region
+   */
+  virtual std::uintptr_t base_addr() const = 0;
 };
 
 /*!

@@ -191,7 +191,7 @@ class MicroSession : public ModuleNode {
    * \param args args to be appended
    * \return device address of the allocated args
    */
-  std::tuple<DevAddr, DevAddr> EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
+  std::tuple<DevPtr, DevPtr> EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
 
   /*!
    * \brief appends a `TVMArray` to the host-side buffer of `encoder`
@@ -199,7 +199,7 @@ class MicroSession : public ModuleNode {
    * \param arr TVMArray to be appended
    * \return device address of the allocated `TVMArray`
    */
-  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
+  DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
 
   /*!
    * \brief checks and logs if there was an error during the device's most recent execution

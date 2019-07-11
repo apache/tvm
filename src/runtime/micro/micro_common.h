@@ -56,12 +56,6 @@ enum class SectionKind : size_t {
 /*! \brief default size alignment */
 constexpr int kDefaultSizeAlignment = 8;
 
-// TODO(weberlo): Do we only need a device location class? Think about pros/cons.
-// It seems that offsets don't semantically fit in the class of device pointers.
-// But the type safety guarantees from having all three subclasses is very
-// helpful.  `DevBaseOffset` is the weirdest to have as a subclass, because it's
-// not an address.
-
 /*! \brief Base class for interfacing with device locations (pointers/offsets) */
 class DeviceLocation {
  public:
@@ -101,52 +95,39 @@ class DeviceLocation {
   std::uintptr_t value_;
 };
 
-class DevAddr;
-class DevBaseAddr;
-class DevBaseOffset;
-
 /*! \brief absolute device address */
-class DevAddr : public DeviceLocation {
+class DevPtr : public DeviceLocation {
  public:
   /*! \brief construct an absolute address with value `value` */
-  explicit DevAddr(std::uintptr_t val) : DeviceLocation(val) {}
+  explicit DevPtr(std::uintptr_t val) : DeviceLocation(val) {}
 
   /*! \brief default constructor */
-  DevAddr() : DeviceLocation() {}
+  DevPtr() : DeviceLocation() {}
 
   /*! \brief construct a null absolute address */
-  explicit DevAddr(std::nullptr_t val) : DeviceLocation(val) {}
-
-  /*! \brief subtract a base address from this absolute address to get a base offset */
-  DevBaseOffset operator-(DevBaseAddr base) const;
+  explicit DevPtr(std::nullptr_t val) : DeviceLocation(val) {}
 
   /*! \brief add an integer to this absolute address to get a larger absolute address */
-  DevAddr operator+(size_t n) const;
+  DevPtr operator+(size_t n) const {
+    return DevPtr(value_ + n);
+  }
 
   /*! \brief mutably add an integer to this absolute address */
-  DevAddr& operator+=(size_t n);
+  DevPtr& operator+=(size_t n) {
+    value_ += n;
+    return *this;
+  }
 
   /*! \brief subtract an integer from this absolute address to get a smaller absolute address */
-  DevAddr operator-(size_t n) const;
+  DevPtr operator-(size_t n) const {
+    return DevPtr(value_ - n);
+  }
 
   /*! \brief mutably subtract an integer from this absolute address */
-  DevAddr& operator-=(size_t n);
-};
-
-/*! \brief base address of the device */
-class DevBaseAddr : public DeviceLocation {
- public:
-  /*! \brief construct a base address with value `value` */
-  explicit DevBaseAddr(std::uintptr_t value) : DeviceLocation(value) {}
-
-  /*! \brief default constructor */
-  DevBaseAddr() : DeviceLocation() {}
-
-  /*! \brief construct a null base address */
-  explicit DevBaseAddr(std::nullptr_t value) : DeviceLocation(value) {}
-
-  /*! \brief add a base offset to this base address to get an absolute address */
-  DevAddr operator+(DevBaseOffset offset) const;
+  DevPtr& operator-=(size_t n) {
+    value_ -= n;
+    return *this;
+  }
 };
 
 /*! \brief offset from device base address */
@@ -161,20 +142,27 @@ class DevBaseOffset : public DeviceLocation {
   /*! \brief construct a null base offset */
   explicit DevBaseOffset(std::nullptr_t value) : DeviceLocation(value) {}
 
-  /*! \brief add this base offset to a base address to get an absolute address */
-  DevAddr operator+(DevBaseAddr base) const;
-
   /*! \brief add an integer to this base offset to get a larger base offset */
-  DevBaseOffset operator+(size_t n) const;
+  DevBaseOffset operator+(size_t n) const {
+    return DevBaseOffset(value_ + n);
+  }
 
   /*! \brief mutably add an integer to this base offset */
-  DevBaseOffset& operator+=(size_t n);
+  DevBaseOffset& operator+=(size_t n) {
+    value_ += n;
+    return *this;
+  }
 
   /*! \brief subtract an integer from this base offset to get a smaller base offset */
-  DevBaseOffset operator-(size_t n) const;
+  DevBaseOffset operator-(size_t n) const {
+    return DevBaseOffset(value_ - n);
+  }
 
   /*! \brief mutably subtract an integer from this base offset */
-  DevBaseOffset& operator-=(size_t n);
+  DevBaseOffset& operator-=(size_t n) {
+    value_ -= n;
+    return *this;
+  }
 };
 
 /*!
@@ -190,11 +178,9 @@ class SymbolMap {
   /*!
    * \brief constructor that builds the mapping
    * \param binary contents of binary object file
-   * \param base_addr base address of the target device
    * \param toolchain_prefix prefix of compiler toolchain to use
    */
   SymbolMap(const std::string& binary,
-            DevBaseAddr base_addr,
             const std::string& toolchain_prefix) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
     CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
@@ -210,7 +196,7 @@ class SymbolMap {
     stream >> name;
     stream >> std::hex >> addr;
     while (stream) {
-      map_[name] = DevAddr(addr) - base_addr;
+      map_[name] = DevPtr(addr);
       stream >> name;
       stream >> std::hex >> addr;
     }
@@ -221,7 +207,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  DevBaseOffset operator[](const std::string& name) const {
+  DevPtr operator[](const std::string& name) const {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;
@@ -229,7 +215,7 @@ class SymbolMap {
 
  private:
   /*! \brief backing map */
-  std::unordered_map<std::string, DevBaseOffset> map_;
+  std::unordered_map<std::string, DevPtr> map_;
 };
 
 /*! \brief struct containing start and size of a device memory region */
@@ -293,10 +279,10 @@ const char* SectionToString(SectionKind section);
  * \return relocated binary file contents
  */
 std::string RelocateBinarySections(const std::string& binary_name,
-                                   DevAddr text,
-                                   DevAddr rodata,
-                                   DevAddr data,
-                                   DevAddr bss,
+                                   DevPtr text,
+                                   DevPtr rodata,
+                                   DevPtr data,
+                                   DevPtr bss,
                                    const std::string& toolchain_prefix);
 
 /*!

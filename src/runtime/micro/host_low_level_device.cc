@@ -47,34 +47,33 @@ class HostLowLevelDevice final : public LowLevelDevice {
     // the heap, execute perms for text, etc.).
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
-    base_addr_ = DevBaseAddr(
-      (reinterpret_cast<std::uintptr_t>(
-        mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0))));
+    base_addr_ = reinterpret_cast<std::uintptr_t>(
+        mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0));
   }
 
   /*!
    * \brief destructor to deallocate on-host device region
    */
   virtual ~HostLowLevelDevice() {
-    munmap(base_addr_.cast_to<void*>(), size_);
+    munmap(reinterpret_cast<void*>(base_addr_), size_);
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
-    void* addr = (offset + base_addr_).cast_to<void*>();
+    void* addr = ToDevPtr(offset).cast_to<void*>();
     std::memcpy(buf, addr, num_bytes);
   }
 
   void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
-    void* addr = (offset + base_addr_).cast_to<void*>();
+    void* addr = ToDevPtr(offset).cast_to<void*>();
     std::memcpy(addr, buf, num_bytes);
   }
 
   void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) {
-    DevAddr func_addr = func_offset + base_addr_;
+    DevPtr func_addr = ToDevPtr(func_offset);
     reinterpret_cast<void (*)(void)>(func_addr.value())();
   }
 
-  DevBaseAddr base_addr() const final {
+  std::uintptr_t base_addr() const final {
     return base_addr_;
   }
 
@@ -84,7 +83,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
  private:
   /*! \brief base address of the micro device memory region */
-  DevBaseAddr base_addr_;
+  std::uintptr_t base_addr_;
   /*! \brief size of memory region */
   size_t size_;
 };

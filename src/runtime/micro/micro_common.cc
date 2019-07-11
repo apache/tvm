@@ -36,54 +36,6 @@
 namespace tvm {
 namespace runtime {
 
-DevBaseOffset DevAddr::operator-(DevBaseAddr base) const {
-  return DevBaseOffset(value_ - base.value());
-}
-
-DevAddr DevAddr::operator+(size_t n) const {
-  return DevAddr(value_ + n);
-}
-
-DevAddr& DevAddr::operator+=(size_t n) {
-  value_ += n;
-  return *this;
-}
-
-DevAddr DevAddr::operator-(size_t n) const {
-  return DevAddr(value_ - n);
-}
-
-DevAddr& DevAddr::operator-=(size_t n) {
-  value_ -= n;
-  return *this;
-}
-
-DevAddr DevBaseAddr::operator+(DevBaseOffset offset) const {
-  return DevAddr(value_ + offset.value());
-}
-
-DevAddr DevBaseOffset::operator+(DevBaseAddr base) const {
-  return DevAddr(value_ + base.value());
-}
-
-DevBaseOffset& DevBaseOffset::operator+=(size_t n) {
-  value_ += n;
-  return *this;
-}
-
-DevBaseOffset DevBaseOffset::operator+(size_t n) const {
-  return DevBaseOffset(value_ + n);
-}
-
-DevBaseOffset& DevBaseOffset::operator-=(size_t n) {
-  value_ -= n;
-  return *this;
-}
-
-DevBaseOffset DevBaseOffset::operator-(size_t n) const {
-  return DevBaseOffset(value_ - n);
-}
-
 size_t GetDefaultSectionSize(SectionKind kind) {
   switch (kind) {
     case SectionKind::kText:
@@ -133,10 +85,10 @@ static std::string AddrToString(void* addr) {
 }
 
 std::string RelocateBinarySections(const std::string& binary_path,
-                                   DevAddr text,
-                                   DevAddr rodata,
-                                   DevAddr data,
-                                   DevAddr bss,
+                                   DevPtr text,
+                                   DevPtr rodata,
+                                   DevPtr data,
+                                   DevPtr bss,
                                    const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)

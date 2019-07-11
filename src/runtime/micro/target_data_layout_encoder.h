@@ -51,7 +51,7 @@ class TargetDataLayoutEncoder {
      * \param size size (in bytes) of the memory region allocated for this slot
      * \param start_addr start address of the slot in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, DevAddr start_addr);
+    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, DevPtr start_addr);
 
     ~Slot();
 
@@ -72,7 +72,7 @@ class TargetDataLayoutEncoder {
      * \brief returns start address of the slot in device memory
      * \return device start address
      */
-    DevAddr start_addr();
+    DevPtr start_addr();
 
     /*!
      * \brief returns number of bytes allocated for this slot
@@ -90,16 +90,16 @@ class TargetDataLayoutEncoder {
     /*! \brief size (in bytes) of the memory region allocated for this slot */
     size_t size_;
     /*! \brief start address of the slot in the device's memory */
-    DevAddr start_addr_;
+    DevPtr start_addr_;
   };
 
   /*!
    * \brief constructor
    * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(DevAddr start_addr)
+  explicit TargetDataLayoutEncoder(DevPtr start_addr)
       : buf_(std::vector<uint8_t>()), curr_offset_(0) {
-    start_addr_ = DevAddr(UpperAlignValue(start_addr.value(), 8));
+    start_addr_ = DevPtr(UpperAlignValue(start_addr.value(), 8));
   }
 
   /*!
@@ -141,13 +141,14 @@ class TargetDataLayoutEncoder {
   /*! \brief current offset */
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
-  DevAddr start_addr_;
+  DevPtr start_addr_;
 };
 
 template <typename T>
 TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
                                        size_t start_offset,
-                                       size_t size, DevAddr start_addr)
+                                       size_t size,
+                                       DevPtr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
@@ -175,7 +176,7 @@ void TargetDataLayoutEncoder::Slot<T>::WriteValue(const T& val) {
 }
 
 template <typename T>
-DevAddr TargetDataLayoutEncoder::Slot<T>::start_addr() {
+DevPtr TargetDataLayoutEncoder::Slot<T>::start_addr() {
   return start_addr_;
 }
 
