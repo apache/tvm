@@ -34,7 +34,7 @@
 
 namespace tvm {
 /*!
- * \brief A dynamical dispatched functor on NodeRef in the first argument.
+ * \brief A dynamically dispatched functor on NodeRef in the first argument.
  *
  * \code
  *   IRFunctor<std::string (const NodeRef& n, std::string prefix)> tostr;
