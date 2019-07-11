@@ -135,22 +135,6 @@ TVM_REGISTER_API("relay._quantize.make_annotate_expr")
   });
 
 
-TVM_REGISTER_API("relay._quantize.annotate")
-.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
-  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
-      if (e->derived_from<TempExprNode>()) {
-        const auto* n = e.as<QAnnotateExprNode>();
-        CHECK(n);
-        const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-        Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
-        return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
-      }
-      return e;
-    };
-  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, nullptr);
-});
-
-
 // =============
 // realize pass
 
@@ -453,6 +437,7 @@ Expr AddRealize(const Call& ref_call,
     Expr ret = ForwardOp(ref_call, ret_args);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
+
   CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());
   return Expr(nullptr);
 }
@@ -680,7 +665,7 @@ Pass QuantizeAnnotate() {
 
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", fmulti_ref));
+      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
       auto new_params = func->params;
       for (const auto& x : FreeVars(func)) {
         new_params.push_back(x);
