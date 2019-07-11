@@ -25,8 +25,8 @@
 
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/attrs/qnn.h>
-#include <tvm/relay/quantize_util.h>
+#include "../include/attrs.h"
+#include "../include/util.h"
 
 namespace tvm {
 namespace relay {
@@ -41,7 +41,7 @@ bool RequantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(is_valid_quantized_op_input_type(QuantizeOpType::Requantize, input_dtype))
+  CHECK(IsValidOpInputType(QuantizeOpType::Requantize, input_dtype))
     << "Input type should be a quantized type (u)int8 or (u)int16 but was " <<  input_dtype;
 
   const Array<tvm::Expr> oshape = data->shape;
