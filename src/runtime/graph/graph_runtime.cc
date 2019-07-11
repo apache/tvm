@@ -39,13 +39,13 @@
 
 namespace tvm {
 namespace runtime {
-namespace {
+namespace details {
 inline size_t GetDataAlignment(const DLTensor& arr) {
   size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
   if (align < kAllocAlignment) return kAllocAlignment;
   return align;
 }
-}  // namespace
+}  // namespace details
 
 /*!
  * \brief Run all the operations one by one.
@@ -115,7 +115,7 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   const DLTensor* old_t = data_entry_[eid].operator->();
 
   // check the consistency of input
-  CHECK_EQ(data_alignment_[eid], GetDataAlignment(*data_ref));
+  CHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
   CHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
   CHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
   CHECK_EQ(old_t->ctx.device_type, data_ref->ctx.device_type);
@@ -248,7 +248,7 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
     data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
     CHECK_GT(data_entry_[eid].use_count(), 1);
     const DLTensor* tmp = data_entry_[eid].operator->();
-    data_alignment_[eid] = GetDataAlignment(*tmp);
+    data_alignment_[eid] = details::GetDataAlignment(*tmp);
   }
   this->SetupOpExecs();
 }
@@ -318,7 +318,7 @@ void GraphRuntime::SetupStorage() {
     data_entry_[i] =
         storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
     const DLTensor* tmp = data_entry_[i].operator->();
-    data_alignment_[i] = GetDataAlignment(*tmp);
+    data_alignment_[i] = details::GetDataAlignment(*tmp);
   }
 }
 
