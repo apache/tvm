@@ -37,9 +37,6 @@ CodeGenCHost::CodeGenCHost() {
 void CodeGenCHost::Init(bool output_ssa) {
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-  // TODO(weberlo): Make this line conditioned on whether or not we're
-  // generating this for uTVM purposes.
-  decl_stream << "#include \"tvm/runtime/micro/utvm_device_lib.h\"\n";
   decl_stream << "extern void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }

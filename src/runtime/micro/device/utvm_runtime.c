@@ -24,6 +24,10 @@
  */
 #include "utvm_runtime.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Task pointers must be patched before calling a function.
 UTVMTask task;
 
@@ -85,3 +89,7 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
 void TVMAPISetLastError(const char* msg) {
   last_error = msg;
 }
+
+#ifdef __cplusplus
+}  // TVM_EXTERN_C
+#endif

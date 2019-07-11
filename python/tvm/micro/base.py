@@ -62,7 +62,8 @@ class Session:
         runtime_src_path = os.path.join(get_micro_device_dir(), "utvm_runtime.c")
         tmp_dir = util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
-        create_micro_lib(runtime_src_path, runtime_obj_path, toolchain_prefix)
+        create_micro_lib(
+            runtime_src_path, runtime_obj_path, toolchain_prefix, include_dev_lib_header=False)
 
         self.module = _CreateSession(device_type, runtime_obj_path, toolchain_prefix)
         self._enter = self.module["enter"]
@@ -82,7 +83,7 @@ def get_micro_device_dir():
     return micro_device_dir
 
 
-def create_micro_lib(src_path, obj_path, toolchain_prefix):
+def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_header=True):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -95,6 +96,10 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix):
 
     toolchain_prefix : str
         toolchain prefix to be used
+
+    include_dev_lib_header : bool
+        whether to include the device library header containing definitions of
+        library functions.
     """
     def replace_suffix(s, new_suffix):
         if "." in os.path.basename(s):
@@ -113,12 +118,25 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix):
             "\".o\" suffix in \"%s\" has been replaced with \".obj\"", obj_path)
         obj_path = replace_suffix(obj_path, "obj")
 
-    sources = [src_path]
     options = ["-I" + path for path in find_include_path()]
+    options += ["-I{}".format(get_micro_device_dir())]
     options += ["-fno-stack-protector"]
     options += ["-mcmodel=large"]
-    # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
-    create_lib(obj_path, sources, options, "{}gcc".format(toolchain_prefix))
+    compile_cmd = "{}g++".format(toolchain_prefix)
+
+    if include_dev_lib_header:
+        tmp_dir = util.tempdir()
+        temp_src_path = tmp_dir.relpath("temp.c")
+        with open(src_path, "r") as f:
+            src_lines = f.read().splitlines()
+        src_lines.insert(0, "#include \"utvm_device_lib.h\"")
+        with open(temp_src_path, "w") as f:
+            f.write("\n".join(src_lines))
+        create_lib(obj_path, temp_src_path, options, compile_cmd)
+    else:
+        # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
+        create_lib(obj_path, src_path, options, compile_cmd)
+
 
 
 _init_api("tvm.micro", "tvm.micro.base")

@@ -49,22 +49,6 @@ void TVMAPISetLastError(const char* msg) {
   (*TVMAPISetLastError_)(msg);
 }
 
-float min(float a, float b) {
-  if (a < b) {
-    return a;
-  } else {
-    return b;
-  }
-}
-
-float max(float a, float b) {  // NOLINT(*)
-  if (a > b) {
-    return a;
-  } else {
-    return b;
-  }
-}
-
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

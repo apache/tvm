@@ -443,22 +443,6 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-template <typename T>
-inline void PrintTernaryCondExpr(const T* op,
-                                 const char* compare,
-                                 std::ostream& os,  // NOLINT(*)
-                                 CodeGenC* p) {
-  os << "(";
-  p->PrintExpr(op->a, os);
-  os << ") " << compare << " (";
-  p->PrintExpr(op->b, os);
-  os << ") ? (";
-  p->PrintExpr(op->a, os);
-  os << ") : (";
-  p->PrintExpr(op->b, os);
-  os << ")";
-}
-
 inline void PrintBinaryIntrinsic(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
@@ -498,10 +482,10 @@ void CodeGenC::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
 void CodeGenC::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, "<", os, this);
+  PrintTernaryCondExpr(op, "<", os);
 }
 void CodeGenC::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, ">", os, this);
+  PrintTernaryCondExpr(op, ">", os);
 }
 void CodeGenC::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
@@ -915,6 +899,21 @@ void CodeGenC::VisitStmt_(const Evaluate *op) {
 
 void CodeGenC::VisitStmt_(const ProducerConsumer *op) {
   PrintStmt(op->body);
+}
+
+template <typename T>
+inline void CodeGenC::PrintTernaryCondExpr(const T* op,
+                                           const char* compare,
+                                           std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp_a;
+  VisitExpr(op->a, temp_a);
+  std::string a_id = SSAGetID(temp_a.str(), op->a.type());
+  std::ostringstream temp_b;
+  VisitExpr(op->b, temp_b);
+  std::string b_id = SSAGetID(temp_b.str(), op->b.type());
+
+  os << "((" << a_id << ") " << compare << " (" << b_id << ") "
+     << "? (" << a_id << ") : (" << b_id << "))";
 }
 
 }  // namespace codegen

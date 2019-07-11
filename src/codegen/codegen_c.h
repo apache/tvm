@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -204,6 +204,17 @@ class CodeGenC :
   std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
+  /*!
+   * \brief Print ternary conditional operator implementing binary `op`
+   * Forces the operands to be in SSA form.
+   * \param op binary operator being expressed
+   * \param compare string representation of comparison operator
+   * \param os stream reference to print into
+   */
+  template <typename T>
+  inline void PrintTernaryCondExpr(const T* op,
+                                   const char* compare,
+                                   std::ostream& os);  // NOLINT(*)
 
  private:
   /*! \brief whether to print in SSA form */
