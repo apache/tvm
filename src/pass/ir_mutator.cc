@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -225,7 +225,7 @@ Stmt IRMutator::Mutate_(const Provide* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
   IRMutator* m = this;
-  HalideIR::Internal::Region new_bounds;
+  Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds
@@ -255,7 +255,7 @@ Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Prefetch* op, const Stmt& s) {
   IRMutator* m = this;
-  HalideIR::Internal::Region new_bounds;
+  Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds

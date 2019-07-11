@@ -70,7 +70,7 @@ void AutoInlineElemWise(Schedule sch);
  *
  * \param sch The schedule to be inlined.
  */
-EXPORT void AutoInlineInjective(Schedule sch);
+TVM_DLL void AutoInlineInjective(Schedule sch);
 
 }  // namespace schedule
 }  // namespace tvm

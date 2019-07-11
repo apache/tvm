@@ -52,12 +52,6 @@ class CanonicalExprNode : public BaseExprNode {
   // overrides
   void VisitAttrs(tvm::AttrVisitor* v) final {
   }
-  void accept(HalideIR::Internal::IRVisitor* v, const Expr& e) const final {
-    LOG(FATAL) << "not supported";
-  }
-  IRNodeType type_info() const final {
-    return IRNodeType::ExtensionExpr;
-  }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
   TVM_DECLARE_BASE_NODE_INFO(CanonicalExprNode, BaseExprNode);

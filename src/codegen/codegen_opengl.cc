@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -224,15 +224,15 @@ std::string CodeGenOpenGL::GetBufferRef(
 
 void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
   switch (t.code()) {
-    case halideir_type_int:
+    case kDLInt:
       CHECK_EQ(t.bits(), 32) << "Only support 32-bit int.";
       os << "int";
       break;
-    case halideir_type_uint:
+    case kDLUInt:
       CHECK_EQ(t.bits(), 32) << "Only support 32-bit uint.";
       os << "uint";
       break;
-    case halideir_type_float:
+    case kDLFloat:
       CHECK_EQ(t.bits(), 32) << "Only support 32-bit float.";
       os << "float";
       break;

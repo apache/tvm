@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file schedule_lang.cc
  */
 #include <tvm/schedule.h>
@@ -813,34 +812,34 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 })
 .set_dispatch<SplitNode>([](const SplitNode *op, IRPrinter *p) {
     p->stream << "split(parent=";
-    p->print(op->parent);
+    p->Print(op->parent);
     p->stream << ", outer=";
-    p->print(op->outer);
+    p->Print(op->outer);
     p->stream << ", inner=";
-    p->print(op->inner);
+    p->Print(op->inner);
     p->stream << ')';
 })
 .set_dispatch<FuseNode>([](const FuseNode *op, IRPrinter *p) {
     p->stream << "split(";
     p->stream << "outer=";
-    p->print(op->outer);
+    p->Print(op->outer);
     p->stream << ", inner=";
-    p->print(op->inner);
+    p->Print(op->inner);
     p->stream << ", fused=";
-    p->print(op->fused);
+    p->Print(op->fused);
     p->stream << ')';
 })
 .set_dispatch<RebaseNode>([](const RebaseNode *op, IRPrinter *p) {
     p->stream << "rebase(";
     p->stream << "parent=";
-    p->print(op->parent);
+    p->Print(op->parent);
     p->stream << ", rebased=";
-    p->print(op->rebased);
+    p->Print(op->rebased);
     p->stream << ')';
 })
 .set_dispatch<SingletonNode>([](const SingletonNode *op, IRPrinter *p) {
     p->stream << "singleton(";
-    p->print(op->iter);
+    p->Print(op->iter);
     p->stream << ')';
 })
 .set_dispatch<ScheduleNode>([](const ScheduleNode *op, IRPrinter *p) {

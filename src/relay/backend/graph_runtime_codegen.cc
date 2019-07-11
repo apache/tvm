@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/graph_codegen.cc
  * \brief Graph runtime codegen
  */
@@ -238,7 +237,7 @@ class GraphRuntimeCodegen
    * \param shape
    * \return std::vector<int64_t>
    */
-  std::vector<int64_t> _ShapeToJSON(tvm::Array<HalideIR::Expr> shape) {
+  std::vector<int64_t> _ShapeToJSON(tvm::Array<IndexExpr> shape) {
     std::vector<int64_t> ret;
     for (IndexExpr dim : shape) {
       const int64_t* pval = as_const_int(dim);
@@ -623,9 +622,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<HalideIR::Expr> ret;
+        Array<tvm::Expr> ret;
         for (const auto &kv : this->output_.params) {
-          HalideIR::Expr name = ir::StringImm::make(kv.first);
+          tvm::Expr name = ir::StringImm::make(kv.first);
           ret.push_back(name);
         }
         *rv = ret;

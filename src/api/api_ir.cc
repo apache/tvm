@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -59,14 +59,13 @@ TVM_REGISTER_API("make._range_by_min_extent")
 TVM_REGISTER_API("make.For")
 .set_body_typed<Stmt(VarExpr, Expr, Expr, int, int, Stmt)>([](
   VarExpr loop_var, Expr min, Expr extent,
-  int for_type, int device_api, Stmt body
-) {
+  int for_type, int device_api, Stmt body) {
   return For::make(loop_var,
-                    min,
-                    extent,
-                    static_cast<ForType>(for_type),
-                    static_cast<HalideIR::DeviceAPI>(device_api),
-                    body);
+                   min,
+                   extent,
+                   static_cast<ForType>(for_type),
+                   static_cast<DeviceAPI>(device_api),
+                   body);
 });
 
 TVM_REGISTER_API("make.Load")

@@ -102,7 +102,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     p->stream << "Var(" << node->name_hint();
     if (node->type_annotation.defined()) {
       p->stream << ", ty=";
-      p->print(node->type_annotation);
+      p->Print(node->type_annotation);
     }
     p->stream << ")";
   });
