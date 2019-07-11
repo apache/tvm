@@ -73,7 +73,7 @@ class PkgConfig(object):
 
         self.target = cfg["TARGET"]
 
-        if self.target == "pynq":
+        if self.target in ["pynq", "ultra96"] :
             self.ldflags = [
                 "-L/usr/lib",
                 "-l:libcma.so"]
