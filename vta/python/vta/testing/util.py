@@ -33,7 +33,6 @@ def run(run_func):
     env = get_env()
 
     if env.TARGET in ["sim", "tsim"]:
-
         # Talk to local RPC if necessary to debug RPC server.
         # Compile vta on your host with make at the root.
         # Make sure TARGET is set to "sim" in the config.json file.
@@ -53,8 +52,7 @@ def run(run_func):
                 assert simulator.enabled()
             run_func(env, rpc.LocalSession())
 
-    elif env.TARGET == "pynq":
-
+    elif env.TARGET in ["pynq", "ultra96"]:
         # The environment variables below should be set if we are using
         # a tracker to obtain a remote for a test device
         tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
@@ -78,3 +76,6 @@ def run(run_func):
             else:
                 raise RuntimeError(
                     "Please set the VTA_PYNQ_RPC_HOST and VTA_PYNQ_RPC_PORT environment variables")
+
+    else:
+        raise RuntimeError("Unknown target %s" % env.TARGET)

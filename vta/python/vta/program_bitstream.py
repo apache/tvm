@@ -48,9 +48,12 @@ def pynq_bitstream_program(bitstream_path):
     bitstream.download()
 
 def bitstream_program(target, bitstream):
-    if target == 'pynq':
+    if target in ['pynq', 'ultra96']:
         pynq_bitstream_program(bitstream)
-    elif target != 'sim':
+    elif target in ['sim', 'tsim']:
+        # In simulation, bit stream programming is a no-op
+        return
+    else:
         raise RuntimeError("Unknown target {}".format(target))
 
 if __name__ == "__main__":
