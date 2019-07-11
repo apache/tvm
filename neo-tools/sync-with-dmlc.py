@@ -85,7 +85,7 @@ def main():
         f.write(head_commit)
 
     repo.git.add(last_commit_file)
-    repo.git.commit("Update " + last_commit_file)
+    repo.git.commit("-m Update " + last_commit_file)
 
     logging.info("Update successfully")
 
