@@ -211,10 +211,11 @@ Operation ComputeOpNode::ReplaceInputs(
 
 void ComputeOpNode::PropBoundToInputs(
     const Operation& self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
-  auto fvisit = [&dom_map, out_dom_map](const NodeRef& n) {
+  auto fvisit = [&dom_map, out_dom_map, analyzer](const NodeRef& n) {
     auto *call = n.as<ir::Call>();
     if (call != nullptr && call->func.defined()) {
       Tensor t = Operation(call->func.node_).output(call->value_index);
@@ -233,11 +234,12 @@ void ComputeOpNode::PropBoundToInputs(
             Expr min_value = arg_interval->min_value;
             Expr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            arith::Analyzer an;
-            if (arith::is_neg_inf(min_value) || an.CanProve(shape_i_min_value >= min_value)) {
+            if (arith::is_neg_inf(min_value) ||
+                analyzer->CanProve(shape_i_min_value >= min_value)) {
               min_value = shape_i_min_value;
             }
-            if (arith::is_pos_inf(max_value) || an.CanProve(shape_i_max_value <= max_value)) {
+            if (arith::is_pos_inf(max_value) ||
+                analyzer->CanProve(shape_i_max_value <= max_value)) {
               max_value = shape_i_max_value;
             }
             dom.data[i].push_back(IntSet::interval(min_value, max_value));

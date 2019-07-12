@@ -191,6 +191,7 @@ void InferRootBound(const Stage& stage,
     PassUpDomain(op_stage, *rmap, &up_state);
     // Relax if needed.
     std::unordered_map<const Variable*, IntSet> dom_map;
+    arith::Analyzer analyzer;
     for (auto iv : op->root_iter_vars()) {
       Range r;
       if (up_state.count(iv)) {
@@ -203,8 +204,9 @@ void InferRootBound(const Stage& stage,
       } else {
         dom_map[iv->var.get()] = IntSet::range(r);
       }
+      analyzer.Bind(iv->var, r);
     }
-    op->PropBoundToInputs(op, dom_map, &tmap);
+    op->PropBoundToInputs(op, &analyzer, dom_map, &tmap);
   }
   stage->op->GatherBound(stage->op, tmap, rmap);
 }
