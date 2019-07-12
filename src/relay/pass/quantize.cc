@@ -629,6 +629,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_input=" << op->nbit_input << ", ";
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
+  p->stream << "nbit_bias=" << op->nbit_bias << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
@@ -734,7 +735,48 @@ TVM_REGISTER_API("relay._quantize.temp_expr_realize")
   return n->Realize();
 });
 
+// =============
+// calibration
 
+class StatsCollector : private ExprMutator {
+ public:
+  Expr Collect(const Expr& expr) {
+	auto new_e = this->Mutate(expr);
+	const FunctionNode* func = new_e.as<FunctionNode>();
+	CHECK(func);
+	Expr new_body = TupleNode::make(std::move(profile_data_));
+	return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
+			func->attrs);
+  }
+
+ private:
+  Array<Expr> profile_data_;
+
+  Expr VisitExpr_(const CallNode* call) {
+    static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
+	Expr new_e = ExprMutator::VisitExpr_(call);
+	const CallNode* new_call = new_e.as<CallNode>();
+	CHECK(new_call);
+	if (new_call->op.same_as(simulated_quantize)) {
+	  auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
+	  if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
+	    CHECK(!new_call->args[0].as<ConstantNode>());
+	    profile_data_.push_back(new_call->args[0]);
+	  }
+	  return new_call->args[0];
+	} else {
+	  return new_e;
+	}
+  }
+};
+	  
+Expr CollectStats(const Expr& expr) {
+  return StatsCollector().Collect(expr);
+}
+
+TVM_REGISTER_API("relay._quantize.CollectStats")
+.set_body_typed(CollectStats);
+    
 }  // namespace quantize
 }  // namespace relay
 }  // namespace tvm

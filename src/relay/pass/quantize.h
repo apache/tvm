@@ -40,6 +40,7 @@ enum QAnnotateKind : int {
   kQInput = 1,
   kQWeight = 2,
   kQActivation = 3,
+  kQBias = 4,
 };
 
 /*!
@@ -148,9 +149,11 @@ class QConfigNode : public Node {
   int nbit_input = 8;
   int nbit_weight = 8;
   int nbit_activation = 32;
+  int nbit_bias = 32;
   DataType dtype_input = Int(8);
   DataType dtype_weight = Int(8);
   DataType dtype_activation = Int(32);
+  DataType dtype_bias = Int(32);
   double global_scale = 8.0;
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
   bool round_for_shift = true;
@@ -161,9 +164,11 @@ class QConfigNode : public Node {
     v->Visit("nbit_input", &nbit_input);
     v->Visit("nbit_weight", &nbit_weight);
     v->Visit("nbit_activation", &nbit_activation);
+    v->Visit("nbit_bias", &nbit_bias);
     v->Visit("dtype_input", &dtype_input);
     v->Visit("dtype_weight", &dtype_weight);
     v->Visit("dtype_activation", &dtype_activation);
+    v->Visit("dtype_bias", &dtype_bias);
     v->Visit("global_scale", &global_scale);
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("round_for_shift", &round_for_shift);
