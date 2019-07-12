@@ -21,8 +21,8 @@
  * \file tvm/relay/attrs/nn.h
  * \brief Auxiliary attributes for nn operators.
  */
-#ifndef TVM_RELAY_ATTRS_NN_QUANTIZE_H_
-#define TVM_RELAY_ATTRS_NN_QUANTIZE_H_
+#ifndef TVM_RELAY_ATTRS_QNN_H_
+#define TVM_RELAY_ATTRS_QNN_H_
 
 #include <tvm/attrs.h>
 #include <string>
@@ -34,4 +34,4 @@ namespace relay {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_ATTRS_NN_QUANTIZE_H_
+#endif  // TVM_RELAY_ATTRS_QNN_H_

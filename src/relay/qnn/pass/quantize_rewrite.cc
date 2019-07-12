@@ -26,12 +26,13 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/quantize_util.h>
-#include <tvm/relay/attrs/qnn.h>
-#include "pattern_util.h"
+#include <tvm/relay/qnn/attrs.h>
+#include "../util.h"
+#include "../../pass/pattern_util.h"
 
 namespace tvm {
 namespace relay {
+
 
 
 }  // namespace relay
