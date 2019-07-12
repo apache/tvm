@@ -260,80 +260,6 @@ def test_nested_sessions():
                 add_result, np_tensor_a + 1.0)
 
 
-def test_resnet_random():
-    """Test ResNet18 inference with random weights and inputs."""
-    resnet_mod, params = resnet.get_workload(num_classes=10,
-                                             num_layers=18,
-                                             image_shape=(3, 32, 32))
-    resnet_func = resnet_mod["main"]
-    # Remove the final softmax layer, because uTVM does not currently support it.
-    resnet_func_no_sm = relay.Function(resnet_func.params,
-                                       resnet_func.body.args[0],
-                                       resnet_func.ret_type)
-    resnet_mod["main"] = resnet_func_no_sm
-
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        # TODO(weberlo): Use `resnet_func` once we have libc support.
-        mod = relay_micro_build(resnet_func_no_sm, TOOLCHAIN_PREFIX, params=params)
-        # Generate random input.
-        data = np.random.uniform(size=mod.get_input(0).shape)
-        mod.run(data=data)
-        result = mod.get_output(0).asnumpy()
-        # We gave a random input, so all we want is a result with some nonzero
-        # entries.
-        assert result.sum() != 0.0
-
-
-# TODO(weberlo): Enable this test or move the code somewhere else.
-@nottest
-def test_resnet_pretrained():
-    """Test classification with a pretrained ResNet18 model."""
-    import mxnet as mx
-    from mxnet.gluon.model_zoo.vision import get_model
-    from mxnet.gluon.utils import download
-    from PIL import Image
-
-    # TODO(weberlo) there's a significant amount of overlap between here and
-    # `tutorials/frontend/from_mxnet.py`.  Should refactor.
-    dtype = "float32"
-
-    # Fetch a mapping from class IDs to human-readable labels.
-    synset_url = "".join(["https://gist.githubusercontent.com/zhreshold/",
-                          "4d0b62f3d01426887599d4f7ede23ee5/raw/",
-                          "596b27d23537e5a1b5751d2b0481ef172f58b539/",
-                          "imagenet1000_clsid_to_human.txt"])
-    synset_name = "synset.txt"
-    download(synset_url, synset_name)
-    with open(synset_name) as f:
-        synset = eval(f.read())
-
-    # Read raw image and preprocess into the format ResNet can work on.
-    img_name = "cat.png"
-    download("https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true",
-             img_name)
-    image = Image.open(img_name).resize((224, 224))
-    image = np.array(image) - np.array([123., 117., 104.])
-    image /= np.array([58.395, 57.12, 57.375])
-    image = image.transpose((2, 0, 1))
-    image = image[np.newaxis, :]
-    image = tvm.nd.array(image.astype(dtype))
-
-    block = get_model("resnet18_v1", pretrained=True)
-    func, params = relay.frontend.from_mxnet(block,
-                                             shape={"data": image.shape})
-
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        mod = relay_micro_build(func, TOOLCHAIN_PREFIX, params=params)
-        # Execute with `image` as the input.
-        mod.run(data=image)
-        # Get outputs.
-        tvm_output = mod.get_output(0)
-
-        prediction_idx = np.argmax(tvm_output.asnumpy()[0])
-        prediction = synset[prediction_idx]
-        assert prediction == "tiger cat"
-
-
 if __name__ == "__main__":
     test_alloc()
     test_add()
@@ -342,4 +268,3 @@ if __name__ == "__main__":
     test_multiple_modules()
     test_interleave_sessions()
     test_nested_sessions()
-    test_resnet_random()
