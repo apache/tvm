@@ -21,20 +21,26 @@ Relay Pass Infra
 Relay features a series of optimization passes which improve performance metrics
 of models such as mean inference, memory footprint, or power consumption for
 specific devices. There are a suite of standard optimizations as well as machine
-learning specific optimizations including constant folding, dead code
+learning-specific optimizations including constant folding, dead code
 elimination, operator layout alteration, and operator fusion, etc. Each of these
-passes are structured as Relay-to-Relay transformations on the abstract syntax
+passes are structured as a Relay-to-Relay transformation on the abstract syntax
 tree (AST) using the analysis result collected during and/or before traversal.
 
-On one hand, many existing production compilers, such as GCC and LLVM, employ
+However, as Relay evolves quickly, the need of a more systematic and effecient
+way to manage these pass becomes imperative. This doc describes the design of
+such an infra that takes the advantage of the way production compilers used to
+manage the optimization passes and the style modern deep learning frameworks
+adopted to build up layers.
+
+For example, many existing production compilers, such as GCC and LLVM, employ
 pass managers to effectively manage the execution of passes. Initially managing
 passes is straightforward as the number of passes is small, but mature compilers
 will contain hundreds of individual passes. Often external users will want to
 have custom passes correctly scheduled without having to modify a single
 handcrafted pass order.
 
-On the other hand, modern deep learning frameworks, such as Pytorch and MXNet
-Gluon, also have the tendency to enable pass style layer construction
+Similarly, modern deep learning frameworks, such as Pytorch and MXNet
+Gluon, also have the tendency to enable pass-style layer construction
 scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural network easily.
@@ -46,7 +52,7 @@ deep learning frameworks. The major goals of the pass infra include:
 #) enabling better programmatic orchestration of optimizations. This allows
    users to flexibly customize and build their own optimization pipelines.
 
-#) providing a user friendly way to debug optimization passes.
+#) providing a user-friendly way to debug optimization passes.
 
 #) alleviating developers from manually and respectively resolving the
    dependencies between passes.
@@ -71,7 +77,12 @@ We provide a ``PassInfo`` object to contain the basic information needed by
 a pass. ``name`` is the pass name, ``opt_level`` indicates at which optimization
 level the pass will be enabled, and ``required`` represents the passes that are
 required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
-more details).
+more details). For example, during registration of a pass (will be covered in
+later), the pass developers can specify the name of the pass, the optimiztion
+level it will be performed at, and/or the passes that are required.
+``opt_level`` could be used to help the pass infra identify if a certain pass
+needes to be executed when running under a user provided optimiztion level. The
+``required`` field can be used by the pass infra to resolve pass dependencies.
 
 .. code:: c++
 
@@ -91,13 +102,16 @@ designed to replace the old ``BuildConfig`` which was used to help users
 configure the compilation options, including optimization level and
 required/disabled passes, etc. For instance, we may have a configuration which
 performs all passes at ``opt_level=3`` with some disabled passes using
-``disabled_pass=xx`` provided by ``PassContext``. Now  we could glob all passes
-at ``opt_level=3`` and exclude those in disabled pass list.
+``disabled_pass=xx`` provided by ``PassContext``. Now we could glob all passes
+at ``opt_level=3`` and exclude those in the disabled pass list.
 
-This class is designed as a thread local so that users can conveniently use the
-Python ``with`` syntax to perform optimizations under a certain configuration.
-Examples will be provided later to show how we can use both C++ and Python APIs
-to create a compilation pipeline using pass context.
+This class is designed for users to conveniently write the Python ``with``
+syntax to perform optimizations under a certain configuration. In addition, the
+users can obtain the context that is available within a certain program scope in
+a thread-safe way through ``PassContext::Current()``, since a thread-local store
+``RelayPassContextThreadLocalStore`` is used to hold the created pass context
+objects. Examples will be provided later to show how we can use both the C++ and
+Python APIs to create a compilation pipeline using pass context.
 
 .. code:: c++
 
@@ -109,8 +123,6 @@ to create a compilation pipeline using pass context.
       tvm::Array<tvm::Expr> required_pass;
       tvm::Array<tvm::Expr> disabled_pass;
     };
-
-.. code:: c++
 
     class PassContext : public NodeRef {
      public:
@@ -127,16 +139,29 @@ to create a compilation pipeline using pass context.
       // Classes to get the Python `with` like syntax.
       friend class tvm::With<PassContext>;
     };
-   
+
+    struct RelayPassContextThreadLocalEntry {
+      /*! \brief The default pass context. */
+      PassContext default_context;
+      /*! \brief The current pass context. */
+      std::stack<PassContext> context_stack;
+      RelayPassContextThreadLocalEntry() {
+        default_context = PassContext(make_node<PassContextNode>());
+      }
+    };
+
+    /*! \brief The thread-local store to hold the pass context. */
+    typedef dmlc::ThreadLocalStore<RelayPassContextThreadLocalEntry>
+         RelayPassContextThreadLocalStore;
 
 Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-various granularity of a Relay program. A pure virtual class ``PassNode`` is
+different granularities of Relay programs. A pure virtual class ``PassNode`` is
 introduced to serve as the base of the different optimization passes. This class
-contains several virtual methods that will be implemented by the
-subclasses at the module level, function level, or a sequence of passes..
+contains several virtual methods that must be implemented by the
+subclasses at the level of modules, functions, or sequences of passes..
 
 .. code:: c++
 
@@ -146,25 +171,25 @@ subclasses at the module level, function level, or a sequence of passes..
                                 const PassContext& pass_ctx) const = 0;
     };
 
-The functor shows how a pass will be realized, i.e. it always works on a `Relay
-module`_ under a certain context. All passes are designed in a ``Module`` to
-``Module`` manner. Therefore, optimizations governed by the pass infra will
+The functor shows how a pass must be realized, i.e. it always works on a `Relay
+module`_ under a certain context. All passes are designed in a ``Module`` to ``Module``
+manner. Therefore, optimizations governed by the pass infra will
 always update the whole module.
 
-Several subclasses are created to implement different types of optimization
-passes, e.g. function-level passes, module-level passes, and sequential passes.
-Each subclass itself could act as a pass manager. For instance, they could glob
-the require passes and execute them or build a dependency graph based on the
-given meta data. The full definition of them could be found in
-`src/relay/pass/pass_manager.cc`_
+Several subclasses have been created to implement different types of
+optimization passes, e.g., function-level passes, module-level passes, and
+sequential passes.  Each subclass itself could act as a pass manager. For
+instance, they could collect the required passes and execute them or build
+a dependency graph based on the given metadata. The full definition of them
+could be found in `src/relay/pass/pass_manager.cc`_
 
 Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
 
 Module level passes are geared mainly for global and inter-procedural
-optimizations (IPO), which is similar to the module pass used in LLVM. Some
-typical passes in Relay that need the global picture of a module, such as to
-a normal form conversion and lambda lifting, etc, fall in this set. At this
+optimizations (IPO), which are similar to the module pass used in LLVM. Some
+typical passes in Relay that need the global picture of a module, such as
+A-normal form conversion and lambda lifting, etc., fall into this set. At this
 level, users can even add and/or delete functions in a module.
 
 .. code:: c++
@@ -215,8 +240,8 @@ may use it for reporting errors. A function could be annotated with
 Sequential Passes
 ^^^^^^^^^^^^^^^^^
 
-SequentialPass is similar to Pytorch nn.Sequential that contains a host of
-passes for execution 
+``SequentialPass`` is similar to Pytorch ``nn.Sequential`` that contains a host
+of passes for execution 
 
 .. code:: c++
 
@@ -533,7 +558,7 @@ Python Sequential Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This example not only illustrates how users can directly create a sequential
-pass using Python APIs (this could be applied to module- and function- level
+pass using Python APIs (this could be applied to module- and function-level
 passes as well), but also explains how we can build an optimization pipeline
 using ``Sequential`` associated with other types of passes.
 
