@@ -83,7 +83,6 @@ class PkgConfig(object):
             self.ldflags = []
 
         # Derive output buffer size
-        # derive output buffer size
         cfg["LOG_OUT_BUFF_SIZE"] = (
             cfg["LOG_ACC_BUFF_SIZE"] +
             cfg["LOG_OUT_WIDTH"] -
