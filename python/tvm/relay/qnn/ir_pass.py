@@ -14,7 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Neural network related operators."""
-from __future__ import absolute_import as _abs
-from .qnn import *
+#pylint: disable=unused-argument
+"""Automatic quantization toolkit."""
+from __future__ import absolute_import
+
+from . import _qnn
+
+def rewrite(expr):
+    """
+    Rewrites the high-level quantized ops into low-level exisiting Relay ops.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+        The output expression.
+    """
+    return _qnn.rewrite(expr)

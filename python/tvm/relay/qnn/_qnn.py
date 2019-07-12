@@ -14,25 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
-"""Automatic quantization toolkit."""
+
+"""Internal module for quantization."""
+
 from __future__ import absolute_import
+from tvm._ffi.function import _init_api
 
-from . import _quantize
-from .. import expr as _expr
-
-def rewrite(expr):
-    """
-    Rewrites the high-level quantized ops into low-level exisiting Relay ops.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    Returns
-    -------
-    expr : tvm.relay.Expr
-        The output expression.
-    """
-    return _quantize.rewrite(expr)
+_init_api("relay._qnn", __name__)

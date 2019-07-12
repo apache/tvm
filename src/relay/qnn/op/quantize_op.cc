@@ -18,14 +18,14 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file quantize.cpp
- * \brief Quantize and requantize operator
+ * \file src/relay/qnn/op/quantize_op.cc
+ * \brief Quantize operator which converts from unquantized domain representation to quantized domain
+ * representation.
  */
 
 #include <tvm/relay/op.h>
-#include <tvm/relay/attrs/qnn.h>
-#include <tvm/relay/quantize_util.h>
+#include <tvm/relay/qnn/attrs.h>
+#include "../util.h"
 
 namespace tvm {
 namespace relay {
@@ -39,12 +39,12 @@ bool QuantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(is_valid_quantized_op_input_type(QuantizeOpType::Quantize, input_dtype))
+  CHECK(IsValidOpInputType(QuantizeOpType::Quantize, input_dtype))
       << "Input type should be one of float32 but was " <<  input_dtype;
   const auto* param = attrs.as<QuantizeAttrs>();
   const Array<tvm::Expr> oshape = data->shape;
   const DataType out_dtype = param->out_dtype;
-  CHECK(is_valid_quantized_op_output_type(QuantizeOpType::Quantize, out_dtype))
+  CHECK(IsValidOpOutputType(QuantizeOpType::Quantize, out_dtype))
       << "Output type should be one of [int8, unit8 ] but was " << out_dtype;
   // assign output type
   reporter->Assign(types[1], TensorTypeNode::make(oshape, out_dtype));

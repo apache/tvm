@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, too-many-lines
+
 """Neural network operations."""
+
 from __future__ import absolute_import as _abs
 from . import _make
 
 def quantize(input_data, output_zero_point, output_scale, out_dtype='int8'):
     r""" Quantize op
-     This operator takes float32 as input and produces quantized int8 or unit8 as output. The input tensor can be of
-     any shape. The output shape is the same as input shape.
+     This operator takes float32 as input and produces quantized int8 or unit8 as output.
+     The input tensor can be of any shape. The output shape is the same as input shape.
      ..math::
             \mbox{out}[x] =
-                \mbox{clamp(round(input_tensor/output_scale) + output_zero_point); out_dtype::min, out_dtype::max}
+                \mbox{clamp(round(input_tensor/output_scale) + output_zero_point);
+                 out_dtype::min, out_dtype::max}
      Parameters
     ----------
     input_data : tvm.relay.Expr
@@ -42,7 +44,6 @@ def quantize(input_data, output_zero_point, output_scale, out_dtype='int8'):
         The computed result.
     """
     return _make.quantize(input_data, output_zero_point, output_scale, out_dtype)
-
 
 def dequantize(input_data, input_zero_point, input_scale):
     r""" Dequantize op

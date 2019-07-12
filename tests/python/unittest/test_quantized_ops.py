@@ -18,7 +18,6 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.testing import create_workload
 from tvm.contrib import graph_runtime
 
 # TODOs for janimesh before submitting this patch.
@@ -41,11 +40,11 @@ def test_quantize_op():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         output_zero_point = quant_args['out_zero_point']
         output_scale = quant_args['out_scale']
-        quantized_output = relay.op.qnn.quantize(input_data, output_zero_point=output_zero_point,
+        quantized_output = relay.qnn.op.quantize(input_data, output_zero_point=output_zero_point,
                                                           output_scale=output_scale, out_dtype=out_dtype)
         func = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         func = run_infer_type(func)
-        func = relay.quantize.rewrite(func)
+        func = relay.qnn.ir_pass.rewrite(func)
         func = run_infer_type(func)
         graph, lib, params = relay.build(func, "llvm", params=None)
         mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -87,11 +86,11 @@ def test_dequantize_op():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         input_zero_point = quant_args['in_zero_point']
         input_scale = quant_args['in_scale']
-        quantized_output = relay.op.qnn.dequantize(input_data, input_zero_point=input_zero_point,
+        quantized_output = relay.qnn.op.dequantize(input_data, input_zero_point=input_zero_point,
                                                             input_scale=input_scale)
         func = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         func = run_infer_type(func)
-        func = relay.quantize.rewrite(func)
+        func = relay.qnn.ir_pass.rewrite(func)
         func = run_infer_type(func)
         graph, lib, params = relay.build(func, "llvm", params=None)
         mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))

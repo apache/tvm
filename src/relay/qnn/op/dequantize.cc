@@ -18,14 +18,14 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file quantize.cpp
- * \brief Quantize and requantize operator
+ * \file src/relay/qnn/op/dequantize.cc
+ * \brief Dequantize operator that converts from quantized domain to
+ * unquantized domain.
  */
 
 #include <tvm/relay/op.h>
-#include <tvm/relay/attrs/qnn.h>
-#include <tvm/relay/quantize_util.h>
+#include <tvm/relay/qnn/attrs.h>
+#include "../util.h"
 
 namespace tvm {
 namespace relay {
@@ -39,7 +39,7 @@ bool DequantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(is_valid_quantized_op_input_type(QuantizeOpType::Dequantize, input_dtype))
+  CHECK(IsValidOpInputType(QuantizeOpType::Dequantize, input_dtype))
     << "Input type should be one of the quantized types [unit8, int8] but was " <<  input_dtype;
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type
