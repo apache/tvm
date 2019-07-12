@@ -21,6 +21,7 @@ from tvm.contrib import util
 from tvm.contrib import cc
 from tvm.contrib.binutil import *
 
+TOOLCHAIN_PREFIX = ""
 
 def make_binary():
     prog = "int a = 7; \
@@ -47,10 +48,13 @@ def test_tvm_callback_get_section_size(binary):
     with open(tmp_bin, "wb") as f:
         f.write(binary)
     def verify():
-        print("Text section size: %d" % tvm_callback_get_section_size(tmp_bin, "text"))
-        print("Data section size: %d" % tvm_callback_get_section_size(tmp_bin, "data"))
-        print("Bss section size: %d" % tvm_callback_get_section_size(tmp_bin, "bss"))
-        print
+        print("Text section size: %d" %
+              tvm_callback_get_section_size(tmp_bin, "text", TOOLCHAIN_PREFIX))
+        print("Data section size: %d" %
+              tvm_callback_get_section_size(tmp_bin, "data", TOOLCHAIN_PREFIX))
+        print("Bss section size: %d" %
+              tvm_callback_get_section_size(tmp_bin, "bss", TOOLCHAIN_PREFIX))
+        print()
     verify()
 
 
@@ -61,9 +65,11 @@ def test_tvm_callback_relocate_binary(binary):
         f.write(binary)
     def verify():
         text_loc_str = "0x0"
-        data_loc_str = "0x10000"
-        bss_loc_str = "0x20000"
-        rel_bin = tvm_callback_relocate_binary(tmp_bin, text_loc_str, data_loc_str, bss_loc_str)
+        rodata_loc_str = "0x10000"
+        data_loc_str = "0x20000"
+        bss_loc_str = "0x30000"
+        rel_bin = tvm_callback_relocate_binary(
+            tmp_bin, text_loc_str, rodata_loc_str, data_loc_str, bss_loc_str, TOOLCHAIN_PREFIX)
         print("Relocated binary section sizes")
         test_tvm_callback_get_section_size(rel_bin)
         relf = tmp_dir.relpath("rel.bin")
@@ -94,13 +100,13 @@ def test_tvm_callback_relocate_binary(binary):
 
 def test_tvm_callback_read_binary_section(binary):
     def verify():
-        text_bin = tvm_callback_read_binary_section(binary, "text")
-        data_bin = tvm_callback_read_binary_section(binary, "data")
-        bss_bin = tvm_callback_read_binary_section(binary, "bss")
+        text_bin = tvm_callback_read_binary_section(binary, "text", TOOLCHAIN_PREFIX)
+        data_bin = tvm_callback_read_binary_section(binary, "data", TOOLCHAIN_PREFIX)
+        bss_bin = tvm_callback_read_binary_section(binary, "bss", TOOLCHAIN_PREFIX)
         print("Read text section part of binary? %r" % (text_bin in binary))
         print("Read data section part of binary? %r" % (data_bin in binary))
         print("Read bss section part of binary? %r" % (bss_bin in binary))
-        print
+        print()
     verify()
 
 
@@ -110,8 +116,13 @@ def test_tvm_callback_get_symbol_map(binary):
     with open(tmp_bin, "wb") as f:
         f.write(binary)
     def verify():
-        rel_bin = tvm_callback_relocate_binary(tmp_bin, "0x0", "0x10000", "0x20000")
-        symbol_map = tvm_callback_get_symbol_map(rel_bin)
+        text_loc_str = "0x0"
+        rodata_loc_str = "0x10000"
+        data_loc_str = "0x20000"
+        bss_loc_str = "0x30000"
+        rel_bin = tvm_callback_relocate_binary(
+            tmp_bin, text_loc_str, rodata_loc_str, data_loc_str, bss_loc_str, TOOLCHAIN_PREFIX)
+        symbol_map = tvm_callback_get_symbol_map(rel_bin, TOOLCHAIN_PREFIX)
         symbols = set()
         for i, line in enumerate(symbol_map.split('\n')):
             # Every other line is the value the symbol maps to.
