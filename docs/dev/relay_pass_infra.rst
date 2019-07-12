@@ -26,9 +26,9 @@ elimination, operator layout alteration, and operator fusion, etc. Each of these
 passes are structured as a Relay-to-Relay transformation on the abstract syntax
 tree (AST) using the analysis result collected during and/or before traversal.
 
-However, as Relay evolves quickly, the need of a more systematic and effecient
-way to manage these pass becomes imperative. This doc describes the design of
-such an infra that takes the advantage of the way production compilers used to
+However, as Relay evolves quickly, the need of a more systematic and efficient
+way to manage these passes becomes imperative. This doc describes the design of
+such an infra that takes the advantage of the way production compilers are used to
 manage the optimization passes and the style modern deep learning frameworks
 adopted to build up layers.
 
@@ -43,10 +43,10 @@ Similarly, modern deep learning frameworks, such as Pytorch and MXNet
 Gluon, also have the tendency to enable pass-style layer construction
 scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
-containers and build up neural network easily.
+containers and build up neural networks easily.
 
 The design of the Relay pass infra is largely inspired by the the hierarchical
-pass manager used in LLVM and the block style containers used in the popular
+pass manager used in LLVM and the block-style containers used in the popular
 deep learning frameworks. The major goals of the pass infra include:
 
 #) enabling better programmatic orchestration of optimizations. This allows
@@ -81,7 +81,7 @@ more details). For example, during registration of a pass (will be covered in
 later), the pass developers can specify the name of the pass, the optimiztion
 level it will be performed at, and/or the passes that are required.
 ``opt_level`` could be used to help the pass infra identify if a certain pass
-needes to be executed when running under a user provided optimiztion level. The
+needes to be executed when running under a user-provided optimization level. The
 ``required`` field can be used by the pass infra to resolve pass dependencies.
 
 .. code:: c++
@@ -181,7 +181,7 @@ optimization passes, e.g., function-level passes, module-level passes, and
 sequential passes.  Each subclass itself could act as a pass manager. For
 instance, they could collect the required passes and execute them or build
 a dependency graph based on the given metadata. The full definition of them
-could be found in `src/relay/pass/pass_manager.cc`_
+can be found in `src/relay/pass/pass_manager.cc`_
 
 Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
@@ -212,10 +212,10 @@ both C++ and Python.
 Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
-Function-level passes are used to implement various intra function level
+Function-level passes are used to implement various intra-function level
 optimizations for a given Relay module. It fetches one function at a time from
 the function list of a module for optimization and yields a rewritten Relay
-function. Most of Relay passes can be classified into this category, such as
+function. Most of Relay's passes can be classified into this category, such as
 common subexpression elimination and inference simplification, etc.
 
 Note that the scope of passes at this level is a Relay function. Therefore, we
@@ -241,7 +241,7 @@ Sequential Passes
 ^^^^^^^^^^^^^^^^^
 
 ``SequentialPass`` is similar to Pytorch ``nn.Sequential`` that contains a host
-of passes for execution 
+of passes for execution.
 
 .. code:: c++
 
@@ -259,7 +259,7 @@ Only a few passes currently in Relay are put in this group. For example,
 recommended to be fulfilled first. This pass, hence, is an ideal candidate for
 ``SequentialPass``.
 
-The following code shows how individual passes in a sequential pass is invoked.
+The following code shows how individual passes in a sequential pass are invoked.
 Essentially, we sequentially execute each pass in a sequential pass using the
 order that they were appended to the pass list.
 
@@ -474,8 +474,9 @@ Pass Objects
 
 ``Pass`` is the base class of all pass objects. All methods here are just simple
 wrappers that were implemented in the backend. They are defined for users to
-conveniently interact with the base class in Python. Only a functor is defined
-to invoke the execution of a pass.
+conveniently interact with the base class in Python. Only a ``__call__`` is
+defined in the pass base class to make the subclasses as callable objects so
+that they can be invoked easily (e.g., ``pass_xx(arg)``) for execution.
 
 .. code:: python
 
