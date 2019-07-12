@@ -166,7 +166,7 @@ inline Expr ForwardOp(const Call& ref_call, const Array<Expr>& args) {
 
 
 /* calculate `data * s1 / s2`, use shift if possible */
-inline Expr MulAndDiv(Expr data, float s1, float s2) {
+inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype) {
   // here we assume the dtype of data is dtype activation
   const QConfig& cfg = QConfig::Current();
   if (s1 == s2) return data;
@@ -175,14 +175,14 @@ inline Expr MulAndDiv(Expr data, float s1, float s2) {
   float shift_factor = std::log2(factor);
   CHECK_GT(shift_factor, 0);
   if (static_cast<int>(shift_factor) == shift_factor) {
-    return LeftShift(data, MakeConstantScalar(cfg->dtype_activation,
+    return LeftShift(data, MakeConstantScalar(dtype,
                                               static_cast<int>(shift_factor)));
   } else if (static_cast<int>(factor) == factor) {
-    return Multiply(data, MakeConstantScalar(cfg->dtype_activation, factor));
+    return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
-    LOG(FATAL) << "fall back to float computation";
     data = Cast(data, Float(32));
-    return Multiply(data, MakeConstantScalar(Float(32), factor));
+    data = Multiply(data, MakeConstantScalar(Float(32), factor));
+    return Cast(Round(data), dtype);
   }
 }
 
@@ -338,15 +338,11 @@ Expr MulRealize(const Call& ref_call,
     Expr rdata = rhs->data;
 
     DataType dtype = cfg->dtype_activation;
-    if (lhs->dtype == Float(32)) {
+    if (lhs->dtype != dtype) {
       ldata = Cast(ldata, dtype);
-    } else {
-      CHECK_EQ(lhs->dtype, dtype);
     }
-    if (rhs->dtype == Float(32)) {
+    if (rhs->dtype != dtype) {
       rdata = Cast(rdata, dtype);
-    } else {
-      CHECK_EQ(rhs->dtype, dtype);
     }
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
@@ -418,7 +414,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   Expr dom_scale = MakeConstantScalar(Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-    ret.Set(i, MulAndDiv(ret[i], cur_s, s));
+    ret.Set(i, MulAndDiv(ret[i], cur_s, s, dtype));
   }
 
   *dtype_ptr = dtype;
