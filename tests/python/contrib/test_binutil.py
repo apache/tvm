@@ -41,9 +41,10 @@ def make_binary():
 
 
 TOOLCHAIN_PREFIX = ""
-PROG_BIN = make_binary()
 
-def test_tvm_callback_get_section_size(binary):
+def test_tvm_callback_get_section_size(binary=None):
+    if binary is None:
+        binary = make_binary()
     tmp_dir = util.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
@@ -59,7 +60,8 @@ def test_tvm_callback_get_section_size(binary):
     verify()
 
 
-def test_tvm_callback_relocate_binary(binary):
+def test_tvm_callback_relocate_binary():
+    binary = make_binary()
     tmp_dir = util.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
@@ -72,7 +74,7 @@ def test_tvm_callback_relocate_binary(binary):
         rel_bin = tvm_callback_relocate_binary(
             tmp_bin, text_loc_str, rodata_loc_str, data_loc_str, bss_loc_str, TOOLCHAIN_PREFIX)
         print("Relocated binary section sizes")
-        test_tvm_callback_get_section_size(rel_bin)
+        test_tvm_callback_get_section_size(binary=rel_bin)
         relf = tmp_dir.relpath("rel.bin")
         with open(relf, "wb") as f:
             f.write(rel_bin)
@@ -99,7 +101,8 @@ def test_tvm_callback_relocate_binary(binary):
     verify()
 
 
-def test_tvm_callback_read_binary_section(binary):
+def test_tvm_callback_read_binary_section():
+    binary = make_binary()
     def verify():
         text_bin = tvm_callback_read_binary_section(binary, "text", TOOLCHAIN_PREFIX)
         data_bin = tvm_callback_read_binary_section(binary, "data", TOOLCHAIN_PREFIX)
@@ -111,7 +114,8 @@ def test_tvm_callback_read_binary_section(binary):
     verify()
 
 
-def test_tvm_callback_get_symbol_map(binary):
+def test_tvm_callback_get_symbol_map():
+    binary = make_binary()
     tmp_dir = util.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
@@ -135,7 +139,7 @@ def test_tvm_callback_get_symbol_map(binary):
 
 
 if __name__ == "__main__":
-    test_tvm_callback_get_section_size(PROG_BIN)
-    test_tvm_callback_relocate_binary(PROG_BIN)
-    test_tvm_callback_read_binary_section(PROG_BIN)
-    test_tvm_callback_get_symbol_map(PROG_BIN)
+    test_tvm_callback_get_section_size()
+    test_tvm_callback_relocate_binary()
+    test_tvm_callback_read_binary_section()
+    test_tvm_callback_get_symbol_map()
