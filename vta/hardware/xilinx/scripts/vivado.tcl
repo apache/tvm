@@ -88,6 +88,40 @@ update_ip_catalog -add_ip $store_ip -repo_path $ip_lib
 create_bd_design $design_name
 current_bd_design $design_name
 
+# Procedure to initialize FIFO
+proc init_fifo_property {fifo depth} {
+  set_property -dict [ list \
+    CONFIG.FIFO_Implementation_rach {Common_Clock_Distributed_RAM} \
+    CONFIG.FIFO_Implementation_wach {Common_Clock_Distributed_RAM} \
+    CONFIG.FIFO_Implementation_wrch {Common_Clock_Distributed_RAM} \
+    CONFIG.Full_Flags_Reset_Value {1} \
+    CONFIG.INTERFACE_TYPE {AXI_STREAM} \
+    CONFIG.Input_Depth_axis $depth \
+    CONFIG.Reset_Type {Asynchronous_Reset}
+  ] $fifo
+}
+
+# Procedure to initialize BRAM
+proc init_bram_property {bram width depth} {
+  set_property -dict [ list \
+    CONFIG.Assume_Synchronous_Clk {true} \
+    CONFIG.Byte_Size {8} \
+    CONFIG.Enable_32bit_Address {true} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Read_Width_A $width \
+    CONFIG.Read_Width_B $width \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
+    CONFIG.Use_Byte_Write_Enable {true} \
+    CONFIG.Use_RSTA_Pin {true} \
+    CONFIG.Use_RSTB_Pin {true} \
+    CONFIG.Write_Depth_A $depth \
+    CONFIG.Write_Width_A $width \
+    CONFIG.Write_Width_B $width \
+  ] $bram
+}
+
 # Create instance: proc_sys_reset, and set properties
 set proc_sys_reset \
   [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset ]
@@ -150,202 +184,94 @@ set_property -dict [ list \
 set cmd_queue_list {load_queue gemm_queue store_queue}
 foreach cmd_queue $cmd_queue_list {
   set tmp_cmd_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $cmd_queue ]
-  set_property -dict [ list \
-    CONFIG.Empty_Threshold_Assert_Value_axis {510} \
-    CONFIG.Empty_Threshold_Assert_Value_rach {14} \
-    CONFIG.Empty_Threshold_Assert_Value_wach {14} \
-    CONFIG.Empty_Threshold_Assert_Value_wrch {14} \
-    CONFIG.FIFO_Implementation_rach {Common_Clock_Distributed_RAM} \
-    CONFIG.FIFO_Implementation_wach {Common_Clock_Distributed_RAM} \
-    CONFIG.FIFO_Implementation_wrch {Common_Clock_Distributed_RAM} \
-    CONFIG.Full_Flags_Reset_Value {1} \
-    CONFIG.Full_Threshold_Assert_Value_axis {511} \
-    CONFIG.Full_Threshold_Assert_Value_rach {15} \
-    CONFIG.Full_Threshold_Assert_Value_wach {15} \
-    CONFIG.Full_Threshold_Assert_Value_wrch {15} \
-    CONFIG.INTERFACE_TYPE {AXI_STREAM} \
-    CONFIG.Input_Depth_axis {512} \
-    CONFIG.Reset_Type {Asynchronous_Reset} \
-    CONFIG.TDATA_NUM_BYTES {16} \
-    CONFIG.TKEEP_WIDTH {16} \
-    CONFIG.TSTRB_WIDTH {16} \
-    CONFIG.TUSER_WIDTH {0} \
-  ] $tmp_cmd_queue
+  [ init_fifo_property $tmp_cmd_queue 512 ]
 }
 
 # Create dependence queues and set properties
 set dep_queue_list {l2g_queue g2l_queue g2s_queue s2g_queue}
 foreach dep_queue $dep_queue_list {
   set tmp_dep_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $dep_queue ]
-  set_property -dict [ list \
-    CONFIG.Empty_Threshold_Assert_Value_axis {1022} \
-    CONFIG.Empty_Threshold_Assert_Value_rach {14} \
-    CONFIG.Empty_Threshold_Assert_Value_wach {14} \
-    CONFIG.Empty_Threshold_Assert_Value_wrch {14} \
-    CONFIG.FIFO_Implementation_rach {Common_Clock_Distributed_RAM} \
-    CONFIG.FIFO_Implementation_wach {Common_Clock_Distributed_RAM} \
-    CONFIG.FIFO_Implementation_wrch {Common_Clock_Distributed_RAM} \
-    CONFIG.Full_Flags_Reset_Value {1} \
-    CONFIG.Full_Threshold_Assert_Value_axis {1023} \
-    CONFIG.Full_Threshold_Assert_Value_rach {15} \
-    CONFIG.Full_Threshold_Assert_Value_wach {15} \
-    CONFIG.Full_Threshold_Assert_Value_wrch {15} \
-    CONFIG.INTERFACE_TYPE {AXI_STREAM} \
-    CONFIG.Input_Depth_axis {1024} \
-    CONFIG.Reset_Type {Asynchronous_Reset} \
-    CONFIG.TUSER_WIDTH {0} \
-  ] $tmp_dep_queue
+  [ init_fifo_property $tmp_dep_queue 1024 ]
 }
 
 # Create and connect inp_mem partitions
 for {set i 0} {$i < $inp_part} {incr i} {
   # Create instance: inp_mem, and set properties
   set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem_${i} ]
-  set_property -dict [ list \
-    CONFIG.Assume_Synchronous_Clk {true} \
-    CONFIG.Byte_Size {8} \
-    CONFIG.Enable_32bit_Address {true} \
-    CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Memory_Type {True_Dual_Port_RAM} \
-    CONFIG.Read_Width_A $inp_mem_width \
-    CONFIG.Read_Width_B $inp_mem_width \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-    CONFIG.Use_Byte_Write_Enable {true} \
-    CONFIG.Use_RSTA_Pin {true} \
-    CONFIG.Use_RSTB_Pin {true} \
-    CONFIG.Write_Depth_A $inp_mem_depth \
-    CONFIG.Write_Width_A $inp_mem_width \
-    CONFIG.Write_Width_B $inp_mem_width \
-  ] $inp_mem
-  # Create interface connections
+  [ init_bram_property $inp_mem $inp_mem_width $inp_mem_depth ]
+  # If module has more than 1 mem port, the naming convention changes
   if {$inp_part > 1} {
-    connect_bd_intf_net -intf_net load_0_inp_mem_${i}_V_PORTA \
-      [get_bd_intf_pins $inp_mem/BRAM_PORTA] \
-      [get_bd_intf_pins load_0/inp_mem_${i}_V_PORTA]
-    connect_bd_intf_net -intf_net compute_0_inp_mem_${i}_V_PORTA \
-      [get_bd_intf_pins compute_0/inp_mem_${i}_V_PORTA] \
-      [get_bd_intf_pins $inp_mem/BRAM_PORTB]
+    set porta [get_bd_intf_pins load_0/inp_mem_${i}_V_PORTA]
+    set portb [get_bd_intf_pins compute_0/inp_mem_${i}_V_PORTA]
   } else {
-    # Create interface connections
-    connect_bd_intf_net -intf_net load_0_inp_mem_V_PORTA \
-      [get_bd_intf_pins $inp_mem/BRAM_PORTA] \
-      [get_bd_intf_pins load_0/inp_mem_V_PORTA]
-    connect_bd_intf_net -intf_net compute_0_inp_mem_V_PORTA \
-      [get_bd_intf_pins compute_0/inp_mem_V_PORTA] \
-      [get_bd_intf_pins $inp_mem/BRAM_PORTB]
+    set porta [get_bd_intf_pins load_0/inp_mem_V_PORTA]
+    set portb [get_bd_intf_pins compute_0/inp_mem_V_PORTA]
   }
+  # Create interface connections
+  connect_bd_intf_net -intf_net load_0_inp_mem_V_PORTA \
+    [get_bd_intf_pins $inp_mem/BRAM_PORTA] \
+    $porta
+  connect_bd_intf_net -intf_net compute_0_inp_mem_V_PORTA \
+    [get_bd_intf_pins $inp_mem/BRAM_PORTB] \
+    $portb
 }
+
 
 # Create and connect wgt_mem partitions
 for {set i 0} {$i < $wgt_part} {incr i} {
   # Create instance: wgt_mem, and set properties
   set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem_${i} ]
-  set_property -dict [ list \
-    CONFIG.Assume_Synchronous_Clk {true} \
-    CONFIG.Byte_Size {8} \
-    CONFIG.Enable_32bit_Address {true} \
-    CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Memory_Type {True_Dual_Port_RAM} \
-    CONFIG.Read_Width_A $wgt_mem_width \
-    CONFIG.Read_Width_B $wgt_mem_width \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-    CONFIG.Use_Byte_Write_Enable {true} \
-    CONFIG.Use_RSTA_Pin {true} \
-    CONFIG.Use_RSTB_Pin {true} \
-    CONFIG.Write_Depth_A $wgt_mem_depth \
-    CONFIG.Write_Width_A $wgt_mem_width \
-    CONFIG.Write_Width_B $wgt_mem_width \
-  ] $wgt_mem
+  [ init_bram_property $wgt_mem $wgt_mem_width $wgt_mem_depth ]
+  # If module has more than 1 mem port, the naming convention changes
   if {$wgt_part > 1} {
-    # Create interface connections
-    connect_bd_intf_net -intf_net load_0_wgt_mem_${i}_V_PORTA \
-      [get_bd_intf_pins load_0/wgt_mem_${i}_V_PORTA] \
-      [get_bd_intf_pins $wgt_mem/BRAM_PORTA]
-    connect_bd_intf_net -intf_net compute_0_wgt_mem_${i}_V_PORTA \
-      [get_bd_intf_pins compute_0/wgt_mem_${i}_V_PORTA] \
-      [get_bd_intf_pins $wgt_mem/BRAM_PORTB]
+    set porta [get_bd_intf_pins load_0/wgt_mem_${i}_V_PORTA]
+    set portb [get_bd_intf_pins compute_0/wgt_mem_${i}_V_PORTA]
   } else {
-    # Create interface connections
-    connect_bd_intf_net -intf_net load_0_wgt_mem_V_PORTA \
-      [get_bd_intf_pins load_0/wgt_mem_V_PORTA] \
-      [get_bd_intf_pins $wgt_mem/BRAM_PORTA]
-    connect_bd_intf_net -intf_net compute_0_wgt_mem_V_PORTA \
-      [get_bd_intf_pins compute_0/wgt_mem_V_PORTA] \
-      [get_bd_intf_pins $wgt_mem/BRAM_PORTB]
+    set porta [get_bd_intf_pins load_0/wgt_mem_V_PORTA]
+    set portb [get_bd_intf_pins compute_0/wgt_mem_V_PORTA]
   }
+  # Create interface connections
+  connect_bd_intf_net -intf_net load_0_wgt_mem_${i}_V_PORTA \
+    [get_bd_intf_pins $wgt_mem/BRAM_PORTA] \
+    $porta
+  connect_bd_intf_net -intf_net compute_0_wgt_mem_${i}_V_PORTA \
+    [get_bd_intf_pins $wgt_mem/BRAM_PORTB] \
+    $portb
 }
 
 # Create and connect out_mem partitions
 for {set i 0} {$i < $out_part} {incr i} {
   # Create instance: out_mem, and set properties
   set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem_${i} ]
-  set_property -dict [ list \
-    CONFIG.Assume_Synchronous_Clk {true} \
-    CONFIG.Byte_Size {8} \
-    CONFIG.Enable_32bit_Address {true} \
-    CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Memory_Type {True_Dual_Port_RAM} \
-    CONFIG.Read_Width_A $out_mem_width \
-    CONFIG.Read_Width_B $out_mem_width \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-    CONFIG.Use_Byte_Write_Enable {true} \
-    CONFIG.Use_RSTA_Pin {true} \
-    CONFIG.Use_RSTB_Pin {true} \
-    CONFIG.Write_Depth_A $out_mem_depth \
-    CONFIG.Write_Width_A $out_mem_width \
-    CONFIG.Write_Width_B $out_mem_width \
-  ] $out_mem
+  [ init_bram_property $out_mem $out_mem_width $out_mem_depth ]
+  # If module has more than 1 mem port, the naming convention changes
   if {$out_part > 1} {
-    # Create interface connections
-    connect_bd_intf_net -intf_net compute_0_out_mem_${i}_V_PORTA \
-      [get_bd_intf_pins compute_0/out_mem_${i}_V_PORTA] \
-      [get_bd_intf_pins $out_mem/BRAM_PORTA]
-    connect_bd_intf_net -intf_net store_0_out_mem_${i}_V_PORTA \
-      [get_bd_intf_pins $out_mem/BRAM_PORTB] \
-      [get_bd_intf_pins store_0/out_mem_${i}_V_PORTA]
+    set porta [get_bd_intf_pins compute_0/out_mem_${i}_V_PORTA]
+    set portb [get_bd_intf_pins store_0/out_mem_${i}_V_PORTA]
   } else {
-    # Create interface connections
-    connect_bd_intf_net -intf_net compute_0_out_mem_V_PORTA \
-      [get_bd_intf_pins compute_0/out_mem_V_PORTA] \
-      [get_bd_intf_pins $out_mem/BRAM_PORTA]
-    connect_bd_intf_net -intf_net store_0_out_mem_V_PORTA \
-      [get_bd_intf_pins $out_mem/BRAM_PORTB] \
-      [get_bd_intf_pins store_0/out_mem_V_PORTA]
+    set porta [get_bd_intf_pins compute_0/out_mem_V_PORTA]
+    set portb [get_bd_intf_pins store_0/out_mem_V_PORTA]
   }
+  # Create interface connections
+  connect_bd_intf_net -intf_net compute_0_out_mem_${i}_V_PORTA \
+    [get_bd_intf_pins $out_mem/BRAM_PORTA] \
+    $porta
+  connect_bd_intf_net -intf_net store_0_out_mem_${i}_V_PORTA \
+    [get_bd_intf_pins $out_mem/BRAM_PORTB] \
+    $portb
 }
 
 # Create instance: processing_system, and set properties
 if { $device_family eq "zynq-7000" } {
   set processing_system [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system ]
   set_property -dict [ list \
-    CONFIG.PCW_CAN0_PERIPHERAL_ENABLE {0} \
-    CONFIG.PCW_ENET0_PERIPHERAL_ENABLE {0} \
     CONFIG.PCW_EN_CLK0_PORT {1} \
-    CONFIG.PCW_EN_CLK1_PORT {0} \
-    CONFIG.PCW_EN_CLK2_PORT {0} \
-    CONFIG.PCW_EN_CLK3_PORT {0} \
     CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {100} \
-    CONFIG.PCW_GPIO_MIO_GPIO_ENABLE {0} \
-    CONFIG.PCW_I2C0_PERIPHERAL_ENABLE {0} \
-    CONFIG.PCW_IMPORT_BOARD_PRESET {None} \
-    CONFIG.PCW_IRQ_F2P_INTR {0} \
-    CONFIG.PCW_QSPI_GRP_SINGLE_SS_ENABLE {0} \
-    CONFIG.PCW_QSPI_PERIPHERAL_ENABLE {0} \
-    CONFIG.PCW_SD0_PERIPHERAL_ENABLE {0} \
-    CONFIG.PCW_USB0_PERIPHERAL_ENABLE {0} \
     CONFIG.PCW_USE_DEFAULT_ACP_USER_VAL {1} \
-    CONFIG.PCW_USE_FABRIC_INTERRUPT {1} \
-    CONFIG.PCW_USE_HIGH_OCM {1} \
     CONFIG.PCW_USE_S_AXI_ACP {1} \
-    CONFIG.PCW_USE_S_AXI_HP0 {0} \
-    CONFIG.PCW_USE_S_AXI_HP1 {0} \
-    CONFIG.PCW_USE_S_AXI_HP2 {0} \
-    CONFIG.PCW_USE_S_AXI_HP3 {0} \
     CONFIG.preset {ZC702} \
   ] $processing_system
+  # Get ports that are specific to the Zynq 7000 processing system
   set ps_clk    [get_bd_pins processing_system/FCLK_CLK0]
   set ps_rstn   [get_bd_pins processing_system/FCLK_RESET0_N]
   set maxi_clk  [get_bd_pins processing_system/M_AXI_GP0_ACLK]
@@ -1784,6 +1710,7 @@ if { $device_family eq "zynq-7000" } {
     CONFIG.USB0_BOARD_INTERFACE {custom} \
     CONFIG.USB1_BOARD_INTERFACE {custom} \
  ] $processing_system
+  # Get ports that are specific to the Zynq Ultrascale MPSoC processing system
   set ps_clk    [get_bd_pins processing_system/pl_clk0]
   set ps_rstn   [get_bd_pins processing_system/pl_resetn0]
   set maxi_clk  [get_bd_pins processing_system/maxihpm0_fpd_aclk]
