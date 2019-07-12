@@ -38,7 +38,9 @@ elseif(PYTHON)
   string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_=.]*" VTA_DEFINITIONS "${__vta_defs}")
 
   file(GLOB VTA_RUNTIME_SRCS vta/src/*.cc)
-  file(GLOB __vta_target_srcs vta/src/${VTA_TARGET}/*.cc)
+  if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
+    file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
+  endif()
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
 
   add_library(vta SHARED ${VTA_RUNTIME_SRCS})
