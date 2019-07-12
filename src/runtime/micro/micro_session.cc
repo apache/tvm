@@ -329,11 +329,11 @@ PackedFunc MicroSession::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   if (name == "enter") {
-    return PackedFunc([sptr_to_self, _](TVMArgs args, TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
       MicroSession::EnterWithScope(std::dynamic_pointer_cast<MicroSession>(sptr_to_self));
     });
   } else if (name == "exit") {
-    return PackedFunc([sptr_to_self, _](TVMArgs args, TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
       MicroSession::ExitWithScope();
     });
   } else {
