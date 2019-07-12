@@ -198,55 +198,35 @@ foreach dep_queue $dep_queue_list {
 }
 
 # Create and connect inp_mem partitions
-if {$inp_part > 1} {
-  for {set i 0} {$i < $inp_part} {incr i} {
-    # Create instance: inp_mem, and set properties
-    set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem_${i} ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $inp_mem_width \
-      CONFIG.Read_Width_B $inp_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $inp_mem_depth \
-      CONFIG.Write_Width_A $inp_mem_width \
-      CONFIG.Write_Width_B $inp_mem_width \
-    ] $inp_mem
-    # Create interface connections
+for {set i 0} {$i < $inp_part} {incr i} {
+  # Create instance: inp_mem, and set properties
+  set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem_${i} ]
+  set_property -dict [ list \
+    CONFIG.Assume_Synchronous_Clk {true} \
+    CONFIG.Byte_Size {8} \
+    CONFIG.Enable_32bit_Address {true} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Read_Width_A $inp_mem_width \
+    CONFIG.Read_Width_B $inp_mem_width \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
+    CONFIG.Use_Byte_Write_Enable {true} \
+    CONFIG.Use_RSTA_Pin {true} \
+    CONFIG.Use_RSTB_Pin {true} \
+    CONFIG.Write_Depth_A $inp_mem_depth \
+    CONFIG.Write_Width_A $inp_mem_width \
+    CONFIG.Write_Width_B $inp_mem_width \
+  ] $inp_mem
+  # Create interface connections
+  if {$inp_part > 1} {
     connect_bd_intf_net -intf_net load_0_inp_mem_${i}_V_PORTA \
       [get_bd_intf_pins $inp_mem/BRAM_PORTA] \
       [get_bd_intf_pins load_0/inp_mem_${i}_V_PORTA]
     connect_bd_intf_net -intf_net compute_0_inp_mem_${i}_V_PORTA \
       [get_bd_intf_pins compute_0/inp_mem_${i}_V_PORTA] \
       [get_bd_intf_pins $inp_mem/BRAM_PORTB]
-  }
-} else {
-    # Create instance: inp_mem, and set properties
-    set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $inp_mem_width \
-      CONFIG.Read_Width_B $inp_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $inp_mem_depth \
-      CONFIG.Write_Width_A $inp_mem_width \
-      CONFIG.Write_Width_B $inp_mem_width \
-    ] $inp_mem
+  } else {
     # Create interface connections
     connect_bd_intf_net -intf_net load_0_inp_mem_V_PORTA \
       [get_bd_intf_pins $inp_mem/BRAM_PORTA] \
@@ -254,30 +234,31 @@ if {$inp_part > 1} {
     connect_bd_intf_net -intf_net compute_0_inp_mem_V_PORTA \
       [get_bd_intf_pins compute_0/inp_mem_V_PORTA] \
       [get_bd_intf_pins $inp_mem/BRAM_PORTB]
+  }
 }
 
 # Create and connect wgt_mem partitions
-if {$wgt_part > 1} {
-  for {set i 0} {$i < $wgt_part} {incr i} {
-    # Create instance: wgt_mem, and set properties
-    set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem_${i} ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $wgt_mem_width \
-      CONFIG.Read_Width_B $wgt_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $wgt_mem_depth \
-      CONFIG.Write_Width_A $wgt_mem_width \
-      CONFIG.Write_Width_B $wgt_mem_width \
-    ] $wgt_mem
+for {set i 0} {$i < $wgt_part} {incr i} {
+  # Create instance: wgt_mem, and set properties
+  set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem_${i} ]
+  set_property -dict [ list \
+    CONFIG.Assume_Synchronous_Clk {true} \
+    CONFIG.Byte_Size {8} \
+    CONFIG.Enable_32bit_Address {true} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Read_Width_A $wgt_mem_width \
+    CONFIG.Read_Width_B $wgt_mem_width \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
+    CONFIG.Use_Byte_Write_Enable {true} \
+    CONFIG.Use_RSTA_Pin {true} \
+    CONFIG.Use_RSTB_Pin {true} \
+    CONFIG.Write_Depth_A $wgt_mem_depth \
+    CONFIG.Write_Width_A $wgt_mem_width \
+    CONFIG.Write_Width_B $wgt_mem_width \
+  ] $wgt_mem
+  if {$wgt_part > 1} {
     # Create interface connections
     connect_bd_intf_net -intf_net load_0_wgt_mem_${i}_V_PORTA \
       [get_bd_intf_pins load_0/wgt_mem_${i}_V_PORTA] \
@@ -285,27 +266,7 @@ if {$wgt_part > 1} {
     connect_bd_intf_net -intf_net compute_0_wgt_mem_${i}_V_PORTA \
       [get_bd_intf_pins compute_0/wgt_mem_${i}_V_PORTA] \
       [get_bd_intf_pins $wgt_mem/BRAM_PORTB]
-  }
-} else {
-    # Create instance: wgt_mem, and set properties
-    set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $wgt_mem_width \
-      CONFIG.Read_Width_B $wgt_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $wgt_mem_depth \
-      CONFIG.Write_Width_A $wgt_mem_width \
-      CONFIG.Write_Width_B $wgt_mem_width \
-    ] $wgt_mem
+  } else {
     # Create interface connections
     connect_bd_intf_net -intf_net load_0_wgt_mem_V_PORTA \
       [get_bd_intf_pins load_0/wgt_mem_V_PORTA] \
@@ -313,30 +274,31 @@ if {$wgt_part > 1} {
     connect_bd_intf_net -intf_net compute_0_wgt_mem_V_PORTA \
       [get_bd_intf_pins compute_0/wgt_mem_V_PORTA] \
       [get_bd_intf_pins $wgt_mem/BRAM_PORTB]
+  }
 }
 
 # Create and connect out_mem partitions
-if {$out_part > 1} {
-  for {set i 0} {$i < $out_part} {incr i} {
-    # Create instance: out_mem, and set properties
-    set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem_${i} ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $out_mem_width \
-      CONFIG.Read_Width_B $out_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $out_mem_depth \
-      CONFIG.Write_Width_A $out_mem_width \
-      CONFIG.Write_Width_B $out_mem_width \
-    ] $out_mem
+for {set i 0} {$i < $out_part} {incr i} {
+  # Create instance: out_mem, and set properties
+  set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem_${i} ]
+  set_property -dict [ list \
+    CONFIG.Assume_Synchronous_Clk {true} \
+    CONFIG.Byte_Size {8} \
+    CONFIG.Enable_32bit_Address {true} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Read_Width_A $out_mem_width \
+    CONFIG.Read_Width_B $out_mem_width \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
+    CONFIG.Use_Byte_Write_Enable {true} \
+    CONFIG.Use_RSTA_Pin {true} \
+    CONFIG.Use_RSTB_Pin {true} \
+    CONFIG.Write_Depth_A $out_mem_depth \
+    CONFIG.Write_Width_A $out_mem_width \
+    CONFIG.Write_Width_B $out_mem_width \
+  ] $out_mem
+  if {$out_part > 1} {
     # Create interface connections
     connect_bd_intf_net -intf_net compute_0_out_mem_${i}_V_PORTA \
       [get_bd_intf_pins compute_0/out_mem_${i}_V_PORTA] \
@@ -344,27 +306,7 @@ if {$out_part > 1} {
     connect_bd_intf_net -intf_net store_0_out_mem_${i}_V_PORTA \
       [get_bd_intf_pins $out_mem/BRAM_PORTB] \
       [get_bd_intf_pins store_0/out_mem_${i}_V_PORTA]
-  }
-} else {
-    # Create instance: out_mem, and set properties
-    set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem ]
-    set_property -dict [ list \
-      CONFIG.Assume_Synchronous_Clk {true} \
-      CONFIG.Byte_Size {8} \
-      CONFIG.Enable_32bit_Address {true} \
-      CONFIG.Enable_B {Use_ENB_Pin} \
-      CONFIG.Memory_Type {True_Dual_Port_RAM} \
-      CONFIG.Read_Width_A $out_mem_width \
-      CONFIG.Read_Width_B $out_mem_width \
-      CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-      CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-      CONFIG.Use_Byte_Write_Enable {true} \
-      CONFIG.Use_RSTA_Pin {true} \
-      CONFIG.Use_RSTB_Pin {true} \
-      CONFIG.Write_Depth_A $out_mem_depth \
-      CONFIG.Write_Width_A $out_mem_width \
-      CONFIG.Write_Width_B $out_mem_width \
-    ] $out_mem
+  } else {
     # Create interface connections
     connect_bd_intf_net -intf_net compute_0_out_mem_V_PORTA \
       [get_bd_intf_pins compute_0/out_mem_V_PORTA] \
@@ -372,6 +314,7 @@ if {$out_part > 1} {
     connect_bd_intf_net -intf_net store_0_out_mem_V_PORTA \
       [get_bd_intf_pins $out_mem/BRAM_PORTB] \
       [get_bd_intf_pins store_0/out_mem_V_PORTA]
+  }
 }
 
 # Create instance: processing_system, and set properties
