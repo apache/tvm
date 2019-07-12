@@ -89,7 +89,7 @@ create_bd_design $design_name
 current_bd_design $design_name
 
 # Procedure to initialize FIFO
-proc init_fifo_property {fifo depth} {
+proc init_fifo_property {fifo width_bytes depth} {
   set_property -dict [ list \
     CONFIG.FIFO_Implementation_rach {Common_Clock_Distributed_RAM} \
     CONFIG.FIFO_Implementation_wach {Common_Clock_Distributed_RAM} \
@@ -97,7 +97,8 @@ proc init_fifo_property {fifo depth} {
     CONFIG.Full_Flags_Reset_Value {1} \
     CONFIG.INTERFACE_TYPE {AXI_STREAM} \
     CONFIG.Input_Depth_axis $depth \
-    CONFIG.Reset_Type {Asynchronous_Reset}
+    CONFIG.Reset_Type {Asynchronous_Reset} \
+    CONFIG.TDATA_NUM_BYTES $width_bytes \
   ] $fifo
 }
 
@@ -184,14 +185,14 @@ set_property -dict [ list \
 set cmd_queue_list {load_queue gemm_queue store_queue}
 foreach cmd_queue $cmd_queue_list {
   set tmp_cmd_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $cmd_queue ]
-  [ init_fifo_property $tmp_cmd_queue 512 ]
+  [ init_fifo_property $tmp_cmd_queue 16 512 ]
 }
 
 # Create dependence queues and set properties
 set dep_queue_list {l2g_queue g2l_queue g2s_queue s2g_queue}
 foreach dep_queue $dep_queue_list {
   set tmp_dep_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $dep_queue ]
-  [ init_fifo_property $tmp_dep_queue 1024 ]
+  [ init_fifo_property $tmp_dep_queue 1 1024 ]
 }
 
 # Create and connect inp_mem partitions
