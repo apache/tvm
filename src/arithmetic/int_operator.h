@@ -19,11 +19,11 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file int_op_overflow.h
- * \brief Utility functions to detect if an integer op will overflow.
+ * \file int_operator.h
+ * \brief Additional useful operators for integer.
  */
-#ifndef TVM_ARITHMETIC_INT_OP_OVERFLOW_H_
-#define TVM_ARITHMETIC_INT_OP_OVERFLOW_H_
+#ifndef TVM_ARITHMETIC_INT_OPERATOR_H_
+#define TVM_ARITHMETIC_INT_OPERATOR_H_
 
 #include <limits>
 
@@ -48,30 +48,30 @@ inline bool WillOverflow(int64_t x,
 }
 
 template<>
-bool WillOverflow<ir::Add>(int64_t x,
-                           int64_t y,
-                           int64_t min_value,
-                           int64_t max_value) {
+inline bool WillOverflow<ir::Add>(int64_t x,
+                                  int64_t y,
+                                  int64_t min_value,
+                                  int64_t max_value) {
   if ((y > 0) && (x > max_value - y)) return true;
   if ((y < 0) && (x < min_value - y)) return true;
   return false;
 }
 
 template<>
-bool WillOverflow<ir::Sub>(int64_t x,
-                           int64_t y,
-                           int64_t min_value,
-                           int64_t max_value) {
+inline bool WillOverflow<ir::Sub>(int64_t x,
+                                  int64_t y,
+                                  int64_t min_value,
+                                  int64_t max_value) {
   if ((y > 0) && (x < min_value + y)) return true;
   if ((y < 0) && (x > max_value + y)) return true;
   return false;
 }
 
 template<>
-bool WillOverflow<ir::Mul>(int64_t x,
-                           int64_t y,
-                           int64_t min_value,
-                           int64_t max_value) {
+inline bool WillOverflow<ir::Mul>(int64_t x,
+                                  int64_t y,
+                                  int64_t min_value,
+                                  int64_t max_value) {
   if (y == 0) return false;
   if (y > 0) {
     if (x < min_value / y)  return true;
@@ -85,13 +85,42 @@ bool WillOverflow<ir::Mul>(int64_t x,
 }
 
 template<>
-bool WillOverflow<ir::Mod>(int64_t x,
-                           int64_t y,
-                           int64_t min_value,
-                           int64_t max_value) {
+inline bool WillOverflow<ir::Mod>(int64_t x,
+                                  int64_t y,
+                                  int64_t min_value,
+                                  int64_t max_value) {
   return y == 0;
+}
+
+/*!
+ * \brief Peform floor division of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t floordiv(int64_t x, int64_t y) {
+  bool round_down =
+      (x >= 0 && y >= 0) ||
+      (x <= 0 && y <= 0) ||
+      (x % y == 0);
+  return round_down ? (x / y) : (x / y - 1);
+}
+
+
+/*!
+ * \brief Compute the floordiv remainder of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t floormod(int64_t x, int64_t y) {
+  bool round_down =
+      (x >= 0 && y >= 0) ||
+      (x <= 0 && y <= 0) ||
+      (x % y == 0);
+  return round_down ? (x % y) : (x % y + y);
 }
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_INT_OP_OVERFLOW_H_
+#endif  // TVM_ARITHMETIC_INT_OPERATOR_H_

@@ -332,6 +332,26 @@ TVM_DLL Expr operator||(Expr a, Expr b);
  */
 TVM_DLL Expr operator!(Expr a);
 /*!
+ * \brief compute floor(a / b)
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr floordiv(Expr a, Expr b);
+/*!
+ * \brief compute the remainder of floordiv
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr floormod(Expr a, Expr b);
+/*!
  * \brief take maximum of two values
  *
  * \param a left operand

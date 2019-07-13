@@ -61,6 +61,10 @@ def test_div_shift():
     m = analyzer.modular_set((x * 4 + 2) >> 1)
     assert m.coeff == 2
     assert m.base == 1
+    fld = tvm.floordiv
+    m = analyzer.modular_set(fld(x * 4 + 2, 2))
+    assert m.coeff == 2
+    assert m.base == 1
     # x is non-negative
     analyzer.update(x, tvm.arith.ConstIntBound(0, 100))
     m = analyzer.modular_set((x * 4 + 2) / 2)

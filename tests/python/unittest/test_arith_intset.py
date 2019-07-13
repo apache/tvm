@@ -64,8 +64,13 @@ def test_mul_div():
     ck.verify(x * y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 * y))
     ck.verify(x * 2, {x : tvm.arith.IntervalSet(1, 10)}, (2, 20))
     ck.verify(x * -2, {x : tvm.arith.IntervalSet(1, 10)}, (-20, -2))
+
     ck.verify(x / y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 / y))
     ck.verify(x / 2, {x : tvm.arith.IntervalSet(1, 10)}, (0, 5))
+
+    fld = tvm.floordiv
+    ck.verify(fld(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, fld(10, y)))
+    ck.verify(fld(x, 2), {x : tvm.arith.IntervalSet(-1, 10)}, (-1, 5))
 
 
 def test_mod():
@@ -74,6 +79,10 @@ def test_mod():
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(x % y, {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
     ck.verify(x % 10, {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
+
+    flm = tvm.floormod
+    ck.verify(flm(x, 10), {x : tvm.arith.IntervalSet(-10, 10)}, (0, 9))
+
 
 def test_max_min():
     ck = IntSetChecker()
@@ -99,4 +108,3 @@ if __name__ == "__main__":
     test_max_min()
     test_select()
     test_mod()
-

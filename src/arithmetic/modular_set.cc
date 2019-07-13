@@ -179,6 +179,14 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
+  Entry VisitExpr_(const FloorDiv* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      return DivByConst(op->a, b.base, true);
+    }
+    return Everything();
+  }
+
   Entry VisitExpr_(const Min* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);

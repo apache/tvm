@@ -143,6 +143,52 @@ def test_mod_bound():
     assert bd.max_value == 9
 
 
+def test_floordiv_bound():
+    analyzer = tvm.arith.Analyzer()
+    x, y = tvm.var("x"), tvm.var("y")
+    fld = tvm.floordiv
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
+    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == -9 // 4
+
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-2, 0), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == -4
+    assert bd.max_value == 9
+
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-2, 1), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == bd.NEG_INF
+    assert bd.max_value == bd.POS_INF
+
+
+def test_floormod_bound():
+    analyzer = tvm.arith.Analyzer()
+    x, y = tvm.var("x"), tvm.var("y")
+    flm = tvm.floormod
+
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
+    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
+    bd = analyzer.const_int_bound(flm(x, y))
+    assert bd.min_value == 0
+    assert bd.max_value == 9
+
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
+    bd = analyzer.const_int_bound(flm(x, y))
+    assert bd.min_value == 0
+    assert bd.max_value == 9
+
+    analyzer.update(x, tvm.arith.ConstIntBound(1, bd.POS_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
+    bd = analyzer.const_int_bound(flm(x, y))
+    assert bd.min_value == 0
+    assert bd.max_value == 9
+
+
 def test_min_max_bound():
     analyzer = tvm.arith.Analyzer()
     x, y = tvm.var("x"), tvm.var("y")
@@ -229,6 +275,8 @@ if __name__ == "__main__":
     test_mul_bound()
     test_div_bound()
     test_mod_bound()
+    test_floordiv_bound()
+    test_floormod_bound()
     test_min_max_bound()
     test_select_bound()
     test_shift_and_bound()
