@@ -28,21 +28,32 @@ class CanonicalChecker:
 def test_mul_sum_simplify():
     ck = CanonicalChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
+
     ck.verify(2 + (3 * x + z + y + 1) * 4 + x,
               x * 13 + z * 4 + y * 4 +6)
-    ck.verify((x + y + x + y * 3) / 2, y * 2 + x)
-    ck.verify((x + y + x + y * 3) % 2, 0)
     ck.verify(x * 3 - 4 * x + 1, 1 - x)
     ck.verify(y + x * 3 - 5 * x + 1 + y, y * 2 + 1 - x * 2)
+    # trucdiv
+    ck.verify((x + y + x + y * 3) / 2, y * 2 + x)
+    ck.verify((x + y + x + y * 3) % 2, 0)
+
+    # floordiv
+    fld = tvm.floordiv
+    flm = tvm.floormod
+    ck.verify(flm(x + x + y * 3, 2), flm(y * 3, 2))
+    ck.verify(fld(x + y + x + y * 3, 2), y * 2 + x)
+    ck.verify(flm(x + y + x + y * 3, 2), 0)
+    ck.verify(fld(x + x + y * 3, 2), fld(y * 3, 2) + x)
 
 
 def test_split_index_simplify():
     ck = CanonicalChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
+
+    # trucdiv
+    # split div const
     ck.verify((x/3) *3 + x % 3, x)
     ck.verify((x/6) * 6 + ((x/3) % 2) * 3 + x % 3, x)
-
-    # split div const
     ck.verify(((x % 16) / 2) * 2 / 4, (x % 16) / 4)
     ck.verify((x % 2) / 8, 0)
     ck.verify((x % 2) / 7, 0)
@@ -59,11 +70,29 @@ def test_split_index_simplify():
     # complex fold
     ck.verify((z * 9 + y) / 2 * 2 + (z * 9 + y) % 2, z * 9 + y)
 
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(-100, 1000), True)
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(-100, 1000), True)
+    ck.verify((x * 4 + y) / 2 * 2 + (x * 4 + y) % 2, x * 4 + y)
+
+    # floordiv
+    fld = tvm.floordiv
+    flm = tvm.floormod
+    ck.verify(fld(x, 3) * 3 + flm(x, 3), x)
+    ck.verify(fld(x, 6) * 6 + flm(fld(x, 3), 2) * 3 + flm(x, 3), x)
+    ck.verify(fld(fld(flm(x, 16), 2) * 2, 4), fld(flm(x, 16), 4))
+    ck.verify(fld(flm(x, 2), 8), 0)
+    ck.verify(fld(flm(x, 2), 7), 0)
+    ck.verify(fld(fld(flm(x, 16), 2) * 2, 6), fld(flm(x, 16), 6))
+
+    # cannot simplify mixed case, unless we canonicalize into one mode.
+    ck.verify((x/6) * 2 + fld(x,3) % 2, (x/6) * 2 + fld(x,3) % 2)
 
 
 def test_div_simplify():
     ck = CanonicalChecker()
     x = tvm.var("x")
+
+    # truc div
     ck.verify((16+48*x)/16, x*3 + 1)
     # (17+48*x)/16 is not simplifiable for arbitrary x because when 17+48*x<0
     # (17+48*x)/16 != 1+3*x
@@ -73,6 +102,22 @@ def test_div_simplify():
     ck.verify((17+48*x)/16, x * 3 + 1)
     # Trying expressions that are not simplifiable for any values of the variables
     ck.verify((17+47*x)/16, (x * 47 + 17) / 16)
+
+    # floordiv
+    fld = tvm.floordiv
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 10000), True)
+    ck.verify(fld(16+48*x, 16), x*3 + 1)
+    ck.verify(fld(17+48*x, 16), x * 3 + 1)
+    ck.verify(fld(17+47*x, 16), fld(x * 47 + 17, 16))
+
+
+def test_floormod_simplify():
+    ck = CanonicalChecker()
+    flm = tvm.floormod
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.verify(flm(flm((x*4) + y  - 466036, 24528) - 24512,  16),
+              flm((x*4) + y  + 12, 16))
+
 
 
 def test_canonical_mixed():
@@ -85,6 +130,10 @@ def test_canonical_mixed():
     ck.verify(tvm.max(x, 1) - tvm.max(x, 1), 0)
     ck.verify(tvm.min(x, 1) - tvm.min(x, 1), 0)
     ck.verify(x * x - x * x, 0)
+
+    fld = tvm.floordiv
+    ck.verify(fld(x, (z*z)) - fld(x, (z*z)), 0)
+    ck.verify(fld(x, (z+z)) - fld(x, (z+z)), 0)
 
 
 def test_reduce_combiner_simplify():
@@ -218,11 +267,13 @@ def test_complex_cases():
 
 
 if __name__ == "__main__":
+    test_floormod_simplify()
+    test_mul_sum_simplify()
     test_simplify_if_then_else()
     test_div_simplify()
     test_reduce_simplify()
     test_reduce_combiner_simplify()
-    test_mul_sum_simplify()
+
     test_split_index_simplify()
     test_canonical_mixed()
     test_complex_cases()

@@ -53,6 +53,8 @@ class RewriteSimplifier::Impl : public IRMutator {
   Expr Mutate_(const Mul* op, const Expr& self) override;
   Expr Mutate_(const Div* op, const Expr& self) override;
   Expr Mutate_(const Mod* op, const Expr& self) override;
+  Expr Mutate_(const FloorDiv* op, const Expr& self) override;
+  Expr Mutate_(const FloorMod* op, const Expr& self) override;
   Expr Mutate_(const Min* op, const Expr& self) override;
   Expr Mutate_(const Max* op, const Expr& self) override;
   Expr Mutate_(const EQ* op, const Expr& self) override;
