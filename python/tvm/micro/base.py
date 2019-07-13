@@ -77,10 +77,56 @@ class Session:
 
 
 def get_micro_device_dir():
+    """Get directory path for uTVM runtime source files.
+
+    Return
+    ------
+    micro_device_dir : str
+        directory path
+    """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
                                     "src", "runtime", "micro", "device")
     return micro_device_dir
+
+
+def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
+    """Creates a cross compile function that wraps `create_micro_lib`.
+
+    For use in `tvm.module.Module.export_library`.
+
+    Parameters
+    ----------
+    toolchain_prefix : str
+        toolchain prefix to be used
+
+    include_dev_lib_header : bool
+        whether to include the device library header containing definitions of
+        library functions.
+
+    Return
+    ------
+    func : Callable[[str, str], None]
+        cross compile function taking a destination path for the object file
+        and a path for the input source file.
+
+    Example
+    --------
+    .. code-block:: python
+
+      c_mod = ...  # some module generated with "c" as the target
+      fcompile = tvm.micro.cross_compiler(toolchain_prefix="")
+      c_mod.export_library("dev_lib.obj", fcompile=fcompile)
+    """
+    def func(obj_path, src_path, **kwargs):
+        if len(src_path) != 1:
+            # Only a single source file can be used to generate an object
+            # file with `gcc`.
+            raise RuntimeError("multiple source files given to cross compiler")
+        src_path = src_path[0]
+        create_micro_lib(
+            src_path, obj_path, toolchain_prefix, include_dev_lib_header=include_dev_lib_header)
+    return func
 
 
 def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_header=True):
@@ -91,7 +137,7 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
     src_path : str
         path to source file
 
-    obj_path : str, optional
+    obj_path : Optional[str]
         path to generated object file (defaults to same directory as `src_path`)
 
     toolchain_prefix : str
@@ -138,7 +184,6 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
     else:
         # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
         create_lib(obj_path, src_path, options, compile_cmd)
-
 
 
 _init_api("tvm.micro", "tvm.micro.base")

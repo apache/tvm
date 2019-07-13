@@ -46,14 +46,8 @@ def create_micro_mod(c_mod, toolchain_prefix):
         micro module for the target device
     """
     temp_dir = util.tempdir()
-    # Save module source to temp file.
-    lib_src_path = temp_dir.relpath("dev_lib.c")
-    mod_src = c_mod.get_source()
-    with open(lib_src_path, "w") as f:
-        f.write(mod_src)
-    # Compile to object file.
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
-    micro.create_micro_lib(lib_src_path, lib_obj_path, toolchain_prefix)
+    c_mod.export_library(lib_obj_path, fcompile=tvm.micro.cross_compiler(toolchain_prefix=""))
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     return micro_mod
 
