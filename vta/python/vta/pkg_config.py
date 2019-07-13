@@ -114,7 +114,7 @@ class PkgConfig(object):
             self.fpga_family = "zynq-ultrascale+"
             self.fpga_freq = 333
             self.fpga_per = 2
-            self.fpga_axi_bus_width = 128
+            self.fpga_log_axi_bus_width = 7
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
         else:
@@ -123,7 +123,7 @@ class PkgConfig(object):
             self.fpga_family = "zynq-7000"
             self.fpga_freq = 100
             self.fpga_per = 7
-            self.fpga_axi_bus_width = 64
+            self.fpga_log_axi_bus_width = 6
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '000'
 
@@ -150,40 +150,42 @@ class PkgConfig(object):
         # so memory read/write ports are the same size as the design axi bus width.
         #
         # Max bus width allowed (property of FPGA vendor toolchain)
-        fpga_max_bus_width = 1024
+        max_bus_width = 1024
+        # Bus width of a memory interface
+        mem_bus_width = 1 << self.fpga_log_axi_bus_width
         # Input memory
         inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
                                   cfg["LOG_BATCH"] + \
                                   cfg["LOG_BLOCK_IN"])
         self.inp_mem_size_B = 1 << cfg["LOG_INP_BUFF_SIZE"]
         self.inp_mem_banks = (inp_mem_bus_width + \
-                              fpga_max_bus_width - 1) // \
-                              fpga_max_bus_width
-        self.inp_mem_width = min(inp_mem_bus_width, fpga_max_bus_width)
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.inp_mem_width = min(inp_mem_bus_width, max_bus_width)
         self.inp_mem_depth = self.inp_mem_size_B * 8 // inp_mem_bus_width
-        self.inp_mem_axi_ratio = self.inp_mem_width // self.fpga_axi_bus_width
+        self.inp_mem_axi_ratio = self.inp_mem_width // mem_bus_width
         # Weight memory
         wgt_mem_bus_width = 1 << (cfg["LOG_WGT_WIDTH"] + \
                                   cfg["LOG_BLOCK_IN"] + \
                                   cfg["LOG_BLOCK_OUT"])
         self.wgt_mem_size_B = 1 << cfg["LOG_WGT_BUFF_SIZE"]
         self.wgt_mem_banks = (wgt_mem_bus_width + \
-                              fpga_max_bus_width - 1) // \
-                              fpga_max_bus_width
-        self.wgt_mem_width = min(wgt_mem_bus_width, fpga_max_bus_width)
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.wgt_mem_width = min(wgt_mem_bus_width, max_bus_width)
         self.wgt_mem_depth = self.wgt_mem_size_B * 8 // wgt_mem_bus_width
-        self.wgt_mem_axi_ratio = self.wgt_mem_width // self.fpga_axi_bus_width
+        self.wgt_mem_axi_ratio = self.wgt_mem_width // mem_bus_width
         # Output memory
         out_mem_bus_width = 1 << (cfg["LOG_OUT_WIDTH"] + \
                                   cfg["LOG_BATCH"] + \
                                   cfg["LOG_BLOCK_OUT"])
         self.out_mem_size_B = 1 << cfg["LOG_OUT_BUFF_SIZE"]
         self.out_mem_banks = (out_mem_bus_width + \
-                              fpga_max_bus_width - 1) // \
-                              fpga_max_bus_width
-        self.out_mem_width = min(out_mem_bus_width, fpga_max_bus_width)
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.out_mem_width = min(out_mem_bus_width, max_bus_width)
         self.out_mem_depth = self.out_mem_size_B * 8 // out_mem_bus_width
-        self.out_mem_axi_ratio = self.out_mem_width // self.fpga_axi_bus_width
+        self.out_mem_axi_ratio = self.out_mem_width // mem_bus_width
 
         # Macro defs
         self.macro_defs = []
@@ -191,7 +193,7 @@ class PkgConfig(object):
         for key in self.cfg_keys:
             self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
             self.cfg_dict[key] = cfg[key]
-        self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_axi_bus_width))
+        self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_log_axi_bus_width))
         self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
         self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
         self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
