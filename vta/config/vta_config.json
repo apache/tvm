@@ -8,7 +8,6 @@
   "LOG_BATCH" : 0,
   "LOG_BLOCK_IN" : 4,
   "LOG_BLOCK_OUT" : 4,
-  "LOG_BUS_WIDTH" : 6,
   "LOG_UOP_BUFF_SIZE" : 15,
   "LOG_INP_BUFF_SIZE" :15,
   "LOG_WGT_BUFF_SIZE" : 18,
