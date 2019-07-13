@@ -67,8 +67,6 @@ def main():
                         help="returns log of tensor block in dimension")
     parser.add_argument("--get-blockout", action="store_true",
                         help="returns log of tensor block out dimension")
-    parser.add_argument("--get-buswidth", action="store_true",
-                        help="returns log of bus width in b")
     parser.add_argument("--get-uopbuffsize", action="store_true",
                         help="returns log of micro-op buffer size in B")
     parser.add_argument("--get-inpbuffsize", action="store_true",
@@ -79,6 +77,8 @@ def main():
                         help="returns log of accum buffer size in B")
     parser.add_argument("--get-outbuffsize", action="store_true",
                         help="returns log of output buffer size in B")
+    parser.add_argument("--get-buswidth", action="store_true",
+                        help="returns log of bus width in b")
     parser.add_argument("--get-inp-mem-banks", action="store_true",
                         help="returns number of input memory banks")
     parser.add_argument("--get-inp-mem-width", action="store_true",
@@ -202,9 +202,6 @@ def main():
     if args.get_blockout:
         print(cfg["LOG_BLOCK_OUT"])
 
-    if args.get_buswidth:
-        print(cfg["LOG_BUS_WIDTH"])
-
     if args.get_uopbuffsize:
         print(cfg["LOG_UOP_BUFF_SIZE"])
 
@@ -219,6 +216,9 @@ def main():
 
     if args.get_accbuffsize:
         print(cfg["LOG_ACC_BUFF_SIZE"])
+
+    if args.get_buswidth:
+        print(pkg.fpga_axi_bus_width)
 
     if args.get_inp_mem_banks:
         print(pkg.inp_mem_banks)

@@ -53,28 +53,25 @@ class PkgConfig(object):
     ]
 
     def __init__(self, cfg, proj_root):
-        # include path
+        # VTA target
+        self.target = cfg["TARGET"]
+
+        # Include path
         self.include_path = [
             "-I%s/include" % proj_root,
             "-I%s/vta/include" % proj_root,
             "-I%s/3rdparty/dlpack/include" % proj_root,
             "-I%s/3rdparty/dmlc-core/include" % proj_root
         ]
+
         # List of source files that can be used to build standalone library.
         self.lib_source = []
         self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
-        if cfg["TARGET"] in ["pynq", "ultra96"]:
+        if self.target in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
             self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
-        # macro keys
-        self.macro_defs = []
-        self.cfg_dict = {}
-        for key in self.cfg_keys:
-            self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
-            self.cfg_dict[key] = cfg[key]
 
-        self.target = cfg["TARGET"]
-
+        # Linker flags
         if self.target in ["pynq", "ultra96"] :
             self.ldflags = [
                 "-L/usr/lib",
@@ -143,11 +140,6 @@ class PkgConfig(object):
             self.load_base_addr = "0x43C20000"
             self.compute_base_addr = "0x43C10000"
             self.store_base_addr = "0x43C30000"
-        # Add to the macro defs
-        self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
-        self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
-        self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
-        self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,
@@ -193,6 +185,19 @@ class PkgConfig(object):
         self.out_mem_width = min(out_mem_bus_width, fpga_max_bus_width)
         self.out_mem_depth = self.out_mem_size_B * 8 // out_mem_bus_width
         self.out_mem_axi_ratio = self.out_mem_width // self.fpga_axi_bus_width
+
+        # Macro defs
+        self.macro_defs = []
+        self.cfg_dict = {}
+        for key in self.cfg_keys:
+            self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
+            self.cfg_dict[key] = cfg[key]
+        self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_axi_bus_width))
+        self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
+        self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
+        self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
+        self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
+
 
     @property
     def cflags(self):
