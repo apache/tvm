@@ -45,7 +45,6 @@ class PkgConfig(object):
         "LOG_BATCH",
         "LOG_BLOCK_IN",
         "LOG_BLOCK_OUT",
-        "LOG_BUS_WIDTH",
         "LOG_UOP_BUFF_SIZE",
         "LOG_INP_BUFF_SIZE",
         "LOG_WGT_BUFF_SIZE",
