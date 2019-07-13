@@ -16,7 +16,7 @@
 # under the License.
 
 # Check if script is running in correct Vivado version.
-set scripts_vivado_version 2018.3
+set scripts_vivado_version 2019.1
 set current_vivado_version [version -short]
 
 if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
