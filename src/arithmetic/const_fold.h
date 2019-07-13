@@ -29,6 +29,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {
@@ -184,10 +185,53 @@ template<>
 inline Expr TryConstFold<ir::Mod>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const Type& rtype = a.type();
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
+      if (pa && pb) {
         return IntImm::make(rtype, pa->value % pb->value);
+      }
+      if (pa) {
+        if (pa->value == 0) return a;
+      }
+      if (pb) {
+        if (pb->value == 1) return make_zero(rtype);
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+      }
+    });
+  return Expr();
+}
+
+template<>
+inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
+  TVM_ARITH_CONST_PROPAGATION({
+      const Type& rtype = a.type();
+      if (pa && pb) {
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+        return IntImm::make(rtype, arith::floordiv(pa->value, pb->value));
+      }
+      if (pa) {
+        if (pa->value == 0) return a;
+      }
+      if (pb) {
+        if (pb->value == 1) return a;
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+      }
+      if (fa && fb && fb->value != 0) {
+        return FloatImm::make(rtype, std::floor(fa->value / fb->value));
+      }
+      if (fa && fa->value == 0) return a;
+      if (fb) {
+        if (fb->value == 1) return a;
+        CHECK_NE(fb->value, 0) << "Divide by zero";
+      }
+    });
+  return Expr();
+}
+
+template<>
+inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
+  TVM_INDEX_CONST_PROPAGATION({
+      const Type& rtype = a.type();
+      if (pa && pb) {
+        return IntImm::make(rtype, arith::floormod(pa->value, pb->value));
       }
       if (pa) {
         if (pa->value == 0) return a;
