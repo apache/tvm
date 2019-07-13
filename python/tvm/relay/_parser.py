@@ -141,9 +141,9 @@ TYPE_PREFIXES = [
     "bool",
 ]
 
-T = TypeVar("T")
-Scope = Deque[Tuple[str, T]]
-Scopes = Deque[Scope[T]]
+T = ty.TypeVar("T")
+# Scope = Deque[Tuple[str, T]]
+# Scopes = Deque[Scope[T]]
 
 def lookup(scopes, name):
     # type: (Scopes[T], str) -> Optional[T]
