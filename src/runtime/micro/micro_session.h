@@ -121,9 +121,10 @@ class MicroSession : public ModuleNode {
   /*!
    * \brief loads binary onto device
    * \param binary_path path to binary object file
+   * \param patch_dylib_pointers whether runtime API function pointer patching is needed
    * \return info about loaded binary
    */
-  BinaryInfo LoadBinary(std::string binary_path);
+  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers = true);
 
   /*!
   * \brief read value of symbol from device memory
@@ -147,12 +148,12 @@ class MicroSession : public ModuleNode {
    * \brief returns low-level device pointer
    * \note assumes low-level device has been initialized
    */
-  const std::shared_ptr<LowLevelDevice> low_level_device() const {
+  const std::shared_ptr<LowLevelDevice>& low_level_device() const {
     CHECK(low_level_device_ != nullptr) << "attempt to get uninitialized low-level device";
     return low_level_device_;
   }
 
-  SymbolMap& init_symbol_map() {
+  const SymbolMap& init_symbol_map() {
     return init_stub_info_.symbol_map;
   }
 
@@ -179,6 +180,12 @@ class MicroSession : public ModuleNode {
    * \brief sets up and loads init stub into the low-level device memory
    */
   void LoadInitStub();
+
+  /*!
+   * \brief patches a function pointer in this module to an implementation
+   * \param func_name name of the function pointer being patched
+   */
+  void PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name);
 
   /*!
    * \brief sets the init stub binary path

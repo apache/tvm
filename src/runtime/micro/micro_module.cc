@@ -56,14 +56,8 @@ class MicroModuleNode final : public ModuleNode {
    */
   void InitMicroModule(const std::string& binary_path) {
     session_ = MicroSession::Current();
-    low_level_device_ = session_->low_level_device();
     binary_path_ = binary_path;
     binary_info_ = session_->LoadBinary(binary_path_);
-
-    // Patch device lib pointers.
-    PatchImplHole("TVMBackendAllocWorkspace");
-    PatchImplHole("TVMBackendFreeWorkspace");
-    PatchImplHole("TVMAPISetLastError");
   }
 
   /*!
@@ -83,23 +77,6 @@ class MicroModuleNode final : public ModuleNode {
   std::string binary_path_;
   /*! \brief global session pointer */
   std::shared_ptr<MicroSession> session_;
-  /*! \brief low-level device pointer */
-  std::shared_ptr<LowLevelDevice> low_level_device_;
-
-  SymbolMap& symbol_map() {
-    return binary_info_.symbol_map;
-  }
-
-  /*!
-   * \brief patches a function pointer in this module to an implementation
-   * \param func_name name of the function pointer being patched
-   */
-  void PatchImplHole(const std::string& func_name) {
-    void* init_impl_addr = session_->init_symbol_map()[func_name].cast_to<void*>();
-    std::stringstream func_name_underscore;
-    func_name_underscore << func_name << "_";
-    session_->DevSymbolWrite(symbol_map(), func_name_underscore.str(), init_impl_addr);
-  }
 };
 
 class MicroWrappedFunc {
@@ -132,7 +109,8 @@ class MicroWrappedFunc {
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  DevBaseOffset func_offset = session_->low_level_device()->ToDevOffset(symbol_map()[name]);
+  DevBaseOffset func_offset =
+      session_->low_level_device()->ToDevOffset(binary_info_.symbol_map[name]);
   MicroWrappedFunc f(this, session_, name, func_offset);
   return PackedFunc(f);
 }

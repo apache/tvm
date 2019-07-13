@@ -91,7 +91,7 @@ void MicroSession::CreateSession(const std::string& device_type,
   }
   SetInitBinaryPath(binary_path);
   CHECK(!init_binary_path_.empty()) << "init library not initialized";
-  init_stub_info_ = LoadBinary(init_binary_path_);
+  init_stub_info_ = LoadBinary(init_binary_path_, /* patch_dylib_pointers */ false);
   utvm_main_symbol_ = low_level_device()->ToDevOffset(init_symbol_map()["UTVMMain"]);
   utvm_done_symbol_ = low_level_device()->ToDevOffset(init_symbol_map()["UTVMDone"]);
 
@@ -235,7 +235,7 @@ void MicroSession::CheckDeviceError() {
   }
 }
 
-BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
+BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {
   DevMemRegion text_section;
   DevMemRegion rodata_section;
   DevMemRegion data_section;
@@ -270,6 +270,14 @@ BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
   low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
   low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
   SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
+
+  if (patch_dylib_pointers) {
+    // Patch device lib pointers.
+    PatchImplHole(symbol_map, "TVMBackendAllocWorkspace");
+    PatchImplHole(symbol_map, "TVMBackendFreeWorkspace");
+    PatchImplHole(symbol_map, "TVMAPISetLastError");
+  }
+
   return BinaryInfo {
       .text_section = text_section,
       .rodata_section = rodata_section,
@@ -277,6 +285,13 @@ BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
       .bss_section = bss_section,
       .symbol_map = symbol_map,
   };
+}
+
+void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
+  void* init_impl_addr = init_symbol_map()[func_name].cast_to<void*>();
+  std::stringstream func_name_underscore;
+  func_name_underscore << func_name << "_";
+  DevSymbolWrite(symbol_map, func_name_underscore.str(), init_impl_addr);
 }
 
 void MicroSession::SetInitBinaryPath(std::string path) {
