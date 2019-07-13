@@ -168,7 +168,7 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
     options += ["-I{}".format(get_micro_device_dir())]
     options += ["-fno-stack-protector"]
     options += ["-mcmodel=large"]
-    compile_cmd = "{}g++".format(toolchain_prefix)
+    compile_cmd = "{}gcc".format(toolchain_prefix)
 
     if include_dev_lib_header:
         # Create a temporary copy of the source, so we can inject the dev lib
@@ -177,7 +177,7 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
         temp_src_path = tmp_dir.relpath("temp.c")
         with open(src_path, "r") as f:
             src_lines = f.read().splitlines()
-        src_lines.insert(0, "#include \"utvm_device_lib.h\"")
+        src_lines.insert(0, "#include \"utvm_device_dylib_redirect.c\"")
         with open(temp_src_path, "w") as f:
             f.write("\n".join(src_lines))
         create_lib(obj_path, temp_src_path, options, compile_cmd)

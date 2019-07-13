@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file utvm_runtime.h
- * \brief utvm runtime headers
+ * \brief uTVM runtime headers
  */
 #ifndef TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
 #define TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
@@ -28,6 +28,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #include <stdint.h>
 #include <tvm/runtime/c_runtime_api.h>
 

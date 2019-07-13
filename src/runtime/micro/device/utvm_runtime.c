@@ -20,13 +20,20 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file utvm_runtime.cc
- * \brief micro device init stub
+ * \brief uTVM runtime
+ *
+ * All function calls go through `UTVMMain`, which reads from the current
+ * `UTVMTask` and calls the appropriate function with the arguments from the
+ * task.
+ *
+ * Additionally included in this file are definitions for some of the most
+ * common functions used in the C runtime API.
  */
-#include "utvm_runtime.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "utvm_runtime.h"
 
 // Task pointers must be patched before calling a function.
 UTVMTask task;
@@ -51,7 +58,7 @@ void UTVMMain() {
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
   utvm_return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
-                          task.num_args);
+                               task.num_args);
   UTVMDone();
 }
 
