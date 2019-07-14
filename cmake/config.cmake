@@ -62,7 +62,7 @@ set(USE_VULKAN OFF)
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
-# Whether enable Micro runtime
+# Whether enable MicroTVM runtime
 set(USE_MICRO OFF)
 
 # Whether to enable SGX runtime

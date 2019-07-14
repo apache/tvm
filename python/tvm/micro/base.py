@@ -26,7 +26,7 @@ from tvm.contrib import util
 
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
-from .cross_compile import create_lib
+from tvm.contrib import cross_compile as _cross_compile
 
 SUPPORTED_DEVICE_TYPES = ["host"]
 
@@ -63,7 +63,7 @@ class Session:
         tmp_dir = util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
         create_micro_lib(
-            runtime_src_path, runtime_obj_path, toolchain_prefix, include_dev_lib_header=False)
+            runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
         self.module = _CreateSession(device_type, runtime_obj_path, toolchain_prefix)
         self._enter = self.module["enter"]
@@ -100,13 +100,13 @@ def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
     toolchain_prefix : str
         toolchain prefix to be used
 
-    include_dev_lib_header : bool
+    include_dev_lib_header : Optional[bool]
         whether to include the device library header containing definitions of
         library functions.
 
     Return
     ------
-    func : Callable[[str, str], None]
+    func : Callable[[str, str, Optional[str]], None]
         cross compile function taking a destination path for the object file
         and a path for the input source file.
 
@@ -118,27 +118,27 @@ def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
       fcompile = tvm.micro.cross_compiler(toolchain_prefix="")
       c_mod.export_library("dev_lib.obj", fcompile=fcompile)
     """
-    def func(obj_path, src_path, **_):
-        if len(src_path) != 1:
-            # Only a single source file can be used to generate an object
-            # file with `gcc`.
-            raise RuntimeError("multiple source files given to cross compiler")
-        src_path = src_path[0]
-        create_micro_lib(
-            src_path, obj_path, toolchain_prefix, include_dev_lib_header=include_dev_lib_header)
-    return func
+    def compile_func(obj_path, src_path, **kwargs):
+        if isinstance(obj_path, list):
+            obj_path = obj_path[0]
+        if isinstance(src_path, list):
+            src_path = src_path[0]
+        create_micro_lib(obj_path, src_path, toolchain_prefix,
+                         kwargs.get("options", None), include_dev_lib_header)
+    return _cross_compile.cross_compiler(compile_func)
 
 
-def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_header=True):
+def create_micro_lib(
+        obj_path, src_path, toolchain_prefix, options=None, include_dev_lib_header=True):
     """Compiles code into a binary for the target micro device.
 
     Parameters
     ----------
-    src_path : str
-        path to source file
-
     obj_path : Optional[str]
         path to generated object file (defaults to same directory as `src_path`)
+
+    src_path : str
+        path to source file
 
     toolchain_prefix : str
         toolchain prefix to be used
@@ -180,10 +180,9 @@ def create_micro_lib(src_path, obj_path, toolchain_prefix, include_dev_lib_heade
         src_lines.insert(0, "#include \"utvm_device_dylib_redirect.c\"")
         with open(temp_src_path, "w") as f:
             f.write("\n".join(src_lines))
-        create_lib(obj_path, temp_src_path, options, compile_cmd)
-    else:
-        # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
-        create_lib(obj_path, src_path, options, compile_cmd)
+        src_path = temp_src_path
+
+    _cross_compile.create_shared(obj_path, src_path, options, compile_cmd)
 
 
 _init_api("tvm.micro", "tvm.micro.base")
