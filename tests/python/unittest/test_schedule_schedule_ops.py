@@ -286,20 +286,6 @@ def test_schedule_cache_relayout4():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
-def test_schedule_bound_condition():
-   A = tvm.placeholder((64,), name='A', dtype="float32")
-   Apad = tvm.compute((66,), lambda i: tvm.if_then_else(
-       tvm.all(i>0, i < 65), A[i-1], tvm.const(0., "float32")), name='Apad')
-   Apad2 = tvm.compute((66,), lambda i: Apad[i]*2, name='Apad2')
-   s = tvm.create_schedule(Apad2.op)
-   AL1 = s.cache_read(A,"local",[Apad])
-   s = s.normalize()
-   bounds = tvm.schedule.InferBound(s)
-   stmt = tvm.schedule.ScheduleOps(s, bounds)
-   stmt = tvm.ir_pass.Simplify(stmt)
-   assert (isinstance(stmt.body.body.first.body.body.then_case, tvm.stmt.IfThenElse))
-
-
 def intrin_gemv(m, n):
     w = tvm.placeholder((m, n), name='w')
     x = tvm.placeholder((n,), name='x')
@@ -514,7 +500,6 @@ if __name__ == "__main__":
     test_schedule1()
     test_schedule2()
     test_schedule_cache()
-    test_schedule_bound_condition()
     test_schedule_tensor_compute1()
     test_schedule_tensor_compute2()
     test_schedule_tensor_compute3()
