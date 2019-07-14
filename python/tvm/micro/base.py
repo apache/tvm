@@ -118,7 +118,7 @@ def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
       fcompile = tvm.micro.cross_compiler(toolchain_prefix="")
       c_mod.export_library("dev_lib.obj", fcompile=fcompile)
     """
-    def func(obj_path, src_path, **kwargs):
+    def func(obj_path, src_path, **_):
         if len(src_path) != 1:
             # Only a single source file can be used to generate an object
             # file with `gcc`.
