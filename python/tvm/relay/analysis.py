@@ -91,6 +91,10 @@ def check_kind(t, mod=None):
         return _analysis.check_kind(t)
 
 
+def check_constant(expr):
+    return _analysis.check_constant(expr)
+
+
 def free_vars(expr):
     """Get free Vars from expression expr in Post DFS order.
 

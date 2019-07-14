@@ -51,6 +51,8 @@ namespace relay {
  */
 TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
+TVM_DLL bool ConstantCheck(const Expr& e);
+
 /*!
  * \brief Compare two expressions for structural equivalence.
  *
