@@ -84,15 +84,15 @@ proc init_design {} {
 }
 
 # HLS behavioral sim
-open_project vta_sim
-set_top vta
-add_files $src_dir/vta.cc -cflags $cflags
-add_files -tb $sim_dir/vta_test.cc -cflags $cflags
-add_files -tb $test_dir/test_lib.cc -cflags $cflags
-open_solution "soln"
-init_design
-csim_design -clean
-close_project
+# open_project vta_sim
+# set_top vta
+# add_files $src_dir/vta.cc -cflags $cflags
+# add_files -tb $sim_dir/vta_test.cc -cflags $cflags
+# add_files -tb $test_dir/test_lib.cc -cflags $cflags
+# open_solution "soln"
+# init_design
+# csim_design -clean
+# close_project
 
 # Generate fetch stage
 open_project vta_fetch
