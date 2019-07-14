@@ -117,6 +117,11 @@ class PkgConfig(object):
             self.fpga_log_axi_bus_width = 7
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
+            # IP register address map
+            self.fetch_base_addr = "0xA0001000"
+            self.load_base_addr = "0xA0002000"
+            self.compute_base_addr = "0xA0003000"
+            self.store_base_addr = "0xA0004000"
         else:
             # By default, we use the pynq parameters
             self.fpga_device = "xc7z020clg484-1"
@@ -126,18 +131,10 @@ class PkgConfig(object):
             self.fpga_log_axi_bus_width = 6
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '000'
-
-        # Derive FPGA memory mapped registers map
-        if self.target == "ultra96":
-            self.fetch_base_addr = "0xA0001000"
-            self.load_base_addr = "0xA0002000"
-            self.compute_base_addr = "0xA0003000"
-            self.store_base_addr = "0xA0004000"
-        else:
-            # By default, we use the pynq parameters
+            # IP register address map
             self.fetch_base_addr = "0x43C00000"
-            self.load_base_addr = "0x43C20000"
-            self.compute_base_addr = "0x43C10000"
+            self.load_base_addr = "0x43C10000"
+            self.compute_base_addr = "0x43C20000"
             self.store_base_addr = "0x43C30000"
 
         # Derive SRAM parameters
