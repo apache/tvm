@@ -38,9 +38,9 @@ namespace relay {
 /*
  * Converts a floating point number so that it can be represented by integers.
  * The representation is
- *      float_number = (fixed_point_multiplier) * 2^(shift)
+ *      float_number = (significand) * 2^(exponent)
  *
- * The fixed_point_multiplier is a number between 0.5 and 1. This is represented
+ * The significand is a number between 0.5 and 1. This is represented
  * by an integer number. For example, if it is int32, then the decimal point
  * exists between bit 31 and 30 from LSB (or between first and second bit from
  * the left).
@@ -48,27 +48,28 @@ namespace relay {
  * Some examples are
  *           0.25 = (0.5) * 2^(-1)
  *           0.125 = (0.5) * 2^(-2)
+ *
+ * Credit to TFLite reference implementation.
  */
-void GetFixedPointMultiplierShift(double double_multiplier,
-    int32_t* fixed_point_multiplier, int* shift,
+std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
     const DataType& idtype) {
-
+  int significand, exponent;
   int idtype_bits = idtype.bits();
 
-  if (double_multiplier == 0.) {
-    *fixed_point_multiplier = 0;
-    *shift = 0;
-    return;
+  // Get the significand (significand) and exponent (exponent)
+  double significand_d = std::frexp(double_multiplier, &exponent);
+
+  // Convert the double significand to int significand.
+  significand_d = std::round(significand_d * (1ll << (idtype_bits - 1)));
+  auto significand_int64 = static_cast<int64_t>(significand_d);
+  CHECK_LE(significand_int64, (1ll << (idtype_bits - 1)));
+  if (significand_int64 == (1ll << (idtype_bits - 1))) {
+    significand_int64 /= 2;
+    ++exponent;
   }
-  const double q = std::frexp(double_multiplier, shift);
-  auto q_fixed = static_cast<int64_t>(std::round(q * (1ll << (idtype_bits - 1))));
-  CHECK_LE(q_fixed, (1ll << (idtype_bits - 1)));
-  if (q_fixed == (1ll << (idtype_bits - 1))) {
-    q_fixed /= 2;
-    ++*shift;
-  }
-  CHECK_LE(q_fixed, std::numeric_limits<int32_t>::max());
-  *fixed_point_multiplier = static_cast<int32_t>(q_fixed);
+  CHECK_LE(significand_int64, std::numeric_limits<int>::max());
+  significand = static_cast<int>(significand_int64);
+  return std::pair<int, int>(significand, exponent);
 }
 
 /*
@@ -103,10 +104,10 @@ Expr RequantizeInt(const Expr& input_tensor,
   DataType up_idtype = Int(2 * idtype_bits);
 
   // 1) Calculating the integer multiplier and integer shift
-  int32_t fixed_point_multiplier;
-  int shift;
-  GetFixedPointMultiplierShift(double_multiplier, &fixed_point_multiplier,
-          &shift, idtype);
+  std::pair<int, int> fixed_point_params =
+      GetFixedPointMultiplierShift(double_multiplier, idtype);
+  int fixed_point_multiplier = fixed_point_params.first;
+  int shift = fixed_point_params.second;
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
