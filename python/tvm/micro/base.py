@@ -22,11 +22,11 @@ from __future__ import absolute_import
 import logging
 import os
 
-from tvm.contrib import util
+from tvm.contrib import util as _util
+from tvm.contrib import cross_compile as _cross_compile
 
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
-from tvm.contrib import cross_compile as _cross_compile
 
 SUPPORTED_DEVICE_TYPES = ["host"]
 
@@ -60,7 +60,7 @@ class Session:
 
         # First, find and compile runtime library.
         runtime_src_path = os.path.join(get_micro_device_dir(), "utvm_runtime.c")
-        tmp_dir = util.tempdir()
+        tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
         create_micro_lib(
             runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
@@ -173,7 +173,7 @@ def create_micro_lib(
     if include_dev_lib_header:
         # Create a temporary copy of the source, so we can inject the dev lib
         # header without modifying the original.
-        tmp_dir = util.tempdir()
+        tmp_dir = _util.tempdir()
         temp_src_path = tmp_dir.relpath("temp.c")
         with open(src_path, "r") as f:
             src_lines = f.read().splitlines()
