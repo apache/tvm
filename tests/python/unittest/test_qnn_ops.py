@@ -60,7 +60,7 @@ def test_requantize():
         func = relay.Function(relay.analysis.free_vars(func),
                 func)
         func = run_infer_type(func)
-        func = relay.qnn.ir_pass.rewrite(func)
+        func = relay.qnn.ir_pass.qnn_lower(func)
         return func
 
 
