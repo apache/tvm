@@ -20,7 +20,7 @@ from __future__ import absolute_import
 
 from . import _qnn
 
-def rewrite(expr):
+def qnn_lower(expr):
     """
     Rewrites the high-level quantized ops into low-level exisiting Relay ops.
 
@@ -34,4 +34,4 @@ def rewrite(expr):
     expr : tvm.relay.Expr
         The output expression.
     """
-    return _qnn.rewrite(expr)
+    return _qnn.qnn_lower(expr)
