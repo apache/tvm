@@ -91,7 +91,7 @@ computation. This is controlled by use_int_domain.
 .set_support_level(10)
 .add_type_rel("Requantize", RequantizeRel);
 
-TVM_REGISTER_API("relay.op.qnn._make.requantize")
+TVM_REGISTER_API("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);
 
 }  // namespace relay
