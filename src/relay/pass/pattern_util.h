@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
+ *  Copyright (c) 2019 by Contributors.
  *
  * \file tvm/relay/pass/pattern_util.h
  * \brief Header of internal operator functions
@@ -385,8 +385,8 @@ inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
 }
 
 inline Expr Full(Expr fill_value,
-              Array<IndexExpr> shape,
-              DataType dtype) {
+                 Array<IndexExpr> shape,
+                 DataType dtype) {
   auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
