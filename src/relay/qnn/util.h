@@ -22,12 +22,12 @@
  * \brief Utility methods needs for quantized ops that can be shared
  */
 
-#ifndef TVM_RELAY_QUANTIZE_UTIL_H_
-#define TVM_RELAY_QUANTIZE_UTIL_H_
+#ifndef TVM_RELAY_QNN_UTIL_H_
+#define TVM_RELAY_QNN_UTIL_H_
 
 #include <tvm/expr.h>
-#include <limits>
 #include <tvm/relay/expr.h>
+#include <limits>
 
 namespace tvm {
 namespace relay {
@@ -134,4 +134,4 @@ inline const int32_t GetQmax(const DataType& dtype) {
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_QUANTIZE_UTIL_H_
+#endif  // TVM_RELAY_QNN_UTIL_H_

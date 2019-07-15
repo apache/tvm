@@ -21,8 +21,8 @@
  * \file tvm/relay/qnn/attrs.h
  * \brief Auxiliary attributes for quantized nn operators.
  */
-#ifndef TVM_RELAY_ATTRS_QNN_H_
-#define TVM_RELAY_ATTRS_QNN_H_
+#ifndef TVM_RELAY_QNN_ATTRS_H_
+#define TVM_RELAY_QNN_ATTRS_H_
 
 #include <tvm/attrs.h>
 #include <string>
@@ -52,7 +52,6 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
   double input_scale;
 
   TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
-
     TVM_ATTR_FIELD(input_zero_point)
         .describe("The zero_point for the input tensor of this op.");
 
@@ -64,4 +63,4 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_ATTRS_QNN_H_
+#endif  // TVM_RELAY_QNN_ATTRS_H_
