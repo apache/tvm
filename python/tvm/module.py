@@ -23,7 +23,7 @@ from collections import namedtuple
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
 from ._ffi.libinfo import find_include_path
-from .contrib import cross_compile as _cross_compile, tar as _tar, util as _util
+from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
@@ -138,7 +138,7 @@ class Module(ModuleBase):
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
             else:
-                fcompile = _cross_compile.create_shared
+                fcompile = _cc.create_shared
         if self.type_key == "c":
             kwargs.update({'options': ["-I" + path for path in find_include_path()]})
         fcompile(file_name, files, **kwargs)
@@ -248,13 +248,13 @@ def load(path, fmt=""):
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
-        _cross_compile.create_shared(path + ".so", path)
+        _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
         tar_temp = _util.tempdir(custom_path=path.replace('.tar', ''))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-        _cross_compile.create_shared(path + ".so", files)
+        _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
     return _LoadFromFile(path, fmt)

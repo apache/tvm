@@ -23,7 +23,7 @@ import logging
 import os
 
 from tvm.contrib import util as _util
-from tvm.contrib import cross_compile as _cross_compile
+from tvm.contrib import cc as _cc
 
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
@@ -125,7 +125,7 @@ def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
             src_path = src_path[0]
         create_micro_lib(obj_path, src_path, toolchain_prefix,
                          kwargs.get("options", None), include_dev_lib_header)
-    return _cross_compile.cross_compiler(compile_func)
+    return _cc.cross_compiler(compile_func)
 
 
 def create_micro_lib(
@@ -182,7 +182,7 @@ def create_micro_lib(
             f.write("\n".join(src_lines))
         src_path = temp_src_path
 
-    _cross_compile.create_shared(obj_path, src_path, options, compile_cmd)
+    _cc.create_shared(obj_path, src_path, options, compile_cmd)
 
 
 _init_api("tvm.micro", "tvm.micro.base")
