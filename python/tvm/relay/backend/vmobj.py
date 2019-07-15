@@ -76,15 +76,19 @@ class DatatypeObject(Object):
         """
         super(DatatypeObject, self).__init__(handle)
         self.tag = _vmobj.GetDatatypeTag(self)
-        self.num_fields = _vmobj.GetDatatypeNumberOfFields(self)
+        num_fields = _vmobj.GetDatatypeNumberOfFields(self)
+        self.fields = []
+        for i in range(num_fields):
+            self.fields.append(_vmobj.GetDatatypeFields(self, i))
 
     def __getitem__(self, idx):
-        idx = idx + self.num_fields if idx < 0 else idx
-        assert 0 <= idx < self.num_fields
-        return _vmobj.GetDatatypeFields(self, idx)
+        return self.fields[idx]
 
     def __len__(self):
         return self.num_fields
+
+    def __iter__(self):
+        return iter(self.fields)
 
 
 def tensor_object(arr, ctx=_nd.cpu(0)):
