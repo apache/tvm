@@ -20,5 +20,20 @@ set -o errexit -o nounset
 set -o pipefail
 
 apt-get update && apt-get install -y openjdk-8-jdk maven
-test -d "/usr/lib/jvm/java-8-openjdk-amd64/jre"
-echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/jre" >> /etc/profile
+arch=`uname -m`
+jre_arch="unknown"
+case $arch in
+    'x86_64')
+	jre_arch="amd64"
+	;;
+    'aarch64')
+	jre_arch="arm64"
+	;;
+    default)
+	echo "Unknown architecture output of uname -m"
+	exit 8
+        ;;
+esac
+
+test -d "/usr/lib/jvm/java-8-openjdk-$jre_arch/jre"
+echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-$jre_arch/jre" >> /etc/profile
