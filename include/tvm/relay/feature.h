@@ -81,13 +81,13 @@ class FeatureSet {
     return ret;
   }
   /*! \brief A set that contain all the Feature. */
-  static FeatureSet AllFeature() {
+  static FeatureSet All() {
     FeatureSet fs;
     fs.bs_.flip();
     return fs;
   }
   /*! \brief The empty set. Contain no Feature. */
-  static FeatureSet NoFeature() {
+  static FeatureSet No() {
     FeatureSet fs;
     return fs;
   }
