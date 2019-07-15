@@ -87,13 +87,13 @@ void MicroSession::CreateSession(const std::string& device_type,
   if (device_type == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(memory_size_);
   } else {
-    LOG(FATAL) << "Unsupported micro low-level device";
+    LOG(FATAL) << "unsupported micro low-level device";
   }
-  SetInitBinaryPath(binary_path);
-  CHECK(!init_binary_path_.empty()) << "init library not initialized";
-  init_stub_info_ = LoadBinary(init_binary_path_, /* patch_dylib_pointers */ false);
-  utvm_main_symbol_ = low_level_device()->ToDevOffset(init_symbol_map()["UTVMMain"]);
-  utvm_done_symbol_ = low_level_device()->ToDevOffset(init_symbol_map()["UTVMDone"]);
+  SetRuntimeBinaryPath(binary_path);
+  CHECK(!runtime_binary_path_.empty()) << "uTVM runtime not initialized";
+  runtime_bin_info_ = LoadBinary(runtime_binary_path_, /* patch_dylib_pointers */ false);
+  utvm_main_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMMain"]);
+  utvm_done_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMDone"]);
 
   // Patch workspace pointers to the start of the workspace section.
   DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
@@ -102,8 +102,8 @@ void MicroSession::CreateSession(const std::string& device_type,
       low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
   void* workspace_end_addr =
       low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
-  DevSymbolWrite(init_symbol_map(), "utvm_workspace_begin", workspace_start_addr);
-  DevSymbolWrite(init_symbol_map(), "utvm_workspace_end", workspace_end_addr);
+  DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_begin", workspace_start_addr);
+  DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_end", workspace_end_addr);
 }
 
 void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
@@ -132,8 +132,8 @@ void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
       .num_args = args.num_args,
   };
   // Write the task.
-  // low_level_device()->Write(init_symbol_map()["task"], &task, sizeof(UTVMTask));
-  DevSymbolWrite(init_symbol_map(), "task", task);
+  // low_level_device()->Write(runtime_symbol_map()["task"], &task, sizeof(UTVMTask));
+  DevSymbolWrite(runtime_symbol_map(), "task", task);
   low_level_device()->Execute(utvm_main_symbol_, utvm_done_symbol_);
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
@@ -175,7 +175,7 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
       case kDLInt:
       case kDLUInt:
       default:
-        LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
+        LOG(FATAL) << "unsupported type code for writing args: " << type_codes[i];
         break;
     }
   }
@@ -219,10 +219,10 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 }
 
 void MicroSession::CheckDeviceError() {
-  int32_t return_code = DevSymbolRead<int32_t>(init_symbol_map(), "utvm_return_code");
+  int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map(), "utvm_return_code");
 
   if (return_code) {
-    std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(init_symbol_map(), "utvm_last_error");
+    std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(runtime_symbol_map(), "utvm_last_error");
     std::string last_error_str;
     if (last_error) {
       DevBaseOffset last_err_offset = low_level_device()->ToDevOffset(DevPtr(last_error));
@@ -288,14 +288,14 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
-  void* init_impl_addr = init_symbol_map()[func_name].cast_to<void*>();
+  void* runtime_impl_addr = runtime_symbol_map()[func_name].cast_to<void*>();
   std::stringstream func_name_underscore;
   func_name_underscore << func_name << "_";
-  DevSymbolWrite(symbol_map, func_name_underscore.str(), init_impl_addr);
+  DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
 }
 
-void MicroSession::SetInitBinaryPath(std::string path) {
-  init_binary_path_ = path;
+void MicroSession::SetRuntimeBinaryPath(std::string path) {
+  runtime_binary_path_ = path;
 }
 
 std::string MicroSession::ReadString(DevBaseOffset str_offset) {

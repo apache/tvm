@@ -112,7 +112,7 @@ class MicroSession : public ModuleNode {
   std::string ReadString(DevBaseOffset str_offset);
 
   /*!
-   * \brief sets up init stub pointers and copies arguments for on-device execution
+   * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
    * \param func address of the function to be executed
    * \param args args to the packed function
    */
@@ -153,10 +153,6 @@ class MicroSession : public ModuleNode {
     return low_level_device_;
   }
 
-  const SymbolMap& init_symbol_map() {
-    return init_stub_info_.symbol_map;
-  }
-
  private:
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
@@ -167,19 +163,14 @@ class MicroSession : public ModuleNode {
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief total number of bytes of usable device memory for this session */
   size_t memory_size_;
-  /*! \brief init stub binary info */
-  BinaryInfo init_stub_info_;
-  /*! \brief path to init stub source code */
-  std::string init_binary_path_;
-  /*! \brief offset of the init stub entry function */
+  /*! \brief uTVM runtime binary info */
+  BinaryInfo runtime_bin_info_;
+  /*! \brief path to uTVM runtime source code */
+  std::string runtime_binary_path_;
+  /*! \brief offset of the runtime entry function */
   DevBaseOffset utvm_main_symbol_;
-  /*! \brief offset of the init stub exit breakpoint */
+  /*! \brief offset of the runtime exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
-
-  /*!
-   * \brief sets up and loads init stub into the low-level device memory
-   */
-  void LoadInitStub();
 
   /*!
    * \brief patches a function pointer in this module to an implementation
@@ -188,10 +179,10 @@ class MicroSession : public ModuleNode {
   void PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name);
 
   /*!
-   * \brief sets the init stub binary path
-   * \param path to init stub binary
+   * \brief sets the runtime binary path
+   * \param path to runtime binary
    */
-  void SetInitBinaryPath(std::string path);
+  void SetRuntimeBinaryPath(std::string path);
 
   /*!
    * \brief appends arguments to the host-side buffer of `encoder`
@@ -224,6 +215,14 @@ class MicroSession : public ModuleNode {
   }
 
   /*!
+   * \brief returns the symbol map for the uTVM runtime
+   * \return reference to symbol map
+   */
+  const SymbolMap& runtime_symbol_map() {
+    return runtime_bin_info_.symbol_map;
+  }
+
+  /*!
     * \brief Push a new session context onto the thread-local stack.
     *  The session on top of the stack is used as the current global session.
     */
@@ -242,7 +241,9 @@ class MicroSession : public ModuleNode {
  * only deallocate the session once there are no more references to it.
  */
 struct MicroDevSpace {
+  /*! \brief data being wrapped */
   void* data;
+  /*! \brief shared ptr to session where this data is valid */
   std::shared_ptr<MicroSession> session;
 };
 
