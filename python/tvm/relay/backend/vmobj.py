@@ -90,6 +90,7 @@ class DatatypeObject(Object):
     def __iter__(self):
         return iter(self.fields)
 
+# TODO(icemelon9): Add closure object
 
 def tensor_object(arr, ctx=_nd.cpu(0)):
     """Create a tensor object from source arr.

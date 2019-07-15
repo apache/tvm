@@ -143,7 +143,7 @@ struct Instruction {
       /*! \brief The registers containing the arguments. */
       RegName* invoke_args_registers;
     };
-    struct /* Const Operands */ {
+    struct /* LoadConst Operands */ {
       /* \brief The index into the constant pool. */
       Index const_index;
     };

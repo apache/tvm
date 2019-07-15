@@ -119,10 +119,10 @@ class VirtualMachine(object):
         return self.invoke("main", *args)
 
 
-class BuildModule(object):
+class VMCompiler(object):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
-        self.mod = _vm._BuildModule()
+        self.mod = _vm._VMCompiler()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
 
@@ -183,8 +183,8 @@ class VMExecutor(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        build_mod = BuildModule()
-        self.vm = build_mod.compile(mod, target)
+        compiler = VMCompiler()
+        self.vm = compiler.compile(mod, target)
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):

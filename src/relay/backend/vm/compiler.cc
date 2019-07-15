@@ -243,20 +243,9 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
   return else_branch;
 }
 
-/*!
- * \brief Compile a pattern match expression
- * It first converts the pattern match expression into a desicision tree, the condition
- * could be object comparison or variable binding. If any of the condition fails in a clause,
- * the decision tree switches to check the conditions of next clause and so on. If no clause
- * matches the value, a fatal node is inserted.
- * 
- * After the decision tree is built, we convert it into bytecodes using If/Goto.
- */
-//void CompileMatch(Match match, VMCompiler* compiler);
-
-class VMCompiler : ExprFunctor<void(const Expr& expr)> {
+class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMCompiler(VMCompilerContext* context, TargetsMap targets)
+  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets)
       : last_register_(0),
         registers_num_(0),
         engine_(CompileEngine::Global()),
@@ -638,6 +627,15 @@ class VMCompiler : ExprFunctor<void(const Expr& expr)> {
     }
   }
 
+  /*!
+   * \brief Compile a pattern match expression
+   * It first converts the pattern match expression into a desicision tree, the condition
+   * could be object comparison or variable binding. If any of the condition fails in a clause,
+   * the decision tree switches to check the conditions of next clause and so on. If no clause
+   * matches the value, a fatal node is inserted.
+   *
+   * After the decision tree is built, we convert it into bytecodes using If/Goto.
+   */
   void CompileMatch(Match match) {
     auto data = std::make_shared<RegisterValue>(last_register_);
     auto decision_tree = BuildDecisionTreeFromClauses(data, match->clauses);
@@ -666,7 +664,7 @@ class VMCompiler : ExprFunctor<void(const Expr& expr)> {
 };
 
 
-class VMBuildModule : public runtime::ModuleNode {
+class VMCompiler : public runtime::ModuleNode {
  public:
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self) final {
@@ -686,7 +684,7 @@ class VMBuildModule : public runtime::ModuleNode {
   }
 
   const char* type_key() const final {
-    return "VMBuildModule";
+    return "VMCompiler";
   }
 
   std::shared_ptr<VirtualMachine> GetVirtualMachine() const {
@@ -733,8 +731,8 @@ class VMBuildModule : public runtime::ModuleNode {
     for (auto named_func : context_.module->functions) {
       auto gvar = named_func.first;
       auto func = named_func.second;
-      VMCompiler compiler(&context_, targets_);
-      auto vm_func = compiler.Compile(gvar, func);
+      VMFunctionCompiler func_compiler(&context_, targets_);
+      auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
       CHECK(func_index < vm_->functions.size());
@@ -812,14 +810,14 @@ class VMBuildModule : public runtime::ModuleNode {
   std::shared_ptr<VirtualMachine> vm_;
 };
 
-runtime::Module VMBuildCreate() {
-  std::shared_ptr<VMBuildModule> exec = std::make_shared<VMBuildModule>();
+runtime::Module CreateVMCompiler() {
+  std::shared_ptr<VMCompiler> exec = std::make_shared<VMCompiler>();
   return runtime::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._BuildModule")
+TVM_REGISTER_GLOBAL("relay._vm._VMCompiler")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = VMBuildCreate();
+  *rv = CreateVMCompiler();
 });
 
 }  // namespace vm

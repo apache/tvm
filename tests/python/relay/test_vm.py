@@ -27,15 +27,15 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        build_mod = relay.vm.BuildModule()
-        vm = build_mod.compile(mod, target)
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
         return vm.run(*args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        build_mod = relay.vm.BuildModule()
-        vm = build_mod.compile(mod, target)
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
         return vm.run(*args)
 
