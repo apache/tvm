@@ -132,7 +132,6 @@ void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
       .num_args = args.num_args,
   };
   // Write the task.
-  // low_level_device()->Write(runtime_symbol_map()["task"], &task, sizeof(UTVMTask));
   DevSymbolWrite(runtime_symbol_map(), "task", task);
   low_level_device()->Execute(utvm_main_symbol_, utvm_done_symbol_);
   // Check if there was an error during execution.  If so, log it.
