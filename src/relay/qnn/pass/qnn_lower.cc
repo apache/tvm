@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file quantize_rewrite.cc
+ *  Copyright (c) 2019 by Contributors
+ * \file qnn_lower.cc
  * \brief Lower quantized ops to exisiting Relay ops.
  */
 
@@ -111,14 +111,11 @@ Expr RequantizeInt(const Expr& input_tensor,
   int right_shift = shift > 0 ? 0 : -shift;
 
   // 2) Subtract the input_zero_point
-  auto tensor = input_tensor;
-  tensor = Cast(tensor, up_idtype);
+  auto tensor = Cast(input_tensor, up_idtype);
   if (param->input_zero_point != 0) {
     auto input_zp = MakeConstantScalar(up_idtype, param->input_zero_point);
     tensor = Subtract(tensor, input_zp);
   }
-
-
 
   // 3) Multiply the integer multiplier
   if (left_shift != 0) {
@@ -132,18 +129,17 @@ Expr RequantizeInt(const Expr& input_tensor,
   Expr scalar = MakeConstantScalar(up_idtype, fixed_point_multiplier);
   auto multiplied_t = Multiply(tensor, scalar);
 
-
   // 4) Find the rounding scalar. This depends on where the final decimal point
   // sits. As we will be right shifting the multiplied_t, we need to first
-  // calculate the totol_right_shift.
+  // calculate the total_right_shift.
   int total_right_shift = right_shift + idtype_bits - 1;
 
   tensor = multiplied_t;
   Expr round_scalar;
-  if (param->rounding_mode == "FE_UPWARD") {
+  if (param->rounding == "FE_UPWARD") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     round_scalar = pos_rounder;
-  } else if (param->rounding_mode == "FE_AWAY_FROM_ZERO") {
+  } else if (param->rounding == "FE_AWAY_FROM_ZERO") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     auto neg_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)) - 1);
     auto pos_rounder_t = Full(pos_rounder, out_shape, up_idtype);
@@ -219,13 +215,14 @@ Expr RequantizeFloat(const Expr& input_tensor,
  *
  * The above computation can be done in floating point as the scales are in
  * FP32. Alternatively, we can approximate floating point with fixed point
- * computation. This is controlled by use_int_compute.
+ * computation. This is controlled by use_int_domain.
  */
 Expr RequantizeForwardRewrite(const Call& ref_call,
     const Array<Expr>& new_args, const NodeRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
   Expr quantized_data = new_args[0];
   const auto* param = ref_call->attrs.as<RequantizeAttrs>();
+  CHECK(param != nullptr);
 
   // Find output shape.
   Array<IndexExpr> out_shape;
@@ -242,7 +239,7 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
       << " Please run infer_type pass.";
   const auto input_dtype = input_tt->dtype;
 
-  if (param->use_int_compute) {
+  if (param->use_int_domain) {
     return RequantizeInt(quantized_data, param, input_dtype, out_shape);
   } else {
     return RequantizeFloat(quantized_data, param, input_dtype, out_shape);

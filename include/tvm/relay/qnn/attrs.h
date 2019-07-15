@@ -21,8 +21,8 @@
  * \file tvm/relay/attrs/nn.h
  * \brief Auxiliary attributes for nn operators.
  */
-#ifndef TVM_RELAY_ATTRS_QNN_H_
-#define TVM_RELAY_ATTRS_QNN_H_
+#ifndef TVM_RELAY_QNN_ATTRS_H_
+#define TVM_RELAY_QNN_ATTRS_H_
 
 #include <tvm/attrs.h>
 #include <string>
@@ -36,8 +36,8 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   int32_t input_zero_point;
   double output_scale;
   int32_t output_zero_point;
-  bool use_int_compute;
-  std::string rounding_mode;
+  bool use_int_domain;
+  std::string rounding;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
@@ -49,17 +49,22 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         .describe("The scale of the input tensor.");
     TVM_ATTR_FIELD(output_scale)
         .describe("The scale of the output tensor.");
-    TVM_ATTR_FIELD(use_int_compute).set_default(true)
+    TVM_ATTR_FIELD(use_int_domain).set_default(true)
       .describe("When true, the integer computation is used to handle output scale."
                 "The float compuation can be used as reference implementation or in"
                 "cases where FP32 computation for requantize is not expensive");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
-    TVM_ATTR_FIELD(rounding_mode).set_default("FE_UPWARD")
+    TVM_ATTR_FIELD(rounding).set_default("FE_AWAY_FROM_ZERO")
         .describe("Defines the rounding direction when the value is midway between"
                   "two representable values. There are two supported modes - FE_UPWARD"
-                  "or FE_AWAY_FROM_ZERO. More context can be found at"
+                  "or FE_AWAY_FROM_ZERO. Both modes behave exactly same except at the"
+                  "midpoints between the two representable values. At midpoint, FE_UPWARD"
+                  "rounds towards positive infinity (for example -1.5 will be rounded"
+                  "to -1). FE_AWAY_FROM_ZERO is the standard rounding where the value"
+                  "is rounded away from zero at midpoints (for example, -1.5 rounds to"
+                  "-2). More context can be found at"
                   "https://www.gnu.org/software/libc/manual/html_node/Rounding.html");
   }
 };
@@ -67,4 +72,4 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_ATTRS_QNN_H_
+#endif  // TVM_RELAY_QNN_ATTRS_H_

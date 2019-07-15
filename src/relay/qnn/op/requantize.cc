@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file requantize.cc
  * \brief Quantized convolution operators
  */
@@ -54,29 +54,36 @@ bool RequantizeRel(const Array<Type>& types,
 // Positional relay function to create quantized conv2d operator
 // used by frontend FFI.
 Expr MakeRequantize(Expr data,
-                    int32_t input_zero_point,
                     double input_scale,
-                    int32_t output_zero_point,
+                    int32_t input_zero_point,
                     double output_scale,
+                    int32_t output_zero_point,
                     DataType out_dtype,
-                    bool use_int_compute,
-                    std::string rounding_mode) {
+                    std::string rounding,
+                    bool use_int_domain) {
   auto attrs = make_node<RequantizeAttrs>();
-  attrs->out_dtype = std::move(out_dtype);
-  attrs->input_zero_point = std::move(input_zero_point);
-  attrs->output_zero_point = std::move(output_zero_point);
   attrs->input_scale = std::move(input_scale);
+  attrs->input_zero_point = std::move(input_zero_point);
   attrs->output_scale = std::move(output_scale);
-  attrs->use_int_compute = std::move(use_int_compute);
-  attrs->rounding_mode = std::move(rounding_mode);
+  attrs->output_zero_point = std::move(output_zero_point);
+  attrs->out_dtype = std::move(out_dtype);
+  attrs->rounding = std::move(rounding);
+  attrs->use_int_domain = std::move(use_int_domain);
   static const Op& op = Op::Get("qnn.requantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.requantize")
 .describe(R"code(Requantize operator.
+The requantize operator converts one quantized tensor to another quantized
+tensor. For the output tensor, we are provided with output scale and zero
+point. The computation looks like this
 
-FIXME
+Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+
+The above computation can be done in floating point as the scales are in
+FP32. Alternatively, we can approximate floating point with fixed point
+computation. This is controlled by use_int_domain.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.RequantizeAttrs")
 .set_num_inputs(1)
