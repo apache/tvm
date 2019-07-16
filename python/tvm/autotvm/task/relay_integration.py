@@ -87,7 +87,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
         tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
         tvm.relay.op.nn.dense: [topi.nn.dense],
         tvm.relay.op.nn.deformable_conv2d: [topi.nn.deformable_conv2d_nchw],
-        tvm.relay.op.nn.bitserial_conv2d: [topi.nn.bitserial_conv2d_nchw],
+        tvm.relay.op.nn.bitserial_conv2d: [topi.nn.bitserial_conv2d_nchw, topi.nn.bitserial_conv2d_nhwc],
         tvm.relay.op.nn.bitserial_dense: [topi.nn.bitserial_dense],
     }
 
