@@ -517,6 +517,34 @@ def test_upsampling():
     _test_upsampling("NHWC", "BILINEAR")
 
 
+def test_conv2d_int8_intrinsics():
+    # compile conv2d for x86 (skylake) and test assembly contains *pmadd* instructions
+    target = "llvm -mcpu=skylake-avx512"
+    name = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
+    if llvm_id != 0:
+        # llvm version >= 8.0.0
+        input_dtype = "uint8"
+        weight_dtype = "int8"
+        output_dtype = "int32"
+        n, ic, h, w, oc, ch, cw = 1, 16, 224, 224, 32, 3, 3
+        x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+        w = relay.var("w", relay.TensorType((oc, ic, ch, cw), weight_dtype))
+        y = relay.nn.conv2d(x, w,
+                            kernel_size=(ch, cw),
+                            channels=oc,
+                            padding=(1, 1),
+                            dilation=(1, 1),
+                            out_dtype=output_dtype)
+        func = relay.Function([x, w], y)
+        wdata = np.random.rand(oc, ic, ch, cw) * 10
+        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(func, target, params=parameters)
+        assembly = lib.get_source("asm")
+        assert "pmadd" in assembly
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
@@ -532,3 +560,4 @@ if __name__ == "__main__":
     test_conv2d_run()
     test_batch_flatten()
     test_upsampling()
+    test_conv2d_int8_intrinsics()

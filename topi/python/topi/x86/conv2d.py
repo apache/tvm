@@ -453,19 +453,30 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
+        dispatch_ctx.update(target, new_workload, cfg)
     else:
-        out_channel, _, kh, kw = get_const_tuple(kernel.shape)
-        # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-        new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
-
-        # Store altered operator's config
-        new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
-                                     dtype=kernel.dtype)
-        new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
-             new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
-
-    dispatch_ctx.update(target, new_workload, cfg)
+        if dtype == "uint8" and out_dtype == "int32":
+            n_elems = 4
+            out_channel, _, kh, kw = get_const_tuple(kernel.shape)
+            [data_func, kernel_func] = [s for s in inputs]
+            K_IHWO = F.transpose(kernel_func, axes=(1, 2, 3, 0))
+            K_IHWOo = F.reshape(K_IHWO, (in_channel, kh, kw, out_channel//oc_bn, oc_bn))
+            K_OHWoI = F.transpose(K_IHWOo, axes=(3, 1, 2, 4, 0))
+            K_OHWoIi = F.reshape(K_OHWoI, (out_channel//oc_bn, kh, kw, oc_bn, in_channel//ic_bn, ic_bn))
+            K_OHWoIie = F.reshape(K_OHWoIi, (out_channel//oc_bn, kh, kw, oc_bn, in_channel//ic_bn, ic_bn//n_elems, n_elems))
+            K_OIHWioe = F.transpose(K_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
+            copy_inputs = [data_func, K_OIHWioe]
+        else:
+            out_channel, _, kh, kw = get_const_tuple(kernel.shape)
+            # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
+            new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+            # Store altered operator's config
+            new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
+                                         dtype=kernel.dtype)
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
+                 new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+            dispatch_ctx.update(target, new_workload, cfg)
 
     if is_depthwise:
         if F.__name__ == 'nnvm.symbol':
