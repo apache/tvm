@@ -157,14 +157,6 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
     s[conv_out].compute_at(s[last], ow)
 
     oco, ico = cfg["tile_oh"].apply(s, last, co)
-    if cfg["tile_oh"].size[1] == 1:
-        oaxis = oco
-        paxis = oco
-    else:
-        oco, ico = s[last].split(co, bc)
-        oaxis = oco
-        paxis = ico
-
     s[last].parallel(oco)
     return s
 
