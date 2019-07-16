@@ -223,7 +223,7 @@ def test_forward_pooling():
 # Convolution
 # -----------
 
-def _test_convolution(tensor_in_sizes, filter_in_sizes,
+def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
                       dilations, strides, padding, data_format):
     """ One iteration of convolution with given shapes and attributes """
 
@@ -244,27 +244,84 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
             strides = [1, 1] + strides
             dilations = [1, 1] + dilations
 
-        nn_ops.conv2d(in_data,
-                      in_filter,
-                      strides=strides,
-                      dilations=dilations,
-                      padding=padding,
-                      data_format=data_format)
+        if opname == 'conv':
+            nn_ops.conv2d(in_data,
+                          in_filter,
+                          strides=strides,
+                          dilations=dilations,
+                          padding=padding,
+                          data_format=data_format)
 
-        compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
-                            'Placeholder:0', 'Conv2D:0')
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'Conv2D:0')
+        else:
+            nn_ops.depthwise_conv2d_native(in_data,
+                          in_filter,
+                          strides=strides,
+                          dilations=dilations,
+                          padding=padding,
+                          data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'DepthwiseConv2dNative:0')
 
 def test_forward_convolution():
     if is_gpu_available():
-        _test_convolution([4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
-        _test_convolution([4, 19, 17, 17], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NCHW')
-        _test_convolution([4, 124, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NCHW')
-        _test_convolution([4, 12, 17, 17], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('conv', [4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution('conv', [4, 19, 17, 17], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('conv', [4, 124, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution('conv', [4, 12, 17, 17], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('depthwise', [4, 176, 8, 8], [1, 1, 176, 1], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution('depthwise', [4, 19, 17, 17], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('depthwise', [4, 124, 17, 17], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
 
-    _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
-    _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
-    _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
-    _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('conv', [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution('conv', [4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('depthwise', [4, 8, 8, 176], [1, 1, 176, 1], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution('depthwise', [4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('depthwise', [4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC')
+    _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
+
+#######################################################################
+# BiasAdd
+# -----------
+def _test_biasadd(tensor_in_sizes, data_format):
+    """ One iteration of biasadd with given shapes and attributes """
+
+    total_size_1 = 1
+    for s in tensor_in_sizes:
+        total_size_1 *= s
+    tensor_bias_sizes = [tensor_in_sizes[1]] if data_format == 'NCHW' else [tensor_in_sizes[3]]
+    total_size_2 = tensor_bias_sizes[0]
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    bias_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_bias = constant_op.constant(bias_array, shape=tensor_bias_sizes, dtype='float32')
+        nn_ops.bias_add(in_data,
+                        in_bias,
+                        data_format=data_format)
+
+        compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                            'Placeholder:0', 'BiasAdd:0')
+
+def test_forward_biasadd():
+    if is_gpu_available():
+        _test_biasadd([4, 176, 8, 8], 'NCHW')
+        _test_biasadd([1, 100, 1, 1], 'NCHW')
+        _test_biasadd([4, 19, 17, 17], 'NCHW')
+        _test_biasadd([4, 124, 3, 3], 'NCHW')
+
+    _test_biasadd([4, 8, 8, 176], 'NHWC')
+    _test_biasadd([1, 1, 1, 100], 'NHWC')
+    _test_biasadd([4, 17, 17, 19], 'NHWC')
+    _test_biasadd([4, 3, 3, 124], 'NHWC')
 
 #######################################################################
 # SpaceToBatchND
