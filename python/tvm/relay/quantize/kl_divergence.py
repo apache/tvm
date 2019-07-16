@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Find optimal scale for quantization by minimizing KL-divergence"""
 
 try:
     from scipy import stats
@@ -43,7 +44,7 @@ def _smooth_distribution(p, eps=0.0001):
     return hist
 
 
-# pylint: disable=line-too-long
+# pylint: disable=line-too-long,invalid-name
 def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
     """Given a dataset, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
