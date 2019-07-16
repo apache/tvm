@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""The VM Object FFI namespace."""
+from tvm._ffi.function import _init_api
 
-include "./base.pxi"
-include "./node.pxi"
-include "./function.pxi"
-include "./ndarray.pxi"
-include "./vmobj.pxi"
+_init_api("_vmobj", __name__)
