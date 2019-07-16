@@ -179,9 +179,12 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        try:
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+            op_res2 = intrp2.evaluate(func)(x_data)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        except Exception:
+            print("failing function: {}".format(funcs[0]))
 
 def test_reduce_functions():
     def _with_keepdims(func):
