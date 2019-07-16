@@ -168,7 +168,6 @@ inline Expr ForwardOp(const Call& ref_call, const Array<Expr>& args) {
 /* calculate `data * s1 / s2`, use shift if possible */
 inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype) {
   // here we assume the dtype of data is dtype activation
-  const QConfig& cfg = QConfig::Current();
   if (s1 == s2) return data;
 
   float factor = s1 / s2;
@@ -766,7 +765,7 @@ class StatsCollector : private ExprMutator {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
       if (attrs->kind != QAnnotateKind::kQWeight) {
         CHECK(!new_call->args[0].as<ConstantNode>());
-        const Expr& quantize_input = new_call->args[0]; // expression being quantized
+        const Expr& quantize_input = new_call->args[0];  // expression being quantized
         profile_data_.push_back(quantize_input);
       }
       return new_call->args[0];
@@ -782,7 +781,7 @@ Expr CollectStats(const Expr& expr) {
 
 TVM_REGISTER_API("relay._quantize.CollectStats")
 .set_body_typed(CollectStats);
-    
+
 }  // namespace quantize
 }  // namespace relay
 }  // namespace tvm
