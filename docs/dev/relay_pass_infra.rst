@@ -78,7 +78,7 @@ a pass. ``name`` is the pass name, ``opt_level`` indicates at which optimization
 level the pass will be enabled, and ``required`` represents the passes that are
 required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
 more details). For example, during registration of a pass (will be covered in
-later), the pass developers can specify the name of the pass, the optimiztion
+later), the pass developers can specify the name of the pass, the optimization
 level it will be performed at, and/or the passes that are required.
 ``opt_level`` could be used to help the pass infra identify if a certain pass
 needes to be executed when running under a user-provided optimization level. The
