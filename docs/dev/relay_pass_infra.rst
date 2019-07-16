@@ -67,7 +67,7 @@ The Design
 We focus on ease of extension for users, making it possible for users to quickly
 add new passes without loss of backward compatibility. The design contains both
 the backend and the frontend. The former implements the main logic of the pass
-infra. The latter provides simple APIs for users to interact with, i.e.
+infra. The latter provides simple APIs for users to interact with, i.e.,
 allowing users to quickly create their own optimization pipelines.
 
 C++ Backend
