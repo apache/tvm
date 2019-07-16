@@ -216,15 +216,21 @@ Expr QuantizeRealize(const Call& ref_call,
     }
 
     float shift_nbit = std::log2(odom_scale_imm / idom_scale_imm);
-    CHECK_GT(shift_nbit, 0);
+    CHECK_NE(shift_nbit, 0);
     if (static_cast<int>(shift_nbit) == shift_nbit) {
-      // use right shift
-      if (cfg->round_for_shift) {
-        float round_bias = std::pow(2.0, shift_nbit - 1);
-        data = Add(data, MakeConstantScalar(cfg->dtype_activation, static_cast<int>(round_bias)));
+      if (shift_nbit > 0) {
+        // use right shift
+        if (cfg->round_for_shift) {
+          float round_bias = std::pow(2.0, shift_nbit - 1);
+          data = Add(data, MakeConstantScalar(cfg->dtype_activation,
+                                              static_cast<int>(round_bias)));
+        }
+        data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,
+                                                   static_cast<int>(shift_nbit)));
+      } else {
+        data = LeftShift(data, MakeConstantScalar(cfg->dtype_activation,
+                                                  static_cast<int>(shift_nbit)));
       }
-      data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,
-                                                 static_cast<int>(shift_nbit)));
       data = Clip(data, clip_min_imm, clip_max_imm);
       return QRealizeIntExprNode::make(data, dom_scale, n->dtype);
     } else {
@@ -741,12 +747,12 @@ TVM_REGISTER_API("relay._quantize.temp_expr_realize")
 class StatsCollector : private ExprMutator {
  public:
   Expr Collect(const Expr& expr) {
-	auto new_e = this->Mutate(expr);
-	const FunctionNode* func = new_e.as<FunctionNode>();
-	CHECK(func);
-	Expr new_body = TupleNode::make(std::move(profile_data_));
-	return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
-			func->attrs);
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    CHECK(func);
+    Expr new_body = TupleNode::make(std::move(profile_data_));
+    return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
+            func->attrs);
   }
 
  private:
@@ -754,22 +760,23 @@ class StatsCollector : private ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) {
     static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
-	Expr new_e = ExprMutator::VisitExpr_(call);
-	const CallNode* new_call = new_e.as<CallNode>();
-	CHECK(new_call);
-	if (new_call->op.same_as(simulated_quantize)) {
-	  auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
-	  if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
-	    CHECK(!new_call->args[0].as<ConstantNode>());
-	    profile_data_.push_back(new_call->args[0]);
-	  }
-	  return new_call->args[0];
-	} else {
-	  return new_e;
-	}
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    CHECK(new_call);
+    if (new_call->op.same_as(simulated_quantize)) {
+      auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
+      if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
+        CHECK(!new_call->args[0].as<ConstantNode>());
+        const Expr& quantize_input = new_call->args[0]; // expression being quantized
+        profile_data_.push_back(quantize_input);
+      }
+      return new_call->args[0];
+    } else {
+      return new_e;
+    }
   }
 };
-	  
+
 Expr CollectStats(const Expr& expr) {
   return StatsCollector().Collect(expr);
 }
