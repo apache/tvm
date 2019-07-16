@@ -23,7 +23,7 @@ of models such as mean inference, memory footprint, or power consumption for
 specific devices. There is a suite of standard optimizations as well as machine
 learning-specific optimizations including constant folding, dead code
 elimination, operator layout alteration, and operator fusion, etc. Each of these
-passes are structured as a Relay-to-Relay transformation on the abstract syntax
+passes is structured as a Relay-to-Relay transformation on the abstract syntax
 tree (AST) using the analysis result collected during and/or before traversal.
 
 However, as Relay evolves quickly, the need of a more systematic and efficient
