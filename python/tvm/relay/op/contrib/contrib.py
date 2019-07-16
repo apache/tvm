@@ -128,4 +128,4 @@ def ndarray_size(data, dtype="int32"):
     result : tvm.relay.Expr
         The number of elements of input tensor.
     """
-    return _make.size(data, dtype)
+    return _make.ndarray_size(data, dtype)

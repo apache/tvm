@@ -479,7 +479,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 
-def size(array, dtype="int32"):
+def ndarray_size(array, dtype="int32"):
     """Get the number of elements of input array
 
     Parameters
@@ -495,5 +495,4 @@ def size(array, dtype="int32"):
     result : tvm.Tensor
         The resulting tensor.
     """
-    return cpp.size(array, dtype)
-
+    return cpp.ndarray_size(array, dtype)

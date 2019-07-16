@@ -280,34 +280,34 @@ RELAY_REGISTER_OP("shape_of")
 .set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
 
-TVM_REGISTER_NODE_TYPE(NumElementsAttrs);
+TVM_REGISTER_NODE_TYPE(NdarraySizeAttrs);
 
-bool NumElementsRel(const Array<Type>& types,
+bool NdarraySizeRel(const Array<Type>& types,
              int num_inputs,
              const Attrs& attrs,
              const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
   CHECK(tt != nullptr);
-  const auto* param = attrs.as<NumElementsAttrs>();
+  const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
   reporter->Assign(types[1], TensorTypeNode::make({1}, param->dtype));
   return true;
 }
 
-Array<Tensor> NumElementsCompute(const Attrs& attrs,
+Array<Tensor> NdarraySizeCompute(const Attrs& attrs,
                           const Array<Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   CHECK_EQ(inputs.size(), 1);
-  const auto* param = attrs.as<NumElementsAttrs>();
+  const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{topi::size(inputs[0], param->dtype)};
+  return Array<Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_API("relay.op.contrib._make.size")
+TVM_REGISTER_API("relay.op.contrib._make.ndarray_size")
 .set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
-  auto attrs = make_node<NumElementsAttrs>();
+  auto attrs = make_node<NdarraySizeAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("contrib.ndarray_size");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -318,15 +318,15 @@ RELAY_REGISTER_OP("contrib.ndarray_size")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.NumElementsAttrs")
+.set_attrs_type_key("relay.attrs.NdarraySizeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
-.add_type_rel("NumElements", NumElementsRel)
+.add_type_rel("NdarraySize", NdarraySizeRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
 ElemwiseArbitraryLayout)
 .set_support_level(10)
-.set_attr<FTVMCompute>("FTVMCompute", NumElementsCompute);
+.set_attr<FTVMCompute>("FTVMCompute", NdarraySizeCompute);
 
 }  // namespace relay
 }  // namespace tvm

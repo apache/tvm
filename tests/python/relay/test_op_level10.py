@@ -218,8 +218,8 @@ def test_shape_of():
 def test_ndarray_size():
     def verify_ndarray_size(shape):
         x = relay.var("x", shape=shape)
-        func = relay.Function([x], relay.op.contrib.num_elements(x))
-        func = relay.ir_pass.infer_type(func)
+        func = relay.Function([x], relay.op.contrib.ndarray_size(x))
+        func = run_infer_type(func)
 
         x_data = np.random.uniform(size=shape).astype("float32")
         ref_res = np.size(x_data)

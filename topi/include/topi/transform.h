@@ -1231,13 +1231,13 @@ inline Tensor shape(const Tensor& src,
  * \param tag output tensor tag.
  * \return Tensor of input shape.
  */
-inline Tensor size(const Tensor& src,
-                   const Type& dtype,
-                   const std::string& name = "size",
-                   const std::string& tag = kInjective) {
+inline Tensor ndarray_size(const Tensor& src,
+                           const Type& dtype,
+                           const std::string& name = "ndarray_size",
+                           const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<Expr> out_size = {1};
-  return compute(out_size, [&](const Array<Var>& indices) {
+  Array<Expr> out_ndarray_size = {1};
+  return compute(out_ndarray_size, [&](const Array<Var>& indices) {
     Expr ret = 1;
     for (int i = 0; i < ndim; ++i) {
       ret *= src->shape[i];

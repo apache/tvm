@@ -649,11 +649,11 @@ def test_sequence_mask():
                 for backend in get_all_backend():
                     check_device(backend)
 
-def test_size():
+def test_ndarray_size():
     in_shape = (5, 11, 7)
     dtype = "int32"
     A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
-    B = topi.size(A, dtype)
+    B = topi.ndarray_size(A, dtype)
 
     input = np.random.uniform(size=in_shape).astype(A.dtype)
     output = np.asarray(np.size(input)).astype(dtype)
@@ -668,7 +668,7 @@ def test_size():
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        f = tvm.build(s, [A, B], device, name="size")
+        f = tvm.build(s, [A, B], device, name="ndarray_size")
         f(tvm_input, tvm_output)
         tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
 
@@ -695,4 +695,4 @@ if __name__ == "__main__":
     test_tile()
     test_shape()
     test_sequence_mask()
-    test_size()
+    test_ndarray_size()

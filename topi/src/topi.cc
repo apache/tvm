@@ -311,9 +311,9 @@ TVM_REGISTER_GLOBAL("topi.shape")
   *rv = shape(args[0], args[1]);
 });
 
-TVM_REGISTER_GLOBAL("topi.size")
+TVM_REGISTER_GLOBAL("topi.ndarray_size")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = size(args[0], args[1]);
+  *rv = ndarray_size(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.split")
