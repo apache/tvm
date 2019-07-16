@@ -23,40 +23,44 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 
-def veval(f, *args, ctx=tvm.cpu()):
+def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
-        ex = relay.create_executor('vm', mod=relay.Module(), ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate(f)
-        else:
-            return ex.evaluate(f)(*args)
+        mod = relay.Module()
+        mod["main"] = f
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
+        vm.init(tvm.cpu())
+        return vm.run(*args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        ex = relay.create_executor('vm', mod=mod, ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate()
-        else:
-            return ex.evaluate()(*args)
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
+        vm.init(tvm.cpu())
+        ret = vm.run(*args)
+        return ret
 
 def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-        return [o.data.asnumpy().tolist()]
-    if isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+    if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
+        return [o.asnumpy().tolist()]
+    elif isinstance(o, tvm.relay.backend.vmobj.DatatypeObject):
         result = []
-        for f in o.fields:
+        for f in o:
             result.extend(vmobj_to_list(f))
         return result
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
 
 def test_split():
     x = relay.var('x', shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
-    z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
-    f = relay.Function([x], z)
+    f = relay.Function([x], y)
 
     x_data = np.random.rand(12,).astype('float32')
     res = veval(f, x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+    ref_res = np.split(x_data, 3, axis=0)
+    for i in range(3):
+        tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
 
 def test_split_no_fuse():
     x = relay.var('x', shape=(12,))
@@ -68,9 +72,8 @@ def test_split_no_fuse():
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
-
 def test_id():
-    x = relay.var('x', shape=(10, 10))
+    x = relay.var('x', shape=(10, 10), dtype='float64')
     f = relay.Function([x], x)
     x_data = np.random.rand(10, 10).astype('float64')
     res = veval(f, x_data)
@@ -209,7 +212,7 @@ def test_list_constructor():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     obj = vmobj_to_list(result)
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
@@ -275,7 +278,7 @@ def test_compose():
     mod["main"] = f
 
     x_data = np.array(np.random.rand()).astype('float32')
-    result = veval(mod)(x_data)
+    result = veval(mod, x_data)
 
     tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
 
@@ -296,7 +299,7 @@ def test_list_hd():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(result.asnumpy(), 3)
 
 @raises(Exception)
@@ -312,7 +315,7 @@ def test_list_tl_empty_list():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     print(result)
 
 def test_list_tl():
@@ -332,7 +335,7 @@ def test_list_tl():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2,1]))
 
 def test_list_nth():
@@ -351,7 +354,7 @@ def test_list_nth():
 
         f = relay.Function([], nth(l, relay.const(i)))
         mod["main"] = f
-        result = veval(mod)()
+        result = veval(mod)
         tvm.testing.assert_allclose(result.asnumpy(), expected[i])
 
 def test_list_update():
@@ -375,7 +378,7 @@ def test_list_update():
 
     f = relay.Function([], l)
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
 
 def test_list_length():
@@ -397,7 +400,7 @@ def test_list_length():
 
     f = relay.Function([], l)
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(result.asnumpy(), 10)
 
 def test_list_map():
@@ -415,7 +418,7 @@ def test_list_map():
 
     f = relay.Function([], map(add_one_func, l))
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
 def test_list_foldl():
@@ -433,7 +436,7 @@ def test_list_foldl():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldl(rev_dup_func, nil(), l))
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
 def test_list_foldr():
@@ -451,7 +454,7 @@ def test_list_foldr():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldr(identity_func, nil(), l))
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
 def test_list_sum():
@@ -465,7 +468,7 @@ def test_list_sum():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], sum(l))
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(result.asnumpy(), 6)
 
 def test_list_filter():
@@ -485,7 +488,7 @@ def test_list_filter():
                         cons(relay.const(1), nil())))))
     f = relay.Function([], filter(greater_than_one, l))
     mod["main"] = f
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
 
 def test_closure():
@@ -513,6 +516,10 @@ if __name__ == "__main__":
     test_split()
     test_split_no_fuse()
     test_list_constructor()
+    test_let_tensor()
+    test_let_scalar()
+    test_compose()
+    test_list_hd()
     test_list_tl_empty_list()
     test_list_tl()
     test_list_nth()

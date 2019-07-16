@@ -324,6 +324,7 @@ class Object {
   Object() : ptr_() {}
   Object(const Object& obj) : ptr_(obj.ptr_) {}
   ObjectCell* operator->() { return this->ptr_.operator->(); }
+  const ObjectCell* operator->() const { return this->ptr_.operator->(); }
 
   /*! \brief Construct a tensor object. */
   static Object Tensor(const NDArray& data);
