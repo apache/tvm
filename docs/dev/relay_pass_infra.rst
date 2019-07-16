@@ -287,7 +287,7 @@ done by first checking if the pass is explicitly disabled by a user, followed by
 inspecting if it is specified as a required pass by the user. If it is still
 undetermined whether this pass is enabled, its ``opt_level`` will be checked.
 This pass will be enabled and therefore executed only when its optimization
-level not is less than the configured optimization level in the pass context.
+level is not less than the configured optimization level in the pass context.
 
 To execute the pass, we need first to retrieve the registered pass in the TVM
 packed function registry using the pass name. This is possible because every
