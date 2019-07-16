@@ -230,7 +230,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
         if lhs_kind == QAnnotateKind.ACTIVATION:
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         # quantize rhs to WEIGHT field
-        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.BIAS)
+        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
@@ -251,7 +251,7 @@ def add_rewrite(ref_call, new_args, ctx):
 
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
-        assert rhs_kind == QAnnotateKind.INPUT
+        assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.INPUT)
@@ -275,7 +275,8 @@ def add_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
-        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT:
+        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or \
+            (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
     raise ValueError()

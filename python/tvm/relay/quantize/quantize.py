@@ -35,7 +35,6 @@ class QAnnotateKind(object):
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
-    BIAS = 4
 
 
 def kind2str(kind):
@@ -44,7 +43,6 @@ def kind2str(kind):
         QAnnotateKind.INPUT: "input",
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
-        QAnnotateKind.BIAS: "bias",
     }
     assert kind in str_map
     return str_map[kind]
@@ -69,11 +67,9 @@ class QConfig(NodeBase):
         "nbit_input": 8,
         "nbit_weight": 8,
         "nbit_activation": 32,
-        "nbit_bias": 32,
         "dtype_input": "int8",
         "dtype_weight": "int8",
         "dtype_activation": "int32",
-        "dtype_bias": "int32",
         "global_scale": 8.0,
         "skip_conv_layers": [0],
         "round_for_shift": True,
@@ -203,7 +199,7 @@ def collect_stats(graph):
     return _quantize.CollectStats(graph)
 
 
-def calibrate(graph, mod=None, ctx=None, scales=None):
+def calibrate(graph, mod=None, ctx=None, weight_scales='power2', scales=None):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
     operator.
@@ -230,13 +226,11 @@ def calibrate(graph, mod=None, ctx=None, scales=None):
         return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
     def max_scale(arr):
+        """calculate weight scale with maximum absolute value"""
         val = np.amax(np.abs(arr.asnumpy()))
         return val
 
     scale_idx = 0
-
-    #fcalib_weight = power2_scale
-    fcalib_weight = max_scale
 
     cfg = current_qconfig()
     const_params = {}
@@ -252,18 +246,21 @@ def calibrate(graph, mod=None, ctx=None, scales=None):
             nbit = cfg.get_nbit_by_kind(kind)
 
             valid_bit = nbit - attrs.sign
-            if kind in [QAnnotateKind.WEIGHT, QAnnotateKind.BIAS]:
-                if all([isinstance(arg, _expr.Constant) for arg in [ndom_scale, nclip_min, nclip_max]]):
+            if kind in [QAnnotateKind.WEIGHT]:
+                if all([isinstance(arg, _expr.Constant)
+                        for arg in [ndom_scale, nclip_min, nclip_max]]):
                     return
                 var = expr.args[0]
                 assert isinstance(var, _expr.Constant)
-                scale = fcalib_weight(var.data)
-                print('weight scale: {}'.format(scale))
+                if weight_scales == 'max':
+                    scale = max_scale(var.data)
+                elif weight_scales == 'power2':
+                    scale = power2_scale(var.data)
+                else:
+                    raise ValueError('{} not supported'.format(weight_scales))
             elif scales is not None:
                 scale = scales[scale_idx]
                 scale_idx += 1
-                print('{} / {} ...'.format(scale_idx, len(scales)))
-                print('act scale: {}'.format(scale))
             else:
                 scale = cfg.global_scale
 
@@ -271,10 +268,6 @@ def calibrate(graph, mod=None, ctx=None, scales=None):
                 return _expr.const(val, 'float32')
 
             valid_range = 2**valid_bit
-            if kind == QAnnotateKind.BIAS:
-                # bias hack
-                valid_range = 2**15
-
             const_params[ndom_scale] = _make_const(scale / valid_range)
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))

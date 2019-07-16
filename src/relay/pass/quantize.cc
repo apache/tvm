@@ -635,7 +635,6 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_input=" << op->nbit_input << ", ";
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
-  p->stream << "nbit_bias=" << op->nbit_bias << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
@@ -765,7 +764,7 @@ class StatsCollector : private ExprMutator {
     CHECK(new_call);
     if (new_call->op.same_as(simulated_quantize)) {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
-      if (attrs->kind != QAnnotateKind::kQWeight && attrs->kind != QAnnotateKind::kQBias) {
+      if (attrs->kind != QAnnotateKind::kQWeight) {
         CHECK(!new_call->args[0].as<ConstantNode>());
         const Expr& quantize_input = new_call->args[0]; // expression being quantized
         profile_data_.push_back(quantize_input);
