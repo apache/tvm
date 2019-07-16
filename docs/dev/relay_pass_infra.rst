@@ -27,7 +27,7 @@ passes is structured as a Relay-to-Relay transformation on the abstract syntax
 tree (AST) using the analysis result collected during and/or before traversal.
 
 However, as Relay evolves quickly, the need of a more systematic and efficient
-way to manage these passes becomes imperative. This doc describes the design of
+way to manage these passes is becoming apparent. This doc describes the design of
 such an infra that takes the advantage of the way production compilers are used to
 manage the optimization passes and the style modern deep learning frameworks
 adopted to build up layers.
