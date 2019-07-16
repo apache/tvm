@@ -20,7 +20,7 @@ Relay Pass Infra
 
 Relay features a series of optimization passes which improve performance metrics
 of models such as mean inference, memory footprint, or power consumption for
-specific devices. There are a suite of standard optimizations as well as machine
+specific devices. There is a suite of standard optimizations as well as machine
 learning-specific optimizations including constant folding, dead code
 elimination, operator layout alteration, and operator fusion, etc. Each of these
 passes are structured as a Relay-to-Relay transformation on the abstract syntax
