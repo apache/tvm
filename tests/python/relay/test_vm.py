@@ -37,7 +37,8 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         compiler = relay.vm.VMCompiler()
         vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
-        return vm.run(*args)
+        ret = vm.run(*args)
+        return ret
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
@@ -277,7 +278,7 @@ def test_compose():
     mod["main"] = f
 
     x_data = np.array(np.random.rand()).astype('float32')
-    result = veval(mod)(x_data)
+    result = veval(mod, x_data)
 
     tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
 
@@ -298,7 +299,7 @@ def test_list_hd():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     tvm.testing.assert_allclose(result.asnumpy(), 3)
 
 @raises(Exception)
@@ -314,7 +315,7 @@ def test_list_tl_empty_list():
 
     mod["main"] = f
 
-    result = veval(mod)()
+    result = veval(mod)
     print(result)
 
 def test_list_tl():
@@ -515,6 +516,10 @@ if __name__ == "__main__":
     test_split()
     test_split_no_fuse()
     test_list_constructor()
+    test_let_tensor()
+    test_let_scalar()
+    test_compose()
+    test_list_hd()
     test_list_tl_empty_list()
     test_list_tl()
     test_list_nth()
