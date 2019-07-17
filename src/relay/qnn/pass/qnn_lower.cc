@@ -93,7 +93,7 @@ std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
  * 7) Cast to the out_dtype.
  *
  */
-Expr RequantizeInt(const Expr& input_tensor,
+Expr RequantizeLower(const Expr& input_tensor,
     const RequantizeAttrs* param, const DataType& idtype,
     const Array<IndexExpr>& out_shape) {
 
@@ -174,39 +174,6 @@ Expr RequantizeInt(const Expr& input_tensor,
   return requantized_output;
 }
 
-
-/*
- * Requantization using floating computation. Here we can multiply the scale to
- * the input_tensor, round to nearest integer and then cast back to int32.
- */
-Expr RequantizeFloat(const Expr& input_tensor,
-    const RequantizeAttrs* param, const DataType& idtype,
-    const Array<IndexExpr>& out_shape) {
-  double double_multiplier = param->input_scale/param->output_scale;
-  auto scalar_multiplier = MakeConstantScalar(Float(32), double_multiplier);
-  auto input_zp = MakeConstantScalar(idtype, param->input_zero_point);
-  auto output_zp = MakeConstantScalar(Float(32), param->output_zero_point);
-
-  // Multiply the tensor with the new scale.
-  auto shifted_input_t = Subtract(input_tensor, input_zp);
-  auto casted_t = Cast(shifted_input_t, Float(32));
-  auto multiplied_t = Multiply(casted_t, scalar_multiplier);
-  auto shifted_multiplied_t = Add(output_zp, multiplied_t);
-  auto rounded_t = Round(shifted_multiplied_t);
-  auto q_imin = GetQmin(idtype);
-  auto q_imax = GetQmax(idtype);
-  auto scaled_int32_t = Cast(Clip(rounded_t, q_imin, q_imax),
-          idtype);
-
-  // Clip to the out_dtype min/max.
-  // Clip limits must be smaller than the dtype of the input tensor.
-  auto q_min = std::max(GetQmin(param->out_dtype), GetQmin(idtype));
-  auto q_max = std::min(GetQmax(param->out_dtype), GetQmax(idtype));
-  auto clipped_t = Clip(scaled_int32_t, q_min, q_max);
-  auto requantized_output = Cast(clipped_t, param->out_dtype);
-  return requantized_output;
-}
-
 /*
  * Lowering of the requantize operation. The requantize operator converts one
  * quantized tensor to another quantized tensor. For the output tensor, we are
@@ -214,9 +181,6 @@ Expr RequantizeFloat(const Expr& input_tensor,
  *
  * Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
  *
- * The above computation can be done in floating point as the scales are in
- * FP32. Alternatively, we can approximate floating point with fixed point
- * computation. This is controlled by use_int_domain.
  */
 Expr RequantizeForwardRewrite(const Call& ref_call,
     const Array<Expr>& new_args, const NodeRef& ctx) {
@@ -240,11 +204,7 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
       << " Please run infer_type pass.";
   const auto input_dtype = input_tt->dtype;
 
-  if (param->use_int_domain) {
-    return RequantizeInt(quantized_data, param, input_dtype, out_shape);
-  } else {
-    return RequantizeFloat(quantized_data, param, input_dtype, out_shape);
-  }
+  return RequantizeLower(quantized_data, param, input_dtype, out_shape);
 }
 
 RELAY_REGISTER_OP("qnn.requantize")

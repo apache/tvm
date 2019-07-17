@@ -25,8 +25,7 @@ def requantize(data,
                output_scale,
                output_zero_point,
                out_dtype="int32",
-               rounding="FE_AWAY_FROM_ZERO",
-               use_int_domain=True):
+               rounding="FE_AWAY_FROM_ZERO"):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor to another quantized
@@ -34,10 +33,6 @@ def requantize(data,
     point. The computation looks like this
 
     Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
-
-    The above computation can be done in floating point as the scales are in
-    FP32. Alternatively, we can approximate floating point with fixed point
-    computation. This is controlled by use_int_domain.
 
     Parameters
     ----------
@@ -59,9 +54,6 @@ def requantize(data,
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
 
-    use_int_domain : bool, optional
-        Use fully integer computation for requantizing.
-
     rounding : string, optional
         Defines the rounding direction when the value is midway between two
         representable values.
@@ -80,5 +72,4 @@ def requantize(data,
                             output_scale,
                             output_zero_point,
                             out_dtype,
-                            rounding,
-                            use_int_domain)
+                            rounding)
