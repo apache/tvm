@@ -456,16 +456,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         dispatch_ctx.update(target, new_workload, cfg)
     else:
         if dtype == "uint8" and out_dtype == "int32":
+            # Convert kernel data layout from 4D to 7D
             n_elems = 4
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
             [data_func, kernel_func] = [s for s in inputs]
-            K_IHWO = F.transpose(kernel_func, axes=(1, 2, 3, 0))
-            K_IHWOo = F.reshape(K_IHWO, (in_channel, kh, kw, out_channel//oc_bn, oc_bn))
-            K_OHWoI = F.transpose(K_IHWOo, axes=(3, 1, 2, 4, 0))
-            K_OHWoIi = F.reshape(K_OHWoI, (out_channel//oc_bn, kh, kw, oc_bn, in_channel//ic_bn, ic_bn))
-            K_OHWoIie = F.reshape(K_OHWoIi, (out_channel//oc_bn, kh, kw, oc_bn, in_channel//ic_bn, ic_bn//n_elems, n_elems))
-            K_OIHWioe = F.transpose(K_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
-            copy_inputs = [data_func, K_OIHWioe]
+            kernel_IHWO = F.transpose(kernel_func, axes=(1, 2, 3, 0))
+            kernel_IHWOo = F.reshape(kernel_IHWO, (in_channel, kh, kw, out_channel//oc_bn, oc_bn))
+            kernel_OHWoI = F.transpose(kernel_IHWOo, axes=(3, 1, 2, 4, 0))
+            kernel_OHWoIi = F.reshape(kernel_OHWoI, (out_channel//oc_bn, kh, kw, oc_bn,
+                                                     in_channel//ic_bn, ic_bn))
+            kernel_OHWoIie = F.reshape(kernel_OHWoIi, (out_channel//oc_bn, kh, kw, oc_bn,
+                                                       in_channel//ic_bn, ic_bn//n_elems, n_elems))
+            kernel_OIHWioe = F.transpose(kernel_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
+            copy_inputs = [data_func, kernel_OIHWioe]
         else:
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
             # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
