@@ -247,7 +247,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._analysis.first_order_gradient")
+TVM_REGISTER_API("relay._transform.first_order_gradient")
 .set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {

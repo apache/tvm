@@ -35,7 +35,7 @@ def test_id():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x)
-    back_func = run_infer_type(gradient(func))
+    back_func = run_infer_type(gradient(func, mode="first_order"))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
     x = rand(dtype, *shape)
