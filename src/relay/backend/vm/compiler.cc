@@ -741,8 +741,7 @@ class VMCompiler : public runtime::ModuleNode {
 
 #if USE_RELAY_DEBUG
     for (auto vm_func : vm_->functions) {
-      std::cout << "Function: " << vm_func.name << std::endl
-                << vm_func << "-------------" << std::endl;
+      DLOG(INFO) << vm_func << "-------------";
     }
 #endif  // USE_RELAY_DEBUG
 
