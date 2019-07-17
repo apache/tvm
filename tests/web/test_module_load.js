@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -37,15 +37,18 @@ function randomArray(length, max) {
 function testAddOne() {
   // grab pre-loaded function
   var faddOne = sysLib.getFunction("add_one");
+  var assert = require('assert');
   tvm.assert(tvm.isPackedFunc(faddOne));
   var n = 124;
   var A = tvm.empty(n).copyFrom(randomArray(n, 1));
   var B = tvm.empty(n);
   // call the function.
   faddOne(A, B);
+  AA = A.asArray();  // retrieve values in js array
+  BB = B.asArray();  // retrieve values in js array
   // verify
-  for (var i = 0; i < B.length; ++i) {
-    tvm.assert(B[i] == A[i] + 1);
+  for (var i = 0; i < BB.length; ++i) {
+    assert(Math.abs(BB[i] - (AA[i] + 1)) < 1e-5);
   }
   faddOne.release();
 }
