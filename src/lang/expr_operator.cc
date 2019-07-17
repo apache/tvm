@@ -188,6 +188,19 @@ Expr operator%(Expr a, Expr b) {
   return ir::Mod::make(a, b);
 }
 
+Expr floordiv(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorDiv>(a, b);
+  if (ret.defined()) return ret;
+  return ir::FloorDiv::make(a, b);
+}
+
+Expr floormod(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorMod>(a, b);
+  if (ret.defined()) return ret;
+  return ir::FloorMod::make(a, b);
+}
 
 Expr min(Expr a, Expr b) {
   // inf-aware simplificaiton

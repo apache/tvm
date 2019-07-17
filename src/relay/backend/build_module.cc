@@ -77,7 +77,7 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<HalideIR::Expr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::Expr> >("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<ir::StringImm>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
@@ -289,7 +289,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         auto op_node = call_node->op.as<OpNode>();
         if (op_node->name == "cast") {
           auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == HalideIR::Int(32)) {
+          if (attrs->dtype == Int(32)) {
             *rv = true;
           }
         }
@@ -417,10 +417,10 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Build relay function to runtime module
+   * \brief Compile a Relay function to runtime module.
    *
-   * \param func Relay Function
-   * \param params parameters
+   * \param func The Relay function.
+   * \param params The parameters.
    */
   void BuildRelay(
       Function func,
@@ -444,8 +444,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host_,
-                          BuildConfig::Current());
+    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    if (lowered_funcs.size() != 0) {
+      ret_.mod = tvm::build(
+        lowered_funcs,
+        target_host_,
+        BuildConfig::Current());
+    }
   }
 
  protected:

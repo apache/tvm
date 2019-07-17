@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -225,7 +225,7 @@ Stmt IRMutator::Mutate_(const Provide* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
   IRMutator* m = this;
-  HalideIR::Internal::Region new_bounds;
+  Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds
@@ -255,7 +255,7 @@ Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
 
 Stmt IRMutator::Mutate_(const Prefetch* op, const Stmt& s) {
   IRMutator* m = this;
-  HalideIR::Internal::Region new_bounds;
+  Region new_bounds;
   bool bounds_changed = false;
 
   // Mutate the bounds
@@ -401,6 +401,8 @@ DEFINE_BIOP_EXPR_MUTATE_(Sub)
 DEFINE_BIOP_EXPR_MUTATE_(Mul)
 DEFINE_BIOP_EXPR_MUTATE_(Div)
 DEFINE_BIOP_EXPR_MUTATE_(Mod)
+DEFINE_BIOP_EXPR_MUTATE_(FloorDiv)
+DEFINE_BIOP_EXPR_MUTATE_(FloorMod)
 DEFINE_BIOP_EXPR_MUTATE_(Min)
 DEFINE_BIOP_EXPR_MUTATE_(Max)
 DEFINE_BIOP_EXPR_MUTATE_(EQ)
@@ -506,6 +508,8 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .DISPATCH_TO_MUTATE_EXPR(Mul)
 .DISPATCH_TO_MUTATE_EXPR(Div)
 .DISPATCH_TO_MUTATE_EXPR(Mod)
+.DISPATCH_TO_MUTATE_EXPR(FloorDiv)
+.DISPATCH_TO_MUTATE_EXPR(FloorMod)
 .DISPATCH_TO_MUTATE_EXPR(Min)
 .DISPATCH_TO_MUTATE_EXPR(Max)
 .DISPATCH_TO_MUTATE_EXPR(EQ)

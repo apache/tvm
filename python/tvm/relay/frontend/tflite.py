@@ -79,6 +79,7 @@ class OperatorConverter(object):
             'REDUCE_PROD': self._convert_reduce_prod,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
+            'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
         }
 
@@ -787,6 +788,33 @@ class OperatorConverter(object):
 
         # Use default pad_value 0 because TFLite does not support constant_values parameter
         out = _op.nn.pad(in_expr, paddings)
+        return out
+
+    def convert_pack(self, op):
+        """Convert TFLite pack"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.PackOptions import PackOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 1, "input tensors should greater than 1"
+        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.PackOptions
+        op_options = op.BuiltinOptions()
+        pack_options = PackOptions()
+        pack_options.Init(op_options.Bytes, op_options.Pos)
+        pack_axis = pack_options.Axis()
+
+        in_exprs_reshaped = [_op.expand_dims(i, axis=pack_axis, num_newaxis=1) for i in in_exprs]
+        out = _op.concatenate(in_exprs_reshaped, pack_axis)
         return out
 
     def get_expr(self, input_tensor_idx):

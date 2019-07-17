@@ -31,6 +31,7 @@ namespace relay {
 
 // relay.qnn.dense
 TVM_REGISTER_NODE_TYPE(QDenseAttrs);
+
 // Positional relay function to create quantized dense operator used by frontend FFI.
 Expr MakeQuantizedDense(Expr data,
                         Expr weight,
@@ -47,7 +48,7 @@ Expr MakeQuantizedDense(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.qnn._make.dense")
+TVM_REGISTER_API("relay.qnn.op._make.dense")
 .set_body_typed(MakeQuantizedDense);
 
 RELAY_REGISTER_OP("qnn.dense")

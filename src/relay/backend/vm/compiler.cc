@@ -35,6 +35,7 @@
 #include <vector>
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
+#include "../../pass/pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -122,6 +123,49 @@ std::tuple<ConstMap, ConstTensorShapeMap> LayoutConstantPool(const Module& modul
 
 void InstructionPrint(std::ostream& os, const Instruction& instr);
 
+// Represent a runtime object that's going to be matched by pattern match expressions
+struct MatchValue {
+  virtual ~MatchValue() {}
+};
+using MatchValuePtr = std::shared_ptr<MatchValue>;
+
+// A runtime object that resides in a register
+struct RegisterValue : MatchValue {
+  // The register num
+  RegName rergister_num;
+
+  explicit RegisterValue(RegName reg) : rergister_num(reg) {}
+
+  ~RegisterValue() {}
+};
+
+// The value is a field of another runtime object
+struct AccessField : MatchValue {
+  MatchValuePtr parent;
+  // Field index
+  size_t index;
+  // Runtime register num after compiling the access field path
+  RegName reg{-1};
+
+  AccessField(MatchValuePtr parent, size_t index)
+  : parent(parent), index(index) {}
+
+  ~AccessField() {}
+};
+
+struct VMCompiler;
+
+/*!
+ * \brief Compile a pattern match expression
+ * It first converts the pattern match expression into a desicision tree, the condition
+ * could be object comparison or variable binding. If any of the condition fails in a clause,
+ * the decision tree switches to check the conditions of next clause and so on. If no clause
+ * matches the value, a fatal node is inserted.
+ * 
+ * After the decision tree is built, we convert it into bytecodes using If/Goto.
+ */
+void CompileMatch(Match match, VMCompiler* compiler);
+
 struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   /*! \brief Store the expression a variable points to. */
   std::unordered_map<Var, Expr, NodeHash, NodeEqual> expr_map;
@@ -159,8 +203,9 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::AllocTensor:
       case Opcode::AllocTensorReg:
       case Opcode::GetField:
+      case Opcode::GetTag:
       case Opcode::LoadConst:
-      case Opcode::Select:
+      case Opcode::LoadConsti:
       case Opcode::Invoke:
       case Opcode::AllocClosure:
       case Opcode::Move:
@@ -173,6 +218,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::If:
       case Opcode::Ret:
       case Opcode::Goto:
+      case Opcode::Fatal:
         break;
     }
     instructions.push_back(instr);
@@ -211,8 +257,9 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const MatchNode* match_node) {
     auto match = GetRef<Match>(match_node);
-    LOG(FATAL) << "translation of match nodes to the VM is"
-               << "currently unsupported";
+
+    this->VisitExpr(match->data);
+    CompileMatch(match, this);
   }
 
   void VisitExpr_(const LetNode* let_node) {
@@ -242,15 +289,15 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   void VisitExpr_(const IfNode* if_node) {
     this->VisitExpr(if_node->cond);
 
-    size_t cond_register = last_register;
+    size_t test_register = last_register;
 
+    this->Emit(Instruction::LoadConsti(1, NewRegister()));
     auto after_cond = this->instructions.size();
-
-    this->Emit(Instruction::If(cond_register, 0, 0));
+    auto target_register = this->last_register;
+    this->Emit(Instruction::If(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
     size_t true_register = last_register;
-
     Emit(Instruction::Goto(0));
 
     // Finally store how many instructions there are in the
@@ -261,6 +308,8 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
     size_t false_register = last_register;
 
+    // In else-branch, override the then-branch register
+    Emit(Instruction::Move(false_register, true_register));
     // Compute the total number of instructions
     // after generating false.
     auto after_false = this->instructions.size();
@@ -273,13 +322,13 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     // we patch up the if instruction, and goto.
     auto true_offset = 1;
     auto false_offset = after_true - after_cond;
-    this->instructions[after_cond].true_offset = true_offset;
-    this->instructions[after_cond].false_offset = false_offset;
+    this->instructions[after_cond].if_op.true_offset = true_offset;
+    this->instructions[after_cond].if_op.false_offset = false_offset;
 
     // Patch the Goto.
     this->instructions[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    Emit(Instruction::Select(cond_register, true_register, false_register, NewRegister()));
+    this->last_register = true_register;
   }
 
   Instruction AllocTensorFromType(const TensorTypeNode* ttype) {
@@ -463,6 +512,160 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     this->VisitExpr(func->body);
   }
 };
+
+/*!
+ * \brief Compile a match value
+ * Generate byte code that compute the value specificed in val
+ * 
+ * \return The register number assigned for the final value
+ */
+RegName CompileMatchValue(MatchValuePtr val, VMCompiler* compiler) {
+  if (std::dynamic_pointer_cast<RegisterValue>(val)) {
+    auto r = std::dynamic_pointer_cast<RegisterValue>(val);
+    return r->rergister_num;
+  } else {
+    auto path = std::dynamic_pointer_cast<AccessField>(val);
+    auto p = CompileMatchValue(path->parent, compiler);
+    compiler->Emit(Instruction::GetField(p, path->index, compiler->NewRegister()));
+    path->reg = compiler->last_register;
+    return path->reg;
+  }
+}
+
+/*!
+ * \brief Condition in a decision tree
+ */
+struct ConditionNode {
+  virtual ~ConditionNode() {}
+};
+
+using ConditionNodePtr = std::shared_ptr<ConditionNode>;
+
+/*!
+ * \brief A var binding condition
+ */
+struct VarBinding : ConditionNode {
+  Var var;
+  MatchValuePtr val;
+
+  VarBinding(Var var, MatchValuePtr val)
+  : var(var), val(val) {}
+
+  ~VarBinding() {}
+};
+
+/*!
+ * \brief Compare the tag of the object
+ */
+struct TagCompare : ConditionNode {
+  /*! \brief The object to be examined */
+  MatchValuePtr obj;
+
+  /*! \brief The expected tag */
+  int target_tag;
+
+  TagCompare(MatchValuePtr obj, size_t target)
+  : obj(obj), target_tag(target) {
+  }
+
+  ~TagCompare() {}
+};
+
+using TreeNodePtr = typename relay::TreeNode<ConditionNodePtr>::pointer;
+using TreeLeafNode = relay::TreeLeafNode<ConditionNodePtr>;
+using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionNodePtr>;
+using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
+
+void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
+  if (std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
+    auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree);
+    compiler->VisitExpr(node->body);
+  } else if (std::dynamic_pointer_cast<TreeLeafFatalNode>(tree)) {
+    compiler->Emit(Instruction::Fatal());
+  } else if (std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
+    auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree);
+    if (std::dynamic_pointer_cast<TagCompare>(node->cond)) {
+      // For Tag compariton, generate branches
+      auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond);
+      auto r = CompileMatchValue(cond->obj, compiler);
+      compiler->Emit(Instruction::GetTag(r, compiler->NewRegister()));
+      auto operand1 = compiler->last_register;
+      compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
+      auto operand2 = compiler->last_register;
+
+      compiler->Emit(Instruction::If(operand1, operand2, 1, 0));
+      auto cond_offset = compiler->instructions.size() - 1;
+      CompileTreeNode(node->then_branch, compiler);
+      auto if_reg = compiler->last_register;
+      compiler->Emit(Instruction::Goto(1));
+      auto goto_offset = compiler->instructions.size() - 1;
+      CompileTreeNode(node->else_branch, compiler);
+      auto else_reg = compiler->last_register;
+      compiler->Emit(Instruction::Move(else_reg, if_reg));
+      compiler->last_register = if_reg;
+      auto else_offset = compiler->instructions.size() - 1;
+      // Fixing offsets
+      compiler->instructions[cond_offset].if_op.false_offset = goto_offset - cond_offset + 1;
+      compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset + 1;
+    } else {
+      // For other non-branch conditions, move to then_branch directly
+      auto cond = std::dynamic_pointer_cast<VarBinding>(node->cond);
+      compiler->var_register_map[cond->var] = CompileMatchValue(cond->val, compiler);
+      CompileTreeNode(node->then_branch, compiler);
+    }
+  }
+}
+
+TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
+                                         Pattern pattern,
+                                         TreeNodePtr then_branch,
+                                         TreeNodePtr else_branch) {
+  if (pattern.as<PatternWildcardNode>()) {
+    // We ignore wildcard binding since it's not producing new vars
+    return then_branch;
+  } else if (pattern.as<PatternVarNode>()) {
+    auto pat = pattern.as<PatternVarNode>();
+    auto pattern = GetRef<PatternVar>(pat);
+    auto cond = std::make_shared<VarBinding>(pattern->var, data);
+    return TreeBranchNode::Make(cond, then_branch, else_branch);
+  } else {
+    auto pat = pattern.as<PatternConstructorNode>();
+    auto pattern = GetRef<PatternConstructor>(pat);
+    auto tag = pattern->constructor->tag;
+
+    size_t field_index = 0;
+    for (auto& p : pattern->patterns) {
+      auto d = std::make_shared<AccessField>(data, field_index);
+      then_branch = BuildDecisionTreeFromPattern(d, p, then_branch, else_branch);
+      field_index++;
+    }
+    auto cond = std::make_shared<TagCompare>(data, tag);
+    return TreeBranchNode::Make(cond, then_branch, else_branch);
+  }
+}
+
+TreeNodePtr BuildDecisionTreeFromClause(MatchValuePtr data,
+                                        Clause clause,
+                                        TreeNodePtr else_branch) {
+  return BuildDecisionTreeFromPattern(data, clause->lhs,
+      TreeLeafNode::Make(clause->rhs), else_branch);
+}
+
+TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> clauses) {
+  // When nothing matches, the VM throws fatal error
+  TreeNodePtr else_branch = TreeLeafFatalNode::Make();
+  // Start from the last clause
+  for (auto it = clauses.rbegin(); it != clauses.rend(); ++it) {
+      else_branch = BuildDecisionTreeFromClause(data, *it, else_branch);
+  }
+  return else_branch;
+}
+
+void CompileMatch(Match match, VMCompiler* compiler) {
+    auto data = std::make_shared<RegisterValue>(compiler->last_register);
+    auto decision_tree = BuildDecisionTreeFromClauses(data, match->clauses);
+    CompileTreeNode(decision_tree, compiler);
+}
 
 void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
                            std::vector<PackedFunc>* packed_funcs) {

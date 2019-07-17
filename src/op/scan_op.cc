@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Scan Operator.
  * \file scan_op.cc
  */
@@ -176,6 +175,7 @@ Operation ScanOpNode::ReplaceInputs(
 
 void ScanOpNode::PropBoundToInputs(
     const Operation& self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
@@ -264,7 +264,7 @@ Stmt ScanOpNode::BuildRealize(
   for (size_t i = 0; i < update.size(); ++i) {
     Tensor t = stage->op.output(i);
     CHECK_EQ(static_cast<size_t>(t->value_index), i);
-    HalideIR::Internal::Region bounds;
+    Region bounds;
     bounds.push_back(tdom);
     for (size_t k = 1; k < this->update[i]->shape.size(); ++k, ++sp_idx) {
       IterVar sp_ax = this->spatial_axis_[sp_idx];

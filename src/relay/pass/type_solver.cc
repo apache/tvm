@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,6 +24,8 @@
  */
 #include <string>
 #include <memory>
+#include <tuple>
+#include <utility>
 #include "type_solver.h"
 #include "../ir/type_functor.h"
 
@@ -90,7 +92,7 @@ class TypeSolver::OccursChecker : public TypeVisitor {
 
 class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit Unifier(TypeSolver* solver) : solver_(solver) {}
+  explicit Unifier(TypeSolver* solver, const NodeRef& loc) : solver_(solver), loc(loc) {}
 
   Type Unify(const Type& src, const Type& dst) {
     // Known limitation
@@ -102,27 +104,34 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     if (lhs->FindRoot() == rhs->FindRoot()) {
       return lhs->resolved_type;
     }
+
     if (lhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!CheckOccurs(lhs, rhs->resolved_type))
+      CHECK(!OccursCheck(lhs, rhs->resolved_type))
         << "Incomplete type " << lhs->resolved_type << " occurs in "
         << rhs->resolved_type << ", cannot unify";
+
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
     } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!CheckOccurs(rhs, lhs->resolved_type))
+      CHECK(!OccursCheck(rhs, lhs->resolved_type))
         << "Incomplete type " << rhs->resolved_type << " occurs in "
         << lhs->resolved_type << ", cannot unify";
       solver_->MergeFromTo(rhs, lhs);
       return lhs->resolved_type;
     } else {
       Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
-      CHECK(resolved.defined())
-        << "Unable to unify parent types: "
-        << lhs->resolved_type << " and " << rhs->resolved_type;
-      TypeNode* top = solver_->GetTypeNode(resolved);
-      solver_->MergeFromTo(lhs, top);
-      solver_->MergeFromTo(rhs, top);
-      return resolved;
+      if (!resolved.defined()) {
+        solver_->ReportError(RELAY_ERROR("unable to unify: "
+                                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                                         << PrettyPrint(rhs->resolved_type) << "`"),
+                             this->loc);
+        return lhs->resolved_type;
+      } else {
+        TypeNode* top = solver_->GetTypeNode(resolved);
+        solver_->MergeFromTo(lhs, top);
+        solver_->MergeFromTo(rhs, top);
+        return resolved;
+      }
     }
   }
 
@@ -130,7 +139,9 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   // there is a recursive equality constraint, which should be rejected.
   // N.b.: A tautology like ?a = ?a is okay and should be checked for
   // *before* calling this method
-  bool CheckOccurs(TypeNode* lhs, const Type& t) {
+  //
+  // See: https://en.wikipedia.org/wiki/Occurs_check
+  bool OccursCheck(TypeNode* lhs, const Type& t) {
     OccursChecker rc(solver_, lhs);
     return rc.Check(t);
   }
@@ -143,6 +154,118 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Type(nullptr);
     }
     return t1;
+  }
+
+  IndexExpr GetShape(const IndexExpr& e) {
+    IndexExpr ex = e;
+    while (true) {
+      auto it = solver_->shape_uf_.find(ex);
+      if (it == solver_->shape_uf_.end()) {
+        return ex;
+      } else {
+        ex = (*it).second;
+      }
+    }
+  }
+
+  IndexExpr UnifyDim(const IndexExpr& lhs, const IndexExpr& rhs) {
+    auto ulhs = GetShape(lhs);
+    auto urhs = GetShape(rhs);
+
+    if (ulhs.same_as(urhs)) {
+      return ulhs;
+    }
+    if (ulhs.as<Any>() || urhs.as<Any>()) {
+      return Any::make();
+    }
+
+    auto left_index0 = ulhs.as<tvm::Variable>();
+    auto right_index0 = urhs.as<tvm::IntImm>();
+    if (left_index0 && right_index0) {
+      solver_->shape_uf_.Set(ulhs, urhs);
+      return urhs;
+    }
+
+    auto left_index1 = ulhs.as<tvm::IntImm>();
+    auto right_index1 = urhs.as<tvm::Variable>();
+    if (left_index1 && right_index1) {
+      solver_->shape_uf_.Set(urhs, ulhs);
+      return ulhs;
+    }
+
+    auto left_index2 = ulhs.as<tvm::IntImm>();
+    auto right_index2 = urhs.as<tvm::IntImm>();
+    if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
+      return ulhs;
+    }
+
+    return tvm::Expr();
+  }
+
+  Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
+    const auto* tt_node = tn.as<TensorTypeNode>();
+    if (!tt_node) {
+      return Type(nullptr);
+    }
+
+    auto tt1 = GetRef<TensorType>(op);
+    auto tt2 = GetRef<TensorType>(tt_node);
+
+    if (AlphaEqual(tt1, tt2)) {
+      return std::move(tt1);
+    }
+
+    if (tt1->dtype != tt2->dtype) {
+      return Type(nullptr);
+    }
+
+    tvm::Array<IndexExpr> shape;
+    if (tt1->shape.size() != tt2->shape.size()) {
+      this->solver_->ReportError(
+        RELAY_ERROR(
+          "tensor type `" << PrettyPrint(tt1) <<
+          "` has " <<  tt1->shape.size() <<
+          " dimensions, while `" <<
+          PrettyPrint(tt2) <<
+          "` has " << tt2->shape.size() <<
+          " dimensions"), this->loc);
+      return Type(nullptr);
+    }
+
+    std::vector<std::tuple<size_t, IndexExpr, IndexExpr>> mismatches;
+
+    CHECK_EQ(tt1->shape.size(), tt2->shape.size());
+    for (size_t i = 0; i < tt1->shape.size(); i++) {
+      auto dim = UnifyDim(tt1->shape[i], tt2->shape[i]);
+      if (!dim.defined()) {
+        // NB: We push an arbitrary dimension here so we can continue error propogation.
+        shape.push_back(tt1->shape[i]);
+        tvm::Expr shape1 = tt1->shape[i];
+        tvm::Expr shape2 = tt2->shape[i];
+        std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
+        mismatches.push_back(tuple);
+      } else {
+        shape.push_back(dim);
+      }
+    }
+
+    if (mismatches.size() != 0) {
+      RelayErrorStream err;
+      err << "in particular ";
+      for (auto mismatch : mismatches) {
+        err << "dimension "
+            << std::get<0>(mismatch)
+            << " conflicts "
+            << std::get<1>(mismatch)
+            << " does not match "
+            << std::get<2>(mismatch);
+      }
+      Error error(err);
+      this->solver_->ReportError(error, this->loc);
+      return Type(nullptr);
+    }
+
+    return TensorTypeNode::make(shape, tt1->dtype);
   }
 
   Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
@@ -225,6 +348,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
  private:
   TypeSolver* solver_;
+  NodeRef loc;
 };
 
 class TypeSolver::Resolver : public TypeMutator {
@@ -412,14 +536,14 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
 }
 
 // Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef&) {
-  // NB(@jroesch): we should probably pass location into the unifier to do better
-  // error reporting as well.
-  Unifier unifier(this);
+Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef& loc) {
+  Unifier unifier(this, loc);
   return unifier.Unify(dst, src);
 }
 
 void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
+  CHECK(location.defined());
+  CHECK(current_func.defined());
   err_reporter_->ReportAt(current_func, location, err);
 }
 
@@ -460,7 +584,6 @@ Type TypeSolver::Resolve(const Type& type) {
 }
 
 bool TypeSolver::Solve() {
-  // Update until queue is empty.
   while (!update_queue_.empty()) {
     RelationNode* rnode = update_queue_.front();
     const auto& rel = rnode->rel;
@@ -474,7 +597,7 @@ bool TypeSolver::Solve() {
     }
 
     CHECK(rnode->location.defined())
-      << "undefined location, should be set when constructing relation node";
+        << "undefined location, should be set when constructing relation node";
 
     // We need to set this in order to understand where unification
     // errors generated by the error reporting are coming from.
@@ -494,11 +617,10 @@ bool TypeSolver::Solve() {
       rnode->resolved = false;
     } catch (const dmlc::Error& err) {
       rnode->resolved = false;
-      this->ReportError(
-          RELAY_ERROR(
-            "an internal invariant was violated while " \
-            "typechecking your program " <<
-            err.what()), rnode->location);
+      this->ReportError(RELAY_ERROR("an internal invariant was violated while "
+                                    "typechecking your program "
+                                    << err.what()),
+                        rnode->location);
     }
 
     // Mark inqueue as false after the function call
@@ -516,17 +638,21 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
-    ErrorReporter err_reporter;
-    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), &err_reporter);
+    ErrorReporter *err_reporter = new ErrorReporter();
+    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), err_reporter);
 
-    auto mod = [solver](std::string name) -> PackedFunc {
+    auto mod = [solver, err_reporter](std::string name) -> PackedFunc {
       if (name == "Solve") {
         return TypedPackedFunc<bool()>([solver]() {
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<Type(Type, Type)>([solver](Type lhs, Type rhs) {
-            return solver->Unify(lhs, rhs, lhs);
+        return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
+            auto res = solver->Unify(lhs, rhs, lhs);
+            if (err_reporter->AnyErrors()) {
+              err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
+            }
+            return res;
           });
       } else if (name == "Resolve") {
         return TypedPackedFunc<Type(Type)>([solver](Type t) {

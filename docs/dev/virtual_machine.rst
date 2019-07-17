@@ -160,13 +160,27 @@ If
 ^^
 **Arguments**:
 ::
-  RegName if_cond
+  RegName test
+  RegName target
   size_t true_offset
   size_t false_offset
 
-Check if the object at register `if_cond` is `true` or `false`.
-If `true`, relative jump by `true_offset`, else relative
+Check if the object at register `test` is equal to `target`.
+If equal, relative jump by `true_offset`, else relative
 jump by `false_offset`.
+
+GetTagi
+^^^^^^^
+**Arguments**:
+::
+  RegName object
+  RegName dst
+
+Get the object tag for Datatype object in register `object`. And saves the reult to register `dst`.
+
+Fatal
+^^^^^
+Fail the virtual machine execution.
 
 Goto
 ^^^^
@@ -203,6 +217,15 @@ LoadConst
   size_t const_index
 
 Load the constant at `const_index` from the constant pool. The result is saved to register `dst`.
+
+LoadConsti
+^^^^^^^^^^
+**Arguments**:
+::
+  size_t val
+  RegName dst
+
+Load the constant integer `val` to register `dst`. The result is a 0-rank tensor.
 
 Object Representation
 ~~~~~~~~~~~~~~~~~~~~~

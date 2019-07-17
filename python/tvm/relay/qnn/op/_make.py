@@ -17,4 +17,4 @@
 """Constructor APIs"""
 from ...._ffi.function import _init_api
 
-_init_api("relay.op.qnn._make", __name__)
+_init_api("relay.qnn.op._make", __name__)

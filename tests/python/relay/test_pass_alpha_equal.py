@@ -160,7 +160,6 @@ def test_type_relation_alpha_equal():
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    # attrs are also compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
@@ -391,7 +390,6 @@ def test_call_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    # attrs are compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))

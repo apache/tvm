@@ -91,12 +91,46 @@ GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
   return (*it).second;
 }
 
+template<typename T>
+tvm::Array<T> concat(const tvm::Array<T>& l, const tvm::Array<T>& r) {
+  tvm::Array<T> ret(l);
+  for (const T& t : r) {
+    ret.push_back(t);
+  }
+  return ret;
+}
+
 void ModuleNode::Add(const GlobalVar& var,
                      const Function& f,
                      bool update) {
   Function func = Downcast<Function>(DeDup(f));
   // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
+  auto fv = FreeVars(func);
+  auto ftv = FreeTypeVars(func, mod);
+  if (fv.size() != 0) {
+    LOG(WARNING)
+      << "There are free variables: "
+      << fv
+      << " in function: "
+      << AsText(func, false)
+      << std::endl;
+  }
+  if (ftv.size() != 0) {
+    LOG(WARNING)
+      << "There are free type variables: "
+      << ftv
+      << " in function: "
+      << AsText(func, false)
+      << std::endl;
+  }
+  func =
+    FunctionNode::make(concat(func->params, fv),
+                       func->body,
+                       func->ret_type,
+                       concat(func->type_params, ftv),
+                       func->attrs);
+  // Type check the item before we add it to the module.
   Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();
   CHECK(type.as<IncompleteTypeNode>() == nullptr);
@@ -187,14 +221,15 @@ void ModuleNode::Update(const Module& mod) {
 
 Module ModuleNode::FromExpr(
   const Expr& expr,
-  const tvm::Map<GlobalVar, Function>& global_funcs) {
-  auto mod = ModuleNode::make(global_funcs, {});
+  const tvm::Map<GlobalVar, Function>& global_funcs,
+  const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
+  auto mod = ModuleNode::make(global_funcs, type_definitions);
   auto func_node = expr.as<FunctionNode>();
   Function func;
   if (func_node) {
     func = GetRef<Function>(func_node);
   } else {
-    func = FunctionNode::make({}, expr, Type(), {}, {});
+    func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, mod), {});
   }
   auto main_gv = GlobalVarNode::make("main");
   mod->Add(main_gv, func);
@@ -266,9 +301,14 @@ TVM_REGISTER_API("relay._module.Module_LookupTag")
   });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
-.set_body_typed<Module(Expr)>([](Expr e) {
-  return ModuleNode::FromExpr(e);
-});
+.set_body_typed<
+  Module(Expr,
+         tvm::Map<GlobalVar, Function>,
+         tvm::Map<GlobalTypeVar, TypeData>)>([](Expr e,
+                                                tvm::Map<GlobalVar, Function> funcs,
+                                                tvm::Map<GlobalTypeVar, TypeData> type_defs) {
+                                               return ModuleNode::FromExpr(e, funcs, type_defs);
+                                             });
 
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {

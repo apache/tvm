@@ -75,24 +75,24 @@ class Stage : public NodeRef {
    * \brief set the memory scope of the stage
    * \param scope The memory scope.
    */
-  EXPORT Stage& set_scope(std::string scope);  // NOLINT(*)
+  TVM_DLL Stage& set_scope(std::string scope);  // NOLINT(*)
   /*!
    * \brief specify the schedule to be computed at the parent schedule's scope.
    * \param parent The parent schedule.
    * \param scope The iteration point to carry the schedule.
    * \return reference to self.
    */
-  EXPORT Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
+  TVM_DLL Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
   /*!
    * \brief Compute the function inline.
    * \return reference to self.
    */
-  EXPORT Stage& compute_inline();   // NOLINT(*)
+  TVM_DLL Stage& compute_inline();   // NOLINT(*)
   /*!
    * \brief Compute the function at group root.
    * \return reference to self.
    */
-  EXPORT Stage& compute_root();  // NOLINT(*)
+  TVM_DLL Stage& compute_root();  // NOLINT(*)
   /*!
    * \brief Bind the IterVar to thread index.
    *
@@ -100,7 +100,7 @@ class Stage : public NodeRef {
    * \param thread_ivar The thread axis to be bound.
    * \return reference to self.
    */
-  EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
+  TVM_DLL Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
    * \brief Set the predicate to determine whether a store to the array should be performed.
    *  Use this when there are multiple threads performing the same store and we only
@@ -111,7 +111,7 @@ class Stage : public NodeRef {
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
-  EXPORT Stage& set_store_predicate(Expr predicate);
+  TVM_DLL Stage& set_store_predicate(Expr predicate);
   /*!
    * \brief Specify environment threads that launched around the group's scope.
    *  This can only be used in group stage.
@@ -120,7 +120,7 @@ class Stage : public NodeRef {
    *    This is a beta feature.
    * \return reference to self.
    */
-  EXPORT Stage& env_threads(Array<IterVar> threads);
+  TVM_DLL Stage& env_threads(Array<IterVar> threads);
   /*!
    * \brief Split the parent by factor, generate
    * \param parent The parent iteration domain.
@@ -129,7 +129,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  EXPORT Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
+  TVM_DLL Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -139,7 +139,7 @@ class Stage : public NodeRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  EXPORT Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
+  TVM_DLL Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param outer The outer domain to be fused.
@@ -147,7 +147,7 @@ class Stage : public NodeRef {
    * \param p_target The result target domain.
    * \return reference to self.
    */
-  EXPORT Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
+  TVM_DLL Stage& fuse(IterVar outer, IterVar inner, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Fuse all the axes together into a single axis.
    *
@@ -161,13 +161,13 @@ class Stage : public NodeRef {
    *
    * \return reference to self.
    */
-  EXPORT Stage& fuse(const Array<IterVar>& axes, IterVar* p_target);  // NOLINT(*)
+  TVM_DLL Stage& fuse(const Array<IterVar>& axes, IterVar* p_target);  // NOLINT(*)
   /*!
    * \brief Reorder the iteration
    * \param order The order of iteration variable.
    * \return reference to self.
    */
-  EXPORT Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
+  TVM_DLL Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
   /*!
    * \brief Perform tiling on two dimensions
    *  The final loop order from outmost to inner most are
@@ -183,7 +183,7 @@ class Stage : public NodeRef {
    * \param p_y_inner Inner axis of y dimension
    * \return reference to self.
    */
-  EXPORT Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
+  TVM_DLL Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
                      Expr x_factor, Expr y_factor,
                      IterVar* p_x_outer, IterVar* p_y_outer,
                      IterVar* p_x_inner, IterVar* p_y_inner);
@@ -192,7 +192,7 @@ class Stage : public NodeRef {
    * \param var The axis to be vectorized.
    * \return reference to self.
    */
-  EXPORT Stage& vectorize(IterVar var);   // NOLINT(*)
+  TVM_DLL Stage& vectorize(IterVar var);   // NOLINT(*)
   /*!
    * \brief Replace computation of the current stage by tensor intrinsic f.
    * \param var The axis marks beginning of tensorization.
@@ -200,19 +200,19 @@ class Stage : public NodeRef {
    * \param f The Tensor compute intrinsics.
    * \return reference to self.
    */
-  EXPORT Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
+  TVM_DLL Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
    * \param var The axis to be unrolled.
    * \return reference to self.
    */
-  EXPORT Stage& unroll(IterVar var);   // NOLINT(*)
+  TVM_DLL Stage& unroll(IterVar var);   // NOLINT(*)
   /*!
    * \brief Parallelize iteration.
    * \param var The axis to be parallelized.
    * \return reference to self.
    */
-  EXPORT Stage& parallel(IterVar var);   // NOLINT(*)
+  TVM_DLL Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
    * \brief Annotate the iteration with pragma
    *
@@ -222,7 +222,7 @@ class Stage : public NodeRef {
    *
    * \return reference to self.
    */
-  EXPORT Stage& pragma(IterVar var,
+  TVM_DLL Stage& pragma(IterVar var,
                        const std::string& pragma_type,
                        const Expr& pragma_value = Expr());   // NOLINT(*)
   /*!
@@ -232,7 +232,7 @@ class Stage : public NodeRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  EXPORT Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
+  TVM_DLL Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -243,12 +243,12 @@ class Stage : public NodeRef {
    * \param offset The required offset factor.
    * \return reference to self
    */
-  EXPORT Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
+  TVM_DLL Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
   /*!
    * \brief Compute current stage with double buffering.
    * \return reference to self.
    */
-  EXPORT Stage& double_buffer();   // NOLINT(*)
+  TVM_DLL Stage& double_buffer();   // NOLINT(*)
   /*!
    * \brief Schedule for OpenGL fragment shader.
    * \return reference to self.
@@ -289,13 +289,13 @@ class Schedule : public NodeRef {
    * \brief Get the stage corresponds to the op
    * \param op The operation.
    */
-  EXPORT Stage operator[](const Operation& op);
+  TVM_DLL Stage operator[](const Operation& op);
   /*!
    * \brief Short hand for getting the stage of tensor's operation.
    * \param tensor The tensor
    * \return The stage corresponding to the tensor's op
    */
-  EXPORT Stage operator[](const Tensor& tensor) {
+  TVM_DLL Stage operator[](const Tensor& tensor) {
     return this->operator[](tensor->op);
   }
   /*!
@@ -307,7 +307,7 @@ class Schedule : public NodeRef {
    * \param include_inputs Whether include inputs if they are reachable from outputs.
    * \return The new grouped stage.
    */
-  EXPORT Stage create_group(const Array<Tensor>& outputs,
+  TVM_DLL Stage create_group(const Array<Tensor>& outputs,
                      const Array<Tensor>& inputs,
                      bool include_inputs = false);
   /*!
@@ -319,7 +319,7 @@ class Schedule : public NodeRef {
    * \param readers The readers to redirect to the tensor.
    * \return The created tensor.
    */
-  EXPORT Tensor cache_read(const Tensor& tensor,
+  TVM_DLL Tensor cache_read(const Tensor& tensor,
                     const std::string& scope,
                     const Array<Operation>& readers);
   /*!
@@ -338,7 +338,7 @@ class Schedule : public NodeRef {
    * \param scope The scope of the storage.
    * \return The created tensor.
    */
-  EXPORT Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
+  TVM_DLL Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
   /*!
    * \brief Create a cache write tensor for producing tensor.
    *  The the tensor will take over body of original tensor op.
@@ -355,7 +355,7 @@ class Schedule : public NodeRef {
    * \param scope The scope of the storage.
    * \return The created tensor.
    */
-  EXPORT Tensor cache_write(const Tensor& tensor, const std::string& scope);
+  TVM_DLL Tensor cache_write(const Tensor& tensor, const std::string& scope);
   /*!
    * \brief Factor a reduction axis in tensor's schedule to be an explicit axis.
    * This will create a new stage that generated the new tensor with axis
@@ -369,7 +369,7 @@ class Schedule : public NodeRef {
    * \param factor_axis The position where the new axis is placed.
    * \return The created factored tensors.
    */
-  EXPORT Array<Tensor> rfactor(const Tensor& tensor,
+  TVM_DLL Array<Tensor> rfactor(const Tensor& tensor,
                         const IterVar& axis,
                         int factor_axis = 0);
   /*!
@@ -556,14 +556,14 @@ class ScheduleNode : public Node {
    * \param op The candidate Operation.
    * \return true if the schedule has the Operation. Otherwise, false.
    */
-  EXPORT bool Contain(const Operation& op) const;
+  TVM_DLL bool Contain(const Operation& op) const;
 
   /*!
    * \brief Check if the schedule contains a Tensor.
    * \param tensor The candidate tensor.
    * \return true if the schedule has the tensor. Otherwise, false.
    */
-  EXPORT bool Contain(const Tensor& tensor) const {
+  TVM_DLL bool Contain(const Tensor& tensor) const {
     return Contain(tensor->op);
   }
 
@@ -572,7 +572,7 @@ class ScheduleNode : public Node {
    * \param ops The ops to be scheduled.
    * \return sch The created Schedule.
    */
-  EXPORT static Schedule make(Array<Operation> ops);
+  TVM_DLL static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);

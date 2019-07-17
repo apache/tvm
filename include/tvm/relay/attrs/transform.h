@@ -123,19 +123,19 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
 
 /*! \brief Attributes used in arange operators */
 struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
-  tvm::Expr start;
-  tvm::Expr stop;
-  tvm::Expr step;
+  Expr start;
+  Expr stop;
+  Expr step;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(ArangeAttrs, "relay.attrs.ArangeAttrs") {
-    TVM_ATTR_FIELD(start).set_default(make_const(Float(32), 0))
+    TVM_ATTR_FIELD(start)
         .describe("Start of interval. The interval includes this value.");
     TVM_ATTR_FIELD(stop)
         .describe("Stop of interval. The interval does not include this value.");
-    TVM_ATTR_FIELD(step).set_default(make_const(Float(32), 1))
+    TVM_ATTR_FIELD(step)
         .describe("Spacing between values.");
-    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+    TVM_ATTR_FIELD(dtype)
         .describe("Target data type.");
   }
 };  // struct ArangeAttrs

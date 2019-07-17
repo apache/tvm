@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file topi/image/resize.h
  * \brief image resize constructors
  */
@@ -34,7 +33,8 @@
 #include "topi/elemwise.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace image {
@@ -54,17 +54,17 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
                                  const Expr max_y, const Expr max_x) {
   auto in_y = indices[2];
   auto yf = tvm::floor(in_y);
-  auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
+  auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
 
-  auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+  auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
   auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
   auto y_lerp = in_y - yf;
 
   auto in_x = indices[3];
   auto xf = tvm::floor(in_x);
-  auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+  auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
 
-  auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+  auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
   auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
   auto x_lerp = in_x - xf;
 
@@ -267,17 +267,17 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     out_shape, [&](const Array<Var>& indices) {
     auto in_y = indices[1] * y_ratio;
     auto yf = tvm::floor(in_y);
-    auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
+    auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
 
-    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+    auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
     auto y1 = tvm::if_then_else((yc > other_y), other_y, yc);
     auto y_lerp  = in_y - yf;
 
     auto in_x = indices[2] * x_ratio;
     auto xf = tvm::floor(in_x);
-    auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+    auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
 
-    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+    auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
     auto x1 = tvm::if_then_else((xc > other_x), other_x, xc);
     auto x_lerp  = in_x - xf;
 

@@ -45,9 +45,18 @@ def test_conv2d_infer_type():
         (2, 10, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-
     n, c, h, w = tvm.var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
+    y = relay.nn.conv2d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222, 222), "int32")
+
+    # infer shape in case of different dtypes for input and weight.
+    n, c, h, w = tvm.var("n"), 10, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, h, w), "uint8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
     y = relay.nn.conv2d(x, w, out_dtype="int32")
     assert "out_dtype=\"int32\"" in y.astext()

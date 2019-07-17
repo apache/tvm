@@ -260,13 +260,11 @@ def add_rewrite(ref_call, new_args, ctx):
         if isinstance(rhs_expr, _expr.Constant):
             # quantize rhs to WEIGHT field if it is Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
-            assert lhs_kind == QAnnotateKind.ACTIVATION
-            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
         else:
             # quantize rhs to INPUT field if it is not Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
-            raise ValueError
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
     if lhs_kind is not None and rhs_kind is not None:
         if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
@@ -277,6 +275,10 @@ def add_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT:
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    raise ValueError()
 
 
 @register_annotate_function("stop_fusion")

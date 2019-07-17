@@ -36,6 +36,7 @@ using namespace ir;
 class SumExpr;
 class SplitExpr;
 
+
 /*!
  * \brief Base class of all temporary expression introduced
  *        for canonicalization.
@@ -52,16 +53,35 @@ class CanonicalExprNode : public BaseExprNode {
   // overrides
   void VisitAttrs(tvm::AttrVisitor* v) final {
   }
-  void accept(HalideIR::Internal::IRVisitor* v, const Expr& e) const final {
-    LOG(FATAL) << "not supported";
-  }
-  IRNodeType type_info() const final {
-    return IRNodeType::ExtensionExpr;
-  }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
   TVM_DECLARE_BASE_NODE_INFO(CanonicalExprNode, BaseExprNode);
 };
+
+enum DivMode {
+  /*! \brief Truncated division. */
+  kTruncDiv,
+  /*! \brief Floor division. */
+  kFloorDiv
+};
+
+inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
+  if (mode == kTruncDiv) {
+    return a % b;
+  } else {
+    CHECK_EQ(mode, kFloorDiv);
+    return floormod(a, b);
+  }
+}
+
+inline Expr DivImpl(Expr a, Expr b, DivMode mode) {
+  if (mode == kTruncDiv) {
+    return a / b;
+  } else {
+    CHECK_EQ(mode, kFloorDiv);
+    return floordiv(a, b);
+  }
+}
 
 /*!
  * \brief Internal "Split normal form" of expression.
@@ -84,6 +104,8 @@ class SplitExprNode : public CanonicalExprNode {
   int64_t upper_factor{kPosInf};
   /*! \brief scale to the expression. */
   int64_t scale{1};
+  /*! \brief Division mode. */
+  DivMode div_mode{kTruncDiv};
 
   /*! \brief verify that this is a valid entry. */
   void Verify() const {
@@ -97,10 +119,10 @@ class SplitExprNode : public CanonicalExprNode {
       return make_const(dtype, 0);
     }
     if (this->upper_factor != SplitExprNode::kPosInf) {
-      res = res % make_const(dtype, this->upper_factor);
+      res = ModImpl(res, make_const(dtype, this->upper_factor), div_mode);
     }
     if (this->lower_factor != 1) {
-      res = res / make_const(dtype, this->lower_factor);
+      res = DivImpl(res, make_const(dtype, this->lower_factor), div_mode);
     }
     sscale *= this->scale;
     if (sscale != 1) {
@@ -119,6 +141,7 @@ class SplitExprNode : public CanonicalExprNode {
   }
 
   inline bool IndexEqual(const SplitExpr& other) const;
+  inline bool DivModeCompatibleTo(DivMode mode) const;
 
   /*! \brief positive infty */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
@@ -131,6 +154,12 @@ TVM_DEFINE_COW_NODE_REF(SplitExpr, Expr, SplitExprNode);
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
   return ir::Equal(index, other->index);
+}
+
+inline bool SplitExprNode::DivModeCompatibleTo(DivMode mode) const {
+  if (this->div_mode == mode) return true;
+  if (lower_factor == 1 && upper_factor == kPosInf) return true;
+  return false;
 }
 
 /*!
@@ -149,6 +178,10 @@ class SumExprNode : public CanonicalExprNode {
   std::vector<SplitExpr> args;
   /*! \brief Base value in the summation. */
   int64_t base{0};
+  /*! \brief The expression equals zero. */
+  bool IsZero() const {
+    return base == 0 && args.size() == 0;
+  }
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \return The normal expression.
@@ -224,7 +257,8 @@ class SumExprNode : public CanonicalExprNode {
         return;
       }
       if (other->lower_factor == args[j]->lower_factor &&
-          other->upper_factor == args[j]->upper_factor) {
+          other->upper_factor == args[j]->upper_factor &&
+          other->DivModeCompatibleTo(args[j]->div_mode)) {
         args[j].CopyOnWrite()->scale += other->scale * scale;
         return;
       }
@@ -257,14 +291,16 @@ class SumExprNode : public CanonicalExprNode {
         if (!lhs->IndexEqual(rhs)) break;
         if (lhs->upper_factor < rhs->lower_factor) break;
         if (lhs->upper_factor == rhs->upper_factor &&
-            lhs->lower_factor == rhs->lower_factor) {
+            lhs->lower_factor == rhs->lower_factor &&
+            lhs->DivModeCompatibleTo(rhs->div_mode)) {
           // folding same co-efficient.
           rhs.CopyOnWrite()->scale += lhs->scale;
           lhs.CopyOnWrite()->scale = 0;
         } else if (lhs->lower_factor == rhs->upper_factor &&
                    rhs->scale != 0 &&
                    lhs->scale % rhs->scale == 0 &&
-                   lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
+                   lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor &&
+                   lhs->DivModeCompatibleTo(rhs->div_mode)) {
           // Rules used in the proof:
           //
           // Rule 1:  (x % (c * s)) / c  =  (x / c) % s
@@ -276,12 +312,12 @@ class SumExprNode : public CanonicalExprNode {
           //  Thus, lhs = rhs
           //
           // The above proof is for the floordiv.
-          // The same rule also holds for trucdiv(division rule in C).
+          // The same rule also holds for truncdiv(division rule in C).
           // Because both sides only involve mul, div and mod,
           // we can take abs of x, c and s, apply the floordiv proof,
           // and finally add the sign back.
           //
-          // Rule 2:  (x / s) * s + x % s = x  (true for both truc and floor div)
+          // Rule 2:  (x / s) * s + x % s = x  (true for both trunc and floor div)
           //
           // General merge condition and proof:
           // - x = lhs->index % lhs->upper_factor
@@ -330,6 +366,9 @@ class SumExprNode : public CanonicalExprNode {
       // then order by upper factor
       if (lhs->upper_factor > rhs->upper_factor) return true;
       if (lhs->upper_factor < rhs->upper_factor) return false;
+      // then order by div mode
+      if (lhs->div_mode > rhs->div_mode) return true;
+      if (lhs->div_mode < rhs->div_mode) return false;
       // tie.
       // TODO(tvm-team) We might consider index as the last comparison point,
       // after we make deep comparator more derministic.
@@ -408,6 +447,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   Expr Mutate_(const Mul* op, const Expr& self) final;
   Expr Mutate_(const Div* op, const Expr& self) final;
   Expr Mutate_(const Mod* op, const Expr& self) final;
+  Expr Mutate_(const FloorDiv* op, const Expr& self) final;
+  Expr Mutate_(const FloorMod* op, const Expr& self) final;
   Expr Mutate_(const Reduce* op, const Expr& self) final;
 
  private:
@@ -415,28 +456,29 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \brief compute lhs / cval
    * \param lhs The left operand.
    * \param cval The constant value.
+   * \param div_mode The division mode.
    * \return The result expression;
    */
-  SplitExpr SplitDivConst(SplitExpr lhs, int64_t cval);
+  SplitExpr SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
   /*!
    * \brief compute lhs % cval
    * \param lhs The left operand.
    * \param cval The constant value.
+   * \param div_mode The division mode.
    * \return The result expression;
    */
-  SplitExpr SplitModConst(SplitExpr lhs, int64_t cval);
+  SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
   /*!
-   * \brief Detect if psum = q * coeff + r such that (q >= 0 && r >= 0)
+   * \brief Separate psum into divisible and non-divisible parts.
    * \param psum The sum expression.
    * \param coeff The co-efficient.
    * \param out_divisible The result divisible component.
    * \param out_non_divisible The non-divisible component.
-   * \return Whether detection is successful.
    */
-  bool TryLinearEquation(const SumExprNode* psum,
-                         int64_t coeff,
-                         SumExpr* out_divisible,
-                         SumExpr* out_non_divisible);
+  void SeparateDivisibleParts(const SumExprNode* psum,
+                              int64_t coeff,
+                              SumExpr* out_divisible,
+                              SumExpr* out_non_divisible);
   /*!
    * \brief Normalize expr to normal expr.
    * \param expr The input expression.
@@ -467,7 +509,30 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
     n->type = expr.type();
     n->index = std::move(expr);
+    n->div_mode = kTruncDiv;
     return SplitExpr(n);
+  }
+  /*!
+   * \brief Convert expr to an equivalent SplitExpr
+   *        that has the specified div_mode.
+   *
+   * This function will return the same expr if its
+   * div_mode already satisfies the need.
+   *
+   * \param expr The input expr.
+   * \param div_mode The new div_mode.
+   * \return The transformed SplitExpr.
+   */
+  SplitExpr ConvertDivMode(SplitExpr expr, DivMode div_mode) {
+    if (expr->div_mode == div_mode) return expr;
+    if (expr->DivModeCompatibleTo(div_mode)) {
+      expr.CopyOnWrite()->div_mode = div_mode;
+      return expr;
+    }
+    expr = ToSplitExpr(Normalize(expr));
+    CHECK(expr->DivModeCompatibleTo(div_mode));
+    expr.CopyOnWrite()->div_mode = div_mode;
+    return expr;
   }
   /*!
    * \brief Create a SumExpr from expr.
@@ -584,12 +649,11 @@ Mutate_(const Mul* op, const Expr& self) {
   }
 }
 
-
-bool CanonicalSimplifier::Impl::
-TryLinearEquation(const SumExprNode* psum,
-                  int64_t coeff,
-                  SumExpr* out_divisible,
-                  SumExpr* out_non_divisible) {
+void CanonicalSimplifier::Impl::
+SeparateDivisibleParts(const SumExprNode* psum,
+                       int64_t coeff,
+                       SumExpr* out_divisible,
+                       SumExpr* out_non_divisible) {
   auto divisible = make_node<SumExprNode>();
   auto non_divisible = make_node<SumExprNode>();
   divisible->type = psum->type;
@@ -609,20 +673,14 @@ TryLinearEquation(const SumExprNode* psum,
   }
   *out_divisible = SumExpr(divisible);
   *out_non_divisible = SumExpr(non_divisible);
-
-  if (non_divisible->base == 0 && non_divisible->args.size() == 0) {
-    return true;
-  }
-  if (parent_->CanProveGreaterEqual(divisible->Normalize(), 0) &&
-      parent_->CanProveGreaterEqual(non_divisible->Normalize(), 0)) {
-    return true;
-  } else {
-    return false;
-  }
 }
 
 SplitExpr CanonicalSimplifier::Impl::
-SplitDivConst(SplitExpr lhs, int64_t cval) {
+SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
+  CHECK_GT(cval, 0);
+  lhs = ConvertDivMode(lhs, div_mode);
+
+  // the following rule works for both floordiv and truncdiv
   if (lhs->scale % cval == 0) {
     lhs.CopyOnWrite()->scale /= cval;
     return lhs;
@@ -643,7 +701,7 @@ SplitDivConst(SplitExpr lhs, int64_t cval) {
     } else {
       // move the upper_factor modular into index.
       lhs.CopyOnWrite()->index =
-          lhs->index % make_const(lhs.type(), lhs->upper_factor);
+          ModImpl(lhs->index, make_const(lhs.type(), lhs->upper_factor), div_mode);
       lhs.CopyOnWrite()->upper_factor = SplitExprNode::kPosInf;
       lhs.CopyOnWrite()->scale = 1;
       lhs.CopyOnWrite()->lower_factor *= scaled_cval;
@@ -653,6 +711,7 @@ SplitDivConst(SplitExpr lhs, int64_t cval) {
   }
   // directly return the split with cval == 1
   lhs = ToSplitExpr(Normalize(lhs));
+  CHECK(lhs->DivModeCompatibleTo(div_mode));
   CHECK_EQ(lhs->scale, 1);
   lhs.CopyOnWrite()->lower_factor *= cval;
   return lhs;
@@ -663,6 +722,7 @@ Mutate_(const Div* op, const Expr& self) {
   if (!IsIndexType(op->type)) {
     return Rewriter::Mutate_(op, self);
   }
+
   Expr a = this->CanonicalMutate(op->a);
   Expr b = this->CanonicalMutate(op->b);
 
@@ -677,16 +737,24 @@ Mutate_(const Div* op, const Expr& self) {
 
     if (const auto* psum = a.as<SumExprNode>()) {
       SumExpr lhs, extra;
-      if (TryLinearEquation(psum, cval, &lhs, &extra)) {
+      SeparateDivisibleParts(psum, cval, &lhs, &extra);
+      // can be divided by cval
+      if (extra->IsZero()) {
+        lhs.CopyOnWrite()->DivideBy(cval);
+        return std::move(lhs);
+      }
+      // both lhs and extra are non-negative
+      if (parent_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
+          parent_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         lhs.CopyOnWrite()->DivideBy(cval);
         Expr temp = Normalize(extra);
         if (const auto* pconst = temp.as<IntImm>()) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
-          // if extra <= cval, it means the extra can be eliminated.
+          // if 0 <= extra < cval, it means the extra can be eliminated.
           if (TryCompare(temp, cval) != kLT) {
             lhs.CopyOnWrite()->AddToSelf(
-                SplitDivConst(ToSplitExpr(temp), cval), 1);
+                SplitDivConst(ToSplitExpr(temp), cval, kTruncDiv), 1);
           }
         }
         return std::move(lhs);
@@ -698,7 +766,7 @@ Mutate_(const Div* op, const Expr& self) {
         return make_zero(a.type());
       }
     }
-    return SplitDivConst(ToSplitExpr(std::move(a)), cval);
+    return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
   }
   // normal path
   a = Normalize(a);
@@ -710,8 +778,67 @@ Mutate_(const Div* op, const Expr& self) {
   }
 }
 
+Expr CanonicalSimplifier::Impl::
+Mutate_(const FloorDiv* op, const Expr& self) {
+  if (!IsIndexType(op->type)) {
+    return Rewriter::Mutate_(op, self);
+  }
+  Expr a = this->CanonicalMutate(op->a);
+  Expr b = this->CanonicalMutate(op->b);
+
+  // const folding
+  Expr const_res = TryConstFold<FloorDiv>(a, b);
+  if (const_res.defined()) return const_res;
+  PVar<Integer> c1;
+  // x / c1
+  if (c1.Match(b) && c1.Eval()->value > 0) {
+    int64_t cval = c1.Eval()->value;
+    if (cval == 1) return a;
+
+    if (const auto* psum = a.as<SumExprNode>()) {
+      SumExpr lhs, extra;
+      SeparateDivisibleParts(psum, cval, &lhs, &extra);
+      if (extra->IsZero()) {
+        lhs.CopyOnWrite()->DivideBy(cval);
+        return std::move(lhs);
+      }
+      // continue simplification.
+      lhs.CopyOnWrite()->DivideBy(cval);
+      Expr temp = Normalize(extra);
+      if (const auto* pconst = temp.as<IntImm>()) {
+        lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
+      } else {
+        // if 0 <= extra < cval, it means the extra can be eliminated.
+        if (!(TryCompare(temp, cval) == kLT && parent_->CanProveGreaterEqual(temp, 0))) {
+          lhs.CopyOnWrite()->AddToSelf(
+              SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
+        }
+      }
+      return std::move(lhs);
+    } else {
+      // if a >= 0 && a < cval, then result == 0
+      auto cbound = parent_->const_int_bound(Normalize(a));
+      if (cbound->min_value >= 0 && cbound->max_value < cval) {
+        return make_zero(a.type());
+      }
+    }
+    return SplitDivConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
+  }
+  // normal path
+  a = Normalize(a);
+  b = Normalize(b);
+  if (op->a.same_as(a) && op->b.same_as(b)) {
+    return self;
+  } else {
+    return FloorDiv::make(a, b);
+  }
+}
+
 SplitExpr CanonicalSimplifier::Impl::
-SplitModConst(SplitExpr lhs, int64_t cval) {
+SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
+  CHECK_GT(cval, 0);
+  lhs = ConvertDivMode(lhs, div_mode);
+
   if (lhs->scale % cval == 0) {
     lhs.CopyOnWrite()->scale = 0;
     return lhs;
@@ -724,9 +851,24 @@ SplitModConst(SplitExpr lhs, int64_t cval) {
     // try to see if we can reduce the existing upper modular.
     if (lhs->upper_factor == SplitExprNode::kPosInf ||
         lhs->upper_factor % new_upper_factor == 0) {
-      lhs.CopyOnWrite()->upper_factor = new_upper_factor;
-      lhs->Verify();
-      return lhs;
+      // we gained a new upper factor that is smaller
+      // than the original one
+      // Perhaps there are more chances in simplifying the index
+      // Do a recursive call to simplify the mod with the new factor.
+      if (new_upper_factor < lhs->upper_factor &&
+          lhs->upper_factor != SplitExprNode::kPosInf) {
+        auto updated = ToSplitExpr(Mutate(ModImpl(
+            lhs->index, make_const(lhs.type(), new_upper_factor), div_mode)));
+        // re-apply the lower_factor
+        if (lhs->lower_factor != 1) {
+          return SplitDivConst(updated, lhs->lower_factor, div_mode);
+        } else {
+          return updated;
+        }
+      } else {
+        lhs.CopyOnWrite()->upper_factor = new_upper_factor;
+        return lhs;
+      }
     } else if (new_upper_factor % lhs->upper_factor == 0) {
       // (x % 2) % 4 => x % 2
       return lhs;
@@ -734,8 +876,10 @@ SplitModConst(SplitExpr lhs, int64_t cval) {
   }
   // Normalize the value.
   lhs = ToSplitExpr(Normalize(lhs));
+  CHECK(lhs->DivModeCompatibleTo(div_mode));
   CHECK_EQ(lhs->scale, 1);
   CHECK_EQ(lhs->lower_factor, 1);
+  lhs.CopyOnWrite()->div_mode = div_mode;
   lhs.CopyOnWrite()->upper_factor = cval;
   return lhs;
 }
@@ -759,7 +903,13 @@ Mutate_(const Mod* op, const Expr& self) {
     int64_t cval = c1.Eval()->value;
     if (const auto* psum = a.as<SumExprNode>()) {
       SumExpr lhs, extra;
-      if (TryLinearEquation(psum, cval, &lhs, &extra)) {
+      SeparateDivisibleParts(psum, cval, &lhs, &extra);
+      if (extra->IsZero()) {
+        return make_zero(a.type());
+      }
+      // both lhs and extra are non-negative
+      if (parent_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
+          parent_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         Expr temp = Normalize(extra);
         if (temp.as<IntImm>()) {
           return temp % c1.Eval();
@@ -783,7 +933,7 @@ Mutate_(const Mod* op, const Expr& self) {
           cbound->min_value - psum->base + new_base >= 0) {
         SumExpr sum_expr(std::move(a.node_));
         sum_expr.CopyOnWrite()->base = new_base;
-        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval);
+        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
@@ -792,7 +942,7 @@ Mutate_(const Mod* op, const Expr& self) {
         return a;
       }
     }
-    return SplitModConst(ToSplitExpr(std::move(a)), cval);
+    return SplitModConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
   }
   // normal path
   a = Normalize(a);
@@ -801,6 +951,66 @@ Mutate_(const Mod* op, const Expr& self) {
     return self;
   } else {
     return Mod::make(a, b);
+  }
+}
+
+Expr CanonicalSimplifier::Impl::
+Mutate_(const FloorMod* op, const Expr& self) {
+  if (!IsIndexType(op->type)) {
+    return Rewriter::Mutate_(op, self);
+  }
+  // normalize
+  Expr a = this->CanonicalMutate(op->a);
+  Expr b = this->CanonicalMutate(op->b);
+
+  // const folding
+  Expr const_res = TryConstFold<FloorMod>(a, b);
+  if (const_res.defined()) return const_res;
+
+  PVar<Integer> c1;
+  // x % c1
+  if (c1.Match(b) && c1.Eval()->value > 0) {
+    int64_t cval = c1.Eval()->value;
+    if (const auto* psum = a.as<SumExprNode>()) {
+      SumExpr lhs, extra;
+      SeparateDivisibleParts(psum, cval, &lhs, &extra);
+      Expr temp = Normalize(extra);
+      if (temp.as<IntImm>()) {
+        return floormod(temp, c1.Eval());
+      } else {
+        // If temp < cval && temp >=0 then can remove the mod.
+        if (TryCompare(temp, cval) == kLT &&
+            parent_->CanProveGreaterEqual(temp, 0)) {
+          return temp;
+        } else {
+          // contonue to use logic below.
+          a = extra;
+          psum = a.as<SumExprNode>();
+          CHECK(psum != nullptr);
+        }
+      }
+      // Simplify the offset constant if necessary.
+      // floormod(x - 5, 3) => floormod(x + 1, 3)
+      int64_t new_base = floormod(psum->base, cval);
+      SumExpr sum_expr(std::move(a.node_));
+      sum_expr.CopyOnWrite()->base = new_base;
+      return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
+    } else {
+      // if a >= 0 && a < cval, then result == a
+      auto cbound = parent_->const_int_bound(Normalize(a));
+      if (cbound->min_value >= 0 && cbound->max_value < cval) {
+        return a;
+      }
+    }
+    return SplitModConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
+  }
+  // normal path
+  a = Normalize(a);
+  b = Normalize(b);
+  if (op->a.same_as(a) && op->b.same_as(b)) {
+    return self;
+  } else {
+    return FloorMod::make(a, b);
   }
 }
 

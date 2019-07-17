@@ -504,6 +504,62 @@ def test_sequential_with_scoping():
     assert analysis.alpha_equal(zz, zexpected)
 
 
+def test_print_ir():
+    shape = (1, 2, 3)
+    tp = relay.TensorType(shape, "float32")
+    x = relay.var("x", tp)
+    y = relay.add(x, x)
+    y = relay.multiply(y, relay.const(2, "float32"))
+    func = relay.Function([x], y)
+
+    seq = _transform.Sequential([
+        relay.transform.InferType(),
+        relay.transform.FoldConstant(),
+        relay.transform.PrintIR(),
+        relay.transform.DeadCodeElimination()
+    ])
+
+    def redirect_output(call):
+        """Redirect the C++ logging info."""
+        import sys
+        import os
+        import threading
+        stderr_fileno = sys.stderr.fileno()
+        stderr_save = os.dup(stderr_fileno)
+        stderr_pipe = os.pipe()
+        os.dup2(stderr_pipe[1], stderr_fileno)
+        os.close(stderr_pipe[1])
+        output = ''
+
+        def record():
+            nonlocal output
+            while True:
+                data = os.read(stderr_pipe[0], 1024)
+                if not data:
+                    break
+                output += data.decode("utf-8")
+
+        t = threading.Thread(target=record)
+        t.start()
+        call()
+        os.close(stderr_fileno)
+        t.join()
+        os.close(stderr_pipe[0])
+        os.dup2(stderr_save, stderr_fileno)
+        os.close(stderr_save)
+
+        return output
+
+    def run_pass():
+        mod = relay.Module({"main": func})
+        with relay.build_config(opt_level=3):
+            mod = seq(mod)
+
+    out = redirect_output(run_pass)
+    assert "Dumping the module IR" in out
+    assert "multiply" in out
+
+
 if __name__ == "__main__":
     test_function_class_pass()
     test_module_class_pass()
@@ -512,3 +568,4 @@ if __name__ == "__main__":
     test_sequential_pass()
     test_sequential_with_scoping()
     test_pass_info()
+    test_print_ir()

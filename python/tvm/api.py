@@ -479,7 +479,8 @@ def extern(shape,
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
-    shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
+    if shape == () or isinstance(shape[0], (_expr.Expr, _Integral)):
+        shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):
@@ -887,7 +888,46 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
+def floordiv(a, b):
+    """Compute the floordiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorDiv(a, b)
+
+
+def floormod(a, b):
+    """Compute the floormod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorMod(a, b)
+
+
 _init_api("tvm.api")
+
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')

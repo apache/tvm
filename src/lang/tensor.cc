@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,23 +24,23 @@
 #include <tvm/tensor.h>
 #include <tvm/operation.h>
 #include <tvm/tensor_intrin.h>
-#include <ir/IR.h>
 #include <memory>
 
 namespace tvm {
 
 // Tensor
-
 Expr Tensor::operator()(Array<Var> indices) const {
   Array<Expr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
 Expr Tensor::operator()(Array<Expr> indices) const {
-  using HalideIR::Internal::Call;
-  CHECK_EQ(ndim(), indices.size())
-      << "Tensor dimension mismatch in read"
-      << "ndim = " << ndim() << ", indices.size=" << indices.size();
+  using ir::Call;
+  if (ndim() != 0) {
+    CHECK_EQ(ndim(), indices.size())
+        << "Tensor dimension mismatch in read"
+        << "ndim = " << ndim() << ", indices.size=" << indices.size();
+  }
   auto n = Call::make(
       (*this)->dtype, (*this)->op->name, indices, Call::Halide,
       (*this)->op, (*this)->value_index);

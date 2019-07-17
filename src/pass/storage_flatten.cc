@@ -41,7 +41,6 @@
 namespace tvm {
 namespace ir {
 
-using HalideIR::Internal::Region;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -186,7 +185,7 @@ class StorageFlattener : public IRMutator {
       }
 
       // use small alignment for small arrays
-      int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
+      int32_t const_size = Allocate::constant_allocation_size(shape);
       int align = GetTempAllocaAlignment(op->type, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -348,14 +347,14 @@ class StorageFlattener : public IRMutator {
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
         stmt = For::make(
-            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
         Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
         stmt = Evaluate::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
+        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;

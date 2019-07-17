@@ -1059,9 +1059,9 @@ def _range():
         return AttrCvt(
             op_name="arange",
             ignores=['Tidx'],
-            extras={'start': start,
-                    "stop": limit,
-                    'step': delta,
+            extras={'start': _expr.const(start),
+                    "stop": _expr.const(limit),
+                    'step': _expr.const(delta),
                     'dtype': dtype})([], attr)
     return _impl
 
@@ -1269,8 +1269,8 @@ def _batch_to_space_nd():
             crop = crops[axis - 1]
             if crop != [0, 0]:
                 indices = tvm.relay.arange(
-                    crop[0],
-                    reshaped_permuted_shape[axis] - crop[1],
+                    _expr.const(crop[0]),
+                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
                     dtype='int32'
                 )
                 cropped = tvm.relay.take(cropped, indices=indices, axis=axis)

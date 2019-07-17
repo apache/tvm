@@ -102,7 +102,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     p->stream << "Var(" << node->name_hint();
     if (node->type_annotation.defined()) {
       p->stream << ", ty=";
-      p->print(node->type_annotation);
+      p->Print(node->type_annotation);
     }
     p->stream << ")";
   });
@@ -130,6 +130,8 @@ Function FunctionNode::make(tvm::Array<Var> params,
                             tvm::Array<TypeVar> type_params,
                             tvm::Attrs attrs) {
   NodePtr<FunctionNode> n = make_node<FunctionNode>();
+  CHECK(params.defined());
+  CHECK(type_params.defined());
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
@@ -285,6 +287,8 @@ RefCreate RefCreateNode::make(Expr value) {
   return RefCreate(n);
 }
 
+TVM_REGISTER_NODE_TYPE(RefCreateNode);
+
 TVM_REGISTER_API("relay._make.RefCreate")
 .set_body_typed(RefCreateNode::make);
 
@@ -298,6 +302,8 @@ RefRead RefReadNode::make(Expr ref) {
   n->ref = std::move(ref);
   return RefRead(n);
 }
+
+TVM_REGISTER_NODE_TYPE(RefReadNode);
 
 TVM_REGISTER_API("relay._make.RefRead")
 .set_body_typed(RefReadNode::make);
@@ -313,6 +319,8 @@ RefWrite RefWriteNode::make(Expr ref, Expr value) {
   n->value = std::move(value);
   return RefWrite(n);
 }
+
+TVM_REGISTER_NODE_TYPE(RefWriteNode);
 
 TVM_REGISTER_API("relay._make.RefWrite")
 .set_body_typed(RefWriteNode::make);

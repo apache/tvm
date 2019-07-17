@@ -385,8 +385,8 @@ inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
 }
 
 inline Expr Full(Expr fill_value,
-              Array<IndexExpr> shape,
-              DataType dtype) {
+                 Array<IndexExpr> shape,
+                 DataType dtype) {
   auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);

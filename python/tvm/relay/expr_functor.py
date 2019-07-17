@@ -183,7 +183,7 @@ class ExprVisitor(ExprFunctor):
 
     def visit_match(self, m):
         self.visit(m.data)
-        for c in m.clause:
+        for c in m.clauses:
             self.visit(c.rhs)
 
 

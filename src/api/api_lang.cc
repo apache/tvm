@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to Higher DSL build.
  * \file api_lang.cc
  */
@@ -36,10 +35,10 @@
 namespace tvm {
 
 TVM_REGISTER_API("_min_value")
-.set_body_method(&Type::min);
+.set_body_method(&DataType::min);
 
 TVM_REGISTER_API("_max_value")
-.set_body_method(&Type::max);
+.set_body_method(&DataType::max);
 
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {

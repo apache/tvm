@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file quantize_rewrite.cc
+ *  Copyright (c) 2019 by Contributors
+ * \file qnn_lower.cc
  * \brief Lower quantized ops to exisiting Relay ops.
  */
 
@@ -38,9 +38,9 @@ namespace relay {
 /*
  * Converts a floating point number so that it can be represented by integers.
  * The representation is
- *      float_number = (fixed_point_multiplier) * 2^(shift)
+ *      float_number = (significand) * 2^(exponent)
  *
- * The fixed_point_multiplier is a number between 0.5 and 1. This is represented
+ * The significand is a number between 0.5 and 1. This is represented
  * by an integer number. For example, if it is int32, then the decimal point
  * exists between bit 31 and 30 from LSB (or between first and second bit from
  * the left).
@@ -48,27 +48,28 @@ namespace relay {
  * Some examples are
  *           0.25 = (0.5) * 2^(-1)
  *           0.125 = (0.5) * 2^(-2)
+ *
+ * Credit to TFLite reference implementation.
  */
-void GetFixedPointMultiplierShift(double double_multiplier,
-    int32_t* fixed_point_multiplier, int* shift,
+std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
     const DataType& idtype) {
-
+  int significand, exponent;
   int idtype_bits = idtype.bits();
 
-  if (double_multiplier == 0.) {
-    *fixed_point_multiplier = 0;
-    *shift = 0;
-    return;
+  // Get the significand (significand) and exponent (exponent)
+  double significand_d = std::frexp(double_multiplier, &exponent);
+
+  // Convert the double significand to int significand.
+  significand_d = std::round(significand_d * (1ll << (idtype_bits - 1)));
+  auto significand_int64 = static_cast<int64_t>(significand_d);
+  CHECK_LE(significand_int64, (1ll << (idtype_bits - 1)));
+  if (significand_int64 == (1ll << (idtype_bits - 1))) {
+    significand_int64 /= 2;
+    ++exponent;
   }
-  const double q = std::frexp(double_multiplier, shift);
-  auto q_fixed = static_cast<int64_t>(std::round(q * (1ll << (idtype_bits - 1))));
-  CHECK_LE(q_fixed, (1ll << (idtype_bits - 1)));
-  if (q_fixed == (1ll << (idtype_bits - 1))) {
-    q_fixed /= 2;
-    ++*shift;
-  }
-  CHECK_LE(q_fixed, std::numeric_limits<int32_t>::max());
-  *fixed_point_multiplier = static_cast<int32_t>(q_fixed);
+  CHECK_LE(significand_int64, std::numeric_limits<int>::max());
+  significand = static_cast<int>(significand_int64);
+  return std::pair<int, int>(significand, exponent);
 }
 
 /*
@@ -92,7 +93,7 @@ void GetFixedPointMultiplierShift(double double_multiplier,
  * 7) Cast to the out_dtype.
  *
  */
-Expr RequantizeInt(const Expr& input_tensor,
+Expr RequantizeLower(const Expr& input_tensor,
     const RequantizeAttrs* param, const DataType& idtype,
     const Array<IndexExpr>& out_shape) {
 
@@ -103,22 +104,19 @@ Expr RequantizeInt(const Expr& input_tensor,
   DataType up_idtype = Int(2 * idtype_bits);
 
   // 1) Calculating the integer multiplier and integer shift
-  int32_t fixed_point_multiplier;
-  int shift;
-  GetFixedPointMultiplierShift(double_multiplier, &fixed_point_multiplier,
-          &shift, idtype);
+  std::pair<int, int> fixed_point_params =
+      GetFixedPointMultiplierShift(double_multiplier, idtype);
+  int fixed_point_multiplier = fixed_point_params.first;
+  int shift = fixed_point_params.second;
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
   // 2) Subtract the input_zero_point
-  auto tensor = input_tensor;
-  tensor = Cast(tensor, up_idtype);
+  auto tensor = Cast(input_tensor, up_idtype);
   if (param->input_zero_point != 0) {
     auto input_zp = MakeConstantScalar(up_idtype, param->input_zero_point);
     tensor = Subtract(tensor, input_zp);
   }
-
-
 
   // 3) Multiply the integer multiplier
   if (left_shift != 0) {
@@ -132,18 +130,17 @@ Expr RequantizeInt(const Expr& input_tensor,
   Expr scalar = MakeConstantScalar(up_idtype, fixed_point_multiplier);
   auto multiplied_t = Multiply(tensor, scalar);
 
-
   // 4) Find the rounding scalar. This depends on where the final decimal point
   // sits. As we will be right shifting the multiplied_t, we need to first
-  // calculate the totol_right_shift.
+  // calculate the total_right_shift.
   int total_right_shift = right_shift + idtype_bits - 1;
 
   tensor = multiplied_t;
   Expr round_scalar;
-  if (param->rounding_mode == "FE_UPWARD") {
+  if (param->rounding == "FE_UPWARD") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     round_scalar = pos_rounder;
-  } else if (param->rounding_mode == "FE_AWAY_FROM_ZERO") {
+  } else if (param->rounding == "FE_AWAY_FROM_ZERO") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     auto neg_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)) - 1);
     auto pos_rounder_t = Full(pos_rounder, out_shape, up_idtype);
@@ -177,39 +174,6 @@ Expr RequantizeInt(const Expr& input_tensor,
   return requantized_output;
 }
 
-
-/*
- * Requantization using floating computation. Here we can multiply the scale to
- * the input_tensor, round to nearest integer and then cast back to int32.
- */
-Expr RequantizeFloat(const Expr& input_tensor,
-    const RequantizeAttrs* param, const DataType& idtype,
-    const Array<IndexExpr>& out_shape) {
-  double double_multiplier = param->input_scale/param->output_scale;
-  auto scalar_multiplier = MakeConstantScalar(Float(32), double_multiplier);
-  auto input_zp = MakeConstantScalar(idtype, param->input_zero_point);
-  auto output_zp = MakeConstantScalar(Float(32), param->output_zero_point);
-
-  // Multiply the tensor with the new scale.
-  auto shifted_input_t = Subtract(input_tensor, input_zp);
-  auto casted_t = Cast(shifted_input_t, Float(32));
-  auto multiplied_t = Multiply(casted_t, scalar_multiplier);
-  auto shifted_multiplied_t = Add(output_zp, multiplied_t);
-  auto rounded_t = Round(shifted_multiplied_t);
-  auto q_imin = GetQmin(idtype);
-  auto q_imax = GetQmax(idtype);
-  auto scaled_int32_t = Cast(Clip(rounded_t, q_imin, q_imax),
-          idtype);
-
-  // Clip to the out_dtype min/max.
-  // Clip limits must be smaller than the dtype of the input tensor.
-  auto q_min = std::max(GetQmin(param->out_dtype), GetQmin(idtype));
-  auto q_max = std::min(GetQmax(param->out_dtype), GetQmax(idtype));
-  auto clipped_t = Clip(scaled_int32_t, q_min, q_max);
-  auto requantized_output = Cast(clipped_t, param->out_dtype);
-  return requantized_output;
-}
-
 /*
  * Lowering of the requantize operation. The requantize operator converts one
  * quantized tensor to another quantized tensor. For the output tensor, we are
@@ -217,15 +181,13 @@ Expr RequantizeFloat(const Expr& input_tensor,
  *
  * Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
  *
- * The above computation can be done in floating point as the scales are in
- * FP32. Alternatively, we can approximate floating point with fixed point
- * computation. This is controlled by use_int_compute.
  */
 Expr RequantizeForwardRewrite(const Call& ref_call,
     const Array<Expr>& new_args, const NodeRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
   Expr quantized_data = new_args[0];
   const auto* param = ref_call->attrs.as<RequantizeAttrs>();
+  CHECK(param != nullptr);
 
   // Find output shape.
   Array<IndexExpr> out_shape;
@@ -242,18 +204,14 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
       << " Please run infer_type pass.";
   const auto input_dtype = input_tt->dtype;
 
-  if (param->use_int_compute) {
-    return RequantizeInt(quantized_data, param, input_dtype, out_shape);
-  } else {
-    return RequantizeFloat(quantized_data, param, input_dtype, out_shape);
-  }
+  return RequantizeLower(quantized_data, param, input_dtype, out_shape);
 }
 
 RELAY_REGISTER_OP("qnn.requantize")
-.set_attr<FForwardRewrite>("FQuantizeForwardRewrite", RequantizeForwardRewrite);
+.set_attr<FForwardRewrite>("FQnnForwardRewrite", RequantizeForwardRewrite);
 
 Expr QuantizedDenseForwardRewrite(const Call& ref_call,
-     const Array<Expr>& new_args, const NodeRef& ctx) {
+                                  const Array<Expr>& new_args, const NodeRef& ctx) {
   CHECK_EQ(new_args.size(), 2);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
@@ -268,12 +226,12 @@ Expr QuantizedDenseForwardRewrite(const Call& ref_call,
   Expr quantized_data_int32 = Cast(quantized_data, Int(32));
   if(param->input_zero_point != 0) {
     quantized_data_int32 = Add(quantized_data_int32, MakeConstantScalar(Int(32),
-        param->input_zero_point));
+                                                                        param->input_zero_point));
   }
   Expr quantized_kernel_int32 = Cast(quantized_kernel, Int(32));
   if(param->kernel_zero_point != 0) {
     quantized_kernel_int32 = Add(quantized_kernel_int32, MakeConstantScalar(Int(32),
-        param->kernel_zero_point));
+                                                                            param->kernel_zero_point));
   }
   Expr int32_dense = Dense(quantized_data_int32,
                            quantized_kernel_int32,
@@ -283,11 +241,12 @@ Expr QuantizedDenseForwardRewrite(const Call& ref_call,
 }
 
 RELAY_REGISTER_OP("qnn.dense")
-.set_attr<FForwardRewrite>("FQuantizeForwardRewrite", QuantizedDenseForwardRewrite);
+.set_attr<FForwardRewrite>("FQnnForwardRewrite", QuantizedDenseForwardRewrite);
 
-TVM_REGISTER_API("relay._qnn.rewrite")
+
+TVM_REGISTER_API("relay._qnn.qnn_lower")
 .set_body_typed<Expr(Expr)>([](const Expr& e) {
-  Expr ret = ForwardRewrite(e, "FQuantizeForwardRewrite", nullptr, nullptr);
+  Expr ret = ForwardRewrite(e, "FQnnForwardRewrite", nullptr, nullptr);
   return ret;
 });
 

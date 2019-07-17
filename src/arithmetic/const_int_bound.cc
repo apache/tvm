@@ -24,7 +24,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir_functor_ext.h>
 #include <algorithm>
-#include "int_op_overflow.h"
+#include "int_operator.h"
 #include "pattern_match.h"
 
 namespace tvm {
@@ -125,7 +125,7 @@ class ConstIntBoundAnalyzer::Impl :
   // Override visitor behaviors
   Entry VisitExprDefault_(const Node* op) final {
     return Everything(
-        static_cast<const ir::BaseExprNode*>(op)->type);
+        static_cast<const ExprNode*>(op)->type);
   }
 
   Entry VisitExpr(const Expr& expr) final {
@@ -209,6 +209,37 @@ class ConstIntBoundAnalyzer::Impl :
       }
     } else {
       CHECK(!b.is_const(0)) << "mod by zero";
+      // mod by negative value is rare,
+      // and we just use the simpliest rule.
+      return Everything(op->type);
+    }
+  }
+
+  Entry VisitExpr_(const FloorDiv* op) final {
+    Entry a = VisitExpr(op->a);
+    Entry b = VisitExpr(op->b);
+    CHECK(!b.is_const(0)) << "floordiv by zero";
+    // assume no division by 0
+    if (b.min_value == 0) b.min_value = 1;
+    if (b.max_value == 0) b.max_value = -1;
+    return BinaryOpBoundry(a, b, InfAwareFloorDiv);
+  }
+
+  Entry VisitExpr_(const FloorMod* op) final {
+    Entry a = VisitExpr(op->a);
+    Entry b = VisitExpr(op->b);
+    if (b.min_value > 0) {
+      int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) return a;
+        // other case, we can get close to 0
+        return MakeBound(0, std::min(a.max_value, b_max_cap));
+      } else {
+        return MakeBound(0, b_max_cap);
+      }
+    } else {
+      CHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
       return Everything(op->type);
@@ -374,6 +405,20 @@ class ConstIntBoundAnalyzer::Impl :
       return -x;
     }
     return x / y;
+  }
+  /*!
+   * \brief Compute floodiv(x, y), aware of inf.
+   * \param x The left operand.
+   * \param y The right operand.
+   * \return the result.
+   */
+  static int64_t InfAwareFloorDiv(int64_t x, int64_t y) {
+    CHECK_NE(y, 0);
+    if (x == kPosInf || x == kNegInf) {
+      if (y > 0) return x;
+      return -x;
+    }
+    return floordiv(x, y);
   }
   /*!
    * \brief Compute x / y, aware of inf.

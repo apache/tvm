@@ -85,17 +85,20 @@ size_t InferTensorizeRegion(
   // Get domains if inputs
   std::unordered_map<Tensor, TensorDom> in_dom;
   std::unordered_map<const Variable*, IntSet> temp_dmap;
+  arith::Analyzer analyzer;
   Array<Tensor> inputs = self->InputTensors();
   for (Tensor t : inputs) {
     in_dom.emplace(t, TensorDom(t.ndim()));
   }
   for (IterVar iv : self->root_iter_vars()) {
     IntSet iset = up_state.at(iv);
-    (*out_dom)[iv] = iset.cover_range(dom_map.at(iv));
+    Range iv_range = iset.cover_range(dom_map.at(iv));
+    (*out_dom)[iv] = iv_range;
+    analyzer.Bind(iv->var, iv_range);
     temp_dmap[iv->var.get()] = iset;
   }
   // Input domains
-  self->PropBoundToInputs(stage->op, temp_dmap, &in_dom);
+  self->PropBoundToInputs(stage->op, &analyzer, temp_dmap, &in_dom);
   Range none;
   for (const auto& kv : in_dom) {
     Array<Range> vec;

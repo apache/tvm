@@ -18,17 +18,33 @@
  */
 
 /*!
- * \file tvm/tvm.h
- * \brief Header to include all C++ API.
+ * Copyright (c) 2019 by Contributors
+ *
+ * \file src/relay/pass/print_ir.cc
+ *
+ * \brief Print the module IR to help debugging.
  */
-#ifndef TVM_TVM_H_
-#define TVM_TVM_H_
+#include <tvm/relay/expr.h>
+#include <tvm/relay/transform.h>
 
-#include "base.h"
-#include "expr.h"
-#include "expr_operator.h"
-#include "tensor.h"
-#include "operation.h"
-#include "packed_func_ext.h"
+namespace tvm {
+namespace relay {
 
-#endif  // TVM_TVM_H_
+namespace transform {
+
+Pass PrintIR() {
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+      LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m);
+      return m;
+  };
+  return CreateModulePass(pass_func, 0, "PrintIR", {});
+}
+
+TVM_REGISTER_API("relay._transform.PrintIR")
+.set_body_typed(PrintIR);
+
+}  // namespace transform
+
+}  // namespace relay
+}  // namespace tvm
