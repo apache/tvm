@@ -59,8 +59,7 @@ Expr MakeRequantize(Expr data,
                     double output_scale,
                     int32_t output_zero_point,
                     DataType out_dtype,
-                    std::string rounding,
-                    bool use_int_domain) {
+                    std::string rounding) {
   auto attrs = make_node<RequantizeAttrs>();
   attrs->input_scale = std::move(input_scale);
   attrs->input_zero_point = std::move(input_zero_point);
@@ -68,7 +67,6 @@ Expr MakeRequantize(Expr data,
   attrs->output_zero_point = std::move(output_zero_point);
   attrs->out_dtype = std::move(out_dtype);
   attrs->rounding = std::move(rounding);
-  attrs->use_int_domain = std::move(use_int_domain);
   static const Op& op = Op::Get("qnn.requantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -81,9 +79,6 @@ point. The computation looks like this
 
 Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 
-The above computation can be done in floating point as the scales are in
-FP32. Alternatively, we can approximate floating point with fixed point
-computation. This is controlled by use_int_domain.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.RequantizeAttrs")
 .set_num_inputs(1)
