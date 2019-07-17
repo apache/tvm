@@ -457,7 +457,7 @@ inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
   runtime::detail::for_each(runtime::TVMArgsSetter(values, type_codes),
     std::forward<Args>(args)...);
   runtime::TVMRetValue rv;
-  CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
+  CallPacked(runtime::TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
 }
 
