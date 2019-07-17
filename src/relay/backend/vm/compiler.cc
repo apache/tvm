@@ -739,11 +739,10 @@ class VMCompiler : public runtime::ModuleNode {
       vm_->functions[func_index] = vm_func;
     }
 
-#ifdef USE_RELAY_DEBUG
-    for (auto vm_func : vm.functions) {
-    std::cout << "Function: " << vm_func.name << std::endl
-              << vm_func << "-------------" << std::endl;
-  }
+#if USE_RELAY_DEBUG
+    for (auto vm_func : vm_->functions) {
+      DLOG(INFO) << vm_func << "-------------";
+    }
 #endif  // USE_RELAY_DEBUG
 
     PopulatePackedFuncMap();
