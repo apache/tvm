@@ -37,6 +37,29 @@ from . import conv2d_avx_1x1, conv2d_avx_common
 
 logger = logging.getLogger('topi')
 
+def _is_int8_hw_support(data_dtype, kernel_dtype, target):
+    """
+    Checks to ensure that we can use Intel DLBoost instructions
+    1) The datatypes are correct.
+    2) LLVM version has support for the instructions.
+    3) Target is skylake and above.
+    """
+    # 1) Check datatypes
+    is_dtype_support = data_dtype == 'uint8' and kernel_dtype == 'int8'
+
+    # 2) Check LLVM support
+    llvm_intrin_fast_int8 = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8)
+    is_llvm_support = llvm_id != 0
+
+    # 3) Check target
+    is_target_support = False
+    for opt in target.options:
+        if opt == '-mcpu=skylake-avx512':
+            is_target_support = True
+
+    return is_dtype_support and is_llvm_support and is_target_support
+
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False,
                         layout='NCHW'):
     """
@@ -68,7 +91,8 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         kh, kw, oc, _ = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
-        if data.dtype == 'uint8' and kernel.dtype == 'int8': # VNNI takes u8 x s8
+        target = tvm.target.current_target(allow_none=False)
+        if _is_int8_hw_support(data.dtype, kernel.dtype, target):
             oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
             ic = ic_chunk*ic_bn
             assert ic == k_ic*k_ic_f*kic_s
@@ -275,7 +299,8 @@ def schedule_conv2d_nhwc_pack(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            if data.dtype == 'uint8' and kernel.dtype == 'int8': # VNNI takes u8 x s8
+            target = tvm.target.current_target(allow_none=False)
+            if _is_int8_hw_support(data.dtype, kernel.dtype, target):
                 # int8 conv kernel is 7-dim
                 kh, kw, _, _, _ = get_const_tuple(kernel.shape)
                 if kh == 1 and kw == 1:
@@ -455,7 +480,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
         dispatch_ctx.update(target, new_workload, cfg)
     else:
-        if dtype == "uint8" and out_dtype == "int32":
+        if _is_int8_hw_support(data.dtype, kernel.dtype, target):
             # Convert kernel data layout from 4D to 7D
             n_elems = 4
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
@@ -474,8 +499,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
             new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
             # Store altered operator's config
-            new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
-                                         dtype=kernel.dtype)
+            new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn,
+                                          kh, kw, ic_bn, oc_bn), dtype=kernel.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
                  new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
@@ -519,7 +544,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    if data.dtype == 'uint8' and kernel.dtype == 'int8': # VNNI takes u8 x s8
+    target = tvm.target.current_target(allow_none=False)
+    if _is_int8_hw_support(data.dtype, kernel.dtype, target):
         oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn, _ = \
             get_const_tuple(kernel.shape)
     else:
@@ -553,8 +579,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     kh = tvm.reduce_axis((0, kernel_height), name='kh')
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
-    # Check for Intel VNNI input datatypes
-    if data.dtype == 'uint8' and kernel.dtype == 'int8' and groups == 1:
+    if _is_int8_hw_support(data.dtype, kernel.dtype, target) and groups == 1:
         assert out_dtype == "int32", \
             "INT8 convolution requires input dtype = uint8 and output dtype=int32"
         # Intel performs dot product of 2 "4" Int8 values
@@ -575,8 +600,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                                    axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
                            name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
 
-    # Check for Intel VNNI input datatypes
-    if data.dtype == 'uint8' and kernel.dtype == 'int8':
+    if _is_int8_hw_support(data.dtype, kernel.dtype, target):
     	# for int8 group conv support
         n_elems = 4
         ic_chunk = in_channel//ic_bn
@@ -633,7 +657,8 @@ def _schedule_conv2d_NCHWc(cfg, outs):
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
             # VNNI takes u8 x s8
-            if data.dtype == 'uint8' and kernel.dtype == 'int8':
+            target = tvm.target.current_target(allow_none=False)
+            if _is_int8_hw_support(data.dtype, kernel.dtype, target):
                 # int8 conv kernel is 7-dim
                 _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
                 if kh == 1 and kw == 1:
