@@ -367,7 +367,8 @@ def _mx_leaky_relu(inputs, attrs):
         return _op.nn.leaky_relu(inputs[0], alpha=attrs.get_float("slope", 0.25))
     if act_type == "prelu":
         assert len(inputs) == 2
-        return _op.nn.prelu(*inputs)
+        alpha = tvm.relay.multiply(tvm.relay.op.tensor.ones_like(inputs[0].tuple_value.args[-1]), inputs[1])
+        return _op.nn.prelu(inputs[0], alpha=alpha)
     if act_type == "elu":
         # -slope * relu(1-exp(x)) + relu(x)
         slope = attrs.get_float("slope", 0.25)
@@ -551,6 +552,18 @@ def _mx_resize(inputs, attrs):
     size = (height, width)
     return _op.image.resize(inputs[0], size, align_corners=True)
 
+def _mx_pad(inputs, attrs):
+    assert len(inputs) == 1
+    mode = attrs.get_str("mode", "constant")
+    pad_width = attrs.get_int_tuple("pad_width")
+    values = inputs[0]
+    if mode != "constant":
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "mode" must equal "constant" for operator pad.')
+    constant_value = attrs.get_float("constant_value", 0.0)
+    padding = [(pad_width[i], pad_width[i+1]) for i in range(0, len(pad_width), 2)]
+    return tvm.relay.nn.pad(values, pad_width=padding, pad_value=constant_value)
+    
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -608,11 +621,14 @@ def _mx_box_nms(inputs, attrs):
 def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str('mode', 'instance')
-    if mode != 'channel':
+    if mode not in ['channel', 'instance']:
         raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "mode" must equal "channel" for operator l2_normalize.')
+            'Value of attribute "mode" must equal "channel" or "instance" for operator l2_normalize.')
     new_attrs['eps'] = attrs.get_float('eps', 1e-10)
-    new_attrs['axis'] = [1]
+    if mode == "channel":
+        new_attrs['axis'] = [1]
+    else:
+        new_attrs['axis'] = [0]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
@@ -882,7 +898,6 @@ def _mx_rnn_layer(inputs, attrs):
             ret.append(_op.stack(inputs, axis=0))
     return ret
 
-
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -982,6 +997,7 @@ _convert_map = {
     "transpose"     : _transpose,
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
+    "Pad"           : _mx_pad,
     # MXNet specific implementations
     "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
