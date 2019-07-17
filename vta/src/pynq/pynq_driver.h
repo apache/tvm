@@ -26,6 +26,11 @@
 #ifndef VTA_PYNQ_PYNQ_DRIVER_H_
 #define VTA_PYNQ_PYNQ_DRIVER_H_
 
+/*! \brief Physically contiguous buffer size limit */
+#ifndef PYNQ_MAX_XFER
+#define PYNQ_MAX_XFER (1<<25)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -56,11 +61,14 @@ void VTAUnmapRegister(void *vta, size_t length);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 
-/*! \brief (Pynq only) Path to /dev/mem */
-#define VTA_PYNQ_DEV_MEM_PATH "/dev/mem"
-/*! \brief (Pynq only) MMIO driver constant */
+/*! \brief DMA TRANSFER SIZE LIMIT (may be platform-specific) */
+#ifndef VTA_PYNQ_MAX_XFER
+#define VTA_PYNQ_MAX_XFER (1<<25)
+#endif
+
+/*! \brief MMIO driver constant */
 #define VTA_PYNQ_MMIO_WORD_LENGTH 4
-/*! \brief (Pynq only) MMIO driver constant */
+/*! \brief MMIO driver constant */
 #define VTA_PYNQ_MMIO_WORD_MASK (~(MMIO_WORD_LENGTH - 1))
 
 /*! \brief VTA configuration register address range */

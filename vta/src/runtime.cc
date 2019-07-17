@@ -454,9 +454,9 @@ class UopQueue : public BaseQueue<VTAUop> {
     int32_t offset = 0;
     for (int i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
-      memcpy(reinterpret_cast<char*>(fpga_buff_) + offset,
-             cache_[i]->data(),
-             ksize);
+      VTAMemMoveToBuffer(static_cast<char*>(fpga_buff_) + offset,
+                         cache_[i]->data(),
+                         ksize);
       // Update cache idx to physical address map
 #ifdef USE_TSIM
       phy_addr_map_[i] = dram_phy_addr_ + offset;
@@ -870,12 +870,12 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     }
     // Let's now perform FPGA-readable memory allocation
     uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
-    void* fpga_buff_ = static_cast<char*>(VTAMemAlloc(buff_size, coherent_ || always_cache_));
+    void* fpga_buff_ = static_cast<void*>(VTAMemAlloc(buff_size, coherent_ || always_cache_));
     CHECK(fpga_buff_ != nullptr);
     // Copy contents of DRAM buffer to FPGA buff
-    memcpy(fpga_buff_,
-           dram_buffer_.data(),
-           buff_size);
+    VTAMemMoveToBuffer(fpga_buff_,
+                       dram_buffer_.data(),
+                       buff_size);
     // Update the physical memory pointer
     dram_phy_addr_ = VTAMemGetPhyAddr(fpga_buff_);
     CHECK(dram_phy_addr_);
@@ -1031,7 +1031,7 @@ class CommandQueue {
     insn->y_pad_1 = y_pad_after;
     insn->x_pad_0 = x_pad_before;
     insn->x_pad_1 = x_pad_after;
-    this->CheckInsnOverFlow();
+    // this->CheckInsnOverFlow();
   }
 
   void StoreBuffer2D(uint32_t src_sram_index,
@@ -1058,7 +1058,7 @@ class CommandQueue {
     insn->y_pad_1 = 0;
     insn->x_pad_0 = 0;
     insn->x_pad_1 = 0;
-    this->CheckInsnOverFlow();
+    // this->CheckInsnOverFlow();
   }
 
   void DepPush(int from_qid, int to_qid) {
@@ -1115,7 +1115,7 @@ class CommandQueue {
         insn_queue_.data())[insn_queue_.count()-1].opcode == VTA_OPCODE_FINISH);
 
     // Make sure that we don't exceed contiguous physical memory limits
-    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    // CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
 #ifdef USE_TSIM
     int timeout = VTADeviceRun(
         device_,
@@ -1170,7 +1170,7 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushGEMMOp(static_cast<UopKernel*>(kptr[0]));
-    this->CheckInsnOverFlow();
+    // this->CheckInsnOverFlow();
   }
 
   void PushALUUop(void** uop_handle,
@@ -1192,7 +1192,7 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushALUUop(static_cast<UopKernel*>(kptr[0]));
-    this->CheckInsnOverFlow();
+    // this->CheckInsnOverFlow();
   }
 
   static std::shared_ptr<CommandQueue>& ThreadLocal() {
@@ -1302,13 +1302,13 @@ class CommandQueue {
     }
   }
 
-  void CheckInsnOverFlow() {
-    // At each API call, we can at most commit:
-    // one pending store, one pending load, and one uop
-    if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
-      this->AutoSync();
-    }
-  }
+  // void CheckInsnOverFlow() {
+  //   // At each API call, we can at most commit:
+  //   // one pending store, one pending load, and one uop
+  //   if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
+  //     this->AutoSync();
+  //   }
+  // }
   // Auto sync when instruction overflow
   void AutoSync() {
     this->Synchronize(1 << 31);

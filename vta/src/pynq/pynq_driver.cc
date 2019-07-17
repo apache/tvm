@@ -29,15 +29,28 @@
 
 
 void* VTAMemAlloc(size_t size, int cached) {
+  assert(size < VTA_PYNQ_MAX_XFER);
+  // Rely on the pynq-specific cma library
   return cma_alloc(size, cached);
 }
 
 void VTAMemFree(void* buf) {
+  // Rely on the pynq-specific cma library
   cma_free(buf);
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf);
+}
+
+void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
+}
+
+void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
 }
 
 void VTAFlushCache(vta_phy_addr_t buf, int size) {
@@ -54,7 +67,7 @@ void *VTAMapRegister(uint32_t addr, size_t length) {
   // Calculate base address offset w.r.t the base address
   uint32_t virt_offset = addr - virt_base;
   // Open file and mmap
-  uint32_t mmap_file = open(VTA_PYNQ_DEV_MEM_PATH, O_RDWR|O_SYNC);
+  uint32_t mmap_file = open("/dev/mem", O_RDWR|O_SYNC);
   return mmap(NULL,
               (length+virt_offset),
               PROT_READ|PROT_WRITE,
