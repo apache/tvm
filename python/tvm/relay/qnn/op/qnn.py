@@ -72,3 +72,32 @@ def requantize(input_data, input_zero_point, input_scale, output_zero_point,
     return _make.requantize(input_data, input_zero_point, input_scale,
                             output_zero_point, output_scale, out_dtype,
                             use_int_compute, rounding_mode)
+
+def quantized_dense(data, weight, input_zero_point, kernel_zero_point, units=None, out_dtype="int32"):
+    """Dense operator.
+    Applies a linear transformation
+
+    .. math::
+
+    `Y = X * W`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The quantied input data to the operator.
+
+    weight : tvm.relay.Expr
+        The quantized weight expressions.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense can be int32 or int16.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.dense(data, weight, units, input_zero_point, kernel_zero_point, out_dtype)

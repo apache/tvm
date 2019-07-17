@@ -252,6 +252,39 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
 RELAY_REGISTER_OP("qnn.requantize")
 .set_attr<FForwardRewrite>("FQuantizeForwardRewrite", RequantizeForwardRewrite);
 
+Expr QuantizedDenseForwardRewrite(const Call& ref_call,
+     const Array<Expr>& new_args, const NodeRef& ctx) {
+  CHECK_EQ(new_args.size(), 2);
+  Expr quantized_data = new_args[0];
+  Expr quantized_kernel = new_args[1];
+  const auto* param = ref_call->attrs.as<QDenseAttrs>();
+
+  Array<IndexExpr> out_shape;
+  auto ref_call_t = ref_call->checked_type();
+  auto output_tt = ref_call_t.as<TensorTypeNode>();
+  CHECK(output_tt != nullptr) << "Type information missing."
+                              << " Please run infer_type pass.";
+  //TODO: need to benchmark the performance of this lowering.
+  Expr quantized_data_int32 = Cast(quantized_data, Int(32));
+  if(param->input_zero_point != 0) {
+    quantized_data_int32 = Add(quantized_data_int32, MakeConstantScalar(Int(32),
+        param->input_zero_point));
+  }
+  Expr quantized_kernel_int32 = Cast(quantized_kernel, Int(32));
+  if(param->kernel_zero_point != 0) {
+    quantized_kernel_int32 = Add(quantized_kernel_int32, MakeConstantScalar(Int(32),
+        param->kernel_zero_point));
+  }
+  Expr int32_dense = Dense(quantized_data_int32,
+                           quantized_kernel_int32,
+                           param->units,
+                           param->out_dtype);
+  return int32_dense;
+}
+
+RELAY_REGISTER_OP("qnn.dense")
+.set_attr<FForwardRewrite>("FQuantizeForwardRewrite", QuantizedDenseForwardRewrite);
+
 TVM_REGISTER_API("relay._qnn.rewrite")
 .set_body_typed<Expr(Expr)>([](const Expr& e) {
   Expr ret = ForwardRewrite(e, "FQuantizeForwardRewrite", nullptr, nullptr);

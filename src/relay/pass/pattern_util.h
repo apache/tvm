@@ -394,6 +394,17 @@ inline Expr Full(Expr fill_value,
   return CallNode::make(op, {fill_value}, Attrs(attrs), {});
 }
 
+inline Expr Dense(Expr data,
+               Expr weight,
+               IndexExpr units,
+               DataType out_dtype) {
+  auto attrs = make_node<DenseAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.dense");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);

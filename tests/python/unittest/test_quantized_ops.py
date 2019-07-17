@@ -252,5 +252,84 @@ def test_requantize():
 
     run_tests()
 
+def test_quantized_dense():
+
+    def test_uint():
+        quantized_data = relay.var("quantized_data", shape=(2,10),
+                                   dtype="uint8")
+        quantized_kernel = relay.var("quantized_kernel", shape=(3, 10),
+                                   dtype="uint8")
+
+        func = relay.qnn.op.quantized_dense(
+            quantized_data,
+            quantized_kernel,
+            -127,
+            -127,
+            3,
+        )
+
+        quantized_data_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 109, 107, 129, 131, 133, 135, 137, 139,
+
+                                      141, 111, 145, 107]).astype('uint8').reshape((2, 10))
+        quantized_kernel_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 145, 147, 129, 131, 133, 135, 137, 139, 141,
+                                        143, 145, 147, 129, 131, 133, 135, 137, 139, 141, 143, 145, 147]).astype('uint8').reshape((3, 10))
+
+        func = relay.Function(relay.analysis.free_vars(func),
+                              func)
+        func = run_infer_type(func)
+        print('*'*20)
+        print(func)
+        print('*'*20)
+        func = relay.qnn.ir_pass.rewrite(func)
+        print(func)
+        with relay.build_config(opt_level=0):
+            graph, lib, params = relay.build(func, "llvm", params=None)
+            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod.set_input("quantized_data",quantized_data_np)
+            mod.set_input("quantized_kernel",quantized_kernel_np)
+            mod.set_input(**params)
+            mod.run()
+            res = mod.get_output(0).asnumpy()
+            print(res)
+
+    def test_int():
+        quantized_data = relay.var("quantized_data", shape=(2,10),
+                                   dtype="int8")
+        quantized_kernel = relay.var("quantized_kernel", shape=(3, 10),
+                                     dtype="int8")
+
+        func = relay.qnn.op.quantized_dense(
+            quantized_data,
+            quantized_kernel,
+            1,
+            1,
+            3,
+        )
+
+        quantized_data_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, -19, -21, 1, 3, 5, 7, 9, 11, 13, -17, 17, -21]).astype('int8').reshape((2, 10))
+        quantized_kernel_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19]).astype('int8').reshape((3, 10))
+
+        func = relay.Function(relay.analysis.free_vars(func),
+                              func)
+        func = run_infer_type(func)
+        print('*'*20)
+        print(func)
+        print('*'*20)
+        func = relay.qnn.ir_pass.rewrite(func)
+        print(func)
+        with relay.build_config(opt_level=0):
+            graph, lib, params = relay.build(func, "llvm", params=None)
+            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod.set_input("quantized_data",quantized_data_np)
+            mod.set_input("quantized_kernel",quantized_kernel_np)
+            mod.set_input(**params)
+            mod.run()
+            res = mod.get_output(0).asnumpy()
+            print(res)
+
+    test_int()
+
+
 if __name__ == "__main__":
-    test_requantize()
+    # test_requantize()
+    test_quantized_dense()

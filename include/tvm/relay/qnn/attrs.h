@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_QNN_H_
 
 #include <tvm/attrs.h>
+#include <tvm/relay/base.h>
 #include <string>
 
 namespace tvm {
@@ -64,6 +65,27 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   }
 };
 
+/*! \brief Attributes for quantized dense operator */
+struct QDenseAttrs : public tvm::AttrsNode<QDenseAttrs> {
+  IndexExpr units;
+  DataType out_dtype;
+  // Quantization related attributes.
+  int32_t input_zero_point;
+  int32_t kernel_zero_point;
+
+  TVM_DECLARE_ATTRS(QDenseAttrs, "relay.attrs.QDenseAttrs") {
+    TVM_ATTR_FIELD(units)
+        .describe("Number of hidden units of the dense transformation.");
+
+    TVM_ATTR_FIELD(out_dtype)
+        .describe("Output data type, set to explicit type under mixed precision setting");
+
+    TVM_ATTR_FIELD(input_zero_point)
+        .describe("The zero point of the input tensor.");
+    TVM_ATTR_FIELD(kernel_zero_point)
+        .describe("The zero point of the kernel tensor.");
+  }
+};
 
 }  // namespace relay
 }  // namespace tvm
