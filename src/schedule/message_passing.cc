@@ -270,10 +270,24 @@ void PassUpDomain(const FuseNode* s,
     *outer = IntSet::single_point(v_outer);
     *inner = IntSet::single_point(v_inner);
   } else {
-    LOG(WARNING) << "use fallback inference rule in fuse";
-    // simply use the entire set, this rule can be enhanced.
-    *outer = IntSet::range(dom_map.at(s->outer));
-    *inner = IntSet::range(dom_map.at(s->inner));
+    Expr fused_extent = (fused.max() - fused.min() + 1);
+    Expr inner_extent = dom_map.at(s->inner)->extent;
+    *outer = IntSet::interval(outer_min + fused.min() / inner_extent,
+            outer_min + fused.max() / inner_extent);
+    if (is_zero(Simplify(inner_extent % fused_extent)) &&
+      is_zero(Simplify(fused.min() % fused_extent)) ) {
+      // fused never spans multiple rows, make a tight bounding box
+      // there may be other cases when bounding box could be tightened
+      *inner = IntSet::interval(inner_min + fused.min() % inner_extent,
+                                inner_min + fused.max() % inner_extent);
+    } else {  // fused may span multiple rows, use full row widths
+      if (!is_zero(Simplify(fused_extent % inner_extent)) ||
+        !is_zero(Simplify(fused.min() % inner_extent))) {
+        LOG(WARNING) <<
+          "fused and original axes are not aligned, this may cause redundant computations";
+      }
+      *inner = IntSet::range(dom_map.at(s->inner));
+    }
     return;
   }
 }
