@@ -159,8 +159,10 @@ class Environment(object):
         self.inp_dtype = "int%d" % self.INP_WIDTH
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
         self.out_dtype = "int%d" % self.OUT_WIDTH
-        # Bistream name
+        # bistream name
         self.BITSTREAM = self.pkg_config().bitstream
+        # model string
+        self.MODEL = self.TARGET + "_" + self.pkg_config().bitstream
         # lazy cached members
         self.mock_mode = False
         self._mock_env = None
@@ -224,7 +226,7 @@ class Environment(object):
 
     @property
     def target(self):
-        return tvm.target.vta(model=self.TARGET)
+        return tvm.target.vta(model=self.MODEL)
 
     @property
     def target_host(self):
