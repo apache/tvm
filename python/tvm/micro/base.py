@@ -167,6 +167,8 @@ def create_micro_lib(
     options = ["-I" + path for path in find_include_path()]
     options += ["-I{}".format(get_micro_device_dir())]
     options += ["-fno-stack-protector"]
+    # TODO(weberlo): This option cannot be used on 32-bit machines. Make this
+    # compilation pipeline compatible with 32-bit.
     options += ["-mcmodel=large"]
     compile_cmd = "{}gcc".format(toolchain_prefix)
 
