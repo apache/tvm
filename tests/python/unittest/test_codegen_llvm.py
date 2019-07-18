@@ -471,6 +471,78 @@ def test_llvm_fp_math():
     check_llvm_sigmoid(8)
     check_llvm_sigmoid(16)
 
+
+def test_dwarf_debug_information():
+    nn = 1024
+    n = tvm.convert(nn)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.placeholder((n,), name='B')
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = tvm.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], factor=4)
+    s[C].parallel(xo)
+    s[C].vectorize(xi)
+    def check_llvm_object():
+        if not tvm.module.enabled("llvm"):
+            return
+        if tvm.codegen.llvm_version_major() < 5:
+            return
+        # build two functions
+        f2 = tvm.lower(s, [A, B, C], name="fadd1")
+        f1 = tvm.lower(s, [A, B, C], name="fadd2")
+        m = tvm.build([f1, f2], "llvm")
+        temp = util.tempdir()
+        o_path = temp.relpath("temp.o")
+        m.save(o_path)
+        import re
+        import shutil
+        import subprocess
+        import sys
+
+        # Try the dwarfdump utility (OS X)
+        if shutil.which("dwarfdump"):
+            output = subprocess.check_output(["dwarfdump", o_path])
+            assert re.search(r"""DW_AT_name\\t\("fadd1"\)""", str(output))
+            assert re.search(r"""DW_AT_name\\t\("fadd2"\)""", str(output))
+
+        # Try gobjdump (OS X)
+        if shutil.which("gobjdump"):
+            output = subprocess.check_output(["gobjdump", "--dwarf", o_path])
+            assert re.search(r"""DW_AT_name.*fadd1""", str(output))
+            assert re.search(r"""DW_AT_name.*fadd2""", str(output))
+
+        # Try objdump (Linux) - Darwin objdump has different DWARF syntax.
+        if shutil.which("objdump") and sys.platform != 'darwin':
+            output = subprocess.check_output(["objdump", "--dwarf", o_path])
+            assert re.search(r"""DW_AT_name.*fadd1""", str(output))
+            assert re.search(r"""DW_AT_name.*fadd2""", str(output))
+
+    def check_llvm_ir():
+        if not tvm.module.enabled("llvm"):
+            return
+        if tvm.codegen.llvm_version_major() < 5:
+            return
+        # build two functions
+        f2 = tvm.lower(s, [A, B, C], name="fadd1")
+        f1 = tvm.lower(s, [A, B, C], name="fadd2")
+        m = tvm.build([f1, f2], target="llvm -target=aarch64-linux-gnu")
+        ll = m.get_source("ll")
+
+        # On non-Darwin OS, don't explicitly specify DWARF version.
+        import re
+        assert not re.search(r""""Dwarf Version""""", ll)
+        assert re.search(r"""llvm.dbg.value""", ll)
+
+        # Try Darwin, require DWARF-2
+        m = tvm.build([f1, f2],
+                      target="llvm -target=x86_64-apple-darwin-macho")
+        ll = m.get_source("ll")
+        assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
+        assert re.search(r"""llvm.dbg.value""", ll)
+
+    check_llvm_object()
+    check_llvm_ir()
+
 if __name__ == "__main__":
     test_llvm_import()
     test_alignment()
@@ -489,3 +561,4 @@ if __name__ == "__main__":
     test_llvm_lookup_intrin()
     test_llvm_div()
     test_llvm_fp_math()
+    test_dwarf_debug_information()
