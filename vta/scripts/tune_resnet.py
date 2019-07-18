@@ -201,7 +201,7 @@ if __name__ == '__main__':
 
     # Get remote from fleet node
     tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
     if not tracker_host or not tracker_port:
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
@@ -213,7 +213,7 @@ if __name__ == '__main__':
         reconfig_start = time.time()
 
         # Get remote from fleet node
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
 
         # Reconfigure the JIT runtime and FPGA.
         # You can program the FPGA with your own custom bitstream
