@@ -299,9 +299,7 @@ template <class T>
 class BaseQueue {
  public:
   ~BaseQueue() {
-    if (fpga_buff_) {
-      VTAMemFree(fpga_buff_);
-    }
+    VTAMemFree(fpga_buff_);
   }
   /*! \return Content of DRAM buffer. */
   char* dram_buffer() const {
@@ -333,7 +331,6 @@ class BaseQueue {
    */
   void Reset() {
     dram_buffer_.clear();
-    VTAMemFree(fpga_buff_);
     sram_begin_ = sram_end_;
   }
 
