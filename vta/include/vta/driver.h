@@ -40,6 +40,11 @@ extern "C" {
 /*! \brief Memory management constants for non-cached memory */
 #define VTA_NOT_CACHED 0
 
+/*! \brief Physically contiguous buffer size limit */
+#ifndef VTA_MAX_XFER
+#define VTA_MAX_XFER (1<<25)
+#endif
+
 /*! PAGE SIZE */
 #define VTA_PAGE_BITS 12
 #define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)

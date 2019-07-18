@@ -276,7 +276,7 @@ class UopKernel {
     }
   }
   // The uop buffer
-  template<bool, bool>
+  template<int, bool, bool>
   friend class UopQueue;
   friend class CommandQueue;
   // SRAM location if begin != end.
@@ -309,18 +309,23 @@ class BaseQueue {
   }
   /*! \return Physical address of DRAM. */
   vta_phy_addr_t dram_phy_addr() const {
-    CHECK(dram_phy_addr_);
-    return dram_phy_addr_;
+    CHECK(fpga_buff_phy_);
+    return fpga_buff_phy_;
   }
   /*! \return Whether there is pending information. */
   bool pending() const {
     return sram_begin_ != sram_end_;
   }
   /*! \brief Initialize the space of the buffer. */
-  void InitSpace(uint32_t elem_bytes, bool coherent, bool always_cache) {
-    elem_bytes_ = elem_bytes;
+  void InitSpace(uint32_t elem_bytes, uint32_t max_bytes, bool coherent, bool always_cache) {
     coherent_ = coherent;
     always_cache_ = always_cache;
+    elem_bytes_ = elem_bytes;
+    // Allocate buffer ahead of time
+    fpga_buff_ = static_cast<char*>(VTAMemAlloc(
+        max_bytes, coherent_ || always_cache_));
+    CHECK(fpga_buff_ != nullptr);
+    fpga_buff_phy_ = VTAMemGetPhyAddr(fpga_buff_);
   }
   /*!
    * \brief Reset the pointer of the buffer.
@@ -328,6 +333,7 @@ class BaseQueue {
    */
   void Reset() {
     dram_buffer_.clear();
+    VTAMemFree(fpga_buff_);
     sram_begin_ = sram_end_;
   }
 
@@ -347,24 +353,29 @@ class BaseQueue {
   // FPGA accessible buffer
   void* fpga_buff_{NULL};
   // Physical address of the FPGA buffer
-  vta_phy_addr_t dram_phy_addr_{0};
+  vta_phy_addr_t fpga_buff_phy_{0};
 };
 
 /*!
  * \brief Micro op buffer that manages the micro op cache.
  */
-template<bool kCoherent, bool kAlwaysCache>
+template<int kMaxBytes, bool kCoherent, bool kAlwaysCache>
 class UopQueue : public BaseQueue<VTAUop> {
  public:
   void InitSpace() {
-    BaseQueue::InitSpace(kElemBytes, kCoherent, kAlwaysCache);
+    BaseQueue::InitSpace(kElemBytes, kMaxBytes, kCoherent, kAlwaysCache);
   }
   // Push data to the queue
   template<typename FAutoSync>
   void Push(UopKernel* kernel, FAutoSync fautosync) {
     // if the micro-op is cached in VTA SRAM, skip
     if (kernel->cached()) return;
+    // check if we've exceeded the size of the allocated FPGA readable buffer
     size_t num_op = kernel->size();
+    if (dram_buffer_.size() + num_op > kMaxElems) {
+      fautosync();
+      CHECK(dram_buffer_.size() <= kMaxElems);
+    }
     // Cannot have a micro-op kernel larger than SRAM buffer
     CHECK(num_op <= kMaxNumUop);
     uint32_t uop_begin = 0;
@@ -417,21 +428,14 @@ class UopQueue : public BaseQueue<VTAUop> {
   }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
-    // Free the old FPGA buff
-    if (fpga_buff_) {
-      VTAMemFree(fpga_buff_);
-    }
+    CHECK(fpga_buff_ != nullptr);
+    CHECK(fpga_buff_phy_);
     // Iterate over caches; allocate buffer in FPGA-readable memory
     uint32_t buff_size = 0;
     for (int i = 0; i < cache_.size(); ++i) {
       buff_size += cache_[i]->size() * kElemBytes;
     }
-    // Let's now perform FPGA-readable memory allocation
-    fpga_buff_ = static_cast<void*>(VTAMemAlloc(buff_size, coherent_ || always_cache_));
-    CHECK(fpga_buff_ != nullptr);
-    // Update the physical memory pointer
-    dram_phy_addr_ = VTAMemGetPhyAddr(fpga_buff_);
-    CHECK(dram_phy_addr_);
+    CHECK(buff_size <= kMaxBytes);
     // Reset the cache idx to physical address map
     phy_addr_map_.clear();
     // Move kernel contents to FPGA readable buffer
@@ -444,9 +448,9 @@ class UopQueue : public BaseQueue<VTAUop> {
                          (!coherent_ && always_cache_));
       // Update cache idx to physical address map
 #ifdef USE_TSIM
-      phy_addr_map_[i] = dram_phy_addr_ + offset;
+      phy_addr_map_[i] = fpga_buff_phy_ + offset;
 #else
-      phy_addr_map_[i] = (dram_phy_addr_ + offset) / kElemBytes ;
+      phy_addr_map_[i] = (fpga_buff_phy_ + offset) / kElemBytes ;
 #endif
       // Update offset
       offset += ksize;
@@ -466,6 +470,7 @@ class UopQueue : public BaseQueue<VTAUop> {
   // Constants
   static constexpr int kElemBytes = sizeof(VTAUop);
   static constexpr int kMaxNumUop = VTA_UOP_BUFF_DEPTH;
+  static constexpr int kMaxElems = kMaxBytes / kElemBytes;
 };
 
 // Internal kernel structure
@@ -499,12 +504,12 @@ enum PipelineStage : int {
 };
 
 // Instruction Queue
-template<bool kCoherent, bool kAlwaysCache>
+template<int kMaxBytes, bool kCoherent, bool kAlwaysCache>
 class InsnQueue : public BaseQueue<VTAGenericInsn> {
  public:
   /*! \brief Initialize the space. */
   void InitSpace() {
-    BaseQueue::InitSpace(kElemBytes, kCoherent, kAlwaysCache);
+    BaseQueue::InitSpace(kElemBytes, kMaxBytes, kCoherent, kAlwaysCache);
     // Initialize the stage
     std::fill(pending_pop_prev_, pending_pop_prev_ + 4, 0);
     std::fill(pending_pop_next_, pending_pop_next_ + 4, 0);
@@ -848,22 +853,15 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
-    // Free the old FPGA buff
-    if (fpga_buff_) {
-      VTAMemFree(fpga_buff_);
-    }
-    // Let's now perform FPGA-readable memory allocation
-    uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
-    void* fpga_buff_ = static_cast<void*>(VTAMemAlloc(buff_size, coherent_ || always_cache_));
     CHECK(fpga_buff_ != nullptr);
+    CHECK(fpga_buff_phy_);
+    uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
+    CHECK(buff_size <= kMaxBytes);
     // Copy contents of DRAM buffer to FPGA buff
     VTAMemMoveToBuffer(fpga_buff_,
                        dram_buffer_.data(),
                        buff_size,
                        (!coherent_ && always_cache_));
-    // Update the physical memory pointer
-    dram_phy_addr_ = VTAMemGetPhyAddr(fpga_buff_);
-    CHECK(dram_phy_addr_);
   }
 
  protected:
@@ -937,6 +935,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   int pending_pop_prev_[4];
   int pending_pop_next_[4];
   static constexpr int kElemBytes = sizeof(VTAGenericInsn);
+  static constexpr int kMaxElems = kMaxBytes / kElemBytes;
 };
 
 /*!
@@ -1016,6 +1015,7 @@ class CommandQueue {
     insn->y_pad_1 = y_pad_after;
     insn->x_pad_0 = x_pad_before;
     insn->x_pad_1 = x_pad_after;
+    this->CheckInsnOverFlow();
   }
 
   void StoreBuffer2D(uint32_t src_sram_index,
@@ -1042,6 +1042,7 @@ class CommandQueue {
     insn->y_pad_1 = 0;
     insn->x_pad_0 = 0;
     insn->x_pad_1 = 0;
+    this->CheckInsnOverFlow();
   }
 
   void DepPush(int from_qid, int to_qid) {
@@ -1082,7 +1083,7 @@ class CommandQueue {
         insn_queue_.data())[insn_queue_.count()-1].opcode == VTA_OPCODE_FINISH);
 
     // Make sure that we don't exceed contiguous physical memory limits
-    // CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
 #ifdef USE_TSIM
     int timeout = VTADeviceRun(
         device_,
@@ -1137,6 +1138,7 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushGEMMOp(static_cast<UopKernel*>(kptr[0]));
+    this->CheckInsnOverFlow();
   }
 
   void PushALUUop(void** uop_handle,
@@ -1158,6 +1160,7 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushALUUop(static_cast<UopKernel*>(kptr[0]));
+    this->CheckInsnOverFlow();
   }
 
   static std::shared_ptr<CommandQueue>& ThreadLocal() {
@@ -1267,6 +1270,13 @@ class CommandQueue {
     }
   }
 
+  void CheckInsnOverFlow() {
+    // At each API call, we can at most commit:
+    // one pending store, one pending load, and one uop
+    if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
+      this->AutoSync();
+    }
+  }
   // Auto sync when instruction overflow
   void AutoSync() {
     this->Synchronize(1 << 31);
@@ -1277,9 +1287,9 @@ class CommandQueue {
   // The kernel we are currently recording
   UopKernel* record_kernel_{nullptr};
   // Micro op queue
-  UopQueue<true, true> uop_queue_;
+  UopQueue<VTA_MAX_XFER, true, true> uop_queue_;
   // instruction queue
-  InsnQueue<true, true> insn_queue_;
+  InsnQueue<VTA_MAX_XFER, true, true> insn_queue_;
   // Device handle
   VTADeviceHandle device_{nullptr};
 #ifdef USE_TSIM
