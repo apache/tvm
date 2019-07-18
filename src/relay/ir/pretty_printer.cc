@@ -36,7 +36,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/module.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/json.h>
 #include "doc.h"
 #include "type_functor.h"
 #include "../pass/dependency_graph.h"
@@ -137,75 +136,13 @@ class TextMetaDataContext {
     return Doc("\"") << str << "\": " << v;
   }
 
-  template<typename T>
-  Doc PrintVector(const std::vector<T>& vec) const {
-    std::vector<Doc> docs;
-    for (const auto& t : vec) {
-      docs.push_back(Doc(t));
-    }
-    return Doc("[") << PrintSep(docs) << "]";
-  }
-
-  Doc PrintAttrMap(const AttrMap& m) const {
-    std::vector<Doc> docs;
-    for (const auto& p : m) {
-      docs.push_back(PrintKeyValue(p.first, PrintString(p.second)));
-    }
-    return Brace(PrintSep(docs, Doc(",") << PrintNewLine()));
-  }
-
-  Doc PrintJSONNode(const JSONNode& n) const {
-    std::vector<Doc> docs;
-    docs.push_back(PrintKeyValue("type_key", PrintString(n.type_key)));
-    if (!n.global_key.empty()) {
-      docs.push_back(PrintKeyValue("global_key", Doc(n.global_key)));
-    }
-    if (!n.attrs.empty()) {
-      docs.push_back(PrintKeyValue("attrs", PrintAttrMap(n.attrs)));
-    }
-    std::vector<Doc> keys;
-    for (const auto& k : n.keys) {
-      keys.push_back(PrintString(k));
-    }
-    if (!n.keys.empty()) {
-      docs.push_back(PrintKeyValue("keys", PrintVector(keys)));
-    }
-    if (!n.data.empty()) {
-      docs.push_back(PrintKeyValue("data", PrintVector(n.data)));
-    }
-    return Brace(PrintSep(docs, Doc(",") << PrintNewLine()));
-  }
-
-  Doc PrintJSONGraph(const JSONGraph& j) const {
-    std::vector<Doc> docs;
-    docs.push_back(PrintKeyValue("root", Doc(j.root)));
-    std::vector<Doc> nodes;
-    for (const auto& node : j.nodes) {
-      nodes.push_back(PrintJSONNode(node));
-    }
-    docs.push_back(PrintKeyValue("nodes",
-                                 Brace(PrintSep(nodes, Doc(",") << PrintNewLine()),
-                                       "[",
-                                       "]")));
-    std::vector<Doc> b64;
-    for (const auto& b : j.b64ndarrays) {
-      b64.push_back(PrintString(b));
-    }
-    docs.push_back(PrintKeyValue("b64ndarrays", PrintVector(b64)));
-    if (!j.attrs.empty()) {
-      docs.push_back(PrintKeyValue("attrs", PrintAttrMap(j.attrs)));
-    }
-    return Brace(Doc(PrintSep(docs, Doc(",") << PrintNewLine())));
-  }
-
   /*!
    * \brief Get the metadata section in json format.
    * \return the meta data string.
    */
   Doc GetMetaSection() const {
     if (meta_data_.size() == 0) return Doc();
-    auto m = Map<std::string, NodeRef>(meta_data_.begin(), meta_data_.end());
-    return PrintJSONGraph(JSONGraph::Create(m));
+    return Doc(SaveJSON(Map<std::string, NodeRef>(meta_data_.begin(), meta_data_.end())));
   }
 
   /*! \return whether the meta data context is empty. */
