@@ -164,7 +164,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 };
 
 // register device that can be obtained from Python frontend
-TVM_REGISTER_GLOBAL("device_api.micro")
+TVM_REGISTER_GLOBAL("device_api.micro_dev")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = MicroDeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);

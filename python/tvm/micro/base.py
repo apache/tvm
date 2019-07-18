@@ -59,7 +59,7 @@ class Session:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(get_micro_device_dir(), "utvm_runtime.c")
+        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
         create_micro_lib(
@@ -76,7 +76,7 @@ class Session:
         self._exit()
 
 
-def get_micro_device_dir():
+def _get_micro_device_dir():
     """Get directory path for uTVM runtime source files.
 
     Return
@@ -165,7 +165,7 @@ def create_micro_lib(
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()]
-    options += ["-I{}".format(get_micro_device_dir())]
+    options += ["-I{}".format(_get_micro_device_dir())]
     options += ["-fno-stack-protector"]
     # TODO(weberlo): This option cannot be used on 32-bit machines. Make this
     # compilation pipeline compatible with 32-bit.

@@ -189,7 +189,7 @@ def ext_dev(dev_id=0):
     return TVMContext(12, dev_id)
 
 
-def micro(dev_id=0):
+def micro_dev(dev_id=0):
     """Construct a micro device
 
     Parameters
