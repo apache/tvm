@@ -116,7 +116,7 @@ class MicroDeviceAPI final : public DeviceAPI {
       DevBaseOffset to_dev_offset = GetDevLoc(to_space, to_offset);
       lld->Write(to_dev_offset, from_host_ptr, size);
     } else {
-      LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";
+      LOG(FATAL) << "Expect copy from/to micro device or between micro device\n";
     }
   }
 

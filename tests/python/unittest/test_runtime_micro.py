@@ -48,7 +48,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
     temp_dir = util.tempdir()
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
     c_mod.export_library(lib_obj_path, fcompile=tvm.micro.cross_compiler(toolchain_prefix=""))
-    micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
+    micro_mod = tvm.module.load(lib_obj_path, "micro")
     return micro_mod
 
 
@@ -71,7 +71,7 @@ def relay_micro_build(func, toolchain_prefix, params=None):
     with tvm.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(func, target="c", params=params)
     micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
-    ctx = tvm.micro_dev(0)
+    ctx = tvm.micro(0)
     mod = graph_runtime.create(graph, micro_mod, ctx)
     mod.set_input(**params)
     return mod
@@ -86,7 +86,7 @@ def test_alloc():
     shape = (1024,)
     dtype = "float32"
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        ctx = tvm.micro_dev(0)
+        ctx = tvm.micro(0)
         np_tensor = np.random.uniform(size=shape).astype(dtype)
         micro_tensor = tvm.nd.array(np_tensor, ctx)
         tvm.testing.assert_allclose(np_tensor, micro_tensor.asnumpy())
@@ -112,7 +112,7 @@ def test_add():
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod[func_name]
-        ctx = tvm.micro_dev(0)
+        ctx = tvm.micro(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
@@ -143,7 +143,7 @@ def test_workspace_add():
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod[func_name]
-        ctx = tvm.micro_dev(0)
+        ctx = tvm.micro(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         micro_func(a, c)
@@ -223,10 +223,10 @@ def test_interleave_sessions():
     sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
     with sess_a:
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
-        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
+        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro(0))
     with sess_b:
         np_tensor_b = np.random.uniform(size=shape).astype(dtype)
-        micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
+        micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro(0))
     with sess_a:
         add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
         add_const_mod.run(x=micro_tensor_a)
@@ -257,10 +257,10 @@ def test_nested_sessions():
     sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
     with sess_a:
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
-        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
+        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro(0))
         with sess_b:
             np_tensor_b = np.random.uniform(size=shape).astype(dtype)
-            micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
+            micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro(0))
         add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
