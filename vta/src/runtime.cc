@@ -406,7 +406,7 @@ class UopQueue : public BaseQueue<VTAUop> {
     if (sram_begin_ != sram_end_) {
       // Derive offset in FPGA-readable buffer
       int32_t offset = 0;
-      for (int i = 0; i < cache_idx_ - 1; ++i) {
+      for (uint32_t i = 0; i < cache_idx_ - 1; ++i) {
         offset += cache_[i]->size() * kElemBytes;
       }
       insn->memory_type = VTA_MEM_ID_UOP;
