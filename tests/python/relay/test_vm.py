@@ -30,14 +30,14 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         compiler = relay.vm.VMCompiler()
         vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
-        return vm.run(*args)
+        return vm.invoke("main", *args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
         compiler = relay.vm.VMCompiler()
         vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
-        ret = vm.run(*args)
+        ret = vm.invoke("main", *args)
         return ret
 
 def vmobj_to_list(o):
@@ -92,7 +92,7 @@ def any(x):
 
 def test_cond():
     x = relay.var('x', shape=(10, 10))
-    y = relay.var('x', shape=(10, 10))
+    y = relay.var('y', shape=(10, 10))
     # f = relay.Function([x, y], relay.op.equal(x, y))
     f = relay.Function([x, y], any(relay.op.equal(x, y)))
     x_data = np.random.rand(10, 10).astype('float32')
@@ -132,7 +132,7 @@ def test_simple_call():
     func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], 'int32'))
     mod[sum_up] = func
     i_data = np.array(0, dtype='int32')
-    iarg = relay.var('i', shape=[], dtype='int32')
+    iarg = relay.var('iarg', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data)
     tvm.testing.assert_allclose(result.asnumpy(), i_data)

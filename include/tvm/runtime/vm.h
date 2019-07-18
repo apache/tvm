@@ -451,7 +451,10 @@ class VirtualMachine : public runtime::ModuleNode {
    *  \param contexts The set of TVM contexts.
    */
   void Init(const std::vector<TVMContext>& contexts);
-  void Run();
+
+  /*! \brief Run VM dispatch loop.
+   */
+  void RunLoop();
 
   /*!
    * \brief Load parameters from the parameter bytearray.
