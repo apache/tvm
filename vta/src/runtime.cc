@@ -407,11 +407,19 @@ class UopQueue : public BaseQueue<VTAUop> {
   // Flush micro op load instruction
   void FlushUopLoad(VTAMemInsn* insn) {
     if (sram_begin_ != sram_end_) {
+      // Derive offset in FPGA-readable buffer
+      int32_t offset = 0;
+      for (int i = 0; i < cache_idx_ - 1; ++i) {
+        offset += cache_[i]->size() * kElemBytes;
+      }
       insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
-      // Set the  DRAM_base to be the last kernel index for now
-      // When we run read barrier, we replace with physical address
-      insn->dram_base = cache_idx_ - 1;
+      // Update cache idx to physical address map
+#ifdef USE_TSIM
+      insn->dram_base = fpga_buff_phy_ + offset;
+#else
+      insn->dram_base = (fpga_buff_phy_ + offset) / kElemBytes ;
+#endif
       insn->y_size = 1;
       insn->x_size = (sram_end_ - sram_begin_);
       insn->x_stride = (sram_end_ - sram_begin_);
@@ -436,8 +444,6 @@ class UopQueue : public BaseQueue<VTAUop> {
       buff_size += cache_[i]->size() * kElemBytes;
     }
     CHECK(buff_size <= kMaxBytes);
-    // Reset the cache idx to physical address map
-    phy_addr_map_.clear();
     // Move kernel contents to FPGA readable buffer
     int32_t offset = 0;
     for (int i = 0; i < cache_.size(); ++i) {
@@ -446,18 +452,9 @@ class UopQueue : public BaseQueue<VTAUop> {
                          cache_[i]->data(),
                          ksize,
                          (!coherent_ && always_cache_));
-      // Update cache idx to physical address map
-#ifdef USE_TSIM
-      phy_addr_map_[i] = fpga_buff_phy_ + offset;
-#else
-      phy_addr_map_[i] = (fpga_buff_phy_ + offset) / kElemBytes ;
-#endif
       // Update offset
       offset += ksize;
     }
-  }
-  std::map<uint32_t,vta_phy_addr_t> GetPhyAddrMap() {
-    return phy_addr_map_;
   }
 
  private:
@@ -465,8 +462,6 @@ class UopQueue : public BaseQueue<VTAUop> {
   uint32_t cache_idx_{0};
   // Cached ring, sorted by sram_begin
   std::vector<UopKernel*> cache_;
-  // Kernel idx to physical memory map
-  std::map<uint32_t,vta_phy_addr_t> phy_addr_map_;
   // Constants
   static constexpr int kElemBytes = sizeof(VTAUop);
   static constexpr int kMaxNumUop = VTA_UOP_BUFF_DEPTH;
@@ -617,21 +612,6 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         mem_ptr[i].pop_prev_dep = false;
         mem_ptr[i].pop_next_dep = false;
       }
-    }
-  }
-  // Rewrite the instruction stream to load uop kernels from FPGA-readable memory
-  // This needs to be run before calling ReadAutoBarrier() on the instruction queue.
-  void RewriteSetUopKernelPhyAddr(std::map<uint32_t,vta_phy_addr_t> map) {
-    int insn_count = count();
-    VTAMemInsn* mem_ptr = reinterpret_cast<VTAMemInsn*>(data());
-    for (int i = 0; i < insn_count; ++i) {
-      if (mem_ptr[i].opcode == VTA_OPCODE_LOAD && \
-          mem_ptr[i].memory_type == VTA_MEM_ID_UOP && \
-          mem_ptr[i].x_size > 0) {
-        int kernel_idx = mem_ptr[i].dram_base;
-        uint32_t phy_addr = map[kernel_idx];
-        mem_ptr[i].dram_base = phy_addr;
-      };
     }
   }
   // Helper function: Get Opcode string
@@ -1072,7 +1052,6 @@ class CommandQueue {
     if (insn_queue_.count() == 0) return;
     // Synchronization for the queues
     uop_queue_.AutoReadBarrier();
-    insn_queue_.RewriteSetUopKernelPhyAddr(uop_queue_.GetPhyAddrMap());
     insn_queue_.AutoReadBarrier();
     // Dump instructions if debug enabled
     if (debug_flag_ & VTA_DEBUG_DUMP_INSN) {
