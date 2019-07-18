@@ -29,7 +29,7 @@
 
 
 void* VTAMemAlloc(size_t size, int cached) {
-  assert(size < VTA_MAX_XFER);
+  assert(size <= VTA_MAX_XFER);
   // Rely on the pynq-specific cma library
   return cma_alloc(size, cached);
 }
