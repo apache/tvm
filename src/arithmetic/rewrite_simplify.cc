@@ -1730,6 +1730,33 @@ Mutate_(const Call* op, const Expr& self) {
   return ret;
 }
 
+Expr RewriteSimplifier::Impl::
+Mutate_(const Let* op, const Expr& self) {
+  // For now assume value does not has side-effect.
+  Expr value = this->Mutate(op->value);
+  if (!ir::HasSideEffect(value)) {
+    parent_->Bind(op->var, value);
+    return this->Mutate(op->body);
+  }
+  Expr body = this->Mutate(op->body);
+  if (value.same_as(op->value) &&
+      body.same_as(op->body)) {
+    return self;
+  } else {
+    return Let::make(op->var, value, body);
+  }
+}
+
+Expr RewriteSimplifier::Impl::
+Mutate_(const Variable* op, const Expr& self) {
+  Var var = GetRef<Var>(op);
+  auto it = var_map_.find(var);
+  if (it != var_map_.end()) {
+    return it->second;
+  }
+  return self;
+}
+
 Expr RewriteSimplifier::operator()(const Expr& expr) {
   // Run simplification in post order
   Expr res = expr;
