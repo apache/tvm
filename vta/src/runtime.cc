@@ -330,10 +330,6 @@ class BaseQueue {
     dram_buffer_.clear();
     sram_begin_ = sram_end_;
   }
-  void AutoReadBarrier() {
-    ReadBarrier();
-  }
-  virtual void ReadBarrier();
 
  protected:
   // Cache coherence access (shared memory only)
@@ -415,6 +411,9 @@ class UopQueue : public BaseQueue<VTAUop> {
       // Reset indices
       sram_begin_ = sram_end_;
     }
+  }
+  void AutoReadBarrier() {
+    ReadBarrier();
   }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
@@ -843,6 +842,9 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
       if (pending_pop_next_[i]) return true;
     }
     return false;
+  }
+  void AutoReadBarrier() {
+    ReadBarrier();
   }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {

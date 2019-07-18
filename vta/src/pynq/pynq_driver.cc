@@ -60,7 +60,7 @@ void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size, bool invalida
   // If flush is specified, call the xlnkInvalidateCache on the CMA buffer
   // so that the host needs to read the buffer data.
   if (invalidate) {
-    vta_phy_addr_t phy = VTAMemGetPhyAddr(src);
+    vta_phy_addr_t phy = VTAMemGetPhyAddr(const_cast<void*>(src));
     xlnkInvalidateCache(reinterpret_cast<void*>(phy), size);
   }
 }
