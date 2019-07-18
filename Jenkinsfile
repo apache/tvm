@@ -208,7 +208,6 @@ stage('Build') {
            cd build
            cp ../cmake/config.cmake .
            echo set\\(USE_SORT ON\\) >> config.cmake
-           echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-5.0\\) >> config.cmake
