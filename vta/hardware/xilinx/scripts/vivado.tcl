@@ -190,6 +190,8 @@ set_property -dict [ list \
 set cmd_queue_list {load_queue gemm_queue store_queue}
 foreach cmd_queue $cmd_queue_list {
   set tmp_cmd_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $cmd_queue ]
+  # Width is 16B (128b, as set in hw_spec.h), depth is 512 (depth of FIFO on Zynq 7000 and Zynq Ultrascale+)
+  # TODO: derive it from vta_config.h
   [ init_fifo_property $tmp_cmd_queue 16 512 ]
 }
 
@@ -197,6 +199,8 @@ foreach cmd_queue $cmd_queue_list {
 set dep_queue_list {l2g_queue g2l_queue g2s_queue s2g_queue}
 foreach dep_queue $dep_queue_list {
   set tmp_dep_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 $dep_queue ]
+  # Width is 1B (min width), depth is 1024
+  # TODO: derive it from vta_config.h
   [ init_fifo_property $tmp_dep_queue 1 1024 ]
 }
 
