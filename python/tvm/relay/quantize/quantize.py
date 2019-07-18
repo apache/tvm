@@ -333,7 +333,7 @@ def tag_layout(graph):
                         _op_layout_map[arg] = cur_layout
                         deferred.remove(arg)
 
-    _ir_pass.post_order_visit(graph, visit_func)
+    _analysis.post_order_visit(graph, visit_func)
     if len(deferred) > 0:
         raise ValueError
 
@@ -463,7 +463,7 @@ def match_scales(graph, const_params, mode='max'):
                         assert data_scale_np.shape == data_scale.asnumpy().shape
                         const_params[data_scale_var] = _expr.const(data_scale_np)
 
-    _ir_pass.post_order_visit(graph, visit_func)
+    _analysis.post_order_visit(graph, visit_func)
     return const_params
 
 
@@ -712,6 +712,15 @@ def _bind_params(func, params):
         bind_dict[arg] = _expr.const(v)
     return _expr.bind(func, bind_dict)
 
+def optimize(graph):
+    # Perform "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
+    # "CanonicalizeOps" optimization before quantization.
+    opt = _transform.Sequential([_transform.SimplifyInference(),
+                                      _transform.FoldConstant(),
+                                      _transform.FoldScaleAxis(),
+                                      _transform.CanonicalizeOps(),
+                                      _transform.FoldConstant()])
+    return opt(graph)
 
 def quantize(graph, params=None, dataset=None):
     """ The quantization procedure. Before running the three main
@@ -740,13 +749,6 @@ def quantize(graph, params=None, dataset=None):
         graph = _bind_params(graph, params)
 
     mod = _module.Module.from_expr(graph)
-    # Perform "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
-    # "CanonicalizeOps" optimization before quantization.
-    optimize = _transform.Sequential([_transform.SimplifyInference(),
-                                      _transform.FoldConstant(),
-                                      _transform.FoldScaleAxis(),
-                                      _transform.CanonicalizeOps(),
-                                      _transform.FoldConstant()])
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
@@ -843,10 +845,10 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
     import tvm
     import copy
     from tvm import relay
-    from tvm.relay import ir_pass
-
+    #from tvm.relay import ir_pass
+    from tvm.relay.testing import run_infer_type as infer_type
     #graph, params = graph_callback()
-
+    graph = _bind_params(graph, params)
     graph = optimize(graph, params)
     with qconfig(skip_k_conv=0,
                  passthrough_bound=int(-1),
@@ -862,10 +864,12 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
         layout_map = tag_layout(graph)
         graph = annotate(graph, layout_map)
         annotated = copy.deepcopy(graph)
-        graph = ir_pass.infer_type(graph)
+        #TODO(eqy) graph = ir_pass.infer_type(graph)
+        graph = _transform.infer_type(graph)
         graph, profile_data = calibrate(graph, profile_mode=True, scales=None)
         
-        free_vars = list(ir_pass.free_vars(graph))
+        #free_vars = list(ir_pass.free_vars(graph))
+        free_vars = list(analysis.free_vars(graph), graph)
         graph = relay.Function(list(graph.params) + free_vars,
                                 graph.body, graph.ret_type,
                                 graph.type_params, graph.attrs)
@@ -900,7 +904,9 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
                  debug_enabled_ops=None,
                  granularity=granularity):
         graph = annotated
-        graph = ir_pass.infer_type(graph)
+        #TODO(eqy)
+        #graph = ir_pass.infer_type(graph)
+        graph = infer_type(graph)
         graph, profile_data = calibrate(graph, profile_mode=False, scales=config)
         graph = realize(graph)
     t2 = time.time()
