@@ -39,6 +39,24 @@ def cast(data, dtype):
     from .. import _make as _relay_make
     return _relay_make.cast(data, dtype)
 
+def cast_like(data, dtype_like):
+    """Cast input tensor to data type of another tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    dtype_like: relay.Expr
+        The tensor to cast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The casted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.cast_like(data, dtype_like)
 
 def reinterpret(data, dtype):
     """Reinterpret input tensor to data type.
@@ -211,8 +229,8 @@ def reshape_like(data, shape_like):
     data : relay.Expr
         The input data to the operator.
 
-    shape_like : tuple of int
-        The new shape. Should be compatible with the original shape.
+    shape_like : relay.Expr
+        The tensor to reshape to. Should be compatible with the original shape.
 
     Returns
     -------
@@ -221,6 +239,37 @@ def reshape_like(data, shape_like):
     """
     return _make.reshape_like(data, shape_like)
 
+
+def embed_like(data, indices, type_like, axis=None, mode="clip"):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array.
+
+    indices : rely.Expr
+        The indices of the values to extract.
+
+    type_like : relay.Expr
+        The tensor that provide the type to embed into.
+
+    axis : int, optional
+        The axis over which to select values. By default,
+        the flattened input array is used.
+
+    mode : str, optional
+        Specifies how out-of-bound indices will behave [clip, wrap, fast].
+        clip: clip to the range (default).
+        wrap: wrap around the indices.
+        fast: no clip or wrap around (user must make sure indices are in-bound).
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.embed_like(data, indices, type_like, axis, mode)
 
 def take(data, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.

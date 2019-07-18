@@ -717,3 +717,13 @@ def schedule_bitserial_dense(attrs, outputs, target):
 
 
 reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+reg.register_schedule("nn.cross_entropy", schedule_injective)
+
+reg.register_pattern("nn.cross_entropy",
+                     OpPattern.OPAQUE)
+
+@reg.register_compute("nn.cross_entropy")
+def compute_cross_entropy(attrs, inputs, out_dtype, target):
+    x, y = inputs
+    return [-topi.sum(topi.nn.log_softmax(x) * y / x.shape[0])]

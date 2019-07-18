@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+import torch
 from tvm import relay
 from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
@@ -53,15 +54,19 @@ def test_unary_op():
                 op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
                 np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
-    for opfunc, ref in [(tvm.relay.log, lambda x: 1 / x),
-                        (tvm.relay.exp, np.exp),
-                        (tvm.relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
-                        (tvm.relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
-                        (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
+    for opfunc, ref in [(relay.log, lambda x: 1 / x),
+                        (relay.exp, np.exp),
+                        (relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
+                        (relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
+                        (relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
                         (tvm.relay.abs, lambda x: np.where(x < 0, -np.ones_like(x), np.ones_like(x))),
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x))]:
+                        (relay.negative, lambda x: -1 * np.ones_like(x)),
+                        (relay.zeros_like, lambda x: np.zeros_like(x)),
+                        (relay.ones_like, lambda x: np.zeros_like(x)),
+                        (relay.shape_of, lambda x: np.zeros_like(x))]:
         check_single_op(opfunc, ref)
 
 
@@ -71,7 +76,7 @@ def test_binary_op():
 
     def check_binary_op(opfunc, ref):
         s = (5, 10, 5)
-        t = relay.TensorType((5, 10, 5))
+        t = relay.TensorType(s)
         x = relay.var("x", t)
         y = relay.var("y", t)
         z = opfunc(x, y)
@@ -92,9 +97,45 @@ def test_binary_op():
     for opfunc, ref in [(relay.add, lambda x, y: [np.ones_like(x), np.ones_like(y)]),
                         (relay.subtract, lambda x, y: [np.ones_like(x), -np.ones_like(y)]),
                         (relay.multiply, lambda x, y: [y, x]),
-                        (relay.divide, lambda x, y: [1 / y, - x / (y**2)])]:
+                        (relay.divide, lambda x, y: [1 / y, - x / (y**2)]),
+                        (relay.collapse_sum_like, lambda x, y: [np.ones_like(x), np.zeros_like(y)])]:
         check_binary_op(opfunc, ref)
 
+def test_reduce_op():
+    def softmax_grad_torch(x_data, axis):
+        x = torch.tensor(x_data, requires_grad=True)
+        sm = torch.nn.Softmax(axis)(x)
+        sm.backward(torch.ones(x.shape))
+        return x.grad.numpy()
+
+    def max_grad_torch(x_data, axis):
+        x = torch.tensor(x_data, requires_grad=True)
+        m = x.max(axis).values
+        m.backward(torch.ones(m.shape))
+        return x.grad.numpy()
+
+    def check_reduce_op(opfunc, ref):
+        s = (5, 10, 5)
+        t = relay.TensorType(s)
+        x = relay.var("x", t)
+        axis = 0
+        z = opfunc(x, axis)
+
+        x_data = np.random.randn(*s).astype(t.dtype)
+        ref_grad = ref(x_data, axis)
+        fwd_func = relay.Function([x], z)
+        fwd_func = run_infer_type(fwd_func)
+        bwd_func = run_infer_type(gradient(fwd_func))
+
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor(ctx=ctx, target=target)
+            op_res, (op_grad,) = intrp.evaluate(bwd_func)(x_data)
+            np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01, atol=10e-8)
+
+    for opfunc, ref in [(relay.nn.softmax, softmax_grad_torch),
+                        (relay.max, max_grad_torch),
+                        (tvm.relay.sum, lambda x, axis: np.ones_like(x))]:
+        check_reduce_op(opfunc, ref)
 
 def test_softmax_grad():
     data = relay.var("data", relay.TensorType((1, 16), "float64"))
@@ -113,3 +154,4 @@ if __name__ == "__main__":
     test_unary_op()
     test_binary_op()
     test_bias_add_grad()
+    test_reduce_op()

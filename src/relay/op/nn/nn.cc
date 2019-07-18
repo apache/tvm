@@ -103,6 +103,50 @@ RELAY_REGISTER_OP("nn.bias_add")
 // relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
+
+bool DenseRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const DenseAttrs* param = attrs.as<DenseAttrs>();
+  CHECK(param != nullptr);
+
+  CHECK(static_cast<int>(data->shape.size()) != 0);
+
+  Array<tvm::Expr> oshape = data->shape;
+  if (param->units.defined()) {
+    Array<tvm::Expr> dshape = data->shape;
+    // validate the weight shape is proper if defined
+    // Assign weight type
+    Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    oshape.Set((oshape.size() - 1), param->units);
+  } else {
+    if (weight == nullptr) return false;
+    Array<tvm::Expr> wshape = weight->shape;
+    CHECK(static_cast<int>(weight->shape.size()) == 2);
+    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+      << "DenseRel: input dimension doesn't match,"
+      << " data shape=" << data->shape
+      << ", weight shape=" << weight->shape;
+    oshape.Set((oshape.size() - 1), wshape[0]);
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
+
+
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
@@ -698,11 +742,11 @@ bool BatchMatmulRel(const Array<Type>& types,
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape
-      << ", y shape=" << y->shape;
+    << "BatchDot: batch dimension doesn't match,"
+    << " x shape=" << x->shape
+    << ", y shape=" << y->shape;
   CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
-      << "BatchDot: shapes of x and y is inconsistent, "
+      << "BatchDot: shapes of x and y is inconsistent,"
       << " x shape=" << x->shape
       << ", y shape=" << y->shape;
 
@@ -745,6 +789,51 @@ are data in batch.
 .add_argument("y", "3D Tensor", "Second input.")
 .set_support_level(10)
 .add_type_rel("BatchMatmul", BatchMatmulRel);
+
+// relay.nn.cross_entropy
+bool CrossEntropyRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+  CHECK(x->shape.size() == 2 && y->shape.size() == 2)
+    << "CrossEntropy: shapes of x and y is inconsistent,"
+    << " x shape=" << x->shape
+    << ", y shape=" << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+    << "CrossEntropy: shapes of x and y is inconsistent,"
+    << " x shape=" << x->shape
+    << ", y shape=" << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[1], y->shape[1]))
+    << "CrossEntropy: shapes of x and y is inconsistent,"
+    << " x shape=" << x->shape
+    << ", y shape=" << y->shape;
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make({}, x->dtype));
+  return true;
+}
+
+// Positional relay function to create batch_matmul operator used by frontend FFI.
+Expr MakeCrossEntropy(Expr predictions, Expr targets) {
+  static const Op& op = Op::Get("nn.cross_entropy");
+  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
+.set_body_typed(MakeCrossEntropy);
+
+
+RELAY_REGISTER_OP("nn.cross_entropy")
+.describe(R"code(Computes cross entropy given preditions and targets.)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "1D Tensor", "Predictions.")
+.add_argument("y", "1D Tensor", "Targets.")
+.set_support_level(10)
+.add_type_rel("CrossEntropy", CrossEntropyRel);
 
 
 }  // namespace relay

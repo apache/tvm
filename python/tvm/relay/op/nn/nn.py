@@ -1621,3 +1621,7 @@ def bitserial_dense(data,
     """
     return _make.bitserial_dense(data, weight, units, data_bits, weight_bits,
                                  pack_dtype, out_dtype, unipolar)
+
+
+def cross_entropy(predictions, targets):
+    return _make.cross_entropy(predictions, targets)
