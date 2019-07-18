@@ -1016,7 +1016,6 @@ class CommandQueue {
     insn->y_pad_1 = y_pad_after;
     insn->x_pad_0 = x_pad_before;
     insn->x_pad_1 = x_pad_after;
-    // this->CheckInsnOverFlow();
   }
 
   void StoreBuffer2D(uint32_t src_sram_index,
@@ -1043,7 +1042,6 @@ class CommandQueue {
     insn->y_pad_1 = 0;
     insn->x_pad_0 = 0;
     insn->x_pad_1 = 0;
-    // this->CheckInsnOverFlow();
   }
 
   void DepPush(int from_qid, int to_qid) {
@@ -1139,7 +1137,6 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushGEMMOp(static_cast<UopKernel*>(kptr[0]));
-    // this->CheckInsnOverFlow();
   }
 
   void PushALUUop(void** uop_handle,
@@ -1161,7 +1158,6 @@ class CommandQueue {
       record_kernel_ = nullptr;
     }
     this->PushALUUop(static_cast<UopKernel*>(kptr[0]));
-    // this->CheckInsnOverFlow();
   }
 
   static std::shared_ptr<CommandQueue>& ThreadLocal() {
@@ -1271,13 +1267,6 @@ class CommandQueue {
     }
   }
 
-  // void CheckInsnOverFlow() {
-  //   // At each API call, we can at most commit:
-  //   // one pending store, one pending load, and one uop
-  //   if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
-  //     this->AutoSync();
-  //   }
-  // }
   // Auto sync when instruction overflow
   void AutoSync() {
     this->Synchronize(1 << 31);
