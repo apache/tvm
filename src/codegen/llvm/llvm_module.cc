@@ -187,14 +187,20 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
     cg->AddMainFunction(funcs[0]->name);
     module_ = cg->Finish();
+
+    module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target));
+    module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
+                           llvm::DEBUG_METADATA_VERSION);
+
+    if (tm_->getTargetTriple().isOSDarwin()) {
+      module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
+    }
+
     std::string verify_errors_storage;
     llvm::raw_string_ostream verify_errors(verify_errors_storage);
     LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
         << "LLVM module verification failed with the following errors: \n"
         << verify_errors.str();
-    module_->addModuleFlag(
-        llvm::Module::Warning, "tvm_target",
-        llvm::MDString::get(*ctx_, target));
     target_ = target;
     mptr_ = module_.get();
   }
