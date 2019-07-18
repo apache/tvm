@@ -415,7 +415,7 @@ class UopQueue : public BaseQueue<VTAUop> {
 #ifdef USE_TSIM
       insn->dram_base = fpga_buff_phy_ + offset;
 #else
-      insn->dram_base = (fpga_buff_phy_ + offset) / kElemBytes ;
+      insn->dram_base = (fpga_buff_phy_ + offset) / kElemBytes;
 #endif
       insn->y_size = 1;
       insn->x_size = (sram_end_ - sram_begin_);
@@ -1319,7 +1319,6 @@ void VTABufferCopy(const void* from,
                                  static_cast<const char*>(from) + from_offset,
                                  size);
   }
-
 }
 
 VTACommandHandle VTATLSCommandHandle() {
