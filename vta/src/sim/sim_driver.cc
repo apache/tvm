@@ -607,20 +607,14 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return vta::sim::DRAM::Global()->GetPhyAddr(buf);
 }
 
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
+void VTAMemMoveToBuffer(void* dst, const void* src, size_t size, bool flush) {
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
 }
 
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
+void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size, bool invalidate) {
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
-}
-
-void VTAFlushCache(vta_phy_addr_t buf, int size) {
-}
-
-void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
 }
 
 VTADeviceHandle VTADeviceAlloc() {

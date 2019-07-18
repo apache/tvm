@@ -93,33 +93,6 @@ TVM_DLL VTACommandHandle VTATLSCommandHandle();
 TVM_DLL void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
 
 /*!
- * \brief Perform a write barrier to make a memory region visible to the CPU.
- * \param cmd The VTA command handle.
- * \param buffer The head buffer pointer.
- * \param elem_bits The size in bits of each element.
- * \param start The start of the region (in elements).
- * \param extent The end of the region (in elements).
- */
-TVM_DLL void VTAWriteBarrier(VTACommandHandle cmd,
-                             void* buffer,
-                             uint32_t elem_bits,
-                             uint32_t start,
-                             uint32_t extent);
-/*!
- * \brief Perform a read barrier to a memory region visible to VTA.
- * \param cmd The VTA command handle.
- * \param buffer The head buffer pointer.
- * \param elem_bits The unit bits of each elements.
- * \param start The start of the region (in elements).
- * \param extent The end of the region (in elements).
- */
-TVM_DLL void VTAReadBarrier(VTACommandHandle cmd,
-                            void* buffer,
-                            uint32_t elem_bits,
-                            uint32_t start,
-                            uint32_t extent);
-
-/*!
  * \brief Set debug mode on the command handle.
  * \param cmd The VTA command handle.
  * \param debug_flag The debug flag.

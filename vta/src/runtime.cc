@@ -61,24 +61,28 @@ struct DataBuffer {
     return phy_addr_;
   }
   /*!
-   * \brief Invalidate the cache of given location in data buffer.
-   * \param offset The offset to the data.
-   * \param size The size of the data.
+   * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
+   * \param dst The desination buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
+   * \param src The source buffer in host memory.
+   * \param flush When the memory is shared between the FPGA and host, trigger cache flush
+   *              to make the data visible to the FPGA.
+   * \param size Size of the region in Bytes.
    */
-  void InvalidateCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAInvalidateCache(phy_addr_ + offset, size);
-    }
+  void MemMoveToBuffer(void* dst, const void* src, size_t size) {
+    bool flush = !kBufferCoherent;
+    VTAMemMoveToBuffer(dst, src, size, flush);
   }
   /*!
-   * \brief Invalidate the cache of certain location in data buffer.
-   * \param offset The offset to the data.
-   * \param size The size of the data.
+   * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
+   * \param dst The desination buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
+   * \param src The source buffer in host memory.
+   * \param flush When the memory is shared between the FPGA and host, trigger cache flush
+   *              to make the data visible to the FPGA.
+   * \param size Size of the region in Bytes.
    */
-  void FlushCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAFlushCache(phy_addr_ + offset, size);
-    }
+  void MemMoveFromBuffer(void* dst, const void* src, size_t size) {
+    bool invalidate = !kBufferCoherent;
+    VTAMemMoveFromBuffer(dst, src, size, invalidate);
   }
   /*!
    * \brief Allocate a buffer of a given size.
@@ -329,22 +333,7 @@ class BaseQueue {
   void AutoReadBarrier() {
     ReadBarrier();
   }
-  /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
-  void ReadBarrier() {
-    CHECK(dram_phy_addr_);
-    if (!coherent_ && always_cache_ && !dram_buffer_.empty()) {
-      VTAFlushCache(dram_phy_addr_,
-                    dram_buffer_.size() * elem_bytes_);
-    }
-  }
-  /*! \brief Read barrier to make sure that data written by VTA is visible to CPU. */
-  void WriteBarrier() {
-    CHECK(dram_phy_addr_);
-    if (!coherent_ && always_cache_ && !dram_buffer_.empty()) {
-      VTAInvalidateCache(dram_phy_addr_,
-                         dram_buffer_.size() * elem_bytes_);
-    }
-  }
+  virtual void ReadBarrier();
 
  protected:
   // Cache coherence access (shared memory only)
@@ -427,10 +416,6 @@ class UopQueue : public BaseQueue<VTAUop> {
       sram_begin_ = sram_end_;
     }
   }
-  void AutoReadBarrier() {
-    ReadBarrier();
-    BaseQueue::ReadBarrier();
-  }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
     // Free the old FPGA buff
@@ -456,7 +441,8 @@ class UopQueue : public BaseQueue<VTAUop> {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
       VTAMemMoveToBuffer(static_cast<char*>(fpga_buff_) + offset,
                          cache_[i]->data(),
-                         ksize);
+                         ksize,
+                         (!coherent_ && always_cache_));
       // Update cache idx to physical address map
 #ifdef USE_TSIM
       phy_addr_map_[i] = dram_phy_addr_ + offset;
@@ -858,10 +844,6 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     }
     return false;
   }
-  void AutoReadBarrier() {
-    ReadBarrier();
-    BaseQueue::ReadBarrier();
-  }
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
     // Free the old FPGA buff
@@ -875,7 +857,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Copy contents of DRAM buffer to FPGA buff
     VTAMemMoveToBuffer(fpga_buff_,
                        dram_buffer_.data(),
-                       buff_size);
+                       buff_size,
+                       (!coherent_ && always_cache_));
     // Update the physical memory pointer
     dram_phy_addr_ = VTAMemGetPhyAddr(fpga_buff_);
     CHECK(dram_phy_addr_);
@@ -919,7 +902,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     if (insn->opcode == VTA_OPCODE_STORE) {
       // FIXME: Right now memory_type is a 2-bit field which means that
       //        VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
-      //        checking the memory_type to avoid an CHECKion error...
+      //        checking the memory_type to avoid an CHECK error...
       return kStoreStage;
     }
     LOG(FATAL) << "not reached";
@@ -1067,22 +1050,6 @@ class CommandQueue {
 
   void DepPop(int from_qid, int to_qid) {
     insn_queue_.DepPop(from_qid, to_qid);
-  }
-
-  void ReadBarrier(void* buffer, uint32_t elem_bits, uint32_t start, uint32_t extent) {
-    if (!(debug_flag_ & VTA_DEBUG_SKIP_READ_BARRIER)) {
-      uint32_t elem_bytes = (elem_bits + 8 - 1) / 8;
-      DataBuffer::FromHandle(buffer)->FlushCache(
-          elem_bytes * start, elem_bytes * extent);
-    }
-  }
-
-  void WriteBarrier(void* buffer, uint32_t elem_bits, uint32_t start, uint32_t extent) {
-    if (!(debug_flag_ & VTA_DEBUG_SKIP_WRITE_BARRIER)) {
-      uint32_t elem_bytes = (elem_bits + 8 - 1) / 8;
-      DataBuffer::FromHandle(buffer)->InvalidateCache(
-          elem_bytes * start, elem_bytes * extent);
-    }
   }
 
   void Synchronize(uint32_t wait_cycles) {
@@ -1363,16 +1330,19 @@ void VTABufferCopy(const void* from,
     to_buffer = vta::DataBuffer::FromHandle(to);
     to = to_buffer->virt_addr();
   }
+
   if (from_buffer) {
-    from_buffer->InvalidateCache(from_offset, size);
+    // This is an FPGA to host mem transfer
+    from_buffer->MemMoveToBuffer(static_cast<char*>(to) + to_offset,
+                                 static_cast<const char*>(from) + from_offset,
+                                 size);
+  } else if (to_buffer) {
+    // This is a host to FPGA mem transfer
+    to_buffer->MemMoveFromBuffer(static_cast<char*>(to) + to_offset,
+                                 static_cast<const char*>(from) + from_offset,
+                                 size);
   }
 
-  memcpy(static_cast<char*>(to) + to_offset,
-         static_cast<const char*>(from) + from_offset,
-         size);
-  if (to_buffer) {
-    to_buffer->FlushCache(to_offset, size);
-  }
 }
 
 VTACommandHandle VTATLSCommandHandle() {
@@ -1390,24 +1360,6 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
 
 void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer) {
   return vta::DataBuffer::FromHandle(buffer)->virt_addr();
-}
-
-void VTAWriteBarrier(VTACommandHandle cmd,
-                     void* buffer,
-                     uint32_t elem_bits,
-                     uint32_t start,
-                     uint32_t extent) {
-  static_cast<vta::CommandQueue*>(cmd)->
-      WriteBarrier(buffer, elem_bits, start, extent);
-}
-
-void VTAReadBarrier(VTACommandHandle cmd,
-                    void* buffer,
-                    uint32_t elem_bits,
-                    uint32_t start,
-                    uint32_t extent) {
-  static_cast<vta::CommandQueue*>(cmd)->
-      ReadBarrier(buffer, elem_bits, start, extent);
 }
 
 void VTALoadBuffer2D(VTACommandHandle cmd,

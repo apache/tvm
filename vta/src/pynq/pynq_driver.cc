@@ -43,22 +43,26 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf);
 }
 
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
+void VTAMemMoveToBuffer(void* dst, const void* src, size_t size, bool flush) {
+  // If flush is specified, call the xlnkFlushCache on the CMA buffer
+  // so that the FPGA can read the buffer data.
+  if (flush) {
+    vta_phy_addr_t phy = VTAMemGetPhyAddr(dst);
+    xlnkFlushCache(reinterpret_cast<void*>(phy), size);
+  }
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
 }
 
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
+void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size, bool invalidate) {
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
-}
-
-void VTAFlushCache(vta_phy_addr_t buf, int size) {
-  xlnkFlushCache(reinterpret_cast<void*>(buf), size);
-}
-
-void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
-  xlnkInvalidateCache(reinterpret_cast<void*>(buf), size);
+  // If flush is specified, call the xlnkInvalidateCache on the CMA buffer
+  // so that the host needs to read the buffer data.
+  if (invalidate) {
+    vta_phy_addr_t phy = VTAMemGetPhyAddr(src);
+    xlnkInvalidateCache(reinterpret_cast<void*>(phy), size);
+  }
 }
 
 void *VTAMapRegister(uint32_t addr, size_t length) {

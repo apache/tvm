@@ -118,32 +118,21 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf);
  * \param dst The desination buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
  * \param src The source buffer in host memory.
  * \param size Size of the region in Bytes.
+ * \param flush When the memory is shared between the FPGA and host, trigger cache flush
+ *              before the transer to make the data visible to the FPGA.
  */
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size);
+void VTAMemMoveToBuffer(void* dst, const void* src, size_t size, bool flush);
 
 /*!
  * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
  * \param dst The destination buffer in host memory.
  * \param src The source buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
  * \param size Size of the region in Bytes.
+ * \param invalidate When the memory is shared between the FPGA and host, trigger cache invalidation
+ *                   after the transfer to make the data visible to the host.
  */
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size);
+void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size, bool invalidate);
 
-/*!
- * \brief Flushes the region of memory out of the CPU cache to DRAM.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be flushed.
- *            This need to be the physical address.
- * \param size Size of the region to flush in Bytes.
- */
-void VTAFlushCache(vta_phy_addr_t buf, int size);
-
-/*!
- * \brief Invalidates the region of memory that is cached.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be invalidated.
- *            This need to be the physical address.
- * \param size Size of the region to invalidate in Bytes.
- */
-void VTAInvalidateCache(vta_phy_addr_t buf, int size);
 
 #ifdef __cplusplus
 }
