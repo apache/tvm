@@ -437,7 +437,7 @@ class UopQueue : public BaseQueue<VTAUop> {
     CHECK(fpga_buff_phy_);
     // Iterate over caches; allocate buffer in FPGA-readable memory
     uint32_t buff_size = 0;
-    for (int i = 0; i < cache_.size(); ++i) {
+    for (uint32_t i = 0; i < cache_.size(); ++i) {
       buff_size += cache_[i]->size() * kElemBytes;
     }
     CHECK(buff_size <= kMaxBytes);
