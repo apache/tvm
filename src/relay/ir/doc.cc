@@ -89,7 +89,7 @@ std::string Doc::str() {
   return os.str();
 }
 
-Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
+Doc PrintSep(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
   if (vec.size() != 0) {
     seq = vec[0];
