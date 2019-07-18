@@ -798,6 +798,11 @@ def test_logical_simplify():
     ck.verify(tvm.expr.Or(2 <= x, x <= 1), tvm.const(True, "bool"))
     ck.verify(tvm.expr.Or(x != 1, x == 2), x != 1)
 
+def test_let_simplify():
+    ck = RewriteChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    z = tvm.expr.Let(x, 1, x + 1)
+    ck.verify(z + z, 4)
 
 if __name__ == "__main__":
     test_floordiv_index_simplify()
@@ -813,3 +818,4 @@ if __name__ == "__main__":
     test_mod_index_simplify()
     test_select_simplify()
     test_logical_simplify()
+    test_let_simplify()
