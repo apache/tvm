@@ -443,7 +443,7 @@ class UopQueue : public BaseQueue<VTAUop> {
     CHECK(buff_size <= kMaxBytes);
     // Move kernel contents to FPGA readable buffer
     int32_t offset = 0;
-    for (int i = 0; i < cache_.size(); ++i) {
+    for (int32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
       VTAMemMoveToBuffer(static_cast<char*>(fpga_buff_) + offset,
                          cache_[i]->data(),
