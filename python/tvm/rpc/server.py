@@ -50,9 +50,12 @@ from . base import TrackerCode
 
 logger = logging.getLogger('RPCServer')
 
-def _server_env(load_library):
+def _server_env(load_library, work_path=None):
     """Server environment function return temp dir"""
-    temp = util.tempdir()
+    if work_path:
+        temp = work_path
+    else:
+        temp = util.tempdir()
 
     # pylint: disable=unused-variable
     @register_func("tvm.rpc.server.workpath")
@@ -76,15 +79,14 @@ def _server_env(load_library):
     temp.libs = libs
     return temp
 
-
-def _serve_loop(sock, addr, load_library):
+def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
     sockfd = sock.fileno()
-    temp = _server_env(load_library)
+    temp = _server_env(load_library, work_path)
     base._ServerLoop(sockfd)
-    temp.remove()
+    if not work_path:
+        temp.remove()
     logger.info("Finish serving %s", addr)
-
 
 def _parse_server_opt(opts):
     # parse client options
@@ -196,9 +198,10 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             raise exc
 
         # step 3: serving
+        work_path = util.tempdir()
         logger.info("connection from %s", addr)
         server_proc = multiprocessing.Process(target=_serve_loop,
-                                              args=(conn, addr, load_library))
+                                              args=(conn, addr, load_library, work_path))
         server_proc.deamon = True
         server_proc.start()
         # close from our side.
@@ -208,6 +211,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
             server_proc.terminate()
+        work_path.remove()
 
 
 def _connect_proxy_loop(addr, key, load_library):
