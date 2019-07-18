@@ -23,4 +23,7 @@ from .. import register_func
 def fromtext(data, source_name=None):
     """Parse a Relay program."""
     from tvm.relay import _parser
-    return _parser.fromtext(data, source_name)
+    x = _parser.fromtext(data + "\n", source_name)
+    if x is None:
+        raise Exception("cannot parse: ", data)
+    return x

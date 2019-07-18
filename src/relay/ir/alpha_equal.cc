@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/ir/alpha_equal.cc
  * \brief Alpha equality check by deep comparing two nodes.
  */
@@ -27,9 +27,10 @@
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/attrs/nn.h>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
-
 namespace tvm {
 namespace relay {
 
@@ -40,8 +41,8 @@ class AlphaEqualHandler:
       public ExprFunctor<bool(const Expr&, const Expr&)>,
       public PatternFunctor<bool(const Pattern&, const Pattern&)> {
  public:
-  explicit AlphaEqualHandler(bool map_free_var)
-    : map_free_var_(map_free_var) { }
+  explicit AlphaEqualHandler(bool map_free_var, bool assert_mode)
+    : map_free_var_(map_free_var), assert_mode_(assert_mode) { }
 
   /*!
    * Check equality of two nodes.
@@ -76,6 +77,9 @@ class AlphaEqualHandler:
     return AttrEqual(lhs, rhs);
   }
 
+  bool DoubleEqual(double l, double r) {
+    return true;
+  }
   /*!
    * Check equality of two attributes.
    * \param lhs The left hand operand.
@@ -83,18 +87,28 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
-    if (&lhs == &rhs) return true;
-    auto lhsd = lhs.as<DictAttrsNode>();
-    if (lhsd) {
-      auto rhsd = lhs.as<DictAttrsNode>();
-      if (!rhsd) return false;
-      if (lhsd->dict.size() != rhsd->dict.size()) return false;
-      for (const auto& k : lhsd->dict) {
-        if (!Equal(k.second, rhsd->dict[k.first])) return false;
+    auto compute = [&]() {
+      if (&lhs == &rhs) return true;
+      if (auto lhsd = lhs.as<DictAttrsNode>()) {
+        auto rhsd = lhs.as<DictAttrsNode>();
+        if (!rhsd) return false;
+        if (lhsd->dict.size() != rhsd->dict.size()) return false;
+        for (const auto& k : lhsd->dict) {
+          if (!Equal(k.second, rhsd->dict[k.first])) return false;
+        }
+        return true;
       }
-      return true;
-    }
-    return AttrsEqualHandler::Equal(lhs, rhs);
+      if (auto lhsbn = lhs.as<BatchNormAttrs>()) {
+        auto rhsbn = rhs.as<BatchNormAttrs>();
+        if (!rhsbn) return false;
+        return (lhsbn->axis == rhsbn->axis)
+          && DoubleEqual(lhsbn->epsilon, rhsbn->epsilon)
+          && (lhsbn->center == rhsbn->center)
+          && (lhsbn->scale == rhsbn->scale);
+      }
+      return AttrsEqualHandler::Equal(lhs, rhs);
+    };
+    return Compare(compute(), lhs, rhs);
   }
   /*!
    * Check equality of two types.
@@ -106,6 +120,13 @@ class AlphaEqualHandler:
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
     return this->VisitType(lhs, rhs);
+  }
+
+  bool Compare(bool result, const NodeRef& lhs, const NodeRef& rhs) {
+    if (assert_mode_) {
+      CHECK(result) << "\n" << AsText(lhs, true) << "\nis not equal to:\n" << AsText(rhs, true);
+    }
+    return result;
   }
   /*!
    * Check equality of two expressions.
@@ -120,18 +141,21 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool ExprEqual(const Expr& lhs, const Expr& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (!lhs.defined() || !rhs.defined()) return false;
-    auto it = equal_map_.find(lhs);
-    if (it != equal_map_.end()) {
-      return it->second.same_as(rhs);
-    }
-    if (this->VisitExpr(lhs, rhs)) {
-      equal_map_[lhs] = rhs;
-      return true;
-    } else {
-      return false;
-    }
+    auto compute = [&]() {
+      if (lhs.same_as(rhs)) return true;
+      if (!lhs.defined() || !rhs.defined()) return false;
+      auto it = equal_map_.find(lhs);
+      if (it != equal_map_.end()) {
+        return it->second.same_as(rhs);
+      }
+      if (this->VisitExpr(lhs, rhs)) {
+        equal_map_[lhs] = rhs;
+        return true;
+      } else {
+        return false;
+      }
+    };
+    return Compare(compute(), lhs, rhs);
   }
 
  protected:
@@ -516,32 +540,41 @@ class AlphaEqualHandler:
  private:
   // whether to map open terms.
   bool map_free_var_;
+  // if in assert mode, must return true, and will throw error otherwise.
+  bool assert_mode_;
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, NodeRef, NodeHash, NodeEqual> equal_map_;
 };
 
 bool AlphaEqual(const Type& lhs, const Type& rhs) {
-  return AlphaEqualHandler(false).TypeEqual(lhs, rhs);
+  return AlphaEqualHandler(false, false).TypeEqual(lhs, rhs);
 }
 
 bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
-  return AlphaEqualHandler(false).ExprEqual(lhs, rhs);
+  return AlphaEqualHandler(false, false).ExprEqual(lhs, rhs);
 }
 
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._make._alpha_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-  return AlphaEqualHandler(false).Equal(a, b);
+  return AlphaEqualHandler(false, false).Equal(a, b);
 });
 
-TVM_REGISTER_API("relay._make._type_alpha_equal")
-.set_body_typed<bool(Type, Type)>([](Type a, Type b) {
-  return AlphaEqualHandler(false).TypeEqual(a, b);
+TVM_REGISTER_API("relay._make._assert_alpha_equal")
+.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+  bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
+  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not alpha equal";
 });
 
 TVM_REGISTER_API("relay._make._graph_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-  return AlphaEqualHandler(true).Equal(a, b);
+  return AlphaEqualHandler(true, false).Equal(a, b);
+});
+
+TVM_REGISTER_API("relay._make._assert_graph_equal")
+.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+  bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
+  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not graph equal";
 });
 
 }  // namespace relay
