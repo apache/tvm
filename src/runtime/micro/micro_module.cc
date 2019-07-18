@@ -116,7 +116,7 @@ PackedFunc MicroModuleNode::GetFunction(
 }
 
 // register loadfile function to load module from Python frontend
-TVM_REGISTER_GLOBAL("module.loadfile_micro_dev")
+TVM_REGISTER_GLOBAL("module.loadfile_micro")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<MicroModuleNode> n = std::make_shared<MicroModuleNode>();
     n->InitMicroModule(args[0]);
