@@ -81,6 +81,8 @@ def relay_micro_build(func, toolchain_prefix, params=None):
 
 def test_alloc():
     """Test tensor allocation on the device."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
@@ -92,6 +94,8 @@ def test_alloc():
 
 def test_add():
     """Test a module which performs addition."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
@@ -120,6 +124,8 @@ def test_add():
 
 def test_workspace_add():
     """Test a module which uses a workspace to compute an intermediate value."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
@@ -148,6 +154,8 @@ def test_workspace_add():
 
 def test_graph_runtime():
     """Test a program which uses the graph runtime."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
@@ -170,6 +178,8 @@ def test_graph_runtime():
 
 def test_multiple_modules():
     """Test loading multiple modules on the device simultaneously."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
@@ -199,6 +209,8 @@ def test_multiple_modules():
 
 def test_interleave_sessions():
     """Test closing and reopening sessions."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
@@ -231,6 +243,8 @@ def test_interleave_sessions():
 
 def test_nested_sessions():
     """Test entering and exiting nested session contexts."""
+    if not tvm.module.enabled("micro"):
+        return
     shape = (1024,)
     dtype = "float32"
 
