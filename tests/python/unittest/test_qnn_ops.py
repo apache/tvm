@@ -245,80 +245,131 @@ def test_requantize():
 
 def test_quantized_dense():
 
-    def test_uint():
-        quantized_data = relay.var("quantized_data", shape=(2,10),
-                                   dtype="uint8")
-        quantized_kernel = relay.var("quantized_kernel", shape=(3, 10),
-                                     dtype="uint8")
+    def make_test_configuration(quantized_data, quantized_kernel, dtype, input_shape, kernel_shape, input_zero_point,
+                                kernel_zero_point, units, output, out_dtype='int32', bias=None):
+        config = {
+            'quantized_data': quantized_data,
+            'quantized_kernel': quantized_kernel,
+            'dtype': dtype,
+            'input_shape': input_shape,
+            'kernel_shape': kernel_shape,
+            'input_zero_point': input_zero_point,
+            'kernel_zero_point': kernel_zero_point,
+            'units': units,
+            'output': output,
+            'out_dtype': out_dtype,
+            'bias': bias
+        }
+        return config
 
+    def make_uint_configuration(use_bias=False):
+        input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
+        input_zero_point, kernel_zero_point = -127, -127
+        dtype, out_dtype = 'uint8', 'int32'
+        units = 3
+        quantized_data_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 109, 107,
+                                      129, 131, 133, 135, 137, 139, 141, 111, 145, 107])\
+                                      .astype(dtype)\
+                                      .reshape(input_shape)
+        quantized_kernel_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 145, 147,
+                                        129, 131, 133, 135, 137, 139, 141, 143, 145, 147,
+                                        129, 131, 133, 135, 137, 139, 141, 143, 145, 147])\
+                                            .astype(dtype)\
+                                            .reshape(kernel_shape)
+        bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
+
+        if use_bias:
+            output = np.array([96, 100, 104, 232, 236, 240 ]).astype(out_dtype).reshape(output_shape)
+        else:
+            output = np.array([92, 92, 92, 228, 228, 228 ]).astype(out_dtype).reshape(output_shape)
+        return make_test_configuration(quantized_data=quantized_data_np,
+                                       quantized_kernel=quantized_kernel_np,
+                                       dtype=dtype,
+                                       input_shape=input_shape,
+                                       kernel_shape=kernel_shape,
+                                       input_zero_point=input_zero_point,
+                                       kernel_zero_point=kernel_zero_point,
+                                       units=units,
+                                       output=output,
+                                       bias=bias)
+
+    def make_int_configuration(use_bias=False):
+        input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
+        input_zero_point, kernel_zero_point = 1, 1
+        dtype, out_dtype = 'int8', 'int32'
+        units = 3
+        quantized_data_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, -19, -21,
+                                      1, 3, 5, 7, 9, 11, 13, -17, 17, -21]) \
+                                    .astype(dtype) \
+                                    .reshape(input_shape)
+        quantized_kernel_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
+                                        1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
+                                        1, 3, 5, 7, 9, 11, 13, 15, 17, 19]) \
+                                    .astype(dtype) \
+                                    .reshape(kernel_shape)
+        bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
+        if use_bias:
+            output = np.array([96, 100, 104, 232, 236, 240 ]).astype(out_dtype).reshape(output_shape)
+        else:
+            output = np.array([92, 92, 92, 228, 228, 228 ]).astype(out_dtype).reshape(output_shape)
+        return make_test_configuration(quantized_data=quantized_data_np,
+                                       quantized_kernel=quantized_kernel_np,
+                                       dtype=dtype,
+                                       input_shape=input_shape,
+                                       kernel_shape=kernel_shape,
+                                       input_zero_point=input_zero_point,
+                                       kernel_zero_point=kernel_zero_point,
+                                       units=units,
+                                       output=output,
+                                       bias=bias)
+
+    def test_quantized_convolution(test_configuration):
+        in_dtype = test_configuration['dtype']
+        out_dtype = test_configuration['out_dtype']
+        quantized_data_name = "quantized_data"
+        quantized_kernel_name = "quantized_kernel"
+        bias_name = 'bias'
+        quantized_data = relay.var(quantized_data_name, shape=test_configuration['input_shape'],
+                                   dtype=in_dtype)
+        quantized_kernel = relay.var(quantized_kernel_name, shape=test_configuration['kernel_shape'],
+                                     dtype=in_dtype)
         func = relay.qnn.op.quantized_dense(
             quantized_data,
             quantized_kernel,
-            -127,
-            -127,
-            3,
-        )
-
-        quantized_data_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 109, 107, 129, 131, 133, 135, 137, 139,
-
-                                      141, 111, 145, 107]).astype('uint8').reshape((2, 10))
-        quantized_kernel_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 145, 147, 129, 131, 133, 135, 137, 139, 141,
-                                        143, 145, 147, 129, 131, 133, 135, 137, 139, 141, 143, 145, 147]).astype('uint8').reshape((3, 10))
-
-        func = relay.Function(relay.analysis.free_vars(func),
-                              func)
+            test_configuration['input_zero_point'],
+            test_configuration['kernel_zero_point'],
+            test_configuration['units'])
+        if test_configuration[bias_name] is not None:
+            bias = relay.var(bias_name, shape=test_configuration['bias'].shape, dtype=out_dtype)
+            func = relay.nn.bias_add(func, bias)
+        func = relay.Function(relay.analysis.free_vars(func), func)
         func = run_infer_type(func)
-        print('*'*20)
-        print(func)
-        print('*'*20)
         func = relay.qnn.ir_pass.qnn_lower(func)
-        print(func)
         with relay.build_config(opt_level=0):
             graph, lib, params = relay.build(func, "llvm", params=None)
             mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-            mod.set_input("quantized_data",quantized_data_np)
-            mod.set_input("quantized_kernel",quantized_kernel_np)
+            mod.set_input(quantized_data_name,test_configuration[quantized_data_name])
+            mod.set_input(quantized_kernel_name,test_configuration[quantized_kernel_name])
+            if test_configuration[bias_name] is not None:
+                mod.set_input(bias_name, test_configuration[bias_name])
             mod.set_input(**params)
             mod.run()
             res = mod.get_output(0).asnumpy()
-            print(res)
+            np.testing.assert_equal(res, test_configuration['output'])
+            assert res.dtype == test_configuration['out_dtype']
 
-    def test_int():
-        quantized_data = relay.var("quantized_data", shape=(2,10),
-                                   dtype="int8")
-        quantized_kernel = relay.var("quantized_kernel", shape=(3, 10),
-                                     dtype="int8")
+    def test_configurations():
+        test_prams = [{'use_bias': False}, {'use_bias': True}]
+        tests = [test_quantized_convolution]
+        configurations = []
+        for test_param in test_prams:
+            configurations.append(make_uint_configuration(**test_param))
+            configurations.append(make_int_configuration(**test_param))
+        for configuration in configurations:
+            for test in tests:
+                test(configuration)
 
-        func = relay.qnn.op.quantized_dense(
-            quantized_data,
-            quantized_kernel,
-            1,
-            1,
-            3,
-        )
-
-        quantized_data_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, -19, -21, 1, 3, 5, 7, 9, 11, 13, -17, 17, -21]).astype('int8').reshape((2, 10))
-        quantized_kernel_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19]).astype('int8').reshape((3, 10))
-
-        func = relay.Function(relay.analysis.free_vars(func),
-                              func)
-        func = run_infer_type(func)
-        print('*'*20)
-        print(func)
-        print('*'*20)
-        func = relay.qnn.ir_pass.qnn_lower(func)
-        print(func)
-        with relay.build_config(opt_level=0):
-            graph, lib, params = relay.build(func, "llvm", params=None)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-            mod.set_input("quantized_data",quantized_data_np)
-            mod.set_input("quantized_kernel",quantized_kernel_np)
-            mod.set_input(**params)
-            mod.run()
-            res = mod.get_output(0).asnumpy()
-            print(res)
-
-    test_int()
+    test_configurations()
 
 if __name__ == "__main__":
     # test_requantize()
