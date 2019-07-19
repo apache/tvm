@@ -19,9 +19,10 @@
 import sys
 import numpy as np
 
+from ._base import MAX_OUTPUT_NODES
 from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
-from .utils import has_multiple_inputs, is_input_node
+from .utils import has_multiple_inputs, is_boundary_node
 
 if sys.version_info[0] == 3:
     import queue
@@ -88,6 +89,18 @@ class DPTuner(BaseGraphTuner):
         for key, val in self._out_nodes_dict.items():
             if not val:
                 output_idx_list.append(key)
+
+        # Restrict number of output nodes to avoid numpy reshape error
+        if len(output_idx_list) > MAX_OUTPUT_NODES:
+            msg = "The number of outputs in graph is larger than upper " \
+                  "limit: %s vs %s. Usually this is caused by too many " \
+                  "LAYOUT_FIXED_OP in graph. Switch to greedily select schedule." \
+                  "No action required at this moment. We will continuously improve graph tuner" \
+                  % (len(output_idx_list), MAX_OUTPUT_NODES)
+            self._logger.warning(msg)
+            self._optimal_record_dict = {key : 0 for key in self._in_nodes_dict}
+            return
+
         states_list, aligned_node_list = DPStage.align_states(output_idx_list, self._stage_dict,
                                                               self._node_list)
         num_states = states_list[0][3].size
@@ -126,13 +139,15 @@ class DPTuner(BaseGraphTuner):
         while not bfs_q.empty():
             node_idx = bfs_q.get()
             visited.add(node_idx)
-            if is_input_node(self._node_list[node_idx], input_names):
+            node = self._node_list[node_idx]
+            if is_boundary_node(node, input_names):
                 continue
             optimal_sch_idx = optimal_record_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
             if not has_multiple_inputs(self._node_list, node_idx, input_names):
                 input_idx = self._in_nodes_dict[node_idx][0]
-                if is_input_node(self._node_list[input_idx], input_names):
+                input_node = self._node_list[input_idx]
+                if is_boundary_node(input_node, input_names):
                     continue
                 if input_idx not in visited:
                     bfs_q.put(input_idx)

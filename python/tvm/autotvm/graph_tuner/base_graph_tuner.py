@@ -30,7 +30,7 @@ from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 
 from ... import target as _target
-from .utils import is_input_node, get_in_nodes, get_out_nodes, has_multiple_inputs, \
+from .utils import is_boundary_node, get_in_nodes, get_out_nodes, has_multiple_inputs, \
     bind_inputs, expr2graph
 from ._base import INVALID_LAYOUT_TIME
 
@@ -170,7 +170,7 @@ class BaseGraphTuner(object):
                 node_entry["workloads"] = []
                 for input_idx in self._in_nodes_dict[idx]:
                     input_node = self._node_list[input_idx]
-                    if not is_input_node(input_node, input_names):
+                    if not is_boundary_node(input_node, input_names):
                         input_topi_op = input_node["topi_op"][0]
                         node_entry["topi_op"].append(input_topi_op)
                         # Only replace the first input tensor
@@ -249,7 +249,8 @@ class BaseGraphTuner(object):
             target_input_pos = -1
             if has_multiple_inputs(self._node_list, key, input_names):
                 for i, item in enumerate(val):
-                    if not is_input_node(self._node_list[item], input_names):
+                    node = self._node_list[item]
+                    if not is_boundary_node(node, input_names):
                         target_input_idx = item
                         target_input_pos = i
                         break
@@ -257,7 +258,7 @@ class BaseGraphTuner(object):
             for i, item in enumerate(val):
                 i_idx = item
                 in_node_entry = self._node_list[i_idx]
-                if is_input_node(in_node_entry, input_names):
+                if is_boundary_node(in_node_entry, input_names):
                     continue
 
                 if node_entry["op"] in self._target_ops:
