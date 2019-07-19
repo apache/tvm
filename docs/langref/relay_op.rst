@@ -338,3 +338,8 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.nn.batch_matmul
 .. autofunction:: tvm.relay.contrib.adaptive_max_pool2d
 .. autofunction:: tvm.relay.contrib.adaptive_avg_pool2d
+
+
+Level 11 Definitions
+--------------------
+.. autofunction:: tvm.relay.qnn.op.requantize
