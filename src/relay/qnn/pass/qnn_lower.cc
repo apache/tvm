@@ -210,7 +210,7 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
 RELAY_REGISTER_OP("qnn.requantize")
 .set_attr<FForwardRewrite>("FQnnForwardRewrite", RequantizeForwardRewrite);
 
-TVM_REGISTER_API("relay._qnn.qnn_lower")
+TVM_REGISTER_API("relay.qnn._transform.qnn_lower")
 .set_body_typed<Expr(Expr)>([](const Expr& e) {
   Expr ret = ForwardRewrite(e, "FQnnForwardRewrite", nullptr, nullptr);
   return ret;
