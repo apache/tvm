@@ -333,6 +333,9 @@ Expr Gradient(const Expr& re, const Module& mod) {
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for now";
+  for (const auto& p : f->params) {
+    CHECK(p->checked_type().as<TensorTypeNode>()) << "input parameters need to be tensor";
+  }
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty());
     Expr rev = ReverseAD(bp)(e);

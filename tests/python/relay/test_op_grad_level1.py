@@ -18,14 +18,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.transform import gradient
-from tvm.relay.testing import ctx_list
-
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = relay.transform.InferType()(mod)
-    return mod["main"]
-
+from tvm.relay.testing import ctx_list, run_infer_type
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -49,6 +42,7 @@ def test_unary_op():
             data = np.random.rand(*shape).astype(dtype)
             ref_grad = ref(data)
             fwd_func = relay.Function([x], y)
+            fwd_func = run_infer_type(fwd_func)
             bwd_func = run_infer_type(gradient(fwd_func))
 
             for target, ctx in ctx_list():
@@ -81,6 +75,7 @@ def test_binary_op():
         y_data = np.random.rand(*s).astype(t.dtype)
         ref_grad0, ref_grad1 = ref(x_data, y_data)
         fwd_func = relay.Function([x, y], z)
+        fwd_func = run_infer_type(fwd_func)
         bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, ctx in ctx_list():
