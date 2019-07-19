@@ -25,7 +25,7 @@ from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead,
 from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import GlobalVar, Call
 from tvm.relay.transform import gradient
-from tvm.relay.testing import add_nat_definitions, make_nat_expr
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     ctx = tvm.context("llvm", 0)
@@ -54,7 +54,7 @@ def dcpe(expr, mod=None, grad=False):
     passes = [transform.PartialEvaluate(),
               transform.DeadCodeElimination(inline_once=True)]
     if grad:
-        expr = gradient(expr)
+        expr = gradient(run_infer_type(expr))
     if mod:
         assert isinstance(expr, Function)
         mod["main"] = expr
