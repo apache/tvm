@@ -95,21 +95,36 @@ def divide_grad(orig, grad):
             collapse_sum_like(- (grad * orig / y), y)]
 
 
+@register_gradient("zeros")
+def zeros_grad(orig, grad):
+    """Returns []"""
+    return []
+
+
+@register_gradient("ones")
+def ones_grad(orig, grad):
+    """Returns []"""
+    return []
+
+
 @register_gradient("zeros_like")
 def zeros_like_grad(orig, grad):
     """Returns [0]"""
     return [orig]
+
 
 @register_gradient("ones_like")
 def ones_like_grad(orig, grad):
     """Returns [0]"""
     return [zeros_like(orig.args[0])]
 
+
 @register_gradient("collapse_sum_like")
 def collapse_sum_like_grad(orig, grad):
     """Returns [broadcast_to_like(grad, x), 0]"""
     x, y = orig.args
     return [broadcast_to_like(grad, x), zeros_like(y)]
+
 
 @register_gradient("abs")
 def abs_grad(orig, grad):
@@ -118,6 +133,7 @@ def abs_grad(orig, grad):
     zeros = zeros_like(x)
     ones = ones_like(x)
     return [where(less(x, zeros), -ones * grad, ones * grad)]
+
 
 @register_gradient("clip")
 def clip_grad(orig, grad):
