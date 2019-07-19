@@ -63,8 +63,6 @@ def requantize(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    assert rounding in ("UPWARD", "AWAY_FROM_ZERO"),\
-            "Unsupported rounding mode"
 
     return _make.requantize(data,
                             input_scale,
