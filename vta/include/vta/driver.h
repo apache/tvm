@@ -150,7 +150,6 @@ void VTAFlushCache(vta_phy_addr_t buf, int size);
  */
 void VTAInvalidateCache(vta_phy_addr_t buf, int size);
 
-
 #ifdef __cplusplus
 }
 #endif

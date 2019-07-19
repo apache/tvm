@@ -92,7 +92,7 @@ TVM_DLL VTACommandHandle VTATLSCommandHandle();
  */
 TVM_DLL void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
 
- /*!
+/*!
  * \brief Perform a write barrier to make a memory region visible to the CPU.
  * \param cmd The VTA command handle.
  * \param buffer The head buffer pointer.
