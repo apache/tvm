@@ -32,6 +32,15 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
+/*!
+ * \brief namespace of qnn lower pass.
+ *
+ * Use namespace to reduce potential naming conflict.
+ */
+namespace qnn_lower {
+
+using runtime::TypedPackedFunc;
 
 // Lowering of qnn.requantize op
 
@@ -210,11 +219,27 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
 RELAY_REGISTER_OP("qnn.requantize")
 .set_attr<FForwardRewrite>("FQnnForwardRewrite", RequantizeForwardRewrite);
 
-TVM_REGISTER_API("relay.qnn._transform.qnn_lower")
-.set_body_typed<Expr(Expr)>([](const Expr& e) {
-  Expr ret = ForwardRewrite(e, "FQnnForwardRewrite", nullptr, nullptr);
-  return ret;
-});
+Expr QnnLower(const Expr& expr) {
+  return ForwardRewrite(expr, "FQnnForwardRewrite", nullptr, nullptr);
+}
+}  // namespace qnn_lower
 
+namespace transform {
+using namespace tvm::relay::transform;
+Pass QnnLower() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          relay::qnn::qnn_lower::QnnLower(f));
+  };
+  return CreateFunctionPass(pass_func, 0, "QnnLower",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay.qnn._transform.QnnLower")
+.set_body_typed(QnnLower);
+}  // namespace transform
+
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

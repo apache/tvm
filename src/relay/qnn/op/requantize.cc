@@ -30,6 +30,7 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
@@ -89,5 +90,6 @@ Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 TVM_REGISTER_API("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);
 
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

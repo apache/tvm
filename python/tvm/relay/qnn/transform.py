@@ -14,24 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+# pylint: disable=invalid-name
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 
 from . import _transform
 
-def qnn_lower(expr):
+def QnnLower():
     """
     Rewrites the high-level quantized ops into low-level exisiting Relay ops.
 
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
     Returns
     -------
-    expr : tvm.relay.Expr
-        The output expression.
+    Pass : tvm.relay.transform.Pass
+        The optmized pas.
     """
-    return _transform.qnn_lower(expr)
+    return _transform.QnnLower()
