@@ -59,7 +59,7 @@ class OperationNode : public ir::FunctionBaseNode {
   std::string name;
   /*! \brief optional tag of the operation */
   std::string tag;
-  /*! \brief addtitional attributes of the operation*/
+  /*! \brief additional attributes of the operation*/
   Map<std::string, NodeRef> attrs;
   /*! \return name of the operation */
   const std::string& func_name() const final {

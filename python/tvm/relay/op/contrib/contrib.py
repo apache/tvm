@@ -111,3 +111,21 @@ def adaptive_avg_pool2d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool2d(data, output_size, layout)
+
+def ndarray_size(data, dtype="int32"):
+    """Get number of elements of input tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The number of elements of input tensor.
+    """
+    return _make.ndarray_size(data, dtype)

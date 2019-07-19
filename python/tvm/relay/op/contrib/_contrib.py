@@ -20,7 +20,7 @@ from __future__ import absolute_import
 
 import topi
 from .. import op as reg
-from ..op import OpPattern
+from ..op import schedule_injective, OpPattern
 
 
 # adaptive_max_pool2d
@@ -41,3 +41,6 @@ def schedule_adaptive_avg_pool2d(_, outs, target):
         return topi.generic.schedule_adaptive_pool(outs)
 
 reg.register_pattern("contrib.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# relay.contrib.ndarray_size
+reg.register_schedule("contrib.ndarray_size", schedule_injective)
