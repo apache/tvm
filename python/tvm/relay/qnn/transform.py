@@ -18,7 +18,7 @@
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 
-from . import _qnn
+from . import _transform
 
 def qnn_lower(expr):
     """
@@ -34,4 +34,4 @@ def qnn_lower(expr):
     expr : tvm.relay.Expr
         The output expression.
     """
-    return _qnn.qnn_lower(expr)
+    return _transform.qnn_lower(expr)
