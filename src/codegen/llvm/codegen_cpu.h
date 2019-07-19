@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_llvm_cpu.h
  * \brief Common base class for generating into LLVM IR on CPU host.
  */
@@ -27,6 +26,7 @@
 
 #include <utility>
 #include <vector>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include "codegen_llvm.h"
