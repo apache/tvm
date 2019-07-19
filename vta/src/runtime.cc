@@ -37,7 +37,6 @@
 #include <thread>
 #include <memory>
 #include <atomic>
-#include <map>
 
 namespace vta {
 
@@ -299,7 +298,9 @@ template <class T>
 class BaseQueue {
  public:
   ~BaseQueue() {
-    VTAMemFree(fpga_buff_);
+    if (fpga_buff_ != nullptr){
+      VTAMemFree(fpga_buff_);
+    }
   }
   /*! \return Content of DRAM buffer. */
   char* dram_buffer() const {
