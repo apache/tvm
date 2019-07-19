@@ -52,7 +52,7 @@ inline bool IsValidOpInputType(const QuantizeOpType& op_type,
     case QuantizeOpType::Dequantize:
       return IsQNNDataType(in_dtype);
     case QuantizeOpType::Requantize:
-      return in_dtype == Int(16) || in_dtype == Int(32);
+      return in_dtype.is_int() || in_dtype.is_uint();
     default:
       return false;
   }
