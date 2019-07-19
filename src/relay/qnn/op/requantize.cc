@@ -30,9 +30,9 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
-
 
 bool RequantizeRel(const Array<Type>& types,
                    int num_inputs,
@@ -58,15 +58,15 @@ Expr MakeRequantize(Expr data,
                     int32_t input_zero_point,
                     double output_scale,
                     int32_t output_zero_point,
-                    DataType out_dtype,
-                    std::string rounding) {
+                    std::string rounding,
+                    DataType out_dtype) {
   auto attrs = make_node<RequantizeAttrs>();
   attrs->input_scale = std::move(input_scale);
   attrs->input_zero_point = std::move(input_zero_point);
   attrs->output_scale = std::move(output_scale);
   attrs->output_zero_point = std::move(output_zero_point);
-  attrs->out_dtype = std::move(out_dtype);
   attrs->rounding = std::move(rounding);
+  attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("qnn.requantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -84,11 +84,12 @@ Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 .set_attrs_type_key("relay.attrs.RequantizeAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The quantized input tensor.")
-.set_support_level(10)
+.set_support_level(11)
 .add_type_rel("Requantize", RequantizeRel);
 
 TVM_REGISTER_API("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);
 
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 // relay.qnn.dense
 TVM_REGISTER_NODE_TYPE(QDenseAttrs);
@@ -66,5 +67,6 @@ RELAY_REGISTER_OP("qnn.dense")
 .set_support_level(10)
 .add_type_rel("QDense", DenseRel<QDenseAttrs, DenseType::kQuantizedDense>);
 
+} // namespace qnn
 } // namespace relay
 } // namespace tvm

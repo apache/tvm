@@ -55,12 +55,12 @@ inline bool DenseRel(const Array<Type>& types,
 
   CHECK(static_cast<int>(data->shape.size()) != 0);
   if(mode == DenseType::kQuantizedDense) {
-    CHECK(IsValidOpInputType(QuantizeOpType::QuantizedDense, data->dtype))
+    CHECK(IsValidOpInputType(qnn::QuantizeOpType::QuantizedDense, data->dtype))
         << "Expected quantized dense type(int8, uint8) for input but was " <<  data->dtype;
-    CHECK(IsValidOpInputType(QuantizeOpType::QuantizedDense, weight->dtype))
+    CHECK(IsValidOpInputType(qnn::QuantizeOpType::QuantizedDense, weight->dtype))
       << "Expected quantized dense type(int8, uint8) for weight but was " <<  weight->dtype;
     CHECK(data->dtype == weight->dtype) << "Weight and kernel dtypes do not match";
-    CHECK(IsValidOpOutputType(QuantizeOpType::QuantizedDense, param->out_dtype))
+    CHECK(IsValidOpOutputType(qnn::QuantizeOpType::QuantizedDense, param->out_dtype))
       << "Expected quantized dense type(int32, int16) for output but was " <<  param->out_dtype;
   }
   Array<tvm::Expr> oshape = data->shape;
@@ -84,8 +84,7 @@ inline bool DenseRel(const Array<Type>& types,
     }
   }
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype)); // this is the correct one
-//  reporter->Assign(types[2], TensorTypeNode::make(weight->shape, Int(32))); // Remove this.
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
 

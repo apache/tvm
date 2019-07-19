@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 inline bool IsInt8(const DataType& dtype) {
   return dtype == Int(8);
@@ -71,10 +72,7 @@ enum class QuantizeOpType : uint8_t {
   Requantize,
   QuantizedDense
 };
-  inline bool IsQNNDataType(const DataType& dtype) {
-  return dtype == Int(8) || dtype == UInt(8)
-      || dtype == Int(16) || dtype == UInt(16);
-}
+
 
 
 inline bool IsValidOpInputType(const QuantizeOpType& op_type,
@@ -86,7 +84,7 @@ inline bool IsValidOpInputType(const QuantizeOpType& op_type,
     case QuantizeOpType::QuantizedDense:
       return IsQuantizedType(in_dtype);
     case QuantizeOpType ::Requantize:
-      return IsInt16(in_dtype) || IsInt32(in_dtype);
+      return in_dtype.is_int() || in_dtype.is_uint();
     default:
       return false;
   }
@@ -96,7 +94,7 @@ inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
         const DataType& out_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
-      return IsQNNDataType(out_dtype);
+      return IsQuantizedType(out_dtype);
     case QuantizeOpType::Dequantize:
       return IsFloat32(out_dtype);
     case QuantizeOpType::QuantizedDense:
@@ -107,43 +105,38 @@ inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
 }
 
 inline const int32_t GetQmin(const DataType& dtype) {
-  if (dtype == Int(8)) {
-    return std::numeric_limits<int8_t>::min();
-  } else if (dtype == UInt(8)) {
-    return std::numeric_limits<uint8_t>::min();
-  } else if (dtype == Int(16)) {
-    return std::numeric_limits<int16_t>::min();
-  } else if (dtype == UInt(16)) {
-    return std::numeric_limits<uint16_t>::min();
-  } else if (dtype == Int(32)) {
-    return std::numeric_limits<int32_t>::min();
-  } else if (dtype == UInt(32)) {
-    return std::numeric_limits<uint32_t>::min();
+  CHECK_LE(dtype.bits(), 32)
+      << "QNN ops support uint32/int32 or lower precision";
+  if (dtype.is_int()) {
+    auto* min_value = as_const_int(dtype.min());
+    CHECK(min_value != nullptr);
+    return static_cast<int32_t>(min_value[0]);
+  } else if (dtype.is_uint()) {
+    auto* min_value = as_const_uint(dtype.min());
+    CHECK(min_value != nullptr);
+    return static_cast<int32_t>(min_value[0]);
   }
   LOG(FATAL) << "Type not supported " << dtype;
   return -1;
 }
-
 
 inline const int32_t GetQmax(const DataType& dtype) {
-
-  if (dtype == Int(8)) {
-    return std::numeric_limits<int8_t>::max();
-  } else if (dtype == UInt(8)) {
-    return std::numeric_limits<uint8_t>::max();
-  } else if (dtype == Int(16)) {
-    return std::numeric_limits<int16_t>::max();
-  } else if (dtype == UInt(16)) {
-    return std::numeric_limits<uint16_t>::max();
-  } else if (dtype == Int(32)) {
-    return std::numeric_limits<int32_t>::max();
-  } else if (dtype == UInt(32)) {
-    return std::numeric_limits<uint32_t>::max();
+  CHECK_LE(dtype.bits(), 32)
+      << "QNN ops support uint32/int32 or lower precision";
+  if (dtype.is_int()) {
+    auto* max_value = as_const_int(dtype.max());
+    CHECK(max_value != nullptr);
+    return static_cast<int32_t>(max_value[0]);
+  } else if (dtype.is_uint()) {
+    auto* max_value = as_const_uint(dtype.max());
+    CHECK(max_value != nullptr);
+    return static_cast<int32_t>(max_value[0]);
   }
   LOG(FATAL) << "Type not supported " << dtype;
   return -1;
 }
 
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_QNN_UTIL_H_

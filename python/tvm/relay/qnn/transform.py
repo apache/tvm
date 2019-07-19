@@ -14,9 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
-"""Internal module for quantization."""
+# pylint: disable=invalid-name
+"""QNN Dialect transformation passes."""
 from __future__ import absolute_import
-from tvm._ffi.function import _init_api
 
-_init_api("relay._qnn", __name__)
+from . import _transform
+
+def QnnLower():
+    """
+    Rewrites the high-level quantized ops into low-level exisiting Relay ops.
+
+    Returns
+    -------
+    Pass : tvm.relay.transform.Pass
+        The optmized pas.
+    """
+    return _transform.QnnLower()

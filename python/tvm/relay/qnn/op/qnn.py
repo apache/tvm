@@ -19,19 +19,18 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
-
 def requantize(data,
                input_scale,
                input_zero_point,
                output_scale,
                output_zero_point,
-               out_dtype="int32",
-               rounding="FE_AWAY_FROM_ZERO"):
+               rounding="AWAY_FROM_ZERO",
+               out_dtype="int8"):
     r"""Requantized operator.
 
-    The requantize operator converts one quantized tensor to another quantized
-    tensor. For the output tensor, we are provided with output scale and zero
-    point. The computation looks like this
+    The requantize operator converts one quantized tensor representation to
+    another quantized tensor representation. For the output tensor, we are
+    provided with output scale and zero point. The computation is as follows
 
     Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 
@@ -42,39 +41,39 @@ def requantize(data,
         The input data to the operator.
 
     input_scale: float
-           The float scalar to scale the data int8 values back to FP32.
+           The quantization scale for the input tensor.
 
     input_zero_point: int
-           The zero point of the data distribution.
+           The zero point of the input tensor.
 
     output_scale: float
-           The float scalar to scale the quantized_output int8 values back to FP32.
+           The quantization scale for the output tensor.
 
     output_zero_point: int
-           The zero point of the quantized_output distribution.
-
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
+           The zero point of the output tensor.
 
     rounding : string, optional
         Defines the rounding direction when the value is midway between two
         representable values.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    assert rounding in ("FE_UPWARD", "FE_AWAY_FROM_ZERO"), \
-    "Unsupported rounding mode"
+    assert rounding in ("UPWARD", "AWAY_FROM_ZERO"), \
+        "Unsupported rounding mode"
 
     return _make.requantize(data,
-                        input_scale,
-                        input_zero_point,
-                        output_scale,
-                        output_zero_point,
-                        out_dtype,
-                        rounding)
+                            input_scale,
+                            input_zero_point,
+                            output_scale,
+                            output_zero_point,
+                            rounding,
+                            out_dtype)
 
 def quantized_dense(data, weight, input_zero_point, kernel_zero_point, units=None, out_dtype="int32"):
     """Dense operator.

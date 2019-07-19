@@ -32,6 +32,15 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
+/*!
+ * \brief namespace of qnn lower pass.
+ *
+ * Use namespace to reduce potential naming conflict.
+ */
+namespace qnn_lower {
+
+using runtime::TypedPackedFunc;
 
 // Lowering of qnn.requantize op
 
@@ -137,10 +146,10 @@ Expr RequantizeLower(const Expr& input_tensor,
 
   tensor = multiplied_t;
   Expr round_scalar;
-  if (param->rounding == "FE_UPWARD") {
+  if (param->rounding == "UPWARD") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     round_scalar = pos_rounder;
-  } else if (param->rounding == "FE_AWAY_FROM_ZERO") {
+  } else if (param->rounding == "AWAY_FROM_ZERO") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     auto neg_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)) - 1);
     auto pos_rounder_t = Full(pos_rounder, out_shape, up_idtype);
@@ -250,5 +259,27 @@ TVM_REGISTER_API("relay._qnn.qnn_lower")
   return ret;
 });
 
+Expr QnnLower(const Expr& expr) {
+  return ForwardRewrite(expr, "FQnnForwardRewrite", nullptr, nullptr);
+}
+}  // namespace qnn_lower
+
+namespace transform {
+using namespace tvm::relay::transform;
+Pass QnnLower() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          relay::qnn::qnn_lower::QnnLower(f));
+  };
+  return CreateFunctionPass(pass_func, 0, "QnnLower",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay.qnn._transform.QnnLower")
+.set_body_typed(QnnLower);
+}  // namespace transform
+
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
