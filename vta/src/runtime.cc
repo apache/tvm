@@ -298,7 +298,7 @@ template <class T>
 class BaseQueue {
  public:
   ~BaseQueue() {
-    if (fpga_buff_ != nullptr){
+    if (fpga_buff_ != nullptr) {
       VTAMemFree(fpga_buff_);
     }
   }
