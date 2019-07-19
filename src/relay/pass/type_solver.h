@@ -83,12 +83,19 @@ class TypeSolver {
    */
   bool Solve();
   /*!
-   * \brief Unify lhs and rhs.
+   * \brief Unify lhs with Join(lhs, rhs).
    * \param lhs The left operand.
    * \param rhs The right operand
    * \param location The location at which the unification problem arose.
    */
-  Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
+  Type UnifyJoin(const Type& dst, const Type& src, const NodeRef& location);
+  /*!
+   * \brief Unify lhs with Meet(lhs, rhs).
+   * \param lhs The left operand.
+   * \param rhs The right operand
+   * \param location The location at which the unification problem arose.
+   */
+  Type UnifyMeet(const Type& lhs, const Type& rhs, const NodeRef& location);
   /*!
    * \brief Report an error at the provided location.
    * \param err The error to report.
@@ -98,6 +105,8 @@ class TypeSolver {
 
  private:
   class OccursChecker;
+  class TypeJoin;
+  class TypeMeet;
   class Unifier;
   class Resolver;
   class Propagator;

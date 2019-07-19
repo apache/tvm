@@ -83,6 +83,39 @@ TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
 .set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
     TupleGetItemRel);
 
+// Necessary deferred relation for MakeTuple
+bool MakeTupleRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), num_inputs + 1);
+  Array<Type> fields;
+  for (int i = 0; i < num_inputs; ++i) {
+    fields.push_back(types[i]);
+  }
+  reporter->Assign(types[num_inputs], TupleTypeNode::make(fields));
+  return true;
+}
+
+TVM_REGISTER_API("tvm.relay.type_relation.MakeTuple")
+.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
+MakeTupleRel);
+
+
+// Necessary deferred relation for call arg
+bool CallArgRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  reporter->AssignArg(types[1], types[0]);
+  return true;
+}
+
+TVM_REGISTER_API("tvm.relay.type_relation.CallArg")
+.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
+CallArgRel);
+
 struct ResolvedTypeInfo {
   explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
       : checked_type(checked_type), type_args(type_args) {}
@@ -135,6 +168,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // relation function
   TypeRelationFn tuple_getitem_rel_;
   TypeRelationFn make_tuple_rel_;
+  TypeRelationFn call_arg_rel_;
 
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
@@ -151,7 +185,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       if (auto* ft2 = t2.as<FuncTypeNode>()) {
         second = InstantiateFuncType(ft2);
       }
-      return solver_.Unify(first, second, expr);
+      solver_.UnifyJoin(first, second, expr);
+      return solver_.UnifyJoin(second, first, expr);
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,
@@ -212,11 +247,19 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   }
 
   Type VisitExpr_(const TupleNode* op) final {
+    if (!make_tuple_rel_.defined()) {
+      make_tuple_rel_ = TypeRelationFn(
+              EnvFunc::Get("tvm.relay.type_relation.MakeTuple").node_);
+    }
     Array<Type> types;
     for (Expr field : op->fields) {
       types.push_back(GetType(field));
     }
-    return TupleTypeNode::make(types);
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
+    types.push_back(rtype);
+    solver_.AddConstraint(TypeRelationNode::make(
+        make_tuple_rel_, types, op->fields.size(), {}), GetRef<Tuple>(op));
+    return rtype;
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
@@ -479,8 +522,14 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       }
     }
 
+    if (!call_arg_rel_.defined()) {
+      call_arg_rel_ = TypeRelationFn(
+              EnvFunc::Get("tvm.relay.type_relation.CallArg").node_);
+    }
     for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], GetRef<Call>(call));
+      solver_.AddConstraint(
+              TypeRelationNode::make(call_arg_rel_, {arg_types[i], fn_ty->arg_types[i]}, 2, {}),
+              GetRef<Call>(call));
     }
 
     for (auto cs : fn_ty->type_constraints) {

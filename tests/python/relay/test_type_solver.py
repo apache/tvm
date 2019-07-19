@@ -28,7 +28,7 @@ def make_rel(name, args, num_inputs=None, attrs=None):
 def make_solver():
     solver = relay._analysis._test_type_solver()
     solver.Solve = solver("Solve")
-    solver.Unify = solver("Unify")
+    solver.UnifyJoin = solver("UnifyJoin")
     solver.Resolve = solver("Resolve")
     solver.AddConstraint = solver("AddConstraint")
 
@@ -74,7 +74,7 @@ def test_unify_tuple():
     tup1 = relay.ty.TupleType([t1, t2])
     tup2 = relay.ty.TupleType([t3, t3])
 
-    unified = solver.Unify(tup1, tup2)
+    unified = solver.UnifyJoin(tup1, tup2)
     assert unified == tup2
 
 
@@ -82,7 +82,7 @@ def test_unify_global_type_var():
     # should only be able to unify if they're the same
     solver = make_solver()
     gtv = relay.GlobalTypeVar('gtv')
-    unified = solver.Unify(gtv, gtv)
+    unified = solver.UnifyJoin(gtv, gtv)
     assert unified == gtv
 
 
@@ -98,7 +98,7 @@ def test_unify_typecall():
 
     tc1 = relay.ty.TypeCall(gtv, [t1, t2])
     tc2 = relay.ty.TypeCall(gtv, [t3, t3])
-    unified = solver.Unify(tc1, tc2)
+    unified = solver.UnifyJoin(tc1, tc2)
     assert unified == tc2
 
 
@@ -115,7 +115,7 @@ def test_unify_functype():
     ft1 = relay.ty.FuncType([t1, t2], t3)
     ft2 = relay.ty.FuncType([tensor1, tensor2], unit)
 
-    unified = solver.Unify(ft1, ft2)
+    unified = solver.UnifyJoin(ft1, ft2)
     assert unified == ft2
 
 
@@ -135,7 +135,7 @@ def test_recursive_unify():
     ft1 = relay.ty.FuncType([tup1, t3], t3)
     ft2 = relay.ty.FuncType([tup2, tensor3], tensor3)
 
-    unified = solver.Unify(ft1, ft2)
+    unified = solver.UnifyJoin(ft1, ft2)
     assert unified == ft2
 
 
@@ -144,7 +144,7 @@ def test_unify_vars_under_tuples():
     t1 = relay.ty.IncompleteType()
 
     tup1 = relay.ty.TupleType([t1, t1])
-    unified = solver.Unify(tup1, tup1)
+    unified = solver.UnifyJoin(tup1, tup1)
     assert unified == tup1
 
     t2 = relay.ty.IncompleteType()
@@ -152,7 +152,7 @@ def test_unify_vars_under_tuples():
 
     tup3 = relay.ty.TupleType([t1, t2])
     tup4 = relay.ty.TupleType([t2, t1])
-    unified = solver.Unify(tup3, tup4)
+    unified = solver.UnifyJoin(tup3, tup4)
     assert (unified == tup1 or unified == tup2)
 
 
@@ -169,7 +169,7 @@ def test_binding_over_typevars():
 
     ft1 = relay.ty.FuncType([t1], t2, [c, d])
     ft2 = relay.ty.FuncType([a], b, [a, b])
-    unified = solver.Unify(ft1, ft2)
+    unified = solver.UnifyJoin(ft1, ft2)
     assert (unified == solver.Resolve(ft1))
 
 
@@ -235,14 +235,14 @@ def test_incompatible_tuple_unification():
 
     tup1 = relay.ty.TupleType([relay.ty.TupleType([t1, t1]), t2])
     tup2 = relay.ty.TupleType([relay.ty.TupleType([tensor1, tensor2]), tensor3])
-    solver.Unify(tup1, tup2)
+    solver.UnifyJoin(tup1, tup2)
 
 
 @raises(tvm._ffi.base.TVMError)
 def test_bad_recursive_unification():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
-    solver.Unify(t1, relay.ty.TupleType([t1, t1]))
+    solver.UnifyJoin(t1, relay.ty.TupleType([t1, t1]))
 
 
 @raises(tvm._ffi.base.TVMError)
@@ -250,7 +250,7 @@ def test_unify_invalid_global_typevars():
     solver = make_solver()
     gtv1 = relay.GlobalTypeVar('gtv1')
     gtv2 = relay.GlobalTypeVar('gtv2')
-    solver.Unify(gtv1, gtv2)
+    solver.UnifyJoin(gtv1, gtv2)
 
 
 @raises(tvm._ffi.base.TVMError)
@@ -264,7 +264,7 @@ def test_incompatible_typecall_var_unification():
 
     tc1 = relay.TypeCall(gtv1, [t1])
     tc2 = relay.TypeCall(gtv2, [t2])
-    solver.Unify(tc1, tc2)
+    solver.UnifyJoin(tc1, tc2)
 
 
 @raises(tvm._ffi.base.TVMError)
@@ -280,7 +280,7 @@ def test_incompatible_typecall_args_unification():
 
     tc1 = relay.TypeCall(gtv, [relay.TupleType([t1, t1]), t2])
     tc2 = relay.TypeCall(gtv, [relay.TupleType([tensor1, tensor2]), tensor3])
-    solver.Unify(tc1, tc2)
+    solver.UnifyJoin(tc1, tc2)
 
 
 if __name__ == "__main__":

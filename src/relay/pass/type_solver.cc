@@ -38,7 +38,13 @@ class TypeSolver::Reporter : public TypeReporterNode {
       : solver_(solver) {}
 
   void Assign(const Type& dst, const Type& src) final {
-    solver_->Unify(dst, src, location);
+    solver_->UnifyJoin(dst, src, location);
+    solver_->UnifyJoin(src, dst, location);
+  }
+
+  void AssignArg(const Type& fn_type, const Type& arg_type) final {
+    solver_->UnifyJoin(fn_type, arg_type, location);
+    solver_->UnifyMeet(arg_type, fn_type, location);
   }
 
   bool Assert(const IndexExpr& cond) final {
@@ -90,11 +96,12 @@ class TypeSolver::OccursChecker : public TypeVisitor {
   bool found_;
 };
 
-class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
+class TypeSolver::TypeJoin : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit Unifier(TypeSolver* solver, const NodeRef& loc) : solver_(solver), loc(loc) {}
+  explicit TypeJoin(TypeSolver* solver, const NodeRef& loc) :
+      solver_(solver), loc(loc) {}
 
-  Type Unify(const Type& src, const Type& dst) {
+  Type Join(const Type& dst, const Type& src) {
     // Known limitation
     // - handle shape pattern matching
     TypeNode* lhs = solver_->GetTypeNode(dst);
@@ -109,7 +116,505 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       CHECK(!OccursCheck(lhs, rhs->resolved_type))
         << "Incomplete type " << lhs->resolved_type << " occurs in "
         << rhs->resolved_type << ", cannot unify";
+      return rhs->resolved_type;
+    } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
+      CHECK(!OccursCheck(rhs, lhs->resolved_type))
+        << "Incomplete type " << rhs->resolved_type << " occurs in "
+        << lhs->resolved_type << ", cannot unify";
+      return lhs->resolved_type;
+    } else {
+      Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
+      if (!resolved.defined()) {
+        solver_->ReportError(RELAY_ERROR("unable to unify: "
+                                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                                         << PrettyPrint(rhs->resolved_type) << "`"),
+                             this->loc);
+        return lhs->resolved_type;
+      } else {
+        return resolved;
+      }
+    }
+  }
 
+  // Checks whether lhs (taken to be a type var) occurs in t, meaning
+  // there is a recursive equality constraint, which should be rejected.
+  // N.b.: A tautology like ?a = ?a is okay and should be checked for
+  // *before* calling this method
+  //
+  // See: https://en.wikipedia.org/wiki/Occurs_check
+  bool OccursCheck(TypeNode* lhs, const Type& t) {
+    OccursChecker rc(solver_, lhs);
+    return rc.Check(t);
+  }
+
+  // default: unify only if alpha-equal
+  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
+    NodeRef nr = GetRef<NodeRef>(op);
+    Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    if (!AlphaEqual(t1, tn)) {
+      return Type(nullptr);
+    }
+    return t1;
+  }
+
+  IndexExpr GetShape(const IndexExpr& e) {
+    IndexExpr ex = e;
+    while (true) {
+      auto it = solver_->shape_uf_.find(ex);
+      if (it == solver_->shape_uf_.end()) {
+        return ex;
+      } else {
+        ex = (*it).second;
+      }
+    }
+  }
+
+  IndexExpr JoinDim(const IndexExpr& lhs, const IndexExpr& rhs) {
+    auto ulhs = GetShape(lhs);
+    auto urhs = GetShape(rhs);
+
+    if (ulhs.same_as(urhs)) {
+      return ulhs;
+    }
+    if (ulhs.as<Any>() || urhs.as<Any>()) {
+      return Any::make();
+    }
+
+    auto left_index0 = ulhs.as<tvm::Variable>();
+    auto right_index0 = urhs.as<tvm::IntImm>();
+    if (left_index0 && right_index0) {
+      return urhs;
+    }
+
+    auto left_index1 = ulhs.as<tvm::IntImm>();
+    auto right_index1 = urhs.as<tvm::Variable>();
+    if (left_index1 && right_index1) {
+      return ulhs;
+    }
+
+    auto left_index2 = ulhs.as<tvm::IntImm>();
+    auto right_index2 = urhs.as<tvm::IntImm>();
+    if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
+      return ulhs;
+    }
+
+    return tvm::Expr();
+  }
+
+  Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
+    const auto* tt_node = tn.as<TensorTypeNode>();
+    if (!tt_node) {
+      return Type(nullptr);
+    }
+
+    auto tt1 = GetRef<TensorType>(op);
+    auto tt2 = GetRef<TensorType>(tt_node);
+
+    if (AlphaEqual(tt1, tt2)) {
+      return std::move(tt1);
+    }
+
+    if (tt1->dtype != tt2->dtype) {
+      return Type(nullptr);
+    }
+
+    tvm::Array<IndexExpr> shape;
+    if (tt1->shape.size() != tt2->shape.size()) {
+      this->solver_->ReportError(
+        RELAY_ERROR(
+          "tensor type `" << PrettyPrint(tt1) <<
+          "` has " <<  tt1->shape.size() <<
+          " dimensions, while `" <<
+          PrettyPrint(tt2) <<
+          "` has " << tt2->shape.size() <<
+          " dimensions"), this->loc);
+      return Type(nullptr);
+    }
+
+    std::vector<std::tuple<size_t, IndexExpr, IndexExpr>> mismatches;
+
+    CHECK_EQ(tt1->shape.size(), tt2->shape.size());
+    for (size_t i = 0; i < tt1->shape.size(); i++) {
+      auto dim = JoinDim(tt1->shape[i], tt2->shape[i]);
+      if (!dim.defined()) {
+        // NB: We push an arbitrary dimension here so we can continue error propogation.
+        shape.push_back(tt1->shape[i]);
+        tvm::Expr shape1 = tt1->shape[i];
+        tvm::Expr shape2 = tt2->shape[i];
+        std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
+        mismatches.push_back(tuple);
+      } else {
+        shape.push_back(dim);
+      }
+    }
+
+    if (mismatches.size() != 0) {
+      RelayErrorStream err;
+      err << "in particular ";
+      for (auto mismatch : mismatches) {
+        err << "dimension "
+            << std::get<0>(mismatch)
+            << " conflicts "
+            << std::get<1>(mismatch)
+            << " does not match "
+            << std::get<2>(mismatch);
+      }
+      Error error(err);
+      this->solver_->ReportError(error, this->loc);
+      return Type(nullptr);
+    }
+
+    return TensorTypeNode::make(shape, tt1->dtype);
+  }
+
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
+    const auto* ttn = tn.as<TupleTypeNode>();
+    if (!ttn || op->fields.size() != ttn->fields.size()) {
+      return Type(nullptr);
+    }
+
+    TupleType tt1 = GetRef<TupleType>(op);
+    TupleType tt2 = GetRef<TupleType>(ttn);
+
+    std::vector<Type> new_fields;
+    for (size_t i = 0; i < tt1->fields.size(); i++) {
+      Type field = Join(tt1->fields[i], tt2->fields[i]);
+      new_fields.push_back(field);
+    }
+    return TupleTypeNode::make(new_fields);
+  }
+
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
+    const auto* ftn = tn.as<FuncTypeNode>();
+    if (!ftn
+        || op->arg_types.size() != ftn->arg_types.size()
+        || op->type_params.size() != ftn->type_params.size()
+        || op->type_constraints.size() != ftn->type_constraints.size()) {
+      return Type(nullptr);
+    }
+
+    // remap type vars so they match
+    Map<TypeVar, Type> subst_map;
+    for (size_t i = 0; i < op->type_params.size(); i++) {
+      subst_map.Set(ftn->type_params[i], op->type_params[i]);
+    }
+
+    auto ft1 = GetRef<FuncType>(op);
+    auto ft2 = Downcast<FuncType>(Bind(GetRef<FuncType>(ftn), subst_map));
+
+    Type ret_type = Join(ft1->ret_type, ft2->ret_type);
+
+    std::vector<Type> arg_types;
+    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+      Type arg_type = Join(ft1->arg_types[i], ft2->arg_types[i]);
+      arg_types.push_back(arg_type);
+    }
+
+    std::vector<TypeConstraint> type_constraints;
+    for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
+      Type unified_constraint = Join(ft1->type_constraints[i],
+                                     ft2->type_constraints[i]);
+      const auto* tcn = unified_constraint.as<TypeConstraintNode>();
+      CHECK(tcn) << "Two type constraints unified into a non-constraint?"
+                 << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
+      type_constraints.push_back(GetRef<TypeConstraint>(tcn));
+    }
+
+    return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+  }
+
+  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RefTypeNode>();
+    if (!rtn) {
+      return Type(nullptr);
+    }
+    return RefTypeNode::make(Join(op->value, rtn->value));
+  }
+
+  Type VisitType_(const TypeCallNode* op, const Type& tn) override {
+    const auto* tcn = tn.as<TypeCallNode>();
+    if (!tcn || tcn->args.size() != op->args.size()) {
+      return Type();
+    }
+
+    Type func = Join(op->func, tcn->func);
+    tvm::Array<Type> args;
+    for (size_t i = 0; i < op->args.size(); i++) {
+      args.push_back(Join(op->args[i], tcn->args[i]));
+    }
+    return TypeCallNode::make(func, args);
+  }
+
+ private:
+  TypeSolver* solver_;
+  NodeRef loc;
+};
+
+
+class TypeSolver::TypeMeet : public TypeFunctor<Type(const Type&, const Type&)> {
+ public:
+  explicit TypeMeet(TypeSolver* solver, const NodeRef& loc) :
+          solver_(solver), loc(loc) {}
+
+  Type Meet(const Type& dst, const Type& src) {
+    // Known limitation
+    // - handle shape pattern matching
+    TypeNode* lhs = solver_->GetTypeNode(dst);
+    TypeNode* rhs = solver_->GetTypeNode(src);
+
+    // do occur check so we don't create self-referencing structure
+    if (lhs->FindRoot() == rhs->FindRoot()) {
+      return lhs->resolved_type;
+    }
+
+    if (lhs->resolved_type.as<IncompleteTypeNode>()) {
+      CHECK(!OccursCheck(lhs, rhs->resolved_type))
+        << "Incomplete type " << lhs->resolved_type << " occurs in "
+        << rhs->resolved_type << ", cannot unify";
+      return lhs->resolved_type;
+    } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
+      CHECK(!OccursCheck(rhs, lhs->resolved_type))
+        << "Incomplete type " << rhs->resolved_type << " occurs in "
+        << lhs->resolved_type << ", cannot unify";
+      return rhs->resolved_type;
+    } else {
+      Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
+      if (!resolved.defined()) {
+        solver_->ReportError(RELAY_ERROR("unable to unify: "
+                                                 << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                                                 << PrettyPrint(rhs->resolved_type) << "`"),
+                             this->loc);
+        return lhs->resolved_type;
+      } else {
+        return resolved;
+      }
+    }
+  }
+
+  // Checks whether lhs (taken to be a type var) occurs in t, meaning
+  // there is a recursive equality constraint, which should be rejected.
+  // N.b.: A tautology like ?a = ?a is okay and should be checked for
+  // *before* calling this method
+  //
+  // See: https://en.wikipedia.org/wiki/Occurs_check
+  bool OccursCheck(TypeNode* lhs, const Type& t) {
+    OccursChecker rc(solver_, lhs);
+    return rc.Check(t);
+  }
+
+  // default: unify only if alpha-equal
+  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
+    NodeRef nr = GetRef<NodeRef>(op);
+    Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    if (!AlphaEqual(t1, tn)) {
+      return Type(nullptr);
+    }
+    return t1;
+  }
+
+  IndexExpr GetShape(const IndexExpr& e) {
+    IndexExpr ex = e;
+    while (true) {
+      auto it = solver_->shape_uf_.find(ex);
+      if (it == solver_->shape_uf_.end()) {
+        return ex;
+      } else {
+        ex = (*it).second;
+      }
+    }
+  }
+
+  IndexExpr MeetDim(const IndexExpr& lhs, const IndexExpr& rhs) {
+    auto ulhs = GetShape(lhs);
+    auto urhs = GetShape(rhs);
+
+    if (ulhs.same_as(urhs)) {
+      return ulhs;
+    }
+    if (ulhs.as<Any>()) {
+      return urhs;
+    }
+    if (urhs.as<Any>()) {
+      return ulhs;
+    }
+
+    auto left_index2 = ulhs.as<tvm::IntImm>();
+    auto right_index2 = urhs.as<tvm::IntImm>();
+    if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
+      return ulhs;
+    }
+
+    return tvm::Expr();
+  }
+
+  Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
+    const auto* tt_node = tn.as<TensorTypeNode>();
+    if (!tt_node) {
+      return Type(nullptr);
+    }
+
+    auto tt1 = GetRef<TensorType>(op);
+    auto tt2 = GetRef<TensorType>(tt_node);
+
+    if (AlphaEqual(tt1, tt2)) {
+      return std::move(tt1);
+    }
+
+    if (tt1->dtype != tt2->dtype) {
+      return Type(nullptr);
+    }
+
+    tvm::Array<IndexExpr> shape;
+    if (tt1->shape.size() != tt2->shape.size()) {
+      this->solver_->ReportError(
+              RELAY_ERROR(
+                      "tensor type `" << PrettyPrint(tt1) <<
+                                      "` has " <<  tt1->shape.size() <<
+                                      " dimensions, while `" <<
+                                      PrettyPrint(tt2) <<
+                                      "` has " << tt2->shape.size() <<
+                                      " dimensions"), this->loc);
+      return Type(nullptr);
+    }
+
+    std::vector<std::tuple<size_t, IndexExpr, IndexExpr>> mismatches;
+
+    CHECK_EQ(tt1->shape.size(), tt2->shape.size());
+    for (size_t i = 0; i < tt1->shape.size(); i++) {
+      auto dim = MeetDim(tt1->shape[i], tt2->shape[i]);
+      if (!dim.defined()) {
+        // NB: We push an arbitrary dimension here so we can continue error propogation.
+        shape.push_back(tt1->shape[i]);
+        tvm::Expr shape1 = tt1->shape[i];
+        tvm::Expr shape2 = tt2->shape[i];
+        std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
+        mismatches.push_back(tuple);
+      } else {
+        shape.push_back(dim);
+      }
+    }
+
+    if (mismatches.size() != 0) {
+      RelayErrorStream err;
+      err << "in particular ";
+      for (auto mismatch : mismatches) {
+        err << "dimension "
+            << std::get<0>(mismatch)
+            << " conflicts "
+            << std::get<1>(mismatch)
+            << " does not match "
+            << std::get<2>(mismatch);
+      }
+      Error error(err);
+      this->solver_->ReportError(error, this->loc);
+      return Type(nullptr);
+    }
+
+    return TensorTypeNode::make(shape, tt1->dtype);
+  }
+
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
+    const auto* ttn = tn.as<TupleTypeNode>();
+    if (!ttn || op->fields.size() != ttn->fields.size()) {
+      return Type(nullptr);
+    }
+
+    TupleType tt1 = GetRef<TupleType>(op);
+    TupleType tt2 = GetRef<TupleType>(ttn);
+
+    std::vector<Type> new_fields;
+    for (size_t i = 0; i < tt1->fields.size(); i++) {
+      Type field = Meet(tt1->fields[i], tt2->fields[i]);
+      new_fields.push_back(field);
+    }
+    return TupleTypeNode::make(new_fields);
+  }
+
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
+    const auto* ftn = tn.as<FuncTypeNode>();
+    if (!ftn
+        || op->arg_types.size() != ftn->arg_types.size()
+        || op->type_params.size() != ftn->type_params.size()
+        || op->type_constraints.size() != ftn->type_constraints.size()) {
+      return Type(nullptr);
+    }
+
+    // remap type vars so they match
+    Map<TypeVar, Type> subst_map;
+    for (size_t i = 0; i < op->type_params.size(); i++) {
+      subst_map.Set(ftn->type_params[i], op->type_params[i]);
+    }
+
+    auto ft1 = GetRef<FuncType>(op);
+    auto ft2 = Downcast<FuncType>(Bind(GetRef<FuncType>(ftn), subst_map));
+
+    Type ret_type = Meet(ft1->ret_type, ft2->ret_type);
+
+    std::vector<Type> arg_types;
+    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+      Type arg_type = Meet(ft1->arg_types[i], ft2->arg_types[i]);
+      arg_types.push_back(arg_type);
+    }
+
+    std::vector<TypeConstraint> type_constraints;
+    for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
+      Type unified_constraint = Meet(ft1->type_constraints[i],
+                                     ft2->type_constraints[i]);
+      const auto* tcn = unified_constraint.as<TypeConstraintNode>();
+      CHECK(tcn) << "Two type constraints unified into a non-constraint?"
+                 << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
+      type_constraints.push_back(GetRef<TypeConstraint>(tcn));
+    }
+
+    return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+  }
+
+  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RefTypeNode>();
+    if (!rtn) {
+      return Type(nullptr);
+    }
+    return RefTypeNode::make(Meet(op->value, rtn->value));
+  }
+
+  Type VisitType_(const TypeCallNode* op, const Type& tn) override {
+    const auto* tcn = tn.as<TypeCallNode>();
+    if (!tcn || tcn->args.size() != op->args.size()) {
+      return Type();
+    }
+
+    Type func = Meet(op->func, tcn->func);
+    tvm::Array<Type> args;
+    for (size_t i = 0; i < op->args.size(); i++) {
+      args.push_back(Meet(op->args[i], tcn->args[i]));
+    }
+    return TypeCallNode::make(func, args);
+  }
+
+private:
+  TypeSolver* solver_;
+  NodeRef loc;
+};
+
+class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
+ public:
+  explicit Unifier(TypeSolver* solver, const NodeRef& loc) : solver_(solver), loc(loc) {}
+
+  Type Unify(const Type& dst, const Type& src) {
+    // Known limitation
+    // - handle shape pattern matching
+    TypeNode* lhs = solver_->GetTypeNode(dst);
+    TypeNode* rhs = solver_->GetTypeNode(src);
+
+    // do occur check so we don't create self-referencing structure
+    if (lhs->FindRoot() == rhs->FindRoot()) {
+      return lhs->resolved_type;
+    }
+
+    if (lhs->resolved_type.as<IncompleteTypeNode>()) {
+      CHECK(!OccursCheck(lhs, rhs->resolved_type))
+        << "Incomplete type " << lhs->resolved_type << " occurs in "
+        << rhs->resolved_type << ", cannot unify";
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
     } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
@@ -122,8 +627,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
       if (!resolved.defined()) {
         solver_->ReportError(RELAY_ERROR("unable to unify: "
-                                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
-                                         << PrettyPrint(rhs->resolved_type) << "`"),
+                                                 << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                                                 << PrettyPrint(rhs->resolved_type) << "`"),
                              this->loc);
         return lhs->resolved_type;
       } else {
@@ -222,13 +727,13 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
       this->solver_->ReportError(
-        RELAY_ERROR(
-          "tensor type `" << PrettyPrint(tt1) <<
-          "` has " <<  tt1->shape.size() <<
-          " dimensions, while `" <<
-          PrettyPrint(tt2) <<
-          "` has " << tt2->shape.size() <<
-          " dimensions"), this->loc);
+              RELAY_ERROR(
+                      "tensor type `" << PrettyPrint(tt1) <<
+                                      "` has " <<  tt1->shape.size() <<
+                                      " dimensions, while `" <<
+                                      PrettyPrint(tt2) <<
+                                      "` has " << tt2->shape.size() <<
+                                      " dimensions"), this->loc);
       return Type(nullptr);
     }
 
@@ -250,6 +755,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     if (mismatches.size() != 0) {
+      // mismatch shouldn't happen in the Unifier, but leave here for safety check
       RelayErrorStream err;
       err << "in particular ";
       for (auto mismatch : mismatches) {
@@ -535,10 +1041,18 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
   merger.Merge(src, dst);
 }
 
-// Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef& loc) {
-  Unifier unifier(this, loc);
-  return unifier.Unify(dst, src);
+Type TypeSolver::UnifyJoin(const Type& dst, const Type& src, const NodeRef& loc) {
+  TypeJoin join(this, loc);
+  Type resolved = join.Join(dst, src);
+  Unifier unify(this, loc);
+  return unify.Unify(dst, resolved);
+}
+
+Type TypeSolver::UnifyMeet(const Type& dst, const Type& src, const NodeRef& loc) {
+  TypeMeet meet(this, loc);
+  Type resolved = meet.Meet(dst, src);
+  Unifier unify(this, loc);
+  return unify.Unify(dst, resolved);
 }
 
 void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
@@ -646,14 +1160,22 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
         return TypedPackedFunc<bool()>([solver]() {
             return solver->Solve();
           });
-      } else if (name == "Unify") {
+      } else if (name == "UnifyJoin") {
         return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
-            auto res = solver->Unify(lhs, rhs, lhs);
+            auto res = solver->UnifyJoin(lhs, rhs, lhs);
             if (err_reporter->AnyErrors()) {
               err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
             }
             return res;
           });
+      } else if (name == "UnifyMeet") {
+        return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
+            auto res = solver->UnifyMeet(lhs, rhs, lhs);
+            if (err_reporter->AnyErrors()) {
+              err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
+            }
+            return res;
+        });
       } else if (name == "Resolve") {
         return TypedPackedFunc<Type(Type)>([solver](Type t) {
             return solver->Resolve(t);

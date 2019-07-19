@@ -386,7 +386,14 @@ class TypeReporterNode : public Node {
    *  But it is possible for the solver to resolve src by dst as well.
    */
   TVM_DLL virtual void Assign(const Type& dst, const Type& src) = 0;
-
+  /*!
+   * \brief Assign arg type to function type where function type is assigned by
+   * the join of both types and arg type is assigned by the meet of both types.
+   *
+   *  The "assign direction" is important in AssignArg because it's NOT a
+   *  type equality constraint.
+   */
+  TVM_DLL virtual void AssignArg(const Type& fn_type, const Type& arg_type) = 0;
   /*!
    * \brief assert shape expression comparison.
    * \note Use assert only if any of the condition input is symbolic.
