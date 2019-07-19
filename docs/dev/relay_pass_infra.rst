@@ -15,7 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay Pass Infra
+.. _relay-pass-infra:
+
+Relay Pass Infrastructure
 ==================================
 
 Relay features a series of optimization passes which improve performance metrics
