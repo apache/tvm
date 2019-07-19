@@ -35,6 +35,7 @@ def test_id():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func, mode="first_order"))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
@@ -50,6 +51,7 @@ def test_add():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
@@ -66,6 +68,7 @@ def test_temp_add():
     x = relay.var("x", t)
     y = x + x
     func = relay.Function([x], y + y)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
@@ -81,6 +84,7 @@ def test_sub():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x - x)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
@@ -104,6 +108,7 @@ def test_broadcast_add():
     x = relay.var("x", t1)
     y = relay.var("y", t2)
     func = relay.Function([x, y], x + y)
+    func = run_infer_type(func)
     full_func = run_infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
@@ -131,6 +136,7 @@ def test_broadcast_subtract():
     x = relay.var("x", t1)
     y = relay.var("y", t2)
     func = relay.Function([x, y], x - y)
+    func = run_infer_type(func)
     full_func = run_infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
@@ -156,6 +162,7 @@ def test_tuple():
                                                relay.TupleGetItem(tup, 0) +
                                                relay.TupleGetItem(tup, 1) -
                                                relay.TupleGetItem(tup, 2)))
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t, t, t], relay.TupleType([t, relay.TupleType([t, t, t])]))
     x_nd = rand(dtype, *shape)
@@ -184,8 +191,8 @@ def test_pow():
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
     func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
-    func = gradient(func, mod=mod)
     mod["main"] = func
+    mod["main"] = gradient(mod["main"], mod=mod)
     m = transform.InferType()(mod)
     back_func = m["main"]
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
@@ -207,6 +214,7 @@ def test_ref():
     body = relay.Let(u, relay.RefWrite(r, relay.RefRead(r) + relay.RefRead(r)), body)
     body = relay.Let(r, relay.RefCreate(x), body)
     func = relay.Function([x], body)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     x_nd = rand(dtype, *shape)
@@ -222,6 +230,7 @@ def test_square_second_order():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x * x)
+    func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     y = relay.var("y", t)
     back_func_adjusted = relay.Function([y], relay.TupleGetItem(relay.TupleGetItem(back_func(y), 1), 0))
@@ -242,6 +251,7 @@ def test_if():
     net = relay.If(cond, x, y)
     net = relay.log(net)
     func = relay.Function(free_vars(net), net)
+    func = run_infer_type(func)
     net = run_infer_type(func)
     net = gradient(net, mode='higher_order')
     net = run_infer_type(net)
