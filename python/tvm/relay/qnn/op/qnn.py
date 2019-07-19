@@ -25,7 +25,7 @@ def requantize(data,
                output_scale,
                output_zero_point,
                rounding="AWAY_FROM_ZERO",
-               out_dtype="int32"):
+               out_dtype="int8"):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor representation to

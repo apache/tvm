@@ -139,6 +139,20 @@ def test_requantize():
             golden_output = np.repeat([0, 1, 2], [8, 16, 8])
             verify(mod, (golden_data, golden_output))
 
+            # Try uint8 in_dtyope and uint8 out_dtype
+            mod = get_mod(data_shape=(32, ),
+                          data_dtype='uint8',
+                          out_dtype='uint8',
+                          input_scale=1,
+                          output_scale=16,
+                          rounding=rounding)
+
+            # Try positive values
+            # 8 corresponds to 0.5, resulting in 1
+            golden_data = np.arange(0, 32, 1).astype('int32')
+            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+            verify(mod, (golden_data, golden_output))
+
     def upscale_test():
         for rounding in roundings:
             mod = get_mod(data_shape=(32, ),
