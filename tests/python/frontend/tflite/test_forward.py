@@ -38,6 +38,7 @@ except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
 
 import tvm.relay.testing.tf as tf_testing
+from packaging import version as package_version
 
 #######################################################################
 # Generic run functions for TVM & TFLite
@@ -183,7 +184,9 @@ def test_forward_split():
     _test_split((6, 2), 0, 3, 'float32')
     _test_split((2, 6), 1, 6, 'float32')
     # rank 3
-    _test_split((6, 2, 4), 0, 2, 'int32')
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_split((6, 2, 4), 0, 2, 'int32')
+
     _test_split((2, 6, 4), 1, 3, 'float32')
     _test_split((2, 4, 6), 2, 1, 'float32')
     # rank 4
