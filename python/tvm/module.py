@@ -251,7 +251,7 @@ def load(path, fmt=""):
         _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
-        tar_temp = _util.tempdir()
+        tar_temp = _util.tempdir(custom_path=path.replace('.tar', ''))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files)
