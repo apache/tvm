@@ -369,7 +369,7 @@ so ``InferType`` is a common dependency; others may depend on the program's bein
 A-normal form, via the ``ToANormalForm`` pass.
 
 Note that the ``PassContext`` object contains information a pass uses for
-error reporting and configuration options; ``FoldContext`` does not need
+error reporting and configuration options; ``FoldConstant`` does not need
 this information but other passes may reference their ``PassContext`` objects.
 
 The pass can now be invoked via the pass infrastructure, though it's a good idea to
