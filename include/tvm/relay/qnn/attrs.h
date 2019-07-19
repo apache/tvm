@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 /*! \brief Attribute for requantize operator */
 struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
@@ -64,7 +65,7 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   }
 };
 
-
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_QNN_ATTRS_H_
