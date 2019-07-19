@@ -95,6 +95,7 @@ class DPTuner(BaseGraphTuner):
             msg = "The number of outputs in graph is larger than upper " \
                   "limit: %s vs %s. Usually this is caused by too many " \
                   "LAYOUT_FIXED_OP in graph. Switch to greedily select schedule." \
+                  "No action required at this moment. We will continuously improve graph tuner" \
                   % (len(output_idx_list), MAX_OUTPUT_NODES)
             self._logger.warning(msg)
             self._optimal_record_dict = {key : 0 for key in self._in_nodes_dict}
