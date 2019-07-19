@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
- *
  * \file eta_expand.cc
  *
  * \brief Add abstraction over a function. For example, abs will become (fun x -> abs x).
@@ -61,7 +59,7 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
   auto new_func =
       FunctionNode::make(args, CallNode::make(e, params), ret_type, original_type_params);
 
-  return new_func;
+  return std::move(new_func);
 }
 
 namespace transform {

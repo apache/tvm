@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_cpu.cc
  */
 #ifdef TVM_LLVM_VERSION
@@ -33,10 +32,10 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenCPU::Init(const std::string& module_name,
-                          llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx,
-                          bool system_lib,
-                          bool dynamic_lookup) {
+                      llvm::TargetMachine* tm,
+                      llvm::LLVMContext* ctx,
+                      bool system_lib,
+                      bool dynamic_lookup) {
   CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup);
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
@@ -131,7 +130,7 @@ void CodeGenCPU::AddFunction(const LoweredFunc& f) {
   AddDebugInformation(function_);
 }
 
-  // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
+// Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
 #if TVM_LLVM_VERSION >= 50
   CHECK(!function->getSubprogram());
@@ -145,10 +144,26 @@ void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
   }
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
+
+#if TVM_LLVM_VERSION >= 80
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      dbg_info_->file_, function->getName(), "", dbg_info_->file_, 0 /* line number */,
-      DIFunctionTy, false /* internal linkage */, true /* definition */, 0 /* line number */,
-      llvm::DINode::FlagPrototyped, true /* isOptimized */);
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false /* internal linkage */);
+#else
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false, /* internal linkage */
+      true,
+      0 /* line number */,
+      llvm::DINode::FlagPrototyped,
+      true /* isOptimized */);
+#endif
 
   CHECK(DIFunction);
   function->setSubprogram(DIFunction);
