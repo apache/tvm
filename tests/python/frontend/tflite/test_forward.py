@@ -171,8 +171,9 @@ def _test_split(in_shape, axis, num_Splits, dtype):
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=in_shape, dtype=dtype)
         out = array_ops.split(in_data, num_Splits, axis=axis)
+        out_names = ['out_' + str(n) + ':0' for n in range(num_Splits)]
         compare_tflite_with_tvm([np_data], ['Placeholder:0'],  [in_data], out,
-                                out_names=[f'out_{n}:0' for n in range(num_Splits)])
+                                out_names=out_names)
 
 def test_forward_split():
     '''test split layer'''
