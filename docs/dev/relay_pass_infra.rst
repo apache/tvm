@@ -18,7 +18,7 @@
 .. _relay-pass-infra:
 
 Relay Pass Infrastructure
-==================================
+=========================
 
 Relay features a series of optimization passes which improve performance metrics
 of models such as mean inference, memory footprint, or power consumption for
