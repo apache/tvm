@@ -162,7 +162,7 @@ class Environment(object):
         # bistream name
         self.BITSTREAM = self.pkg_config().bitstream
         # model string
-        self.MODEL = self.TARGET + "_" + self.pkg_config().bitstream
+        self.MODEL = self.TARGET
         # lazy cached members
         self.mock_mode = False
         self._mock_env = None
