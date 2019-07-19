@@ -39,7 +39,7 @@ elseif(PYTHON)
 
   file(GLOB VTA_RUNTIME_SRCS vta/src/*.cc)
   if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
-    file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
+    file(GLOB __vta_target_srcs vta/src/zynq/*.cc)
   endif()
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
 

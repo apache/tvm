@@ -23,8 +23,8 @@ INCLUDE_DIR = ../../../include
 DRIVER_DIR = ../../../src/pynq
 TESTLIB_DIR = ../common
 VPATH = $(DRIVER_DIR):$(TESTLIB_DIR)
-SOURCES = pynq_driver.cc test_lib.cc
-OBJECTS = pynq_driver.o test_lib.o metal_test.o
+SOURCES = zynq_driver.cc test_lib.cc
+OBJECTS = zynq_driver.o test_lib.o metal_test.o
 EXECUTABLE = vta
 
 # Include VTA config

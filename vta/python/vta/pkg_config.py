@@ -68,7 +68,7 @@ class PkgConfig(object):
         self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
         if self.target in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
-            self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
+            self.lib_source += glob.glob("%s/vta/src/zynq/*.cc" % (proj_root))
 
         # Linker flags
         if self.target in ["pynq", "ultra96"] :
