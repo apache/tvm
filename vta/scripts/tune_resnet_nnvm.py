@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     # Get tracker info from env
     tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
     if not tracker_host or not tracker_port:
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
         'measure_option':  autotvm.measure_option(
                 builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-                runner=autotvm.RPCRunner(env.TARGET, tracker_host, tracker_port,
+                runner=autotvm.RPCRunner(env.TARGET, tracker_host, int(tracker_port),
                     number=4, repeat=3, timeout=60,
                     check_correctness=True))
     }
