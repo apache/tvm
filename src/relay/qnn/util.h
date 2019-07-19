@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace relay {
+namespace qnn {
 
 inline bool IsQNNDataType(const DataType& dtype) {
   return dtype == Int(8) || dtype == UInt(8)
@@ -71,7 +72,7 @@ inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
 
 inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support less than 32-bit integer values";
+      << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {
     auto* min_value = as_const_int(dtype.min());
     CHECK(min_value != nullptr);
@@ -87,7 +88,7 @@ inline const int32_t GetQmin(const DataType& dtype) {
 
 inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support less than 32-bit integer values";
+      << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {
     auto* max_value = as_const_int(dtype.max());
     CHECK(max_value != nullptr);
@@ -101,6 +102,7 @@ inline const int32_t GetQmax(const DataType& dtype) {
   return -1;
 }
 
+}  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_QNN_UTIL_H_
