@@ -30,8 +30,12 @@ class TempDirectory(object):
 
     Automatically removes the directory when it went out of scope.
     """
-    def __init__(self):
-        self.temp_dir = tempfile.mkdtemp()
+    def __init__(self, custom_path=None):
+        if custom_path:
+            os.mkdir(custom_path)
+            self.temp_dir = custom_path
+        else:
+            self.temp_dir = tempfile.mkdtemp()
         self._rmtree = shutil.rmtree
 
     def remove(self):
@@ -69,15 +73,20 @@ class TempDirectory(object):
         return os.listdir(self.temp_dir)
 
 
-def tempdir():
+def tempdir(custom_path=None):
     """Create temp dir which deletes the contents when exit.
+
+    Parameters
+    ----------
+    custom_path : str, optional
+        Manually specify the exact temp dir path
 
     Returns
     -------
     temp : TempDirectory
         The temp directory object
     """
-    return TempDirectory()
+    return TempDirectory(custom_path)
 
 
 class FileLock(object):
