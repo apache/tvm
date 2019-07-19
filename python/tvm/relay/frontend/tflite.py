@@ -732,6 +732,14 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.split(in_expr, num_splits, axis=int(split_axis))
+        # Relay does not like a TupleWrapper of 1 element, further this
+        # only shows up with tf1.13 if we use a split with num_splits==1.
+        # In tf 1.14 this doesn't appear as it is automatically a reshape
+        # operation.
+        if isinstance(out, _expr.TupleWrapper):
+            if out.size == 1:
+                out = out[0]
+
         return out
 
     def convert_pool2d(self, op, pool_type):
