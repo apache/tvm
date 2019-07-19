@@ -220,12 +220,18 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return reinterpret_cast<uint64_t>(reinterpret_cast<uint64_t*>(buf));
 }
 
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size, bool flush) {
+void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
   memcpy(dst, src, size);
 }
 
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size, bool invalidate) {
+void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
   memcpy(dst, src, size);
+}
+
+void VTAFlushCache(vta_phy_addr_t buf, int size) {
+}
+
+void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
 }
 
 VTADeviceHandle VTADeviceAlloc() {
