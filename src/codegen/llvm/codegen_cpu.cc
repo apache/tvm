@@ -37,6 +37,7 @@ void CodeGenCPU::Init(const std::string& module_name,
                       bool system_lib,
                       bool dynamic_lookup) {
   CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup);
+  dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
@@ -238,6 +239,13 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
 }
 
+std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
+  // link modules
+  if (dbg_info_ != nullptr) {
+    dbg_info_->di_builder_->finalize();
+  }
+  return CodeGenLLVM::Finish();
+}
 llvm::Value* CodeGenCPU::CreateStructRefPtr(
     Type t, llvm::Value* buf, llvm::Value* index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {

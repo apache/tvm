@@ -44,6 +44,7 @@ class CodeGenCPU : public CodeGenLLVM {
             bool dynamic_lookup) override;
   void AddFunction(const LoweredFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
+  std::unique_ptr<llvm::Module> Finish() override;
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const For* op) override;
@@ -139,6 +140,8 @@ class CodeGenCPU : public CodeGenLLVM {
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
   std::vector<std::pair<std::string, llvm::Value*> > export_system_symbols_;
+  // internal debug information, to be populated by
+  std::unique_ptr<DebugInfo> dbg_info_;
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
   // generates |int32|, and |int8*|.
