@@ -51,18 +51,16 @@ def _infer_value(input_val, params):
     return m.get_output(0)
 
 def _get_relay_op(op_name):
-    try:
-        op = getattr(_op, op_name)
-    except AttributeError:
+    ops = [_op, _op.nn, _op.image, _op.vision]
+    for operator in ops:
         try:
-            op = getattr(_op.nn, op_name)
+            op = getattr(operator, op_name)
+            return op
         except AttributeError:
-            op = getattr(_op.image, op_name)
+            continue
 
-    if not op:
-        raise tvm.error.OpNotImplemented(
-            'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
-    return op
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
 
 class AttrCvt(object):
     """Common attribute converter. An AttrConverter instance is a callable:
@@ -609,6 +607,16 @@ def _matmul():
                        extras={'units': channels},
                        ignores=['transpose_a', 'transpose_b', 'T'])(inputs, attr)
 
+    return _impl
+
+def _batch_matmul():
+    def _impl(inputs, attr, params):
+        adj_x = attr['adj_x']
+        adj_y = attr['adj_y']
+        input_x = _op.transpose(inputs[0], axes=[0, 2, 1]) if adj_x else inputs[0]
+        input_y = _op.transpose(inputs[1], axes=[0, 2, 1]) if not adj_y else inputs[1]
+        ret = _get_relay_op('batch_matmul')(input_x, input_y)
+        return ret
     return _impl
 
 def _undef():
@@ -1309,6 +1317,8 @@ _convert_map = {
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),
+    'BatchMatMul'                       : _batch_matmul(),
+    'BatchMatMulV2'                     : _batch_matmul(),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
