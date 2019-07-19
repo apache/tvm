@@ -132,7 +132,7 @@ void CodeGenCPU::AddFunction(const LoweredFunc& f) {
 
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
-#if TVM_LLVM_VERSION >= 50
+#if TVM_LLVM_VERSION >= 50 && TVM_LLVM_VERSION < 70
   CHECK(!function->getSubprogram());
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
   llvm::DIType* returnTy =
