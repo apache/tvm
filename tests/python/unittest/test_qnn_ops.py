@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.testing import create_workload
 from tvm.contrib import graph_runtime
 
-roundings = ["FE_UPWARD", "FE_AWAY_FROM_ZERO"]
+roundings = ["UPWARD", "AWAY_FROM_ZERO"]
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -42,23 +42,23 @@ def test_requantize():
             res = mod.get_output(0).asnumpy()
             np.testing.assert_equal(res, golden_output)
 
-    def get_func(data_shape, data_dtype, out_dtype, rounding, input_scale,
-            output_scale, input_zero_point=0, output_zero_point=0):
+    def get_func(data_shape, data_dtype, out_dtype, input_scale, output_scale,
+            input_zero_point=0, output_zero_point=0, rounding="AWAY_FROM_ZERO"):
         quantized_data = relay.var("quantized_data", shape=data_shape,
                 dtype=data_dtype)
         func = relay.qnn.op.requantize(
                 quantized_data,
-                input_zero_point=input_zero_point,
-                output_zero_point=output_zero_point,
                 input_scale=input_scale,
+                input_zero_point=input_zero_point,
                 output_scale=output_scale,
+                output_zero_point=output_zero_point,
                 rounding=rounding,
                 out_dtype=out_dtype)
 
         func = relay.Function(relay.analysis.free_vars(func),
                 func)
         func = run_infer_type(func)
-        func = relay.qnn.ir_pass.qnn_lower(func)
+        func = relay.qnn.transform.qnn_lower(func)
         return func
 
 
@@ -71,9 +71,9 @@ def test_requantize():
             func = get_func(data_shape=(200, ),
                             data_dtype='int32',
                             out_dtype="int8",
-                            rounding=rounding,
                             input_scale=0.5,
-                            output_scale=0.5)
+                            output_scale=0.5,
+                            rounding=rounding)
             verify(func, (golden_data, golden_output))
 
     def downscale_test():
@@ -81,9 +81,9 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype='int8',
-                            rounding=rounding,
                             input_scale=1,
-                            output_scale=16)
+                            output_scale=16,
+                            rounding=rounding)
 
             # Try positive values
             # 8 corresponds to 0.5, resulting in 1
@@ -92,9 +92,9 @@ def test_requantize():
             verify(func, (golden_data, golden_output))
 
             # Try negative values
-            # -8 corresponds to -0.5. For FE_UPWARD, this is 0
+            # -8 corresponds to -0.5. For UPWARD, this is 0
             golden_data = np.arange(0, -32, -1).astype('int32')
-            if rounding == "FE_UPWARD":
+            if rounding == "UPWARD":
                 golden_output = np.repeat([0, -1, -2], [9, 16, 7])
             else:
                 golden_output = np.repeat([0, -1, -2], [8, 16, 8])
@@ -104,9 +104,9 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype="int8",
-                            rounding=rounding,
                             input_scale=1,
-                            output_scale=4)
+                            output_scale=4,
+                            rounding=rounding)
 
             # Try positive values
             # 2I corresponds to 0.5, resulting in 1
@@ -116,9 +116,9 @@ def test_requantize():
             verify(func, (golden_data, golden_output))
 
             # Try negative values
-            # -8 corresponds to -0.5. For FE_UPWARD, this is 0
+            # -8 corresponds to -0.5. For UPWARD, this is 0
             golden_data = np.arange(0, -32, -1).astype('int32')
-            if rounding == "FE_UPWARD":
+            if rounding == "UPWARD":
                 golden_output = np.repeat([0, -1, -2, -3, -4, -5, -6, -7, -8],
                                           [3, 4, 4, 4, 4, 4, 4, 4, 1])
             else:
@@ -130,9 +130,9 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype='uint8',
-                            rounding=rounding,
                             input_scale=1,
-                            output_scale=16)
+                            output_scale=16,
+                            rounding=rounding)
 
             # Try positive values
             # 8 corresponds to 0.5, resulting in 1
@@ -145,9 +145,9 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype="int8",
-                            rounding=rounding,
                             input_scale=2,
-                            output_scale=1)
+                            output_scale=1,
+                            rounding=rounding)
 
             # Try positive values
             # 8 corresponds to 0.5, resulting in 1
@@ -156,7 +156,7 @@ def test_requantize():
             verify(func, (golden_data, golden_output))
 
             # Try negative values
-            # -8 corresponds to -0.5. For FE_UPWARD, this is 0
+            # -8 corresponds to -0.5. For UPWARD, this is 0
             golden_data = np.arange(0, -32, -1).astype('int32')
             golden_output = np.multiply(2, golden_data)
             verify(func, (golden_data, golden_output))
@@ -166,9 +166,9 @@ def test_requantize():
             func = get_func(data_shape=(16, ),
                             data_dtype='int32',
                             out_dtype="int8",
-                            rounding=rounding,
                             input_scale=0.5,
-                            output_scale=0.5)
+                            output_scale=0.5,
+                            rounding=rounding)
             golden_data = np.arange(0, 16, 1).astype('int32')
             golden_data = np.add(120, golden_data)
             output = np.array([120, 121, 122, 123, 124, 125, 126, 127,
@@ -190,10 +190,10 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype='int8',
-                            rounding=rounding,
                             input_scale=1,
                             output_scale=16,
-                            output_zero_point=1)
+                            output_zero_point=1,
+                            rounding=rounding)
 
             # Try positive values
             # 8 corresponds to 0.5, resulting in 1
@@ -203,9 +203,9 @@ def test_requantize():
             verify(func, (golden_data, golden_output))
 
             # Try negative values
-            # -8 corresponds to -0.5. For FE_UPWARD, this is 0
+            # -8 corresponds to -0.5. For UPWARD, this is 0
             golden_data = np.arange(-32, -64, -1).astype('int32')
-            if rounding == "FE_UPWARD":
+            if rounding == "UPWARD":
                 golden_output = np.repeat([-2, -3, -4], [9, 16, 7])
             else:
                 golden_output = np.repeat([-2, -3, -4], [8, 16, 8])
@@ -217,10 +217,10 @@ def test_requantize():
             func = get_func(data_shape=(32, ),
                             data_dtype='int32',
                             out_dtype='int8',
-                            rounding=rounding,
                             input_scale=1,
                             output_scale=16,
-                            input_zero_point=16)
+                            input_zero_point=16,
+                            rounding=rounding)
 
             # Try positive values
             golden_data = np.arange(32, 64, 1).astype('int32')
@@ -230,7 +230,7 @@ def test_requantize():
 
             # Try negative values
             golden_data = np.arange(-32, -64, -1).astype('int32')
-            if rounding == "FE_UPWARD":
+            if rounding == "UPWARD":
                 golden_output = np.repeat([-2, -3, -4], [9, 16, 7])
             else:
                 golden_output = np.repeat([-2, -3, -4], [8, 16, 8])

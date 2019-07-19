@@ -24,8 +24,8 @@ def requantize(data,
                input_zero_point,
                output_scale,
                output_zero_point,
-               out_dtype="int32",
-               rounding="FE_AWAY_FROM_ZERO"):
+               rounding="AWAY_FROM_ZERO",
+               out_dtype="int32"):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor to another quantized
@@ -51,19 +51,19 @@ def requantize(data,
     output_zero_point: int
            The zero point of the quantized_output distribution.
 
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
-
     rounding : string, optional
         Defines the rounding direction when the value is midway between two
         representable values.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    assert rounding in ("FE_UPWARD", "FE_AWAY_FROM_ZERO"),\
+    assert rounding in ("UPWARD", "AWAY_FROM_ZERO"),\
             "Unsupported rounding mode"
 
     return _make.requantize(data,
@@ -71,5 +71,5 @@ def requantize(data,
                             input_zero_point,
                             output_scale,
                             output_zero_point,
-                            out_dtype,
-                            rounding)
+                            rounding,
+                            out_dtype)

@@ -137,10 +137,10 @@ Expr RequantizeLower(const Expr& input_tensor,
 
   tensor = multiplied_t;
   Expr round_scalar;
-  if (param->rounding == "FE_UPWARD") {
+  if (param->rounding == "UPWARD") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     round_scalar = pos_rounder;
-  } else if (param->rounding == "FE_AWAY_FROM_ZERO") {
+  } else if (param->rounding == "AWAY_FROM_ZERO") {
     auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
     auto neg_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)) - 1);
     auto pos_rounder_t = Full(pos_rounder, out_shape, up_idtype);
