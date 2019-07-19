@@ -275,7 +275,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         The name hint of the tensor
 
     tag: str, optional
-        Additonal tag information about the compute.
+        Additional tag information about the compute.
 
     attrs: dict, optional
         The additional auxiliary attributes about the compute.

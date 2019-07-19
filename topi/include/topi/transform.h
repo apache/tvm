@@ -1223,5 +1223,28 @@ inline Tensor shape(const Tensor& src,
   }, name, tag);
 }
 
+/*!
+ * \brief Get the size of input tensor.
+ * \param src the input tensor.
+ * \param dtype the type of the elements in the tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of input shape.
+ */
+inline Tensor ndarray_size(const Tensor& src,
+                           const Type& dtype,
+                           const std::string& name = "ndarray_size",
+                           const std::string& tag = kInjective) {
+  int ndim = static_cast<int>(src->shape.size());
+  Array<Expr> out_ndarray_size = {1};
+  return compute(out_ndarray_size, [&](const Array<Var>& indices) {
+    Expr ret = 1;
+    for (int i = 0; i < ndim; ++i) {
+      ret *= src->shape[i];
+    }
+    return tvm::cast(dtype, ret);
+  }, name, tag);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

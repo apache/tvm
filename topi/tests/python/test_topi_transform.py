@@ -649,6 +649,33 @@ def test_sequence_mask():
                 for backend in get_all_backend():
                     check_device(backend)
 
+def test_ndarray_size():
+    in_shape = (5, 11, 7)
+    dtype = "int32"
+    A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
+    B = topi.ndarray_size(A, dtype)
+
+    input = np.random.uniform(size=in_shape).astype(A.dtype)
+    output = np.asarray(np.size(input)).astype(dtype)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        tvm_input = tvm.nd.array(input, ctx=ctx)
+        tvm_output = tvm.nd.empty((1,), ctx=ctx, dtype=B.dtype)
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
+        f = tvm.build(s, [A, B], device, name="ndarray_size")
+        f(tvm_input, tvm_output)
+        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+
+    for backend in get_all_backend():
+        check_device(backend)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -668,3 +695,4 @@ if __name__ == "__main__":
     test_tile()
     test_shape()
     test_sequence_mask()
+    test_ndarray_size()
