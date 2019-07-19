@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tvm/relay/attrs/nn.h
- * \brief Auxiliary attributes for nn operators.
+ * \file tvm/relay/qnn/attrs.h
+ * \brief Auxiliary attributes for qnn operators.
  */
 #ifndef TVM_RELAY_QNN_ATTRS_H_
 #define TVM_RELAY_QNN_ATTRS_H_

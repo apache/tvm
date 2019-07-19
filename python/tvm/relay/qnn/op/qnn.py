@@ -28,9 +28,9 @@ def requantize(data,
                out_dtype="int32"):
     r"""Requantized operator.
 
-    The requantize operator converts one quantized tensor to another quantized
-    tensor. For the output tensor, we are provided with output scale and zero
-    point. The computation looks like this
+    The requantize operator converts one quantized tensor representation to
+    another quantized tensor representation. For the output tensor, we are
+    provided with output scale and zero point. The computation is as follows
 
     Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 
@@ -40,16 +40,16 @@ def requantize(data,
         The input data to the operator.
 
     input_scale: float
-           The float scalar to scale the data int8 values back to FP32.
+           The quantization scale for the input tensor.
 
     input_zero_point: int
-           The zero point of the data distribution.
+           The zero point of the input tensor.
 
     output_scale: float
-           The float scalar to scale the quantized_output int8 values back to FP32.
+           The quantization scale for the output tensor.
 
     output_zero_point: int
-           The zero point of the quantized_output distribution.
+           The zero point of the output tensor.
 
     rounding : string, optional
         Defines the rounding direction when the value is midway between two

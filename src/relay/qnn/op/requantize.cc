@@ -34,7 +34,6 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
-
 bool RequantizeRel(const Array<Type>& types,
                    int num_inputs,
                    const Attrs& attrs,
