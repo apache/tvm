@@ -225,12 +225,6 @@ class Layout(NodeBase):
     --------
     layout : Declare a layout
     """
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return "Layout(" + self.name + ")"
-
     def __len__(self):
         return _api_internal._LayoutNdim(self)
 
