@@ -292,7 +292,7 @@ class UopKernel {
   template<int, bool, bool>
   friend class UopQueue;
   friend class CommandQueue;
-  // SRAM location if begin != end.
+  // SRAM location if begin != end
   uint32_t sram_begin_{0};
   uint32_t sram_end_{0};
   // The signature used for verification
