@@ -484,8 +484,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             # Convert kernel data layout from 4D to 7D
             n_elems = 4
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
-            [data_func, kernel_func] = [s for s in inputs]
-            kernel_IHWO = F.transpose(kernel_func, axes=(1, 2, 3, 0))
+            data_expr, kernel_expr = inputs
+            kernel_IHWO = F.transpose(kernel_expr, axes=(1, 2, 3, 0))
             kernel_IHWOo = F.reshape(kernel_IHWO, (in_channel, kh, kw, out_channel//oc_bn, oc_bn))
             kernel_OHWoI = F.transpose(kernel_IHWOo, axes=(3, 1, 2, 4, 0))
             kernel_OHWoIi = F.reshape(kernel_OHWoI, (out_channel//oc_bn, kh, kw, oc_bn,
@@ -493,7 +493,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             kernel_OHWoIie = F.reshape(kernel_OHWoIi, (out_channel//oc_bn, kh, kw, oc_bn,
                                                        in_channel//ic_bn, ic_bn//n_elems, n_elems))
             kernel_OIHWioe = F.transpose(kernel_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
-            copy_inputs = [data_func, kernel_OIHWioe]
+            copy_inputs = [data_expr, kernel_OIHWioe]
+            # Store altered operator's config
+            new_kernel = tvm.placeholder((out_channel//oc_bn, kh, kw, oc_bn,
+                in_channel//ic_bn, ic_bn//n_elems, n_elems))
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
+                 new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+            dispatch_ctx.update(target, new_workload, cfg)
         else:
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
             # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
@@ -656,7 +663,6 @@ def _schedule_conv2d_NCHWc(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            # VNNI takes u8 x s8
             target = tvm.target.current_target(allow_none=False)
             if _is_int8_hw_support(data.dtype, kernel.dtype, target):
                 # int8 conv kernel is 7-dim
