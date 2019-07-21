@@ -18,13 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_cpu.cc
  */
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/ir_pass.h>
+#include <memory>
 #include <unordered_map>
 #include "codegen_cpu.h"
 #include "../../pass/ir_util.h"
@@ -33,11 +33,12 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenCPU::Init(const std::string& module_name,
-                          llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx,
-                          bool system_lib,
-                          bool dynamic_lookup) {
+                      llvm::TargetMachine* tm,
+                      llvm::LLVMContext* ctx,
+                      bool system_lib,
+                      bool dynamic_lookup) {
   CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup);
+  dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
@@ -131,9 +132,9 @@ void CodeGenCPU::AddFunction(const LoweredFunc& f) {
   AddDebugInformation(function_);
 }
 
-  // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
+// Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
-#if TVM_LLVM_VERSION >= 50
+#if TVM_LLVM_VERSION >= 50 && TVM_LLVM_VERSION < 70
   CHECK(!function->getSubprogram());
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
   llvm::DIType* returnTy =
@@ -145,10 +146,26 @@ void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
   }
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
+
+#if TVM_LLVM_VERSION >= 80
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      dbg_info_->file_, function->getName(), "", dbg_info_->file_, 0 /* line number */,
-      DIFunctionTy, false /* internal linkage */, true /* definition */, 0 /* line number */,
-      llvm::DINode::FlagPrototyped, true /* isOptimized */);
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false /* internal linkage */);
+#else
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false, /* internal linkage */
+      true,
+      0 /* line number */,
+      llvm::DINode::FlagPrototyped,
+      true /* isOptimized */);
+#endif
 
   CHECK(DIFunction);
   function->setSubprogram(DIFunction);
@@ -223,6 +240,13 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
 }
 
+std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
+  // link modules
+  if (dbg_info_ != nullptr) {
+    dbg_info_->di_builder_->finalize();
+  }
+  return CodeGenLLVM::Finish();
+}
 llvm::Value* CodeGenCPU::CreateStructRefPtr(
     Type t, llvm::Value* buf, llvm::Value* index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
