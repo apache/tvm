@@ -124,7 +124,7 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf);
  * \param src The source buffer in host memory.
  * \param size Size of the region in Bytes.
  */
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size);
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size);
 
 /*!
  * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
@@ -132,7 +132,7 @@ void VTAMemMoveToBuffer(void* dst, const void* src, size_t size);
  * \param src The source buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
  * \param size Size of the region in Bytes.
  */
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size);
+void VTAMemCopyToHost(void* dst, const void* src, size_t size);
 
 /*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.

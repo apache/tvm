@@ -43,12 +43,12 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf);
 }
 
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
 }
 
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
+void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
   // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
   memcpy(dst, src, size);
 }

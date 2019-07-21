@@ -607,11 +607,11 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return vta::sim::DRAM::Global()->GetPhyAddr(buf);
 }
 
-void VTAMemMoveToBuffer(void* dst, const void* src, size_t size) {
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
   memcpy(dst, src, size);
 }
 
-void VTAMemMoveFromBuffer(void* dst, const void* src, size_t size) {
+void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
   memcpy(dst, src, size);
 }
 

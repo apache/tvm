@@ -85,8 +85,8 @@ struct DataBuffer {
    * \param src The source buffer in host memory.
    * \param size Size of the region in Bytes.
    */
-  void MemMoveToBuffer(void* dst, const void* src, size_t size) {
-    VTAMemMoveToBuffer(dst, src, size);
+  void MemCopyFromHost(void* dst, const void* src, size_t size) {
+    VTAMemCopyFromHost(dst, src, size);
   }
   /*!
    * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
@@ -94,8 +94,8 @@ struct DataBuffer {
    * \param src The source buffer in host memory.
    * \param size Size of the region in Bytes.
    */
-  void MemMoveFromBuffer(void* dst, const void* src, size_t size) {
-    VTAMemMoveFromBuffer(dst, src, size);
+  void MemCopyToHost(void* dst, const void* src, size_t size) {
+    VTAMemCopyToHost(dst, src, size);
   }
   /*!
    * \brief Allocate a buffer of a given size.
@@ -460,7 +460,7 @@ class UopQueue : public BaseQueue<VTAUop> {
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
-      VTAMemMoveToBuffer(static_cast<char*>(fpga_buff_) + offset,
+      VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset,
                          cache_[i]->data(),
                          ksize);
       // Update offset
@@ -854,7 +854,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
     CHECK(buff_size <= kMaxBytes);
     // Copy contents of DRAM buffer to FPGA buff
-    VTAMemMoveToBuffer(fpga_buff_,
+    VTAMemCopyFromHost(fpga_buff_,
                        dram_buffer_.data(),
                        buff_size);
     // Flush if we're using a shared memory system
@@ -1350,12 +1350,12 @@ void VTABufferCopy(const void* from,
   if (from_buffer) {
     // This is an FPGA to host mem transfer
     from_buffer->InvalidateCache(from_offset, size);
-    from_buffer->MemMoveFromBuffer(static_cast<char*>(to) + to_offset,
+    from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,
                                    static_cast<const char*>(from) + from_offset,
                                    size);
   } else if (to_buffer) {
     // This is a host to FPGA mem transfer
-    to_buffer->MemMoveToBuffer(static_cast<char*>(to) + to_offset,
+    to_buffer->MemCopyFromHost(static_cast<char*>(to) + to_offset,
                                static_cast<const char*>(from) + from_offset,
                                size);
     to_buffer->FlushCache(to_offset, size);
