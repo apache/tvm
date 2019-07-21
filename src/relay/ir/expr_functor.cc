@@ -435,7 +435,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
                              func->type_params,
                              func->attrs);
     CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
-    return ret;
+    return std::move(ret);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }
