@@ -487,6 +487,8 @@ def test_dwarf_debug_information():
             return
         if tvm.codegen.llvm_version_major() < 5:
             return
+        if tvm.codegen.llvm_version_major() > 6:
+            return
         # build two functions
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
@@ -521,6 +523,8 @@ def test_dwarf_debug_information():
         if not tvm.module.enabled("llvm"):
             return
         if tvm.codegen.llvm_version_major() < 5:
+            return
+        if tvm.codegen.llvm_version_major() > 6:
             return
         # build two functions
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
