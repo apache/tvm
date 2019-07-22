@@ -493,7 +493,7 @@ class AlphaEqualHandler:
   }
 
   bool PatternEqual(const Pattern& lhs, const Pattern& rhs) {
-    return VisitPattern(lhs, rhs);
+    return Compare(VisitPattern(lhs, rhs), lhs, rhs);
   }
 
   bool VisitPattern_(const PatternWildcardNode* lhs, const Pattern& other) final {
@@ -511,6 +511,21 @@ class AlphaEqualHandler:
     const auto* rhs = other.as<PatternConstructorNode>();
     if (rhs == nullptr
         || !ExprEqual(lhs->constructor, rhs->constructor)
+        || lhs->patterns.size() != rhs->patterns.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < lhs->patterns.size(); i++) {
+      if (!PatternEqual(lhs->patterns[i], rhs->patterns[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitPattern_(const PatternTupleNode* lhs, const Pattern& other) final {
+    const auto* rhs = other.as<PatternTupleNode>();
+    if (rhs == nullptr
         || lhs->patterns.size() != rhs->patterns.size()) {
       return false;
     }

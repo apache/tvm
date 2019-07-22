@@ -1051,6 +1051,28 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
+  MatchStatus VisitPattern_(const PatternTupleNode* op, const PStatic& ps) final {
+    if (ps->pstatic.defined()) {
+      STuple stn = Downcast<STuple>(ps->pstatic);
+      CHECK_EQ(op->patterns.size(), stn->fields.size());
+      MatchStatus current_match_status = MatchStatus::Match;
+      for (size_t i = 0; i < op->patterns.size(); ++i) {
+        MatchStatus ms = VisitPattern(op->patterns[i], stn->fields[i]);
+        switch (ms) {
+        case MatchStatus::Match:
+          continue;
+        case MatchStatus::NoMatch:
+          return MatchStatus::NoMatch;
+        case MatchStatus::Unknown:
+          current_match_status = MatchStatus::Unknown;
+        }
+      }
+      return current_match_status;
+    } else {
+      return MatchStatus::Unknown;
+    }
+  }
+
   void InitializeFuncId(const Expr& e) {
     struct InitializeFuncIdVisitor : ExprVisitor, PatternVisitor {
       PartialEvaluator* pe;

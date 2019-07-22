@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
@@ -706,6 +706,18 @@ class Interpreter :
       return true;
     }
     return false;
+  }
+
+  bool VisitPattern_(const PatternTupleNode* op, const Value& v) final {
+    const TupleValueNode* tvn = v.as<TupleValueNode>();
+    CHECK(tvn) << "need to be a tuple for match";
+    CHECK_EQ(op->patterns.size(), tvn->fields.size());
+    for (size_t i = 0; i < op->patterns.size(); ++i) {
+      if (!VisitPattern(op->patterns[i], tvn->fields[i])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   bool VisitPattern_(const PatternWildcardNode* op, const Value& v) final {

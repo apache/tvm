@@ -68,10 +68,37 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
     }
 
     // now check that subpatterns match
-    CHECK(op->patterns.size() == ctor_cand->patterns.size());
+    CHECK_EQ(op->patterns.size(), ctor_cand->patterns.size());
     bool unspecified = false;
     for (size_t i = 0; i < op->patterns.size(); i++) {
       MatchResult submatch = this->Check(op->patterns[i], ctor_cand->patterns[i]);
+      // if we have a clash anywhere, then we can return clash
+      if (submatch == MatchResult::kClash) {
+        return MatchResult::kClash;
+      }
+      if (submatch == MatchResult::kUnspecified) {
+        unspecified = true;
+      }
+    }
+    // only return unspecified if we have ruled out a clash
+    if (unspecified) {
+      return MatchResult::kUnspecified;
+    }
+    return MatchResult::kMatch;
+  }
+
+  MatchResult VisitPattern_(const PatternTupleNode* op, const Pattern& cand) override {
+    auto* tuple_cand = cand.as<PatternTupleNode>();
+    // attempting to match non-tuple to constructor pattern: need to specify
+    if (tuple_cand == nullptr) {
+      return MatchResult::kUnspecified;
+    }
+
+    // now check that subpatterns match
+    CHECK_EQ(op->patterns.size(), tuple_cand->patterns.size());
+    bool unspecified = false;
+    for (size_t i = 0; i < op->patterns.size(); i++) {
+      MatchResult submatch = this->Check(op->patterns[i], tuple_cand->patterns[i]);
       // if we have a clash anywhere, then we can return clash
       if (submatch == MatchResult::kClash) {
         return MatchResult::kClash;

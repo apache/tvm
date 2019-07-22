@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file src/tvm/relay/pattern_functor.cc
+ *  Copyright (c) 2019 by Contributors
+ * \file src/relay/ir/pattern_functor.cc
  * \brief Implementations of visitors and mutators for ADT patterns.
  */
 
@@ -48,6 +48,14 @@ Pattern PatternMutator::VisitPattern_(const PatternConstructorNode* op) {
   return PatternConstructorNode::make(VisitConstructor(op->constructor), pat);
 }
 
+Pattern PatternMutator::VisitPattern_(const PatternTupleNode* op) {
+  std::vector<Pattern> pat;
+  for (const auto& p : op->patterns) {
+    pat.push_back(VisitPattern(p));
+  }
+  return PatternTupleNode::make(pat);
+}
+
 Type PatternMutator::VisitType(const Type& t) {
   return t;
 }
@@ -73,6 +81,12 @@ void PatternVisitor::VisitPattern_(const PatternVarNode* op) {
 
 void PatternVisitor::VisitPattern_(const PatternConstructorNode* op) {
   VisitConstructor(op->constructor);
+  for (const auto& p : op->patterns) {
+    VisitPattern(p);
+  }
+}
+
+void PatternVisitor::VisitPattern_(const PatternTupleNode* op) {
   for (const auto& p : op->patterns) {
     VisitPattern(p);
   }
