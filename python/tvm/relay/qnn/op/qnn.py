@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #pylint: disable=invalid-name, too-many-lines
-"""Neural network operations."""
+"""QNN dialect operators."""
 from __future__ import absolute_import as _abs
 from . import _make
 
@@ -56,7 +56,7 @@ def requantize(data,
         representable values.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
+        Specifies the output data type.
 
     Returns
     -------

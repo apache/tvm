@@ -60,7 +60,6 @@ def test_requantize():
         mod = relay.qnn.transform.QnnLower()(mod)
         return mod
 
-
     def same_scale_test():
         # Have same scales, everything within range
         golden_data = np.arange(-100, 100, 1).astype('int32')
