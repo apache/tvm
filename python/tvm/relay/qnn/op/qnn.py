@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, too-many-lines
+#pylint: disable=invalid-name
+
 """QNN dialect operators."""
 from __future__ import absolute_import as _abs
 from . import _make
