@@ -50,11 +50,13 @@ bool RequantizeRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
   CHECK(IsValidOpInputType(QuantizeOpType::Requantize, input_dtype))
-    << "Input type should be a quantized type (u)int8 or (u)int16 but was " <<  input_dtype;
+    << "Input type should be an integer but was " <<  input_dtype;
 
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type
   const RequantizeAttrs* param = attrs.as<RequantizeAttrs>();
+  CHECK(IsValidOpOutputType(QuantizeOpType::Requantize, param->out_dtype))
+    << "Output type should be an integer but was " <<  param->out_dtype;
   reporter->Assign(types[1], TensorTypeNode::make(oshape, param->out_dtype));
   return true;
 }
