@@ -258,8 +258,19 @@ def test_requantize():
 
 def test_quantized_dense():
 
+    def make_requantize_params(input_scale, output_scale, output_zero_point, out_dtype):
+        config = {
+            'input_scale': input_scale,
+            'output_scale': output_scale,
+            'output_zero_point': output_zero_point,
+            'out_dtype': out_dtype
+        }
+        return config
+
     def make_test_configuration(quantized_data, quantized_kernel, dtype, input_shape, kernel_shape, input_zero_point,
-                                kernel_zero_point, units, output, out_dtype='int32', bias=None):
+                                kernel_zero_point, units, output, out_dtype='int32', bias=None, requantize=None):
+        if requantize is not None:
+            assert bias is not None
         config = {
             'quantized_data': quantized_data,
             'quantized_kernel': quantized_kernel,
@@ -271,76 +282,93 @@ def test_quantized_dense():
             'units': units,
             'output': output,
             'out_dtype': out_dtype,
-            'bias': bias
+            'bias': bias,
+            'requantize': requantize
         }
         return config
 
-    def make_uint_configuration(use_bias=False):
+    def make_uint_configuration(use_bias=False, requantize_output=False):
         input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
         input_zero_point, kernel_zero_point = -127, -127
-        dtype, out_dtype = 'uint8', 'int32'
+        in_dtype = 'uint8'
+        out_dtype = 'int32' if not requantize_output else 'uint8'
         units = 3
         quantized_data_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 109, 107,
                                       129, 131, 133, 135, 137, 139, 141, 111, 145, 107])\
-                                      .astype(dtype)\
+                                      .astype(in_dtype)\
                                       .reshape(input_shape)
         quantized_kernel_np = np.array([129, 131, 133, 135, 137, 139, 141, 143, 145, 147,
                                         129, 131, 133, 135, 137, 139, 141, 143, 145, 147,
                                         129, 131, 133, 135, 137, 139, 141, 143, 145, 147])\
-                                            .astype(dtype)\
+                                            .astype(in_dtype)\
                                             .reshape(kernel_shape)
         bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
+        requant_params = make_requantize_params(0.25, 1.0, 127, 'uint8') if requantize_output else None
 
-        if use_bias:
-            output = np.array([96, 100, 104, 232, 236, 240 ]).astype(out_dtype).reshape(output_shape)
+        if requantize_output:
+            assert use_bias
+            output = np.array([151, 152, 153, 185, 186, 187])
+        elif use_bias:
+            output = np.array([96, 100, 104, 232, 236, 240 ])
         else:
-            output = np.array([92, 92, 92, 228, 228, 228 ]).astype(out_dtype).reshape(output_shape)
+            output = np.array([92, 92, 92, 228, 228, 228 ])
+        output = output.astype(out_dtype).reshape(output_shape)
         return make_test_configuration(quantized_data=quantized_data_np,
                                        quantized_kernel=quantized_kernel_np,
-                                       dtype=dtype,
+                                       dtype=in_dtype,
                                        input_shape=input_shape,
                                        kernel_shape=kernel_shape,
                                        input_zero_point=input_zero_point,
                                        kernel_zero_point=kernel_zero_point,
                                        units=units,
                                        output=output,
-                                       bias=bias)
+                                       bias=bias,
+                                       requantize=requant_params)
 
-    def make_int_configuration(use_bias=False):
+    def make_int_configuration(use_bias=False, requantize_output=False):
         input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
         input_zero_point, kernel_zero_point = 1, 1
-        dtype, out_dtype = 'int8', 'int32'
+        in_dtype = 'int8'
+        out_dtype = 'int32' if not requantize_output else 'int8'
         units = 3
         quantized_data_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, -19, -21,
                                       1, 3, 5, 7, 9, 11, 13, -17, 17, -21]) \
-                                    .astype(dtype) \
+                                    .astype(in_dtype) \
                                     .reshape(input_shape)
         quantized_kernel_np = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
                                         1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
                                         1, 3, 5, 7, 9, 11, 13, 15, 17, 19]) \
-                                    .astype(dtype) \
+                                    .astype(in_dtype) \
                                     .reshape(kernel_shape)
         bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
-        if use_bias:
-            output = np.array([96, 100, 104, 232, 236, 240 ]).astype(out_dtype).reshape(output_shape)
+        requant_params = make_requantize_params(0.25, 1.0, -1, 'int8') if requantize_output else None
+
+        if requantize_output:
+            assert use_bias
+            output = np.array([23, 24, 25, 57, 58, 59])
+        elif use_bias:
+            output = np.array([96, 100, 104, 232, 236, 240 ])
         else:
-            output = np.array([92, 92, 92, 228, 228, 228 ]).astype(out_dtype).reshape(output_shape)
+            output = np.array([92, 92, 92, 228, 228, 228 ])
+        output = output.astype(out_dtype).reshape(output_shape)
         return make_test_configuration(quantized_data=quantized_data_np,
                                        quantized_kernel=quantized_kernel_np,
-                                       dtype=dtype,
+                                       dtype=in_dtype,
                                        input_shape=input_shape,
                                        kernel_shape=kernel_shape,
                                        input_zero_point=input_zero_point,
                                        kernel_zero_point=kernel_zero_point,
                                        units=units,
                                        output=output,
-                                       bias=bias)
+                                       bias=bias,
+                                       requantize=requant_params)
 
     def test_quantized_convolution(test_configuration):
         in_dtype = test_configuration['dtype']
         out_dtype = test_configuration['out_dtype']
         quantized_data_name = "quantized_data"
         quantized_kernel_name = "quantized_kernel"
+        expected_out_dtype = test_configuration['out_dtype']
         bias_name = 'bias'
         quantized_data = relay.var(quantized_data_name, shape=test_configuration['input_shape'],
                                    dtype=in_dtype)
@@ -355,6 +383,16 @@ def test_quantized_dense():
         if test_configuration[bias_name] is not None:
             bias = relay.var(bias_name, shape=test_configuration['bias'].shape, dtype=out_dtype)
             mod = relay.nn.bias_add(mod, bias)
+        if test_configuration['requantize'] is not None:
+            requantize_config = test_configuration['requantize']
+            mod = relay.qnn.op.requantize(
+                mod,
+                input_scale=requantize_config['input_scale'],
+                input_zero_point=0,
+                output_scale=requantize_config['output_scale'],
+                output_zero_point=requantize_config['output_zero_point'],
+                out_dtype=requantize_config['out_dtype'])
+            expected_out_dtype = requantize_config['out_dtype']
         mod = relay.Function(relay.analysis.free_vars(mod), mod)
         mod = relay.Module.from_expr(mod)
         mod = relay.qnn.transform.QnnLower()(mod)
@@ -369,10 +407,10 @@ def test_quantized_dense():
             mod.run()
             res = mod.get_output(0).asnumpy()
             np.testing.assert_equal(res, test_configuration['output'])
-            assert res.dtype == test_configuration['out_dtype']
+            assert res.dtype == expected_out_dtype
 
     def test_configurations():
-        test_prams = [{'use_bias': False}, {'use_bias': True}]
+        test_prams = [{'use_bias': False}, {'use_bias': True}, {'use_bias': True, 'requantize_output': True}, ]
         tests = [test_quantized_convolution]
         configurations = []
         for test_param in test_prams:
@@ -385,5 +423,5 @@ def test_quantized_dense():
     test_configurations()
 
 if __name__ == "__main__":
-    # test_requantize()
+    test_requantize()
     test_quantized_dense()

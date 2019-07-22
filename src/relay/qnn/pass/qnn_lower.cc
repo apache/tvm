@@ -87,7 +87,7 @@ std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
  * shift. This is useful, if the target device does not support/have very
  * expensive floating point computations.
  *
- * Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ * Original computation is scale_fp32 * quantized_tensor. To convert into
  * integer computation, the multiplication with fp32 scalar can be replaced by
  * multiplication with an int value and then right shifting the result. This
  * approximates the floating point computation with a fixed point computation.
