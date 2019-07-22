@@ -196,6 +196,20 @@ def annotate_context():
 
 
 def collect_stats(graph):
+    """Given an annotated graph, create a profile graph to collect profile data from the
+    calibration dataset. This pass finds simulated_quantize op and collects its input into a tuple.
+    The tuple is the output of the profile graph.
+
+    Parameters
+    ----------
+    graph: Function
+        The simulation graph after annotation.
+
+    Returns
+    -------
+    ret: Function
+        The profile graph which outputs a tuple of profile data.
+    """
     return _quantize.CollectStats(graph)
 
 
@@ -214,6 +228,16 @@ def calibrate(graph, mod=None, ctx=None, weight_scales='power2', scales=None):
 
     ctx: tvm.relay.PassContext
         The pass context used for calibration.
+
+    weight_scales: 'power2' or 'max'.
+        The way to calculate scales for weights (annotated with QAnnotateKind.WEIGHT).
+        power2: Find the maximum of the absolute value of the tensor, and then round up to power
+        of two.
+        max: Find the maximum of the absolute value of the tensor.
+
+    scales: List[float]
+        Pre-calculated scales for input and activations. Length and the order of elements of the
+        scales list should match the output tuple of the profile graph created by collect_stats.
 
     Returns
     -------

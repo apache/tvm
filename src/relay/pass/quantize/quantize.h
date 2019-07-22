@@ -23,13 +23,13 @@
  * \file tvm/relay/pass/quantize.h
  * \brief Header of definitions for quantization
  */
-#ifndef TVM_RELAY_PASS_QUANTIZE_H_
-#define TVM_RELAY_PASS_QUANTIZE_H_
+#ifndef TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_
+#define TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_
 
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <string>
-#include "pattern_util.h"
+#include "../pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -40,6 +40,22 @@ enum QAnnotateKind : int {
   kQInput = 1,
   kQWeight = 2,
   kQActivation = 3,
+};
+
+/*! \brief Attribute for simulated quantize operator */
+struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
+  int kind;
+  bool sign;
+  std::string rounding;
+
+  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
+    TVM_ATTR_FIELD(kind)
+        .describe("kind of field, hint for nbit/dtype configuration.");
+    TVM_ATTR_FIELD(sign).set_default(true)
+        .describe("whether to use signed data type.");
+    TVM_ATTR_FIELD(rounding).set_default("round")
+        .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
+  }
 };
 
 /*!
@@ -242,4 +258,4 @@ TVM_DLL QConfig qconfig();
 }  // namespace quantize
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_PASS_QUANTIZE_H_
+#endif  // TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_

@@ -36,8 +36,8 @@
 #include <vector>
 #include <stack>
 #include <utility>
-#include "pattern_util.h"
-#include "quantize.h"
+#include "../pattern_util.h"
+#include "./quantize.h"
 
 
 namespace tvm {
@@ -45,22 +45,6 @@ namespace relay {
 namespace quantize {
 
 using namespace relay::transform;
-
-/*! \brief Attribute for simulated quantize operator */
-struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
-  int kind;
-  bool sign;
-  std::string rounding;
-
-  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
-    TVM_ATTR_FIELD(kind)
-        .describe("kind of field, hint for nbit/dtype configuration.");
-    TVM_ATTR_FIELD(sign).set_default(true)
-        .describe("whether to use signed data type.");
-    TVM_ATTR_FIELD(rounding).set_default("round")
-        .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
-  }
-};
 
 TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
 
@@ -739,48 +723,6 @@ TVM_REGISTER_API("relay._quantize.temp_expr_realize")
   return n->Realize();
 });
 
-// =============
-// calibration
-
-class StatsCollector : private ExprMutator {
- public:
-  Expr Collect(const Expr& expr) {
-    auto new_e = this->Mutate(expr);
-    const FunctionNode* func = new_e.as<FunctionNode>();
-    CHECK(func);
-    Expr new_body = TupleNode::make(std::move(profile_data_));
-    return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
-            func->attrs);
-  }
-
- private:
-  Array<Expr> profile_data_;
-
-  Expr VisitExpr_(const CallNode* call) {
-    static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
-    Expr new_e = ExprMutator::VisitExpr_(call);
-    const CallNode* new_call = new_e.as<CallNode>();
-    CHECK(new_call);
-    if (new_call->op.same_as(simulated_quantize)) {
-      auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
-      if (attrs->kind != QAnnotateKind::kQWeight) {
-        CHECK(!new_call->args[0].as<ConstantNode>());
-        const Expr& quantize_input = new_call->args[0];  // expression being quantized
-        profile_data_.push_back(quantize_input);
-      }
-      return new_call->args[0];
-    } else {
-      return new_e;
-    }
-  }
-};
-
-Expr CollectStats(const Expr& expr) {
-  return StatsCollector().Collect(expr);
-}
-
-TVM_REGISTER_API("relay._quantize.CollectStats")
-.set_body_typed(CollectStats);
 
 }  // namespace quantize
 }  // namespace relay
