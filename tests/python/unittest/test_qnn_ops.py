@@ -356,9 +356,7 @@ def test_quantized_dense():
             bias = relay.var(bias_name, shape=test_configuration['bias'].shape, dtype=out_dtype)
             mod = relay.nn.bias_add(mod, bias)
         mod = relay.Function(relay.analysis.free_vars(mod), mod)
-        # func = run_infer_type(func)
         mod = relay.Module.from_expr(mod)
-        # func = relay.qnn.ir_pass.qnn_lower(func)
         mod = relay.qnn.transform.QnnLower()(mod)
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
