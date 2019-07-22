@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file qnn_lower.cc
- * \brief Lower quantized ops to exisiting Relay ops.
+ * \brief Lower qnn ops to a sequence of exisiting Relay ops.
  */
 
 #include <tvm/relay/analysis.h>
@@ -45,20 +45,24 @@ using runtime::TypedPackedFunc;
 // Lowering of qnn.requantize op
 
 /*
- * Converts a floating point number so that it can be represented by integers.
- * The representation is
- *      float_number = (significand) * 2^(exponent)
+ * \brief Convert FP32 representation into fixed point representation.
+ * \param double_multplier The input FP32 number.
+ * \param idtype The input datatype.
+ * \return The pair of multiplier and shift for fixed point representation.
+ * \note Converts a floating point number so that it can be represented by
+ *       integers. The representation is
+ *             float_number = (significand) * 2^(exponent)
  *
- * The significand is a number between 0.5 and 1. This is represented
- * by an integer number. For example, if it is int32, then the decimal point
- * exists between bit 31 and 30 from LSB (or between first and second bit from
- * the left).
+ *       The significand is a number between 0.5 and 1. This is represented by
+ *       an integer number. For example, if it is int32, then the decimal point
+ *       exists between bit 31 and 30 from LSB (or between first and second bit
+ *       from the left).
  *
- * Some examples are
+ *       Some examples are
  *           0.25 = (0.5) * 2^(-1)
  *           0.125 = (0.5) * 2^(-2)
  *
- * Credit to TFLite reference implementation.
+ *       Credit to TFLite reference implementation.
  */
 std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
     const DataType& idtype) {
@@ -82,25 +86,31 @@ std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
 }
 
 /*
- * Requantization using only integer computation. Here, the computation is
- * converted to a fixed point computation by computing output multiplier and
- * shift. This is useful, if the target device does not support/have very
- * expensive floating point computations.
+ * \brief Lower requantize to a sequence of ops.
+ * \param input_tensor The input tensor to requantize op.
+ * \param param The requantize op attrs.
+ * \param idtype The dtype of the input tensor.
+ * \param out_shape The output shape of the requantize op.
+ * \return The sequence of existing Relay ops.
+ * \note Requantization using only integer computation. Here, the computation is
+ *       converted to a fixed point computation by computing output multiplier
+ *       and shift. This is useful, if the target device does not support/have
+ *       very expensive floating point computations.
  *
- * Original compuation is scale_fp32 * quantized_tensor.  To convert into
- * integer computation, the multiplication with fp32 scalar can be replaced by
- * multiplication with an int value and then right shifting the result. This
- * approximates the floating point computation with a fixed point computation.
+ *       Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ *       integer computation, the multiplication with fp32 scalar can be
+ *       replaced by multiplication with an int value and then right shifting
+ *       the result. This approximates the floating point computation with a
+ *       fixed point computation.
  *
- * The whole computation this can be broken down into following steps
- * 1) Calculate the integer multiplier and integer shift.
- * 2) Subtract the input integer point.
- * 3) Multiply the integer fixed point multiplier with quantized tensor.
- * 4) Round the result.
- * 5) Right shift the result.
- * 6) Add the output_zero_point.
- * 7) Cast to the out_dtype.
- *
+ *       The whole computation this can be broken down into following steps
+ *       1) Calculate the integer multiplier and integer shift.
+ *       2) Subtract the input integer point.
+ *       3) Multiply the integer fixed point multiplier with quantized tensor.
+ *       4) Round the result.
+ *       5) Right shift the result.
+ *       6) Add the output_zero_point.
+ *       7) Cast to the out_dtype.
  */
 Expr RequantizeLower(const Expr& input_tensor,
     const RequantizeAttrs* param, const DataType& idtype,
@@ -134,7 +144,7 @@ Expr RequantizeLower(const Expr& input_tensor,
   // Perform the multiplication in higher precision.
   // If idtype is Int(32), the scalar is a fixed point value of int32 where the
   // decimal point is between bits 31 and 30. After multiplying with
-  // input_tensor, the result in int64 where the decimal point is sitting
+  // input_tensor, the result is in int64 where the decimal point is sitting
   // between bits 31 and 30 (from the right, rightmost bit is bit 0).
   Expr scalar = MakeConstantScalar(up_idtype, fixed_point_multiplier);
   auto multiplied_t = Multiply(tensor, scalar);
@@ -184,12 +194,17 @@ Expr RequantizeLower(const Expr& input_tensor,
 }
 
 /*
- * Lowering of the requantize operation. The requantize operator converts one
- * quantized tensor to another quantized tensor. For the output tensor, we are
- * provided with output scale and zero point. The computation looks like this
+ * \brief Forward rewrite the requantize op.
+ * \param ref_call The original call that will be lowered.
+ * \param new_args The new mutated args to the call node.
+ * \param ctx The node context.
+ * \return The sequence of Relay ops for requantize op.
+ * \note Lowering of the requantize operation. The requantize operator converts
+ *       one quantized tensor to another quantized tensor. For the output
+ *       tensor, we are provided with output scale and zero point. The
+ *       computation looks like this
  *
  * Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
- *
  */
 Expr RequantizeForwardRewrite(const Call& ref_call,
     const Array<Expr>& new_args, const NodeRef& ctx) {

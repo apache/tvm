@@ -33,7 +33,7 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
-inline bool IsQNNDataType(const DataType& dtype) {
+static inline bool IsQNNDataType(const DataType& dtype) {
   return dtype == Int(8) || dtype == UInt(8)
       || dtype == Int(16) || dtype == UInt(16);
 }
@@ -44,7 +44,7 @@ enum class QuantizeOpType {
   Requantize
 };
 
-inline bool IsValidOpInputType(const QuantizeOpType& op_type,
+static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
         const DataType& in_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
@@ -58,7 +58,7 @@ inline bool IsValidOpInputType(const QuantizeOpType& op_type,
   }
 }
 
-inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
+static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
         const DataType& in_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
@@ -70,7 +70,7 @@ inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
   }
 }
 
-inline const int32_t GetQmin(const DataType& dtype) {
+static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {
@@ -86,7 +86,7 @@ inline const int32_t GetQmin(const DataType& dtype) {
   return -1;
 }
 
-inline const int32_t GetQmax(const DataType& dtype) {
+static inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {

@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file requantize.cc
- * \brief Quantized convolution operators
+ * \brief QNN requantize operator.
  */
 
 #include <tvm/relay/op_attr_types.h>
@@ -34,6 +34,14 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
+/*
+ * \brief Infer shape function of Requantize op.
+ * \param types The types of input args.
+ * \param num_inputs The number of inputs.
+ * \param attrs The op attributes.
+ * \param reporter The type reporter that sets the dtype and shapes.
+ * \return True if the infer shape succeeded.
+ */
 bool RequantizeRel(const Array<Type>& types,
                    int num_inputs,
                    const Attrs& attrs,
@@ -51,7 +59,7 @@ bool RequantizeRel(const Array<Type>& types,
   return true;
 }
 
-// Positional relay function to create quantized conv2d operator
+// Positional relay function to create qnn requantize operator
 // used by frontend FFI.
 Expr MakeRequantize(Expr data,
                     double input_scale,
