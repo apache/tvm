@@ -496,10 +496,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             copy_inputs = [data_expr, kernel_OIHWioe]
             # Store altered operator's config
             new_kernel = tvm.placeholder((out_channel//oc_bn, kh, kw, oc_bn,
-                in_channel//ic_bn, ic_bn//n_elems, n_elems))
+                                          in_channel//ic_bn, ic_bn//n_elems,
+                                          n_elems))
             new_workload = autotvm.task.args_to_workload(
-                [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
-                 new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+                [new_data, new_kernel, strides, padding, dilation,
+                 new_attrs[layout_name], new_attrs['out_layout'], out_dtype],
+                conv2d_NCHWc)
             dispatch_ctx.update(target, new_workload, cfg)
         else:
             out_channel, _, kh, kw = get_const_tuple(kernel.shape)
