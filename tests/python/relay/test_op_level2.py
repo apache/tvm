@@ -518,7 +518,7 @@ def test_upsampling():
 
 
 def test_conv2d_int8_intrinsics():
-    def _compile(input_dtype, weight_dtype, output_dtype):
+    def _compile(input_dtype, weight_dtype, output_dtype, target):
         n, ic, h, w, oc, ch, cw = 1, 16, 224, 224, 32, 3, 3
         x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
         w = relay.var("w", relay.TensorType((oc, ic, ch, cw), weight_dtype))
@@ -544,16 +544,36 @@ def test_conv2d_int8_intrinsics():
         # Intel Int8 instruction need uint8 data and int8 kernel
         asm = _compile(input_dtype="uint8",
                        weight_dtype="int8",
-                       output_dtype="int32")
+                       output_dtype="int32",
+                       target=target)
         # Check that intrinisic is present in the assembly.
-        assert "pmadd" in asm
+        assert "pmaddubs" in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
         asm = _compile(input_dtype="int8",
                        weight_dtype="int8",
-                       output_dtype="int32")
+                       output_dtype="int32",
+                       target=target)
         # Check that intrinisic is not present in the assembly.
-        assert "pmadd" not in asm
+        assert "pmaddubs" not in asm
+
+        # Ensure that code is generated when datatypes are not HW supported.
+        asm = _compile(input_dtype="uint8",
+                       weight_dtype="uint8",
+                       output_dtype="int32",
+                       target=target)
+        # Check that intrinisic is not present in the assembly.
+        assert "pmaddubs" not in asm
+
+    # Check that a vectorized instruction is generated for older Intel
+    # generations, because we default to NCHWc layout.
+    target = "llvm -mcpu=core-avx2"
+    asm = _compile(input_dtype="int8",
+                  weight_dtype="int8",
+                  output_dtype="int32",
+                  target=target)
+    # Check that vector int mult and add instructions are generated.
+    assert "vpmulld" in asm and "vpadd" in asm
 
 
 if __name__ == "__main__":
