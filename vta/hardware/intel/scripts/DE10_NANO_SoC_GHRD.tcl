@@ -1,3 +1,26 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+#  Copyright (c) 2018 by Intel, Contributors
+#  File: DE10_NANO_SoC_GHRD.tcl
+#  brief: Intel FPGA compilation script. Partially automatically generated
+#   by Quartus Prime.
+#
+
 # Copyright (C) 2018  Intel Corporation. All rights reserved.
 # Your use of Intel Corporation's design tools, logic functions 
 # and other software and tools, and its AMPP partner logic 
@@ -11,10 +34,6 @@
 # the sole purpose of programming logic devices manufactured by
 # Intel and sold by Intel or its authorized distributors.  Please
 # refer to the applicable agreement for further details.
-
-# Quartus Prime: Generate Tcl File for Project
-# File: DE10_NANO_SoC_GHRD.tcl
-# Generated on: Sat Jul  6 16:44:38 2019
 
 # Load Quartus Prime Tcl Project package
 package require ::quartus::project
