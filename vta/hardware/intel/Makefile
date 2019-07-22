@@ -61,7 +61,4 @@ $(BIT_PATH): $(IP_PATH)
     quartus_cpf -c $(HW_BUILD_PATH)/DE10_NANO_SoC_GHRD.sof $(BIT_PATH)
 
 clean:
-	rm -rf *.out *.log *.sb figures
-
-cleanall: clean
 	rm -rf $(BUILD_DIR)

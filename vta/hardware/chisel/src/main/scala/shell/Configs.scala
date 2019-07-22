@@ -70,7 +70,7 @@ class De10Config extends Config((site, here, up) => {
     memParams = AXIParams(
       addrBits = 32, dataBits = 64, userBits = 5,
       lenBits = 4, // limit to 16 beats, instead of 256 beats in AXI4
-      cacheCode = 15, protCode = 4, userCode = 1),
+      coherent = true),
     vcrParams = VCRParams(),
     vmeParams = VMEParams())
 })
