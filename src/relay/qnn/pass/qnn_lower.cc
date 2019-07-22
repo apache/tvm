@@ -67,6 +67,11 @@ using runtime::TypedPackedFunc;
 std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
     const DataType& idtype) {
   int significand, exponent;
+  if (double_multiplier == 0.) {
+    significand = 0;
+    exponent = 0;
+    return std::pair<int, int>(significand, exponent);
+  }
   int idtype_bits = idtype.bits();
 
   // Get the significand (significand) and exponent (exponent)
