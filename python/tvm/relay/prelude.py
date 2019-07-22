@@ -245,8 +245,10 @@ class Prelude:
         h2 = Var("h2")
         t1 = Var("t1")
         t2 = Var("t2")
-        cons_case = Clause(PatternTuple([PatternConstructor(self.cons, [PatternVar(h2), PatternVar(t2)]),
-                                         PatternConstructor(self.cons, [PatternVar(h1), PatternVar(t1)])]),
+        cons_case = Clause(PatternTuple([PatternConstructor(self.cons,
+                                                            [PatternVar(h2), PatternVar(t2)]),
+                                         PatternConstructor(self.cons,
+                                                            [PatternVar(h1), PatternVar(t1)])]),
                            self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
         nil_case = Clause(PatternWildcard(), self.nil())
         self.mod[self.zip] = Function([l1, l2], Match(Tuple([l1, l2]), [cons_case, nil_case]),
