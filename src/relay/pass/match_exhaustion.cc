@@ -230,7 +230,6 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
                                     const Pattern& cand,
                                     const Module& mod) {
-
   // for a wildcard node, create constructor nodes with wildcards for all args.
   if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
