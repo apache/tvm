@@ -213,6 +213,10 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
       << " Please run infer_type pass.";
   const auto input_dtype = input_tt->dtype;
 
+  // Check rounding validity.
+  CHECK(param->rounding == "UPWARD" || param->rounding == "AWAY_FROM_ZERO")
+      << "QNN requantize supports two rounding modes - UPWARD and "
+      << "AWAY_FROM_ZERO";
   return RequantizeLower(quantized_data, param, input_dtype, out_shape);
 }
 
