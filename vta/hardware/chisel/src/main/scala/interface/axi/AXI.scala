@@ -62,7 +62,6 @@ abstract class AXIBase(params: AXIParams)
 
 class AXILiteAddress(params: AXIParams) extends AXIBase(params) {
   val addr = UInt(params.addrBits.W)
-  // val prot = UInt(params.protBits.W)
 }
 
 class AXILiteWriteData(params: AXIParams) extends AXIBase(params) {
