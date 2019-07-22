@@ -92,7 +92,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#   python3 -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
 #
@@ -130,8 +130,8 @@ from tvm.contrib.download import download_testdata
 #
 #   # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 #   ADD_C_INCLUDES += /work/adrenosdk-linux-5_0/Development/Inc
-#   # download from https://github.com/KhronosGroup/OpenCL-Headers
-#   ADD_C_INCLUDES += /workspace/3rdparty/OpenCL-Headers/
+#   # downloaded from https://github.com/KhronosGroup/OpenCL-Headers
+#   ADD_C_INCLUDES += /usr/local/OpenCL-Headers/
 #
 #   # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
 #   ADD_LDLIBS = /workspace/pull-from-android-device/libOpenCL.so
@@ -155,7 +155,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+#   python3 -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 1 Android device.
 # the output can be
@@ -180,7 +180,7 @@ from tvm.contrib.download import download_testdata
 # .. code-block:: bash
 #
 #   cd /workspace/apps/android_rpc
-#   python tests/android_rpc_test.py
+#   python3 tests/android_rpc_test.py
 #
 
 ######################################################################
@@ -260,10 +260,10 @@ elif test_target == 'vulkan':
 
 input_name = 'input_1'
 shape_dict = {input_name: x.shape}
-func, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
+mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target=target,
+    graph, lib, params = relay.build(mod, target=target,
                                      target_host=target_host, params=params)
 
 # After `relay.build`, you will get three return values: graph,

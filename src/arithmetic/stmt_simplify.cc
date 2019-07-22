@@ -28,19 +28,46 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <tvm/arithmetic.h>
-#include "arithmetic/Simplify.h"
 
 namespace tvm {
 namespace arith {
-// statement simplifier
+
 using namespace ir;
 
 class StmtSimplifier : public IRMutator {
  public:
+  using IRMutator::Mutate;
+
+  Expr Mutate(Expr expr) final {
+    return analyzer_.Simplify(expr);
+  }
+
+  Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
+    for (auto kv : vrange) {
+      analyzer_.Bind(kv.first, kv.second);
+    }
+    return Mutate(stmt);
+  }
+
   Stmt Mutate_(const For* op, const Stmt& s) final {
-    Var loop_var(op->loop_var.node_);
-    analyzer_.Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_.Bind(op->loop_var,
+                   Range::make_by_min_extent(op->min, op->extent));
     return IRMutator::Mutate_(op, s);
+  }
+
+  Stmt Mutate_(const LetStmt* op, const Stmt& s) final {
+    Expr value = this->Mutate(op->value);
+    if (!ir::HasSideEffect(value)) {
+      analyzer_.Bind(op->var, value);
+      return this->Mutate(op->body);
+    }
+    Stmt body = this->Mutate(op->body);
+    if (value.same_as(op->value) &&
+        body.same_as(op->body)) {
+      return s;
+    } else {
+      return LetStmt::make(op->var, value, body);
+    }
   }
 
   // IfThenElse
@@ -106,26 +133,23 @@ class StmtSimplifier : public IRMutator {
     }
   }
 
+  // eliminate useless stores
+  Stmt Mutate_(const Store* op, const Stmt& s) {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Store>();
+    if (const Load* load = op->value.as<Load>()) {
+      if (load->buffer_var.same_as(op->buffer_var) &&
+          Equal(load->index, op->index)) {
+        return Evaluate::make(0);
+      }
+    }
+    return stmt;
+  }
+
  protected:
   Analyzer analyzer_;
   // variable domain
   std::unordered_map<const Variable*, Range> var_dom_;
-};
-
-
-class CanonicalStmtSimplifier : public StmtSimplifier {
- public:
-  using StmtSimplifier::Mutate;
-  Expr Mutate(Expr expr) final {
-    return analyzer_.canonical_simplify(expr);
-  }
-
-  Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
-    for (auto kv : vrange) {
-      analyzer_.Bind(kv.first, kv.second);
-    }
-    return Mutate(stmt);
-  }
 };
 
 }  // namespace arith
@@ -133,7 +157,7 @@ class CanonicalStmtSimplifier : public StmtSimplifier {
 namespace ir {
 
 Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
-  return arith::CanonicalStmtSimplifier().CanonicalSimplify(
+  return arith::StmtSimplifier().Simplify(
       stmt, vrange);
 }
 
@@ -145,42 +169,18 @@ Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
   return analyzer.canonical_simplify(expr);
 }
 
-template<typename T>
-T Simplify_(T a, Map<Var, Range> vrange) {
-  using namespace HalideIR::Internal;
-  Scope<Interval> rscope;
+Expr Simplify(Expr expr, Map<Var, Range> vrange) {
+  arith::Analyzer analyzer;
   for (auto kv : vrange) {
-    Range r = kv.second;
-    rscope.push(
-        kv.first.get(),
-        Interval(r->min,
-                 simplify(r->min + r->extent - make_const(r->min.type(), 1))));
+    analyzer.Bind(kv.first, kv.second);
   }
-  return HalideIR::Internal::simplify(a, true, rscope);
+  expr = analyzer.Simplify(expr);
+  return expr;
 }
 
-
-Expr Simplify(Expr a, Map<Var, Range> vrange) {
-  // Simplify top level reduce.
-  if (const Reduce* r = a.as<Reduce>()) {
-    Array<Expr> new_source;
-    for (auto& e : r->source) {
-      new_source.push_back(Simplify_(e, vrange));
-    }
-    Expr new_condition = Simplify_(r->condition, vrange);
-    if (r->source.same_as(new_source) &&
-        r->condition.same_as(new_condition)) {
-      return a;
-    } else {
-      return Reduce::make(
-              r->combiner, new_source, r->axis, new_condition, r->value_index);
-    }
-  }
-  return Simplify_(a, vrange);
-}
-
-Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
-  return Simplify_(a, vrange);
+Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
+  return arith::StmtSimplifier().Simplify(
+      stmt, vrange);
 }
 }  // namespace ir
 }  // namespace tvm

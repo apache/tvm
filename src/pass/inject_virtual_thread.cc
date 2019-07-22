@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file inject_virtual_thread.cc
  */
 #include <tvm/ir.h>
@@ -37,6 +36,7 @@ class ExprTouched final : public IRVisitor {
   explicit ExprTouched(const std::unordered_set<const Variable*> &touched,
                        bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
+
   void Visit(const NodeRef& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
@@ -241,8 +241,8 @@ class VTInjector : public IRMutator {
       visit_touched_var_ = true;
       Expr offset = Mutate(op->args[2]);
       Expr extent = Mutate(op->args[3]);
-      Expr stride = arith::ComputeExpr<Div>(
-          it->second, make_const(offset.type(), dtype.lanes()));
+      Expr stride =
+          it->second / make_const(offset.type(), dtype.lanes());
       offset = stride * var_ + offset;
       return Call::make(
           op->type, op->name,

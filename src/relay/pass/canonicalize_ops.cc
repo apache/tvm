@@ -23,7 +23,7 @@
  * \brief Canonicalize special operators to basic operators.
     This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
@@ -60,9 +60,6 @@ class BiasAddSimplifier : public ExprMutator {
 Expr CanonicalizeOps(const Expr& e) {
   return BiasAddSimplifier().Mutate(e);
 }
-
-TVM_REGISTER_API("relay._ir_pass.canonicalize_ops")
-.set_body_typed(CanonicalizeOps);
 
 namespace transform {
 

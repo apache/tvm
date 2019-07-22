@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,9 +27,10 @@
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include <topi/tags.h>
 #include <utility>
 #include <limits>
 #include <mutex>
@@ -170,7 +171,7 @@ class ScheduleGetter :
           LOG(FATAL) << "not handled";
           return tvm::Expr();
         }
-      });
+      }, "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
     return {value};
   }

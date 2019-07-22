@@ -27,19 +27,21 @@ import numpy as np
 
 import tvm
 from topi.util import get_const_tuple
-from .. import ir_pass
+from .. import analysis
+from .. import transform as _transform
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
+from .. import module as _module
 
 __all__ = ['from_tensorflow']
 
 def _infer_value(input_val, params):
     from tvm.contrib import graph_runtime
     # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in ir_pass.free_vars(
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
         input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(ir_pass.free_vars(input_val), input_val)
+    func = _expr.Function(analysis.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
     ctx = tvm.context("llvm", 0)
@@ -234,9 +236,16 @@ def _infer_out_shapes(inputs, params):
     """A method to get the output shape of intermediate nodes in the relay graph."""
     return [_infer_shape(inputs, params)]
 
+def _infer_type(node):
+    """A method to infer the type of an intermediate node in the relay graph."""
+    mod = _module.Module.from_expr(node)
+    mod = _transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(node, _expr.Function) else entry.body
+
 def _infer_shape(node, params=None):
     """A method to get the output shape of an intermediate node in the relay graph."""
-    out_type = ir_pass.infer_type(node)
+    out_type = _infer_type(node)
     return get_const_tuple(out_type.checked_type.shape)
 
 def _get_param(params, input_node):
@@ -352,8 +361,12 @@ def _conv(opname):
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
             tmp_shape = attr['_input_shapes'][inputs[1]]
-            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
-            inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            if opname == 'conv':
+                tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            else:
+                tmp_shape = [tmp_shape[ii] for ii in (2, 3, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             attr['_input_shapes'][inputs[1]] = tmp_shape
 
         input_shape = attr['_input_shapes'][inputs[0]]
@@ -385,12 +398,12 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
-            depth_mult, _, kernel_h, kernel_w = weights_shape
+            _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
                 attr['channels'] = weights_shape[0]
             else:
-                attr['channels'] = input_shape[0] * depth_mult
+                attr['channels'] = input_shape[1] * depth_mult
                 if attr['channels'] < 0:
                     attr['channels'] *= -1
 
@@ -402,8 +415,10 @@ def _conv(opname):
                   'not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
-
         if opname == 'depthwise':
+            if depth_mult > 1:
+                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative'
+                                                 ' is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding
@@ -483,6 +498,54 @@ def _decode_image():
         return inputs[0]
     return _impl
 
+def _crop_and_resize():
+    def _impl(inputs, attr, params):
+        # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
+        # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
+        try:
+            boxes = params.pop(inputs[1].name_hint).asnumpy().tolist()
+            box_ind = params.pop(inputs[2].name_hint).asnumpy().tolist()
+            crop_size = params.pop(inputs[3].name_hint).asnumpy().tolist()
+        except (IndexError, KeyError):
+            boxes = _infer_value(inputs[1], params).asnumpy().tolist()
+            box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
+            crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
+
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape)
+        method = attr['method'].decode()
+
+        attrs = {}
+        attrs['size'] = crop_size
+        attrs['layout'] = 'NHWC'
+        if method.lower() == 'nearest':
+            raise tvm.error.OpAttributeUnimplemented(
+                'Attribute method=nearest is not supported')
+        else:
+            attrs['align_corners'] = True
+            attrs['method'] = 'BILINEAR'
+
+        out = None
+        begin = [0] * data_dim
+        size = data_shape[:]
+        for idx in box_ind:
+            # 1) Crop
+            # y is mapped to the image coordinate at y * (image_height - 1)
+            # x is mapped to the image coordinate at x * (image_width - 1)
+            begin[0] = idx
+            begin[1] = int(round(boxes[idx][0] * (data_shape[1] - 1)))
+            begin[2] = int(round(boxes[idx][1] * (data_shape[2] - 1)))
+            size[0] = idx + 1
+            size[1] = int(round((data_shape[1] - 1) * boxes[idx][2])) + 1
+            size[2] = int(round((data_shape[2] - 1) * boxes[idx][3])) + 1
+            res_crop = _op.strided_slice(inputs[0], begin=begin, end=size)
+
+            # 2) Resize
+            res_resize = _get_relay_op('resize')(res_crop, **attrs)
+            out = _op.concatenate([out, res_resize], axis=0) if out else res_resize
+        return out
+    return _impl
+
 def _cast():
     def _impl(inputs, attr, params):
         return inputs[0].astype(attr['DstT'].name)
@@ -511,6 +574,21 @@ def _resize_bilinear():
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
                        extras={'method': "BILINEAR"})(inputs, attr)
+    return _impl
+
+def _resize_nearest_neighbor():
+    def _impl(inputs, attr, params):
+        size = attr['_output_shapes'][0][1:3]
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
+        inputs.pop(1)
+        # NHWC
+        attr['layout'] = 'NHWC'
+
+        return AttrCvt(op_name="resize",
+                       ignores=['Tdim'],
+                       extras={'method': "NEAREST_NEIGHBOR"})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -592,7 +670,7 @@ def _slice():
                 end[i] = data_shape[i] - begin[i]
             else:
                 end[i] += begin[i]
-        return _op.strided_slice(inputs[0], begin=begin, end=size)
+        return _op.strided_slice(inputs[0], begin=begin, end=end)
     return _impl
 
 
@@ -987,9 +1065,9 @@ def _range():
         return AttrCvt(
             op_name="arange",
             ignores=['Tidx'],
-            extras={'start': start,
-                    "stop": limit,
-                    'step': delta,
+            extras={'start': _expr.const(start),
+                    "stop": _expr.const(limit),
+                    'step': _expr.const(delta),
                     'dtype': dtype})([], attr)
     return _impl
 
@@ -1197,8 +1275,8 @@ def _batch_to_space_nd():
             crop = crops[axis - 1]
             if crop != [0, 0]:
                 indices = tvm.relay.arange(
-                    crop[0],
-                    reshaped_permuted_shape[axis] - crop[1],
+                    _expr.const(crop[0]),
+                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
                     dtype='int32'
                 )
                 cropped = tvm.relay.take(cropped, indices=indices, axis=axis)
@@ -1242,6 +1320,7 @@ _convert_map = {
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
+    'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'DepthToSpace'                      : _depth_to_space(),
@@ -1294,6 +1373,7 @@ _convert_map = {
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
     'ResizeBicubic'                     : _resize_bilinear(),
+    'ResizeNearestNeighbor'             : _resize_nearest_neighbor(),
     'ReverseV2'                         : _reverse_v2(),
     'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),
@@ -1303,6 +1383,7 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
+    'Size'                              : AttrCvt('ndarray_size'),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
@@ -1371,9 +1452,8 @@ def _LSTMBlockCell():
         gate_list = _op.split(gates_bias, indices_or_sections=4, axis=1)
         in_gate = _op.sigmoid(gate_list[0])
         in_transform = _op.tanh(gate_list[1])
-        forget_gate = _op.sigmoid(gate_list[2])
-        forget_gate = _op.add(forget_gate,
-                              tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.add(gate_list[2], tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.sigmoid(forget_gate)
         out_gate = _op.sigmoid(gate_list[3])
         next_c = _op.add(_op.multiply(forget_gate, in_state_c),
                          _op.multiply(in_gate, in_transform))
@@ -1776,7 +1856,8 @@ class Loop:
         bind_map = {}
         for i, var in enumerate(self.loop_vars):
             if not isinstance(var, _expr.Var):
-                var_type = ir_pass.infer_type(var).checked_type
+                var_chk = _infer_type(var)
+                var_type = var_chk.checked_type
             else:
                 var_type = var.type_annotation
 
@@ -1823,6 +1904,7 @@ class GraphProto(object):
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
+        self._mod = _module.Module({})
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -1856,8 +1938,9 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : relay.op
-            The returned relay operator
+        mod : tvm.relay.Module
+            The module that optimizations will be performed on.
+
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -2045,9 +2128,9 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        func = _expr.Function(ir_pass.free_vars(out), out)
-
-        return func, self._params
+        func = _expr.Function(analysis.free_vars(out), out)
+        self._mod["main"] = func
+        return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
@@ -2262,7 +2345,8 @@ class GraphProto(object):
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                self._branches[node_name_prefix].cond = ir_pass.infer_type(op[0])
+                chk_op = _infer_type(op[0])
+                self._branches[node_name_prefix].cond = chk_op
         elif node.op == "NextIteration":
             op = self._nodes[node.input[0]]
             assert len(op) == 1
@@ -2336,12 +2420,12 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
 
     Returns
     -------
-    sym : relay.op
-        Compatible relay operator
+    mod : tvm.relay.Module
+        The module that optimizations will be performed on.
 
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph, layout, shape, outputs)
-    return sym, params
+    mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    return mod, params

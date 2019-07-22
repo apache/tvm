@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,7 +26,8 @@
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include "pattern_util.h"
 #include "let_list.h"
 #include "../ir/type_functor.h"
@@ -246,7 +247,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
+TVM_REGISTER_API("relay._transform.first_order_gradient")
 .set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
@@ -311,6 +312,12 @@ struct ReverseAD : ExprMutator {
     return Pair(e, RefCreateNode::make(ZerosLike(e)));
   }
 
+  Expr VisitExpr_(const IfNode* op) final {
+    return IfNode::make(TupleGetItemNode::make(VisitExpr(op->cond), 0),
+                        VisitExpr(op->true_branch),
+                        VisitExpr(op->false_branch));
+  }
+
   Type VisitType(const Type& t) final {
     return t.defined() ? ReverseADType()(t) : t;
   }
@@ -326,6 +333,9 @@ Expr Gradient(const Expr& re, const Module& mod) {
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for now";
+  for (const auto& p : f->params) {
+    CHECK(p->checked_type().as<TensorTypeNode>()) << "input parameters need to be tensor";
+  }
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty());
     Expr rev = ReverseAD(bp)(e);
@@ -345,7 +355,7 @@ Expr Gradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.gradient")
+TVM_REGISTER_API("relay._transform.gradient")
 .set_body_typed(Gradient);
 
 }  // namespace relay

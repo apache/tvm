@@ -29,8 +29,8 @@ RUN bash /install/ubuntu_install_python.sh
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
-COPY install/ubuntu_install_keras.sh /install/ubuntu_install_keras.sh
-RUN bash /install/ubuntu_install_keras.sh
+COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
+RUN bash /install/ubuntu_install_tensorflow.sh
 
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
@@ -52,6 +52,8 @@ ENV PATH ${PATH}:${VULKAN_SDK}/bin
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${VULKAN_SDK}/lib
 ENV VK_LAYER_PATH ${VULKAN_SDK}/etc/explicit_layer.d
 
+RUN git clone https://github.com/KhronosGroup/OpenCL-Headers /usr/local/OpenCL-Headers/
+
 # Build TVM
 RUN cd /usr && \
     git clone --depth=1 https://github.com/dmlc/tvm --recursive && \
@@ -69,3 +71,4 @@ RUN cd /usr && \
 
 # Environment variables
 ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/nnvm/python/:/usr/tvm/vta/python:${PYTHONPATH}
+ENV ANDROID_HOME=/opt/android-sdk-linux/

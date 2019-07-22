@@ -25,8 +25,8 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <string>
-#include "../../arithmetic/compute_expr.h"
 #include "codegen_spirv.h"
+#include "../../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -339,7 +339,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(
-          arith::ComputeExpr<Mul>(make_const(op->stride.type(), i), op->stride));
+          make_const(op->stride.type(), i) * op->stride);
       v = builder_->Add(v, offset);
     }
     values.push_back(v);
@@ -419,9 +419,7 @@ void CodeGenSPIRV::Scalarize(const Expr& e,
                              std::function<void(int i, spirv::Value v)> f) {
   if (const Ramp* ramp = e.as<Ramp>()) {
     for (int i = 0; i < ramp->type.lanes(); ++i) {
-      Expr offset = arith::ComputeExpr<Add>(
-          ramp->base,
-          arith::ComputeExpr<Mul>(ramp->stride, i));
+      Expr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
     }
   } else {

@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import well_formed
+from tvm.relay.analysis import well_formed
 from tvm.relay.prelude import Prelude
 
 def test_let():

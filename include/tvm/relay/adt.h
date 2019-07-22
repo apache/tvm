@@ -114,7 +114,7 @@ class ConstructorNode : public ExprNode {
   /*! \brief The datatype the constructor will construct. */
   GlobalTypeVar belong_to;
   /*! \brief Index in the table of constructors (set when the type is registered). */
-  mutable int tag = -1;
+  mutable int32_t tag = -1;
 
   ConstructorNode() {}
 
@@ -243,7 +243,7 @@ class MatchNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
-    v->Visit("clause", &clauses);
+    v->Visit("clauses", &clauses);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }

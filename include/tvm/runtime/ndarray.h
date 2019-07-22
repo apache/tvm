@@ -190,6 +190,8 @@ class NDArray {
   TVM_DLL static void CopyFromTo(
       DLTensor* from, DLTensor* to, TVMStreamHandle stream = nullptr);
 
+  TVM_DLL std::vector<int64_t> Shape() const;
+
   // internal namespace
   struct Internal;
  protected:

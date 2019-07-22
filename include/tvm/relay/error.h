@@ -64,9 +64,10 @@ struct RelayErrorStream {
 
 struct Error : public dmlc::Error {
   Span sp;
-  explicit Error(const std::string& msg) : dmlc::Error(msg), sp() {}
-  Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
-  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
+  explicit Error(const std::string& msg) : dmlc::Error(msg), sp(nullptr) {}
+  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp(nullptr) {} // NOLINT(*)
+  Error(const Error& err) : dmlc::Error(err.what()), sp(nullptr) {}
+  Error() : dmlc::Error(""), sp(nullptr) {}
 };
 
 /*! \brief An abstraction around how errors are stored and reported.
@@ -118,7 +119,8 @@ class ErrorReporter {
    * \param err The error message to report.
    */
   inline void ReportAt(const GlobalVar& global, const NodeRef& node, std::stringstream& err) {
-    this->ReportAt(global, node, Error(err));
+    std::string err_msg = err.str();
+    this->ReportAt(global, node, Error(err_msg));
   }
 
   /*! \brief Report an error against a program, using the full program

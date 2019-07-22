@@ -114,6 +114,13 @@ typedef ap_int<VTA_ALUOP_IMM_BIT_WIDTH> aluop_imm_T;
 typedef ap_int<VTA_LOG_ACC_WIDTH> aluop_sh_imm_T;
 
 /*!
+* Define HLS stream depth 
+*/
+#define PRAGMA_SUB(x) _Pragma (#x)
+#define PRAGMA_HLS(x) PRAGMA_SUB(x)
+#define STREAM_IN_DEPTH 8
+
+/*!
 * \brief Fetch module.
 *   Reads in \a insn_count instructions via DMA and pushes them to the
 *   appropriate load, gemm or store queue.

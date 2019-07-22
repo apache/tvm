@@ -17,15 +17,20 @@
  * under the License.
  */
 
+// list = *, seq = ?
+
 grammar Relay;
 
-SEMVER: 'v0.0.2' ;
+SEMVER: 'v0.0.3' ;
 
 // Lexing
 // comments
-WS : [ \t\n\r]+ -> skip ;
-LINE_COMMENT : '//' .*? '\n' -> skip ;
-COMMENT : '/*' .*? '*/' -> skip ;
+COMMENT : '/*' (COMMENT|.)*? '*/' -> skip;
+WS : [ \t\n\r]+ -> skip;
+LINE_COMMENT : '//' .*? '\n' -> skip;
+
+fragment ESCAPED_QUOTE : '\\"';
+QUOTED_STRING :   '"' ( ESCAPED_QUOTE | ~('\n'|'\r') )*? '"';
 
 // operators
 MUL: '*' ;
@@ -39,131 +44,120 @@ GE: '>=' ;
 EQ: '==' ;
 NE: '!=' ;
 
-opIdent: CNAME ;
-GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' CNAME;
-GRAPH_VAR: '%' NAT;
-
-MUT: 'mut' ;
-
 BOOL_LIT
   : 'True'
   | 'False'
   ;
 
+CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)*;
+opIdent: CNAME ;
+GLOBAL_VAR: '@' CNAME ;
+LOCAL_VAR: '%' CNAME;
+GRAPH_VAR: '%' NAT;
+
+DATATYPE : 'int64';
 // non-negative floats
-FLOAT
-  : NAT '.' NAT EXP? // 1.35, 1.35E-9, 0.3, 4.5
-  | NAT EXP // 1e10 3e4
-  ;
+fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
+
+FLOAT : PREFLOAT 'f';
 
 // non-negative ints
 NAT: DIGIT+ ;
 fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
 
-CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ;
-fragment LETTER: [a-zA-Z] ;
-fragment DIGIT: [0-9] ;
+fragment LETTER: [a-zA-Z];
+fragment DIGIT: [0-9];
 
+METADATA: 'METADATA:' .*;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
-prog: SEMVER (defn* | expr) EOF ;
+prog: SEMVER (defn* | expr) METADATA? EOF ;
 
 // option: 'set' ident BOOL_LIT ;
 
+exprList: (expr (',' expr)*)?;
+callList
+  : exprList            # callNoAttr
+  | (expr ',')* attrSeq # callWithAttr
+  ;
+
 expr
   // operators
-  : '(' expr ')'                              # parens
+  : '(' expr ')'                              # paren
+  | '{' expr '}'                              # paren
   // function application
-  | expr '(' (expr (',' expr)*)? ')'          # call
+  | expr '(' callList ')'                     # call
   | '-' expr                                  # neg
   | expr op=('*'|'/') expr                    # binOp
   | expr op=('+'|'-') expr                    # binOp
   | expr op=('<'|'>'|'<='|'>=') expr          # binOp
   | expr op=('=='|'!=') expr                  # binOp
-
   // function definition
   | func                                      # funcExpr
-
   // tuples and tensors
   | '(' ')'                                   # tuple
   | '(' expr ',' ')'                          # tuple
   | '(' expr (',' expr)+ ')'                  # tuple
+  | expr '.' NAT                              # projection
   | '[' (expr (',' expr)*)? ']'               # tensor
-
   | 'if' '(' expr ')' body 'else' body        # ifElse
-
   // sequencing
-  | 'let' MUT? var '=' expr ';' expr          # let
-  | 'let' MUT? var '=' '{' expr '}' ';' expr  # let
+  | 'let' var '=' expr ';' expr               # let
   // sugar for let %_ = expr; expr
-  | expr ';' expr                             # let
-  | ident '=' expr ';' expr                   # graph
-
-  // mutable update
-  // | ident '=' expr                            # writeRef
-  // | expr '^'                                  # readRef
-
+  | expr ';;' expr                            # let
+  | GRAPH_VAR '=' expr ';' expr               # graph
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  // | expr '.' NAT                           # project
-  // | 'debug'                                # debug
+  | meta                                      # metaExpr
+  | QUOTED_STRING                             # stringExpr
   ;
 
-func: 'fn'        typeParamSeq? '(' argList ')' ('->' type_)? body ;
-defn: 'def' ident typeParamSeq? '(' argList ')' ('->' type_)? body ;
+func: 'fn'        typeParamList? '(' argList ')' ('->' type_)? body ;
+defn: 'def' ident typeParamList? '(' argList ')' ('->' type_)? body ;
 
 argList
-  : varList
-  | attrList
-  | varList ',' attrList
+  : varList              # argNoAttr
+  | (var ',')* attrSeq   # argWithAttr
   ;
 
-varList: (var (',' var)*)? ;
-var: ident (':' type_)? ;
+varList: (var (',' var)*)?;
+var: LOCAL_VAR (':' type_)?;
 
-attrList: (attr (',' attr)*)? ;
+attrSeq: attr (',' attr)*;
 attr: CNAME '=' expr ;
 
-// TODO(@jmp): for improved type annotations
-// returnAnno: (ident ':')? type_ ;
-
-// relations: 'where' relation (',' relation)* ;
-// relation: ident '(' (type_ (',' type_)*)? ')' ;
-
-typeParamSeq
+typeParamList
   : '[' ']'
   | '[' ident (',' ident)* ']'
   ;
 
 type_
-  : '(' ')'                                         # tupleType
-  | '(' type_ ',' ')'                               # tupleType
-  | '(' type_ (',' type_)+ ')'                      # tupleType
-  | typeIdent                                       # typeIdentType
-  | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
-  // currently unused
-  // | typeIdent '[' (type_ (',' type_)*)? ']'         # callType
-  | 'fn' typeParamSeq? '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
-  | '_'                                             # incompleteType
-  | NAT                                             # intType
+  : '(' ')'                                                      # tupleType
+  | '(' type_ ',' ')'                                            # tupleType
+  | '(' type_ (',' type_)+ ')'                                   # tupleType
+  | typeIdent                                                    # typeIdentType
+  | 'Tensor' '[' shapeList ',' type_ ']'                         # tensorType
+  | 'fn' typeParamList? '(' (type_ (',' type_)*)? ')' '->' type_ # funcType
+  | '_'                                                          # incompleteType
+  | NAT                                                          # intType
   ;
 
-shapeSeq
-  : '(' ')'
-  | '(' shape ',' ')'
-  | '(' shape (',' shape)+ ')'
+shapeList
+  : '(' shape (',' shape)+ ')'
+  | '(' ')'
+  | shape
   ;
+
+meta : 'meta' '[' CNAME ']' '[' NAT ']';
 
 shape
-  : '(' shape ')'                   # parensShape
-  // | type_ op=('*'|'/') type_        # binOpType
-  // | type_ op=('+'|'-') type_        # binOpType
-  | NAT                             # intShape
+  : meta # metaShape
+  | '(' shape ')'                        # parensShape
+  | NAT                                  # intShape
   ;
 
-typeIdent : CNAME ;
+typeIdent : CNAME;
 // int8, int16, int32, int64
 // uint8, uint16, uint32, uint64
 // float16, float32, float64

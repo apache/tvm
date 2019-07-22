@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_NN_H_
 
 #include <tvm/attrs.h>
+#include <tvm/relay/base.h>
 #include <string>
 
 namespace tvm {

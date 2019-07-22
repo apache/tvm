@@ -18,15 +18,16 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
+import warnings
 import numpy as np
 
 from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
-from . import ir_pass
 from . import ty as _ty
 from . import expr as _expr
+from .module import Module as _Module
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -137,14 +138,14 @@ class BuildModule(object):
         return ret
 
 
-def build(func, target=None, target_host=None, params=None):
+def build(mod, target=None, target_host=None, params=None):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
     Parameters
     ----------
-    func: relay.Function
-        The function to build.
+    mod : relay.Module
+        The module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
     name) to str/tvm.target.Target, optional
@@ -175,6 +176,17 @@ def build(func, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
+    if isinstance(mod, _Module):
+        func = mod["main"]
+    elif isinstance(mod, _expr.Function):
+        func = mod
+        warnings.warn(
+            "Please use input parameter mod (tvm.relay.module.Module) "
+            "instead of deprecated parameter func (tvm.relay.expr.Function)",
+            DeprecationWarning)
+    else:
+        raise ValueError("Type of input parameter mod must be tvm.relay.module.Module")
+
     target = _update_target(target)
 
     if isinstance(target_host, (str, _target.Target)):
@@ -192,8 +204,7 @@ def build(func, target=None, target_host=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(func, target, target_host,
-                                                params)
+        graph_json, mod, params = bld_mod.build(func, target, target_host, params)
     return graph_json, mod, params
 
 
@@ -215,20 +226,23 @@ class GraphExecutor(_interpreter.Executor):
     """
 
     def __init__(self, mod, ctx, target):
+        assert mod is not None
         self.mod = mod
         self.ctx = ctx
         self.target = target
 
-    def _make_executor(self, func):
-        ret_type = ir_pass.infer_type(func).ret_type
+    def _make_executor(self, expr=None):
+        if expr:
+            self.mod["main"] = expr
+        ret_type = self.mod["main"].checked_type.ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
-        graph_json, mod, params = build(func, target=self.target)
+        graph_json, mod, params = build(self.mod, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
             gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
-            args = self._convert_args(func, args, kwargs)
+            args = self._convert_args(self.mod["main"], args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)
@@ -265,6 +279,8 @@ def create_executor(kind="debug",
     target : :py:class:`tvm.Target`
         The corresponding context
     """
+    if mod is None:
+        mod = _Module()
     if ctx is not None:
         assert ctx.device_type == _nd.context(str(target), 0).device_type
     else:

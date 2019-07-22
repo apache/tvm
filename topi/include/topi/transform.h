@@ -35,7 +35,8 @@
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 #include "tvm/data_layout.h"
 
 namespace topi {
@@ -657,6 +658,43 @@ inline Tensor take(const Tensor& a,
   }
 }
 
+
+/*!
+* \brief Mask the out-of-boundary elements of each sequence.
+*
+* \param data The source array.
+* \param valid_length The real length of each sequence.
+* \param mask_value The masking value.
+* \param axis The axis of the temporal dimension of the sequence
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the sequence_mask operation
+*/
+inline Tensor sequence_mask(const Tensor& data,
+                            const Tensor& valid_length,
+                            double mask_value,
+                            int axis,
+                            std::string name = "T_sequence_mask",
+                            std::string tag = kInjective) {
+  CHECK(axis == 0 || axis == 1) << "axis must be either 0 or 1";
+  CHECK_EQ(valid_length->shape.size(), 1) << "valid_length must have ndim=1, i.e., (batch_size,).";
+  auto length_dim = data->shape[axis];
+  auto batch_dim = data->shape[1 - axis];
+  Array<Expr> out_shape = data->shape;
+  Tensor out = compute(
+      out_shape, [&](const Array<Var>& out_index) {
+        Array<Expr> len_index;
+        auto tid = out_index[axis];
+        auto bid = out_index[1 - axis];
+        len_index.push_back(bid);
+        Expr ret = tvm::if_then_else(tvm::cast(valid_length->dtype, tid) >= valid_length(len_index),
+                                     tvm::make_const(data->dtype, mask_value), data(out_index));
+        return ret;
+      }, name, tag);
+  return out;
+}
+
 /*!
 * \brief Take elements from an array along an axis.
 *
@@ -1180,6 +1218,29 @@ inline Tensor shape(const Tensor& src,
     Expr ret = 0;
     for (int i = 0; i < ndim; ++i) {
       ret = tvm::if_then_else(idx == i, src->shape[i], ret);
+    }
+    return tvm::cast(dtype, ret);
+  }, name, tag);
+}
+
+/*!
+ * \brief Get the size of input tensor.
+ * \param src the input tensor.
+ * \param dtype the type of the elements in the tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of input shape.
+ */
+inline Tensor ndarray_size(const Tensor& src,
+                           const Type& dtype,
+                           const std::string& name = "ndarray_size",
+                           const std::string& tag = kInjective) {
+  int ndim = static_cast<int>(src->shape.size());
+  Array<Expr> out_ndarray_size = {1};
+  return compute(out_ndarray_size, [&](const Array<Var>& indices) {
+    Expr ret = 1;
+    for (int i = 0; i < ndim; ++i) {
+      ret *= src->shape[i];
     }
     return tvm::cast(dtype, ret);
   }, name, tag);

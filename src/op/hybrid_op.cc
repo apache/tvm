@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
@@ -28,7 +27,6 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/expr_operator.h>
-#include <ir/Expr.h>
 #include <unordered_set>
 #include <string>
 #include <utility>
@@ -110,6 +108,7 @@ Operation HybridOpNode::ReplaceInputs(
 
 void HybridOpNode::PropBoundToInputs(
     const Operation &self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet> &dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (Tensor t : this->inputs) {
@@ -143,7 +142,7 @@ Stmt HybridOpNode::BuildRealize(
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
-    HalideIR::Internal::Region bounds;
+    Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(
@@ -442,7 +441,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
       }
       const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
       return For::make(target->var, range->min, range->extent,
-                       for_type, HalideIR::DeviceAPI::None, body);
+                       for_type, DeviceAPI::None, body);
     }
   };
 

@@ -20,8 +20,9 @@ from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
@@ -59,6 +60,8 @@ class OperatorConverter(object):
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'RESHAPE': self.convert_reshape,
+            'RESIZE_BILINEAR': self.convert_resize_bilinear,
+            'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
@@ -70,8 +73,13 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
+            'REDUCE_MIN': self._convert_reduce_min,
+            'REDUCE_MAX': self._convert_reduce_max,
+            'MEAN': self._convert_reduce_mean,
+            'REDUCE_PROD': self._convert_reduce_prod,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
+            'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
         }
 
@@ -224,6 +232,58 @@ class OperatorConverter(object):
 
         return out
 
+    def _convert_resize(self, method, op):
+        """Generic method to Convert TFLite RESIZE operators"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.ResizeBilinearOptions import ResizeBilinearOptions
+            # ResizeNearestNeighborOptions was added in tflite v1.13
+            tflite_ver = 1120
+            if 'ResizeNearestNeighborOptions' in dir(BuiltinOptions):
+                from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+                tflite_ver = 1130
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # images, 4-D Tensor with shape NHWC.
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # size - 1-D int32 Tensor of 2 elements: new_height, new_width
+        target_size = tuple(self.get_tensor_value(input_tensors[1]))
+
+        # Options - align_corners (bool)
+        resize_options = None
+        align_corners = False
+        if method == "BILINEAR":
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
+            resize_options = ResizeBilinearOptions()
+        elif tflite_ver >= 1130:
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeNearestNeighborOptions
+            resize_options = ResizeNearestNeighborOptions()
+
+        if resize_options is not None:
+            op_options = op.BuiltinOptions()
+            resize_options.Init(op_options.Bytes, op_options.Pos)
+            align_corners = resize_options.AlignCorners()
+
+        # Use layout NHWC
+        out = _op.image.resize(in_expr, target_size, "NHWC", method, align_corners)
+        return out
+
+    def convert_resize_bilinear(self, op):
+        """Convert TFLite RESIZE_BILINEAR"""
+        return self._convert_resize("BILINEAR", op)
+
+    def convert_resize_nearest_neighbor(self, op):
+        """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
+        return self._convert_resize("NEAREST_NEIGHBOR", op)
+
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
         try:
@@ -297,6 +357,12 @@ class OperatorConverter(object):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.Operator import Operator
+            from tflite.AddOptions import AddOptions
+            from tflite.SubOptions import SubOptions
+            from tflite.MulOptions import MulOptions
+            from tflite.DivOptions import DivOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -319,6 +385,26 @@ class OperatorConverter(object):
             rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
                                               dtype=rhs_type_str)
         out = relay_op(lhs_expr, rhs_expr)
+
+        # Options (fused_activation_function)
+        options = None
+        if op.BuiltinOptionsType() == BuiltinOptions.AddOptions:
+            options = AddOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.SubOptions:
+            options = SubOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.MulOptions:
+            options = MulOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.DivOptions:
+            options = DivOptions()
+
+        if options is not None:
+            op_options = op.BuiltinOptions()
+            options.Init(op_options.Bytes, op_options.Pos)
+            fused_activation_fn = options.FusedActivationFunction()
+            # if we have activation fn
+            if fused_activation_fn != ActivationFunctionType.NONE:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
 
     def convert_add(self, op):
@@ -345,6 +431,48 @@ class OperatorConverter(object):
 
     def convert_minimum(self, op):
         return self._convert_elemwise(_op.minimum, op)
+
+    def _convert_reduce(self, relay_op, op):
+        """Generic method to Convert TFLite MEAN operators"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.ReducerOptions import ReducerOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # input_tensor
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # axis
+        axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        # Options - keep_dims (bool)
+        assert op.BuiltinOptionsType() == BuiltinOptions.ReducerOptions
+        reduce_options = ReducerOptions()
+        op_options = op.BuiltinOptions()
+        reduce_options.Init(op_options.Bytes, op_options.Pos)
+        keep_dims = reduce_options.KeepDims()
+
+        out = relay_op(in_expr, axis, keep_dims)
+        return out
+
+    def _convert_reduce_min(self, op):
+        return self._convert_reduce(_op.reduce.min, op)
+
+    def _convert_reduce_max(self, op):
+        return self._convert_reduce(_op.reduce.max, op)
+
+    def _convert_reduce_mean(self, op):
+        return self._convert_reduce(_op.reduce.mean, op)
+
+    def _convert_reduce_prod(self, op):
+        return self._convert_reduce(_op.reduce.prod, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
@@ -662,6 +790,33 @@ class OperatorConverter(object):
         out = _op.nn.pad(in_expr, paddings)
         return out
 
+    def convert_pack(self, op):
+        """Convert TFLite pack"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.PackOptions import PackOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 1, "input tensors should greater than 1"
+        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.PackOptions
+        op_options = op.BuiltinOptions()
+        pack_options = PackOptions()
+        pack_options.Init(op_options.Bytes, op_options.Pos)
+        pack_axis = pack_options.Axis()
+
+        in_exprs_reshaped = [_op.expand_dims(i, axis=pack_axis, num_newaxis=1) for i in in_exprs]
+        out = _op.concatenate(in_exprs_reshaped, pack_axis)
+        return out
+
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
@@ -749,8 +904,8 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     Returns
     -------
-    func : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation.
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
@@ -787,5 +942,5 @@ def from_tflite(model, shape_dict, dtype_dict):
     params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(ir_pass.free_vars(outputs), outputs)
-    return func, params
+    func = _expr.Function(analysis.free_vars(outputs), outputs)
+    return _module.Module.from_expr(func), params

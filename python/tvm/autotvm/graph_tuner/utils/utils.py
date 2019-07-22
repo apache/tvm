@@ -17,6 +17,9 @@
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
 from tvm import relay
+from tvm.relay import transform
+
+from .._base import LAYOUT_FIXED_OP
 
 
 def has_multiple_inputs(node_list, node_idx, input_names):
@@ -45,14 +48,16 @@ def has_multiple_inputs(node_list, node_idx, input_names):
         in_idx = in_idx[0]
         in_node = node_list[in_idx]
         # Exclude parameter nodes
-        if in_node["op"] != "null" or is_input_node(in_node,
-                                                    input_names):
+        if in_node["op"] != "null" or \
+                ("name" in in_node and in_node["name"] in input_names):
             num_inputs += 1
     return num_inputs > 1
 
 
-def is_input_node(node_entry, input_names):
-    """Whether a node is an input node.
+def is_boundary_node(node_entry, input_names):
+    """Whether a node is a boundary node.
+    Currently input node and nodes in LAYOUT_FIXED_OP are
+    counted as boundary.
 
     Parameters
     ----------
@@ -65,9 +70,11 @@ def is_input_node(node_entry, input_names):
     Returns
     -------
     out : bool
-        whether node is a input node.
+        whether node is a boundary node.
     """
-    return "name" in node_entry and node_entry["name"] in input_names
+    out = node_entry["op"] in LAYOUT_FIXED_OP or \
+          ("name" in node_entry and node_entry["name"] in input_names)
+    return out
 
 
 def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
@@ -107,4 +114,7 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
             rebind_dict[var] = updated_input_dict[var.name_hint]
     updated_expr = relay.expr.bind(expr, rebind_dict)
 
-    return relay.ir_pass.infer_type(updated_expr)
+    mod = relay.Module.from_expr(updated_expr)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(updated_expr, relay.Function) else entry.body

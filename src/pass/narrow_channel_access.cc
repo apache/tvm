@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -200,7 +200,7 @@ class ChannelAccessRewriter : public IRMutator {
     Expr base = linear_eq[1];
     if (!is_zero(base)) return body;
     Expr left = ir::Simplify(adv_op->value - coeff * for_op->extent);
-    if (!can_prove(left >= 0)) return body;
+    if (!analyzer_.CanProve(left >= 0)) return body;
     // rewrite access index.
     ChannelAccessIndexRewriter rw(
         ch->handle_var.get(), var * coeff, read_access);
@@ -233,6 +233,7 @@ class ChannelAccessRewriter : public IRMutator {
     return body;
   }
 
+  arith::Analyzer analyzer_;
   std::vector<RewriteEntry> tasks_;
 };
 

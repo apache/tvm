@@ -23,8 +23,9 @@ from __future__ import absolute_import as _abs
 from enum import Enum
 import numpy as np
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
+from .. import module as _module
 from .common import get_relay_op, new_var
 
 __all__ = ['from_darknet']
@@ -819,8 +820,8 @@ class GraphProto(object):
 
         outputs = _as_list(sym) + self._outs
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        sym = _expr.Function(ir_pass.free_vars(outputs), outputs)
-        return sym, self._tvmparams
+        sym = _expr.Function(analysis.free_vars(outputs), outputs)
+        return _module.Module.from_expr(sym), self._tvmparams
 
 def from_darknet(net,
                  shape=None,
@@ -838,8 +839,9 @@ def from_darknet(net,
 
     Returns
     -------
-    sym : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation.
+
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
     """

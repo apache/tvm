@@ -154,7 +154,7 @@ def get_net(iterations, num_hidden, batch_size=1, dtype="float32"):
 
     builder.ret(out)
     body = builder.get()
-    args = relay.ir_pass.free_vars(body)
+    args = relay.analysis.free_vars(body)
     return relay.Function(args, body, input_type)
 
 
@@ -173,8 +173,8 @@ def get_workload(iterations, num_hidden, batch_size=1, dtype="float32"):
         The data type
     Returns
     -------
-    net : nnvm.symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a LSTM network.
     params : dict of str to NDArray
         The parameters.
     """

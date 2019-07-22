@@ -44,7 +44,7 @@ PACKAGE_VERSION = {
     'opencl':  "v0.02",
     'mali':    "v0.05",
 
-    'vta':     "v0.04",
+    'vta':     "v0.05",
 }
 
 logger = logging.getLogger('autotvm')

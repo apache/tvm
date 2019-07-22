@@ -32,6 +32,7 @@
  *  - Otherwise, inline if the node is at the end of a scope and is used at most once.
  */
 
+#include <dmlc/json.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/module.h>
 #include <tvm/relay/pattern_functor.h>
@@ -42,6 +43,17 @@
 
 namespace tvm {
 namespace relay {
+
+Doc Brace(const Doc& d,
+          const std::string& open = "{",
+          const std::string& close = "}",
+          int indent = 2) {
+  Doc doc;
+  doc << open;
+  doc << Indent(indent, PrintNewLine() << d) << PrintNewLine();
+  doc << close;
+  return doc;
+}
 
 /*!
  * \brief Meta data context for PrettyPrinter.
@@ -108,8 +120,10 @@ class TextMetaDataContext {
     if (it != meta_repr_.end()) {
       return it->second;
     }
+    std::string type_key = node->type_key();
+    CHECK(!type_key.empty());
     Array<NodeRef>& mvector =
-        meta_data_[node->type_key()];
+        meta_data_[type_key];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);
     Doc doc;
@@ -117,14 +131,18 @@ class TextMetaDataContext {
     meta_repr_[node] = doc;
     return meta_repr_[node];
   }
+
+  Doc PrintKeyValue(const std::string& str, const Doc& v) const {
+    return Doc("\"") << str << "\": " << v;
+  }
+
   /*!
    * \brief Get the metadata section in json format.
    * \return the meta data string.
    */
-  std::string GetMetaSection() const {
-    if (meta_data_.size() == 0) return std::string();
-    return SaveJSON(Map<std::string, NodeRef>(
-        meta_data_.begin(), meta_data_.end()));
+  Doc GetMetaSection() const {
+    if (meta_data_.size() == 0) return Doc();
+    return Doc(SaveJSON(Map<std::string, NodeRef>(meta_data_.begin(), meta_data_.end())));
   }
 
   /*! \return whether the meta data context is empty. */
@@ -172,12 +190,11 @@ class PrettyPrinter :
   }
 
   // indent a new body
-  // TODO(jmp): indent should be an instance variable of the printer
   Doc PrintBody(const NodeRef& node, int indent = 2) {
     Doc doc;
     Doc body;
     doc << "{";
-    doc << Indent(indent, body << "\n" << PrintScope(node)) << "\n";
+    doc << Indent(indent, body << PrintNewLine() << PrintScope(node)) << PrintNewLine();
     doc << "}";
     return doc;
   }
@@ -203,19 +220,19 @@ class PrettyPrinter :
     Doc doc;
     doc << PrintScope(node);
     if (!meta_.empty()) {
+      doc << PrintNewLine();
       if (show_meta_data_) {
-        std::string meta_json = meta_.GetMetaSection();
         // append meta data in the end.
-        doc << "\n" << "/* meta data */" << "\n" << meta_json;
+        doc << "METADATA:" << PrintNewLine() << meta_.GetMetaSection();
       } else {
-        doc << "\n"
-            << "// meta data omitted. you can use show_meta_data=True to include meta data";
+        doc << "// meta data omitted. you can use show_meta_data=True to include meta data";
       }
     }
     return doc;
   }
 
-  Doc PrintAttrs(const Attrs& attrs, const Expr& op);
+  std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
+  std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
 
   Doc Print(const NodeRef& node, bool meta = false, bool try_inline = false) {
     if (node.as_derived<ExprNode>()) {
@@ -360,7 +377,7 @@ class PrettyPrinter :
       // wrap GNFed let in brackets
       Doc body;
       printed_expr << "{";
-      printed_expr << Indent(2, body << "\n" << VisitExpr(expr)) << "\n";
+      printed_expr << Indent(2, body << PrintNewLine() << VisitExpr(expr)) << PrintNewLine();
       printed_expr << "}";
     } else {
       printed_expr = VisitExpr(expr);
@@ -372,7 +389,7 @@ class PrettyPrinter :
     if (expr.as<VarNode>()) {
       // This is our first time visiting the var and we hit the VarNode case
       // in the visitor. Thus the variable is free.
-      doc_stack_.back() << "free_var " << printed_expr << "\n";
+      doc_stack_.back() << "free_var " << printed_expr << PrintNewLine();
       // Memoization is done in AllocVar.
       return memo_[expr];
     } else if (inline_expr) {
@@ -381,7 +398,7 @@ class PrettyPrinter :
     } else {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
+      doc_stack_.back() << temp_var << " = " << printed_expr << ";" << PrintNewLine();
       return temp_var;
     }
   }
@@ -421,7 +438,7 @@ class PrettyPrinter :
       fields.push_back(Print(field));
     }
     Doc doc;
-    doc << "(" << PrintVec(fields);
+    doc << "(" << PrintSep(fields);
     // conform to python tuple format (1,)
     if (op->fields.size() == 1) {
       doc << ",";
@@ -445,7 +462,13 @@ class PrettyPrinter :
 
   Doc VisitExpr_(const LetNode* op) final {
     Doc doc;
-    doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false, true) << "\n";
+    doc
+      << "let "
+      << AllocVar(op->var)
+      << " = "
+      << Print(op->value, false, true)
+      << ";"
+      << PrintNewLine();
     // we use a scope here so GNF hoisting doesn't escape too far
     // and nested, unique lets are not hoisted
     doc << PrintScope(op->body);
@@ -453,29 +476,31 @@ class PrettyPrinter :
   }
 
   Doc PrintFunc(const Doc& prefix, const Function& fn) {
-      Doc doc;
-      doc << prefix;
-      if (fn->type_params.size() > 0) {
-        doc << "<";
-        std::vector<Doc> type_params;
-        for (const TypeVar& tv : fn->type_params) {
-          type_params.push_back(AllocTypeVar(tv));
-        }
-        doc << PrintVec(type_params);
-        doc << ">";
+    Doc doc;
+    doc << prefix;
+    if (fn->type_params.size() > 0) {
+      doc << "<";
+      std::vector<Doc> type_params;
+      for (const TypeVar& tv : fn->type_params) {
+        type_params.push_back(AllocTypeVar(tv));
       }
-      doc << "(";
-      std::vector<Doc> params;
-      for (Var param : fn->params) {
-        params.push_back(AllocVar(param));
-      }
-      doc << PrintVec(params) << PrintAttrs(fn->attrs, fn);
-      doc << ") ";
-      if (fn->ret_type.defined()) {
-        doc << "-> " << Print(fn->ret_type) << " ";
-      }
-      doc << PrintBody(fn->body);
-      return doc;
+      doc << PrintSep(type_params);
+      doc << ">";
+    }
+    doc << "(";
+    std::vector<Doc> params;
+    for (Var param : fn->params) {
+      params.push_back(AllocVar(param));
+    }
+    for (const Doc& d : PrintFuncAttrs(fn->attrs)) {
+      params.push_back(d);
+    }
+    doc << PrintSep(params) << ") ";
+    if (fn->ret_type.defined()) {
+      doc << "-> " << Print(fn->ret_type) << " ";
+    }
+    doc << PrintBody(fn->body);
+    return doc;
   }
 
   Doc PrintMod(const Module& mod) {
@@ -484,13 +509,13 @@ class PrettyPrinter :
     for (const auto& kv : mod->functions) {
       dg_ = DependencyGraph::Create(&arena_, kv.second);
 
-      std::ostringstream os;
       if (counter++ != 0) {
-        doc << "\n";
+        doc << PrintNewLine();
       }
+      std::ostringstream os;
       os << "def @" << kv.first->name_hint;
       doc << PrintFunc(Doc(os.str()), kv.second);
-      doc << "\n";
+      doc << PrintNewLine();
     }
     return doc;
   }
@@ -512,11 +537,14 @@ class PrettyPrinter :
     // visit args first so they are lifted before the op
     // this places op closer to its call site
     std::vector<Doc> args;
-    for (Expr arg : op->args) {
+    for (const Expr& arg : op->args) {
       args.push_back(Print(arg));
     }
+    for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
+      args.push_back(d);
+    }
     doc << Print(op->op);
-    return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, op->op) << ")";
+    return doc << "(" << PrintSep(args) << ")";
   }
 
   Doc VisitExpr_(const RefCreateNode* op) final {
@@ -546,7 +574,7 @@ class PrettyPrinter :
       clauses.push_back(clause_doc << Print(clause->lhs) << " -> "
                                    << Print(clause->rhs));
     }
-    doc << Indent(2, body << "\n" << PrintVec(clauses, Doc("\n"))) << "\n";
+    doc << Indent(2, body << PrintNewLine() << PrintSep(clauses, PrintNewLine())) << PrintNewLine();
     doc << "}";
     return doc;
   }
@@ -558,7 +586,7 @@ class PrettyPrinter :
     for (const auto& pat : p->patterns) {
       pats.push_back(Print(pat));
     }
-    return doc << PrintVec(pats) << ")";
+    return doc << PrintSep(pats) << ")";
   }
 
   Doc VisitPattern_(const PatternVarNode* pv) final {
@@ -605,7 +633,7 @@ class PrettyPrinter :
       args.push_back(PrintType(t, false));
     }
     doc << "[";
-    doc << PrintVec(args);
+    doc << PrintSep(args);
     doc << "]";
     return doc;
   }
@@ -621,11 +649,7 @@ class PrettyPrinter :
     for (NodeRef shape : node->shape) {
       shapes.push_back(PrintAttr(shape));
     }
-    doc << PrintVec(shapes);
-    // conform to python tuple format (1,)
-    if (node->shape.size() == 1) {
-      doc << ",";
-    }
+    doc << PrintSep(shapes);
     return doc << "), " << PrintDType(node->dtype) << "]";
   }
 
@@ -635,7 +659,7 @@ class PrettyPrinter :
       fields.push_back(Print(field));
     }
     Doc doc;
-    doc << "(" << PrintVec(fields);
+    doc << "(" << PrintSep(fields);
     // conform to python tuple format (1,)
     if (node->fields.size() == 1) {
       doc << ",";
@@ -645,11 +669,21 @@ class PrettyPrinter :
 
   Doc VisitType_(const FuncTypeNode* node) final {
     Doc doc;
+    doc << "fn ";
+    if (node->type_params.size() != 0) {
+      doc << "<";
+      std::vector<Doc> type_params;
+      for (Type type_param : node->type_params) {
+        type_params.push_back(Print(type_param));
+      }
+      doc << PrintSep(type_params);
+      doc << ">";
+    }
     std::vector<Doc> arg_types;
     for (Type arg_type : node->arg_types) {
       arg_types.push_back(Print(arg_type));
     }
-    return doc << "fn (" << PrintVec(arg_types) << ") -> " << Print(node->ret_type);
+    return doc << "(" << PrintSep(arg_types) << ") -> " << Print(node->ret_type);
   }
 
   Doc VisitType_(const RefTypeNode* node) final {
@@ -664,7 +698,9 @@ class PrettyPrinter :
   Doc PrintAttr(const NodeRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
-      if (meta) {
+      if (value.as<tvm::ir::Any>()) {
+        printed_attr << "?";
+      } else if (meta) {
         printed_attr = meta_.GetMetaNode(value);
       } else {
         printed_attr = VisitAttr(value);
@@ -686,7 +722,7 @@ class PrettyPrinter :
     for (NodePtr<Node> val : op->data) {
       arr_vals.push_back(PrintAttr(NodeRef(val)));
     }
-    doc << PrintVec(arr_vals);
+    doc << PrintSep(arr_vals);
     doc << "]";
     return doc;
   }
@@ -737,40 +773,43 @@ class PrettyPrinter :
  */
 class PrettyPrinter::AttrPrinter : public AttrVisitor {
  public:
-  AttrPrinter(Doc& doc, PrettyPrinter* parent) : doc_(doc), parent_(parent) {}
+  AttrPrinter(std::vector<Doc>* doc, PrettyPrinter* parent) : docs(doc), parent_(parent) {}
 
   template<typename T>
-  Doc PrintKV(const char* key, const T& value) {
+  void PrintKV(const char* key, const T& value) {
     Doc doc;
-    return doc << ", " << key << "=" << value;
+    doc << key << "=" << value;
+    docs->push_back(doc);
   }
 
   void Visit(const char* key, double* value) final {
-    doc_ << PrintKV(key, value[0]);
+    Doc doc;
+    doc << key << "=" << *value << "f";
+    docs->push_back(doc);
   }
   void Visit(const char* key, int64_t* value) final {
-    doc_ << PrintKV(key, value[0]);
+    PrintKV(key, *value);
   }
   void Visit(const char* key, uint64_t* value) final {
-    doc_ << PrintKV(key, value[0]);
+    PrintKV(key, *value);
   }
   void Visit(const char* key, int* value) final {
-    doc_ << PrintKV(key, value[0]);
+    PrintKV(key, *value);
   }
   void Visit(const char* key, bool* value) final {
-    doc_ << PrintKV(key, PrintBool(value[0]));
+    PrintKV(key, PrintBool(*value));
   }
   void Visit(const char* key, std::string* value) final {
-    doc_ << PrintKV(key, PrintString(value[0]));
+    PrintKV(key, PrintString(*value));
   }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    doc_ << PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(value[0]))));
+    PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(*value))));
   }
   void Visit(const char* key, NodeRef* value) final {
-    doc_ << PrintKV(key, parent_->PrintAttr(value[0]));
+    PrintKV(key, parent_->PrintAttr(*value));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";
@@ -780,30 +819,52 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
   }
 
  private:
-  Doc& doc_;
+  std::vector<Doc>* docs;
   PrettyPrinter* parent_;
 };
 
-Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {
-  Doc doc;
-  if (!attrs.defined()) return doc;
+std::vector<Doc> PrettyPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
+  std::vector<Doc> docs;
+  if (!attrs.defined()) return docs;
   const auto* op_node = op.as<OpNode>();
   if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
     // fallback
-    return doc << ", " << meta_.GetMetaNode(attrs);
+    Doc doc;
+    doc << meta_.GetMetaNode(attrs);
+    docs.push_back(doc);
+    return docs;
   } else {
-    AttrPrinter printer(doc, this);
+    AttrPrinter printer(&docs, this);
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
-    return doc;
+    return docs;
   }
+}
+
+std::vector<Doc> PrettyPrinter::PrintFuncAttrs(const Attrs& attrs) {
+  std::vector<Doc> docs;
+  if (!attrs.defined()) return docs;
+  const auto* dict_attrs = attrs.as<DictAttrsNode>();
+  CHECK(dict_attrs);
+  for (const auto& k : dict_attrs->dict) {
+    Doc doc;
+    doc << k.first << "=" << Print(k.second);
+    docs.push_back(doc);
+  }
+  return docs;
 }
 
 std::string PrettyPrint_(const NodeRef& node,
                          bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   Doc doc;
-  doc << "v0.0.1" << "\n"
+  doc << "v0.0.3" << PrintNewLine()
       << PrettyPrinter(show_meta_data, annotate).PrintFinal(node);
+  return doc.str();
+}
+
+std::string PrettyPrint(const NodeRef& node) {
+  Doc doc;
+  doc << PrettyPrinter(false, runtime::TypedPackedFunc<std::string(Expr)>()).PrintFinal(node);
   return doc.str();
 }
 

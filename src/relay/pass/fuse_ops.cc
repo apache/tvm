@@ -26,7 +26,7 @@
  *   Fuse necessary ops into a single one.
  */
 #include <tvm/expr_operator.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
@@ -962,9 +962,6 @@ Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
     return FuseMutator().Transform(expr, fuse_opt_level);
   }
 }
-
-TVM_REGISTER_API("relay._ir_pass.FuseOps")
-.set_body_typed(FuseOps);
 
 namespace transform {
 

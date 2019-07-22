@@ -34,11 +34,17 @@ namespace dpi {
  */
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
-/*!
- * \brief Launch hardware simulation until accelerator finishes or reach max_cycles
- * \param max_cycles The maximum of cycles to wait
- */
-  virtual void Launch(uint64_t max_cycles) = 0;
+/*! \brief Launch hardware simulation */
+  virtual void SimLaunch() = 0;
+
+/*! \brief Halt hardware simulation */
+  virtual void SimWait() = 0;
+
+/*! \brief Resume hardware simulation */
+  virtual void SimResume() = 0;
+
+/*! \brief Finish hardware simulation */
+  virtual void SimFinish() = 0;
 
 /*!
  * \brief Write an accelerator register
@@ -53,13 +59,9 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
  */
   virtual uint32_t ReadReg(int addr) = 0;
 
-/*! \brief Finish hardware simulation */
-  virtual void Finish() = 0;
-
   static tvm::runtime::Module Load(std::string dll_name);
 };
 
 }  // namespace dpi
 }  // namespace vta
 #endif  // VTA_DPI_MODULE_H_
-

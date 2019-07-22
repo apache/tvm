@@ -74,18 +74,18 @@ print('input_1', data.shape)
 # ----------------------------
 # convert the keras model(NHWC layout) to Relay format(NCHW layout).
 shape_dict = {'input_1': data.shape}
-func, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
+mod, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
 target = 'cuda'
 ctx = tvm.gpu(0)
 with relay.build_config(opt_level=3):
-    executor = relay.build_module.create_executor('graph', func, ctx, target)
+    executor = relay.build_module.create_executor('graph', mod, ctx, target)
 
 ######################################################################
 # Execute on TVM
 # ---------------
 dtype = 'float32'
-tvm_out = executor.evaluate(func)(tvm.nd.array(data.astype(dtype)), **params)
+tvm_out = executor.evaluate()(tvm.nd.array(data.astype(dtype)), **params)
 top1_tvm = np.argmax(tvm_out.asnumpy()[0])
 
 #####################################################################

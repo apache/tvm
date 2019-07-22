@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import check_kind
+from tvm.relay.analysis import check_kind
 from nose.tools import raises
 
 

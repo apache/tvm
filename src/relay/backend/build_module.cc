@@ -21,8 +21,10 @@
  * \file relay/backend/build_module.cc
  * \brief Code generation for TVM's graph runtime.
  */
+#include <tvm/relay/analysis.h>
 #include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/vm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <memory>
@@ -76,7 +78,7 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<HalideIR::Expr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::Expr> >("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<ir::StringImm>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
@@ -288,7 +290,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         auto op_node = call_node->op.as<OpNode>();
         if (op_node->name == "cast") {
           auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == HalideIR::Int(32)) {
+          if (attrs->dtype == Int(32)) {
             *rv = true;
           }
         }
@@ -299,6 +301,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
     pass_seqs.push_back(transform::FoldConstant());
     pass_seqs.push_back(transform::FoldScaleAxis());
+    pass_seqs.push_back(transform::CanonicalizeCast());
     pass_seqs.push_back(transform::CanonicalizeOps());
 
     // Alter layout transformation is only applied to homogeneous execution yet.
@@ -415,10 +418,10 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Build relay function to runtime module
+   * \brief Compile a Relay function to runtime module.
    *
-   * \param func Relay Function
-   * \param params parameters
+   * \param func The Relay function.
+   * \param params The parameters.
    */
   void BuildRelay(
       Function func,
@@ -432,7 +435,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = Optimize(relay_module, targets_, params);
     CHECK(relay_module.defined());
     // Get the updated function.
-    func = relay_module->Lookup(relay_module->entry_func->name_hint);
+    func = relay_module->Lookup("main");
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
@@ -442,8 +445,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host_,
-                          BuildConfig::Current());
+    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    if (lowered_funcs.size() != 0) {
+      ret_.mod = tvm::build(
+        lowered_funcs,
+        target_host_,
+        BuildConfig::Current());
+    }
   }
 
  protected:

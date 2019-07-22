@@ -39,9 +39,9 @@
 // - Periodically cleanup the old versions on local workers
 //
 ci_lint = "tvmai/ci-lint:v0.51"
-ci_gpu = "tvmai/ci-gpu:v0.51"
-ci_cpu = "tvmai/ci-cpu:v0.50"
-ci_i386 = "tvmai/ci-i386:v0.50"
+ci_gpu = "tvmai/ci-gpu:v0.53"
+ci_cpu = "tvmai/ci-cpu:v0.51"
+ci_i386 = "tvmai/ci-i386:v0.51"
 
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
@@ -136,7 +136,7 @@ stage('Build') {
            echo set\\(USE_CUDA ON\\) >> config.cmake
            echo set\\(USE_OPENGL ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-6.0\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-7\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
@@ -161,7 +161,7 @@ stage('Build') {
            echo set\\(USE_VULKAN ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
+           echo set\\(CMAKE_CXX_COMPILER clang-7\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
         make(ci_gpu, 'build2', '-j2')
@@ -179,7 +179,7 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_ANTLR ON\\) >> config.cmake
@@ -208,10 +208,9 @@ stage('Build') {
            cd build
            cp ../cmake/config.cmake .
            echo set\\(USE_SORT ON\\) >> config.cmake
-           echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-5.0\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
@@ -308,6 +307,24 @@ stage('Integration Test') {
     }
   }
 }
+
+/*
+stage('Build packages') {
+  parallel 'conda CPU': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cpu ./conda/build_cpu.sh
+    }
+  },
+  'conda cuda': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cuda90 ./conda/build_cuda.sh
+      sh "${docker_run} tvmai/conda-cuda100 ./conda/build_cuda.sh
+    }
+  }
+  // Here we could upload the packages to anaconda for releases
+  // and/or the master branch
+}
+*/
 
 stage('Deploy') {
     node('doc') {

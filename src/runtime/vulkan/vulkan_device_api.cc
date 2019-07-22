@@ -683,7 +683,7 @@ void VulkanWorkspace::Init() {
   try {
     instance_ = CreateInstance();
     context_ = GetContext(instance_);
-    LOG(INFO) << "Initialzie Vulkan with " << context_.size() << " devices..";
+    LOG(INFO) << "Initialize Vulkan with " << context_.size() << " devices..";
     for (size_t i = 0; i < context_.size(); ++i) {
       LOG(INFO) << "vulkan(" << i
                 <<  ")=\'" << context_[i].phy_device_prop.deviceName

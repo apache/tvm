@@ -17,7 +17,7 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper
+from ..expr import TupleWrapper, const
 
 
 def cast(data, dtype):
@@ -272,7 +272,7 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
-def arange(start, stop=None, step=1, dtype="float32"):
+def arange(start, stop=None, step=None, dtype="float32"):
     """Return evenly spaced values within a given interval.
 
     .. note::
@@ -310,9 +310,13 @@ def arange(start, stop=None, step=1, dtype="float32"):
         relay.arange(1, 5) = [1, 2, 3, 4]
         relay.arange(1, 5, 1.5) = [1, 2.5, 4]
     """
+    if step is None:
+        step = const(1, dtype)
+
     if stop is None:
         stop = start
-        start = 0
+        start = const(0, dtype=dtype)
+
     return _make.arange(start, stop, step, dtype)
 
 
@@ -678,3 +682,49 @@ def gather_nd(data, indices):
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
     return _make.gather_nd(data, indices)
+
+
+def sequence_mask(data, valid_length, mask_value=0, axis=0):
+    """Sets all elements outside the expected length of the sequence to a constant value.
+
+    This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+    [batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data.
+
+    valid_length : relay.Expr
+        The expected (valid) length of each sequence in the tensor.
+
+    mask_value : float
+        The masking value.
+
+    axis : int
+        The axis of the length dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [ 10.,  11.,  12.]],
+             [[ 13.,  14.,   15.], [ 16.,  17.,   18.]]]
+
+       relay.sequence_mask(x, valid_length=[1, 1]) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]]]
+
+       relay.sequence_mask(x, valid_length=[2, 3], mask_value=0.1) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [  10.,  11.,  12.]],
+             [[  0.1,  0.1,  0.1], [  16.,  17.,  18.]]]
+    """
+    return _make.sequence_mask(data, valid_length, mask_value, axis)

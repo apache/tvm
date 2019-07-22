@@ -379,36 +379,6 @@ TVM_DLL Pass FoldConstant();
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
- *                              rule function.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- *
- * \return The pass.
- */
-TVM_DLL Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)>
-                            fmulti_ref_trigger = nullptr);
-
-/*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param rewrite_func The rewrite func that will apply to all operators.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- *
- * \return The pass.
- */
-TVM_DLL Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
-
-/*!
  * \brief Rewrite the annotated program.
  *
  * \param fallback_device The fallback device which is the default device for
@@ -433,6 +403,22 @@ TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
  * \return The pass.
  */
 TVM_DLL Pass ToANormalForm();
+
+/*!
+ * \brief Turn an expression into continuation passing style(CPS).
+ *
+ * CPS mean that every function will, instead of returning the result directly,
+ * be passed down an extra function (called the continuation) as argument,
+ * and pass the result to the continuation instead.
+ *
+ * Thus, every function call has to be passed an extra argument
+ * that represent the rest of the computation (Hence the name of continuation).
+ *
+ * Similarly, all other compute will be wrapped and call the continuation as well.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass ToCPS();
 
 /*!
  * \brief Remove let binding and directly share via pointer instead.
@@ -534,7 +520,146 @@ TVM_DLL Pass CanonicalizeOps();
  */
 TVM_DLL Pass AlterOpLayout();
 
+/*!
+ * \brief Canonicalize cast expressions to make operator fusion more efficient.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CanonicalizeCast();
+
+/*!
+ * \brief Add abstraction over a function
+ *
+ * For example: `square` is transformed to
+ * `fun x -> square x`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
+ * for more details.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass EtaExpand();
+
+/*!
+ * \brief Print the IR for a module to help debugging.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass PrintIR();
+
 }  // namespace transform
+
+/*!
+ * \brief Bind the free variables to a Relay expression. This is a helper
+ * function usually called by other pass functions to help optimizations.
+ *
+ * \param expr The input expression.
+ * \param binds The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Infer the type of a function as if it is mapped to var in the mod.
+ *
+ * \param f the function.
+ * \param mod The module used for referencing global functions.
+ * \param var The global variable corresponding to the function.
+ *
+ * \return A type checked Function with its checked_type field populated.
+ * \note this function mutates mod and is not thread-safe.
+ */
+TVM_DLL Function InferType(const Function& f,
+                           const Module& mod,
+                           const GlobalVar& var);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
+ * function is used as a helper function to rewrtie an expression in a pass.
+ *
+ * \param expr The expression.
+ * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
+ *                              rule function.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ * \return The rewritten expression.
+ */
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
+                            const std::string& rewrite_map_attr_name,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
+ * function is used as a helper function to rewrtie an expression in a pass.
+ *
+ * \param expr The expression.
+ * \param rewrite_func The rewrite func that will apply to all operators.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The rewritten expression.
+ */
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
+                            const FForwardRewrite& rewrite_func,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Rewrite the annotated program.
+ *
+ * \param expr The expression.
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ *
+ * \return The updated program.
+ */
+TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
+ * \brief Turn an expression into continuation passing style(CPS).
+ *
+ * CPS mean that every function will, instead of returning the result directly,
+ * be passed down an extra function (called the continuation) as argument,
+ * and pass the result to the continuation instead.
+ *
+ * Thus, every function call has to be passed an extra argument
+ * that represent the rest of the computation (Hence the name of continuation).
+ *
+ * Similarly, all other compute will be wrapped and call the continuation as well.
+ *
+ * \param f the function.
+ * \param mod the module.
+ *
+ * \return the converted Function.
+ */
+TVM_DLL Function ToCPS(const Function& f, const Module& mod);
+
+/*!
+ * \brief Remove the continuation argument of a CPS function.
+ *
+ * Note that this only transform the type back into un-CPS form
+ * when there is no higher order input/output.
+ *
+ * \param f the function.
+ *
+ * \return the converted Function.
+ */
+TVM_DLL Function UnCPS(const Function& f);
+
+/*!
+ * \brief Deduplicate the bound variables and type variables in the expression.
+ *
+ * \param e the expression.
+ *
+ * \return the deduplicated expression.
+ */
+TVM_DLL Expr DeDup(const Expr& e);
+
 }  // namespace relay
 }  // namespace tvm
 

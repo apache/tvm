@@ -109,6 +109,7 @@ void CodeGenLLVM::InitFuncState() {
   analyzer_.reset(new arith::Analyzer());
 }
 
+
 void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
   this->InitFuncState();
   std::vector<llvm::Type*> arg_types;
@@ -166,9 +167,9 @@ void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
   }
 }
 
+
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   this->AddStartupFunction();
-  // link modules
   for (size_t i = 0; i < link_modules_.size(); ++i) {
     CHECK(!llvm::Linker::linkModules(*module_, std::move(link_modules_[i])))
         << "Failed to link modules";
@@ -417,6 +418,20 @@ void CodeGenLLVM::GetAlignment(Type t,
     align_bits = 8;
   }
   *p_alignment = align_bits / 8;
+}
+
+std::unique_ptr<CodeGenLLVM::DebugInfo>
+CodeGenLLVM::CreateDebugInfo(llvm::Module* module) {
+  auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
+  debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
+  // TODO(tulloch): pass this information through relay::Span classes to the LoweredFunc instance?
+  debug_info->file_ = debug_info->di_builder_->createFile("model.tvm", "/tmp/");
+  debug_info->compilation_unit_ = debug_info->di_builder_->createCompileUnit(
+      llvm::dwarf::DW_LANG_C, debug_info->file_, "TVM", 0, "", 0, "",
+      llvm::DICompileUnit::DebugEmissionKind::FullDebug,
+      /* SplitDebugInlining */ true,
+      /* DebugInfoForProfiling */ true);
+  return debug_info;
 }
 
 llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
@@ -748,9 +763,7 @@ void CodeGenLLVM::Scalarize(const Expr& e,
                             std::function<void(int i, llvm::Value* v)> f) {
   if (const Ramp* ramp = e.as<Ramp>()) {
     for (int i = 0; i < ramp->type.lanes(); ++i) {
-      Expr offset = arith::ComputeExpr<Add>(
-          ramp->base,
-          arith::ComputeExpr<Mul>(ramp->stride, i));
+      Expr offset = ramp->base + (ramp->stride * i);
       f(i, MakeValue(offset));
     }
   } else {
@@ -972,7 +985,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
              op->call_type == Call::PureExtern) {
     return CreateCallExtern(op);
   } else {
-    LOG(FATAL) << "Unknown call type ";
+    LOG(FATAL) << "Unknown call type " <<
+      "name= " << op->name <<
+      " call_type= " << op->call_type;
     return nullptr;
   }
 }

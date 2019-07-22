@@ -20,6 +20,7 @@
 package vta.shell
 
 import chisel3._
+import chisel3.experimental.MultiIOModule
 import vta.util.config._
 import vta.interface.axi._
 import vta.shell._
@@ -61,18 +62,37 @@ class VTAMem(implicit p: Parameters) extends Module {
   mem_axi.io.axi <> io.axi
 }
 
+/** VTASim.
+  *
+  * This module is used to handle hardware simulation thread, such as halting
+  * or terminating the simulation thread. The sim_wait port is used to halt
+  * the simulation thread when it is asserted and resume it when it is
+  * de-asserted.
+  */
+class VTASim(implicit p: Parameters) extends MultiIOModule {
+  val sim_wait = IO(Output(Bool()))
+  val sim = Module(new VTASimDPI)
+  sim.io.reset := reset
+  sim.io.clock := clock
+  sim_wait := sim.io.dpi_wait
+}
 /** SimShell.
   *
-  * The simulation shell instantiate a host and memory simulation modules and it is
-  * intended to be connected to the VTAShell.
+  * The simulation shell instantiate the sim, host and memory DPI modules that
+  * are connected to the VTAShell. An extra clock, sim_clock, is used to eval
+  * the VTASim DPI function when the main simulation clock is on halt state.
   */
-class SimShell(implicit p: Parameters) extends Module {
-  val io = IO(new Bundle {
-    val mem = new AXIClient(p(ShellKey).memParams)
-    val host = new AXILiteMaster(p(ShellKey).hostParams)
-  })
-  val host = Module(new VTAHost)
-  val mem = Module(new VTAMem)
-  io.mem <> mem.io.axi
-  io.host <> host.io.axi
+class SimShell(implicit p: Parameters) extends MultiIOModule {
+  val mem = IO(new AXIClient(p(ShellKey).memParams))
+  val host = IO(new AXILiteMaster(p(ShellKey).hostParams))
+  val sim_clock = IO(Input(Clock()))
+  val sim_wait = IO(Output(Bool()))
+  val mod_sim = Module(new VTASim)
+  val mod_host = Module(new VTAHost)
+  val mod_mem = Module(new VTAMem)
+  mem <> mod_mem.io.axi
+  host <> mod_host.io.axi
+  mod_sim.reset := reset
+  mod_sim.clock := sim_clock
+  sim_wait := mod_sim.sim_wait
 }

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-from nose.tools import nottest
+from nose.tools import nottest, raises
 
 import tvm
 import numpy as np
@@ -23,31 +23,44 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 
-def veval(f, *args, ctx=tvm.cpu()):
+def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
-        ex = relay.create_executor('vm', mod=relay.Module(), ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate(f)
-        else:
-            return ex.evaluate(f)(*args)
+        mod = relay.Module()
+        mod["main"] = f
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
+        vm.init(tvm.cpu())
+        return vm.run(*args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        ex = relay.create_executor('vm', mod=mod, ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate(mod[mod.entry_func])
-        else:
-            return ex.evaluate(mod[mod.entry_func])(*args)
+        compiler = relay.vm.VMCompiler()
+        vm = compiler.compile(mod, target)
+        vm.init(tvm.cpu())
+        ret = vm.run(*args)
+        return ret
+
+def vmobj_to_list(o):
+    if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
+        return [o.asnumpy().tolist()]
+    elif isinstance(o, tvm.relay.backend.vmobj.DatatypeObject):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+        return result
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
 
 def test_split():
     x = relay.var('x', shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
-    z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
-    f = relay.Function([x], z)
+    f = relay.Function([x], y)
 
     x_data = np.random.rand(12,).astype('float32')
     res = veval(f, x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+    ref_res = np.split(x_data, 3, axis=0)
+    for i in range(3):
+        tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
 
 def test_split_no_fuse():
     x = relay.var('x', shape=(12,))
@@ -59,9 +72,8 @@ def test_split_no_fuse():
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
-
 def test_id():
-    x = relay.var('x', shape=(10, 10))
+    x = relay.var('x', shape=(10, 10), dtype='float64')
     f = relay.Function([x], x)
     x_data = np.random.rand(10, 10).astype('float64')
     res = veval(f, x_data)
@@ -121,7 +133,7 @@ def test_simple_call():
     mod[sum_up] = func
     i_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg], sum_up(iarg))
+    mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data)
     tvm.testing.assert_allclose(result.asnumpy(), i_data)
 
@@ -140,7 +152,7 @@ def test_count_loop():
     mod[sum_up] = func
     i_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg], sum_up(iarg))
+    mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data)
     tvm.testing.assert_allclose(result.asnumpy(), i_data)
 
@@ -163,7 +175,7 @@ def test_sum_loop():
     accum_data = np.array(0, dtype='int32')
     iarg = relay.var('i', shape=[], dtype='int32')
     aarg = relay.var('accum', shape=[], dtype='int32')
-    mod[mod.entry_func] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
+    mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
     result = veval(mod, i_data, accum_data)
     tvm.testing.assert_allclose(result.asnumpy(), sum(range(1, loop_bound + 1)))
 
@@ -186,15 +198,6 @@ def test_tuple_second():
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
 
 def test_list_constructor():
-    def to_list(o):
-        if isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-            return [o.data.asnumpy().tolist()]
-        if isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
-            result = []
-            for f in o.fields:
-                result.extend(to_list(f))
-            return result
-
     mod = relay.Module()
     p = Prelude(mod)
 
@@ -202,20 +205,15 @@ def test_list_constructor():
     cons = p.cons
     l = p.l
 
-    # remove all functions to not have pattern match to pass vm compilation
-    # TODO(wweic): remove the hack and implement pattern match
-    for v, _ in mod.functions.items():
-        mod[v] = relay.const(0)
-
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
     one4 = cons(relay.const(3), one3)
     f = relay.Function([], one4)
 
-    mod[mod.entry_func] = f
+    mod["main"] = f
 
-    result = veval(mod)()
-    obj = to_list(result)
+    result = veval(mod)
+    obj = vmobj_to_list(result)
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
 def test_let_tensor():
@@ -250,6 +248,249 @@ def test_let_scalar():
     result = veval(f, x_data)
     tvm.testing.assert_allclose(result.asnumpy(), x_data + 42.0)
 
+def test_compose():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    compose = p.compose
+
+    # add_one = fun x -> x + 1
+    sb = relay.ScopeBuilder()
+    x = relay.var('x', 'float32')
+    x1 = sb.let('x1', x)
+    xplusone = x1 + relay.const(1.0, 'float32')
+    sb.ret(xplusone)
+    body = sb.get()
+    add_one = relay.GlobalVar("add_one")
+    add_one_func = relay.Function([x], body)
+
+    # add_two = compose(add_one, add_one)
+    sb = relay.ScopeBuilder()
+    y = relay.var('y', 'float32')
+    add_two_func = sb.let('add_two', compose(add_one_func, add_one_func))
+    add_two_res = add_two_func(y)
+    sb.ret(add_two_res)
+    add_two_body = sb.get()
+
+    mod[add_one] = add_one_func
+
+    f = relay.Function([y], add_two_body)
+    mod["main"] = f
+
+    x_data = np.array(np.random.rand()).astype('float32')
+    result = veval(mod, x_data)
+
+    tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
+
+def test_list_hd():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    l = p.l
+    hd = p.hd
+
+    one2 = cons(relay.const(1), nil())
+    one3 = cons(relay.const(2), one2)
+    one4 = cons(relay.const(3), one3)
+    three = hd(one4)
+    f = relay.Function([], three)
+
+    mod["main"] = f
+
+    result = veval(mod)
+    tvm.testing.assert_allclose(result.asnumpy(), 3)
+
+@raises(Exception)
+def test_list_tl_empty_list():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    l = p.l
+    tl = p.tl
+
+    f = relay.Function([], tl(nil()))
+
+    mod["main"] = f
+
+    result = veval(mod)
+    print(result)
+
+def test_list_tl():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    l = p.l
+    tl = p.tl
+
+    one2 = cons(relay.const(1), nil())
+    one3 = cons(relay.const(2), one2)
+    one4 = cons(relay.const(3), one3)
+
+    f = relay.Function([], tl(one4))
+
+    mod["main"] = f
+
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2,1]))
+
+def test_list_nth():
+    expected = list(range(10))
+
+    for i in range(len(expected)):
+        mod = relay.Module()
+        p = Prelude(mod)
+
+        nil = p.nil
+        cons = p.cons
+        nth = p.nth
+        l = nil()
+        for i in reversed(expected):
+            l = cons(relay.const(i), l)
+
+        f = relay.Function([], nth(l, relay.const(i)))
+        mod["main"] = f
+        result = veval(mod)
+        tvm.testing.assert_allclose(result.asnumpy(), expected[i])
+
+def test_list_update():
+    expected = list(range(10))
+
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    update = p.update
+
+    l = nil()
+    # create zero initialized list
+    for i in range(len(expected)):
+        l = cons(relay.const(0), l)
+
+    # set value
+    for i, v in enumerate(expected):
+        l = update(l, relay.const(i), relay.const(v))
+
+    f = relay.Function([], l)
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
+
+def test_list_length():
+    expected = list(range(10))
+
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    length = p.length
+
+    l = nil()
+    # create zero initialized list
+    for i in range(len(expected)):
+        l = cons(relay.const(0), l)
+
+    l = length(l)
+
+    f = relay.Function([], l)
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(result.asnumpy(), 10)
+
+def test_list_map():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    x = relay.var('x', 'int32')
+    add_one_func = relay.Function([x], relay.const(1) + x)
+
+    nil = p.nil
+    cons = p.cons
+    map = p.map
+
+    l = cons(relay.const(2), cons(relay.const(1), nil()))
+
+    f = relay.Function([], map(add_one_func, l))
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
+
+def test_list_foldl():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    foldl = p.foldl
+
+    x = relay.var("x")
+    y = relay.var("y")
+    rev_dup_func = relay.Function([y, x], cons(x, cons(x, y)))
+
+    l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
+    f = relay.Function([], foldl(rev_dup_func, nil(), l))
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
+
+def test_list_foldr():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    foldr = p.foldr
+
+    x = relay.var("x")
+    y = relay.var("y")
+    identity_func = relay.Function([x, y], cons(x, y))
+
+    l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
+    f = relay.Function([], foldr(identity_func, nil(), l))
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
+
+def test_list_sum():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    sum = p.sum
+
+    l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
+    f = relay.Function([], sum(l))
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(result.asnumpy(), 6)
+
+def test_list_filter():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    nil = p.nil
+    cons = p.cons
+    filter = p.filter
+
+    x = relay.var("x", 'int32')
+    greater_than_one = relay.Function([x], x > relay.const(1))
+    l = cons(relay.const(1),
+            cons(relay.const(3),
+                cons(relay.const(1),
+                    cons(relay.const(5),
+                        cons(relay.const(1), nil())))))
+    f = relay.Function([], filter(greater_than_one, l))
+    mod["main"] = f
+    result = veval(mod)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
+
 def test_closure():
     x = relay.var('x', shape=())
     y = relay.var('y', shape=())
@@ -274,6 +515,19 @@ if __name__ == "__main__":
     test_let_tensor()
     test_split()
     test_split_no_fuse()
-    # TODO(@jroesch): restore when match is supported
-    # test_list_constructor()
+    test_list_constructor()
+    test_let_tensor()
+    test_let_scalar()
+    test_compose()
+    test_list_hd()
+    test_list_tl_empty_list()
+    test_list_tl()
+    test_list_nth()
+    test_list_update()
+    test_list_length()
+    test_list_map()
+    test_list_foldl()
+    test_list_foldr()
+    test_list_sum()
+    test_list_filter()
     test_closure()

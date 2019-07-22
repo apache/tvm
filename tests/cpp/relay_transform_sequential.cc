@@ -23,12 +23,12 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tvm.h>
+#include <tvm/operation.h>
 
 TVM_REGISTER_GLOBAL("schedule")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
@@ -84,9 +84,9 @@ TEST(Relay, Sequential) {
   }
 
   CHECK(mod.defined());
-  auto entry_func = mod->entry_func;
+  auto entry_func = mod->GetGlobalVar("main");
   CHECK(entry_func.defined());
-  relay::Function f = mod->Lookup(entry_func->name_hint);
+  relay::Function f = mod->Lookup("main");
   CHECK(f.defined());
 
   // Expected function
@@ -100,7 +100,9 @@ TEST(Relay, Sequential) {
       relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
-  auto expected = relay::InferType(expected_func, relay::Module(nullptr));
+  auto mod1 = relay::ModuleNode::FromExpr(expected_func);
+  mod1 = relay::transform::InferType()(mod1);
+  auto expected = mod1->Lookup("main");
   CHECK(relay::AlphaEqual(f, expected));
 }
 

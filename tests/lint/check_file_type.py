@@ -107,6 +107,7 @@ ALLOW_SPECIFIC_FILE = {
     # documentation related files
     "docs/_static/css/tvm_theme.css",
     "docs/_static/img/tvm-logo-small.png",
+    "docs/_static/img/tvm-logo-square.png",
    }
 
 

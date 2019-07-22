@@ -29,20 +29,21 @@ A quick solution is to install Flatbuffers via pip
 
     pip install flatbuffers --user
 
+
 To install TFlite packages, you could use our prebuilt wheel:
 
 .. code-block:: bash
 
     # For python3:
-    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py3-none-any.whl
-    pip install tflite-0.0.1-py3-none-any.whl --user
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py3-none-any.whl
+    pip3 install -U tflite-1.13.1-py3-none-any.whl --user
 
     # For python2:
-    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py2-none-any.whl
-    pip install tflite-0.0.1-py2-none-any.whl --user
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py2-none-any.whl
+    pip install -U tflite-1.13.1-py2-none-any.whl --user
 
 
-or you could generate TFLite package by yourself. The steps are as following:
+or you could generate TFLite package yourself. The steps are the following:
 
 .. code-block:: bash
 
@@ -57,13 +58,13 @@ or you could generate TFLite package by yourself. The steps are as following:
     # Generate TFLite package.
     flatc --python schema.fbs
 
-    # Add it to PYTHONPATH.
-    export PYTHONPATH=/path/to/tflite
+    # Add current folder (which contains generated tflite module) to PYTHONPATH.
+    export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)
 
 
 Now please check if TFLite package is installed successfully, ``python -c "import tflite"``
 
-Below you can find an example for how to compile TFLite model using TVM.
+Below you can find an example on how to compile TFLite model using TVM.
 """
 ######################################################################
 # Utils for downloading and extracting zip files
@@ -138,14 +139,14 @@ input_dtype = "float32"
 
 # parse TFLite model and convert into Relay computation graph
 from tvm import relay
-func, params = relay.frontend.from_tflite(tflite_model,
-                                          shape_dict={input_tensor: input_shape},
-                                          dtype_dict={input_tensor: input_dtype})
+mod, params = relay.frontend.from_tflite(tflite_model,
+                                         shape_dict={input_tensor: input_shape},
+                                         dtype_dict={input_tensor: input_dtype})
 
 # target x86 CPU
 target = "llvm"
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+    graph, lib, params = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM

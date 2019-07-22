@@ -69,6 +69,55 @@ def test_bound3():
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 
+def test_bound_fusesplit1():
+    m = tvm.var('m')
+    l = tvm.var('l')
+    split1 = tvm.var('s')
+    A = tvm.placeholder((m, l), name='A')
+    A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
+    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
+
+    s = tvm.create_schedule(A2.op)
+    fused_axes = s[A2].fuse(A2.op.axis[0], A2.op.axis[1])
+    xo, xi = s[A2].split(fused_axes, split1)
+    s[A1].compute_at(s[A2], xo)
+
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert(tvm.ir_pass.Simplify(bounds[A1.op.axis[0]].min - (xo * split1) / l ).value == 0)
+
+    expected_extent = (((xo + 1) * split1 - 1) / l - (xo * split1) / l + 1)
+    for i in range(1, 6):
+        for j in range(1, 6):
+            for k in range(1, 6):
+                vars = tvm.convert({split1: tvm.const(i, "int32"), l: tvm.const(j, "int32"), xo.var: tvm.const(k, "int32")})
+                comp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value
+                exp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expected_extent, vars)).value
+                assert(comp_ext == exp_ext)
+    
+    assert(tvm.ir_pass.Simplify(bounds[A1.op.axis[1]].extent - l).value == 0)
+
+def test_bound_fusesplit2():
+    m = tvm.var("m")
+    l = tvm.convert(6)
+    split = tvm.convert(3)
+    A = tvm.placeholder((m, l), name='A')
+    A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
+    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
+
+    s = tvm.create_schedule(A2.op)
+    fused_axes = s[A2].fuse(A2.op.axis[0], A2.op.axis[1])
+    xo, xi = s[A2].split(fused_axes, split)
+    s[A1].compute_at(s[A2], xo)
+
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    vars = tvm.convert({xo.var: tvm.const(5, "int32")})
+    assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].min, vars)).value == 2)
+    assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[1]].min, vars)).value == 3)
+    assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value == 1)
+    assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[1]].extent, vars)).value == 3)
+
 
 def test_bound_warp():
     m = tvm.var('m')
@@ -306,6 +355,27 @@ def test_bound_tensor_compute_op():
     assert isinstance(bounds, tvm.container.Map)
     assert(bounds[B.op.axis[0]].extent.value == 10)
 
+def test_bound_simplification_failure():
+    # Check that the bounds are not expanded
+    A = tvm.compute((2,), lambda j: j, "A")
+
+    def _check(B, A=A):
+        s = tvm.create_schedule(B.op)
+        s = s.normalize()
+        bounds = tvm.schedule.InferBound(s)
+        stmt = tvm.lower(s, [B, A], simple_mode=True)
+        if not bounds[A.op.axis[0]].extent.value <= 2:
+            print(stmt)
+            assert bounds[A.op.axis[0]].extent.value <= 2
+
+    # These are hard to simplify, moreover we don't simplify them
+    _check(tvm.compute((10,), lambda i: A[tvm.min(3*i, 4*i) + tvm.min(-3*i, -2*i)]))
+    _check(tvm.compute((10,), lambda i: A[tvm.min(3*i, 4*i) + tvm.max(-3*i, -4*i)]))
+    _check(tvm.compute((10,), lambda i: A[-2*(i/2) - tvm.min(i, 0-i)]))
+    _check(tvm.compute((10,), lambda i: A[i + (0 - i)]))
+    # This would cause out of bounds, but we nevertheless include it
+    _check(tvm.compute((10,), lambda i: A[i]))
+
 if __name__ == "__main__":
     test_bound_nest_thread()
     test_bound1()
@@ -320,3 +390,6 @@ if __name__ == "__main__":
     test_gemm_bound()
     test_bound_warp()
     test_bound_tensor_compute_op()
+    test_bound_simplification_failure()
+    test_bound_fusesplit1()
+    test_bound_fusesplit2()

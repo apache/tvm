@@ -36,10 +36,11 @@ namespace tvm {
 // Internal node container Buffer
 class BufferNode;
 
-/*! \brief memory access kind */
-enum class AccessMask : int {
-  kRead = 1,
-  kWrite = 2
+/*! \brief buffer type */
+enum BufferType : int {
+  kDefault = 1,
+  // Maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
+  kAutoBroadcast = 2,
 };
 
 /*!
@@ -129,6 +130,8 @@ class BufferNode : public Node {
    *  elem_offset is guaranteed to be multiple of offset_factor.
    */
   int offset_factor;
+  /*! \brief buffer type */
+  BufferType buffer_type;
   /*! \brief constructor */
   BufferNode() {}
 
@@ -142,6 +145,7 @@ class BufferNode : public Node {
     v->Visit("scope", &scope);
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
+    v->Visit("buffer_type", &buffer_type);
   }
 
   /*! \return preferred index type for this buffer node */
@@ -159,7 +163,8 @@ class BufferNode : public Node {
                              std::string name,
                              std::string scope,
                              int data_alignment,
-                             int offset_factor);
+                             int offset_factor,
+                             BufferType buffer_type);
 
   static constexpr const char* _type_key = "Buffer";
   TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);

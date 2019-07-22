@@ -107,7 +107,7 @@ def sum(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
-    axis = [axis] if axis and isinstance(axis, int) else axis
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.sum(data, axis, keepdims, exclude)
 
 
@@ -159,7 +159,7 @@ def all(data, axis=None, keepdims=False, exclude=False):
     # [False,  True, False]]
 
     """
-    axis = [axis] if axis and isinstance(axis, int) else axis
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.all(data, axis, keepdims, exclude)
 
 

@@ -16,9 +16,9 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import (free_vars, free_type_vars,
-                               bound_vars, bound_type_vars,
-                               all_vars, all_type_vars)
+from tvm.relay.analysis import (free_vars, free_type_vars,
+                                bound_vars, bound_type_vars,
+                                all_vars, all_type_vars)
 
 def assert_vars_match(actual, expected):
     assert len(actual) == len(expected)

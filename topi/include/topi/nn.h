@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,7 +32,8 @@
 #include "topi/detail/constant_utils.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 using namespace tvm;
@@ -267,7 +268,7 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
                : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
   auto l = [&](tvm::Var b, tvm::Var o, tvm::Var h, tvm::Var w) {
     return tvm::sum(
-        T(b, i, stride_h * h + kh, stride_w * w + kw) * W(i, o, kh, kw),
+        T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw),
         {i, kh, kw});
   };
   return tvm::compute(output_shape, l, name, tag);

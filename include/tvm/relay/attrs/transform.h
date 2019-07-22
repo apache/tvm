@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_TRANSFORM_H_
 
 #include <tvm/attrs.h>
+#include <tvm/relay/base.h>
 #include <string>
 
 namespace tvm {
@@ -122,19 +123,19 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
 
 /*! \brief Attributes used in arange operators */
 struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
-  tvm::Expr start;
-  tvm::Expr stop;
-  tvm::Expr step;
+  Expr start;
+  Expr stop;
+  Expr step;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(ArangeAttrs, "relay.attrs.ArangeAttrs") {
-    TVM_ATTR_FIELD(start).set_default(make_const(Float(32), 0))
+    TVM_ATTR_FIELD(start)
         .describe("Start of interval. The interval includes this value.");
     TVM_ATTR_FIELD(stop)
         .describe("Stop of interval. The interval does not include this value.");
-    TVM_ATTR_FIELD(step).set_default(make_const(Float(32), 1))
+    TVM_ATTR_FIELD(step)
         .describe("Spacing between values.");
-    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+    TVM_ATTR_FIELD(dtype)
         .describe("Target data type.");
   }
 };  // struct ArangeAttrs
@@ -268,6 +269,29 @@ struct ShapeOfAttrs : public tvm::AttrsNode<ShapeOfAttrs> {
   DataType dtype;
 
   TVM_DECLARE_ATTRS(ShapeOfAttrs, "relay.attrs.ShapeOfAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("Target data type")
+        .set_default(NullValue<DataType>());
+  }
+};
+
+struct SequenceMaskAttrs : public tvm::AttrsNode<SequenceMaskAttrs> {
+  double mask_value;
+  int axis;
+
+  TVM_DECLARE_ATTRS(SequenceMaskAttrs, "relay.attrs.SequenceMaskAttrs") {
+    TVM_ATTR_FIELD(mask_value).set_default(0)
+      .describe("The masking value.");
+    TVM_ATTR_FIELD(axis).set_default(0)
+      .describe("The axis of the length dimension. Can only be 0 or 1.");
+  }
+};  // struct SequenceMaskAttrs.
+
+/*! \brief Attributes for ndarray_size operator */
+struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(NdarraySizeAttrs, "relay.attrs.NdarraySizeAttrs") {
     TVM_ATTR_FIELD(dtype)
         .describe("Target data type")
         .set_default(NullValue<DataType>());

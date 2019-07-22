@@ -24,7 +24,7 @@ from . import expr
 from . import expr_functor
 from . import module
 from . import adt
-from . import ir_pass
+from . import analysis
 from . import transform
 from .build_module import build, create_executor
 from .transform import build_config
@@ -32,6 +32,9 @@ from . import prelude
 from . import parser
 from . import debug
 from . import param_dict
+from . import feature
+from .backend import vm
+from .backend import vmobj
 
 # Root operators
 from .op import Op
@@ -62,6 +65,7 @@ TupleType = ty.TupleType
 TensorType = ty.TensorType
 Kind = ty.Kind
 TypeVar = ty.TypeVar
+ShapeVar = ty.ShapeVar
 TypeConstraint = ty.TypeConstraint
 FuncType = ty.FuncType
 TypeRelation = ty.TypeRelation
@@ -70,6 +74,7 @@ scalar_type = ty.scalar_type
 RefType = ty.RefType
 GlobalTypeVar = ty.GlobalTypeVar
 TypeCall = ty.TypeCall
+Any = ty.Any
 
 # Expr
 Expr = expr.Expr
@@ -101,6 +106,7 @@ const = expr.const
 bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
+alpha_equal = analysis.alpha_equal
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
@@ -121,3 +127,6 @@ Pass = transform.Pass
 ModulePass = transform.ModulePass
 FunctionPass = transform.FunctionPass
 Sequential = transform.Sequential
+
+# Feature
+Feature = feature.Feature

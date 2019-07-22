@@ -275,7 +275,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         The name hint of the tensor
 
     tag: str, optional
-        Additonal tag information about the compute.
+        Additional tag information about the compute.
 
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
@@ -319,7 +319,8 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
                                                  out_ndim,
                                                  body.intrin,
                                                  body.tensors,
-                                                 body.regions)
+                                                 body.regions,
+                                                 body.scalar_inputs)
     else:
         if not isinstance(body, (list, tuple)):
             body = [body]
@@ -478,7 +479,8 @@ def extern(shape,
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
-    shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
+    if shape == () or isinstance(shape[0], (_expr.Expr, _Integral)):
+        shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):
@@ -530,7 +532,8 @@ def decl_buffer(shape,
                 elem_offset=None,
                 scope="",
                 data_alignment=-1,
-                offset_factor=0):
+                offset_factor=0,
+                buffer_type=""):
     """Declare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
@@ -573,10 +576,38 @@ def decl_buffer(shape,
         If 0 is pssed, the alignment will be set to 1.
         if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
 
+    buffer_type: str, optional, {"", "auto_broadcast"}
+        auto_broadcast buffer allows one to implement broadcast computation
+        without considering whether dimension size equals to one.
+        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
+
     Returns
     -------
     buffer : Buffer
         The created buffer
+
+    Example
+    -------
+    Here's an example of how broadcast buffer can be used to define a symbolic broadcast operation,
+
+    .. code-block:: python
+
+        m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
+        n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
+        o0, o1, o2 = tvm.var("o0"), tvm.var("o1"), tvm.var("o2")
+        A = tvm.placeholder((m0, m1, m2), name='A')
+        B = tvm.placeholder((n0, n1, n2), name='B')
+        C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
+        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="broadcast")
+        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="broadcast")
+        s = tvm.create_schedule(C.op)
+        fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
+        ctx = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), ctx)
+        fadd(a, b, c)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     Note
     ----
@@ -601,7 +632,7 @@ def decl_buffer(shape,
         data = var(name, "handle")
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
-        data_alignment, offset_factor)
+        data_alignment, offset_factor, buffer_type)
 
 def layout(layout_str):
     """Create a layout node from a string.
@@ -857,7 +888,46 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
+def floordiv(a, b):
+    """Compute the floordiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorDiv(a, b)
+
+
+def floormod(a, b):
+    """Compute the floormod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorMod(a, b)
+
+
 _init_api("tvm.api")
+
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')

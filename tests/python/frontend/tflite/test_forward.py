@@ -21,6 +21,7 @@ TFLite testcases
 This article is a test script to test TFLite operator with Relay.
 """
 from __future__ import print_function
+from functools import partial
 import numpy as np
 import tvm
 from tvm import relay
@@ -31,7 +32,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
-from tensorflow import lite as interpreter_wrapper
+try:
+    from tensorflow import lite as interpreter_wrapper
+except ImportError:
+    from tensorflow.contrib import lite as interpreter_wrapper
 
 import tvm.relay.testing.tf as tf_testing
 
@@ -63,11 +67,11 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
         shape_dict[e] = input_data[i].shape
         dtype_dict[e] = input_data[i].dtype.name
 
-    func, params = relay.frontend.from_tflite(tflite_model,
-                                              shape_dict=shape_dict,
-                                              dtype_dict=dtype_dict)
+    mod, params = relay.frontend.from_tflite(tflite_model,
+                                             shape_dict=shape_dict,
+                                             dtype_dict=dtype_dict)
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(func, target, params=params)
+        graph, lib, params = relay.build(mod, target, params=params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime
@@ -128,7 +132,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
-        converter = tf.contrib.lite.TFLiteConverter.from_session(
+        converter = interpreter_wrapper.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
@@ -142,6 +146,20 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
             tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device)
             for i in range(len(tflite_output)):
                 tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
+
+def with_fused_activation_function(input_tensor, fn_name):
+    if fn_name is None or fn_name == "NONE":
+        return input_tensor
+    if fn_name == "RELU":
+        return nn_ops.relu(input_tensor)
+    if fn_name == "RELU6":
+        return nn_ops.relu6(input_tensor)
+    if fn_name == "RELU_N1_TO_1":
+        return math_ops.maximum(-1, math_ops.minimum(input_tensor, 1))
+    if fn_name == "TANH":
+        return math_ops.tanh(input_tensor)
+    raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
 
 
 #######################################################################
@@ -273,6 +291,37 @@ def test_forward_reshape():
 
 
 #######################################################################
+# Resize
+# ------
+
+def _test_resize(tf_resize_op, data, align_corners):
+    """ One iteration of Resize """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        images_tensor = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')
+        size = ops.convert_to_tensor(data[1], dtype=data[1].dtype)
+        out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+        compare_tflite_with_tvm([data[0]], ['in:0'], [images_tensor], [out_tensor])
+
+
+def test_all_resize():
+    """ Resize """
+    data = [np.random.rand(1, 16, 16, 3).astype("float32"), np.array([8, 8], dtype=np.int32)]
+    ### RESIZE_BILINEAR
+    _test_resize(tf.image.resize_bilinear, data, align_corners=False)
+    _test_resize(tf.image.resize_bilinear, data, align_corners=True)
+    ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
+    # According to topi resize.h
+    # Align corners not supported for nearest neighbour
+    from tflite.BuiltinOperator import BuiltinOperator
+    if 'RESIZE_NEAREST_NEIGHBOR' in dir(BuiltinOperator()):
+        _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
+
+
+#######################################################################
 # Concatenation
 # -------------
 
@@ -311,8 +360,8 @@ def test_forward_concatenation():
 # Element-wise
 # ---
 
-def _test_elemwise(math_op, data):
-    """ One iteration of add """
+def _test_elemwise(math_op, data, fused_activation_function=None):
+    """ One iteration of elemwise """
 
     assert len(data) == 2
 
@@ -321,12 +370,14 @@ def _test_elemwise(math_op, data):
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in_0'),
                    array_ops.placeholder(shape=data[1].shape, dtype=data[1].dtype, name='in_1')]
         out = math_op(in_data[0], in_data[1])
+        out = with_fused_activation_function(out, fused_activation_function)
         compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
 
     # Test with tensor and constant
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
         out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+        out = with_fused_activation_function(out, fused_activation_function)
         compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
 
 
@@ -334,31 +385,31 @@ def _test_elemwise(math_op, data):
 # Add
 # ---
 
-def _test_add(data):
+def _test_add(data, fused_activation_function=None):
     """ One iteration of add """
-    return _test_elemwise(math_ops.add, data)
+    return _test_elemwise(math_ops.add, data, fused_activation_function)
 
 #######################################################################
 # Subtract
 # --------
 
-def _test_sub(data):
+def _test_sub(data, fused_activation_function=None):
     """ One iteration of subtract """
-    return _test_elemwise(math_ops.subtract, data)
+    return _test_elemwise(math_ops.subtract, data, fused_activation_function)
 #######################################################################
 # Mul
 # ---
-def _test_mul(data):
+def _test_mul(data, fused_activation_function=None):
     """ One iteration of mul """
-    return _test_elemwise(math_ops.multiply, data)
+    return _test_elemwise(math_ops.multiply, data, fused_activation_function)
 
 #######################################################################
 # Divide
 # ------
 
-def _test_div(data):
+def _test_div(data, fused_activation_function=None):
     """ One iteration of divide """
-    return _test_elemwise(math_ops.divide, data)
+    return _test_elemwise(math_ops.divide, data, fused_activation_function)
 #######################################################################
 # Power
 # -----
@@ -384,20 +435,96 @@ def _test_minimum(data):
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
-               np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3))])
+               np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3))])
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
-               np.arange(6.0, dtype=np.float32).reshape((2, 1, 3))])
+               np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3))])
     testop([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
-               np.arange(3.0, dtype=np.float32).reshape((1, 3))])
+               np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3))])
 
 def test_all_elemwise():
     _test_forward_elemwise(_test_add)
+    _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
+    _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_sub)
+    _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU"))
+    _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_mul)
+    _test_forward_elemwise(partial(_test_mul, fused_activation_function="RELU"))
+    _test_forward_elemwise(partial(_test_mul, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_div)
+    _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU"))
+    _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+
+#######################################################################
+# Reduce
+# ------
+
+def _test_reduce(math_op, data, keep_dims=None):
+    """ One iteration of reduce """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')
+        out = math_op(in_data, data[1], keep_dims)
+        compare_tflite_with_tvm([data[0]], ['in:0'], [in_data], [out])
+
+
+#######################################################################
+# Reduce_min
+# ----------
+
+def _test_reduce_min(data, keep_dims=None):
+    """ One iteration of reduce_min """
+    return _test_reduce(math_ops.reduce_min, data, keep_dims)
+
+#######################################################################
+# Reduce_max
+# ----------
+
+def _test_reduce_max(data, keep_dims=None):
+    """ One iteration of reduce_max """
+    return _test_reduce(math_ops.reduce_max, data, keep_dims)
+
+#######################################################################
+# Reduce_mean
+# -----------
+
+def _test_reduce_mean(data, keep_dims=None):
+    """ One iteration of reduce_mean """
+    return _test_reduce(math_ops.reduce_mean, data, keep_dims)
+
+#######################################################################
+# Reduce_prod
+# -----------
+
+def _test_reduce_prod(data, keep_dims=None):
+    """ One iteration of reduce_prod """
+    return _test_reduce(math_ops.reduce_prod, data, keep_dims)
+
+
+def _test_forward_reduce(testop):
+    """ Reduce """
+    data0 = [np.random.rand(16, 16, 16, 16).astype("float32"), None]
+    data1 = [np.random.rand(16, 16, 16, 16).astype("float32"), np.array([1, 2], dtype=np.int32)]
+    testop(data0)
+    testop(data0, keep_dims=False)
+    testop(data0, keep_dims=True)
+    testop(data1)
+    testop(data1, keep_dims=False)
+    testop(data1, keep_dims=True)
+
+
+def test_all_reduce():
+    _test_forward_reduce(_test_reduce_min)
+    _test_forward_reduce(_test_reduce_max)
+    _test_forward_reduce(_test_reduce_mean)
+    _test_forward_reduce(_test_reduce_prod)
+
 
 #######################################################################
 # Squeeze
@@ -452,6 +579,41 @@ def test_forward_pad():
                np.array([[1, 1], [2, 2]], dtype=np.int32)])
     _test_pad([np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3)),
                np.array([[1, 1], [2, 2]], dtype=np.int32)])
+
+
+#######################################################################
+# Pack
+# -------------
+
+def _test_pack(data, axis):
+    """ One iteration of pack """
+
+    assert len(data) >= 1
+
+    with tf.Graph().as_default():
+        in_data = [
+            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
+            for idx, tensor in enumerate(data)]
+        out = array_ops.pack(in_data, axis=axis)
+        name = ["in_{}:0".format(idx) for idx in range(len(data))]
+
+        compare_tflite_with_tvm(data, name, in_data, [out])
+
+
+def test_forward_pack():
+    """ Pack """
+    _test_pack(
+        [np.arange(6).reshape((1, 2, 1, 3)),
+        np.arange(6).reshape((1, 2, 1, 3))], 1)
+
+    _test_pack(
+        [np.arange(6).reshape((3, 2)),
+         np.arange(6).reshape((3, 2))], 1)
+
+    _test_pack(
+        [np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3))], 1)
 
 
 #######################################################################
@@ -623,7 +785,9 @@ if __name__ == '__main__':
     # Transforms
     test_forward_concatenation()
     test_forward_pad()
+    test_forward_pack()
     test_forward_reshape()
+    test_all_resize()
     test_forward_squeeze()
 
     # NN
@@ -635,6 +799,9 @@ if __name__ == '__main__':
 
     # Elemwise
     test_all_elemwise()
+
+    # Reduce
+    test_all_reduce()
 
     # End to End
     test_forward_mobilenet_v1()

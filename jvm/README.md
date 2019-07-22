@@ -30,6 +30,7 @@ This folder contains the Java interface for TVM runtime. It brings TVM runtime t
 
 - JDK 1.6+. Oracle JDK and OpenJDK are well tested.
 - Maven 3 for build.
+- LLVM (TVM4J need LLVM support. Please refer to [build-the-shared-library](https://docs.tvm.ai/install/from_source.html#build-the-shared-library) for how to enable LLVM support.)
 
 ### Modules
 

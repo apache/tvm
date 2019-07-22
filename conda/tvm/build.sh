@@ -17,6 +17,16 @@
 # under the License.
 
 set -e
+set -u
 
 cd python
 $PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
+cd ..
+
+cd topi/python
+$PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
+cd ../..
+
+cd nnvm/python
+$PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
+cd ../..

@@ -15,9 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM nvidia/cuda:{{ cuda_version }}-devel-centos6
+FROM nvidia/cuda:{{ cuda_version }}-devel-ubuntu16.04
 
-RUN curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v{{ cudnn_short_version }}/cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -O && \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+            bzip2 curl sudo binutils && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN  curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v{{ cudnn_short_version }}/cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -O && \
     tar --no-same-owner -xzf cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -C /usr/local && \
     rm cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz && \
     ldconfig
@@ -27,13 +31,16 @@ RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-lat
      chmod +x ~/miniconda.sh && \
      ~/miniconda.sh -b -p /opt/conda && \
      rm ~/miniconda.sh && \
+     /opt/conda/bin/conda upgrade --all && \
      /opt/conda/bin/conda install conda-build conda-verify && \
      /opt/conda/bin/conda clean -ya
 
+RUN /opt/conda/bin/conda install --download-only cmake make zlib
+RUN /opt/conda/bin/conda install --download-only -c numba llvmdev=8.0.0
+
 ENV PATH /opt/conda/bin:$PATH
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV CONDA_BLD_PATH /tmp
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
-
-CMD conda build --output-folder /workspace/conda/pkg --variants '{cuda: True, cuda_version: {{ cuda_version }}}' /workspace/conda/tvm-libs

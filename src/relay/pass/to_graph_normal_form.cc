@@ -24,8 +24,9 @@
  *
  * \brief Turn A normal form into graph normal form.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include "let_list.h"
 
 namespace tvm {
@@ -75,9 +76,6 @@ class GNF : public ExprMutator {
 Expr ToGraphNormalForm(const Expr& e) {
   return GNF()(e);
 }
-
-TVM_REGISTER_API("relay._ir_pass.to_graph_normal_form")
-.set_body_typed(ToGraphNormalForm);
 
 namespace transform {
 

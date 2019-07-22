@@ -28,8 +28,9 @@
  * CalcDep turn an expr into a dependency graph of expr,
  * GenLet turn the dependency graph into a let list, taking only the used value.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include "let_list.h"
 
 namespace tvm {
@@ -155,9 +156,6 @@ class CalcDep : private ExprVisitor {
 Expr DeadCodeElimination(const Expr& e, bool inline_once) {
   return CalcDep::Eliminate(e, inline_once);
 }
-
-TVM_REGISTER_API("relay._ir_pass.dead_code_elimination")
-.set_body_typed(DeadCodeElimination);
 
 namespace transform {
 

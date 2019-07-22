@@ -311,6 +311,11 @@ TVM_REGISTER_GLOBAL("topi.shape")
   *rv = shape(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.ndarray_size")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = ndarray_size(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {
@@ -336,6 +341,14 @@ TVM_REGISTER_GLOBAL("topi.take")
     *rv = take(args[0], args[1], axis, mode);
   }
   });
+
+TVM_REGISTER_GLOBAL("topi.sequence_mask")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  double pad_val = args[2];
+  int axis = args[3];
+  *rv = sequence_mask(args[0], args[1], pad_val, axis);
+});
+
 
 TVM_REGISTER_GLOBAL("topi.where")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

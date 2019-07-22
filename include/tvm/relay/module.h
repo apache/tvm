@@ -32,6 +32,7 @@
 #include <tvm/relay/type.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
@@ -55,7 +56,7 @@ struct Module;
  *  The functional style allows users to construct custom
  *  environments easily, for example each thread can store
  *  a Module while auto-tuning.
- * */
+ */
 
 class ModuleNode : public RelayNode {
  public:
@@ -64,16 +65,12 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from global type vars to ADT type data. */
   tvm::Map<GlobalTypeVar, TypeData> type_definitions;
 
-  /*! \brief The entry function (i.e. "main"). */
-  GlobalVar entry_func;
-
   ModuleNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
-    v->Visit("entry_func", &entry_func);
     v->Visit("global_type_var_map_", &global_type_var_map_);
   }
 
@@ -119,46 +116,60 @@ class ModuleNode : public RelayNode {
   TVM_DLL void Remove(const GlobalVar& var);
 
   /*!
+   * \brief Check if the global_var_map_ contains a global variable.
+   * \param name The variable name.
+   * \returns true if contains, otherise false.
+   */
+  TVM_DLL bool ContainGlobalVar(const std::string& name) const;
+
+  /*!
    * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  TVM_DLL GlobalVar GetGlobalVar(const std::string& str);
+  TVM_DLL GlobalVar GetGlobalVar(const std::string& str) const;
 
   /*!
    * \brief Look up a global function by its name.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str);
+  TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str) const;
 
   /*!
-   * \brief Lookup a global function by its variable.
+   * \brief Look up a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
-  TVM_DLL Function Lookup(const GlobalVar& var);
+  TVM_DLL Function Lookup(const GlobalVar& var) const;
 
   /*!
-   * \brief Lookup a global function by its string name
+   * \brief Look up a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
-  TVM_DLL Function Lookup(const std::string& name);
+  TVM_DLL Function Lookup(const std::string& name) const;
 
   /*!
-   * \brief Lookup a global type definition by its variable.
+   * \brief Look up a global type definition by its variable.
    * \param var The var of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var);
+  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var) const;
 
   /*!
-   * \brief Lookup a global type definition by its name.
+   * \brief Look up a global type definition by its name.
    * \param var The name of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const std::string& var);
+  TVM_DLL TypeData LookupDef(const std::string& var) const;
+
+  /*!
+   * \brief Look up a constructor by its tag.
+   * \param tag The tag for the constructor.
+   * \return The constructor object.
+   */
+  TVM_DLL Constructor LookupTag(const int32_t tag);
 
   /*!
    * \brief Update the functions inside this environment by
@@ -169,22 +180,27 @@ class ModuleNode : public RelayNode {
 
   /*! \brief Construct a module from a standalone expression.
    *
-   * Allows one to optionally pass a global function map as
-   * well.
+   * Allows one to optionally pass a global function map and
+   * map of type definitions as well.
    *
-   * \param expr The expression to set as the entry point to the module.
+   * \param expr The expression to set as the main function to the module.
    * \param global_funcs The global function map.
+   * \param type_definitions Map of global type definitions
    *
-   * \returns A module with expr set as the entry point.
+   * \returns A module with expr set as the main function.
    */
   TVM_DLL static Module FromExpr(
     const Expr& expr,
-    const tvm::Map<GlobalVar, Function>& global_funcs = {});
+    const tvm::Map<GlobalVar, Function>& global_funcs = {},
+    const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   static constexpr const char* _type_key = "relay.Module";
   TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
 
  private:
+  /*! \brief Helper function for registering a typedef's constructors */
+  void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
+
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
@@ -194,6 +210,11 @@ class ModuleNode : public RelayNode {
    * that ensures global uniqueness.
    */
   tvm::Map<std::string, GlobalTypeVar> global_type_var_map_;
+
+  /*! \brief A map from constructor tags to constructor objects
+   * for convenient access
+   */
+  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
 };
 
 struct Module : public NodeRef {

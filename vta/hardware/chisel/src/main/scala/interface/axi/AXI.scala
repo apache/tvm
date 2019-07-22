@@ -24,13 +24,11 @@ import chisel3.util._
 import vta.util.genericbundle._
 
 case class AXIParams(
+  coherent: Boolean = false,
   addrBits: Int = 32,
   dataBits: Int = 64,
-  userBits: Int = 1,
   lenBits: Int = 8,
-  cacheCode: Int = 3,
-  protCode: Int = 0,
-  userCode: Int = 0
+  userBits: Int = 1
 )
 {
   require (addrBits > 0)
@@ -38,7 +36,6 @@ case class AXIParams(
 
   val idBits = 1
   val strbBits = dataBits/8
-  // val lenBits = 8
   val sizeBits = 3
   val burstBits = 2
   val lockBits = 2
@@ -49,11 +46,11 @@ case class AXIParams(
   val respBits = 2
   val sizeConst = log2Ceil(dataBits/8)
   val idConst = 0
-  val userConst = userCode
+  val userConst = if (coherent) 1 else 0
   val burstConst = 1
   val lockConst = 0
-  val cacheConst = cacheCode
-  val protConst = protCode
+  val cacheConst = if (coherent) 15 else 3
+  val protConst = if (coherent) 4 else 0
   val qosConst = 0
   val regionConst = 0
 }

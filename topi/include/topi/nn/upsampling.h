@@ -43,7 +43,7 @@ using namespace topi::image;
 * \param input The input tensor.
 * \param shape Output shape to upsample.
 * \param layout input layout
-* \param mode Angorithm to use (NEAREST_NEIGHBOR / BILINEAR)
+* \param mode Algorithm to use (NEAREST_NEIGHBOR / BILINEAR)
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *

@@ -14,8 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import attr
 import numpy as np
 import math
+import torch
+import torchvision
 import topi
 import topi.testing
 import tvm
@@ -42,9 +45,11 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
 
-    sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict)
     with relay.build_config(opt_level=1):
-        graph, lib, params = relay.build(sym, target, params=params)
+        graph, lib, params = relay.build(mod,
+                                         target,
+                                         params=params)
 
     ctx = tvm.cpu(0)
     from tvm.contrib import graph_runtime
@@ -1070,6 +1075,48 @@ def test_LogSoftmax():
                               'LogSoftmax',
                               {'axis': 1})
 
+
+def check_torch_conversion(model, input_size):
+    dummy_input = torch.randn(*input_size)
+    file_name = '{}.onnx'.format(model.__name__)
+    # Set verbose=True for more output
+    torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
+    onnx_model = onnx.load(file_name)
+    shapes = { '0' : input_size }
+    expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
+
+def test_resnet():
+    check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
+    # check_torch_conversion(torchvision.models.resnet101, (1,3,224,224))
+
+# def test_alexnet():
+    # Torch's ONNX export does not support the adaptive pooling used by AlexNet?
+    # check_torch_conversion(torchvision.models.alexnet, (1,3,224,224))
+
+# Torch's ONNX export does not support the adaptive pooling used by vgg16?
+# def test_vgg16():
+#     check_torch_conversion(torchvision.models.vgg16, (1,3,224,224))
+
+# TODO(@jroesch): Update Torch + ONNX to support this import.
+# def test_squeezenet():
+#     # Torch's ONNX export does not support the max pooling used by Squezenet
+#     check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
+
+def test_densenet():
+    check_torch_conversion(torchvision.models.densenet161, (1,3,224,224))
+
+def test_inception():
+    check_torch_conversion(torchvision.models.inception_v3, (1,3,224,224))
+
+# TODO(@jroesch): Update Torch + ONNX to support this import.
+# def test_googlenet():
+#     check_torch_conversion(torchvision.models.googlenet, (1,3,224,224))
+
+# TODO(@jroesch): Update Torch + ONNX to support this import.
+# def test_shufflenetv2():
+#     check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1109,3 +1156,6 @@ if __name__ == '__main__':
     test_ParametricSoftplus()
     test_Scale()
     test_LogSoftmax()
+    test_resnet()
+    test_inception()
+    test_densenet()

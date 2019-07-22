@@ -26,7 +26,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/logging.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
@@ -112,7 +112,7 @@ struct LambdaLifter : ExprMutator {
     CHECK(lifted_func.defined());
 
     auto name = GenerateName(lifted_func);
-    auto global = module_->GetGlobalVar(name);
+    auto global = GlobalVarNode::make(name);
 
     // Add the lifted function to the module.
     module_->Add(global, lifted_func);

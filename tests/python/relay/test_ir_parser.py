@@ -16,14 +16,14 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union
 from functools import wraps
 raises_parse_error = raises(tvm._ffi.base.TVMError)
 
-SEMVER = "v0.0.2"
+SEMVER = "v0.0.3"
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -60,8 +60,16 @@ TYPES = {
     "float16x4",
 }
 
+def roundtrip(expr):
+    x = relay.fromtext(str(expr))
+    assert_alpha_equal(x, expr)
+
+
 def parse_text(code):
-    return relay.fromtext(SEMVER + "\n" + code)
+    x = relay.fromtext(SEMVER + "\n" + code)
+    roundtrip(x)
+    return x
+
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
@@ -101,6 +109,16 @@ def test_comments():
         UNIT
     )
 
+    assert parses_as(
+        """
+        /* This is a block comment!
+           /*Block comment is recursive!*/
+        */
+        ()
+        """,
+        UNIT
+    )
+
 
 def test_int_literal():
     assert isinstance(parse_text("1"), relay.Constant)
@@ -114,20 +132,20 @@ def test_int_literal():
 
 
 def test_float_literal():
-    assert get_scalar(parse_text("1.0")) == 1.0
-    assert isclose(get_scalar(parse_text("1.56667")), 1.56667)
-    assert get_scalar(parse_text("0.0")) == 0.0
-    assert get_scalar(parse_text("-10.0")) == -10.0
+    assert get_scalar(parse_text("1.0f")) == 1.0
+    assert isclose(get_scalar(parse_text("1.56667f")), 1.56667)
+    assert get_scalar(parse_text("0.0f")) == 0.0
+    assert get_scalar(parse_text("-10.0f")) == -10.0
 
     # scientific notation
-    assert isclose(get_scalar(parse_text("1e-1")), 1e-1)
-    assert get_scalar(parse_text("1e+1")) == 1e+1
-    assert isclose(get_scalar(parse_text("1E-1")), 1E-1)
-    assert get_scalar(parse_text("1E+1")) == 1E+1
-    assert isclose(get_scalar(parse_text("1.0e-1")), 1.0e-1)
-    assert get_scalar(parse_text("1.0e+1")) == 1.0e+1
-    assert isclose(get_scalar(parse_text("1.0E-1")), 1.0E-1)
-    assert get_scalar(parse_text("1.0E+1")) == 1.0E+1
+    assert isclose(get_scalar(parse_text("1e-1f")), 1e-1)
+    assert get_scalar(parse_text("1e+1f")) == 1e+1
+    assert isclose(get_scalar(parse_text("1E-1f")), 1E-1)
+    assert get_scalar(parse_text("1E+1f")) == 1E+1
+    assert isclose(get_scalar(parse_text("1.0e-1f")), 1.0e-1)
+    assert get_scalar(parse_text("1.0e+1f")) == 1.0e+1
+    assert isclose(get_scalar(parse_text("1.0E-1f")), 1.0E-1)
+    assert get_scalar(parse_text("1.0E+1f")) == 1.0E+1
 
 
 def test_bool_literal():
@@ -163,7 +181,7 @@ def test_op_assoc():
 def test_vars():
     # temp vars won't work b/c they start with a digit
     # # temp var
-    # temp_var = relay.fromtext("%1")
+    # temp_var = parse_text("%1")
     # assert isinstance(temp_var, relay.Var)
     # assert temp_var.name == "1"
 
@@ -213,7 +231,7 @@ def test_let():
 
 def test_seq():
     assert parses_as(
-        "(); ()",
+        "();; ()",
         relay.Let(
             _,
             UNIT,
@@ -321,8 +339,7 @@ def test_func():
 
 # TODO(@jmp): Crashes if %x isn't annnotated.
 def test_defn():
-    id_defn = relay.fromtext(
-        SEMVER+
+    id_defn = parse_text(
         """
         def @id(%x: int32) -> int32 {
             %x
@@ -332,8 +349,7 @@ def test_defn():
 
 
 def test_recursive_call():
-    id_defn = relay.fromtext(
-        SEMVER+
+    id_defn = parse_text(
         """
         def @id(%x: int32) -> int32 {
             @id(%x)
@@ -361,8 +377,7 @@ def test_ifelse():
 
 @raises_parse_error
 def test_ifelse_scope():
-    relay.fromtext(
-        SEMVER+
+    parse_text(
         """
         if (True) {
             let %x = ();
@@ -530,7 +545,7 @@ def test_tensor_type():
     )
 
     assert parses_as(
-        "let %_ : Tensor[(1,), float32] = (); ()",
+        "let %_ : Tensor[(1), float32] = (); ()",
         relay.Let(
             relay.Var("_", relay.TensorType((1,), "float32")),
             UNIT,
@@ -616,3 +631,27 @@ def test_tuple_type():
             UNIT
         )
     )
+
+if __name__ == "__main__":
+    test_comments()
+    test_int_literal()
+    test_float_literal()
+    test_bool_literal()
+    test_negative()
+    test_bin_op()
+    test_parens()
+    test_op_assoc()
+    test_let()
+    test_seq()
+    test_graph()
+    test_tuple()
+    test_func()
+    test_defn()
+    test_recursive_call()
+    test_ifelse()
+    test_call()
+    test_incomplete_type()
+    test_builtin_types()
+    test_tensor_type()
+    test_function_type()
+    test_tuple_type()

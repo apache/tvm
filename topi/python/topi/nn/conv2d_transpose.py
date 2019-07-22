@@ -51,11 +51,15 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    batch, in_c, in_h, in_w = Input.shape
-    _, out_c, filter_h, filter_w = Filter.shape
+    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype)
+
+def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype):
+    """Implementation of conv2d transpose"""
+    batch, in_c, in_h, in_w = data.shape
+    _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides
     # dilate stage
-    DilatedInput = dilate(Input, [1, 1, stride_h, stride_w], name='DilatedInput')
+    DilatedInput = dilate(data, [1, 1, stride_h, stride_w], name='DilatedInput')
     # padding stage
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
@@ -78,7 +82,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
             PaddedInput[b, dc, h+dh, w+dw].astype(out_dtype) *
-            Filter[dc, c, filter_h-1-dh, filter_w-1-dw].astype(out_dtype),
+            kernel[dc, c, filter_h-1-dh, filter_w-1-dw].astype(out_dtype),
             axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
 
     return Output

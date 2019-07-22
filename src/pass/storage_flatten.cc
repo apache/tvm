@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,7 +41,6 @@
 namespace tvm {
 namespace ir {
 
-using HalideIR::Internal::Region;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -186,7 +185,7 @@ class StorageFlattener : public IRMutator {
       }
 
       // use small alignment for small arrays
-      int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
+      int32_t const_size = Allocate::constant_allocation_size(shape);
       int align = GetTempAllocaAlignment(op->type, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -211,7 +210,7 @@ class StorageFlattener : public IRMutator {
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
-          stride = arith::ComputeExpr<Mul>(stride, shape[dim]);
+          stride = stride * shape[dim];
         }
         strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
       }
@@ -220,7 +219,7 @@ class StorageFlattener : public IRMutator {
           Var(key.GetName(), Handle()),
           op->type, shape, strides, Expr(),
           key.GetName(), skey.to_string(),
-          align, 0);
+          align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
@@ -237,7 +236,7 @@ class StorageFlattener : public IRMutator {
         int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, storage_type,
-            {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
+            {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
@@ -348,14 +347,14 @@ class StorageFlattener : public IRMutator {
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
         stmt = For::make(
-            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
         Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
         stmt = Evaluate::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
+        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;
@@ -414,8 +413,7 @@ class StorageFlattener : public IRMutator {
     if (be.bounds.size() != 0) {
       CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
-        begins.push_back(
-            arith::ComputeExpr<Sub>(tuple->args[2 * i], be.bounds[i]->min));
+        begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
         extents.push_back(tuple->args[2 * i + 1]);
       }
     } else {

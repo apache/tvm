@@ -18,6 +18,16 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay import analysis, transform
+
+
+def run_opt_pass(expr, opt_pass):
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
 
 def test_gemm():
     n = 512
@@ -30,8 +40,8 @@ def test_gemm():
     gemm = relay.nn.dense(data1, data2)
     func = relay.Function([data1, data2],
                             relay.Tuple(tvm.convert([gemm])))
-    func = relay.ir_pass.infer_type(func)
-    compute_count = relay.ir_pass.get_total_mac_number(func)
+    func = run_opt_pass(func, transform.InferType())
+    compute_count = analysis.get_total_mac_number(func)
     expect_count = n * m * k
     assert compute_count == expect_count
 
@@ -55,11 +65,10 @@ def test_conv():
         weight,
         channels=output_channel,
         kernel_size=(kh, kw),
-        padding=(1, 1))
-    func = relay.Function([data, weight],
-                            relay.Tuple(tvm.convert([conv2d])))
-    func = relay.ir_pass.infer_type(func)
-    compute_count = relay.ir_pass.get_total_mac_number(func)
+        padding=(h_padding, w_padding))
+    func = relay.Function([data, weight], relay.Tuple(tvm.convert([conv2d])))
+    func = run_opt_pass(func, transform.InferType())
+    compute_count = analysis.get_total_mac_number(func)
     expect_count = batch_size * input_channel * oh * ow * output_channel * kh * kw
     assert compute_count == expect_count
 
@@ -92,11 +101,9 @@ def test_simple_network():
     func = relay.Function([data1, data2, weight_conv, weight_dense],
                             relay.Tuple(tvm.convert([conv2d_1, conv2d_2,
                                                     dense_1, add, flattened])))
-    func = relay.ir_pass.infer_type(func)
     # alter the CONV 2D data layout to test
-    func = relay.ir_pass.alter_op_layout(func)
-    func = relay.ir_pass.infer_type(func)
-    compute_count = relay.ir_pass.get_total_mac_number(func)
+    func = run_opt_pass(func, transform.AlterOpLayout())
+    compute_count = analysis.get_total_mac_number(func)
     expect_count = 231411712
     assert compute_count == expect_count
 
@@ -123,12 +130,41 @@ def test_depthwise_conv2d():
                             relay.Tuple(tvm.convert([depthwise_conv2d_1,
                                                     depthwise_conv2d_2,
                                                     add])))
-    func = relay.ir_pass.infer_type(func)
-    compute_count = relay.ir_pass.get_total_mac_number(func)
+    func = run_opt_pass(func, transform.InferType())
+    compute_count = analysis.get_total_mac_number(func)
     assert compute_count == 2 * np.prod(dshape) * 3*3
+
+def test_conv_2d_transpose():
+    batch_size = 1
+    input_channel = 3
+    h = 224
+    w = 224
+    output_channel = 64
+    kh = 7
+    kw = 7
+    h_padding = 1
+    w_padding = 1
+    oh = h - h_padding * 2 + kh - 1
+    ow = w - w_padding * 2 + kw - 1
+    dshape = (batch_size, input_channel, h, w)
+    weight = relay.var("weight", shape=(input_channel, output_channel, kh, kw))
+    data = relay.var("data", shape=dshape)
+    conv2d_transpose = relay.nn.conv2d_transpose(
+        data,
+        weight,
+        channels=output_channel,
+        kernel_size=(kh, kw),
+        padding=(h_padding, w_padding))
+    func = relay.Function([data, weight],
+                            relay.Tuple(tvm.convert([conv2d_transpose])))
+    func = run_opt_pass(func, transform.InferType())
+    compute_count = analysis.get_total_mac_number(func)
+    expect_count = batch_size * input_channel * oh * ow * output_channel * kh * kw
+    assert compute_count == expect_count
 
 if __name__ == "__main__":
     test_conv()
     test_gemm()
     test_simple_network()
     test_depthwise_conv2d()
+    test_conv_2d_transpose()

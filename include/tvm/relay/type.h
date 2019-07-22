@@ -35,6 +35,8 @@
 namespace tvm {
 namespace relay {
 
+using Any = tvm::ir::Any;
+
 /*! \brief Base type of the Relay type hiearchy. */
 class TypeNode : public RelayNode {
  public:
@@ -116,10 +118,10 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
 RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
 
-/*! \brief possible kinds of Type */
+/*! \brief Possible kinds of Type. */
 enum Kind : int {
-  /*! \brief template variable in shape expression */
   kType = 0,
+  /*! \brief Template variable in shape expression. */
   kShapeVar = 1,
   kBaseType = 2,
   kShape = 3,
@@ -384,6 +386,7 @@ class TypeReporterNode : public Node {
    *  But it is possible for the solver to resolve src by dst as well.
    */
   TVM_DLL virtual void Assign(const Type& dst, const Type& src) = 0;
+
   /*!
    * \brief assert shape expression comparison.
    * \note Use assert only if any of the condition input is symbolic.

@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
 #include "compile_engine.h"
 
@@ -103,7 +103,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                               p->stream << "RefValueNode(" << node->value << ")";
                             });
 
-ConstructorValue ConstructorValueNode::make(int tag,
+ConstructorValue ConstructorValueNode::make(int32_t tag,
                                             tvm::Array<Value> fields,
                                             Constructor constructor) {
   NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
@@ -299,7 +299,9 @@ class Interpreter :
     auto closure = ClosureNode::make(captured_mod, func);
     auto mut_closure =
         static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
-    mut_closure->env.Set(letrec_name, closure);
+    if (letrec_name.defined()) {
+      mut_closure->env.Set(letrec_name, closure);
+    }
     return std::move(closure);
   }
 

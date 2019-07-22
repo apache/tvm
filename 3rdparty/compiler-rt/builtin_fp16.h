@@ -73,7 +73,9 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
   const DST_REP_T dstNaNCode = dstQNaN - 1;
 
   // Break a into a sign and representation of the absolute value
-  const union { SRC_T f; SRC_REP_T i; } src_rep = {.f = a};
+  union SrcExchangeType { SRC_T f; SRC_REP_T i; };
+  SrcExchangeType src_rep;
+  src_rep.f = a;
   const SRC_REP_T aRep = src_rep.i;
   const SRC_REP_T aAbs = aRep & srcAbsMask;
   const SRC_REP_T sign = aRep & srcSignMask;
@@ -134,7 +136,9 @@ static inline DST_T __truncXfYf2__(SRC_T a) {
 
   // Apply the signbit to (DST_T)abs(a).
   const DST_REP_T result = absResult | sign >> (srcBits - dstBits);
-  const union { DST_T f; DST_REP_T i; } dst_rep = {.i = result};
+  union DstExchangeType { DST_T f; DST_REP_T i; };
+  DstExchangeType dst_rep;
+  dst_rep.i = result;
   return dst_rep.f;
 }
 
@@ -163,7 +167,9 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
   const DST_REP_T dstMinNormal = DST_REP_T(1) << DST_SIG_BITS;
 
   // Break a into a sign and representation of the absolute value
-  const union { SRC_T f; SRC_REP_T i; } src_rep = {.f = a};
+  union SrcExchangeType { SRC_T f; SRC_REP_T i; };
+  SrcExchangeType src_rep;
+  src_rep.f = a;
   const SRC_REP_T aRep = src_rep.i;
   const SRC_REP_T aAbs = aRep & srcAbsMask;
   const SRC_REP_T sign = aRep & srcSignMask;
@@ -205,6 +211,8 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
 
   // Apply the signbit to (DST_T)abs(a).
   const DST_REP_T result = absResult | (DST_REP_T)sign << (dstBits - srcBits);
-  const union { DST_T f; DST_REP_T i; } dst_rep = {.i = result};
+  union DstExchangeType { DST_T f; DST_REP_T i; };
+  DstExchangeType dst_rep;
+  dst_rep.i = result;
   return dst_rep.f;
 }

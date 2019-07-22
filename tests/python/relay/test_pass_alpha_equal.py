@@ -14,17 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
-from tvm.relay import ir_pass
+from tvm.relay import analysis
 
 def alpha_equal(x, y):
     """
     Wrapper around alpha equality which ensures that
     the hash function respects equality.
     """
-    return ir_pass.alpha_equal(x, y) and ir_pass.structural_hash(x) == ir_pass.structural_hash(y)
+    return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
@@ -160,7 +160,6 @@ def test_type_relation_alpha_equal():
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    # attrs are also compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
@@ -391,7 +390,6 @@ def test_call_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    # attrs are compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
@@ -604,14 +602,14 @@ def test_hash_unequal():
     y2 = relay.var("y2", shape=(10, 10), dtype="float32")
     func2 = relay.Function([x2, y2], relay.add(x2, y2))
 
-    assert ir_pass.structural_hash(func1) == ir_pass.structural_hash(func2)
+    assert analysis.structural_hash(func1) == analysis.structural_hash(func2)
 
     # func3 is same as func1 but with different var shapes
     x3 = relay.var("x3", shape=(20, 10), dtype="float32")
     y3 = relay.var("y3", shape=(20, 10), dtype="float32")
     func3 = relay.Function([x3, y3], relay.add(x3, y3))
 
-    assert not ir_pass.structural_hash(func1) == ir_pass.structural_hash(func3)
+    assert not analysis.structural_hash(func1) == analysis.structural_hash(func3)
 
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()

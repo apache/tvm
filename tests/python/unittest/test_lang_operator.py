@@ -83,7 +83,25 @@ def test_const_fold3():
     assert tvm.any(x, true).same_as(true)
     assert tvm.any(true, x).same_as(true)
 
+
+def test_const_fold4():
+    x1 = tvm.const(4, "int32")
+    x2 = x1 + 5
+    assert isinstance(x2, tvm.expr.IntImm) and x2.value == 9
+    x3 = x2 / 3
+    assert isinstance(x3, tvm.expr.IntImm) and x3.value == 3
+    x4 = x3 + 0.55
+    assert isinstance(x4, tvm.expr.FloatImm) and abs(x4.value - 3.55) < 1e-6
+    x5 = tvm.ceil(x4)
+    assert isinstance(x5, tvm.expr.FloatImm) and x5.value == 4
+    x6 = x5.astype('int')
+    assert isinstance(x6, tvm.expr.IntImm) and x6.value == 4, "x6={}".format(x6)
+    y = (tvm.round((tvm.const(6.5, 'float32') - 1) / 1.5) + 2).astype('int')
+    assert isinstance(y, tvm.expr.IntImm) and y.value == 6
+
+
 if __name__ == "__main__":
     test_const_fold()
     test_const_fold2()
     test_const_fold3()
+    test_const_fold4()

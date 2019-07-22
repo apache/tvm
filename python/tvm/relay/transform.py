@@ -19,6 +19,8 @@
 Relay pass transformation infrastructure.
 """
 import types
+import inspect
+import functools
 
 from tvm._ffi.runtime_ctypes import TVMContext
 from . import _transform
@@ -275,6 +277,40 @@ def FoldScaleAxis():
     return _transform.FoldScaleAxis()
 
 
+def BackwardFoldScaleAxis():
+    """Backward fold axis scaling into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to backward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
+    """
+    return _transform.BackwardFoldScaleAxis()
+
+
+def ForwardFoldScaleAxis():
+    """Fold the scaling of axis into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to forward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
+    """
+    return _transform.ForwardFoldScaleAxis()
+
+
 def SimplifyInference():
     """Simplify the data-flow graph for inference phase. An simplified expression
     which is semantically equal to the input expression will be returned.
@@ -300,15 +336,20 @@ def CanonicalizeOps():
     return _transform.CanonicalizeOps()
 
 
-def DeadCodeElimination():
-    """ Remove expressions which does not effect the program result (dead code).
+def DeadCodeElimination(inline_once=False):
+    """Remove expressions which does not effect the program result (dead code).
+
+    Parameters
+    ----------
+    inline_once: Optional[Bool]
+        Whether to inline binding that occurs only once.
 
     Returns
     -------
     ret: tvm.relay.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _transform.DeadCodeElimination()
+    return _transform.DeadCodeElimination(inline_once)
 
 
 def FoldConstant():
@@ -399,10 +440,35 @@ def ToANormalForm():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: Union[tvm.relay.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
     return _transform.ToANormalForm()
+
+
+def ToCPS(expr, mod=None):
+    """
+    Turn expression into continuation passing style(CPS).
+
+    Every intermediate compute will be passed to a continuation.
+
+    Returns
+    -------
+    result: tvm.relay.Pass
+        The registered pass that transforms an expression into CPS.
+    """
+    return _transform.to_cps(expr, mod)
+
+
+def EtaExpand():
+    """Add abstraction over a function
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that eta expands an expression.
+    """
+    return _transform.EtaExpand()
 
 
 def ToGraphNormalForm():
@@ -436,24 +502,171 @@ def EliminateCommonSubexpr(fskip=None):
 def PartialEvaluate():
     """Evaluate the static fragment of the code.
 
+    Note
+    ----
+    This transformation could be either `Module -> Module` or `Expr -> Expr`.
+    It will directly transform the input expression to a new one if the target
+    expression is provided. Otherwise, it will rely on the pass manager to
+    carry out transformation.
+
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret: tvm.relay.Pass
         The registered pass that performs partial evaluation on an expression.
     """
     return _transform.PartialEvaluate()
 
 
-def module_pass(pass_func=None, opt_level=None, name=None, required=None):
-    """Create a module pass. This function returns a callback when pass_func
-    is provided. Otherwise, it returns the created module level pass using the
-    given optimization function.
+def CanonicalizeCast():
+    """
+    Canonicalize cast expressions to make operator fusion more efficient.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that canonicalizes cast expression.
+    """
+    return _transform.CanonicalizeCast()
+
+
+def LambdaLift():
+    """
+    Lift the closure to global function.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that lifts the lambda function.
+    """
+    return _transform.LambdaLift()
+
+
+def PrintIR():
+    """
+    Print the IR for a module to help debugging.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that prints the module IR.
+    """
+    return _transform.PrintIR()
+
+
+def gradient(expr, mod=None, mode='higher_order'):
+    """
+    Transform the input function,
+    returning a function that calculate the original result,
+    paired with gradient of the input.
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(Module/Function, PassContext) ->
-                Module/Function]]
-        The implemented optimization pass.
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : Optional[tvm.relay.Module]
+
+    mode : Optional[String]
+        The mode of the automatic differentiation algorithm.
+        'first_order' only works on first order code, but will not produce
+        reference nor closure.
+        'higher_order' works on all code using reference and closure.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The transformed expression.
+    """
+    if mode == 'first_order':
+        return _transform.first_order_gradient(expr, mod)
+    if mode == 'higher_order':
+        return _transform.gradient(expr, mod)
+    raise Exception('unknown mode')
+
+
+def to_cps(func, mod=None):
+    """
+    Turn expression into CPS expression.
+
+    Every intermediate compute will be passed to a continuation.
+
+    Parameters
+    ----------
+    func: tvm.relay.Function
+        The input function.
+
+    mod: Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    result: tvm.relay.Function
+      The output function.
+    """
+    return _transform.to_cps(func, mod)
+
+
+def un_cps(func):
+    """
+    Turn an cps function into a Function without the continuation argument.
+
+    Note that this will not give the exact same interface as before cps:
+      If the input/output is higher order, they will still be in cps form.
+
+    Parameters
+    ----------
+    func: tvm.relay.Function
+        The input function
+
+    Returns
+    -------
+    result: tvm.relay.Function
+        The output function
+    """
+    return _transform.un_cps(func)
+
+
+def _wrap_class_module_pass(pass_cls, pass_info):
+    """Wrap a python class as function pass"""
+    class PyModulePass(ModulePass):
+        """Internal wrapper class to create a class instance."""
+        def __init__(self, *args, **kwargs):
+            # initialize handle in cass pass_cls creation failed.fg
+            self.handle = None
+            inst = pass_cls(*args, **kwargs)
+            # it is important not to capture self to
+            # avoid a cyclic dependency
+            def _pass_func(mod, ctx):
+                return inst.transform_module(mod, ctx)
+            self.__init_handle_by_constructor__(
+                _transform.MakeModulePass, _pass_func, pass_info)
+            self._inst = inst
+
+        def __getattr__(self, name):
+            # fall back to instance attribute if there is not any
+            return self._inst.__getattribute__(name)
+
+    functools.update_wrapper(PyModulePass.__init__, pass_cls.__init__)
+    PyModulePass.__name__ = pass_cls.__name__
+    PyModulePass.__doc__ = pass_cls.__doc__
+    PyModulePass.__module__ = pass_cls.__module__
+    return PyModulePass
+
+
+def module_pass(pass_func=None, opt_level=None, name=None, required=None):
+    """Decorate a module pass.
+
+    This function returns a callback when pass_func is provided.
+    Otherwise, it serves a decorator function.
+
+    pass_func can also be a class type with a method transform_module.
+    This function will create a decorated ModulePass using transform_module
+    as the pass function.
+
+    Parameters
+    ----------
+    pass_func : Optional[Callable[(Module, PassContext) ->Module]]
+        The transformation function or class.
 
     opt_level : int
         The optimization level of this module pass.
@@ -468,14 +681,39 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     Returns
     -------
     create_module_pass : Union[Callable, ModulePass]
-        The callable that will create a module pass is returned when
-        pass_func is not passed in. Otherwise, a ModulePass object will be
-        directly created.
+        A decorator will be returned if pass_func is not provided,
+        otherwise return the decorated result.
+        The returned decorator has two behaviors depending on the input:
+        A new ModulePass will be returned when we decorate a pass function.
+        A new ModulePass class will be returned when we decorate a class type.
 
     Examples
     --------
-    The following code creates a module level pass and adds an abs function to
-    the module.
+    The following code block decorates a module pass class.
+
+    .. code-block:: python
+
+        @relay.transform.module_pass
+        class CustomPipeline:
+            def __init__(self, enable_fold):
+                self.enable_fold = enable_fold
+                self.cse = relay.transform.EliminateCommonSubexpr()
+                self.const_fold = relay.transform.FoldConstant()
+
+            def transform_module(self, mod, ctx):
+                mod = self.cse(mod, ctx)
+                if self.enable_fold:
+                    mod = self.const_fold(mod, ctx)
+                return mod
+
+        # create an instance of customized pipeline
+        pipeline = CustomPipeline(enable_fold=False)
+        assert isinstance(pipeline, transform.ModulePass)
+        # run the pipeline.
+        output_module = pipeline(input_module)
+
+    The following code creates a module pass by decorating
+    a user defined transform function.
 
     .. code-block:: python
 
@@ -497,7 +735,6 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
         updated_mod = module_pass(m)
         # Now a function abs should be added to the module m.
     """
-
     if opt_level is None:
         raise ValueError("Please provide opt_level for the module pass.")
 
@@ -506,30 +743,59 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
         raise TypeError("Required is expected to be the type of " +
                         "list/tuple.")
 
-    def create_module_pass(pass_func):
+    def create_module_pass(pass_arg):
         """Internal function that creates a module pass"""
-        if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
-            raise TypeError("pass_func must be a callable for Module pass")
-
-        fname = name if name else pass_func.__name__
+        fname = name if name else pass_arg.__name__
         info = PassInfo(opt_level, fname, required)
-        return _transform.MakeModulePass(pass_func, info)
+        if inspect.isclass(pass_arg):
+            return _wrap_class_module_pass(pass_arg, info)
+        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+            raise TypeError("pass_func must be a callable for Module pass")
+        return _transform.MakeModulePass(pass_arg, info)
 
     if pass_func:
         return create_module_pass(pass_func)
     return create_module_pass
 
 
+def _wrap_class_function_pass(pass_cls, pass_info):
+    """Wrap a python class as function pass"""
+    class PyFunctionPass(FunctionPass):
+        """Internal wrapper class to create a class instance."""
+        def __init__(self, *args, **kwargs):
+            # initialize handle in cass pass_cls creation failed.fg
+            self.handle = None
+            inst = pass_cls(*args, **kwargs)
+            # it is important not to capture self to
+            # avoid a cyclic dependency
+            def _pass_func(func, mod, ctx):
+                return inst.transform_function(func, mod, ctx)
+            self.__init_handle_by_constructor__(
+                _transform.MakeFunctionPass, _pass_func, pass_info)
+            self._inst = inst
+
+        def __getattr__(self, name):
+            # fall back to instance attribute if there is not any
+            return self._inst.__getattribute__(name)
+
+    functools.update_wrapper(PyFunctionPass.__init__, pass_cls.__init__)
+    PyFunctionPass.__name__ = pass_cls.__name__
+    PyFunctionPass.__doc__ = pass_cls.__doc__
+    PyFunctionPass.__module__ = pass_cls.__module__
+    return PyFunctionPass
+
+
 def function_pass(pass_func=None, opt_level=None, name=None, required=None):
-    """Create a function pass. This function returns a callback when pass_func
+    """Decorate a function pass.
+
+    This function returns a callback when pass_func
     is provided. Otherwise, it returns the created function pass using the
     given optimization function.
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(Module/Function, PassContext) ->
-                Module/Function]]
-        The implemented optimization pass.
+    pass_func : Optional[Callable[(Function, Module, PassContext) -> Function]]
+        The transformation function or class.
 
     opt_level : int
         The optimization level of this module pass.
@@ -544,20 +810,48 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     Returns
     -------
     create_function_pass : Union[Callable, FunctionPass]
-        The callable that will create a function pass is returned when
-        pass_func is not passed in. Otherwise, a FunctionPass object will be
-        created.
+
+        A decorator will be returned if pass_func is not provided,
+        otherwise return the decorated result.
+        The returned decorator has two behaviors depending on the input:
+        A new FunctionPass will be returned when we decorate a pass function.
+        A new FunctionPass class will be returned when we decorate a class type.
 
     Examples
     --------
-    The following code creates a function level pass that performs constant
-    folding.
+    The following code block decorates a function pass class.
+
+    .. code-block:: python
+
+        @relay.transform.function_pass(opt_level=1)
+        class TestReplaceFunc:
+            def __init__(self, new_func):
+                self.new_func = new_func
+
+            def transform_function(self, func, mod, ctx):
+                # just for demo purposes
+                # transform func to new_func
+                return self.new_func
+
+        x = relay.var("x", shape=(10, 20))
+        f1 = relay.Function([x], x)
+        f2 = relay.Function([x], relay.log(x))
+        # fpass is now a special pass that replaces every
+        # function to f1
+        fpass = TestReplaceFunc(f1)
+        # now every function in input_mod is replaced by f1
+        res_mod = fpass(input_mod)
+
+
+    The following code creates a function pass by decorating
+    a user defined transform function.
 
     .. code-block:: python
 
         @relay.transform.function_pass(opt_level=2)
-        def transform(func, ctx):
-            return ir_pass.fold_constant(func)
+        def transform(func, mod, ctx):
+            # my transformations here.
+            return func
 
         function_pass = transform
         assert isinstance(function_pass, transform.FunctionPass)
@@ -577,14 +871,15 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
         raise TypeError("Required is expected to be the type of " +
                         "list/tuple.")
 
-    def create_function_pass(pass_func):
+    def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
-        if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
-            raise TypeError("pass_func must be a callable for Module pass")
-
-        fname = name if name else pass_func.__name__
+        fname = name if name else pass_arg.__name__
         info = PassInfo(opt_level, fname, required)
-        return _transform.MakeFunctionPass(pass_func, info)
+        if inspect.isclass(pass_arg):
+            return _wrap_class_function_pass(pass_arg, info)
+        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+            raise TypeError("pass_func must be a callable for Module pass")
+        return _transform.MakeFunctionPass(pass_arg, info)
 
     if pass_func:
         return create_function_pass(pass_func)

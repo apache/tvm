@@ -26,7 +26,7 @@
  *  conv/dense operators.
  */
 #include <tvm/data_layout.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -545,10 +545,6 @@ Expr ForwardFoldScaleAxis(const Expr& data) {
       data, "FScaleAxisForwardRewrite", fcontext);
 }
 
-// Expose the FoldScaleAxisFoward
-TVM_REGISTER_API("relay._ir_pass.forward_fold_scale_axis")
-.set_body_typed<Expr(Expr)>(ForwardFoldScaleAxis);
-
 //----------------------------------------
 // Implement backward transformations.
 //----------------------------------------
@@ -947,9 +943,6 @@ Expr BackwardFoldScaleAxis(const Expr& data) {
   return make_node<BackwardTransformerNode>()->Fold(data);
 }
 
-TVM_REGISTER_API("relay._ir_pass.backward_fold_scale_axis")
-.set_body_typed<Expr(Expr)>(BackwardFoldScaleAxis);
-
 }  // namespace fold_scale_axis
 
 namespace transform {
@@ -964,6 +957,9 @@ Pass ForwardFoldScaleAxis() {
                             {ir::StringImm::make("InferType")});
 }
 
+TVM_REGISTER_API("relay._transform.ForwardFoldScaleAxis")
+.set_body_typed(ForwardFoldScaleAxis);
+
 Pass BackwardFoldScaleAxis() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
@@ -973,6 +969,9 @@ Pass BackwardFoldScaleAxis() {
   return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis",
                             {ir::StringImm::make("InferType")});
 }
+
+TVM_REGISTER_API("relay._transform.BackwardFoldScaleAxis")
+.set_body_typed(BackwardFoldScaleAxis);
 
 Pass FoldScaleAxis() {
   // FoldScaleAxis pass contains the following three passes. Therefore, we can

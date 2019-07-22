@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,16 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/expr_mutator.cc
  * \brief A wrapper around ExprFunctor which functionally updates the AST.
  *
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include "type_functor.h"
 
 namespace tvm {
@@ -345,7 +347,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_API("relay._ir_pass.post_order_visit")
+TVM_REGISTER_API("relay._analysis.post_order_visit")
 .set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
@@ -353,7 +355,7 @@ TVM_REGISTER_API("relay._ir_pass.post_order_visit")
   });
 
 // Implement bind.
-class ExprBinder : public ExprMutator {
+class ExprBinder : public ExprMutator, PatternMutator {
  public:
   explicit ExprBinder(const tvm::Map<Var, Expr>& args_map)
     : args_map_(args_map) {
@@ -383,13 +385,26 @@ class ExprBinder : public ExprMutator {
     }
   }
 
+  Pattern VisitPattern(const Pattern& p) final {
+    return PatternMutator::VisitPattern(p);
+  }
+
+  Clause VisitClause(const Clause& c) final {
+    Pattern pat = VisitPattern(c->lhs);
+    return ClauseNode::make(pat, VisitExpr(c->rhs));
+  }
+
+  Var VisitVar(const Var& v) final {
+    return Downcast<Var>(VisitExpr(v));
+  }
+
  private:
   const tvm::Map<Var, Expr>& args_map_;
 };
 
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
-    Expr new_body = ExprBinder(args_map).Mutate(func->body);
+    Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
     for (Var param : func->params) {
       if (!args_map.count(param)) {
@@ -400,13 +415,29 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.size() == func->params.size()) {
       return expr;
     }
-    return FunctionNode::make(new_params,
-                              new_body,
-                              func->ret_type,
-                              func->type_params,
-                              func->attrs);
+    auto ret = FunctionNode::make(new_params,
+                                  new_body,
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+    std::unordered_set<Var, NodeHash, NodeEqual> set;
+    for (const auto& v : FreeVars(expr)) {
+      set.insert(v);
+    }
+    for (const auto& v : FreeVars(ret)) {
+      if (set.count(v) == 0) {
+        new_params.push_back(v);
+      }
+    }
+    ret = FunctionNode::make(new_params,
+                             new_body,
+                             func->ret_type,
+                             func->type_params,
+                             func->attrs);
+    CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
+    return std::move(ret);
   } else {
-    return ExprBinder(args_map).Mutate(expr);
+    return ExprBinder(args_map).VisitExpr(expr);
   }
 }
 

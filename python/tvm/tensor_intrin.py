@@ -50,20 +50,23 @@ class TensorIntrin(NodeBase):
     decl_tensor_intrin: Construct a TensorIntrin
     """
     def __call__(self, *args, **kwargs):
-        tensors = [x.tensor for x in args]
-        regions = [_get_region(x) for x in args]
+        tensors = [x.tensor for x in args if isinstance(x, _tensor.TensorSlice)]
+        scalar_inputs = [x for x in args if not isinstance(x, _tensor.TensorSlice)]
+        regions = [_get_region(x) for x in args if isinstance(x, _tensor.TensorSlice)]
         reduce_axis = []
         if "reduce_axis" in kwargs:
             reduce_axis = kwargs["reduce_axis"]
             if not isinstance(reduce_axis, (list, tuple)):
                 reduce_axis = [reduce_axis]
             reduce_axis = _api.convert(reduce_axis)
-        return _api_internal._TensorIntrinCall(self, tensors, regions, reduce_axis)
+        if scalar_inputs:
+            scalar_inputs = _api.convert(scalar_inputs)
+        return _api_internal._TensorIntrinCall(self, tensors, regions, reduce_axis, scalar_inputs)
 
 def decl_tensor_intrin(op,
                        fcompute,
                        name="tensor_intrin",
-                       binds=None):
+                       binds=None, scalar_params=None):
     """Declare a tensor intrinsic function.
 
     Parameters
@@ -96,6 +99,9 @@ def decl_tensor_intrin(op,
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
 
+    scalar_params: a list of variables used by op, whose values will be passed
+                   as scalar_inputs when the tensor intrinsic is called.
+
     Returns
     -------
     intrin: TensorIntrin
@@ -122,11 +128,15 @@ def decl_tensor_intrin(op,
                                 offset_factor=cfg.offset_factor))
         binds_list.append(buf)
 
-    body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):])
+    if scalar_params:
+        body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):], scalar_params)
+    else:
+        body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):])
+        scalar_params = []
     if isinstance(body, (_expr.Expr, _stmt.Stmt)):
         body = [body]
     body = [_make.Evaluate(x) if isinstance(x, _expr.Expr) else x for x in body]
     if len(body) < 3:
         body += [None] * (3 - len(body))
     return _api_internal._TensorIntrin(
-        name, op, inputs, binds_list, *body)
+        name, op, inputs, binds_list, scalar_params, *body)
