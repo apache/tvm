@@ -167,7 +167,7 @@ RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
 class PatternTuple;
 /*! \brief PatternVar container node */
 class PatternTupleNode : public PatternNode {
-public:
+ public:
   /*! Sub-patterns to match against each value of the tuple. */
   tvm::Array<Pattern> patterns;
 

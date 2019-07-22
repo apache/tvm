@@ -169,8 +169,7 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
                                const Module& mod) {
   if (auto clause_ctor = clause_pat.as<PatternConstructorNode>()) {
     return ExpandWildcardsConstructor(GetRef<PatternConstructor>(clause_ctor), cand, mod);
-  }
-  else {
+  } else {
     return ExpandWildcardsTuple(Downcast<PatternTuple>(clause_pat), cand, mod);
   }
 }
@@ -181,11 +180,10 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
 Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
                                           const Pattern& cand,
                                           const Module& mod) {
-  auto ctor_cand = cand.as<PatternConstructorNode>();
   auto gtv = Downcast<GlobalTypeVar>(clause_ctor->constructor->belong_to);
 
   // for a wildcard node, create constructor nodes with wildcards for all args.
-  if (!ctor_cand) {
+  if (clause_ctor.as<PatternWildcardNode>()) {
     TypeData td = mod->LookupDef(gtv);
     // for each constructor add a candidate.
     Array<Pattern> ret;
@@ -199,6 +197,8 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
     return ret;
   }
 
+  auto ctor_cand = Downcast<PatternConstructor>(cand);
+
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
@@ -208,8 +208,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
     // for non-ADT fields, we can only have a wildcard for the value.
     if (!subpattern) {
       values_by_field.push_back({PatternWildcardNode::make()});
-    }
-    else {
+    } else {
       // otherwise, recursively expand.
       values_by_field.push_back(ExpandWildcards(clause_ctor->patterns[i],
                                                 ctor_cand->patterns[i],
@@ -231,16 +230,17 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
                                     const Pattern& cand,
                                     const Module& mod) {
-  auto tuple_cand = cand.as<PatternTupleNode>();
 
   // for a wildcard node, create constructor nodes with wildcards for all args.
-  if (!tuple_cand) {
+  if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
     for (auto inp : clause_tuple->patterns) {
       args.push_back(PatternWildcardNode::make());
     }
     return {PatternTupleNode::make(args)};
   }
+
+  auto tuple_cand = Downcast<PatternTuple>(cand);
 
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
@@ -251,8 +251,7 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
     // for non-ADT fields, we can only have a wildcard for the value
     if (!subpattern) {
       values_by_field.push_back({PatternWildcardNode::make()});
-    }
-    else {
+    } else {
       // otherwise, recursively expand
       values_by_field.push_back(ExpandWildcards(clause_tuple->patterns[i],
                                                 tuple_cand->patterns[i],
