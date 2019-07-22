@@ -71,20 +71,13 @@ uint64_t vta(
 
   clock_gettime(CLOCK_REALTIME, &start);
 
-  // FETCH @ 0x10 : Data signal of insn_count_V
-  VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
-  // FETCH @ 0x18 : Data signal of insns_V
-  if (insns) VTAWriteMappedReg(vta_fetch_handle, 0x18, insn_phy);
-  // LOAD @ 0x10 : Data signal of inputs_V
-  if (inputs) VTAWriteMappedReg(vta_load_handle, 0x10, input_phy);
-  // LOAD @ 0x18 : Data signal of weight_V
-  if (weights) VTAWriteMappedReg(vta_load_handle, 0x18, weight_phy);
-  // COMPUTE @ 0x20 : Data signal of uops_V
-  if (uops) VTAWriteMappedReg(vta_compute_handle, 0x20, uop_phy);
-  // COMPUTE @ 0x28 : Data signal of biases_V
-  if (biases) VTAWriteMappedReg(vta_compute_handle, 0x28, bias_phy);
-  // STORE @ 0x10 : Data signal of outputs_V
-  if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy);
+  VTAWriteMappedReg(vta_fetch_handle, VTA_FETCH_INSN_COUNT_OFFSET, insn_count);
+  if (insns) VTAWriteMappedReg(vta_fetch_handle, VTA_FETCH_INSN_ADDR_OFFSET, insn_phy);
+  if (inputs) VTAWriteMappedReg(vta_load_handle, VTA_LOAD_INP_ADDR_OFFSET, input_phy);
+  if (weights) VTAWriteMappedReg(vta_load_handle, VTA_LOAD_WGT_ADDR_OFFSET, weight_phy);
+  if (uops) VTAWriteMappedReg(vta_compute_handle, VTA_COMPUTE_UOP_ADDR_OFFSET, uop_phy);
+  if (biases) VTAWriteMappedReg(vta_compute_handle, VTA_COMPUTE_BIAS_ADDR_OFFSET, bias_phy);
+  if (outputs) VTAWriteMappedReg(vta_store_handle, VTA_STORE_OUT_ADDR_OFFSET, output_phy);
 
   // VTA start
   VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x1);
@@ -94,7 +87,7 @@ uint64_t vta(
 
   int flag = 0, t = 0;
   for (t = 0; t < 10000000; ++t) {
-    flag = VTAReadMappedReg(vta_compute_handle, 0x18);
+    flag = VTAReadMappedReg(vta_compute_handle, VTA_COMPUTE_DONE_RD_OFFSET);
     if (flag & VTA_DONE) break;
   }
 

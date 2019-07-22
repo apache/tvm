@@ -131,13 +131,27 @@ class PkgConfig(object):
             self.fpga_per = 7
             self.fpga_log_axi_bus_width = 6
             self.axi_cache_bits = '1111'
-            self.axi_prot_bits = '010'
+            self.axi_prot_bits = '000'
             # IP register address map
             self.ip_reg_map_range  = "0x1000"
             self.fetch_base_addr   = "0x43C00000"
             self.load_base_addr    = "0x43C01000"
             self.compute_base_addr = "0x43C02000"
             self.store_base_addr   = "0x43C03000"
+
+        # Define IP memory mapped registers offsets.
+        # In HLS 0x00-0x0C is reserved for block-level I/O protocol.
+        # Make sure to leave 8B between register offsets to maintain
+        # compatibility with 64bit systems.
+        self.fetch_insn_count_offset    = 0x10
+        self.fetch_insn_addr_offset     = self.fetch_insn_count_offset + 0x08
+        self.load_inp_addr_offset       = 0x10
+        self.load_wgt_addr_offset       = self.load_inp_addr_offset + 0x08
+        self.compute_done_wr_offet      = 0x10
+        self.compute_done_rd_offet      = self.compute_done_wr_offet + 0x08
+        self.compute_uop_addr_offset    = self.compute_done_rd_offet + 0x08
+        self.compute_bias_addr_offset   = self.compute_uop_addr_offset + 0x08
+        self.store_out_addr_offset      = 0x10
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,
@@ -199,6 +213,16 @@ class PkgConfig(object):
         self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
         self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
         self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
+        # IP register offsets
+        self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % (self.fetch_insn_count_offset))
+        self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % (self.fetch_insn_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % (self.load_inp_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % (self.load_wgt_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % (self.compute_done_wr_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % (self.compute_done_rd_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % (self.compute_uop_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % (self.compute_bias_addr_offset))
+        self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % (self.store_out_addr_offset))
 
 
     @property

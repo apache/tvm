@@ -112,22 +112,13 @@ class VTADevice {
   int Run(vta_phy_addr_t insn_phy_addr,
           uint32_t insn_count,
           uint32_t wait_cycles) {
-    // NOTE: Register address map is derived from the auto-generated
-    // driver files available under hardware/build/vivado/<design>/export/driver
-    // FETCH @ 0x10 : Data signal of insn_count_V
-    VTAWriteMappedReg(vta_fetch_handle_, 0x10, insn_count);
-    // FETCH @ 0x18 : Data signal of insns_V
-    VTAWriteMappedReg(vta_fetch_handle_, 0x18, insn_phy_addr);
-    // LOAD @ 0x10 : Data signal of inputs_V
-    VTAWriteMappedReg(vta_load_handle_, 0x10, 0);
-    // LOAD @ 0x18 : Data signal of weight_V
-    VTAWriteMappedReg(vta_load_handle_, 0x18, 0);
-    // COMPUTE @ 0x20 : Data signal of uops_V
-    VTAWriteMappedReg(vta_compute_handle_, 0x20, 0);
-    // COMPUTE @ 0x28 : Data signal of biases_V
-    VTAWriteMappedReg(vta_compute_handle_, 0x28, 0);
-    // STORE @ 0x10 : Data signal of outputs_V
-    VTAWriteMappedReg(vta_store_handle_, 0x10, 0);
+    VTAWriteMappedReg(vta_fetch_handle_, VTA_FETCH_INSN_COUNT_OFFSET, insn_count);
+    VTAWriteMappedReg(vta_fetch_handle_, VTA_FETCH_INSN_ADDR_OFFSET, insn_phy_addr);
+    VTAWriteMappedReg(vta_load_handle_, VTA_LOAD_INP_ADDR_OFFSET, 0);
+    VTAWriteMappedReg(vta_load_handle_, VTA_LOAD_WGT_ADDR_OFFSET, 0);
+    VTAWriteMappedReg(vta_compute_handle_, VTA_COMPUTE_UOP_ADDR_OFFSET, 0);
+    VTAWriteMappedReg(vta_compute_handle_, VTA_COMPUTE_BIAS_ADDR_OFFSET, 0);
+    VTAWriteMappedReg(vta_store_handle_, VTA_STORE_OUT_ADDR_OFFSET, 0);
 
     // VTA start
     VTAWriteMappedReg(vta_fetch_handle_, 0x0, VTA_START);
@@ -138,7 +129,7 @@ class VTADevice {
     // Loop until the VTA is done
     unsigned t, flag = 0;
     for (t = 0; t < wait_cycles; ++t) {
-      flag = VTAReadMappedReg(vta_compute_handle_, 0x18);
+      flag = VTAReadMappedReg(vta_compute_handle_, VTA_COMPUTE_DONE_RD_OFFSET);
       if (flag == VTA_DONE) break;
       std::this_thread::yield();
     }

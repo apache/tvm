@@ -135,7 +135,7 @@ void fetch(
   hls::stream<insn_T> &load_queue,
   hls::stream<insn_T> &gemm_queue,
   hls::stream<insn_T> &store_queue) {
-#pragma HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS
+PRAGMA_HLS(HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS offset = VTA_FETCH_INSN_COUNT_OFFSET)
 #pragma HLS INTERFACE m_axi port = insns offset = slave bundle = ins_port
 #pragma HLS INTERFACE axis port = load_queue
 #pragma HLS INTERFACE axis port = gemm_queue
@@ -424,7 +424,7 @@ void compute(
   bus_T inp_mem[VTA_INP_BUFF_DEPTH][INP_MAT_AXI_RATIO],
   bus_T wgt_mem[VTA_WGT_BUFF_DEPTH][WGT_MAT_AXI_RATIO],
   bus_T out_mem[VTA_ACC_BUFF_DEPTH][OUT_MAT_AXI_RATIO]) {
-#pragma HLS INTERFACE s_axilite port = done bundle = CONTROL_BUS
+PRAGMA_HLS(HLS INTERFACE s_axilite port = done bundle = CONTROL_BUS offset = VTA_COMPUTE_DONE_WR_OFFSET)
 #pragma HLS INTERFACE m_axi port = uops offset = slave bundle = uop_port
 #pragma HLS INTERFACE m_axi port = biases offset = slave bundle = data_port
 #pragma HLS INTERFACE axis port = gemm_queue
