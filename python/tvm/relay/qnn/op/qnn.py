@@ -32,7 +32,7 @@ def requantize(data,
     another quantized tensor representation. For the output tensor, we are
     provided with output scale and zero point. The computation is as follows
 
-    Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+    Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
     Parameters
     ----------
