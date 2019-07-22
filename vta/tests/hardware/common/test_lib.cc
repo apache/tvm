@@ -52,10 +52,10 @@ uint64_t vta(
   snprintf(bitstream, sizeof(bitstream), "%s", "vta.bit");
 
   // Get VTA handles
-  void* vta_fetch_handle = VTAMapRegister(VTA_FETCH_ADDR, VTA_RANGE);
-  void* vta_load_handle = VTAMapRegister(VTA_LOAD_ADDR, VTA_RANGE);
-  void* vta_compute_handle = VTAMapRegister(VTA_COMPUTE_ADDR, VTA_RANGE);
-  void* vta_store_handle = VTAMapRegister(VTA_STORE_ADDR, VTA_RANGE);
+  void* vta_fetch_handle = VTAMapRegister(VTA_FETCH_ADDR);
+  void* vta_load_handle = VTAMapRegister(VTA_LOAD_ADDR);
+  void* vta_compute_handle = VTAMapRegister(VTA_COMPUTE_ADDR);
+  void* vta_store_handle = VTAMapRegister(VTA_STORE_ADDR);
 
   // Physical address pointers
   uint32_t insn_phy = insns ? cma_get_phy_addr(insns) : 0;
@@ -110,10 +110,10 @@ uint64_t vta(
   t_fpga = 1000000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec);
 
   // Unmap VTA register
-  VTAUnmapRegister(vta_fetch_handle, VTA_RANGE);
-  VTAUnmapRegister(vta_load_handle, VTA_RANGE);
-  VTAUnmapRegister(vta_compute_handle, VTA_RANGE);
-  VTAUnmapRegister(vta_store_handle, VTA_RANGE);
+  VTAUnmapRegister(vta_fetch_handle);
+  VTAUnmapRegister(vta_load_handle);
+  VTAUnmapRegister(vta_compute_handle);
+  VTAUnmapRegister(vta_store_handle);
 
   return t_fpga;
 }

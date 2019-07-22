@@ -62,7 +62,7 @@ void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
   xlnkInvalidateCache(reinterpret_cast<void*>(buf), size);
 }
 
-void *VTAMapRegister(uint32_t addr, size_t length) {
+void *VTAMapRegister(uint32_t addr) {
   // Align the base address with the pages
   uint32_t virt_base = addr & ~(getpagesize() - 1);
   // Calculate base address offset w.r.t the base address
@@ -70,16 +70,16 @@ void *VTAMapRegister(uint32_t addr, size_t length) {
   // Open file and mmap
   uint32_t mmap_file = open("/dev/mem", O_RDWR|O_SYNC);
   return mmap(NULL,
-              (length+virt_offset),
+              (VTA_IP_REG_MAP_RANGE + virt_offset),
               PROT_READ|PROT_WRITE,
               MAP_SHARED,
               mmap_file,
               virt_base);
 }
 
-void VTAUnmapRegister(void *vta, size_t length) {
+void VTAUnmapRegister(void *vta) {
   // Unmap memory
-  int status = munmap(vta, length);
+  int status = munmap(vta, VTA_IP_REG_MAP_RANGE);
   assert(status == 0);
 }
 
@@ -95,18 +95,18 @@ class VTADevice {
  public:
   VTADevice() {
     // VTA stage handles
-    vta_fetch_handle_ = VTAMapRegister(VTA_FETCH_ADDR, VTA_RANGE);
-    vta_load_handle_ = VTAMapRegister(VTA_LOAD_ADDR, VTA_RANGE);
-    vta_compute_handle_ = VTAMapRegister(VTA_COMPUTE_ADDR, VTA_RANGE);
-    vta_store_handle_ = VTAMapRegister(VTA_STORE_ADDR, VTA_RANGE);
+    vta_fetch_handle_ = VTAMapRegister(VTA_FETCH_ADDR);
+    vta_load_handle_ = VTAMapRegister(VTA_LOAD_ADDR);
+    vta_compute_handle_ = VTAMapRegister(VTA_COMPUTE_ADDR);
+    vta_store_handle_ = VTAMapRegister(VTA_STORE_ADDR);
   }
 
   ~VTADevice() {
     // Close VTA stage handle
-    VTAUnmapRegister(vta_fetch_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_load_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_compute_handle_, VTA_RANGE);
-    VTAUnmapRegister(vta_store_handle_, VTA_RANGE);
+    VTAUnmapRegister(vta_fetch_handle_);
+    VTAUnmapRegister(vta_load_handle_);
+    VTAUnmapRegister(vta_compute_handle_);
+    VTAUnmapRegister(vta_store_handle_);
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,

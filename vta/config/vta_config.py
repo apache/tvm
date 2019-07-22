@@ -107,6 +107,8 @@ def main():
                         help="returns AXI system ARCACHE/AWCACHE hardcoded bit value")
     parser.add_argument("--get-axi-prot-bits", action="store_true",
                         help="returns AXI system ARPROT/AWPROT hardcoded bit value")
+    parser.add_argument("--get-ip-reg-map-range", action="store_true",
+                        help="returns ip register map address range")
     parser.add_argument("--get-fetch-base-addr", action="store_true",
                         help="returns fetch module base address")
     parser.add_argument("--get-load-base-addr", action="store_true",
@@ -261,6 +263,9 @@ def main():
 
     if args.get_axi_prot_bits:
         print(pkg.axi_prot_bits)
+
+    if args.get_ip_reg_map_range:
+        print(pkg.ip_reg_map_range)
 
     if args.get_fetch_base_addr:
         print(pkg.fetch_base_addr)

@@ -48,13 +48,11 @@ uint32_t cma_get_phy_addr(void* buf);
 void xlnkFlushCache(void* buf, int size);
 void xlnkInvalidateCache(void* buf, int size);
 
-void *VTAMapRegister(uint32_t addr, size_t length);
-void VTAUnmapRegister(void *vta, size_t length);
+void *VTAMapRegister(uint32_t addr);
+void VTAUnmapRegister(void *vta);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 
-/*! \brief VTA configuration register address range */
-#define VTA_RANGE 0x100
 /*! \brief VTA configuration register start value */
 #define VTA_START 0x1
 /*! \brief VTA configuration register auto-restart value */

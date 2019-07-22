@@ -118,10 +118,11 @@ class PkgConfig(object):
             self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
             # IP register address map
-            self.fetch_base_addr = "0xA0001000"
-            self.load_base_addr = "0xA0002000"
-            self.compute_base_addr = "0xA0003000"
-            self.store_base_addr = "0xA0004000"
+            self.ip_reg_map_range  = "0x1000"
+            self.fetch_base_addr   = "0xA0000000"
+            self.load_base_addr    = "0xA0001000"
+            self.compute_base_addr = "0xA0002000"
+            self.store_base_addr   = "0xA0003000"
         else:
             # By default, we use the pynq parameters
             self.fpga_device = "xc7z020clg484-1"
@@ -130,12 +131,13 @@ class PkgConfig(object):
             self.fpga_per = 7
             self.fpga_log_axi_bus_width = 6
             self.axi_cache_bits = '1111'
-            self.axi_prot_bits = '000'
+            self.axi_prot_bits = '010'
             # IP register address map
-            self.fetch_base_addr = "0x43C00000"
-            self.load_base_addr = "0x43C10000"
-            self.compute_base_addr = "0x43C20000"
-            self.store_base_addr = "0x43C30000"
+            self.ip_reg_map_range  = "0x1000"
+            self.fetch_base_addr   = "0x43C00000"
+            self.load_base_addr    = "0x43C01000"
+            self.compute_base_addr = "0x43C02000"
+            self.store_base_addr   = "0x43C03000"
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,
@@ -191,6 +193,8 @@ class PkgConfig(object):
             self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
             self.cfg_dict[key] = cfg[key]
         self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_log_axi_bus_width))
+        # Macros used by the VTA driver
+        self.macro_defs.append("-DVTA_IP_REG_MAP_RANGE=%s" % (self.ip_reg_map_range))
         self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
         self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
         self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
