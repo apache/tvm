@@ -59,12 +59,14 @@ static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
 }
 
 static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
-        const DataType& in_dtype) {
+        const DataType& out_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
-      return IsQNNDataType(in_dtype);
+      return IsQNNDataType(out_dtype);
     case QuantizeOpType::Dequantize:
-      return in_dtype == Float(32);
+      return out_dtype == Float(32);
+    case QuantizeOpType::Requantize:
+      return out_dtype.is_int() || out_dtype.is_uint();
     default:
       return false;
   }
