@@ -22,6 +22,13 @@ from . import broadcast as _broadcast
 from . import math as _math
 
 
+def _is_non_zero_rank_tensor(tensor):
+    """Check whether input is a non-zero-rank tensor.
+    """
+    if isinstance(tensor, tvm.tensor.Tensor) and tensor.shape:
+        return True
+    return False
+
 def _make_bop(broadcast_bop, orig_bop):
     """Make a specific overloaded binary operator of Tensor when applicable;
     apply the original operator if it is not supposed to be overloaded.
@@ -63,6 +70,11 @@ def _make_bop(broadcast_bop, orig_bop):
         scalar like type (e.g., numeric types, Expr, or TensorSlice),
         it performs tensor-scalar {op} operation on an element-wise basis.
 
+        If one operand is TensorSlice, while the other operand is zero-rank
+        Tensor, it performs default generic.{op} operation to return an expr.
+        This is to avoid error when reduce op with such patten of bop appears
+        inside the body of lambda function of tvm.compute.
+
         Otherwise, it performs default generic.{op} operation, as defined
         in tvm.generic module.
 
@@ -79,8 +91,9 @@ def _make_bop(broadcast_bop, orig_bop):
               tvm.Expr (otherwise)
             The result of {op} operation.
         """
-        if not isinstance(lhs, tvm.tensor.Tensor) and not isinstance(rhs, tvm.tensor.Tensor):
+        if not _is_non_zero_rank_tensor(lhs) and not _is_non_zero_rank_tensor(rhs):
             return orig_bop(lhs, rhs)
+
         return broadcast_bop(lhs, rhs)
     _tensor_bop_impl.__doc__ = _tensor_bop_impl.__doc__.format(op=name)
     return _tensor_bop_impl

@@ -31,11 +31,11 @@ def test_operator_type_and_tags():
 
     assert isinstance(k + n, tvm.expr.Expr)
     assert isinstance(n + n, tvm.expr.Expr)
-    assert isinstance(k + A, tvm.tensor.Tensor)
-    assert isinstance(A + k, tvm.tensor.Tensor)
-    assert isinstance(n + A, tvm.tensor.Tensor)
-    assert isinstance(A + n, tvm.tensor.Tensor)
-    assert isinstance(A + A, tvm.tensor.Tensor)
+    assert isinstance(k + A, tvm.expr.Expr)
+    assert isinstance(A + k, tvm.expr.Expr)
+    assert isinstance(n + A, tvm.expr.Expr)
+    assert isinstance(A + n, tvm.expr.Expr)
+    assert isinstance(A + A, tvm.expr.Expr)
 
     assert isinstance(k + B, tvm.tensor.Tensor)
     assert isinstance(B + k, tvm.tensor.Tensor)
@@ -58,8 +58,8 @@ def test_operator_type_and_tags():
     assert isinstance(n + B2, tvm.expr.Expr)
     assert isinstance(B2 + n, tvm.expr.Expr)
     assert isinstance(B2 + B2, tvm.expr.Expr)
-    assert isinstance(B2 + A, tvm.tensor.Tensor)
-    assert isinstance(A + B2, tvm.tensor.Tensor)
+    assert isinstance(B2 + A, tvm.expr.Expr)
+    assert isinstance(A + B2, tvm.expr.Expr)
     assert isinstance(B2 + B, tvm.tensor.Tensor)
     assert isinstance(B + B2, tvm.tensor.Tensor)
 

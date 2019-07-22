@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# NOTE: We name this test file to start with test_graph_tuner
-# to make it execute after zero_rank tensor test cases. This
-# helps avoid topi arithmetic operator overloading issue:
-# https://github.com/dmlc/tvm/issues/3240.
-# TODO: restore the file name after this issue is resolved.
 import os
 import copy
 import numpy as np
@@ -31,7 +26,7 @@ from tvm import relay
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from test_graph_tuner_utils import create_workload
+from test_autotvm_graph_tuner_utils import create_workload
 
 
 def _create_data(target, dshape, dtype, layout):
