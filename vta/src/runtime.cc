@@ -81,7 +81,7 @@ struct DataBuffer {
   }
   /*!
    * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
-   * \param dst The desination buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
+   * \param dst The desination buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc().
    * \param src The source buffer in host memory.
    * \param size Size of the region in Bytes.
    */
@@ -89,9 +89,9 @@ struct DataBuffer {
     VTAMemCopyFromHost(dst, src, size);
   }
   /*!
-   * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
-   * \param dst The desination buffer in FPGA-readable memory. Has to be allocated with VTAMemAlloc().
-   * \param src The source buffer in host memory.
+   * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
+   * \param dst The desination buffer in host memory.
+   * \param src The source buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc().
    * \param size Size of the region in Bytes.
    */
   void MemCopyToHost(void* dst, const void* src, size_t size) {
