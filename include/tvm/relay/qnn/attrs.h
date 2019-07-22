@@ -53,12 +53,14 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         .describe("Defines the rounding direction when the value is midway between"
                   "two representable values. There are two supported modes - UPWARD"
                   "or AWAY_FROM_ZERO. Both modes behave exactly same except at the"
-                  "midpoints between the two representable values. At midpoint, UPWARD"
-                  "rounds towards positive infinity (for example -1.5 will be rounded"
-                  "to -1). AWAY_FROM_ZERO is the standard rounding where the value"
-                  "is rounded away from zero at midpoints (for example, -1.5 rounds to"
-                  "-2). More context can be found at"
-                  "https://www.gnu.org/software/libc/manual/html_node/Rounding.html");
+                  "midpoints between the two representable values. At the midpoint,"
+                  "UPWARD rounds towards positive infinity (for example -1.5 will be"
+                  "rounded to -1). AWAY_FROM_ZERO is the standard rounding where the"
+                  "value is rounded away from zero at midpoints (for example, -1.5"
+                  "rounds to -2). More context can be found at following gblic manual"
+                  "https://www.gnu.org/software/libc/manual/html_node/Rounding.html."
+                  "FE_UPWARD corresponds to UPWARD here and FE_TONEAREST corresponds"
+                  "to AWAY_FROM_ZERO rounding mode.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");

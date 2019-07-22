@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import
-"""Neural network related operators."""
+"""QNN dialect operators and ir passes."""
 from __future__ import absolute_import as _abs
 from . import op
 from . import transform

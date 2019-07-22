@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file qnn_lower.cc
- * \brief Lower qnn ops to a sequence of exisiting Relay ops.
+ * \brief Lower qnn ops to a sequence of existing Relay ops.
  */
 
 #include <tvm/relay/analysis.h>
@@ -145,7 +145,9 @@ Expr RequantizeLower(const Expr& input_tensor,
   // If idtype is Int(32), the scalar is a fixed point value of int32 where the
   // decimal point is between bits 31 and 30. After multiplying with
   // input_tensor, the result is in int64 where the decimal point is sitting
-  // between bits 31 and 30 (from the right, rightmost bit is bit 0).
+  // between bits 31 and 30 (from the right, rightmost bit is bit 0). The
+  // computation is performed in higher precision to avoid overflow in
+  // multiplying two int32 values.
   Expr scalar = MakeConstantScalar(up_idtype, fixed_point_multiplier);
   auto multiplied_t = Multiply(tensor, scalar);
 
