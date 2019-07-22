@@ -48,6 +48,7 @@ $(IP_PATH): $(SRC_DIR)
 	cd $(ROOTDIR)/../chisel && \
     make CONFIG=DefaultDe10Config chisel_build_dir=$(IP_BUILD_PATH) verilog && \
     cd $(IP_BUILD_PATH) && \
+    mkdir -p $(shell dirname $(IP_PATH)) && \
     tar zcvf $(IP_PATH) VTA.DefaultDe10Config.v
 
 $(BIT_PATH): $(IP_PATH)
