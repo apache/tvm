@@ -14,12 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test various utilities for interaction with compiled binaries.
+
+Specifically, we test the following capabilities:
+  - querying the size of a binary section
+  - relocating sections within a binary to new addresses
+  - reading the contents of a binary section
+  - querying the address of a symbol in the binary
+"""
 
 import tvm
 import subprocess
 from tvm.contrib import util
 from tvm.contrib import cc
 from tvm.contrib.binutil import *
+
+TOOLCHAIN_PREFIX = ""
 
 def make_binary():
     prog = "int a = 7; \
@@ -29,18 +39,14 @@ def make_binary():
             }"
     tmp_dir = util.tempdir()
     tmp_source = tmp_dir.relpath("source.c")
-    tmp_obj = tmp_dir.relpath("obj.o")
+    tmp_obj = tmp_dir.relpath("obj.obj")
     with open(tmp_source, "w") as f:
         f.write(prog)
-    p1 = subprocess.Popen(["gcc", "-c", tmp_source, "-o", tmp_obj],
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT)
-    p1.communicate()
+    cc.create_shared(tmp_obj, tmp_source, [],
+                     compile_cmd="{}gcc".format(TOOLCHAIN_PREFIX))
     prog_bin = bytearray(open(tmp_obj, "rb").read())
     return prog_bin
 
-
-TOOLCHAIN_PREFIX = ""
 
 def test_tvm_callback_get_section_size(binary=None):
     if binary is None:

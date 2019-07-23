@@ -21,6 +21,16 @@
  *  Copyright (c) 2019 by Contributors
  * \file micro_session.cc
  * \brief session to manage multiple micro modules
+ *
+ * Each session consists of an interaction with a *single* logical device.
+ * Within that interaction, multiple TVM modules can be loaded on the logical
+ * device.
+ *
+ * Multiple sessions can exist simultaneously, but there is only ever one
+ * *active* session. The idea of an active session mainly has implications for
+ * the frontend, in that one must make a session active in order to allocate
+ * new TVM objects on it. Aside from that, previously allocated objects can be
+ * used even if the session which they belong to is not currently active.
  */
 
 #include <dmlc/thread_local.h>

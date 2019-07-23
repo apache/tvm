@@ -38,8 +38,8 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     toolchain_prefix : str
         prefix for binary names in target compiler toolchain
 
-    Return
-    ------
+    Returns
+    -------
     size : integer
         size of the section in bytes
     """
@@ -61,8 +61,8 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     section_mapping = {
         ".text": [".text"],
         ".rodata": [".rodata"],
-        ".data": [".data"],
-        ".bss": [".bss", ".sbss", ".sdata"],
+        ".data": [".data", ".sdata"],
+        ".bss": [".bss", ".sbss"],
     }
     sections_to_sum = section_mapping["." + section_name]
     section_size = 0
@@ -103,8 +103,8 @@ def tvm_callback_relocate_binary(
     toolchain_prefix : str
         prefix for binary names in target compiler toolchain
 
-    Return
-    ------
+    Returns
+    -------
     rel_bin : bytearray
         the relocated binary
     """
@@ -114,8 +114,6 @@ def tvm_callback_relocate_binary(
     # TODO(weberlo): There should be a better way to configure this for different archs.
     if "riscv" in toolchain_prefix:
         ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
-    # TODO(weberlo): *Should* ".sdata" and ".sbss" be linked into the ".bss"
-    # section?
     # TODO(weberlo): Generate the script in a more procedural manner.
     ld_script_contents += """
 SECTIONS
@@ -143,6 +141,8 @@ SECTIONS
     *(.data)
     . = ALIGN(8);
     *(.data*)
+    . = ALIGN(8);
+    *(.sdata)
   }
   . = %s;
   . = ALIGN(8);
@@ -153,8 +153,6 @@ SECTIONS
     *(.bss*)
     . = ALIGN(8);
     *(.sbss)
-    . = ALIGN(8);
-    *(.sdata)
   }
 }
     """ % (text_addr, rodata_addr, data_addr, bss_addr)
@@ -191,8 +189,8 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     toolchain_prefix : str
         prefix for binary names in target compiler toolchain
 
-    Return
-    ------
+    Returns
+    -------
     section_bin : bytearray
         contents of the read section
     """
@@ -233,8 +231,8 @@ def tvm_callback_get_symbol_map(binary, toolchain_prefix):
     toolchain_prefix : str
         prefix for binary names in target compiler toolchain
 
-    Return
-    ------
+    Returns
+    -------
     map_str : str
         map of defined symbols to addresses, encoded as a series of
         alternating newline-separated keys and values

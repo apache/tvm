@@ -268,6 +268,33 @@ def test_nested_sessions():
                 add_result, np_tensor_a + 1.0)
 
 
+def test_inactive_session_use():
+    """Test the use of objects allocated in a session that is no longer active."""
+    if not tvm.module.enabled("micro_dev"):
+        return
+    shape = (1024,)
+    dtype = "float32"
+
+    # Construct Relay add program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    ret = relay.add(x, relay.const(1.0))
+    add_const_func = relay.Function([x], ret)
+
+    sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    with sess_a:
+        np_tensor_a = np.random.uniform(size=shape).astype(dtype)
+        micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
+        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+
+    with sess_b:
+        # These objects belong to `sess_a`.
+        add_const_mod.run(x=micro_tensor_a)
+        add_result = add_const_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(
+                add_result, np_tensor_a + 1.0)
+
+
 if __name__ == "__main__":
     test_alloc()
     test_add()
@@ -276,3 +303,4 @@ if __name__ == "__main__":
     test_multiple_modules()
     test_interleave_sessions()
     test_nested_sessions()
+    test_inactive_session_use()

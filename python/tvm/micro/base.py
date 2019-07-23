@@ -21,6 +21,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+import sys
 
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
@@ -57,6 +58,7 @@ class Session:
     def __init__(self, device_type, toolchain_prefix):
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
+        self._check_system()
 
         # First, find and compile runtime library.
         runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
@@ -68,6 +70,18 @@ class Session:
         self.module = _CreateSession(device_type, runtime_obj_path, toolchain_prefix)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
+
+    def _check_system(self):
+        """Check if the user's system is supported by MicroTVM.
+
+        Raises error if not supported.
+        """
+        if not sys.platform.startswith("linux"):
+            raise RuntimeError("microTVM is currently only supported on Linux")
+        # TODO(weberlo): Add 32-bit support.
+        # It's primarily the compilation pipeline that isn't compatible.
+        if sys.maxsize <= 2**32:
+            raise RuntimeError("microTVM is currently only supported on 64-bit platforms")
 
     def __enter__(self):
         self._enter()
@@ -167,9 +181,9 @@ def create_micro_lib(
     options = ["-I" + path for path in find_include_path()]
     options += ["-I{}".format(_get_micro_device_dir())]
     options += ["-fno-stack-protector"]
-    # TODO(weberlo): This option cannot be used on 32-bit machines. Make this
-    # compilation pipeline compatible with 32-bit.
-    options += ["-mcmodel=large"]
+    if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
+        # Only add this option if the host is a 64-bit Linux.
+        options += ["-mcmodel=large"]
     compile_cmd = "{}gcc".format(toolchain_prefix)
 
     if include_dev_lib_header:
