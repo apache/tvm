@@ -344,13 +344,40 @@ Expr Gradient(const Expr& re, const Module& mod) {
       args.push_back(ll->Push(Pair(p, RefCreateNode::make(ZerosLike(p)))));
     }
     auto c = ll->Push(CallNode::make(rev, args));
-    ll->Push(RefWriteNode::make(GetField(c, 1), OnesLike(GetField(c, 0))));
+    std::function<void(const Expr&, const Type&)> init_grad;
+    init_grad = [&](const Expr& e, const Type& t) {
+      if (t.as<TensorTypeNode>()) {
+        ll->Push(RefWriteNode::make(GetField(e, 1), OnesLike(GetField(e, 0))));
+      } else if (auto tt = t.as<TupleTypeNode>()) {
+        CHECK_GT(tt->fields.size(), 0);
+        init_grad(ll->Push(GetField(e, 0)), tt->fields[0]);
+      } else {
+        LOG(FATAL) << "unhandled type " << t;
+        throw;
+      }
+    };
+    init_grad(c, f->body->checked_type());
     ll->Push(CallNode::make(RefReadNode::make(bp), {}));
     std::vector<Expr> ret;
     for (const auto& a : args) {
       ret.push_back(RefReadNode::make(GetField(a, 1)));
     }
-    return Pair(GetField(c, 0), TupleNode::make(ret));
+    std::function<Expr(const Expr&, const Type&)> get_final_result;
+    get_final_result = [&](const Expr& e, const Type& t) -> Expr {
+      if (t.as<TensorTypeNode>()) {
+        return GetField(e, 0);
+      } else if (auto tt = t.as<TupleTypeNode>()) {
+        tvm::Array<Expr> fields;
+        for (size_t i = 0; i < tt->fields.size(); ++i) {
+          fields.push_back(get_final_result(ll->Push(GetField(e, i)), tt->fields[i]));
+        }
+        return TupleNode::make(fields);
+      } else {
+        LOG(FATAL) << "unhandled type " << t;
+        throw;
+      }
+    };
+    return Pair(get_final_result(c, f->body->checked_type()), TupleNode::make(ret));
   });
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
