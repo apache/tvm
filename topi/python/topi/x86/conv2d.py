@@ -299,9 +299,7 @@ def schedule_conv2d_nhwc_pack(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            target = tvm.target.current_target(allow_none=False)
-            if _is_int8_hw_support(data.dtype, kernel.dtype, target):
-                # int8 conv kernel is 7-dim
+            if data.dtype == 'uint8':
                 kh, kw, _, _, _ = get_const_tuple(kernel.shape)
                 if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_nhwc_pack_int8(*args)
