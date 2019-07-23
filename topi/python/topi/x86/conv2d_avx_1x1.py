@@ -24,7 +24,6 @@ from ..nn.pad import pad
 from ..nn.util import infer_pad, get_pad_tuple
 from ..util import get_const_tuple, simplify
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
-from .check_targets import check_skylake
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -187,13 +186,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     More details - https://software.intel.com/en-us/articles/
     lower-numerical-precision-deep-learning-inference-and-training
     """
-    target = tvm.target.current_target(allow_none=False)
-    int32_lanes = -1
-    if check_skylake(target):
-        int32_lanes = 16
-    else:
-        return s
-    assert int32_lanes != -1
+    int32_lanes = 16
 
     oh_factor, ow_factor = cfg["tile_oh"].val, cfg["tile_ow"].size[-1]
     _, _, _, _, ic_bn = get_const_tuple(data.shape)
@@ -310,13 +303,11 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     packing of weight to make the address access be friendly to int8
     intrinsic
     """
-    target = tvm.target.current_target(allow_none=False)
-    int32_lanes = -1
-    if check_skylake(target):
-        int32_lanes = 16
-    else:
-        return s
-    assert int32_lanes != -1
+    # FIXME - https://github.com/dmlc/tvm/issues/3598
+    # pylint: disable=unreachable
+    return s
+
+    int32_lanes = 16
 
     # assertion to fail the unhandled case
     _, _, _, ic_num = get_const_tuple(data.shape)
