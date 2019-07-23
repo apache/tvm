@@ -304,6 +304,34 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     return value->packed_func;
   }
+
+  LoweredFunc LowerShapeFunc(Array<tvm::Tensor> inputs, Array<tvm::Tensor> outputs) {
+    Array<Operation> out_ops;
+    for (auto t : outputs) {
+      out_ops.push_back(t->op);
+      inputs.push_back(t);
+    }
+    std::unordered_map<Tensor, Buffer> binds;
+    auto s = create_schedule(out_ops);
+    auto config = BuildConfig::Create();
+    auto lowered = lower(s, inputs, "shape_func", binds, config);
+    return lowered[0];
+  }
+
+  PackedFunc CompileShapeFunc(Array<tvm::Tensor> inputs, Array<tvm::Tensor> outputs) {
+    LoweredFunc lowered = LowerShapeFunc(inputs, outputs);
+    auto target = target::llvm();
+    auto config = BuildConfig::Create();
+    PackedFunc packed_func;
+    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+      tvm::runtime::Module m = (*f)(lowered, target);
+      packed_func = m.GetFunction("shape_func");
+    } else {
+      LOG(FATAL) << "relay.backend.build is not registered";
+    }
+    return packed_func;
+  }
+
   void Clear() final {
     cache_.clear();
   }

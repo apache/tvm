@@ -32,6 +32,7 @@
 #include <tvm/relay/transform.h>
 #include <string>
 #include <functional>
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -170,6 +171,20 @@ class CompileEngineNode : public Node {
    * \return The result.
    */
   virtual PackedFunc JIT(const CCacheKey& key) = 0;
+  /*!
+   * \brief Lower the shape function.
+   * \param inputs The inputs of the shape function.
+   * \param outputs The outputs of the shape function.
+   * \return The lowered function.
+   */
+  virtual LoweredFunc LowerShapeFunc(Array<tvm::Tensor> inputs, Array<tvm::Tensor> outputs) = 0;
+  /*!
+   * \brief Just in time compile the shape function.
+   * \param inputs The inputs of the shape function.
+   * \param outputs The outputs of the shape function.
+   * \return The packed function.
+   */
+  virtual PackedFunc CompileShapeFunc(Array<tvm::Tensor> inputs, Array<tvm::Tensor> outputs) = 0;
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
 
@@ -180,7 +195,7 @@ class CompileEngineNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);
 };
 
-/*! \brier cache entry used in compile engine */
+/*! \brief cache entry used in compile engine */
 class CompileEngine : public NodeRef {
  public:
   CompileEngine() {}
@@ -209,6 +224,24 @@ inline bool CCacheKeyNode::Equal(
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
       AlphaEqual(this->source_func, other->source_func);
+}
+
+struct IsDynamicVisitor : TypeVisitor {
+  bool is_dyn{false};
+  void VisitType_(const TensorTypeNode* tt) {
+    for (auto dim : tt->shape) {
+      if (dim.as<Any>()) {
+        is_dyn = true;
+        break;
+      }
+    }
+  }
+};
+
+inline bool IsDynamic(const Type& ty) {
+  IsDynamicVisitor v;
+  v.VisitType(ty);
+  return v.is_dyn;
 }
 
 }  // namespace relay

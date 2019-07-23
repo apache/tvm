@@ -17,9 +17,14 @@
 """Backend compiler related feature registration"""
 # pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
+from topi.util import get_const_int
 from . import op as _reg
 from ._reduce import _schedule_reduce
 from .op import OpPattern
+from ... import ir_builder as _ir_builder
+from ... import intrin as _intrin
+from ... import generic as _generic
+from ...api import extern as _extern
 
 schedule_injective = _reg.schedule_injective
 schedule_broadcast = _reg.schedule_injective
@@ -57,3 +62,45 @@ _reg.register_schedule("sequence_mask", schedule_injective)
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
+
+# shape func
+def _arange_shape_func(attrs, inputs, outputs):
+    ib = _ir_builder.create()
+    start = _generic.cast(ib.buffer_ptr(inputs[0])[0], "float32")
+    stop = _generic.cast(ib.buffer_ptr(inputs[1]), "float32")
+    step = _generic.cast(ib.buffer_ptr(inputs[2]), "float32")
+    out_buf = ib.buffer_ptr(outputs[0])
+    out_buf[0] = _generic.cast(_intrin.ceil((stop-start) / step), "int64")
+    body = ib.get()
+    return body
+
+@_reg.register_shape_func("arange")
+def arange_shape_func(attrs, inputs, out_shapes):
+    out = _extern(out_shapes, inputs,
+                  lambda ins, outs: _arange_shape_func(attrs, ins, outs),
+                  dtype="int64")
+    return [out]
+
+def _concatenate_shape_func(attrs, inputs, outputs):
+    axis = get_const_int(attrs.axis)
+    ndim = len(inputs[0].shape)
+    if axis < 0:
+        axis += ndim
+    ib = _ir_builder.create()
+    out_buf = ib.buffer_ptr(outputs[0])
+    for i in range(ndim):
+        if i != axis:
+            out_buf[i] = _generic.cast(inputs[0].shape[i], "int64")
+        else:
+            out_buf[i] = _generic.cast(
+                sum([inputs[j].shape[i] for j in range(len(inputs))]),
+                "int64")
+    body = ib.get()
+    return body
+
+@_reg.register_shape_func("concatenate")
+def concatenate_shape_func(attrs, inputs, out_shapes):
+    out = _extern(out_shapes, inputs,
+                  lambda ins, outs: _concatenate_shape_func(attrs, ins, outs),
+                  dtype="int64")
+    return [out]
