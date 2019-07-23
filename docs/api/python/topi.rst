@@ -40,6 +40,7 @@ List of operators
    topi.sigmoid
    topi.clip
    topi.cast
+   topi.reinterpret
    topi.transpose
    topi.flip
    topi.strided_slice
@@ -133,6 +134,7 @@ topi
 .. autofunction:: topi.sigmoid
 .. autofunction:: topi.clip
 .. autofunction:: topi.cast
+.. autofunction:: topi.reinterpret
 .. autofunction:: topi.transpose
 .. autofunction:: topi.flip
 .. autofunction:: topi.strided_slice
