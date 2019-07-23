@@ -193,6 +193,12 @@ TVM_REGISTER_GLOBAL("topi.cast")
   *rv = cast(args[0], args[1]);
   });
 
+
+TVM_REGISTER_GLOBAL("topi.reinterpret")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = reinterpret(args[0], args[1]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.elemwise_sum")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = elemwise_sum(args[0]);
