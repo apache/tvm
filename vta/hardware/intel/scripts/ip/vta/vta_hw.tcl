@@ -60,16 +60,6 @@ add_fileset_file VTAShell.v VERILOG PATH VTAShell.v TOP_LEVEL_FILE
 
 
 # 
-# parameters
-# 
-
-
-# 
-# display items
-# 
-
-
-# 
 # connection point clock
 # 
 add_interface clock clock end
