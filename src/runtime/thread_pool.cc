@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,6 +44,19 @@ const constexpr int kL1CacheBytes = 64;
 
 namespace tvm {
 namespace runtime {
+namespace {
+
+constexpr uint32_t kDefaultSpinCount = 300000;
+
+uint32_t GetSpinCount() {
+  const char* val = getenv("TVM_THREAD_POOL_SPIN_COUNT");
+  if (!val) {
+    return kDefaultSpinCount;
+  }
+  return atoi(val);
+}
+
+}  // namespace
 
 // stride in the page, fit to cache line.
 constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
@@ -176,7 +189,7 @@ class SpscTaskQueue {
    * \param spin_count The number of iterations to spin before sleep.
    * \return Whether pop is successful (true) or we need to exit now (false).
    */
-  bool Pop(Task* output, uint32_t spin_count = 300000) {
+  bool Pop(Task* output, uint32_t spin_count) {
     // Busy wait a bit when the queue is empty.
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
@@ -335,7 +348,11 @@ class ThreadPool {
     SpscTaskQueue* queue = queues_[worker_id].get();
     SpscTaskQueue::Task task;
     ParallelLauncher::ThreadLocal()->is_worker = true;
-    while (queue->Pop(&task)) {
+    // Initialize the spin count (from envvar TVM_THREAD_POOL_SPIN_COUNT) on
+    // the global first use of the ThreadPool.
+    // TODO(tulloch): should we make this configurable via standard APIs?
+    static size_t spin_count = GetSpinCount();
+    while (queue->Pop(&task, spin_count)) {
       CHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
