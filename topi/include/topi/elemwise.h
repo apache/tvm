@@ -269,14 +269,34 @@ inline Tensor cast(const Tensor& x,
 }
 
 /*!
-* \brief Creates an operation that sum each element of a tensor
-*
-* \param xs The input tensor array
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is the sum operation
-*/
+ * \brief Reinterpret each element of x to the given type.
+
+ * \param x The input tensor
+ * \param type The type to cast to
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the reinterpret operation
+ */
+inline Tensor reinterpret(const Tensor& x, Type type, std::string name = "tensor",
+                          std::string tag = kElementWise) {
+  return compute(x->shape,
+                 [&](const Array<Var>& i) {
+                   return tvm::ir::Call::make(type, "reinterpret", {x(i)},
+                                              tvm::ir::Call::PureIntrinsic);
+                 },
+                 name, tag);
+}
+
+/*!
+ * \brief Creates an operation that sum each element of a tensor
+ *
+ * \param xs The input tensor array
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the sum operation
+ */
 inline Tensor elemwise_sum(const Array<Tensor>& xs,
                            std::string name = "T_elemwise_sum",
                            std::string tag = kElementWise) {

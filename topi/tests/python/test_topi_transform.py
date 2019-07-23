@@ -45,6 +45,29 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         check_device(device)
 
 
+def verify_reinterpret(in_shape, in_dtype, out_dtype, generator):
+    A = tvm.placeholder(shape=in_shape, name="A", dtype=in_dtype)
+    B = topi.reinterpret(A, out_dtype)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_elemwise(B)
+        foo = tvm.build(s, [A, B], device, name="reinterpret")
+        data_npy = generator(in_shape).astype(in_dtype)
+        out_npy = data_npy.view(B.dtype)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(in_shape).astype(B.dtype), ctx)
+        foo(data_nd, out_nd)
+        np.testing.assert_equal(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
 def verify_transpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.transpose(A, axes)
@@ -432,6 +455,19 @@ def test_strided_slice():
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
+
+
+def test_reinterpret():
+    verify_reinterpret((1000,), "float32", "int32",
+                       lambda shape: np.random.randn(*shape) * 1000)
+    verify_reinterpret((1000,), "float16", "int16",
+                       lambda shape: np.random.randn(*shape) * 100)
+    verify_reinterpret((1000,), "int16", "uint16",
+                       lambda shape: np.random.randint(-1000, 1000, size=shape))
+    verify_reinterpret((1000,), "uint32", "int32",
+                       lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape))
+    verify_reinterpret((1000,), "uint32", "int32",
+                       lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape))
 
 
 def test_transpose():
