@@ -43,7 +43,7 @@ class Alu(implicit p: Parameters) extends Module {
                 Mux(io.a < io.b, io.b, io.a),
                 io.a + io.b,
                 io.a >> n,
-	        io.a << m)
+                io.a << m)
 
   val opmux = Seq.tabulate(ALU_OP_NUM)(i => ALU_OP(i) -> fop(i))
   io.y := MuxLookup(io.opcode, io.a, opmux)
@@ -157,8 +157,8 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
     is (sExe) {
       when (alu.io.out.data.valid) {
         when ((cnt_o === dec.lp_0 - 1.U) &&
-	      (cnt_i === dec.lp_1 - 1.U) &&
-	      (uop_idx === uop_end - 1.U)) {
+              (cnt_i === dec.lp_1 - 1.U) &&
+              (uop_idx === uop_end - 1.U)) {
           state := sIdle
         } .otherwise {
           state := sReadUop
@@ -169,8 +169,8 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   when (state === sIdle ||
          (state === sExe &&
-	  alu.io.out.data.valid &&
-	  uop_idx === uop_end - 1.U)) {
+          alu.io.out.data.valid &&
+          uop_idx === uop_end - 1.U)) {
     uop_idx := dec.uop_begin
   } .elsewhen (state === sExe && alu.io.out.data.valid) {
     uop_idx := uop_idx + 1.U
@@ -183,7 +183,7 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   } .elsewhen (state === sExe &&
                alu.io.out.data.valid &&
                uop_idx === uop_end - 1.U &&
-	       cnt_i === dec.lp_1 - 1.U) {
+               cnt_i === dec.lp_1 - 1.U) {
     cnt_o := cnt_o + 1.U
     dst_o := dst_o + dec.dst_0
     src_o := src_o + dec.src_0
@@ -199,7 +199,7 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
     src_i := src_o
   } .elsewhen (state === sExe &&
                alu.io.out.data.valid &&
-	       uop_idx === uop_end - 1.U) {
+               uop_idx === uop_end - 1.U) {
     cnt_i := cnt_i + 1.U
     dst_i := dst_i + dec.dst_1
     src_i := src_i + dec.src_1

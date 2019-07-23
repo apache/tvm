@@ -180,10 +180,10 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   val done = inflight === 0.U &
              ((state === sExe &
               cnt_o === dec.lp_0 - 1.U &
-	      cnt_i === dec.lp_1 - 1.U &
-	      uop_idx === uop_end - 1.U &
-	      inflight === 0.U) |
-	     state === sWait)
+              cnt_i === dec.lp_1 - 1.U &
+              uop_idx === uop_end - 1.U &
+              inflight === 0.U) |
+             state === sWait)
 
   switch (state) {
     is (sIdle) {
@@ -204,11 +204,11 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
       when ((cnt_o === dec.lp_0 - 1.U) &&
             (cnt_i === dec.lp_1 - 1.U) &&
             (uop_idx === uop_end - 1.U)) {
-	when (inflight =/= 0.U) {
+        when (inflight =/= 0.U) {
           state := sWait
-	} .otherwise {
+        } .otherwise {
           state := sIdle
-	}
+        }
       } .otherwise {
         state := sReadUop
       }
@@ -232,7 +232,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
 
   when (state === sIdle ||
          (state === sExe &&
-	  uop_idx === uop_end - 1.U)) {
+          uop_idx === uop_end - 1.U)) {
     uop_idx := dec.uop_begin
   } .elsewhen (state === sExe) {
     uop_idx := uop_idx + 1.U
@@ -244,8 +244,8 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
     inp_o := 0.U
     wgt_o := 0.U
   } .elsewhen (state === sExe &&
-	       uop_idx === uop_end - 1.U &&
-	       cnt_i === dec.lp_1 - 1.U) {
+               uop_idx === uop_end - 1.U &&
+               cnt_i === dec.lp_1 - 1.U) {
     cnt_o := cnt_o + 1.U
     acc_o := acc_o + dec.acc_0
     inp_o := inp_o + dec.inp_0
@@ -263,7 +263,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
     inp_i := inp_o
     wgt_i := wgt_o
   } .elsewhen (state === sExe &&
-	       uop_idx === uop_end - 1.U) {
+               uop_idx === uop_end - 1.U) {
     cnt_i := cnt_i + 1.U
     acc_i := acc_i + dec.acc_1
     inp_i := inp_i + dec.inp_1
