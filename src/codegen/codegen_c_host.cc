@@ -252,6 +252,29 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   this->PrintStmt(op->body);
 }
 
+void CodeGenCHost::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+  PrintTernaryCondExpr(op, "<", os);
+}
+
+void CodeGenCHost::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+  PrintTernaryCondExpr(op, ">", os);
+}
+
+template <typename T>
+inline void CodeGenCHost::PrintTernaryCondExpr(const T* op,
+                                           const char* compare,
+                                           std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp_a;
+  VisitExpr(op->a, temp_a);
+  std::string a_id = SSAGetID(temp_a.str(), op->a.type());
+  std::ostringstream temp_b;
+  VisitExpr(op->b, temp_b);
+  std::string b_id = SSAGetID(temp_b.str(), op->b.type());
+
+  os << "((" << a_id << ") " << compare << " (" << b_id << ") "
+     << "? (" << a_id << ") : (" << b_id << "))";
+}
+
 runtime::Module BuildCHost(Array<LoweredFunc> funcs) {
   using tvm::runtime::Registry;
   bool output_ssa = false;

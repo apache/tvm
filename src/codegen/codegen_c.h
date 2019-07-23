@@ -204,17 +204,6 @@ class CodeGenC :
   std::unordered_map<const Variable*, Type> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
-  /*!
-   * \brief Print ternary conditional operator implementing binary `op`
-   * Forces the operands to be in SSA form.
-   * \param op binary operator being expressed
-   * \param compare string representation of comparison operator
-   * \param os stream reference to print into
-   */
-  template <typename T>
-  inline void PrintTernaryCondExpr(const T* op,
-                                   const char* compare,
-                                   std::ostream& os);  // NOLINT(*)
 
  private:
   /*! \brief whether to print in SSA form */
