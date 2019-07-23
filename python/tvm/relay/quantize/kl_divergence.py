@@ -44,13 +44,14 @@ def _smooth_distribution(p, eps=0.0001):
     return hist
 
 
-# pylint: disable=line-too-long,invalid-name
+# pylint: disable=invalid-name
 def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
     """Given a dataset, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
     `q` is a truncated version of the original distribution.
 
-    Ref: http://on-demand.gputechconf.com/gtc/2017/presentation/s7310-8-bit-inference-with-tensorrt.pdf
+    Ref:
+    http://on-demand.gputechconf.com/gtc/2017/presentation/s7310-8-bit-inference-with-tensorrt.pdf
     """
     assert isinstance(arr, np.ndarray)
 
@@ -121,4 +122,3 @@ def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantize
     min_divergence_idx = np.argmin(divergence)
     opt_th = thresholds[min_divergence_idx]
     return opt_th
-# pylint: enable=line-too-long

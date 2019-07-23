@@ -20,7 +20,7 @@
 /*!
  * Copyright (c) 2019 by Contributors
  *
- * \file calibration.cc
+ * \file calibrate.cc
  *
  * \brief Create profile graph and calibrate on dataset
  */
