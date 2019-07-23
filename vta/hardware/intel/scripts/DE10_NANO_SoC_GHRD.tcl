@@ -1,26 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-#
-#  Copyright (c) 2018 by Intel, Contributors
-#  File: DE10_NANO_SoC_GHRD.tcl
-#  brief: Intel FPGA compilation script. Partially automatically generated
-#   by Quartus Prime.
-#
-
 # Copyright (C) 2018  Intel Corporation. All rights reserved.
 # Your use of Intel Corporation's design tools, logic functions 
 # and other software and tools, and its AMPP partner logic 
@@ -34,6 +11,10 @@
 # the sole purpose of programming logic devices manufactured by
 # Intel and sold by Intel or its authorized distributors.  Please
 # refer to the applicable agreement for further details.
+
+# Quartus Prime: Generate Tcl File for Project
+# File: DE10_NANO_SoC_GHRD.tcl
+# Generated on: Tue Jul 23 10:06:45 2019
 
 # Load Quartus Prime Tcl Project package
 package require ::quartus::project
@@ -79,11 +60,8 @@ if {$make_assignments} {
 	set_global_assignment -name USE_SIGNALTAP_FILE DE10_NANO_SoC_GHRD.stp
 	set_global_assignment -name ALLOW_REGISTER_RETIMING ON
 	set_global_assignment -name OPTIMIZATION_MODE BALANCED
+	set_global_assignment -name VERILOG_FILE ip/vta/VTAShell.v
 	set_global_assignment -name QSYS_FILE soc_system.qsys
-	set_global_assignment -name VERILOG_FILE ../ip/altsource_probe/hps_reset.v
-	set_global_assignment -name VERILOG_FILE ../ip/edge_detect/altera_edge_detector.v
-	set_global_assignment -name VERILOG_FILE ../ip/vta_adaptor/IntelShell.v
-	set_global_assignment -name VERILOG_FILE ../ip/debounce/debounce.v
 	set_global_assignment -name SDC_FILE DE10_NANO_SOC_GHRD.sdc
 	set_global_assignment -name VERILOG_FILE DE10_NANO_SoC_GHRD.v
 	set_global_assignment -name SIGNALTAP_FILE DE10_NANO_SoC_GHRD.stp
@@ -93,76 +71,6 @@ if {$make_assignments} {
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK2_50
 	set_location_assignment PIN_E11 -to FPGA_CLK3_50
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK3_50
-	set_location_assignment PIN_U10 -to HDMI_I2C_SCL
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2C_SCL
-	set_location_assignment PIN_AA4 -to HDMI_I2C_SDA
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2C_SDA
-	set_location_assignment PIN_T13 -to HDMI_I2S
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2S
-	set_location_assignment PIN_T11 -to HDMI_LRCLK
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_LRCLK
-	set_location_assignment PIN_U11 -to HDMI_MCLK
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_MCLK
-	set_location_assignment PIN_T12 -to HDMI_SCLK
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_SCLK
-	set_location_assignment PIN_AG5 -to HDMI_TX_CLK
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_CLK
-	set_location_assignment PIN_AD19 -to HDMI_TX_DE
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_DE
-	set_location_assignment PIN_AD12 -to HDMI_TX_D[0]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[0]
-	set_location_assignment PIN_AE12 -to HDMI_TX_D[1]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[1]
-	set_location_assignment PIN_W8 -to HDMI_TX_D[2]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[2]
-	set_location_assignment PIN_Y8 -to HDMI_TX_D[3]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[3]
-	set_location_assignment PIN_AD11 -to HDMI_TX_D[4]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[4]
-	set_location_assignment PIN_AD10 -to HDMI_TX_D[5]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[5]
-	set_location_assignment PIN_AE11 -to HDMI_TX_D[6]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[6]
-	set_location_assignment PIN_Y5 -to HDMI_TX_D[7]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[7]
-	set_location_assignment PIN_AF10 -to HDMI_TX_D[8]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[8]
-	set_location_assignment PIN_Y4 -to HDMI_TX_D[9]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[9]
-	set_location_assignment PIN_AE9 -to HDMI_TX_D[10]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[10]
-	set_location_assignment PIN_AB4 -to HDMI_TX_D[11]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[11]
-	set_location_assignment PIN_AE7 -to HDMI_TX_D[12]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[12]
-	set_location_assignment PIN_AF6 -to HDMI_TX_D[13]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[13]
-	set_location_assignment PIN_AF8 -to HDMI_TX_D[14]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[14]
-	set_location_assignment PIN_AF5 -to HDMI_TX_D[15]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[15]
-	set_location_assignment PIN_AE4 -to HDMI_TX_D[16]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[16]
-	set_location_assignment PIN_AH2 -to HDMI_TX_D[17]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[17]
-	set_location_assignment PIN_AH4 -to HDMI_TX_D[18]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[18]
-	set_location_assignment PIN_AH5 -to HDMI_TX_D[19]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[19]
-	set_location_assignment PIN_AH6 -to HDMI_TX_D[20]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[20]
-	set_location_assignment PIN_AG6 -to HDMI_TX_D[21]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[21]
-	set_location_assignment PIN_AF9 -to HDMI_TX_D[22]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[22]
-	set_location_assignment PIN_AE8 -to HDMI_TX_D[23]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[23]
-	set_location_assignment PIN_T8 -to HDMI_TX_HS
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_HS
-	set_location_assignment PIN_AF11 -to HDMI_TX_INT
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_INT
-	set_location_assignment PIN_V13 -to HDMI_TX_VS
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_VS
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HPS_CONV_USB_N
 	set_instance_assignment -name IO_STANDARD "SSTL-15 CLASS I" -to HPS_DDR3_ADDR[0]
 	set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HPS_DDR3_ADDR[0]
@@ -308,10 +216,6 @@ if {$make_assignments} {
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HPS_USB_DIR
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HPS_USB_NXT
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HPS_USB_STP
-	set_location_assignment PIN_AH17 -to KEY[0]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY[0]
-	set_location_assignment PIN_AH16 -to KEY[1]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY[1]
 	set_location_assignment PIN_W15 -to LED[0]
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[0]
 	set_location_assignment PIN_AA24 -to LED[1]
@@ -328,14 +232,6 @@ if {$make_assignments} {
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[6]
 	set_location_assignment PIN_AA23 -to LED[7]
 	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[7]
-	set_location_assignment PIN_Y24 -to SW[0]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[0]
-	set_location_assignment PIN_W24 -to SW[1]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[1]
-	set_location_assignment PIN_W21 -to SW[2]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[2]
-	set_location_assignment PIN_W20 -to SW[3]
-	set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[3]
 	set_instance_assignment -name INPUT_TERMINATION "PARALLEL 50 OHM WITH CALIBRATION" -to HPS_DDR3_DQ[0] -tag __hps_sdram_p0
 	set_instance_assignment -name OUTPUT_TERMINATION "SERIES 50 OHM WITH CALIBRATION" -to HPS_DDR3_DQ[0] -tag __hps_sdram_p0
 	set_instance_assignment -name INPUT_TERMINATION "PARALLEL 50 OHM WITH CALIBRATION" -to HPS_DDR3_DQ[1] -tag __hps_sdram_p0
@@ -514,14 +410,13 @@ if {$make_assignments} {
 	set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 
 	# Commit assignments
-	export_assignments
-
+  export_assignments
+    
   load_package flow 
   execute_flow -compile
-	
-  # Close project
+
+	# Close project
 	if {$need_to_close_project} {
 		project_close
 	}
 }
-
