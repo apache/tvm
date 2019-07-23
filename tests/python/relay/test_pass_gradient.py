@@ -252,9 +252,26 @@ def test_if():
     net = relay.log(net)
     func = relay.Function(free_vars(net), net)
     func = run_infer_type(func)
-    net = run_infer_type(func)
-    net = gradient(net, mode='higher_order')
+    net = gradient(func, mode='higher_order')
     net = run_infer_type(net)
+
+
+def test_grad_tuple():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    y = x + x
+    func = relay.Function([x], relay.Tuple([y + y, y]))
+    func = run_infer_type(func)
+    back_func = run_infer_type(gradient(func))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([relay.TupleType([t, t]), relay.TupleType([t])]))
+    ex = create_executor()
+    x = rand(dtype, *shape)
+    (forward_four, forward_two), (grad,) = ex.evaluate(back_func)(x)
+    tvm.testing.assert_allclose(forward_four.asnumpy(), 4 * x.asnumpy())
+    tvm.testing.assert_allclose(forward_two.asnumpy(), 2 * x.asnumpy())
+    tvm.testing.assert_allclose(grad.asnumpy(), 4 * np.ones_like(x.asnumpy()))
 
 
 if __name__ == "__main__":
@@ -269,3 +286,4 @@ if __name__ == "__main__":
     test_ref()
     test_square_second_order()
     test_if()
+    test_grad_tuple()
