@@ -101,6 +101,7 @@ RefWrite = expr.RefWrite
 PatternWildcard = adt.PatternWildcard
 PatternVar = adt.PatternVar
 PatternConstructor = adt.PatternConstructor
+PatternTuple = adt.PatternTuple
 Constructor = adt.Constructor
 TypeData = adt.TypeData
 Clause = adt.Clause

@@ -152,19 +152,27 @@ TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
     auto pattern = GetRef<PatternVar>(pat);
     auto cond = std::make_shared<VarBinding>(pattern->var, data);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
-  } else {
-    auto pat = pattern.as<PatternConstructorNode>();
-    auto pattern = GetRef<PatternConstructor>(pat);
-    auto tag = pattern->constructor->tag;
+  } else if (auto pcn = pattern.as<PatternConstructorNode>()) {
+    auto tag = pcn->constructor->tag;
 
     size_t field_index = 0;
-    for (auto& p : pattern->patterns) {
+    for (auto& p : pcn->patterns) {
       auto d = std::make_shared<AccessField>(data, field_index);
       then_branch = BuildDecisionTreeFromPattern(d, p, then_branch, else_branch);
       field_index++;
     }
     auto cond = std::make_shared<TagCompare>(data, tag);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
+  } else {
+    auto pt = pattern.as<PatternTupleNode>();
+    CHECK(pt) << "unhandled case: " << pattern;
+    size_t field_index = 0;
+    for (auto& p : pt->patterns) {
+      auto d = std::make_shared<AccessField>(data, field_index);
+      then_branch = BuildDecisionTreeFromPattern(d, p, then_branch, else_branch);
+      field_index++;
+    }
+    return then_branch;
   }
 }
 
