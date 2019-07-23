@@ -394,17 +394,17 @@ inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, b
 }
 
 
-inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
+static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   static const Op& op = Op::Get("where");
   return CallNode::make(op, {condition, x, y});
 }
 
-inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
+static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   static const Op& op = Op::Get("greater_equal");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
-inline Expr Full(Expr fill_value,
+static inline Expr Full(Expr fill_value,
                  Array<IndexExpr> shape,
                  DataType dtype) {
   auto attrs = make_node<InitOpAttrs>();
