@@ -130,6 +130,7 @@ FMT_MAP = {
     "rst" : header_rststyle,
     "gradle" : header_groovystyle,
     "xml": header_mdstyle,
+    "tcl": header_pystyle,
 }
 
 def add_header(fname, header):

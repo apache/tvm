@@ -69,8 +69,6 @@ ALLOW_EXTENSION = {
     "properties",
     "v",
     "sdc",
-    "stp",
-    "ipx",
     "qsys",
     # generated parser
     "interp",
