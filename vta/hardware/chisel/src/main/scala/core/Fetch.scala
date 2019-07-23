@@ -77,15 +77,15 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
     is (sIdle) {
       when (pulse) {
         state := sReadCmd
-	when (xsize < xmax) {
+        when (xsize < xmax) {
           rlen := xsize
-	  ilen := xsize >> 1.U
+          ilen := xsize >> 1.U
           xrem := 0.U
-	} .otherwise {
+        } .otherwise {
           rlen := xmax - 1.U
-	  ilen := (xmax >> 1.U) - 1.U
+          ilen := (xmax >> 1.U) - 1.U
           xrem := xsize - xmax
-	}
+        }
       }
     }
     is (sReadCmd) {
@@ -104,7 +104,7 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
           state := sDrain
         } .otherwise {
           state := sReadLSB
-	}
+        }
       }
     }
     is (sDrain) {
@@ -114,12 +114,12 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
         } .elsewhen (xrem < xmax) {
           state := sReadCmd
           rlen := xrem
-	  ilen := xrem >> 1.U
+          ilen := xrem >> 1.U
           xrem := 0.U
         } .otherwise {
           state := sReadCmd
           rlen := xmax - 1.U
-	  ilen := (xmax >> 1.U) - 1.U
+          ilen := (xmax >> 1.U) - 1.U
           xrem := xrem - xmax
         }
       }

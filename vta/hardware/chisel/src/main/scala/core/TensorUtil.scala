@@ -246,8 +246,8 @@ class TensorDataCtrl(sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Par
   val ycnt = Reg(chiselTypeOf(dec.ysize))
 
   val stride = xcnt === len &
-	       xrem === 0.U &
-	       ycnt =/= dec.ysize - 1.U
+               xrem === 0.U &
+               ycnt =/= dec.ysize - 1.U
 
   val split = xcnt === len & xrem =/= 0.U
 
@@ -299,6 +299,6 @@ class TensorDataCtrl(sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Par
   io.addr := caddr
   io.len := len
   io.done := xcnt === len &
-	     xrem === 0.U &
-	     ycnt === dec.ysize - 1.U
+             xrem === 0.U &
+             ycnt === dec.ysize - 1.U
 }

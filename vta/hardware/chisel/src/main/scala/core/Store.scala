@@ -60,9 +60,9 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
       when (start) {
         when (dec.io.isSync) {
           state := sSync
-	} .elsewhen (dec.io.isStore) {
+        } .elsewhen (dec.io.isStore) {
           state := sExe
-	}
+        }
       }
     }
     is (sSync) {
@@ -107,7 +107,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
     }
     when (state === sExe) {
       when (done) {
-	printf("[Store] done\n")
+        printf("[Store] done\n")
       }
     }
   }
