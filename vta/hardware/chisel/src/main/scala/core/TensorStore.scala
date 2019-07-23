@@ -69,13 +69,13 @@ class TensorStore(tensorType: String = "true", debug: Boolean = false)
     is (sIdle) {
       when (io.start) {
         state := sWriteCmd
-	when (xsize < xmax) {
+        when (xsize < xmax) {
           xlen := xsize
           xrem := 0.U
-	} .otherwise {
+        } .otherwise {
           xlen := xmax - 1.U
           xrem := xsize - xmax
-	}
+        }
       }
     }
     is (sWriteCmd) {
@@ -89,7 +89,7 @@ class TensorStore(tensorType: String = "true", debug: Boolean = false)
           state := sWriteAck
         } .elsewhen (tag === (numMemBlock - 1).U) {
           state := sReadMem
-	}
+        }
       }
     }
     is (sReadMem) {
@@ -98,27 +98,27 @@ class TensorStore(tensorType: String = "true", debug: Boolean = false)
     is (sWriteAck) {
       when (io.vme_wr.ack) {
         when (xrem === 0.U) {
-	  when (ycnt === ysize - 1.U) {
+          when (ycnt === ysize - 1.U) {
             state := sIdle
-	  } .otherwise {
+          } .otherwise {
             state := sWriteCmd
-	    when (xsize < xmax) {
+            when (xsize < xmax) {
               xlen := xsize
               xrem := 0.U
-	    } .otherwise {
+            } .otherwise {
               xlen := xmax - 1.U
               xrem := xsize - xmax
-	    }
-	  }
-	} .elsewhen (xrem < xmax) {
+            }
+          }
+        } .elsewhen (xrem < xmax) {
           state := sWriteCmd
           xlen := xrem
           xrem := 0.U
-	} .otherwise {
+        } .otherwise {
           state := sWriteCmd
           xlen := xmax - 1.U
           xrem := xrem - xmax
-	}
+        }
       }
     }
   }
@@ -142,8 +142,8 @@ class TensorStore(tensorType: String = "true", debug: Boolean = false)
   val stride = state === sWriteAck &
               io.vme_wr.ack &
               xcnt === xlen + 1.U &
-	      xrem === 0.U &
-	      ycnt =/= ysize - 1.U
+              xrem === 0.U &
+              ycnt =/= ysize - 1.U
 
   when (state === sIdle) {
     ycnt := 0.U
