@@ -327,6 +327,88 @@ def avg_pool2d(data,
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
+def max_pool2d_grad(out_grad,
+                    data,
+                    pool_size=(1, 1),
+                    strides=(1, 1),
+                    padding=(0, 0),
+                    layout="NCHW",
+                    ceil_mode=False):
+    r"""Gradient of 2D maximum pooling operator.
+
+    This operator takes out_grad and data as input and calculates gradient of max_pool2d.
+
+    Parameters
+    ----------
+    out_grad : tvm.relay.Expr
+        The output gradient
+
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.max_pool2d_grad(out_grad, data, pool_size, strides, padding,
+                                 layout, ceil_mode)
+
+def avg_pool2d_grad(out_grad,
+                    data,
+                    pool_size=(1, 1),
+                    strides=(1, 1),
+                    padding=(0, 0),
+                    layout="NCHW",
+                    ceil_mode=False,
+                    count_include_pad=False):
+    r"""Gradient of 2D average pooling operator.
+
+    This operator takes out_grad and data as input and calculates gradient of avg_pool2d.
+
+    Parameters
+    ----------
+    out_grad : tvm.relay.Expr
+        The output gradient
+
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool2d_grad(out_grad, data, pool_size, strides, padding,
+                                 layout, ceil_mode, count_include_pad)
+
 def global_max_pool2d(data,
                       layout="NCHW"):
     r"""2D global maximum pooling operator.

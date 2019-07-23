@@ -421,6 +421,19 @@ def schedule_pool(outs, layout):
     return _default_schedule(outs, False)
 
 
+@tvm.target.generic_func
+def schedule_pool_grad(outs):
+    """Schedule for pool_grad
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of pool
+          in the format of an array of tensors.
+    """
+    return _default_schedule(outs, False)
+
+
 @tvm.target.override_native_generic_func("schedule_adaptive_pool")
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive pool
