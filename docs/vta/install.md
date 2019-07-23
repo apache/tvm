@@ -311,8 +311,7 @@ make ip
 ```
 Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
 
-Before performing the full hardware compilation, it is necessary to download the corresponding CD-ROM from [Terasic](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=205&No=1046&PartNo=4), extract and merge the `/Demonstrations/SoC_FPGA/DE10_NANO_SoC_GHRD/ip` directory in the downloaded zip archive with `<tvmroot>/vta/hardware/intel/ip` directory.
-Then you would be able to run the full hardware compilation for the `de10-nano` board:
+If you would like to run the full hardware compilation for the `de10-nano` board:
 ```bash
 make
 ```
