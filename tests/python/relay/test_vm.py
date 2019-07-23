@@ -213,6 +213,9 @@ def test_list_constructor():
     mod["main"] = f
 
     result = veval(mod)
+    assert len(result) == 2
+    assert len(result[1]) == 2
+
     obj = vmobj_to_list(result)
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
