@@ -24,6 +24,7 @@ import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
+from nose.tools import nottest
 
 from common import get_all_backend
 
@@ -97,15 +98,22 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
         func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
 
-    # for device in ["llvm -mcpu=skylake-avx512"]:
-    for device in ["llvm"]:
+    # for device in ["llvm"]:
+    for device in ["llvm -mcpu=skylake-avx512"]:
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
 
-
+@nottest
 def test_conv2d_NCHWc():
     # ResNet50 workloads
     verify_group_conv2d_NCHWc_int8(1, 256, 32, 224, 64, 7, 2, 3)
 
 if __name__ == "__main__":
-    test_conv2d_NCHWc()
+    # The test requires Skylake and newer Intel machines to generate the correct
+    # instruction. This test directly calls the topi operator, requiring correct
+    # kernel shape. For older generation of Intel machines, the kernel needs to
+    # be 6D. This test tests 7D kernel, that can only work on Skylake+ machines.
+    # So, disabling the test.
+
+    # test_conv2d_NCHWc()
+    pass
