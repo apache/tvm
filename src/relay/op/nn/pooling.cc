@@ -571,8 +571,8 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs, const Type& out_type,
-                                const Target& target) {
+Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+                                const Type& out_type, const Target& target) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -608,18 +608,18 @@ Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding, mode, ceil_mode,
-                                        layout.name(), count_include_pad)};
+    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+        mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<Tensor>{
-        topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding, mode, ceil_mode, layout.name())};
+    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+        mode, ceil_mode, layout.name())};
   }
 }
 
 
 // MaxPool2DGrad
-Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, std::string layout, bool ceil_mode) {
+Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
+    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode) {
   auto attrs = make_node<MaxPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -665,9 +665,9 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
 
 
 // AvgPool2DGrad
-Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                   Array<IndexExpr> padding, std::string layout, bool ceil_mode,
-                   bool count_include_pad) {
+Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
+    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode,
+    bool count_include_pad) {
   auto attrs = make_node<AvgPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);

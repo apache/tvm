@@ -255,7 +255,7 @@ reg.register_pattern("nn.max_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # avg_pool2d_grad
 @reg.register_schedule("nn.avg_pool2d_grad")
-def schedule_max_pool2d_grad(attrs, outs, target):
+def schedule_avg_pool2d_grad(attrs, outs, target):
     """Schedule definition of avg_pool2d_grad"""
     with target:
         return topi.generic.schedule_pool_grad(outs)

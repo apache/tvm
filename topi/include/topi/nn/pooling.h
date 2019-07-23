@@ -255,16 +255,19 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
-          Expr out_idx_lower_h = ir::Select::make(pad_inds[height_axis] < kernel_height, make_const(Int(32), 0),
-                                                  (pad_inds[height_axis] - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::Select::make(pad_inds[width_axis] < kernel_width, make_const(Int(32), 0),
-                                                  (pad_inds[width_axis] - kernel_width) / stride_width + 1);
+          Expr out_idx_lower_h = ir::Select::make(
+              pad_inds[height_axis] < kernel_height, make_const(Int(32), 0),
+              (pad_inds[height_axis] - kernel_height) / stride_height + 1);
+          Expr out_idx_lower_w = ir::Select::make(
+              pad_inds[width_axis] < kernel_width, make_const(Int(32), 0),
+              (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
-              tvm::if_then_else(ir::And::make(ir::And::make(out_idx[height_axis] >= out_idx_lower_h,
-                                                            out_idx[width_axis] >= out_idx_lower_w),
-                                              mp_inds(out_idx) == idx),
-                                out_grad(out_idx), make_const(x->dtype, 0)),
+              tvm::if_then_else(ir::And::make(
+                  ir::And::make(out_idx[height_axis] >= out_idx_lower_h,
+                                out_idx[width_axis] >= out_idx_lower_w),
+                  mp_inds(out_idx) == idx),
+                  out_grad(out_idx), make_const(x->dtype, 0)),
               {windowh, windoww});
         },
         "T_pool_grad", "pool_grad_max");
@@ -302,9 +305,12 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           }
           return tvm::sum(tvm::if_then_else(
               ir::And::make(
-                ir::And::make(out_idx[height_axis] >= out_idx_lower_h, out_idx[height_axis] < out_height),
-                ir::And::make(out_idx[width_axis] >= out_idx_lower_w, out_idx[width_axis] < out_width)),
-              out_grad(out_idx) / divide_factor, make_const(out_grad->dtype, 0)), {windowh, windoww});
+                ir::And::make(out_idx[height_axis] >= out_idx_lower_h,
+                              out_idx[height_axis] < out_height),
+                ir::And::make(out_idx[width_axis] >= out_idx_lower_w,
+                              out_idx[width_axis] < out_width)),
+              out_grad(out_idx) / divide_factor, make_const(out_grad->dtype, 0)),
+              {windowh, windoww});
         },
         "T_pool_grad", "pool_grad_avg");
   } else {
