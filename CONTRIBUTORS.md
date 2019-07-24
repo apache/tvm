@@ -41,6 +41,7 @@ We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
+- [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler

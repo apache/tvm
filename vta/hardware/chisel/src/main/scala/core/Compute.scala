@@ -64,9 +64,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   val inst_type = Cat(dec.io.isFinish,
                       dec.io.isAlu,
-		      dec.io.isGemm,
-		      dec.io.isLoadAcc,
-		      dec.io.isLoadUop).asUInt
+                      dec.io.isGemm,
+                      dec.io.isLoadAcc,
+                      dec.io.isLoadUop).asUInt
 
   val sprev = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s(0).io.sready, true.B)
   val snext = inst_q.io.deq.valid & Mux(dec.io.pop_next, s(1).io.sready, true.B)
@@ -87,11 +87,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   switch (state) {
     is (sIdle) {
       when (start) {
-	when (dec.io.isSync) {
+        when (dec.io.isSync) {
           state := sSync
-	} .elsewhen (inst_type.orR) {
+        } .elsewhen (inst_type.orR) {
           state := sExe
-	}
+        }
       }
     }
     is (sSync) {

@@ -529,6 +529,18 @@ def CanonicalizeCast():
     return _transform.CanonicalizeCast()
 
 
+def LambdaLift():
+    """
+    Lift the closure to global function.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that lifts the lambda function.
+    """
+    return _transform.LambdaLift()
+
+
 def PrintIR():
     """
     Print the IR for a module to help debugging.

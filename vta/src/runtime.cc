@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,7 +44,7 @@ namespace vta {
 static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8,
               "VTA_UOP_WIDTH do not match VTAUop size");
 
-/*! \brief Enable coherent access between VTA and CPU. */
+/*! \brief Enable coherent access between VTA and CPU (used on shared mem systems). */
 static const bool kBufferCoherent = true;
 
 /*!
@@ -78,6 +78,24 @@ struct DataBuffer {
     if (!kBufferCoherent) {
       VTAFlushCache(phy_addr_ + offset, size);
     }
+  }
+  /*!
+   * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
+   * \param dst The desination buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc().
+   * \param src The source buffer in host memory.
+   * \param size Size of the region in Bytes.
+   */
+  void MemCopyFromHost(void* dst, const void* src, size_t size) {
+    VTAMemCopyFromHost(dst, src, size);
+  }
+  /*!
+   * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
+   * \param dst The desination buffer in host memory.
+   * \param src The source buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc().
+   * \param size Size of the region in Bytes.
+   */
+  void MemCopyToHost(void* dst, const void* src, size_t size) {
+    VTAMemCopyToHost(dst, src, size);
   }
   /*!
    * \brief Allocate a buffer of a given size.
@@ -274,7 +292,7 @@ class UopKernel {
   template<int, bool, bool>
   friend class UopQueue;
   friend class CommandQueue;
-  // SRAM location if begin != end.
+  // SRAM location if begin != end
   uint32_t sram_begin_{0};
   uint32_t sram_end_{0};
   // The signature used for verification
@@ -290,11 +308,12 @@ class UopKernel {
 /*!
  * \brief Base class of all queues to send and recv serial data.
  */
+template <class T>
 class BaseQueue {
  public:
   ~BaseQueue() {
-    if (dram_buffer_ != nullptr) {
-      VTAMemFree(dram_buffer_);
+    if (fpga_buff_ != nullptr) {
+      VTAMemFree(fpga_buff_);
     }
   }
   /*! \return Content of DRAM buffer. */
@@ -303,7 +322,8 @@ class BaseQueue {
   }
   /*! \return Physical address of DRAM. */
   vta_phy_addr_t dram_phy_addr() const {
-    return dram_phy_addr_;
+    CHECK(fpga_buff_phy_);
+    return fpga_buff_phy_;
   }
   /*! \return Whether there is pending information. */
   bool pending() const {
@@ -314,43 +334,23 @@ class BaseQueue {
     coherent_ = coherent;
     always_cache_ = always_cache;
     elem_bytes_ = elem_bytes;
-    dram_buffer_ = static_cast<char*>(VTAMemAlloc(
-        max_bytes, coherent || always_cache_));
-    CHECK(dram_buffer_ != nullptr);
-    dram_phy_addr_ = VTAMemGetPhyAddr(dram_buffer_);
+    // Allocate buffer ahead of time
+    fpga_buff_ = static_cast<char*>(VTAMemAlloc(
+        max_bytes, coherent_ || always_cache_));
+    CHECK(fpga_buff_ != nullptr);
+    fpga_buff_phy_ = VTAMemGetPhyAddr(fpga_buff_);
   }
   /*!
    * \brief Reset the pointer of the buffer.
    *  Set SRAM pointer to be the current end.
    */
   void Reset() {
-    dram_begin_ = dram_end_ = 0;
+    dram_buffer_.clear();
     sram_begin_ = sram_end_;
-  }
-  void AutoReadBarrier() {
-    ReadBarrier(elem_bytes_ * 8, 0, dram_end_);
-  }
-  /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
-  void ReadBarrier(uint32_t elem_bits, uint32_t dram_begin, uint32_t dram_extent) {
-    if (!coherent_ && always_cache_ && dram_extent != 0) {
-      dram_begin = dram_begin * elem_bits / 8;
-      dram_extent = dram_extent * elem_bits / 8;
-      VTAFlushCache(dram_phy_addr_ + dram_begin,
-                    dram_extent);
-    }
-  }
-  /*! \brief Read barrier to make sure that data written by VTA is visible to CPU. */
-  void WriteBarrier(uint32_t elem_bits, uint32_t dram_begin, uint32_t dram_extent) {
-    if (!coherent_ && always_cache_ && dram_extent != 0) {
-      dram_begin = dram_begin * elem_bits / 8;
-      dram_extent = dram_extent * elem_bits / 8;
-      VTAInvalidateCache(dram_phy_addr_ + dram_begin,
-                         dram_extent);
-    }
   }
 
  protected:
-  // Cache coherence access
+  // Cache coherence access (shared memory only)
   bool coherent_{false};
   // Make the buffer cacheable
   bool always_cache_{false};
@@ -360,21 +360,19 @@ class BaseQueue {
   uint32_t sram_begin_{0};
   // End location of current SRAM write in FIFO mode
   uint32_t sram_end_{0};
-  // The current pending offset in DRAM in FIFO mode
-  uint32_t dram_begin_{0};
-  // The current pending offset in DRAM in FIFO mode
-  uint32_t dram_end_{0};
   // The buffer in DRAM
-  char* dram_buffer_{nullptr};
-  // Physics address of the buffer
-  vta_phy_addr_t dram_phy_addr_;
+  std::vector<T> dram_buffer_;
+  // FPGA accessible buffer
+  void* fpga_buff_{NULL};
+  // Physical address of the FPGA buffer
+  vta_phy_addr_t fpga_buff_phy_{0};
 };
 
 /*!
  * \brief Micro op buffer that manages the micro op cache.
  */
 template<int kMaxBytes, bool kCoherent, bool kAlwaysCache>
-class UopQueue : public BaseQueue {
+class UopQueue : public BaseQueue<VTAUop> {
  public:
   void InitSpace() {
     BaseQueue::InitSpace(kElemBytes, kMaxBytes, kCoherent, kAlwaysCache);
@@ -382,17 +380,20 @@ class UopQueue : public BaseQueue {
   // Push data to the queue
   template<typename FAutoSync>
   void Push(UopKernel* kernel, FAutoSync fautosync) {
+    // if the micro-op is cached in VTA SRAM, skip
     if (kernel->cached()) return;
+    // check if we've exceeded the size of the allocated FPGA readable buffer
     size_t num_op = kernel->size();
-    if (dram_end_ + num_op > kMaxElems) {
+    if (dram_buffer_.size() + num_op > kMaxElems) {
       fautosync();
-      CHECK(dram_end_ <= kMaxElems);
+      CHECK(dram_buffer_.size() <= kMaxElems);
     }
+    // Cannot have a micro-op kernel larger than SRAM buffer
     CHECK(num_op <= kMaxNumUop);
     uint32_t uop_begin = 0;
     if (sram_end_ + num_op > kMaxNumUop) {
       // Need to evict
-      cache_ptr_ = 0;
+      cache_idx_ = 0;
       sram_begin_ = 0;
       sram_end_ = num_op;
     } else {
@@ -400,51 +401,81 @@ class UopQueue : public BaseQueue {
       sram_end_ += num_op;
     }
     // Simple eviction policy
-    uint32_t evict_begin = cache_ptr_;
-    for (; cache_ptr_ < cache_.size(); ++cache_ptr_) {
-      if (cache_[cache_ptr_]->sram_begin_ >= sram_end_) break;
-      cache_[cache_ptr_]->sram_begin_ = 0;
-      cache_[cache_ptr_]->sram_end_ = 0;
+    uint32_t evict_begin = cache_idx_;
+    for (; cache_idx_ < cache_.size(); ++cache_idx_) {
+      if (cache_[cache_idx_]->sram_begin_ >= sram_end_) break;
+      // Mark the kernel as "invalid"
+      cache_[cache_idx_]->sram_begin_ = 0;
+      cache_[cache_idx_]->sram_end_ = 0;
     }
-    memcpy(dram_buffer_ + dram_end_ * kElemBytes,
-           kernel->data(),
-           num_op * kElemBytes);
-    dram_end_ += num_op;
+    // Increase size of buffer
     kernel->sram_begin_ = uop_begin;
     kernel->sram_end_ = sram_end_;
     CHECK(kernel->cached());
-    CHECK(uop_begin != sram_end_);
-    cache_.insert(cache_.begin() + cache_ptr_, kernel);
-    cache_.erase(cache_.begin() + evict_begin, cache_.begin() + cache_ptr_);
-    cache_ptr_ = evict_begin + 1;
+    cache_.insert(cache_.begin() + cache_idx_, kernel);
+    cache_.erase(cache_.begin() + evict_begin, cache_.begin() + cache_idx_);
+    cache_idx_ = evict_begin + 1;
   }
-  // Flush as weight load
+  // Flush micro op load instruction
   void FlushUopLoad(VTAMemInsn* insn) {
     if (sram_begin_ != sram_end_) {
-      CHECK((dram_end_ - dram_begin_) == (sram_end_ - sram_begin_));
+      // Derive offset in FPGA-readable buffer
+      int32_t offset = 0;
+      for (uint32_t i = 0; i < cache_idx_ - 1; ++i) {
+        offset += cache_[i]->size() * kElemBytes;
+      }
       insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
+      // Update cache idx to physical address map
 #ifdef USE_TSIM
-      insn->dram_base = (uint32_t) dram_phy_addr_ + dram_begin_*kElemBytes;
+      insn->dram_base = fpga_buff_phy_ + offset;
 #else
-      insn->dram_base = dram_phy_addr_ / kElemBytes + dram_begin_;
+      insn->dram_base = (fpga_buff_phy_ + offset) / kElemBytes;
 #endif
       insn->y_size = 1;
-      insn->x_size = (dram_end_ - dram_begin_);
-      insn->x_stride = (dram_end_ - dram_begin_);
+      insn->x_size = (sram_end_ - sram_begin_);
+      insn->x_stride = (sram_end_ - sram_begin_);
       insn->y_pad_0 = 0;
       insn->y_pad_1 = 0;
       insn->x_pad_0 = 0;
       insn->x_pad_1 = 0;
       // Reset indices
       sram_begin_ = sram_end_;
-      dram_begin_ = dram_end_;
+    }
+  }
+  void AutoReadBarrier() {
+    ReadBarrier();
+  }
+  /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
+  void ReadBarrier() {
+    CHECK(fpga_buff_ != nullptr);
+    CHECK(fpga_buff_phy_);
+    // Iterate over caches; allocate buffer in FPGA-readable memory
+    uint32_t buff_size = 0;
+    for (uint32_t i = 0; i < cache_.size(); ++i) {
+      buff_size += cache_[i]->size() * kElemBytes;
+    }
+    CHECK(buff_size <= kMaxBytes);
+    // Move kernel contents to FPGA readable buffer
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < cache_.size(); ++i) {
+      uint32_t ksize = cache_[i]->size() * kElemBytes;
+      VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset,
+                         cache_[i]->data(),
+                         ksize);
+      // Update offset
+      offset += ksize;
+    }
+    // Flush if we're using a shared memory system
+    // and if interface is non-coherent
+    if (!coherent_ && always_cache_) {
+      VTAFlushCache(fpga_buff_phy_, offset);
     }
   }
 
  private:
   // Cache pointer
-  uint32_t cache_ptr_{0};
+  uint32_t cache_idx_{0};
   // Cached ring, sorted by sram_begin
   std::vector<UopKernel*> cache_;
   // Constants
@@ -485,7 +516,7 @@ enum PipelineStage : int {
 
 // Instruction Queue
 template<int kMaxBytes, bool kCoherent, bool kAlwaysCache>
-class InsnQueue : public BaseQueue {
+class InsnQueue : public BaseQueue<VTAGenericInsn> {
  public:
   /*! \brief Initialize the space. */
   void InitSpace() {
@@ -496,11 +527,11 @@ class InsnQueue : public BaseQueue {
   }
   /*! \return The data pointer. */
   VTAGenericInsn* data() {
-    return reinterpret_cast<VTAGenericInsn*>(dram_buffer_);
+    return dram_buffer_.data();
   }
   /*! \return Number of instructions. */
   uint32_t count() {
-    return dram_end_;
+    return dram_buffer_.size();
   }
   // Insert dependency push of load
   void DepPop(int from, int to) {
@@ -524,9 +555,8 @@ class InsnQueue : public BaseQueue {
   void DepPush(int from, int to) {
     // NOTE: this instruction executes on queue[from]
     this->CommitPendingPop(from);
-    if (dram_end_ != 0) {
-      VTAMemInsn* mptr =
-          reinterpret_cast<VTAMemInsn*>(dram_buffer_) + dram_end_ - 1;
+    if (!dram_buffer_.empty()) {
+      VTAMemInsn* mptr = reinterpret_cast<VTAMemInsn*>(&dram_buffer_.back());
       if (GetPipelineStage(mptr) == from) {
         if (from < to && !mptr->push_next_dep) {
           // push(LD->C) or push(C->ST)
@@ -600,7 +630,6 @@ class InsnQueue : public BaseQueue {
       }
     }
   }
-
   // Helper function: Get Opcode string
   const char* getOpcodeString(int opcode, bool use_imm) {
       // The string name
@@ -628,7 +657,6 @@ class InsnQueue : public BaseQueue {
 
       return "unknown op";
   }
-
   // Dump instructions in the queue
   void DumpInsn() {
     // Keep tabs on dependence queues
@@ -790,7 +818,6 @@ class InsnQueue : public BaseQueue {
       printf("\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);
     }
   }
-
   // Commit all pending pop of corresponding stage
   void CommitPendingPop(int stage) {
     // Handle the LD<->compute queue
@@ -805,13 +832,11 @@ class InsnQueue : public BaseQueue {
       pending_pop_next_[stage] = 0;
     }
   }
-
   void CommitPending() {
     for (int i = kLoadStage; i <= kStoreStage; ++i) {
       CommitPendingPop(i);
     }
   }
-
   bool PendingPop() {
     for (int i = kLoadStage; i <= kStoreStage; ++i) {
       if (pending_pop_prev_[i]) return true;
@@ -819,14 +844,32 @@ class InsnQueue : public BaseQueue {
     }
     return false;
   }
+  void AutoReadBarrier() {
+    ReadBarrier();
+  }
+  /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
+  void ReadBarrier() {
+    CHECK(fpga_buff_ != nullptr);
+    CHECK(fpga_buff_phy_);
+    uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
+    CHECK(buff_size <= kMaxBytes);
+    // Copy contents of DRAM buffer to FPGA buff
+    VTAMemCopyFromHost(fpga_buff_,
+                       dram_buffer_.data(),
+                       buff_size);
+    // Flush if we're using a shared memory system
+    // and if interface is non-coherent
+    if (!coherent_ && always_cache_) {
+      VTAFlushCache(fpga_buff_phy_, buff_size);
+    }
+  }
 
  protected:
   /*! \return Add new instruction to the buffer. */
   VTAGenericInsn* NextInsn() {
-    VTAGenericInsn* insn  = data() + dram_end_;
-    ++dram_end_;
-    CHECK(dram_end_ < kMaxElems);
-    return insn;
+    VTAGenericInsn insn;
+    dram_buffer_.push_back(insn);
+    return &dram_buffer_.back();
   }
   // Create a new instruction for a given stage
   VTAGenericInsn* Create(PipelineStage stage) {
@@ -859,7 +902,7 @@ class InsnQueue : public BaseQueue {
     if (insn->opcode == VTA_OPCODE_STORE) {
       // FIXME: Right now memory_type is a 2-bit field which means that
       //        VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
-      //        checking the memory_type to avoid an CHECKion error...
+      //        checking the memory_type to avoid an CHECK error...
       return kStoreStage;
     }
     LOG(FATAL) << "not reached";
@@ -938,7 +981,7 @@ class CommandQueue {
     }
     /*
      * elements size should not larger than VTA_PAGE_BYTES.
-     * 
+     *
      */
     CHECK_GE(VTA_PAGE_BYTES, elem_bytes);
     return elem_bytes;
@@ -1256,7 +1299,7 @@ class CommandQueue {
 
   // Internal debug flag
   int debug_flag_{0};
-  // The kernel we currently recording
+  // The kernel we are currently recording
   UopKernel* record_kernel_{nullptr};
   // Micro op queue
   UopQueue<VTA_MAX_XFER, true, true> uop_queue_;
@@ -1303,14 +1346,18 @@ void VTABufferCopy(const void* from,
     to_buffer = vta::DataBuffer::FromHandle(to);
     to = to_buffer->virt_addr();
   }
-  if (from_buffer) {
-    from_buffer->InvalidateCache(from_offset, size);
-  }
 
-  memcpy(static_cast<char*>(to) + to_offset,
-         static_cast<const char*>(from) + from_offset,
-         size);
-  if (to_buffer) {
+  if (from_buffer) {
+    // This is an FPGA to host mem transfer
+    from_buffer->InvalidateCache(from_offset, size);
+    from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,
+                                   static_cast<const char*>(from) + from_offset,
+                                   size);
+  } else if (to_buffer) {
+    // This is a host to FPGA mem transfer
+    to_buffer->MemCopyFromHost(static_cast<char*>(to) + to_offset,
+                               static_cast<const char*>(from) + from_offset,
+                               size);
     to_buffer->FlushCache(to_offset, size);
   }
 }

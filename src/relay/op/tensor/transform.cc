@@ -97,6 +97,37 @@ RELAY_REGISTER_OP("cast")
 .set_attr<TOpPattern>("TOpPattern", kElemWise)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
+Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+                                 const Type& out_type, const Target& target) {
+  const CastAttrs* param = attrs.as<CastAttrs>();
+  CHECK(param != nullptr);
+  DataType dtype = param->dtype;
+  return {topi::reinterpret(inputs[0], dtype)};
+}
+
+Expr MakeReinterpret(Expr data, DataType dtype) {
+  auto attrs = make_node<CastAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("reinterpret");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  runtime::detail::unpack_call<Expr, 2>(MakeReinterpret, args, rv);
+});
+
+RELAY_REGISTER_OP("reinterpret")
+    .describe(R"code(Reinterpret the data into a new data type.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_attrs_type_key("relay.attrs.CastAttrs")
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Reinterpret", CastRel)
+    .set_attr<FTVMCompute>("FTVMCompute", ReinterpretCompute)
+    .set_attr<TOpPattern>("TOpPattern", kElemWise)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
 // relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 

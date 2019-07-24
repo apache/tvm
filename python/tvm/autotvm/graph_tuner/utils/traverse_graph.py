@@ -26,8 +26,7 @@ from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
 from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
-from .._base import RULE_OUT_NODE_NAMES
-from .utils import has_multiple_inputs, is_input_node
+from .utils import has_multiple_inputs, is_boundary_node
 
 
 # Setup relay op base name -> topi compute functions
@@ -210,19 +209,9 @@ def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_nam
     """
     if node_idx in visited_dict:
         return visited_dict[node_idx]
-    if is_input_node(node_list[node_idx], input_names):
-        return [node_idx]
     node = node_list[node_idx]
-    # Rule out injective operators
-    is_rule_out = False
-    for item_idx in node["inputs"]:
-        item = node_list[item_idx[0]]
-        if item["op"] in RULE_OUT_NODE_NAMES:
-            is_rule_out = True
-            break
-    if is_rule_out:
-        visited_dict[node_idx] = []
-        return []
+    if is_boundary_node(node, input_names):
+        return [node_idx]
 
     node_direct_ancestor = []
     for item_idx in node["inputs"]:
@@ -235,14 +224,12 @@ def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_nam
                                       item_idx[0], input_names)
             for tmp_item in tmp:
                 node_direct_ancestor.append(tmp_item)
-    if not has_multiple_inputs(node_list, node_idx, input_names) and node_direct_ancestor:
-        node_direct_ancestor = [node_direct_ancestor[0]]
     visited_dict[node_idx] = node_direct_ancestor
     return node_direct_ancestor
 
 
 def get_in_nodes(node_list, target_ops, input_names):
-    """Create a dictionary mapping from op_name nodes or multi_input
+    """Create a dictionary mapping from op_name nodes or multi-input
     nodes to closest input ancestors.
 
     Parameters
@@ -265,7 +252,7 @@ def get_in_nodes(node_list, target_ops, input_names):
     visited_dict = {}
     in_node_dict = {}
     for i, node in enumerate(node_list):
-        if node["op"] in RULE_OUT_NODE_NAMES:
+        if is_boundary_node(node, input_names):
             continue
         get_direct_ancestor(node_list, visited_dict, target_ops, i, input_names)
     for key, val in visited_dict.items():
@@ -274,9 +261,33 @@ def get_in_nodes(node_list, target_ops, input_names):
         if node["op"] in target_ops or is_multiple_inputs:
             in_node_dict[key] = val
 
-    # Remove empty nodes
-    has_empty_node = True
+    # Reduce boundary nodes
     out_node_dict = get_out_nodes(in_node_dict)
+    has_reduced_node = True
+    while has_reduced_node:
+        boundary_nodes = []
+        for key, val in in_node_dict.items():
+            node = node_list[key]
+            is_boundary = True
+            # Target ops can't be boundary nodes
+            if node["op"] not in target_ops:
+                for input_idx in val:
+                    in_node = node_list[input_idx]
+                    if not is_boundary_node(in_node, input_names) and \
+                            input_idx in in_node_dict:
+                        is_boundary = False
+                    else:
+                        val.remove(input_idx)
+                    if is_boundary:
+                        boundary_nodes.append(key)
+        if boundary_nodes:
+            for idx in boundary_nodes:
+                del in_node_dict[idx]
+        else:
+            has_reduced_node = False
+
+    # Remove empty nodes to ignore pre-computed sub-graph
+    has_empty_node = True
     while has_empty_node:
         empty_nodes = []
         for key, val in in_node_dict.items():

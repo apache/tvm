@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,6 +34,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <string>
@@ -67,6 +68,14 @@ struct TVMOpParam {
  *  TVM runtime PackedFunc API.
  */
 class GraphRuntime : public ModuleNode {
+  struct OpArgs {
+    std::vector<DLTensor> args;
+    std::unordered_map<uint32_t, std::vector<uint32_t> > input_entry_ids;
+    std::vector<TVMValue> arg_values;
+    std::vector<int> arg_tcodes;
+    std::vector<int64_t> shape_data;
+  };
+
  public:
   /*!
    * \brief Get member function to front-end
@@ -111,6 +120,12 @@ class GraphRuntime : public ModuleNode {
    * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in);
+  /*!
+   * \brief set index-th input to the graph without copying the data
+   * \param index The input index.
+   * \param data_ref The input data that is referred.
+   */
+  void SetInputZeroCopy(int index, DLTensor* data_ref);
   /*!
    * \brief Get the number of outputs
    *
@@ -365,9 +380,9 @@ class GraphRuntime : public ModuleNode {
    * \param num_inputs Number of inputs.
    * \return The created executor.
    */
-  std::function<void()> CreateTVMOp(const TVMOpParam& attrs,
-                                    const std::vector<DLTensor>& args,
-                                    size_t num_inputs);
+  std::pair<std::function<void()>, std::shared_ptr<OpArgs> > CreateTVMOp(
+      const TVMOpParam& attrs, const std::vector<DLTensor>& args,
+      size_t num_inputs);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const {
     return node_row_ptr_[nid] + index;
@@ -398,8 +413,12 @@ class GraphRuntime : public ModuleNode {
   std::vector<NDArray> storage_pool_;
   /*! \brief Data entry of each node. */
   std::vector<NDArray> data_entry_;
+  /*! \brief Data alignment of each node. */
+  std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
+  /*! \brief Arg info of TVM ops */
+  std::vector<std::shared_ptr<OpArgs> > op_args_;
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args);

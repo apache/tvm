@@ -14,15 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
-"""Checks different x86 targets for target specific schedules"""
+"""The VM Object FFI namespace."""
+from tvm._ffi.function import _init_api
 
-def check_skylake(target):
-    """
-    Checks if the target is skylake
-    """
-
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            return True
-    return False
+_init_api("_vmobj", __name__)

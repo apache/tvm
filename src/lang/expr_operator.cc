@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file expr_operator.cc
  */
 #include <tvm/base.h>

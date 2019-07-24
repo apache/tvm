@@ -24,6 +24,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/vm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <memory>

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,13 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_cpu.cc
  */
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/ir_pass.h>
+#include <memory>
 #include <unordered_map>
 #include "codegen_cpu.h"
 #include "../../pass/ir_util.h"
@@ -33,11 +33,12 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenCPU::Init(const std::string& module_name,
-                          llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx,
-                          bool system_lib,
-                          bool dynamic_lookup) {
+                      llvm::TargetMachine* tm,
+                      llvm::LLVMContext* ctx,
+                      bool system_lib,
+                      bool dynamic_lookup) {
   CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup);
+  dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
@@ -128,6 +129,104 @@ void CodeGenCPU::AddFunction(const LoweredFunc& f) {
     export_system_symbols_.emplace_back(
         std::make_pair(f->name, builder_->CreatePointerCast(function_, t_void_p_)));
   }
+  AddDebugInformation(function_);
+}
+
+// Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
+void CodeGenCPU::AddDebugInformation(llvm::Function* function) {
+#if TVM_LLVM_VERSION >= 50 && TVM_LLVM_VERSION < 70
+  CHECK(!function->getSubprogram());
+  llvm::SmallVector<llvm::Metadata*, 4> paramTys;
+  llvm::DIType* returnTy =
+      getDebugType(builder_.get(), dbg_info_->di_builder_.get(), function->getReturnType());
+  paramTys.push_back(returnTy);
+  for (size_t i = 0; i < function->arg_size(); ++i) {
+    paramTys.push_back(getDebugType(builder_.get(), dbg_info_->di_builder_.get(),
+                                    function->getFunctionType()->getParamType(i)));
+  }
+  auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
+      dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
+
+#if TVM_LLVM_VERSION >= 80
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false /* internal linkage */);
+#else
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      dbg_info_->file_, function->getName(), "",
+      dbg_info_->file_,
+      0 /* line number */,
+      DIFunctionTy,
+      false, /* internal linkage */
+      true,
+      0 /* line number */,
+      llvm::DINode::FlagPrototyped,
+      true /* isOptimized */);
+#endif
+
+  CHECK(DIFunction);
+  function->setSubprogram(DIFunction);
+  CHECK_EQ(function->getSubprogram(), DIFunction);
+
+  IRBuilder builder(&function->getEntryBlock());
+  if (!function->getEntryBlock().empty()) {
+    builder.SetInsertPoint(&function->getEntryBlock().front());
+  }
+  llvm::DebugLoc DL;
+  builder.SetCurrentDebugLocation(DL);
+  for (size_t i = 0; i < function->arg_size(); ++i) {
+    auto* paramAlloca = builder.CreateAlloca(function->getFunctionType()->getParamType(i));
+    std::string paramName = "arg" + std::to_string(i + 1);
+    auto param = dbg_info_->di_builder_->createParameterVariable(
+        DIFunction, paramName, i + 1, dbg_info_->file_, 0,
+        getDebugType(builder_.get(), dbg_info_->di_builder_.get(),
+                     function->getFunctionType()->getParamType(i)),
+        /* alwaysPreserve */ true);
+    auto* store = builder.CreateStore(function->arg_begin() + i, paramAlloca);
+    dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
+                                          dbg_info_->di_builder_->createExpression(),
+                                          llvm::DebugLoc::get(0, 0, DIFunction), store);
+  }
+  dbg_info_->di_builder_->finalizeSubprogram(function->getSubprogram());
+  auto* scope = function->getSubprogram();
+  if (!scope) {
+    return;
+  }
+  for (auto& BB : *function) {
+    for (auto& I : BB) {
+      if (I.getDebugLoc()) {
+        continue;
+      }
+      I.setDebugLoc(llvm::DebugLoc::get(0, 0, scope));
+    }
+  }
+#endif
+}
+
+llvm::DIType* CodeGenCPU::getDebugType(IRBuilder* builder, llvm::DIBuilder* di_builder,
+                                       llvm::Type* ty) {
+  if (ty == builder->getVoidTy()) {
+    return nullptr;
+  } else if (ty == builder->getFloatTy()) {
+    return di_builder->createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
+  } else if (ty == builder->getInt8Ty()) {
+    return di_builder->createBasicType("int8", 8, llvm::dwarf::DW_ATE_signed);
+  } else if (ty == builder->getInt32Ty()) {
+    return di_builder->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
+  } else if (ty->isPointerTy()) {
+    return di_builder->createPointerType(
+        getDebugType(builder, di_builder, ty->getPointerElementType()),
+        ty->getPrimitiveSizeInBits());
+  } else {
+    std::string type_str;
+    llvm::raw_string_ostream rso(type_str);
+    ty->print(rso);
+    LOG(FATAL) << "Unknown LLVM type:" << rso.str();
+  }
+  return nullptr;
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
@@ -141,6 +240,13 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
 }
 
+std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
+  // link modules
+  if (dbg_info_ != nullptr) {
+    dbg_info_->di_builder_->finalize();
+  }
+  return CodeGenLLVM::Finish();
+}
 llvm::Value* CodeGenCPU::CreateStructRefPtr(
     Type t, llvm::Value* buf, llvm::Value* index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
