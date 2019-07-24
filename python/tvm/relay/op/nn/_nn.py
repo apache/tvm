@@ -255,6 +255,28 @@ def schedule_avg_pool2d(attrs, outs, target):
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# max_pool2d_grad
+@reg.register_schedule("nn.max_pool2d_grad")
+def schedule_max_pool2d_grad(attrs, outs, target):
+    """Schedule definition of max_pool2d_grad"""
+    with target:
+        return topi.generic.schedule_pool_grad(outs)
+
+
+reg.register_pattern("nn.max_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool2d_grad
+@reg.register_schedule("nn.avg_pool2d_grad")
+def schedule_avg_pool2d_grad(attrs, outs, target):
+    """Schedule definition of avg_pool2d_grad"""
+    with target:
+        return topi.generic.schedule_pool_grad(outs)
+
+
+reg.register_pattern("nn.avg_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # global_max_pool2d
 @reg.register_schedule("nn.global_max_pool2d")
 def schedule_global_max_pool2d(_, outs, target):
