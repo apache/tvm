@@ -104,7 +104,7 @@ class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Mod
   io.y := a(p-1)(0).io.y
 }
 
-/** Perform matric-vector-multiplication based on DotProduct */
+/** Perform matrix-vector-multiplication based on DotProduct */
 class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   val accBits = p(CoreKey).accBits
   val size = p(CoreKey).blockOut
