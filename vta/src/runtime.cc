@@ -44,7 +44,7 @@ namespace vta {
 static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8,
               "VTA_UOP_WIDTH do not match VTAUop size");
 
-/*! \brief Enable coherent access between VTA and CPU (used on shared mem systems). */
+/*! \brief Enable coherent access of data buffers between VTA and CPU (used on shared mem systems). */
 static const bool kBufferCoherent = true;
 
 /*!
@@ -66,7 +66,9 @@ struct DataBuffer {
    */
   void InvalidateCache(size_t offset, size_t size) {
     if (!kBufferCoherent) {
-      VTAInvalidateCache(phy_addr_ + offset, size);
+      VTAInvalidateCache(reinterpret_cast<char *>(data_) + offset,
+                         phy_addr_ + offset,
+                         size);
     }
   }
   /*!
@@ -76,7 +78,9 @@ struct DataBuffer {
    */
   void FlushCache(size_t offset, size_t size) {
     if (!kBufferCoherent) {
-      VTAFlushCache(phy_addr_ + offset, size);
+      VTAFlushCache(reinterpret_cast<char *>(data_) + offset,
+                    phy_addr_ + offset,
+                    size);
     }
   }
   /*!
@@ -102,7 +106,7 @@ struct DataBuffer {
    * \param size The size of the buffer.
    */
   static DataBuffer* Alloc(size_t size) {
-    void* data = VTAMemAlloc(size, 1);
+    void* data = VTAMemAlloc(size, VTA_CACHED);
     CHECK(data != nullptr);
     DataBuffer* buffer = new DataBuffer();
     buffer->data_ = data;
@@ -469,7 +473,9 @@ class UopQueue : public BaseQueue<VTAUop> {
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
-      VTAFlushCache(fpga_buff_phy_, offset);
+      VTAFlushCache(fpga_buff_,
+                    fpga_buff_phy_,
+                    offset);
     }
   }
 
@@ -860,7 +866,9 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
-      VTAFlushCache(fpga_buff_phy_, buff_size);
+      VTAFlushCache(fpga_buff_,
+                    fpga_buff_phy_,
+                    buff_size);
     }
   }
 

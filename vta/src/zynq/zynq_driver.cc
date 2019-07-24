@@ -50,16 +50,16 @@ void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
   memcpy(dst, src, size);
 }
 
-void VTAFlushCache(vta_phy_addr_t buf, int size) {
-  // Call the xlnkFlushCache on the CMA buffer
+void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  // Call the cma_flush_cache on the CMA buffer
   // so that the FPGA can read the buffer data.
-  xlnkFlushCache(reinterpret_cast<void*>(buf), size);
+  cma_flush_cache(vir_addr, phy_addr, size);
 }
 
-void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
-  // Call the xlnkInvalidateCache on the CMA buffer
+ void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  // Call the cma_invalidate_cache on the CMA buffer
   // so that the host needs to read the buffer data.
-  xlnkInvalidateCache(reinterpret_cast<void*>(buf), size);
+  cma_invalidate_cache(vir_addr, phy_addr, size);
 }
 
 void *VTAMapRegister(uint32_t addr) {
