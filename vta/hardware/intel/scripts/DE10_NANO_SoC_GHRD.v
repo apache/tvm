@@ -86,19 +86,9 @@ module DE10_NANO_SoC_GHRD(
 //  REG/WIRE declarations
 //=======================================================
 wire hps_fpga_reset_n;
-wire     [1: 0]     fpga_debounced_buttons;
-wire     [6: 0]     fpga_led_internal;
-wire     [2: 0]     hps_reset_req;
-wire                hps_cold_reset;
-wire                hps_warm_reset;
-wire                hps_debug_reset;
-wire     [27: 0]    stm_hw_events;
 wire                fpga_clk_50;
 // connection of internal logics
-assign LED[7: 1] = fpga_led_internal;
 assign fpga_clk_50 = FPGA_CLK1_50;
-// assign stm_hw_events = {{15{1'b0}}, SW, fpga_led_internal, fpga_debounced_buttons};
-
 
 
 //=======================================================

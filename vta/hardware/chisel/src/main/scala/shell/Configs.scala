@@ -66,7 +66,7 @@ class F1Config extends Config((site, here, up) => {
 class De10Config extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
-      addrBits = 16, dataBits = 32),
+      addrBits = 16, dataBits = 32, idBits = 13),
     memParams = AXIParams(
       addrBits = 32, dataBits = 64, userBits = 5,
       lenBits = 4, // limit to 16 beats, instead of 256 beats in AXI4

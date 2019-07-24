@@ -30,7 +30,7 @@
    {
       datum _sortIndex
       {
-         value = "5";
+         value = "3";
          type = "int";
       }
       datum sopceditor_expanded
@@ -67,69 +67,6 @@
    }
    element hps_0.f2h_axi_slave
    {
-      datum baseAddress
-      {
-         value = "0";
-         type = "String";
-      }
-   }
-   element jtag_uart
-   {
-      datum _sortIndex
-      {
-         value = "4";
-         type = "int";
-      }
-      datum sopceditor_expanded
-      {
-         value = "1";
-         type = "boolean";
-      }
-   }
-   element jtag_uart.avalon_jtag_slave
-   {
-      datum _lockedAddress
-      {
-         value = "1";
-         type = "boolean";
-      }
-      datum baseAddress
-      {
-         value = "8192";
-         type = "String";
-      }
-   }
-   element led_pio
-   {
-      datum _sortIndex
-      {
-         value = "7";
-         type = "int";
-      }
-   }
-   element led_pio.s1
-   {
-      datum baseAddress
-      {
-         value = "12288";
-         type = "String";
-      }
-   }
-   element mm_bridge_0
-   {
-      datum _sortIndex
-      {
-         value = "3";
-         type = "int";
-      }
-   }
-   element mm_bridge_0.s0
-   {
-      datum _lockedAddress
-      {
-         value = "0";
-         type = "boolean";
-      }
       datum baseAddress
       {
          value = "0";
@@ -398,7 +335,7 @@
    {
       datum _sortIndex
       {
-         value = "6";
+         value = "4";
          type = "int";
       }
    }
@@ -443,11 +380,6 @@
    dir="start" />
  <interface name="hps_0_h2f_user0_clock" internal="hps_0.h2f_user0_clock" />
  <interface name="hps_0_hps_io" internal="hps_0.hps_io" type="conduit" dir="end" />
- <interface
-   name="led_pio_external_connection"
-   internal="led_pio.external_connection"
-   type="conduit"
-   dir="end" />
  <interface name="memory" internal="hps_0.memory" type="conduit" dir="end" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
  <interface name="vta_adaptor_0_compute_biases" internal="vta_0.compute_biases" />
@@ -1005,57 +937,6 @@
   <parameter name="use_default_mpu_clk" value="true" />
  </module>
  <module
-   name="jtag_uart"
-   kind="altera_avalon_jtag_uart"
-   version="18.0"
-   enabled="1">
-  <parameter name="allowMultipleConnections" value="true" />
-  <parameter name="avalonSpec" value="2.0" />
-  <parameter name="clkFreq" value="50000000" />
-  <parameter name="hubInstanceID" value="0" />
-  <parameter name="readBufferDepth" value="64" />
-  <parameter name="readIRQThreshold" value="8" />
-  <parameter name="simInputCharacterStream" value="" />
-  <parameter name="simInteractiveOptions">INTERACTIVE_ASCII_OUTPUT</parameter>
-  <parameter name="useRegistersForReadBuffer" value="false" />
-  <parameter name="useRegistersForWriteBuffer" value="false" />
-  <parameter name="useRelativePathForSimFile" value="false" />
-  <parameter name="writeBufferDepth" value="64" />
-  <parameter name="writeIRQThreshold" value="8" />
- </module>
- <module name="led_pio" kind="altera_avalon_pio" version="18.0" enabled="1">
-  <parameter name="bitClearingEdgeCapReg" value="false" />
-  <parameter name="bitModifyingOutReg" value="false" />
-  <parameter name="captureEdge" value="false" />
-  <parameter name="clockRate" value="50000000" />
-  <parameter name="direction" value="Output" />
-  <parameter name="edgeType" value="RISING" />
-  <parameter name="generateIRQ" value="false" />
-  <parameter name="irqType" value="LEVEL" />
-  <parameter name="resetValue" value="0" />
-  <parameter name="simDoTestBenchWiring" value="false" />
-  <parameter name="simDrivenValue" value="0" />
-  <parameter name="width" value="8" />
- </module>
- <module
-   name="mm_bridge_0"
-   kind="altera_avalon_mm_bridge"
-   version="18.0"
-   enabled="1">
-  <parameter name="ADDRESS_UNITS" value="SYMBOLS" />
-  <parameter name="ADDRESS_WIDTH" value="10" />
-  <parameter name="DATA_WIDTH" value="32" />
-  <parameter name="LINEWRAPBURSTS" value="0" />
-  <parameter name="MAX_BURST_SIZE" value="1" />
-  <parameter name="MAX_PENDING_RESPONSES" value="4" />
-  <parameter name="PIPELINE_COMMAND" value="1" />
-  <parameter name="PIPELINE_RESPONSE" value="1" />
-  <parameter name="SYMBOL_WIDTH" value="8" />
-  <parameter name="SYSINFO_ADDR_WIDTH" value="18" />
-  <parameter name="USE_AUTO_ADDRESS_WIDTH" value="1" />
-  <parameter name="USE_RESPONSE" value="0" />
- </module>
- <module
    name="sysid_qsys"
    kind="altera_avalon_sysid_qsys"
    version="18.0"
@@ -1067,38 +948,6 @@
    kind="avalon"
    version="18.0"
    start="hps_0.h2f_lw_axi_master"
-   end="mm_bridge_0.s0">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="mm_bridge_0.m0"
-   end="jtag_uart.avalon_jtag_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x2000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="mm_bridge_0.m0"
-   end="sysid_qsys.control_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x1000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection kind="avalon" version="18.0" start="mm_bridge_0.m0" end="led_pio.s1">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x3000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="mm_bridge_0.m0"
    end="vta_0.s_axi_control">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x00020000" />
@@ -1117,27 +966,9 @@
    kind="avalon"
    version="18.0"
    start="fpga_only_master.master"
-   end="jtag_uart.avalon_jtag_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x2000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="fpga_only_master.master"
    end="sysid_qsys.control_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x1000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="fpga_only_master.master"
-   end="led_pio.s1">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x3000" />
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
@@ -1155,9 +986,6 @@
    version="18.0"
    start="clk_0.clk"
    end="fpga_only_master.clk" />
- <connection kind="clock" version="18.0" start="clk_0.clk" end="jtag_uart.clk" />
- <connection kind="clock" version="18.0" start="clk_0.clk" end="mm_bridge_0.clk" />
- <connection kind="clock" version="18.0" start="clk_0.clk" end="led_pio.clk" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="vta_0.clock" />
  <connection
    kind="clock"
@@ -1170,13 +998,6 @@
    start="clk_0.clk"
    end="hps_0.h2f_lw_axi_clock" />
  <connection
-   kind="interrupt"
-   version="18.0"
-   start="hps_0.f2h_irq0"
-   end="jtag_uart.irq">
-  <parameter name="irqNumber" value="2" />
- </connection>
- <connection
    kind="reset"
    version="18.0"
    start="clk_0.clk_reset"
@@ -1186,22 +1007,7 @@
    version="18.0"
    start="clk_0.clk_reset"
    end="sysid_qsys.reset" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="jtag_uart.reset" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="mm_bridge_0.reset" />
  <connection kind="reset" version="18.0" start="clk_0.clk_reset" end="vta_0.reset" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="led_pio.reset" />
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
  <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />
 </system>

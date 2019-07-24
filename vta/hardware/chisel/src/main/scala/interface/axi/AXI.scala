@@ -25,6 +25,7 @@ import vta.util.genericbundle._
 
 case class AXIParams(
   coherent: Boolean = false,
+  idBits: Int = 1,
   addrBits: Int = 32,
   dataBits: Int = 64,
   lenBits: Int = 8,
@@ -34,7 +35,6 @@ case class AXIParams(
   require (addrBits > 0)
   require (dataBits >= 8 && dataBits % 2 == 0)
 
-  val idBits = 1
   val strbBits = dataBits/8
   val sizeBits = 3
   val burstBits = 2

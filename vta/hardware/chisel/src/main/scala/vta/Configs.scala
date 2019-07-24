@@ -48,7 +48,7 @@ object DefaultF1Config extends App {
 
 object DefaultDe10Config extends App {
   implicit val p: Parameters = new DefaultDe10Config
-  chisel3.Driver.execute(args, () => new VTAShell)
+  chisel3.Driver.execute(args, () => new IntelShell)
 }
 
 object TestDefaultPynqConfig extends App {
