@@ -473,6 +473,13 @@ TVM_REGISTER_GLOBAL("topi.nn.pool")
                  args[5], args[6], args[7]);
   });
 
+TVM_REGISTER_GLOBAL("topi.nn.pool_grad")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::pool_grad(args[0], args[1], args[2], args[3], args[4],
+                 static_cast<nn::PoolType>(static_cast<int>(args[5])),
+                 args[6], args[7], args[8]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.nn.global_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::global_pool(args[0],

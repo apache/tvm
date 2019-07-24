@@ -210,7 +210,8 @@ inline Tensor reshape(const Tensor& x,
   auto x_shape = x->shape;
   return compute(
     newshape, [&](const Array<Var>& indices) {
-      return x(UnravelIndex(RavelIndex(indices, newshape), x_shape));
+      return x(UnravelIndex(RavelIndex(Array<Expr>{indices.begin(), indices.end()}, newshape),
+                            x_shape));
     }, name, tag);
 }
 
