@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.testing import create_workload
 from tvm.contrib import graph_runtime
 
-roundings = ["UPWARD", "AWAY_FROM_ZERO"]
+roundings = ["UPWARD", "TONEAREST"]
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -43,7 +43,7 @@ def test_requantize():
             np.testing.assert_equal(res, golden_output)
 
     def get_mod(data_shape, data_dtype, out_dtype, input_scale, output_scale,
-            input_zero_point=0, output_zero_point=0, rounding="AWAY_FROM_ZERO"):
+            input_zero_point=0, output_zero_point=0, rounding="TONEAREST"):
         quantized_data = relay.var("quantized_data", shape=data_shape,
                 dtype=data_dtype)
         mod = relay.qnn.op.requantize(

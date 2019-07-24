@@ -47,7 +47,6 @@ using runtime::TypedPackedFunc;
 /*
  * \brief Convert FP32 representation into fixed point representation.
  * \param double_multplier The input FP32 number.
- * \param idtype The input datatype.
  * \return The pair of multiplier and shift for fixed point representation.
  * \note Converts a floating point number so that it can be represented by
  *       integers. The representation is
@@ -64,37 +63,37 @@ using runtime::TypedPackedFunc;
  *
  *       Credit to TFLite reference implementation.
  */
-std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
-    const DataType& idtype) {
-  int significand, exponent;
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(
+    double double_multiplier) {
+  int32_t significand, exponent;
   if (double_multiplier == 0.) {
     significand = 0;
     exponent = 0;
-    return std::pair<int, int>(significand, exponent);
+    return std::make_pair(significand, exponent);
   }
-  int idtype_bits = idtype.bits();
 
-  // Get the significand (significand) and exponent (exponent)
+  // Get the significand and exponent.
   double significand_d = std::frexp(double_multiplier, &exponent);
 
-  // Convert the double significand to int significand.
-  significand_d = std::round(significand_d * (1ll << (idtype_bits - 1)));
+  // Convert the double significand to int significand, i.e., convert into a
+  // integer where the decimal point is between bit 31 and 30. This is done by
+  // multiplying the double value with 2^31 and then casting to int.
+  significand_d = std::round(significand_d * (1ll << 31));
   auto significand_int64 = static_cast<int64_t>(significand_d);
-  CHECK_LE(significand_int64, (1ll << (idtype_bits - 1)));
-  if (significand_int64 == (1ll << (idtype_bits - 1))) {
+  CHECK_LE(significand_int64, (1ll << 31));
+  if (significand_int64 == (1ll << 31)) {
     significand_int64 /= 2;
     ++exponent;
   }
-  CHECK_LE(significand_int64, std::numeric_limits<int>::max());
-  significand = static_cast<int>(significand_int64);
-  return std::pair<int, int>(significand, exponent);
+  CHECK_LE(significand_int64, std::numeric_limits<int32_t>::max());
+  significand = static_cast<int32_t>(significand_int64);
+  return std::make_pair(significand, exponent);
 }
 
 /*
  * \brief Lower requantize to a sequence of ops.
  * \param input_tensor The input tensor to requantize op.
  * \param param The requantize op attrs.
- * \param idtype The dtype of the input tensor.
  * \param out_shape The output shape of the requantize op.
  * \return The sequence of existing Relay ops.
  * \note Requantization using only integer computation. Here, the computation is
@@ -117,63 +116,59 @@ std::pair<int, int> GetFixedPointMultiplierShift(double double_multiplier,
  *       6) Add the output_zero_point.
  *       7) Cast to the out_dtype.
  */
-Expr RequantizeLower(const Expr& input_tensor,
-    const RequantizeAttrs* param, const DataType& idtype,
-    const Array<IndexExpr>& out_shape) {
-
+Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
+        const Array<IndexExpr>& out_shape) {
   double double_multiplier = param->input_scale/param->output_scale;
 
-  // The multiplication will be performed in higher precision. Find the dtype.
-  int idtype_bits = idtype.bits();
-  DataType up_idtype = Int(2 * idtype_bits);
+  // Choose high precision datatype to be int64. This is for avoiding overflow
+  // in multiplication of two int32 values.
+  DataType hp_dtype = Int(64);
 
   // 1) Calculating the integer multiplier and integer shift
-  std::pair<int, int> fixed_point_params =
-      GetFixedPointMultiplierShift(double_multiplier, idtype);
-  int fixed_point_multiplier = fixed_point_params.first;
-  int shift = fixed_point_params.second;
+  int32_t fixed_point_multiplier, shift;
+  std::tie(fixed_point_multiplier, shift) =
+      GetFixedPointMultiplierShift(double_multiplier);
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
   // 2) Subtract the input_zero_point
-  auto tensor = Cast(input_tensor, up_idtype);
+  auto tensor = Cast(input_tensor, hp_dtype);
   if (param->input_zero_point != 0) {
-    auto input_zp = MakeConstantScalar(up_idtype, param->input_zero_point);
+    auto input_zp = MakeConstantScalar(hp_dtype, param->input_zero_point);
     tensor = Subtract(tensor, input_zp);
   }
 
   // 3) Multiply the integer multiplier
   if (left_shift != 0) {
-    tensor = Multiply(tensor, MakeConstantScalar(up_idtype, 1 << left_shift));
+    tensor = Multiply(tensor, MakeConstantScalar(hp_dtype, 1 << left_shift));
   }
   // Perform the multiplication in higher precision.
-  // If idtype is Int(32), the scalar is a fixed point value of int32 where the
-  // decimal point is between bits 31 and 30. After multiplying with
-  // input_tensor, the result is in int64 where the decimal point is sitting
-  // between bits 31 and 30 (from the right, rightmost bit is bit 0). The
-  // computation is performed in higher precision to avoid overflow in
-  // multiplying two int32 values.
-  Expr scalar = MakeConstantScalar(up_idtype, fixed_point_multiplier);
+  // The scalar is a fixed point value of int32 where the decimal point is
+  // between bits 31 and 30. After multiplying with input_tensor, the result is
+  // in int64 where the decimal point is sitting between bits 31 and 30 (from
+  // the right, rightmost bit is bit 0). The computation is performed in higher
+  // precision to avoid overflow in multiplying two int32 values.
+  Expr scalar = MakeConstantScalar(hp_dtype, fixed_point_multiplier);
   auto multiplied_t = Multiply(tensor, scalar);
 
   // 4) Find the rounding scalar. This depends on where the final decimal point
   // sits. As we will be right shifting the multiplied_t, we need to first
   // calculate the total_right_shift.
-  int total_right_shift = right_shift + idtype_bits - 1;
+  int total_right_shift = right_shift + 31;
+  int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
 
   tensor = multiplied_t;
   Expr round_scalar;
   if (param->rounding == "UPWARD") {
-    auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
-    round_scalar = pos_rounder;
-  } else if (param->rounding == "AWAY_FROM_ZERO") {
-    auto pos_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)));
-    auto neg_rounder = MakeConstantScalar(up_idtype, (1ll << (total_right_shift - 1)) - 1);
-    auto pos_rounder_t = Full(pos_rounder, out_shape, up_idtype);
-    auto neg_rounder_t = Full(neg_rounder, out_shape, up_idtype);
+    round_scalar = MakeConstantScalar(hp_dtype, pos_rounding_value);
+  } else if (param->rounding == "TONEAREST") {
+    auto pos_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value);
+    auto neg_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value - 1);
+    auto pos_rounder_t = Full(pos_rounder, out_shape, hp_dtype);
+    auto neg_rounder_t = Full(neg_rounder, out_shape, hp_dtype);
 
-    auto zero = MakeConstantScalar(up_idtype, 0);
-    auto zero_t = Full(zero, out_shape, up_idtype);
+    auto zero = MakeConstantScalar(hp_dtype, 0);
+    auto zero_t = Full(zero, out_shape, hp_dtype);
     round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t,
             neg_rounder_t);
   }
@@ -182,19 +177,15 @@ Expr RequantizeLower(const Expr& input_tensor,
 
   // 5) Simply right shift the result to get the final output.
   auto scaled_int64_t = RightShift(tensor,
-          MakeConstantScalar(up_idtype, total_right_shift));
+          MakeConstantScalar(hp_dtype, total_right_shift));
 
   // 6) Add the output zero point.
-  auto output_zp = MakeConstantScalar(up_idtype, param->output_zero_point);
+  auto output_zp = MakeConstantScalar(hp_dtype, param->output_zero_point);
   auto shifted_int64_t = Add(output_zp, scaled_int64_t);
 
   // 7) Clip to the out_dtype min/max.
-  // Find the right clip min/maxes. While clipping, it is necessary that
-  // clip_min and clip_max are within the dtype range of the input tensor to the
-  // clip operator. For example, if the input to clip operator is int8, but the
-  // out_dtype is uint8, we will get incorrect results, if we set max as 255.
-  auto q_min = std::max(GetQmin(param->out_dtype), GetQmin(idtype));
-  auto q_max = std::min(GetQmax(param->out_dtype), GetQmax(idtype));
+  auto q_min = GetQmin(param->out_dtype);
+  auto q_max = GetQmax(param->out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
   auto requantized_output = Cast(clipped_t, param->out_dtype);
   return requantized_output;
@@ -221,25 +212,17 @@ Expr RequantizeForwardRewrite(const Call& ref_call,
   CHECK(param != nullptr);
 
   // Find output shape.
-  Array<IndexExpr> out_shape;
   auto ref_call_t = ref_call->checked_type();
   auto output_tt = ref_call_t.as<TensorTypeNode>();
   CHECK(output_tt != nullptr) << "Type information missing."
       << " Please run infer_type pass.";
-  out_shape = output_tt->shape;
-
-  // Find input dtype.
-  auto ref_input_t = ref_call->args[0]->checked_type();
-  auto input_tt = ref_input_t.as<TensorTypeNode>();
-  CHECK(input_tt != nullptr) << "Type information missing."
-      << " Please run infer_type pass.";
-  const auto input_dtype = input_tt->dtype;
+  Array<IndexExpr> out_shape = output_tt->shape;
 
   // Check rounding validity.
-  CHECK(param->rounding == "UPWARD" || param->rounding == "AWAY_FROM_ZERO")
+  CHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
-      << "AWAY_FROM_ZERO";
-  return RequantizeLower(quantized_data, param, input_dtype, out_shape);
+      << "TONEAREST";
+  return RequantizeLower(quantized_data, param, out_shape);
 }
 
 RELAY_REGISTER_OP("qnn.requantize")

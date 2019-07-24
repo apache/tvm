@@ -35,7 +35,8 @@ namespace qnn {
 
 static inline bool IsQNNDataType(const DataType& dtype) {
   return dtype == Int(8) || dtype == UInt(8)
-      || dtype == Int(16) || dtype == UInt(16);
+      || dtype == Int(16) || dtype == UInt(16)
+      || dtype == Int(32);
 }
 
 enum class QuantizeOpType {
@@ -48,11 +49,11 @@ static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
         const DataType& in_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
-      return in_dtype == Float(32) || IsQNNDataType(in_dtype);
+      return in_dtype == Float(32);
     case QuantizeOpType::Dequantize:
       return IsQNNDataType(in_dtype);
     case QuantizeOpType::Requantize:
-      return in_dtype.is_int() || in_dtype.is_uint();
+      return IsQNNDataType(in_dtype);
     default:
       return false;
   }
@@ -66,15 +67,15 @@ static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
     case QuantizeOpType::Dequantize:
       return out_dtype == Float(32);
     case QuantizeOpType::Requantize:
-      return out_dtype.is_int() || out_dtype.is_uint();
+      return IsQNNDataType(out_dtype);
     default:
       return false;
   }
 }
 
 static inline const int32_t GetQmin(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support uint32/int32 or lower precision";
+  CHECK(IsQNNDataType(dtype))
+      << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
     auto* min_value = as_const_int(dtype.min());
     CHECK(min_value != nullptr);
@@ -83,14 +84,15 @@ static inline const int32_t GetQmin(const DataType& dtype) {
     auto* min_value = as_const_uint(dtype.min());
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
+  } else {
+    LOG(FATAL) << "Type not supported " << dtype;
+    return -1;  // To hide the warning
   }
-  LOG(FATAL) << "Type not supported " << dtype;
-  return -1;
 }
 
 static inline const int32_t GetQmax(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support uint32/int32 or lower precision";
+  CHECK(IsQNNDataType(dtype))
+      << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
     auto* max_value = as_const_int(dtype.max());
     CHECK(max_value != nullptr);
@@ -99,9 +101,10 @@ static inline const int32_t GetQmax(const DataType& dtype) {
     auto* max_value = as_const_uint(dtype.max());
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
+  } else {
+    LOG(FATAL) << "Type not supported " << dtype;
+    return -1;  // To hide the warning
   }
-  LOG(FATAL) << "Type not supported " << dtype;
-  return -1;
 }
 
 }  // namespace qnn
