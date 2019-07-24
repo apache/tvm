@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument, unused-variable
 """Gradient of pooling in python"""
 import numpy as np
 
 
-def pool_grad_nchw(a_np, out_grad_np, pool_size, strides, padding, pool_type, _,
+def pool_grad_nchw(a_np, out_grad_np,
+                   pool_size,
+                   strides,
+                   padding,
+                   pool_type,
+                   ceil_mode,
                    count_include_pad=True):
     """pool_grad for NCHW layout in python"""
     dtype = a_np.dtype
