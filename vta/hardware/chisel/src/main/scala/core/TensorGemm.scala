@@ -28,28 +28,28 @@ import scala.math.pow
 /** Pipelined multiply and accumulate */
 class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
   val outBits = Math.max(aBits + bBits, cBits) + 1
-	val io = IO(new Bundle {
+  val io = IO(new Bundle {
     val a = Input(SInt(aBits.W))
     val b = Input(SInt(bBits.W))
     val c = Input(SInt(cBits.W))
     val y = Output(SInt(outBits.W))
   })
-	val mult = Wire(SInt((aBits + bBits).W))  
-	val add  = Wire(SInt(outBits.W))
-	val rA = RegNext(io.a)
+  val mult = Wire(SInt((aBits + bBits).W))
+  val add  = Wire(SInt(outBits.W))
+  val rA = RegNext(io.a)
   val rB = RegNext(io.b)
   val rC = RegNext(io.c)
   
-	mult := rA * rB
+  mult := rA * rB
   add := rC +& mult
   
-	io.y := add
+  io.y := add
 }
 
 /** Pipelined adder */
 class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
   val outBits = Math.max(aBits, bBits) + 1
-	val io = IO(new Bundle {
+  val io = IO(new Bundle {
     val a = Input(SInt(aBits.W))
     val b = Input(SInt(bBits.W))
     val y = Output(SInt(outBits.W))
@@ -65,7 +65,7 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
 class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module {
   val errMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 4 && isPow2(size), errMsg)
-	val b = aBits + bBits
+  val b = aBits + bBits
   val outBits = b + log2Ceil(size) + 1
   val io = IO(new Bundle {
     val a = Input(Vec(size, SInt(aBits.W)))
