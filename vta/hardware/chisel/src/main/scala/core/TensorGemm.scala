@@ -35,7 +35,7 @@ class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
     val y = Output(SInt(outBits.W))
   })
   val mult = Wire(SInt((aBits + bBits).W))
-  val add  = Wire(SInt(outBits.W))
+  val add = Wire(SInt(outBits.W))
   val rA = RegNext(io.a)
   val rB = RegNext(io.b)
   val rC = RegNext(io.c)
