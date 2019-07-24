@@ -46,7 +46,7 @@ class MAC(dataBits: Int = 8, cBits: Int = 16, outBits: Int = 17) extends Module 
 }
 
 /** Pipelined adder */
-class Adder(dataBits: Int = 8, outBits: Int = 17) extends Module {
+class PipeAdder(dataBits: Int = 8, outBits: Int = 17) extends Module {
   require (outBits >= dataBits)
   val io = IO(new Bundle {
     val a = Input(SInt(dataBits.W))
@@ -60,7 +60,7 @@ class Adder(dataBits: Int = 8, outBits: Int = 17) extends Module {
   io.y := add
 }
 
-/** Pipelined DotProduct based on MAC and Adder */
+/** Pipelined DotProduct based on MAC and PipeAdder */
 class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Module {
   val errMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 4 && isPow2(size), errMsg)
@@ -76,7 +76,7 @@ class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Mod
   val p = log2Ceil(size/2)+1 // # of adder layers
   val m = Seq.fill(s(0))(Module(new MAC(dataBits = dataBits, cBits = b, outBits = b + 1))) // # of total vector pairs
   val a = Seq.tabulate(p)(i =>
-    Seq.fill(s(i + 1))(Module(new Adder(dataBits = b + i + 1, outBits = b + i + 2)))
+    Seq.fill(s(i + 1))(Module(new PipeAdder(dataBits = b + i + 1, outBits = b + i + 2)))
   ) // # adders within each layer
 
   // Vector MACs
@@ -86,11 +86,11 @@ class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Mod
     m(i).io.c := 0.S
   }
 
-  // Adder Reduction
+  // PipeAdder Reduction
   for (i <- 0 until p) {
     for (j <- 0 until s(i+1)) {
       if (i == 0) {
-        // First layer of Adders
+        // First layer of PipeAdders
         a(i)(j).io.a := m(2*j).io.y
         a(i)(j).io.b := m(2*j + 1).io.y
       } else {
@@ -105,7 +105,7 @@ class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Mod
 }
 
 /** Perform matric-vector-multiplication based on DotProduct */
-class MatrixVectorCore(implicit p: Parameters) extends Module {
+class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   val accBits = p(CoreKey).accBits
   val size = p(CoreKey).blockOut
   val inpBits = p(CoreKey).inpBits
@@ -142,7 +142,7 @@ class MatrixVectorCore(implicit p: Parameters) extends Module {
 
 /** TensorGemm.
   *
-  * This unit instantiate the MatrixVectorCore and go over the
+  * This unit instantiate the MatrixVectorMultiplication and go over the
   * micro-ops (uops) which are used to read inputs, weights and biases,
   * and writes results back to the acc and out scratchpads.
   *
@@ -162,7 +162,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   })
   val sIdle :: sReadUop :: sComputeIdx :: sReadTensor :: sExe :: sWait :: Nil = Enum(6)
   val state = RegInit(sIdle)
-  val mvc = Module(new MatrixVectorCore)
+  val mvc = Module(new MatrixVectorMultiplication)
   val dec = io.inst.asTypeOf(new GemmDecode)
   val uop_idx = Reg(chiselTypeOf(dec.uop_end))
   val uop_end = dec.uop_end
