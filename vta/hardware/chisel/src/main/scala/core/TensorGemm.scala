@@ -88,14 +88,14 @@ class DotProduct(inpBits: Int = 8, wgtBits: Int = 8, size: Int = 16) extends Mod
 
   // PipeAdder Reduction
   for (i <- 0 until p) {
-    for (j <- 0 until s(i+1)) {
+    for (j <- 0 until s(i + 1)) {
       if (i == 0) {
         // First layer of PipeAdders
-        a(i)(j).io.a := m(2*j).io.y
-        a(i)(j).io.b := m(2*j + 1).io.y
+        a(i)(j).io.a := m(2 * j).io.y
+        a(i)(j).io.b := m(2 * j + 1).io.y
       } else {
-        a(i)(j).io.a := a(i - 1)(2*j).io.y
-        a(i)(j).io.b := a(i - 1)(2*j + 1).io.y
+        a(i)(j).io.a := a(i - 1)(2 * j).io.y
+        a(i)(j).io.b := a(i - 1)(2 * j + 1).io.y
       }
     }
   }
