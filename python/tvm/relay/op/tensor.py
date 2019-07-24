@@ -46,6 +46,35 @@ def log(data):
     """
     return _make.log(data)
 
+def cos(data):
+    """Compute elementwise cos of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.cos(data)
+
+def sin(data):
+    """Compute elementwise sin of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sin(data)
 
 def exp(data):
     """Compute elementwise exp of data.

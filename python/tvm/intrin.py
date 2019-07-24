@@ -258,6 +258,35 @@ def log(x):
     """
     return call_pure_intrin(x.dtype, "log", x)
 
+def cos(x):
+    """Take cos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "cos", x)
+
+def sin(x):
+    """Take sin of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "sin", x)
 
 def sqrt(x):
     """Take square root of input x.

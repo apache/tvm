@@ -41,6 +41,8 @@ def test_ewise():
     test_apply(topi.log, "log")
     test_apply(topi.sqrt, "sqrt")
     test_apply(topi.rsqrt, "rsqrt")
+    test_apply(topi.sin, "sin")
+    test_apply(topi.cos, "cos")
 
 
 if __name__ == "__main__":

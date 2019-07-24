@@ -71,7 +71,9 @@ def test_unary_op():
                         (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),
                         (tvm.relay.tanh, np.tanh),
-                        (relay.nn.relu, relu)]:
+                        (relay.nn.relu, relu),
+                        (tvm.relay.cos, np.cos),
+                        (tvm.relay.sin, np.sin)]:
         check_single_op(opfunc, ref)
 
 

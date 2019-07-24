@@ -20,7 +20,7 @@ from __future__ import absolute_import
 from ..expr import const
 from .op import register_gradient
 from .transform import collapse_sum_like, broadcast_to_like, where
-from .tensor import exp, negative, power, less
+from .tensor import exp, negative, power, less, cos, sin
 from .tensor import zeros_like, ones_like
 from . import nn as _nn
 
@@ -31,6 +31,18 @@ def log_grad(orig, grad):
     x = orig.args[0]
     return [grad * ones_like(x) / x]
 
+@register_gradient("cos")
+def cos_grad(orig, grad):
+    """Returns [grad * (-sin(x))]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * (-ones * sin(x))]
+
+@register_gradient("sin")
+def sin_grad(orig, grad):
+    """Returns [grad * cos(x)]"""
+    x = orig.args[0]
+    return [grad * cos(x)]
 
 @register_gradient("exp")
 def exp_grad(orig, grad):
