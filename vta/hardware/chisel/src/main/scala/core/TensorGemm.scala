@@ -101,7 +101,7 @@ class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module 
   }
 
   // last adder
-  io.y := a(p-1)(0).io.y
+  io.y := a(p - 1)(0).io.y
 }
 
 /** Perform matrix-vector-multiplication based on DotProduct */
