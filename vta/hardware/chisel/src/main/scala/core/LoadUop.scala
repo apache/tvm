@@ -91,13 +91,13 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
     is (sIdle) {
       when (io.start) {
         state := sReadCmd
-	when (xsize < xmax) {
+        when (xsize < xmax) {
           xlen := xsize
           xrem := 0.U
-	} .otherwise {
+        } .otherwise {
           xlen := xmax - 1.U
           xrem := xsize - xmax
-	}
+        }
       }
     }
     is (sReadCmd) {

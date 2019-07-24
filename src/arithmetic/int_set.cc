@@ -755,7 +755,7 @@ IntSet EvalSet(Range r,
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   Expr sum = r->min + r->extent - 1;
   auto res  = m.Eval(IntervalSet(r->min,  Simplify(sum)));
-  return res;
+  return std::move(res);
 }
 
 IntSet EvalSet(Range r,

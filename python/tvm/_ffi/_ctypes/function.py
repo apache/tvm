@@ -37,6 +37,7 @@ from . import node as _node
 
 FunctionHandle = ctypes.c_void_p
 ModuleHandle = ctypes.c_void_p
+ObjectHandle = ctypes.c_void_p
 TVMRetValueHandle = ctypes.c_void_p
 
 def _ctypes_free_resource(rhandle):
@@ -162,9 +163,9 @@ def _make_tvm_args(args, temp_args):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.FUNC_HANDLE
             temp_args.append(arg)
-        elif isinstance(arg, ObjectBase):
+        elif isinstance(arg, _CLASS_OBJECT):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.OBJECT
+            type_codes[i] = TypeCode.OBJECT_CELL
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
     return values, type_codes, num_args
@@ -236,6 +237,7 @@ def _return_module(x):
         handle = ModuleHandle(handle)
     return _CLASS_MODULE(handle)
 
+
 def _handle_return_func(x):
     """Return function"""
     handle = x.v_handle
@@ -243,18 +245,11 @@ def _handle_return_func(x):
         handle = FunctionHandle(handle)
     return _CLASS_FUNCTION(handle, False)
 
-class ObjectBase(object):
-    __slots__ = ["handle"]
-
-    def __init__(self, handle):
-        self.handle = handle
-
 # setup return handle for function type
 _node.__init_by_constructor__ = __init_handle_by_constructor__
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
 RETURN_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
-RETURN_SWITCH[TypeCode.OBJECT] = lambda x: _CLASS_OBJECT(x.v_handle)
 C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
     _handle_return_func, TypeCode.FUNC_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(

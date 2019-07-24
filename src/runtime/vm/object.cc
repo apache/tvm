@@ -25,7 +25,10 @@
 
 #include <tvm/logging.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <iostream>
+#include "../runtime_base.h"
 
 namespace tvm {
 namespace runtime {
@@ -87,5 +90,69 @@ NDArray ToNDArray(const Object& obj) {
   return tensor->data;
 }
 
+TVM_REGISTER_GLOBAL("_vmobj.GetTensorData")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsTensor();
+  *rv = cell->data;
+});
+
+TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeTag")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsDatatype();
+  *rv = static_cast<int>(cell->tag);
+});
+
+TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeNumberOfFields")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsDatatype();
+  *rv = static_cast<int>(cell->fields.size());
+});
+
+
+TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeFields")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  int idx = args[1];
+  auto cell = obj.AsDatatype();
+  CHECK_LT(idx, cell->fields.size());
+  *rv = cell->fields[idx];
+});
+
+TVM_REGISTER_GLOBAL("_vmobj.Tensor")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = Object::Tensor(args[0]);
+});
+
+TVM_REGISTER_GLOBAL("_vmobj.Tuple")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::vector<Object> fields;
+  for (auto i = 0; i < args.size(); ++i) {
+    fields.push_back(args[i]);
+  }
+  *rv = Object::Tuple(fields);
+});
+
+TVM_REGISTER_GLOBAL("_vmobj.Datatype")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  int itag = args[0];
+  size_t tag = static_cast<size_t>(itag);
+  std::vector<Object> fields;
+  for (int i = 1; i < args.size(); i++) {
+    fields.push_back(args[i]);
+  }
+  *rv = Object::Datatype(tag, fields);
+});
+
 }  // namespace runtime
 }  // namespace tvm
+
+using namespace tvm::runtime;
+
+int TVMGetObjectTag(TVMObjectHandle handle, int* tag) {
+  API_BEGIN();
+  *tag = static_cast<int>(static_cast<ObjectCell*>(handle)->tag);
+  API_END();
+}

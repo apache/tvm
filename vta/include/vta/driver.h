@@ -98,7 +98,7 @@ int VTADeviceRun(VTADeviceHandle device,
 #endif
 
 /*!
- * \brief Allocates physically contiguous region in memory (limited by MAX_XFER).
+ * \brief Allocates physically contiguous region in memory readable/writeable by FPGA.
  * \param size Size of the region in Bytes.
  * \param cached Region can be set to not cached (write-back) if set to 0.
  * \return A pointer to the allocated region.
@@ -106,7 +106,7 @@ int VTADeviceRun(VTADeviceHandle device,
 void* VTAMemAlloc(size_t size, int cached);
 
 /*!
- * \brief Frees a physically contiguous region in memory.
+ * \brief Frees a physically contiguous region in memory readable/writeable by FPGA.
  * \param buf Buffer to free.
  */
 void VTAMemFree(void* buf);
@@ -117,6 +117,22 @@ void VTAMemFree(void* buf);
  * \return The physical address of the memory region.
  */
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf);
+
+/*!
+ * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
+ * \param dst The desination buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc.
+ * \param src The source buffer in host memory.
+ * \param size Size of the region in Bytes.
+ */
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size);
+
+/*!
+ * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
+ * \param dst The destination buffer in host memory.
+ * \param src The source buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc.
+ * \param size Size of the region in Bytes.
+ */
+void VTAMemCopyToHost(void* dst, const void* src, size_t size);
 
 /*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.

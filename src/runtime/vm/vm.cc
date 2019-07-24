@@ -32,8 +32,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "../../runtime/vm/memory_manager.h"
-#include "../../runtime/vm/naive_allocator.h"
+#include "memory_manager.h"
+#include "naive_allocator.h"
 
 using namespace tvm::runtime;
 
@@ -554,6 +554,37 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
+PackedFunc VirtualMachine::GetFunction(const std::string& name,
+                                       const std::shared_ptr<ModuleNode>& sptr_to_self) {
+  if (name == "invoke") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      std::vector<Object> func_args;
+      for (int i = 1; i < args.size(); ++i) {
+        Object obj = args[i];
+        func_args.push_back(obj);
+      }
+      *rv = this->Invoke(func_name, func_args);
+    });
+  } else if (name == "init") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size() % 2, 0);
+      std::vector<TVMContext> contexts;
+      for (int i = 0; i < args.size() / 2; ++i) {
+        TVMContext ctx;
+        int device_type = args[i * 2];
+        ctx.device_type = DLDeviceType(device_type);
+        ctx.device_id = args[i * 2 + 1];
+        contexts.push_back(ctx);
+      }
+      this->Init(contexts);
+    });
+  } else {
+    LOG(FATAL) << "Unknown packed function: " << name;
+    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+  }
+}
+
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
   auto frame = VMFrame(ret_pc, func_index, arg_count, code, vm_func.register_file_size);
   frames.push_back(frame);
@@ -573,11 +604,11 @@ Index VirtualMachine::PopFrame() {
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
   DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
 
-  PushFrame(func.params, this->pc + 1, func);
+  PushFrame(func.params.size(), this->pc + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(i, args[i]);
   }
-  DLOG(INFO) << "func.params= " << func.params;
+  DLOG(INFO) << "func.params= " << func.params.size();
 
   code = func.instructions.data();
   pc = 0;
@@ -594,7 +625,7 @@ Object VirtualMachine::Invoke(const VMFunction& func, const std::vector<Object>&
 }
 
 Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>& args) {
-  auto func_index = this->global_map_[name];
+  auto func_index = this->global_map[name];
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index;
   return Invoke(this->functions[func_index], args);
 }
@@ -719,11 +750,11 @@ void VirtualMachine::Run() {
         auto object = ReadRegister(instr.closure);
         const auto& closure = object.AsClosure();
         std::vector<Object> args;
-        for (Index i = 0; i < instr.closure_args_num; ++i) {
-          args.push_back(ReadRegister(instr.closure_args[i]));
-        }
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);
+        }
+        for (Index i = 0; i < instr.closure_args_num; ++i) {
+          args.push_back(ReadRegister(instr.closure_args[i]));
         }
         InvokeGlobal(this->functions[closure->func_index], args);
         frames.back().caller_return_register = instr.dst;

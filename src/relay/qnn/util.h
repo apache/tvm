@@ -37,6 +37,11 @@ inline bool IsInt8(const DataType& dtype) {
   return dtype == Int(8);
 }
 
+static inline bool IsQNNDataType(const DataType& dtype) {
+  return dtype == Int(8) || dtype == UInt(8)
+      || dtype == Int(16) || dtype == UInt(16);
+}
+
 inline bool IsUint8(const DataType& dtype) {
   return dtype == UInt(8);
 }
@@ -73,9 +78,7 @@ enum class QuantizeOpType : uint8_t {
   QuantizedDense
 };
 
-
-
-inline bool IsValidOpInputType(const QuantizeOpType& op_type,
+static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
         const DataType& in_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
@@ -90,13 +93,15 @@ inline bool IsValidOpInputType(const QuantizeOpType& op_type,
   }
 }
 
-inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
+static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
         const DataType& out_dtype) {
   switch (op_type) {
     case QuantizeOpType::Quantize:
-      return IsQuantizedType(out_dtype);
+      return IsQNNDataType(out_dtype);
     case QuantizeOpType::Dequantize:
-      return IsFloat32(out_dtype);
+      return out_dtype == Float(32);
+    case QuantizeOpType::Requantize:
+      return out_dtype.is_int() || out_dtype.is_uint();
     case QuantizeOpType::QuantizedDense:
       return IsInt32(out_dtype) || IsInt16(out_dtype);
     default:
@@ -104,7 +109,7 @@ inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
   }
 }
 
-inline const int32_t GetQmin(const DataType& dtype) {
+static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {
@@ -120,7 +125,7 @@ inline const int32_t GetQmin(const DataType& dtype) {
   return -1;
 }
 
-inline const int32_t GetQmax(const DataType& dtype) {
+static inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support uint32/int32 or lower precision";
   if (dtype.is_int()) {

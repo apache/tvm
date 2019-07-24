@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, too-many-lines
-"""Neural network operations."""
+#pylint: disable=invalid-name
+"""QNN dialect operators."""
+
 from __future__ import absolute_import as _abs
 from . import _make
 
@@ -32,7 +33,7 @@ def requantize(data,
     another quantized tensor representation. For the output tensor, we are
     provided with output scale and zero point. The computation is as follows
 
-    Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+    Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 
     Parameters
@@ -57,7 +58,7 @@ def requantize(data,
         representable values.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
+        Specifies the output data type.
 
     Returns
     -------

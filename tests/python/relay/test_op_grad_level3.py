@@ -18,13 +18,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.transform import gradient
-from tvm.relay.testing import ctx_list
-
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = relay.transform.InferType()(mod)
-    return mod["main"]
+from tvm.relay.testing import ctx_list, run_infer_type
 
 def test_clip():
     ref = (lambda x: np.where(x > 10.0, np.zeros_like(x),
@@ -35,6 +29,7 @@ def test_clip():
     data = np.random.rand(10, 4).astype("float32") * 11.0
     ref_grad = ref(data)
     fwd_func = relay.Function([x], y)
+    fwd_func = run_infer_type(fwd_func)
     bwd_func = run_infer_type(gradient(fwd_func))
 
     for target, ctx in ctx_list():

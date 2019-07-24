@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file requantize.cc
- * \brief Quantized convolution operators
+ * \brief QNN requantize operator.
  */
 
 #include <tvm/relay/op_attr_types.h>
@@ -34,6 +34,14 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
+/*
+ * \brief Infer shape function of Requantize op.
+ * \param types The types of input args.
+ * \param num_inputs The number of inputs.
+ * \param attrs The op attributes.
+ * \param reporter The type reporter that sets the dtype and shapes.
+ * \return True if the infer shape succeeded.
+ */
 bool RequantizeRel(const Array<Type>& types,
                    int num_inputs,
                    const Attrs& attrs,
@@ -42,16 +50,18 @@ bool RequantizeRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
   CHECK(IsValidOpInputType(QuantizeOpType::Requantize, input_dtype))
-    << "Input type should be a quantized type (u)int8 or (u)int16 but was " <<  input_dtype;
+    << "Input type should be an integer but was " <<  input_dtype;
 
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type
   const RequantizeAttrs* param = attrs.as<RequantizeAttrs>();
+  CHECK(IsValidOpOutputType(QuantizeOpType::Requantize, param->out_dtype))
+    << "Output type should be an integer but was " <<  param->out_dtype;
   reporter->Assign(types[1], TensorTypeNode::make(oshape, param->out_dtype));
   return true;
 }
 
-// Positional relay function to create quantized conv2d operator
+// Positional relay function to create qnn requantize operator
 // used by frontend FFI.
 Expr MakeRequantize(Expr data,
                     double input_scale,

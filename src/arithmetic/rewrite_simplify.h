@@ -68,6 +68,8 @@ class RewriteSimplifier::Impl : public IRMutator {
   Expr Mutate_(const Not* op, const Expr& self) override;
   Expr Mutate_(const Select* op, const Expr& self) override;
   Expr Mutate_(const Call* op, const Expr& self) override;
+  Expr Mutate_(const Let* op, const Expr& self) override;
+  Expr Mutate_(const Variable* op, const Expr& self) override;
 
  protected:
   /*! \brief internal structure for comparison. */

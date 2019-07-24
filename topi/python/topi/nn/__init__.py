@@ -20,3 +20,4 @@ from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .l2_normalize import *
 from .batch_matmul import *
+from .sparse import *

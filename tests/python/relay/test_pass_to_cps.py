@@ -81,6 +81,7 @@ def test_cps_pe():
     destroy_ref(F)
 
     G = relay.Function([cond], relay.If(cond, one, two))
+    G = run_infer_type(G)
     G = relay.transform.gradient(G)
     destroy_ref(G)
 
@@ -91,6 +92,7 @@ def test_cps_pe():
     H = relay.If(cond, x, y)
     H = relay.add(H, z)
     H = relay.Function([cond,x,y,z], H)
+    H = run_infer_type(H)
     H = relay.transform.gradient(H)
     destroy_ref(H)
 

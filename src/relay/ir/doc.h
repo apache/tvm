@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -46,7 +46,11 @@ using DocAtom = std::shared_ptr<DocAtomNode>;
 struct TextNode : DocAtomNode {
   std::string str;
 
-  explicit TextNode(const std::string& str) : str(str) {}
+  explicit TextNode(const std::string& str) : str(str) {
+    if (str.find_first_of("\t\n") != str.npos) {
+      LOG(WARNING) << "text node: '" << str << "' should not has tab or newline.";
+    }
+  }
 };
 
 struct LineNode : DocAtomNode {
@@ -91,8 +95,8 @@ class Doc {
 
 // DSL functions
 
-// Render vectors of docs with a separator. e.g. PrintVec([1, 2, 3], f) -> 1f2f3
-Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Doc(", "));
+// Render vectors of docs with a separator. e.g. PrintSep([1, 2, 3], f) -> 1f2f3
+Doc PrintSep(const std::vector<Doc>& vec, const Doc& sep = Doc(", "));
 // Print a constant bool value.
 Doc PrintBool(bool value);
 // Print a data type.
@@ -116,7 +120,8 @@ Doc PrintConstScalar(DataType dtype, const T* data) {
   } else if (dtype == Bool()) {
     return PrintBool(data[0] != 0);
   } else {
-    os << dtype << "(" << data[0] << ")";
+    // todo(@M.K.) this is unsafe. fix.
+    os << data[0];
   }
   return Doc(os.str());
 }

@@ -120,13 +120,13 @@ how to run the compiled library.
 ```js
 // Load Emscripten Module, need to change path to root/build
 const path = require("path");
-process.chdir(path.join(__dirname, "../../buld"));
+process.chdir(path.join(__dirname, "../../build"));
 var Module = require("../../build/test_module.js");
 // Bootstrap TVMruntime with emscripten module.
 const tvm_runtime = require("../../web/tvm_runtime.js");
 const tvm = tvm_runtime.create(Module);
 
-// Load system library, the compiled functions is registered in sysLib.
+// Load system library, the compiled function is registered in sysLib.
 var sysLib = tvm.systemLib();
 
 function randomArray(length, max) {
@@ -138,22 +138,25 @@ function randomArray(length, max) {
 function testAddOne() {
   // grab pre-loaded function
   var faddOne = sysLib.getFunction("add_one");
+  var assert = require('assert');
   tvm.assert(tvm.isPackedFunc(faddOne));
   var n = 124;
   var A = tvm.empty(n).copyFrom(randomArray(n, 1));
   var B = tvm.empty(n);
   // call the function.
   faddOne(A, B);
+  AA = A.asArray();  // retrieve values in js array
+  BB = B.asArray();  // retrieve values in js array
   // verify
-  for (var i = 0; i < B.length; ++i) {
-    tvm.assert(B[i] == A[i] + 1);
+  for (var i = 0; i < BB.length; ++i) {
+    assert(Math.abs(BB[i] - (AA[i] + 1)) < 1e-5);
   }
   faddOne.release();
 }
 
 testAddOne();
 sysLib.release();
-
+console.log("Finish verifying test_module_load");
 ```
 
 Current example supports static linking, which is the preferred way to get more efficiency

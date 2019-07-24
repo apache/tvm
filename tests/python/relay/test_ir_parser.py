@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.analysis import alpha_equal
+from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union
@@ -60,12 +60,9 @@ TYPES = {
     "float16x4",
 }
 
-def assert_alpha_equal(a, b):
-    if not alpha_equal(a, b):
-        raise Exception("lhs is: ", str(a), "rhs is: ", str(b))
-
 def roundtrip(expr):
-    assert_alpha_equal(relay.fromtext(str(expr)), expr)
+    x = relay.fromtext(str(expr))
+    assert_alpha_equal(x, expr)
 
 
 def parse_text(code):
@@ -106,6 +103,16 @@ def test_comments():
         """
         /* This is a block comment!
             This is still a block comment!
+        */
+        ()
+        """,
+        UNIT
+    )
+
+    assert parses_as(
+        """
+        /* This is a block comment!
+           /*Block comment is recursive!*/
         */
         ()
         """,
@@ -224,7 +231,7 @@ def test_let():
 
 def test_seq():
     assert parses_as(
-        "(); ()",
+        "();; ()",
         relay.Let(
             _,
             UNIT,
@@ -538,7 +545,7 @@ def test_tensor_type():
     )
 
     assert parses_as(
-        "let %_ : Tensor[(1,), float32] = (); ()",
+        "let %_ : Tensor[(1), float32] = (); ()",
         relay.Let(
             relay.Var("_", relay.TensorType((1,), "float32")),
             UNIT,

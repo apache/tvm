@@ -85,6 +85,19 @@ def schedule_batch_matmul(attrs, outputs, target):
 
 reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# sparse_dense
+@reg.register_compute("nn.sparse_dense")
+def compute_sparse_dense(attrs, inputs, out_type, target):
+    """Compute definition of sparse_dense"""
+    return [topi.nn.sparse_dense(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+@reg.register_schedule("nn.sparse_dense")
+def schedule_sparse_dense(attrs, outputs, target):
+    """Schedule definition of batch_matmul"""
+    with target:
+        return topi.generic.schedule_sparse_dense(outputs)
+
+reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # conv2d
 def _find_conv2d_op(op):
