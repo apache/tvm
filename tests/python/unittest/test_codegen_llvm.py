@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import topi
 from tvm.contrib import util, clang
 import numpy as np
 import ctypes
@@ -349,8 +350,8 @@ def test_rank_zero():
         A = tvm.placeholder((n, ), name='A')
         scale = tvm.placeholder((), name='scale')
         k = tvm.reduce_axis((0, n), name="k")
-        C = tvm.compute((), lambda : tvm.sum(A[k] * scale, axis=k), name="C")
-        D = tvm.compute((), lambda : C + 1)
+        C = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k), name="C")
+        D = tvm.compute((), lambda : C() + 1)
         s = tvm.create_schedule(D.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, scale, D], "llvm")
@@ -373,8 +374,8 @@ def test_rank_zero_bound_checkers():
             A = tvm.placeholder((n, ), name='A')
             scale = tvm.placeholder((), name='scale')
             k = tvm.reduce_axis((0, n), name="k")
-            C = tvm.compute((), lambda : tvm.sum(A[k] * scale, axis=k), name="C")
-            D = tvm.compute((), lambda : C + 1)
+            C = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k), name="C")
+            D = tvm.compute((), lambda : C() + 1)
             s = tvm.create_schedule(D.op)
             # build and invoke the kernel.
             f = tvm.build(s, [A, scale, D], "llvm")

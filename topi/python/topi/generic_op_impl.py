@@ -79,6 +79,8 @@ def _make_bop(broadcast_bop, orig_bop):
               tvm.Expr (otherwise)
             The result of {op} operation.
         """
+        print(lhs, type(lhs))
+        print(rhs, type(rhs))
         if not isinstance(lhs, tvm.tensor.Tensor) and not isinstance(rhs, tvm.tensor.Tensor):
             return orig_bop(lhs, rhs)
         return broadcast_bop(lhs, rhs)
