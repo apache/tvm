@@ -68,7 +68,6 @@ include_directories(${COMPILER_RT_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Generic compilation options
 if(MSVC)
