@@ -85,7 +85,7 @@ class DatatypeObject(Object):
         return self.fields[idx]
 
     def __len__(self):
-        return self.num_fields
+        return len(self.fields)
 
     def __iter__(self):
         return iter(self.fields)
