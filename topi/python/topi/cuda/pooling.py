@@ -179,6 +179,8 @@ def schedule_pool_grad_cuda(outs):
             if isinstance(pool_input.op, tvm.tensor.ComputeOp):
                 # handle padding
                 s[pool_input].compute_inline()
+        if op not in s.outputs:
+            s[op].compute_at(s[out], tx)
 
     def _callback(op):
         if op.tag.startswith('pool_grad'):
