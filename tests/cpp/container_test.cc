@@ -47,7 +47,8 @@ TEST(Array, Mutate) {
 TEST(Array, Iterator) {
   using namespace tvm;
   Array<Expr> array{1, 2, 3};
-  std::vector vector(array.begin(), array.end());
+  std::vector<Expr> vector(array.begin(), array.end());
+  CHECK(vector[1].as<IntImm>()->value == 2);
 }
 
 TEST(Map, Expr) {
@@ -98,6 +99,7 @@ TEST(Map, Iterator) {
   using namespace tvm;
   Map<Expr, Expr> map1{{1, 2}};
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(), map1.end());
+  CHECK(map2[1].as<IntImm>()->value == 2);
 }
 
 int main(int argc, char ** argv) {
