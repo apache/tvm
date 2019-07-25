@@ -147,7 +147,21 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
 def _convert_merge(inexpr, keras_layer, _):
     merge_type = type(keras_layer).__name__
     ret = inexpr[0]
-    if merge_type == 'Subtract':
+    if merge_type == 'Dot':
+        if keras_layer.axes == 1:
+            ret = _op.transpose(ret, axes=[0, 2, 1])
+            inexpr[1] = _op.transpose(inexpr[1], axes=[0, 2, 1])
+
+        elif isinstance(keras_layer.axes, list):
+            if keras_layer.axes == [1, 2]:
+                ret = _op.transpose(ret, axes=[0, 2, 1])
+            elif keras_layer.axes == [2, 1]:
+                inexpr[1] = _op.transpose(inexpr[1], axes=[0, 2, 1])
+            else:
+                raise tvm.error.OpAttributeUnimplemented(
+                    'Dot with {} is not supported.'.format(keras_layer.axes))
+        ret = _op.nn.batch_matmul(ret, inexpr[1])
+    elif merge_type == 'Subtract':
         assert len(inexpr) == 2, "Subtract merge takes 2 inputs."
         ret = _op.subtract(ret, inexpr[1])
     elif merge_type in ['Add', 'Multiply', 'Maximum']:
@@ -626,7 +640,7 @@ _convert_map = {
 
     'Average'                : _convert_merge,
     'Maximum'                : _convert_merge,
-    # 'Dot'                    : _convert_merge,
+    'Dot'                    : _convert_merge,
     'Permute'                : _convert_permute,
     # 'Embedding'              : _convert_embedding,
     # 'RepeatVector'           : _convert_repeat_vector,
