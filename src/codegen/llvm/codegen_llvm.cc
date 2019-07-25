@@ -1002,6 +1002,19 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
   return vec;
 }
 
+llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle *op) {
+  auto f = [this] (Array<Expr> a) -> llvm::Value * {
+    std::vector<llvm::Value *> res(a.size());
+    for (int i = 0; i < a.size(); ++i) {
+      res[i] = VisitExpr(a[i]);
+    }
+    return CreateVecConcat(res);
+  };
+  llvm::Value *v0 = f(op->vectors), *v1 = f(op->indices);
+  std::vector<uint32_t> mask(op->indices.size(), 1);
+  return builder_->CreateShuffleVector(v0, v1, mask);
+}
+
 llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
   return CreateBroadcast(MakeValue(op->value), op->lanes);
 }

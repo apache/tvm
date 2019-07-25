@@ -131,6 +131,7 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const Load* op) override;
   llvm::Value* VisitExpr_(const Call* op) override;
   llvm::Value* VisitExpr_(const Ramp* op) override;
+  llvm::Value* VisitExpr_(const Shuffle* op) override;
   llvm::Value* VisitExpr_(const Broadcast* op) override;
   // stmt
   void VisitStmt_(const Store* op) override;
