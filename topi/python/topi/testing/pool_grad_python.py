@@ -36,7 +36,7 @@ def pool_grad_nchw(a_np, out_grad_np,
     pad_np = np.zeros(shape=(n, ic, ih+pt+pb, iw+pl+pr)).astype(dtype)
     no_zero = (range(n), range(ic), (range(pt, ih+pt)), (range(pl, iw+pl)))
     pad_np[np.ix_(*no_zero)] = a_np
-    _, oc, oh, ow = out_grad_np.shape
+    _, _, oh, ow = out_grad_np.shape
     pool_grad_np = np.zeros(shape=a_np.shape)
     pad_pool_grad_np = np.zeros(shape=pad_np.shape)
 

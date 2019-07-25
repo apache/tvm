@@ -443,7 +443,7 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-inline void PrintBinaryIntrinsitc(const Call* op,
+inline void PrintBinaryIntrinsic(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenC* p) {
@@ -528,20 +528,20 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     }
     os << ")";
   } else if (op->is_intrinsic(Call::bitwise_and)) {
-    PrintBinaryIntrinsitc(op, " & ", os, this);
+    PrintBinaryIntrinsic(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
-    PrintBinaryIntrinsitc(op, " ^ ", os, this);
+    PrintBinaryIntrinsic(op, " ^ ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_or)) {
-    PrintBinaryIntrinsitc(op, " | ", os, this);
+    PrintBinaryIntrinsic(op, " | ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     this->PrintExpr(op->args[0], os);
     os << ')';
   } else if (op->is_intrinsic(Call::shift_left)) {
-    PrintBinaryIntrinsitc(op, " << ", os, this);
+    PrintBinaryIntrinsic(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
-    PrintBinaryIntrinsitc(op, " >> ", os, this);
+    PrintBinaryIntrinsic(op, " >> ", os, this);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     os << "(";
     PrintExpr(op->args[0], os);
