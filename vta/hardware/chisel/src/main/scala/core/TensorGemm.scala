@@ -63,8 +63,8 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
 
 /** Pipelined DotProduct based on MAC and PipeAdder */
 class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module {
-  val errMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
-  require(size >= 2 && isPow2(size), errMsg)
+  val errorMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
+  require(size >= 2 && isPow2(size), errorMsg)
   val b = aBits + bBits
   val outBits = b + log2Ceil(size) + 1
   val io = IO(new Bundle {
