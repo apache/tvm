@@ -18,7 +18,7 @@
  */
 
 #include <vector>
-#include <unordred_map>
+#include <unordered_map>
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/packed_func_ext.h>
@@ -97,7 +97,7 @@ TEST(Map, Mutate) {
 TEST(Map, Iterator) {
   using namespace tvm;
   Map<Expr, Expr> map1{{1, 2}};
-  std::unordred_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(), map1.end());
+  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(), map1.end());
 }
 
 int main(int argc, char ** argv) {
