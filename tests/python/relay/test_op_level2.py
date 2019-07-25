@@ -264,6 +264,25 @@ def _test_pool2d(opfunc, reffunc):
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+def _test_pool2d_int(opfunc, reffunc, dtype):
+    n, c, h, w = tvm.var("n"), 10, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+    y = opfunc(x, pool_size=(1, 1))
+    assert "pool_size=" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 10, 224, 224), dtype)
+    # test execution
+    dtype = "int32"
+    dshape = (1, 3, 28, 28)
+    x = relay.var("x", shape=dshape, dtype=dtype)
+    y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+    func = relay.Function([x], y)
+    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def _test_global_pool2d(opfunc, reffunc):
     n, c, h, w = tvm.var("n"), tvm.var("c"), 224, 224
@@ -294,6 +313,8 @@ def _test_global_pool2d(opfunc, reffunc):
 def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max)
     _test_pool2d(relay.nn.avg_pool2d, np.mean)
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'int32')
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
