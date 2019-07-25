@@ -229,7 +229,7 @@ bool ArgReduceRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   CHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
@@ -254,7 +254,7 @@ bool ReduceRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
-  std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);

@@ -35,16 +35,6 @@
 namespace tvm {
 namespace relay {
 
-template<typename T>
-inline std::vector<T> AsVector(const Array<T> &array) {
-    std::vector<T> result;
-    result.reserve(array.size());
-    for (const T& ele : array) {
-        result.push_back(ele);
-    }
-    return result;
-}
-
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
  * - Register op to the registry.
