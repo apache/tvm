@@ -53,7 +53,7 @@ bool YoloReorgRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   CHECK(data->shape.size() == 4) << "Yolo reorg supports only 4 dimension.";
-  std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+  std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
   oshape[1] = oshape[1] * param->stride * param->stride;
   oshape[2] = oshape[2] / param->stride;
   oshape[3] = oshape[3] / param->stride;
