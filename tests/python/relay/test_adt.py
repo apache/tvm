@@ -20,8 +20,6 @@ from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
-from tvm.relay import TypeVar, Var, Function, Call
-from tvm.relay import PatternConstructor, Clause, PatternVar, Match
 
 mod = relay.Module()
 p = Prelude(mod)
