@@ -97,9 +97,10 @@ TEST(Map, Mutate) {
 
 TEST(Map, Iterator) {
   using namespace tvm;
-  Map<Expr, Expr> map1{{1, 2}};
+  Expr a = 1, b = 2;
+  Map<Expr, Expr> map1{{a, b}};
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(), map1.end());
-  CHECK(map2[1].as<IntImm>()->value == 2);
+  CHECK(map2[a].as<IntImm>()->value == 2);
 }
 
 int main(int argc, char ** argv) {
