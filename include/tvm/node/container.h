@@ -117,11 +117,11 @@ class IterAdapter {
   using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
 
   explicit IterAdapter(TIter iter) : iter_(iter) {}
-  inline IterAdapter& operator++() {  // NOLINT(*)
+  inline IterAdapter& operator++() {
     ++iter_;
     return *this;
   }
-  inline IterAdapter operator+(difference_type offset) const {  // NOLINT(*)
+  inline IterAdapter operator+(difference_type offset) const {
     return IterAdapter(iter_ + offset);
   }
 
