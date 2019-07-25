@@ -84,8 +84,7 @@ class Environment(object):
 
     Parameters
     ----------
-    cfg : dict of str to value.
-        The configuration parameters.
+    pkg : a PkgConfig instance
 
     Example
     --------
@@ -112,11 +111,8 @@ class Environment(object):
     acc_scope = "local.acc_buffer"
 
     # initialization function
-    def __init__(self, cfg):
-        self.__dict__.update(cfg)
-        for key in PkgConfig.cfg_keys:
-            if key not in cfg:
-                raise ValueError("Expect key %s in cfg" % key)
+    def __init__(self, pkg):
+        self.__dict__.update(pkg.cfg_dump)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
@@ -155,7 +151,7 @@ class Environment(object):
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
         self.out_dtype = "int%d" % self.OUT_WIDTH
         # bistream name
-        self.BITSTREAM = self.pkg_config().bitstream
+        self.BITSTREAM = pkg.bitstream
         # model string
         self.MODEL = self.TARGET
         # lazy cached members
@@ -171,12 +167,6 @@ class Environment(object):
 
     def __exit__(self, ptype, value, trace):
         Environment.current = self._last_env
-
-    def pkg_config(self):
-        """PkgConfig instance"""
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
-        return PkgConfig(self.__dict__, proj_root)
 
     @property
     def dev(self):
@@ -303,7 +293,7 @@ def coproc_dep_pop(op):
 
 
 def _init_env():
-    """Iniitalize the default global env"""
+    """Initialize the default global env"""
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
@@ -314,6 +304,8 @@ def _init_env():
     if not path_list:
         raise RuntimeError(
             "Error: vta_config.json not found.")
-    return Environment(json.load(open(path_list[0])))
+    cfg = json.load(open(path_list[0]))
+    pkg = PkgConfig(cfg, proj_root)
+    return Environment(pkg)
 
 Environment.current = _init_env()
