@@ -39,7 +39,6 @@
 #include "../../../src/pynq/zynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
 
-typedef uint64_t bus_T;
 typedef uint32_t uop_T;
 typedef int8_t wgt_T;
 typedef int8_t inp_T;
