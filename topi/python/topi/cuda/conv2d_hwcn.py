@@ -123,7 +123,7 @@ def schedule_conv2d_hwcn(outs):
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
             for tensor in operator.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         elif operator.tag == 'conv2d_hwcn':
             Apad = operator.input_tensors[0]
