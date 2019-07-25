@@ -312,10 +312,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return op->op_type;
   }
 
-  Type VisitExpr_(const FatalNode* op) final {
-    return IncompleteTypeNode::make(Kind::kType);
-  }
-
   Type VisitExpr_(const LetNode* let) final {
     // if the definition is a function literal, permit recursion
     bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;

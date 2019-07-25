@@ -246,7 +246,7 @@ class MatchNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
-    v->Visit("clause", &clauses);
+    v->Visit("clauses", &clauses);
     v->Visit("complete", &complete);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
