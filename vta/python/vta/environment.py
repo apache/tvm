@@ -117,11 +117,6 @@ class Environment(object):
         for key in PkgConfig.cfg_keys:
             if key not in cfg:
                 raise ValueError("Expect key %s in cfg" % key)
-        # derive output buffer size
-        self.LOG_OUT_BUFF_SIZE = (
-            self.LOG_ACC_BUFF_SIZE +
-            self.LOG_OUT_WIDTH -
-            self.LOG_ACC_WIDTH)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH

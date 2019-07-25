@@ -41,10 +41,8 @@ class PkgConfig(object):
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
-        "LOG_OUT_WIDTH",
         "LOG_BATCH",
-        "LOG_BLOCK_IN",
-        "LOG_BLOCK_OUT",
+        "LOG_BLOCK",
         "LOG_UOP_BUFF_SIZE",
         "LOG_INP_BUFF_SIZE",
         "LOG_WGT_BUFF_SIZE",
@@ -52,8 +50,18 @@ class PkgConfig(object):
     ]
 
     def __init__(self, cfg, proj_root):
-        # VTA target
-        self.target = cfg["TARGET"]
+
+        # Derived parameters
+        cfg["LOG_BLOCK_IN"] = cfg["LOG_BLOCK"]
+        cfg["LOG_BLOCK_OUT"] = cfg["LOG_BLOCK"]
+        cfg["LOG_OUT_WIDTH"] = cfg["LOG_INP_WIDTH"]
+        cfg["LOG_OUT_BUFF_SIZE"] = (
+            cfg["LOG_ACC_BUFF_SIZE"] +
+            cfg["LOG_OUT_WIDTH"] -
+            cfg["LOG_ACC_WIDTH"])
+
+        # Update cfg now that we've extended it
+        self.__dict__.update(cfg)
 
         # Include path
         self.include_path = [
@@ -66,32 +74,24 @@ class PkgConfig(object):
         # List of source files that can be used to build standalone library.
         self.lib_source = []
         self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
-        if self.target in ["pynq", "ultra96"]:
+        if self.TARGET in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
             self.lib_source += glob.glob("%s/vta/src/zynq/*.cc" % (proj_root))
 
         # Linker flags
-        if self.target in ["pynq", "ultra96"] :
+        if self.TARGET in ["pynq", "ultra96"] :
             self.ldflags = [
                 "-L/usr/lib",
                 "-l:libcma.so"]
         else:
             self.ldflags = []
 
-        # Derive output buffer size
-        cfg["LOG_OUT_BUFF_SIZE"] = (
-            cfg["LOG_ACC_BUFF_SIZE"] +
-            cfg["LOG_OUT_WIDTH"] -
-            cfg["LOG_ACC_WIDTH"])
-
         # Derive bitstream config string.
-        self.bitstream = "{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}".format(
+        self.bitstream = "{}x{}_i{}w{}a{}_{}_{}_{}_{}".format(
             (1 << cfg["LOG_BATCH"]),
-            (1 << cfg["LOG_BLOCK_IN"]),
-            (1 << cfg["LOG_BLOCK_OUT"]),
+            (1 << cfg["LOG_BLOCK"]),
             (1 << cfg["LOG_INP_WIDTH"]),
             (1 << cfg["LOG_WGT_WIDTH"]),
-            (1 << cfg["LOG_OUT_WIDTH"]),
             (1 << cfg["LOG_ACC_WIDTH"]),
             cfg["LOG_UOP_BUFF_SIZE"],
             cfg["LOG_INP_BUFF_SIZE"],
@@ -109,7 +109,7 @@ class PkgConfig(object):
         #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
         #                       (e.g. 1111 is write-back read and write allocate)
         #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
-        if self.target == "ultra96":
+        if self.TARGET == "ultra96":
             self.fpga_device = "xczu3eg-sbva484-1-e"
             self.fpga_family = "zynq-ultrascale+"
             self.fpga_freq = 333
@@ -206,7 +206,7 @@ class PkgConfig(object):
         # Macro defs
         self.macro_defs = []
         self.cfg_dict = {}
-        for key in self.cfg_keys:
+        for key in cfg:
             self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
             self.cfg_dict[key] = cfg[key]
         self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_log_axi_bus_width))
@@ -231,7 +231,6 @@ class PkgConfig(object):
             self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")
         else:
             self.macro_defs.append("-DVTA_COHERENT_ACCESSES=false")
-
 
     @property
     def cflags(self):
