@@ -265,7 +265,7 @@ bool ConcatenateRel(const Array<Type>& types,
   }
   axis = axis < 0 ? ndim + axis : axis;
   // Calculate shape
-  std::vector<IndexExpr>&& oshape = AsVector(first->shape);
+  std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
   IndexExpr &concat_dim = oshape[axis];
   bool has_any = false;
   if (concat_dim.as<Any>()) {
@@ -834,7 +834,7 @@ bool TakeRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   if (!param->axis.defined()) {
-    std::vector<IndexExpr>&& oshape = AsVector(indices->shape);
+    std::vector<IndexExpr> oshape(indices->shape.begin(), indices->shape.end());
     reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
     return true;
   }
@@ -1990,7 +1990,7 @@ bool SplitRel(const Array<Type>& types,
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
-        std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+        std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
         oshape[axis] /= int32_t(sections->value);
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
@@ -2003,7 +2003,7 @@ bool SplitRel(const Array<Type>& types,
     for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
-      std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+      std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
       oshape[axis] = IndexExpr(indices[i]) - begin;
       begin = IndexExpr(indices[i]);
       auto vec_type = TensorTypeNode::make(oshape, data->dtype);
@@ -2011,7 +2011,7 @@ bool SplitRel(const Array<Type>& types,
     }
     CHECK(reporter->Assert(begin < data->shape[axis]))
         << "The sum of sections must match the input.shape[axis]";
-    std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+    std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
     fields.push_back(vec_type);
@@ -2105,9 +2105,9 @@ bool SliceLikeRel(const Array<Type>& types,
   const auto param = attrs.as<SliceLikeAttrs>();
   CHECK(param != nullptr);
 
-  const Array<IndexExpr> dshape = data->shape;
-  const Array<IndexExpr> target_shape = target->shape;
-  std::vector<IndexExpr>&& oshape = AsVector(dshape);
+  const Array<IndexExpr>& dshape = data->shape;
+  const Array<IndexExpr>& target_shape = target->shape;
+  std::vector<IndexExpr> oshape(dshape.begin(), dshape.end());
 
   if (!param->axes.defined()) {
     for (size_t i = 0; i < dshape.size(); ++i) {
