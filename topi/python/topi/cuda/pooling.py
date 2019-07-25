@@ -155,6 +155,19 @@ def schedule_pool(outs, layout):
 
 @generic.schedule_pool_grad.register(['cuda', 'gpu'])
 def schedule_pool_grad_cuda(outs):
+    """Schedule for pool_grad on CUDA
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of pool_grad
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for pool_grad.
+    """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
