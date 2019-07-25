@@ -115,7 +115,6 @@ class PkgConfig(object):
             self.fpga_freq = 333
             self.fpga_per = 2
             self.fpga_log_axi_bus_width = 7
-            self.axi_cache_bits = '1111'
             self.axi_prot_bits = '010'
             # IP register address map
             self.ip_reg_map_range  = "0x1000"
@@ -130,7 +129,6 @@ class PkgConfig(object):
             self.fpga_freq = 100
             self.fpga_per = 7
             self.fpga_log_axi_bus_width = 6
-            self.axi_cache_bits = '1111'
             self.axi_prot_bits = '000'
             # IP register address map
             self.ip_reg_map_range  = "0x1000"
@@ -138,6 +136,11 @@ class PkgConfig(object):
             self.load_base_addr    = "0x43C01000"
             self.compute_base_addr = "0x43C02000"
             self.store_base_addr   = "0x43C03000"
+        # Set coherence settings
+        coherent = True
+        if coherent:
+            self.axi_cache_bits = '1111'
+            self.coherent = True
 
         # Define IP memory mapped registers offsets.
         # In HLS 0x00-0x0C is reserved for block-level I/O protocol.
@@ -223,6 +226,11 @@ class PkgConfig(object):
         self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % (self.compute_uop_addr_offset))
         self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % (self.compute_bias_addr_offset))
         self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % (self.store_out_addr_offset))
+        # Coherency
+        if coherent:
+            self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")
+        else:
+            self.macro_defs.append("-DVTA_COHERENT_ACCESSES=false")
 
 
     @property
