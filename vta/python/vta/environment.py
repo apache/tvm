@@ -112,7 +112,8 @@ class Environment(object):
 
     # initialization function
     def __init__(self, pkg):
-        self.__dict__.update(pkg.cfg_dump)
+        self.pkg = pkg
+        self.__dict__.update(self.pkg.cfg_dump)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
