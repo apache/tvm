@@ -240,6 +240,10 @@ class PkgConfig(object):
     def cfg_json(self):
         return json.dumps(self.cfg_dict, indent=2)
 
+    @property
+    def cfg_dump(self):
+        return self.cfg_dict
+
     def same_config(self, cfg):
         """Compare if cfg is same as current config.
 
