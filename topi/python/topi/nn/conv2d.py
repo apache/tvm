@@ -19,12 +19,12 @@
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
-import numpy as np
 import tvm
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, const_matrix, get_const_tuple
+from ..util import simplify, get_const_tuple
+from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
@@ -425,7 +425,7 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
     Parameters
     ----------
     kernel: Tensor
-        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now
+        The raw kernel tensor with layout "NCHW".
     tile_size: int
         Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
 
@@ -434,34 +434,15 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
     output : tvm.Tensor
         4-D with shape [alpha, alpha, CO, CI]
     """
-    K = 3
-
     shape = get_const_tuple(kernel.shape)
-    assert shape[2:] == (K, K), "Only support 3x3 kernel"
+    assert shape[2] == shape[3], "Only support NxN kernel"
 
+    K = shape[3]
     r = tile_size + K - 1
     shape = (r, r) + shape[:2]
 
-    if tile_size == 2:
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1],
-        ], dtype=kernel.dtype)
-    elif tile_size == 4:
-        G_data = np.array([
-            [1 / 4.0, 0, 0],
-            [-1 / 6.0, -1 / 6.0, -1 / 6.0],
-            [-1 / 6.0, 1 / 6.0, -1 / 6.0],
-            [1 / 24.0, 1 / 12.0, 1 / 6.0],
-            [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]
-        ], dtype=kernel.dtype)
-    else:
-        raise ValueError("Unsupoorted tile size:" + tile_size)
+    _, _, G = winograd_transform_matrices(tile_size, K, kernel.dtype)
 
-    G = const_matrix(G_data, 'G')
     r_kh = tvm.reduce_axis((0, K), name='r_kh')
     r_kw = tvm.reduce_axis((0, K), name='r_kw')
     return tvm.compute(shape, lambda eps, nu, co, ci:

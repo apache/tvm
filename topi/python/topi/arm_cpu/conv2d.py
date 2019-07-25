@@ -20,20 +20,19 @@ from __future__ import absolute_import as _abs
 
 import warnings
 
-import numpy as np
-
 import tvm
 from tvm import autotvm
 import tvm.contrib.nnpack
 
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform, \
                       schedule_conv2d_winograd_nnpack_without_weight_transform
-from ..util import traverse_inline, get_const_tuple, const_matrix
+from ..util import traverse_inline, get_const_tuple
 from ..nn import dilate, pad, conv2d, conv2d_alter_layout, \
                  conv2d_winograd_without_weight_transform, \
                  conv2d_winograd_nnpack_without_weight_transform, \
                  depthwise_conv2d_nchw
 from ..nn.util import get_const_int, get_pad_tuple
+from ..nn.winograd_util import winograd_transform_matrices
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['direct'])
 def conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
@@ -330,57 +329,14 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HPAD == 1 and WPAD == 1 and HSTR == 1 and WSTR == 1
+    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
     data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
 
-    if tile_size == 4:
-        G_data = np.array([
-            [1 / 4.0, 0, 0],
-            [-1 / 6.0, -1 / 6.0, -1 / 6.0],
-            [-1 / 6.0, 1 / 6.0, -1 / 6.0],
-            [1 / 24.0, 1 / 12.0, 1 / 6.0],
-            [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]], dtype=np.float32)
-
-        B_data = np.array([
-            [4, 0, 0, 0, 0, 0],
-            [0, -4, 4, -2, 2, 4],
-            [-5, -4, -4, -1, -1, 0],
-            [0, 1, -1, 2, -2, -5],
-            [1, 1, 1, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0, 0, 0],
-            [1, 1, 1, 1],
-            [1, -1, 1, -1],
-            [1, 2, 4, 8],
-            [1, -2, 4, -8],
-            [0, 0, 0, 1]], out_dtype)
-    elif tile_size == 2:
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1]], np.float32)
-
-        B_data = np.array([
-            [1, 0, 0, 0],
-            [0, 1, -1, 1],
-            [-1, 1, 1, 0],
-            [0, 0, 0, -1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0],
-            [1, 1],
-            [1, -1],
-            [0, -1]], out_dtype)
-    else:
-        raise ValueError("Unsupported tile size for winograd: " + str(tile_size))
-
-    m = A_data.shape[1]
-    r = 3
+    r = KW
+    m = tile_size
     alpha = m + r - 1
+    A, B, G = winograd_transform_matrices(m, r, out_dtype)
+
     K = CO
     C = CI
 
@@ -405,7 +361,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     if pre_computed:
         U = kernel
     else:
-        G = const_matrix(G_data, 'G')
         r_kh = tvm.reduce_axis((0, KH), 'r_kh')
         r_kw = tvm.reduce_axis((0, KW), 'r_kw')
         U = tvm.compute((alpha, alpha, K // VK, C, VK), lambda eps, nu, k, c, kk:
@@ -413,7 +368,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                                 G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
-    B = const_matrix(B_data, 'B')
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
     r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
     V = tvm.compute((alpha, alpha, P // VP, C, VP), lambda eps, nu, b, c, bb:
@@ -427,7 +381,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                             V[eps][nu][b // VP][c][b % VP], axis=c), name='M')
 
     # inverse transform
-    A = const_matrix(A_data, 'A')
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
     r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
     Y = tvm.compute((K, P, m, m), lambda k, b, vh, vw:
