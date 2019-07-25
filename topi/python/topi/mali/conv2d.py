@@ -16,16 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali GPU"""
-import numpy as np
-
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import get_factors
 
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform
-from ..util import traverse_inline, get_const_int, get_const_tuple, const_matrix
+from ..util import traverse_inline, get_const_int, get_const_tuple
 from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
     get_pad_tuple, pad, conv2d_alter_layout
+from ..nn.winograd_util import winograd_transform_matrices
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d import _decl_spatial_pack, _alter_conv2d_layout_arm
@@ -226,57 +225,13 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HPAD == 1 and WPAD == 1 and HSTR == 1 and WSTR == 1
+    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
     data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
 
-    if tile_size == 4:
-        G_data = np.array([
-            [1 / 4.0, 0, 0],
-            [-1 / 6.0, -1 / 6.0, -1 / 6.0],
-            [-1 / 6.0, 1 / 6.0, -1 / 6.0],
-            [1 / 24.0, 1 / 12.0, 1 / 6.0],
-            [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]], out_dtype)
-
-        B_data = np.array([
-            [4, 0, 0, 0, 0, 0],
-            [0, -4, 4, -2, 2, 4],
-            [-5, -4, -4, -1, -1, 0],
-            [0, 1, -1, 2, -2, -5],
-            [1, 1, 1, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0, 0, 0],
-            [1, 1, 1, 1],
-            [1, -1, 1, -1],
-            [1, 2, 4, 8],
-            [1, -2, 4, -8],
-            [0, 0, 0, 1]], out_dtype)
-    elif tile_size == 2:
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1]], out_dtype)
-
-        B_data = np.array([
-            [1, 0, 0, 0],
-            [0, 1, -1, 1],
-            [-1, 1, 1, 0],
-            [0, 0, 0, -1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0],
-            [1, 1],
-            [1, -1],
-            [0, -1]], out_dtype)
-    else:
-        raise ValueError("Unsupported tile size for winograd: " + str(tile_size))
-
-    m = A_data.shape[1]
-    r = 3
+    r = KW
+    m = tile_size
     alpha = m + r - 1
+    A, B, G = winograd_transform_matrices(m, r, out_dtype)
 
     H = (IH + 2 * HPAD - 3) // HSTR + 1
     W = (IW + 2 * WPAD - 3) // WSTR + 1
@@ -321,7 +276,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     if pre_computed:
         U = kernel
     else:
-        G = const_matrix(G_data, 'G')
         r_kh = tvm.reduce_axis((0, KH), 'r_kh')
         r_kw = tvm.reduce_axis((0, KW), 'r_kw')
         U = tvm.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
@@ -329,7 +283,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                                 axis=[r_kh, r_kw]), name='U')
 
     # transform image
-    B = const_matrix(B_data, 'B')
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
     r_b = tvm.reduce_axis((0, alpha), 'r_b')
     V = tvm.compute((alpha, alpha, P_round // bnb, CI, bnb), lambda eps, nu, p, ci, vp:
@@ -342,7 +295,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                     tvm.sum(U[eps][nu][co // bna][ci][co % bna] *
                             V[eps][nu][p // bnb][ci][p % bnb], axis=ci), name='M')
 
-    A = const_matrix(A_data, 'A')
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
     r_b = tvm.reduce_axis((0, alpha), 'r_b')
     Y = tvm.compute((CO, P, m, m), lambda co, p, vh, vw:
