@@ -73,7 +73,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
 
 
 def test_forward_merge():
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
     y = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
     z = keras.layers.Conv2D(8, (3, 3), padding="same")(y)
@@ -93,7 +93,7 @@ def test_forward_merge():
 
 
 def test_forward_activations():
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     act_funcs = [keras.layers.Activation('softmax'),
                  keras.layers.Activation('softplus'),
                  keras.layers.Activation('relu'),
@@ -103,6 +103,7 @@ def test_forward_activations():
                  keras.layers.Activation('tanh'),
                  keras.layers.Activation('linear'),
                  keras.layers.Activation('selu'),
+                 keras.layers.Softmax(),
                  keras.layers.ReLU(),
                  keras.layers.ReLU(max_value=6.),
                  keras.layers.LeakyReLU(alpha=0.3),
@@ -116,13 +117,18 @@ def test_forward_activations():
 
 
 def test_forward_dense():
-    data = keras.layers.Input(shape=(32,32,1))
+    data = keras.layers.Input(shape=(32, 32, 1))
     x = keras.layers.Flatten()(data)
     x = keras.layers.Dropout(0.5)(x)
     x = keras.layers.Dense(10, activation='relu', kernel_initializer='uniform')(x)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
+def test_forward_permute():
+    data = keras.layers.Input(shape=(2, 3, 4))
+    x = keras.layers.Permute([2, 3, 1])(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
 
 def test_forward_sequential():
     keras_model = keras.models.Sequential([
@@ -136,7 +142,7 @@ def test_forward_sequential():
 
 
 def test_forward_pool():
-    data = keras.layers.Input(shape=(32,32,1))
+    data = keras.layers.Input(shape=(32, 32, 1))
     # maxpool
     x = keras.layers.MaxPooling2D((3, 3), strides=(1, 1), padding='same')(data)
     keras_model = keras.models.Model(data, x)
@@ -148,14 +154,14 @@ def test_forward_pool():
 
 
 def test_forward_conv():
-    data = keras.layers.Input(shape=(32,32,3))
-    conv_funcs = [keras.layers.Conv2D(filters=10, kernel_size=(3,3),
-                                      strides=(2,2), padding='same'),
-                  keras.layers.Conv2D(filters=10, kernel_size=(3,3),
-                                      dilation_rate=(2,2), padding='same'),
-                  keras.layers.DepthwiseConv2D(kernel_size=(3,3), padding='same'),
-                  keras.layers.Conv2DTranspose(filters=10, kernel_size=(3,3), padding='valid'),
-                  keras.layers.SeparableConv2D(filters=10, kernel_size=(3,3), padding='same')]
+    data = keras.layers.Input(shape=(32, 32, 3))
+    conv_funcs = [keras.layers.Conv2D(filters=10, kernel_size=(3, 3),
+                                      strides=(2, 2), padding='same'),
+                  keras.layers.Conv2D(filters=10, kernel_size=(3, 3),
+                                      dilation_rate=(2, 2), padding='same'),
+                  keras.layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same'),
+                  keras.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding='valid'),
+                  keras.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding='same')]
     for conv_func in conv_funcs:
         x = conv_func(data)
         keras_model = keras.models.Model(data, x)
@@ -163,21 +169,21 @@ def test_forward_conv():
 
 
 def test_forward_upsample(interpolation='nearest'):
-    data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.UpSampling2D(size=(3,3), interpolation=interpolation)(data)
+    data = keras.layers.Input(shape=(32, 32, 3))
+    x = keras.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_reshape():
-    data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.Reshape(target_shape=(32,32,3))(data)
+    data = keras.layers.Input(shape=(32, 32, 3))
+    x = keras.layers.Reshape(target_shape=(32, 32, 3))(data)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_crop():
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.Cropping2D(cropping=((1, 1), (1, 1)))(data)
     x = keras.layers.Cropping2D(cropping=(1, 1))(x)
     x = keras.layers.Cropping2D(cropping=1)(x)
@@ -190,8 +196,8 @@ def test_forward_crop():
 
 
 def test_forward_multi_inputs():
-    data1 = keras.layers.Input(shape=(32,32,3))
-    data2 = keras.layers.Input(shape=(32,32,3))
+    data1 = keras.layers.Input(shape=(32, 32, 3))
+    data2 = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data1)
     y = keras.layers.Conv2D(8, (3, 3), padding="same")(data2)
     z = keras.layers.Average()([x, y])
@@ -201,7 +207,7 @@ def test_forward_multi_inputs():
 
 
 def test_forward_multi_outputs():
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
     x = keras.layers.GlobalAveragePooling2D()(x)
     y = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
@@ -212,7 +218,7 @@ def test_forward_multi_outputs():
 
 def test_forward_reuse_layers():
     # reuse conv2d
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     conv2d = keras.layers.Conv2D(8, (3, 3), padding="same")
     x = conv2d(data)
     y = conv2d(data)
@@ -221,7 +227,7 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
     # reuse add
-    data = keras.layers.Input(shape=(32,32,3))
+    data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
     add = keras.layers.Add()
     x = add([x, x])
@@ -232,7 +238,7 @@ def test_forward_reuse_layers():
 
 
 def test_forward_rnn():
-    data = keras.layers.Input(shape=(1,32))
+    data = keras.layers.Input(shape=(1, 32))
     rnn_funcs = [keras.layers.LSTM(units=16, return_state=False,
                     recurrent_activation='sigmoid', activation='tanh'),
                  keras.layers.SimpleRNN(units=16, return_state=False,
@@ -247,25 +253,25 @@ def test_forward_rnn():
 
 def test_forward_vgg16():
     keras_model = keras.applications.VGG16(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
+        input_shape=(224, 224, 3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_xception():
     keras_model = keras.applications.Xception(include_top=True, weights='imagenet',
-        input_shape=(299,299,3), classes=1000)
+        input_shape=(299, 299, 3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_resnet50():
     keras_model = keras.applications.ResNet50(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
+        input_shape=(224, 224, 3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_mobilenet():
     keras_model = keras.applications.MobileNet(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
+        input_shape=(224, 224, 3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
@@ -273,6 +279,7 @@ if __name__ == '__main__':
     test_forward_merge()
     test_forward_activations()
     test_forward_dense()
+    test_forward_permute()
     test_forward_sequential()
     test_forward_pool()
     test_forward_conv()
