@@ -134,6 +134,3 @@ set(USE_ANTLR OFF)
 
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
-
-# Whether use Google Test for C++ tests
-set(USE_GTEST OFF)
