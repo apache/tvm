@@ -64,11 +64,11 @@ class IntelShell(implicit p: Parameters) extends Module {
   io.host.r.bits.data := vcr.io.host.r.bits.data
   io.host.r.bits.resp := vcr.io.host.r.bits.resp
 
-  io.host.b.bits.id <> DontCare
+  io.host.b.bits.id := io.host.w.bits.id
   io.host.b.bits.user <> DontCare
   io.host.r.bits.user <> DontCare
-  io.host.r.bits.last <> DontCare
-  io.host.r.bits.id <> DontCare
+  io.host.r.bits.last := 1.U
+  io.host.r.bits.id := io.host.ar.bits.id
 
   io.mem <> vme.io.mem
 }

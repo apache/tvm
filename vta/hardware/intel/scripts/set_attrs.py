@@ -19,10 +19,7 @@
 import os, sys
 import argparse
 
-thisdir = os.path.abspath(os.path.dirname(__file__))
-ippath = os.path.join(thisdir, '..', 'ip', 'vta_adaptor')
-
-def set_attrs(fname, fname_out):
+def set_attrs(fname, fname_out, dsp=False, verbose=True):
     """Set attributes to precompiled verilog code to indicate synthesis preference.
 
     Parameters
@@ -40,24 +37,28 @@ def set_attrs(fname, fname_out):
             if 'module' in line:
                 module = line[line.find('module')+7:line.find('(')]
                 out += line
-            elif "reg " in line and "];" in line:
-                print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
-                out += line
             elif " * " in line:
-                line = line.replace(" * ", ' * (* multstyle="logic" *) ')
-                print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
+                if dsp:
+                    line = line.replace(" * ", ' * (* multstyle="dsp" *) ')
+                else:
+                    line = line.replace(" * ", ' * (* multstyle="logic" *) ')
+                if verbose:
+                    print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
                 out += line
             elif "rA;" in line:
                 line = line.replace("rA;", 'rA /* synthesis noprune */;')
-                print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
+                if verbose:
+                    print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
                 out += line
             elif "rB;" in line:
                 line = line.replace("rB;", 'rB /* synthesis noprune */;')
-                print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
+                if verbose:
+                    print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
                 out += line
             elif "rC;" in line:
                 line = line.replace("rC;", 'rC /* synthesis noprune */;')
-                print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
+                if verbose:
+                    print(fname_out+":"+str(idx+1)+": "+module+":"+line[1:line.find(";")+1])
                 out += line
             else:
                 out += line
@@ -67,11 +68,13 @@ def set_attrs(fname, fname_out):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Set attributes to precompiled ' +
                                      'verilog code to indicate synthesis preference')
-    parser.add_argument('-i', '--input', type=str,
-                        help='input verilog file to be decorated',
-                       default='VTA.DefaultDe10Config.v')
-    parser.add_argument('-o', '--output', type=str,
-                      help='decorated verilog file',
-                      default='IntelShell.v')
+    parser.add_argument('-i', '--input', type=str, default='VTA.DefaultDe10Config.v',
+                        help='input verilog file to be decorated')
+    parser.add_argument('-o', '--output', type=str, default='IntelShell.v',
+                        help='decorated verilog file')
+    parser.add_argument('--dsp', default=False, action='store_true',
+                        help='use dsp instead of logic.')
+    parser.add_argument('--verbose', default=False, action='store_true',
+                        help='print output file name and decorated lines.')
     args = parser.parse_args()
-    set_attrs(args.input, args.output)
+    set_attrs(args.input, args.output, args.dsp, args.verbose)
