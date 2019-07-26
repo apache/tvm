@@ -112,8 +112,6 @@ if env.TARGET not in ["sim", "tsim"]:
     reconfig_start = time.time()
     vta.reconfig_runtime(remote)
     vta.program_fpga(remote, bitstream=None)
-
-    # vta.program_fpga(remote, bitstream=None)
     reconfig_time = time.time() - reconfig_start
     print("Reconfigured FPGA and RPC runtime in {0:.2f}s!".format(reconfig_time))
 
