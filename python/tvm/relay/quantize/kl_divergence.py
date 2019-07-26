@@ -46,7 +46,7 @@ def _smooth_distribution(p, eps=0.0001):
 
 # pylint: disable=invalid-name
 def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
-    """Given a dataset, find the optimal threshold for quantizing it.
+    """Given a tensor, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
     `q` is a truncated version of the original distribution.
 
