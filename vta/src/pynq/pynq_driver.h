@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  *
- * \file zynq_driver.h
- * \brief VTA driver for Zynq SoC boards with Pynq support.
+ * \file pynq_driver.h
+ * \brief VTA driver for Zynq SoC boards with Pynq support (see pynq.io).
  */
 
-#ifndef VTA_ZYNQ_ZYNQ_DRIVER_H_
-#define VTA_ZYNQ_ZYNQ_DRIVER_H_
+#ifndef VTA_PYNQ_PYNQ_DRIVER_H_
+#define VTA_PYNQ_PYNQ_DRIVER_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,4 +63,4 @@ uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 #ifdef __cplusplus
 }
 #endif
-#endif  // VTA_ZYNQ_ZYNQ_DRIVER_H_
+#endif  // VTA_PYNQ_PYNQ_DRIVER_H_

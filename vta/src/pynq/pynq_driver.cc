@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  *
- * \file zynq_driver.c
- * \brief VTA driver for Zynq SoC boards with Pynq support.
+ * \file pynq_driver.c
+ * \brief VTA driver for Zynq SoC boards with Pynq support (see pynq.io).
  */
 
 #include <vta/driver.h>
 #include <thread>
-#include "zynq_driver.h"
+#include "pynq_driver.h"
 
 
 void* VTAMemAlloc(size_t size, int cached) {

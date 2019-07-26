@@ -44,7 +44,7 @@ elseif(PYTHON)
   endif()
   # Add pynq driver sources
   if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
-    file(GLOB __vta_target_srcs vta/src/zynq/*.cc)
+    file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
   endif()
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
   # Add tsim driver sources

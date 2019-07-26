@@ -36,7 +36,7 @@
 #include <vta/driver.h>
 
 #ifdef VTA_TARGET_PYNQ
-#include "../../../src/pynq/zynq_driver.h"
+#include "../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
 
 typedef uint32_t uop_T;
