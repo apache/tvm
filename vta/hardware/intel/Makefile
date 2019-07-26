@@ -28,7 +28,7 @@ TCLSH = quartus_sh
 # Debug flag
 DEBUG = false
 # Prevent generation of DSP
-NO_DSP = false
+NO_DSP = true
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
@@ -43,9 +43,9 @@ IP_BUILD_PATH = $(BUILD_DIR)/chisel/$(CONF)
 HW_BUILD_PATH = $(BUILD_DIR)/quartus/$(CONF)
 
 ifeq ($(NO_DSP), true)
-  DSP_FLAG = --dsp
-else
   DSP_FLAG =
+else
+  DSP_FLAG = --dsp
 endif
 
 # IP file path
