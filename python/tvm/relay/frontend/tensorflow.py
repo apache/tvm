@@ -823,7 +823,7 @@ def _fill():
         output_shape = attr['_output_shapes'][0]
         # Output shape must be defined to avoid errors. If any axis is not, we must
         # try to compute its shape.
-        if -1 in output_shape:
+        if output_shape is None or -1 in output_shape:
             output_shape = _infer_value(inputs[0], params).asnumpy().reshape([-1]).tolist()
 
         fill_arg = _get_num_param(params, inputs.pop(1))
