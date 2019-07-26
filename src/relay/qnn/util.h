@@ -33,12 +33,6 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
-static inline bool IsQNNDataType(const DataType& dtype) {
-  return dtype == Int(8) || dtype == UInt(8)
-      || dtype == Int(16) || dtype == UInt(16)
-      || dtype == Int(32);
-}
-
 enum class QuantizeOpType {
   Quantize,
   Dequantize,
@@ -48,12 +42,8 @@ enum class QuantizeOpType {
 static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
         const DataType& in_dtype) {
   switch (op_type) {
-    case QuantizeOpType::Quantize:
-      return in_dtype == Float(32);
-    case QuantizeOpType::Dequantize:
-      return IsQNNDataType(in_dtype);
     case QuantizeOpType::Requantize:
-      return IsQNNDataType(in_dtype);
+      return in_dtype == Int(8) || in_dtype == UInt(8) || in_dtype == Int(32);
     default:
       return false;
   }
@@ -62,19 +52,15 @@ static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
 static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
         const DataType& out_dtype) {
   switch (op_type) {
-    case QuantizeOpType::Quantize:
-      return IsQNNDataType(out_dtype);
-    case QuantizeOpType::Dequantize:
-      return out_dtype == Float(32);
     case QuantizeOpType::Requantize:
-      return IsQNNDataType(out_dtype);
+      return out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32);
     default:
       return false;
   }
 }
 
 static inline const int32_t GetQmin(const DataType& dtype) {
-  CHECK(IsQNNDataType(dtype))
+  CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
     auto* min_value = as_const_int(dtype.min());
@@ -91,7 +77,7 @@ static inline const int32_t GetQmin(const DataType& dtype) {
 }
 
 static inline const int32_t GetQmax(const DataType& dtype) {
-  CHECK(IsQNNDataType(dtype))
+  CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
     auto* max_value = as_const_int(dtype.max());
