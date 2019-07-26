@@ -481,6 +481,7 @@ llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
 llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
   // concat vector, tree shape reduction
   int total_lanes = 0;
+
   for (llvm::Value* v : vecs) {
     total_lanes += static_cast<int>(
         v->getType()->getVectorNumElements());
@@ -1002,17 +1003,22 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
   return vec;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle *op) {
-  auto f = [this] (Array<Expr> a) -> llvm::Value * {
-    std::vector<llvm::Value *> res(a.size());
-    for (int i = 0; i < a.size(); ++i) {
-      res[i] = VisitExpr(a[i]);
+llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
+  std::vector<llvm::Value *> vecs(op->vectors.size());
+  for (int i = 0; i < op->vectors.size(); ++i) {
+    vecs[i] = VisitExpr(op->vectors[i]);
+  }
+  llvm::Value* v0 = CreateVecConcat(vecs);
+  std::vector<uint32_t> idx(op->indices.size());
+  for (int i = 0; i < op->indices.size(); ++i) {
+    if (auto uimm = op->indices[i].as<UIntImm>()) {
+      idx[i] = uimm->value;
+    } else if (auto imm = op->indices[i].as<IntImm>()) {
+      idx[i] = imm->value;
     }
-    return CreateVecConcat(res);
-  };
-  llvm::Value *v0 = f(op->vectors), *v1 = f(op->indices);
-  std::vector<uint32_t> mask(op->indices.size(), 1);
-  return builder_->CreateShuffleVector(v0, v1, mask);
+  }
+  llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);
+  return builder_->CreateShuffleVector(v0, llvm::UndefValue::get(v0->getType()), mask);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {

@@ -178,9 +178,9 @@ void IRVisitor::Visit_(const Ramp *op) {
 }
 
 void IRVisitor::Visit_(const Shuffle *op) {
-  for (auto &elem: op->indices)
+  for (auto &elem : op->indices)
     this->Visit(elem);
-  for (auto &elem: op->vectors)
+  for (auto &elem : op->vectors)
     this->Visit(elem);
 }
 
