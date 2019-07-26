@@ -36,10 +36,6 @@ below.
 +=======================+============+========================================================+
 | ``TARGET``            | String     | The TVM device target.                                 |
 +-----------------------+------------+--------------------------------------------------------+
-| ``HW_TARGET``         | Int        | FPGA frequency in MHz.                                 |
-+-----------------------+------------+--------------------------------------------------------+
-| ``HW_CLK_TARGET``     | Int        | FPGA clock period in ns target for HLS tool.           |
-+-----------------------+------------+--------------------------------------------------------+
 | ``HW_VER``            | String     | VTA hardware version number.                           |
 +-----------------------+------------+--------------------------------------------------------+
 | ``LOG_INP_WIDTH``     | Int (log2) | Input data type signed integer width.                  |
@@ -48,13 +44,9 @@ below.
 +-----------------------+------------+--------------------------------------------------------+
 | ``LOG_ACC_WIDTH``     | Int (log2) | Accumulator data type signed integer width.            |
 +-----------------------+------------+--------------------------------------------------------+
-| ``LOG_OUT_WIDTH``     | Int (log2) | Output data type signed integer width.                 |
+| ``LOG_BATCH``         | Int (log2) | VTA matrix multiply intrinsic input/output dimension 0.|
 +-----------------------+------------+--------------------------------------------------------+
-| ``LOG_BATCH``         | Int (log2) | VTA matrix multiply intrinsic output dimension 0.      |
-+-----------------------+------------+--------------------------------------------------------+
-| ``LOG_BLOCK_IN``      | Int (log2) | VTA matrix multiply reduction dimension.               |
-+-----------------------+------------+--------------------------------------------------------+
-| ``LOG_BLOCK_OUT``     | Int (log2) | VTA matrix multiply intrinsic output dimension 1.      |
+| ``LOG_BLOCK``         | Int (log2) | VTA matrix multiply inner dimensions.                  |
 +-----------------------+------------+--------------------------------------------------------+
 | ``LOG_UOP_BUFF_SIZE`` | Int (log2) | Micro-op on-chip buffer in Bytes.                      |
 +-----------------------+------------+--------------------------------------------------------+
@@ -75,13 +67,8 @@ below.
 
 We provide additional detail below regarding each parameter:
 
- - ``TARGET``: Can be set to ``"pynq"`` or ``"sim"``.
- - ``HW_TARGET``: In pynq mode, can be set to ``100``, ``142``, ``167``, or ``200`` MHz.
- - ``HW_CLK_TARGET``: The lower the target, the more pipeline stages HLS will insert to achieve timing closure during place and route (this can also slightly decrease performance).
+ - ``TARGET``: Can be set to ``"pynq"``, ``"ultra96"``, ``"sim"`` (fast simulator), or ``"tsim"`` (cycle accurate sim with verilator).
  - ``HW_VER``: Hardware version which increments everytime the VTA hardware design changes. This parameter is used to uniquely idenfity hardware bitstreams.
- - ``LOG_OUT_WIDTH``: We recommend matching ``LOG_OUT_WIDTH`` to ``LOG_INP_WIDTH``.
- - ``LOG_BATCH``: Equivalent to A in multiplication of shape (A, B) x (B, C), or typically, the batch dimension.
- - ``LOG_BATCH``: Equivalent to A in multiplication of shape (A, B) x (B, C), or typically, the batch dimension.
- - ``LOG_BLOCK_IN``: Equivalent to B in multiplication of shape (A, B) x (B, C), or typically, the input channel dimension.
- - ``LOG_BLOCK_OUT``: Equivalent to C in multiplication of shape (A, B) x (B, C), or typically, the output channel dimension.
+ - ``LOG_BATCH``: Equivalent to A in multiplication of shape (A, B) x (B, C), or typically, the batch dimension of inner tensor computation.
+ - ``LOG_BLOCK``: Equivalent to B and C in multiplication of shape (A, B) x (B, C), or typically, the input/output channel dimensions of the innter tensor computation.
 
