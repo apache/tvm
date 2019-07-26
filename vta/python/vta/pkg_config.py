@@ -217,15 +217,24 @@ class PkgConfig(object):
         self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
         self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
         # IP register offsets
-        self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % (self.fetch_insn_count_offset))
-        self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % (self.fetch_insn_addr_offset))
-        self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % (self.load_inp_addr_offset))
-        self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % (self.load_wgt_addr_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % (self.compute_done_wr_offet))
-        self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % (self.compute_done_rd_offet))
-        self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % (self.compute_uop_addr_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % (self.compute_bias_addr_offset))
-        self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % (self.store_out_addr_offset))
+        self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % \
+                (self.fetch_insn_count_offset))
+        self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % \
+                (self.fetch_insn_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % \
+                (self.load_inp_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % \
+                (self.load_wgt_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % \
+                (self.compute_done_wr_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % \
+                (self.compute_done_rd_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % \
+                (self.compute_uop_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % \
+                (self.compute_bias_addr_offset))
+        self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % \
+                (self.store_out_addr_offset))
         # Coherency
         if coherent:
             self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")
