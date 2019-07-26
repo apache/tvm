@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
 
@@ -122,5 +123,5 @@ def check_grad(func, mod=None):
     res = ex.evaluate(check_func_name(*[rand_from_type(x.checked_type) for x in params]))
     assert res.data.asnumpy() < 0.001
 
-def rand(dtype='float32', *shape):
+def rand(dtype, *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
