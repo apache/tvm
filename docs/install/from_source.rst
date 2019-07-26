@@ -39,6 +39,8 @@ For windows users who use github tools, you can open the git shell, and type the
    git submodule update
 
 
+.. _build-shared-library:
+
 Build the Shared Library
 ------------------------
 
@@ -192,7 +194,7 @@ Python dependencies
    .. code:: bash
 
        pip install --user tornado psutil xgboost
-       
+
    * If you want to parse Relay text format progams, you must use Python 3 and run the following
 
    .. code:: bash
@@ -207,3 +209,28 @@ Install Contrib Libraries
    :maxdepth: 1
 
    nnpack
+
+
+Enable C++ Tests
+----------------
+We use `Google Test <https://github.com/google/googletest>`_ to drive the C++
+tests in TVM. The easiest way to install GTest is from source.
+
+   .. code:: bash
+
+       git clone https://github.com/google/googletest
+       cd googletest
+       mkdir build
+       cd build
+       cmake ..
+       make
+       make install
+
+Now, you'll need to modify ``build/config.cmake`` and change ``set(USE_GTEST
+OFF)`` to ``set(USE_GTEST ON)``.
+
+TVM can then be built `as usual`__.
+
+__ build-shared-library_
+
+After building, the C++ tests can be run with ``make cpptest``.
