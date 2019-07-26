@@ -56,7 +56,7 @@ void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
   cma_flush_cache(vir_addr, phy_addr, size);
 }
 
- void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
   // Call the cma_invalidate_cache on the CMA buffer
   // so that the host needs to read the buffer data.
   cma_invalidate_cache(vir_addr, phy_addr, size);
