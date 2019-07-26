@@ -110,18 +110,28 @@ template<typename Converter,
          typename TIter>
 class IterAdapter {
  public:
+  using difference_type = typename std::iterator_traits<TIter>::difference_type;
+  using value_type = typename std::iterator_traits<TIter>::value_type;
+  using pointer = typename std::iterator_traits<TIter>::pointer;
+  using reference = typename std::iterator_traits<TIter>::reference;
+  using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
+
   explicit IterAdapter(TIter iter) : iter_(iter) {}
-  inline IterAdapter& operator++() {  // NOLINT(*)
+  inline IterAdapter& operator++() {
     ++iter_;
     return *this;
   }
-  inline IterAdapter& operator++(int) {  // NOLINT(*)
-    ++iter_;
-    return *this;
-  }
-  inline IterAdapter operator+(int offset) const {  // NOLINT(*)
+  inline IterAdapter operator+(difference_type offset) const {
     return IterAdapter(iter_ + offset);
   }
+
+  template<typename T = IterAdapter>
+  typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
+                          typename T::difference_type>::type
+  inline operator-(const IterAdapter& rhs) const {
+    return iter_ - rhs.iter_;
+  }
+
   inline bool operator==(IterAdapter other) const {
     return iter_ == other.iter_;
   }

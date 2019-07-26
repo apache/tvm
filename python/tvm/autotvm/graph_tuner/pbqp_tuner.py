@@ -18,7 +18,7 @@
 """Partitioned Boolean Quadratic Programming Tuner"""
 from ._base import INVALID_LAYOUT_TIME
 from .base_graph_tuner import BaseGraphTuner
-from .utils import is_input_node, has_multiple_inputs
+from .utils import is_boundary_node, has_multiple_inputs
 
 
 class PBQPTuner(BaseGraphTuner):
@@ -36,10 +36,11 @@ class PBQPTuner(BaseGraphTuner):
         """
         super(PBQPTuner, self).__init__(*args, **kwargs)
 
-        # Remove input nodes
+        # Remove input and ruled_out nodes
         input_names = self._input_shapes.keys()
         for node_idx in self._out_nodes_dict:
-            if is_input_node(self._node_list[node_idx], input_names):
+            node = self._node_list[node_idx]
+            if is_boundary_node(node, input_names):
                 for out_node_idx in self._out_nodes_dict[node_idx]:
                     self._in_nodes_dict[out_node_idx].remove(node_idx)
 
@@ -250,10 +251,16 @@ class PBQPTuner(BaseGraphTuner):
             target_input_pos = -1
             if has_multiple_inputs(self._node_list, key, input_names):
                 for i, item in enumerate(val):
-                    if not is_input_node(self._node_list[item], input_names):
+                    node = self._node_list[item]
+                    if not is_boundary_node(node, input_names):
                         target_input_idx = item
                         target_input_pos = i
                         break
+
+                # Skip boundary operator
+                if target_input_idx < 0:
+                    continue
+
                 temp[(target_input_idx, key)] = []
                 record_candidates = self._node_list[target_input_idx]["record_candidates"]
                 for j in range(len(record_candidates)):
@@ -264,7 +271,8 @@ class PBQPTuner(BaseGraphTuner):
 
                 for j in range(target_input_pos + 1, len(val)):
                     input_idx = val[j]
-                    if is_input_node(self._node_list[input_idx], input_names):
+                    input_node = self._node_list[input_idx]
+                    if is_boundary_node(input_node, input_names):
                         continue
                     temp[(input_idx, key)] = \
                         self._layout_transform_interlayer_cost[(input_idx, target_input_idx)]

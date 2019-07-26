@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Util to invoke c++ compilers in the system."""
+"""Util to invoke C/C++ compilers in the system."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 import sys
@@ -24,11 +24,10 @@ import os
 from .._ffi.base import py_str
 from .util import tempdir
 
-
 def create_shared(output,
                   objects,
                   options=None,
-                  cc="g++"):
+                  compile_cmd="g++"):
     """Create shared library.
 
     Parameters
@@ -36,17 +35,17 @@ def create_shared(output,
     output : str
         The target shared library.
 
-    objects : list
+    objects : List[str]
         List of object files.
 
-    options : list
+    options : List[str]
         The list of additional options string.
 
-    cc : str, optional
-        The compile string.
+    compile_cmd : Optional[str]
+        The compiler command.
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
-        _linux_shared(output, objects, options, cc)
+        _linux_compile(output, objects, options, compile_cmd)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
@@ -56,40 +55,44 @@ def create_shared(output,
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
 
-
-def cross_compiler(cc, options=None, output_format="so"):
+def cross_compiler(compile_func, base_options=None, output_format="so"):
     """Create a cross compiler function.
 
     Parameters
     ----------
-    cc :  str
-        The cross compiler name.
+    compile_func : Callable[[str, str, Optional[str]], None]
+        Function that performs the actual compilation
 
-    options : list, optional
+    options : Optional[List[str]]
         List of additional optional string.
 
-    output_format : str, optional
+    output_format : Optional[str]
         Library output format.
 
     Returns
     -------
-    fcompile : function
+    fcompile : Callable[[str, str, Optional[str]], None]
         A compilation function that can be passed to export_library.
     """
-    def _fcompile(outputs, objects, opts=None):
-        opts = opts if opts else []
-        if options:
-            opts += options
-        _linux_shared(outputs, objects, opts, cc=cc)
+    if base_options is None:
+        base_options = []
+    def _fcompile(outputs, objects, options=None):
+        all_options = base_options
+        if options is not None:
+            all_options += options
+        compile_func(outputs, objects, options=all_options)
     _fcompile.output_format = output_format
     return _fcompile
 
 
-def _linux_shared(output, objects, options, cc="g++"):
-    cmd = [cc]
-    cmd += ["-shared", "-fPIC"]
-    if sys.platform == "darwin":
-        cmd += ["-undefined", "dynamic_lookup"]
+def _linux_compile(output, objects, options, compile_cmd="g++"):
+    cmd = [compile_cmd]
+    if output.endswith(".so") or output.endswith(".dylib"):
+        cmd += ["-shared", "-fPIC"]
+        if sys.platform == "darwin":
+            cmd += ["-undefined", "dynamic_lookup"]
+    elif output.endswith(".obj"):
+        cmd += ["-c"]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]

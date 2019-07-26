@@ -248,6 +248,30 @@ class Sequential(Pass):
                                             passes, opt_level, name, required)
 
 
+def infer_type(expr, mod=None):
+    """Infer the type of an expr.
+    Adding Function into a Module will change it's binding,
+    and some passes need type inference to work without binding modification.
+    However, InferType() work by putting stuff into a Module, thus changing all the binding.
+
+    This is an escape patch that allow type inference without binding changing.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    mod : Optional[tvm.relay.Module]
+        The input module
+
+    Returns
+    -------
+    ret : tvm.relay.Expr
+        The output expression.
+    """
+    return _transform.infer_type(expr, mod)
+
+
 def InferType():
     """Infer the type of an expr.
 
@@ -527,6 +551,18 @@ def CanonicalizeCast():
         The registered pass that canonicalizes cast expression.
     """
     return _transform.CanonicalizeCast()
+
+
+def LambdaLift():
+    """
+    Lift the closure to global function.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that lifts the lambda function.
+    """
+    return _transform.LambdaLift()
 
 
 def PrintIR():

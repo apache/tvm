@@ -81,6 +81,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
+            'SPLIT': self.convert_split
         }
 
     def check_unsupported_ops(self):
@@ -702,6 +703,43 @@ class OperatorConverter(object):
         # If we have fused activations
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        return out
+
+    def convert_split(self, op):
+        """split implementation."""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.SplitOptions import SplitOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 2, "input tensors length should be == 2"
+
+        axis_tensor = input_tensors[0]
+        split_axis = self.get_tensor_value(axis_tensor)
+        input_tensor = input_tensors[1]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SplitOptions
+        op_options = op.BuiltinOptions()
+        split_options = SplitOptions()
+        split_options.Init(op_options.Bytes, op_options.Pos)
+        num_splits = split_options.NumSplits()
+
+        in_expr = self.get_expr(input_tensor_idx)
+        out = _op.split(in_expr, num_splits, axis=int(split_axis))
+        # Relay does not like a TupleWrapper of 1 element, further this
+        # only shows up with tf1.13 if we use a split with num_splits==1.
+        # In tf 1.14 this doesn't appear as it is automatically a reshape
+        # operation.
+        if isinstance(out, _expr.TupleWrapper):
+            if out.size == 1:
+                out = out[0]
 
         return out
 

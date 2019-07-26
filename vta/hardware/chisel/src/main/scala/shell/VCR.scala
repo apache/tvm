@@ -101,7 +101,9 @@ class VCR(implicit p: Parameters) extends Module {
   val rdata = RegInit(0.U(vp.regBits.W))
 
   // registers
-  val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + (2*vp.nPtrs)
+  val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2*vp.nPtrs
+  val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs
+
   val reg = Seq.fill(nTotal)(RegInit(0.U(vp.regBits.W)))
   val addr = Seq.tabulate(nTotal)(_ * 4)
   val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
@@ -167,7 +169,7 @@ class VCR(implicit p: Parameters) extends Module {
     }
   }
 
-  for (i <- 0 until (vp.nVals + (2*vp.nPtrs))) {
+  for (i <- 0 until (vp.nVals + nPtrs)) {
     when (io.host.w.fire() && addr(vo + i).U === waddr) {
       reg(vo + i) := wdata
     }
@@ -183,7 +185,13 @@ class VCR(implicit p: Parameters) extends Module {
     io.vcr.vals(i) := reg(vo + i)
   }
 
-  for (i <- 0 until vp.nPtrs) {
-    io.vcr.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+  if (mp.addrBits == 32) {  // 32-bit pointers
+    for (i <- 0 until nPtrs) {
+      io.vcr.ptrs(i) := reg(po + i)
+    }
+  } else {  // 64-bits pointers
+    for (i <- 0 until (nPtrs/2)) {
+      io.vcr.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+    }
   }
 }

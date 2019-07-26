@@ -247,7 +247,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._analysis.first_order_gradient")
+TVM_REGISTER_API("relay._transform.first_order_gradient")
 .set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
@@ -333,6 +333,9 @@ Expr Gradient(const Expr& re, const Module& mod) {
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for now";
+  for (const auto& p : f->params) {
+    CHECK(p->checked_type().as<TensorTypeNode>()) << "input parameters need to be tensor";
+  }
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty());
     Expr rev = ReverseAD(bp)(e);
@@ -341,13 +344,40 @@ Expr Gradient(const Expr& re, const Module& mod) {
       args.push_back(ll->Push(Pair(p, RefCreateNode::make(ZerosLike(p)))));
     }
     auto c = ll->Push(CallNode::make(rev, args));
-    ll->Push(RefWriteNode::make(GetField(c, 1), OnesLike(GetField(c, 0))));
+    std::function<void(const Expr&, const Type&)> init_grad;
+    init_grad = [&](const Expr& e, const Type& t) {
+      if (t.as<TensorTypeNode>()) {
+        ll->Push(RefWriteNode::make(GetField(e, 1), OnesLike(GetField(e, 0))));
+      } else if (auto tt = t.as<TupleTypeNode>()) {
+        CHECK_GT(tt->fields.size(), 0);
+        init_grad(ll->Push(GetField(e, 0)), tt->fields[0]);
+      } else {
+        LOG(FATAL) << "unhandled type " << t;
+        throw;
+      }
+    };
+    init_grad(c, f->body->checked_type());
     ll->Push(CallNode::make(RefReadNode::make(bp), {}));
     std::vector<Expr> ret;
     for (const auto& a : args) {
       ret.push_back(RefReadNode::make(GetField(a, 1)));
     }
-    return Pair(GetField(c, 0), TupleNode::make(ret));
+    std::function<Expr(const Expr&, const Type&)> get_final_result;
+    get_final_result = [&](const Expr& e, const Type& t) -> Expr {
+      if (t.as<TensorTypeNode>()) {
+        return GetField(e, 0);
+      } else if (auto tt = t.as<TupleTypeNode>()) {
+        tvm::Array<Expr> fields;
+        for (size_t i = 0; i < tt->fields.size(); ++i) {
+          fields.push_back(get_final_result(ll->Push(GetField(e, i)), tt->fields[i]));
+        }
+        return TupleNode::make(fields);
+      } else {
+        LOG(FATAL) << "unhandled type " << t;
+        throw;
+      }
+    };
+    return Pair(get_final_result(c, f->body->checked_type()), TupleNode::make(ret));
   });
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }

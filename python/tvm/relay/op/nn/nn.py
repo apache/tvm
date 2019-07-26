@@ -66,34 +66,34 @@ def conv2d(data,
     weight : tvm.relay.Expr
         The weight expressions.
 
-    strides : tuple of int, optional
+    strides : Optional[Tuple[int]]
         The strides of convolution.
 
-    padding : tuple of int, optional
+    padding : Optional[Tuple[int]]
         The padding of convolution on both sides of inputs before convolution.
 
-    dilation : tuple of int, optional
+    dilation : Optional[Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
-    groups : int, optional
+    groups : Optional[int]
         Number of groups for grouped convolution.
 
-    channels : int, optional
+    channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : tuple of int, optional
+    kernel_size : Optional[Tuple[int]]
         The spatial of the convolution kernel.
 
-    data_layout : str, optional
+    data_layout : Optional[str]
         Layout of the input.
 
-    kernel_layout : str, optional
+    kernel_layout : Optional[str]
         Layout of the weight.
 
-    out_layout : str, optional
+    out_layout : Optional[str]
         Layout of the output, by default, out_layout is the same as data_layout
 
-    out_dtype : str, optional
+    out_dtype : Optional[str]
         Specifies the output data type for mixed precision conv2d.
 
     Returns
@@ -326,6 +326,88 @@ def avg_pool2d(data,
     """
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
+
+def max_pool2d_grad(out_grad,
+                    data,
+                    pool_size=(1, 1),
+                    strides=(1, 1),
+                    padding=(0, 0),
+                    layout="NCHW",
+                    ceil_mode=False):
+    r"""Gradient of 2D maximum pooling operator.
+
+    This operator takes out_grad and data as input and calculates gradient of max_pool2d.
+
+    Parameters
+    ----------
+    out_grad : tvm.relay.Expr
+        The output gradient
+
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.max_pool2d_grad(out_grad, data, pool_size, strides, padding,
+                                 layout, ceil_mode)
+
+def avg_pool2d_grad(out_grad,
+                    data,
+                    pool_size=(1, 1),
+                    strides=(1, 1),
+                    padding=(0, 0),
+                    layout="NCHW",
+                    ceil_mode=False,
+                    count_include_pad=False):
+    r"""Gradient of 2D average pooling operator.
+
+    This operator takes out_grad and data as input and calculates gradient of avg_pool2d.
+
+    Parameters
+    ----------
+    out_grad : tvm.relay.Expr
+        The output gradient
+
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool2d_grad(out_grad, data, pool_size, strides, padding,
+                                 layout, ceil_mode, count_include_pad)
 
 def global_max_pool2d(data,
                       layout="NCHW"):
@@ -691,8 +773,30 @@ def dropout(data, rate=0.5):
     result : tvm.relay.Expr
         The result of dropout
     """
-    result = _make.dropout(data, rate)
-    return TupleWrapper(result, 2)[0]
+    return TupleWrapper(dropout_raw(data, rate), 2)[0]
+
+
+def dropout_raw(data, rate=0.5):
+    """Applies the dropout operation to the input array.
+
+    During training, each element of the input is set to zero with
+    probability ``p``. The whole array is rescaled by ``1/(1-p)``
+    to keep the expected sum of the input unchanged.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    rate : float, optional (default=0.5)
+        The probability for an element to be reset to 0.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The result of dropout
+    """
+    return _make.dropout(data, rate)
 
 
 def batch_norm(data,
@@ -816,6 +920,39 @@ def batch_matmul(x, y):
         The computed result.
     """
     return _make.batch_matmul(x, y)
+
+def sparse_dense(data, weight):
+    r"""
+    Computes the matrix multiplication of `data` and `weight`, where `data` is
+    a dense matrix and `weight` is a sparse (either BSR or CSR) namedtuple with
+    fields `data`, `indices`, and `indptr`.
+
+    .. math::
+
+        \mbox{sparse_dense}(data, weight)[m, n] = \mbox{matmul}(x, \mbox{as_dense}(weight)^T)[m, n]
+
+    where `as_dense` returns dense equivalent of the given sparse matrix.
+
+    See
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html
+    and
+    https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.sparse.bsr_matrix.html
+    for more detail on the sparse matrix representation.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data for the matrix multiplication
+
+    weight : namedtuple.
+        The sparse weight matrix for the matrix multiplication.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
 
 
 def contrib_conv2d_winograd_without_weight_transform(data,

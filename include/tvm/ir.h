@@ -178,6 +178,18 @@ class Mod : public BinaryOpNode<Mod> {
   static constexpr const char* _type_key = "Mod";
 };
 
+/*! \brief Floor division, floor(a/b) */
+class FloorDiv : public BinaryOpNode<FloorDiv> {
+ public:
+  static constexpr const char* _type_key = "FloorDiv";
+};
+
+/*! \brief The remainder of the floordiv */
+class FloorMod : public BinaryOpNode<FloorMod> {
+ public:
+  static constexpr const char* _type_key = "FloorMod";
+};
+
 /*! \brief min(a, b) */
 class Min : public BinaryOpNode<Min> {
  public:

@@ -21,6 +21,7 @@ from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import gradient
 from tvm.relay.feature import Feature
 from tvm.relay.prelude import Prelude
+from tvm.relay.testing import run_infer_type
 
 def test_prelude():
     p = Prelude()
@@ -47,6 +48,7 @@ def test_ad():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
+    func = run_infer_type(func)
     mod = relay.Module.from_expr(gradient(func))
     mod = relay.transform.InferType()(mod)
     back_func = mod["main"]

@@ -824,6 +824,9 @@ Function InferType(const Function& func,
   return Downcast<Function>(func_ret);
 }
 
+TVM_REGISTER_API("relay._transform.infer_type")
+.set_body_typed<Expr(Expr, Module)>([](Expr l, Module r) { return InferType(l, r); });
+
 namespace transform {
 
 Pass InferType() {

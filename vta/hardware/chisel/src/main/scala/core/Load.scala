@@ -65,9 +65,9 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
       when (start) {
         when (dec.io.isSync) {
           state := sSync
-	} .elsewhen (dec.io.isInput || dec.io.isWeight) {
+        } .elsewhen (dec.io.isInput || dec.io.isWeight) {
           state := sExe
-	}
+        }
       }
     }
     is (sSync) {
@@ -121,10 +121,10 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
     when (state === sExe) {
       when (done) {
         when (dec.io.isInput) {
-	  printf("[Load] done input\n")
-	} .elsewhen (dec.io.isWeight) {
-	  printf("[Load] done weight\n")
-	}
+          printf("[Load] done input\n")
+        } .elsewhen (dec.io.isWeight) {
+          printf("[Load] done weight\n")
+        }
       }
     }
   }

@@ -18,7 +18,7 @@
 """Stage class for dynamic programming tuner"""
 import numpy as np
 
-from .utils import is_input_node
+from .utils import is_boundary_node
 
 
 class DPStage(object):
@@ -102,20 +102,13 @@ class DPStage(object):
 
     def _create_op_states(self):
         """State creation routine for nodes with target_op."""
-        input_idx = -1
-        for index in self._global_in_nodes_dict[self._idx]:
-            input_idx = index
-            if not is_input_node(self._global_node_list[input_idx],
-                                 self._global_input_names):
-                break
-
-        if is_input_node(self._global_node_list[input_idx],
-                         self._global_input_names):
+        input_idx = self._global_in_nodes_dict[self._idx][0]
+        input_node_entry = self._global_node_list[input_idx]
+        if is_boundary_node(input_node_entry, self._global_input_names):
             self._full_states = np.array([record[1].costs[0]
                                           for record in self._record_list])
             self._states = self._full_states
         else:
-            input_node_entry = self._global_node_list[input_idx]
             input_stage = self._global_stage_dict[input_idx]
             input_dep = input_stage.dep
             input_states = input_stage.states
@@ -202,10 +195,10 @@ class DPStage(object):
         """
         full_input_node_list = list(self._global_in_nodes_dict[self._idx])
         input_index_list = []
-        # Remove input and parameter nodes
+        # Remove input and ruled_out nodes
         for input_idx in full_input_node_list:
-            if not is_input_node(self._global_node_list[input_idx],
-                                 self._global_input_names):
+            input_node = self._global_node_list[input_idx]
+            if not is_boundary_node(input_node, self._global_input_names):
                 input_index_list.append(input_idx)
 
         # Generate new states
@@ -331,8 +324,9 @@ class DPStage(object):
             for dep_idx in input_node_stage.dep:
                 if dep_idx not in aligned_node_list:
                     aligned_node_list.append(dep_idx)
-        aligned_shape = tuple([len(node_list[idx]["record_candidates"])
-                               for idx in aligned_node_list])
+        aligned_shape = []
+        for idx in aligned_node_list:
+            aligned_shape.append(len(node_list[idx]["record_candidates"]))
         for input_idx in input_index_list:
             input_node_stage = stage_dict[input_idx]
             input_node_shape_idx_list = [input_idx] + input_node_stage.dep

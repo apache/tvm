@@ -275,7 +275,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         The name hint of the tensor
 
     tag: str, optional
-        Additonal tag information about the compute.
+        Additional tag information about the compute.
 
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
@@ -888,7 +888,46 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
+def floordiv(a, b):
+    """Compute the floordiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorDiv(a, b)
+
+
+def floormod(a, b):
+    """Compute the floormod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _make._OpFloorMod(a, b)
+
+
 _init_api("tvm.api")
+
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')

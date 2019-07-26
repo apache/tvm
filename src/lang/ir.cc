@@ -59,13 +59,11 @@ Expr StringImm::make(std::string value) {
 Expr Cast::make(DataType t, Expr value) {
   CHECK(value.defined());
   CHECK_EQ(t.lanes(), value.type().lanes());
-
   NodePtr<Cast> node = make_node<Cast>();
   node->type = t;
   node->value = std::move(value);
   return Expr(node);
 }
-
 
 Expr And::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
@@ -700,6 +698,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<FloorDiv>([](const FloorDiv* op, IRPrinter *p) {
+  p->stream << "floordiv(" << op->a << ", " << op->b << ")";
+});
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<FloorMod>([](const FloorMod* op, IRPrinter *p) {
+  p->stream << "floormod(" << op->a << ", " << op->b << ")";
+});
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<And>([](const And* op, IRPrinter* p) {
     p->stream << '(';
     p->Print(op->a);
@@ -1098,7 +1106,6 @@ TVM_REGISTER_NODE_TYPE(CommReducerNode);
 TVM_REGISTER_NODE_TYPE(Reduce);
 TVM_REGISTER_NODE_TYPE(Any);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
-
 TVM_REGISTER_NODE_TYPE(FloatImm);
 TVM_REGISTER_NODE_TYPE(IntImm);
 TVM_REGISTER_NODE_TYPE(UIntImm);
@@ -1110,6 +1117,8 @@ TVM_REGISTER_NODE_TYPE(Sub);
 TVM_REGISTER_NODE_TYPE(Mul);
 TVM_REGISTER_NODE_TYPE(Div);
 TVM_REGISTER_NODE_TYPE(Mod);
+TVM_REGISTER_NODE_TYPE(FloorDiv);
+TVM_REGISTER_NODE_TYPE(FloorMod);
 TVM_REGISTER_NODE_TYPE(Min);
 TVM_REGISTER_NODE_TYPE(Max);
 TVM_REGISTER_NODE_TYPE(EQ);

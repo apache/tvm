@@ -92,9 +92,9 @@ def test_squeezenet():
 
 
 def test_inception_v3():
-    image_shape = (1, 3, 299, 299)
+    image_shape = (3, 299, 299)
     mod, params = testing.inception_v3.get_workload(image_shape=image_shape)
-    benchmark_execution(mod, params, data_shape=image_shape)
+    benchmark_execution(mod, params, data_shape=(1, 3, 299, 299))
 
 
 def test_dqn():
@@ -107,7 +107,7 @@ def test_dqn():
 def test_dcgan():
     image_shape = (1, 100)
     mod, params = testing.dcgan.get_workload(batch_size=1)
-    benchmark_execution(mod, params, data_shape=image_shape)
+    benchmark_execution(mod, params, data_shape=image_shape, out_shape=(1, 3, 64, 64))
 
 
 def test_mobilenet():
@@ -126,8 +126,7 @@ if __name__ == '__main__':
     test_squeezenet()
     test_mobilenet()
     test_densenet()
-    # The following networks fail
-    # test_inception_v3()
-    # test_mlp()
-    # test_dqn()
-    # test_dcgan()
+    test_inception_v3()
+    test_mlp()
+    test_dqn()
+    test_dcgan()

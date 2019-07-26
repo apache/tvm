@@ -463,6 +463,40 @@ class Mod(BinaryOpExpr):
 
 
 @register_node
+class FloorDiv(BinaryOpExpr):
+    """FloorDiv node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+    """
+    def __init__(self, a, b):
+        self.__init_handle_by_constructor__(
+            _make.FloorDiv, a, b)
+
+
+@register_node
+class FloorMod(BinaryOpExpr):
+    """FloorMod node.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand.
+
+    b : Expr
+        The right hand operand.
+    """
+    def __init__(self, a, b):
+        self.__init_handle_by_constructor__(
+            _make.FloorMod, a, b)
+
+
+@register_node
 class Min(BinaryOpExpr):
     """Min node.
 

@@ -210,7 +210,8 @@ inline Tensor reshape(const Tensor& x,
   auto x_shape = x->shape;
   return compute(
     newshape, [&](const Array<Var>& indices) {
-      return x(UnravelIndex(RavelIndex(indices, newshape), x_shape));
+      return x(UnravelIndex(RavelIndex(Array<Expr>{indices.begin(), indices.end()}, newshape),
+                            x_shape));
     }, name, tag);
 }
 
@@ -1218,6 +1219,29 @@ inline Tensor shape(const Tensor& src,
     Expr ret = 0;
     for (int i = 0; i < ndim; ++i) {
       ret = tvm::if_then_else(idx == i, src->shape[i], ret);
+    }
+    return tvm::cast(dtype, ret);
+  }, name, tag);
+}
+
+/*!
+ * \brief Get the size of input tensor.
+ * \param src the input tensor.
+ * \param dtype the type of the elements in the tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of input shape.
+ */
+inline Tensor ndarray_size(const Tensor& src,
+                           const Type& dtype,
+                           const std::string& name = "ndarray_size",
+                           const std::string& tag = kInjective) {
+  int ndim = static_cast<int>(src->shape.size());
+  Array<Expr> out_ndarray_size = {1};
+  return compute(out_ndarray_size, [&](const Array<Var>& indices) {
+    Expr ret = 1;
+    for (int i = 0; i < ndim; ++i) {
+      ret *= src->shape[i];
     }
     return tvm::cast(dtype, ret);
   }, name, tag);

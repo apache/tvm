@@ -252,6 +252,68 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
   return IntervalSet::Everything();
 }
 
+
+template<>
+inline IntervalSet Combine<ir::FloorDiv>(Analyzer* analyzer,
+                                         IntervalSet a,
+                                         IntervalSet b) {
+  if (a->IsSinglePoint() && b->IsSinglePoint()) {
+    return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
+  }
+  if (a->IsEmpty()) return a;
+  if (b->IsEmpty()) return b;
+  if (b->IsSinglePoint()) {
+    if (is_zero(b->min_value)) {
+      LOG(FATAL) << "Divide by zero in CombineInterval Div";
+    }
+    if (is_one(b->min_value)) return a;
+    // no relaxation is needed in here due to set is inclusive
+    if (analyzer->CanProveGreaterEqual(b->min_value, 0)) {
+      Expr min_value = a->HasLowerBound() ? floordiv(a->min_value, b->min_value) : neg_inf();
+      Expr max_value = a->HasUpperBound() ? floordiv(a->max_value, b->min_value) : pos_inf();
+      return IntervalSet(min_value, max_value);
+    } else if (analyzer->CanProveGreaterEqual(-b->min_value, 1)) {
+      Expr min_value = a->HasUpperBound() ? floordiv(a->max_value, b->min_value) : neg_inf();
+      Expr max_value = a->HasLowerBound() ? floordiv(a->min_value, b->min_value) : pos_inf();
+      return IntervalSet(min_value, max_value);
+    } else if (a->HasUpperBound() && a->HasLowerBound()) {
+      using ir::Select;
+      Expr sign = b->min_value >= make_zero(b->min_value.type().element_of());
+      Expr e1 = floordiv(a->min_value, b->min_value);
+      Expr e2 = floordiv(a->max_value, b->min_value);
+      return IntervalSet(Select::make(sign, e1, e2), Select::make(sign, e2, e1));
+    }
+  }
+  DLOG(WARNING) << "Return Everything in CombineInterval Div";
+  return IntervalSet::Everything();
+}
+
+template<>
+inline IntervalSet Combine<ir::FloorMod>(Analyzer* analyzer,
+                                         IntervalSet a,
+                                         IntervalSet b) {
+  if (a->IsSinglePoint() && b->IsSinglePoint()) {
+    return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
+  }
+  if (a->IsEmpty()) return a;
+  if (b->IsEmpty()) return b;
+
+  if (b->IsSinglePoint()) {
+    const Expr& divisor = b->min_value;
+    if (is_zero(divisor)) {
+      LOG(FATAL) << "Modular by zero in CombineInterval Mod";
+    }
+    if (analyzer->CanProveGreaterEqual(divisor, 0)) {
+      return IntervalSet(make_zero(divisor.type()), divisor - 1);
+    } else {
+      Expr bound = abs(divisor) - 1;
+      return IntervalSet(-bound, bound);
+    }
+  }
+  DLOG(WARNING) << "Return Everything in CombineInterval Mod";
+  return IntervalSet::Everything();
+}
+
 template<>
 inline IntervalSet Combine<ir::Max>(Analyzer* analzyer,
                                     IntervalSet a,
@@ -358,6 +420,14 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExpr_(const Mod* op) final {
+    return VisitBinaryExpr_(op);
+  }
+
+  IntervalSet VisitExpr_(const FloorDiv* op) final {
+    return VisitBinaryExpr_(op);
+  }
+
+  IntervalSet VisitExpr_(const FloorMod* op) final {
     return VisitBinaryExpr_(op);
   }
 
@@ -685,7 +755,7 @@ IntSet EvalSet(Range r,
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   Expr sum = r->min + r->extent - 1;
   auto res  = m.Eval(IntervalSet(r->min,  Simplify(sum)));
-  return res;
+  return std::move(res);
 }
 
 IntSet EvalSet(Range r,

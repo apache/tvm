@@ -73,6 +73,15 @@ struct ModularSetAnalyzer::Entry {
   bool is_const() const {
     return coeff == 0;
   }
+
+  bool operator==(const Entry& other) const {
+    return coeff == other.coeff && base == other.base;
+  }
+
+  bool operator==(const ModularSet& other) const {
+    return other.defined() &&
+        coeff == other->coeff && base == other->base;
+  }
 };
 
 class ModularSetAnalyzer::Impl :
@@ -85,7 +94,14 @@ class ModularSetAnalyzer::Impl :
               const ModularSet& info,
               bool override) {
     if (!override) {
-      CHECK(!var_map_.count(var));
+      auto it = var_map_.find(var);
+      if (it != var_map_.end()) {
+        CHECK(it->second == info)
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ModularSet(it->second.coeff, it->second.base)
+            << ", new=" << info;
+      }
     }
     var_map_[var] = Entry(info->coeff, info->base);
   }
@@ -175,6 +191,14 @@ class ModularSetAnalyzer::Impl :
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);
+    }
+    return Everything();
+  }
+
+  Entry VisitExpr_(const FloorDiv* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      return DivByConst(op->a, b.base, true);
     }
     return Everything();
   }
