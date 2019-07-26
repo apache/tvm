@@ -17,8 +17,13 @@
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
 
+import tvm
 import tvm.relay as relay
+import tvm.relay.op as op
 from tvm.relay import transform
+from tvm.relay import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem, create_executor
+from tvm.relay import TensorType, TupleType
+import numpy as np
 
 from . import mlp
 from . import resnet
@@ -37,11 +42,6 @@ from .init import create_workload
 from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
-from tvm.relay import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem, create_executor
-from tvm.relay import TensorType, TupleType
-import tvm
-import numpy as np
-import tvm.relay.op as op
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
@@ -54,26 +54,28 @@ def run_opt_pass(expr, opt_pass):
 def run_infer_type(expr):
     return run_opt_pass(expr, transform.InferType())
 
+
 def rand_from_type(t):
     return relay.Constant(rand(t.dtype, *[int(d) for d in t.shape]))
 
-check_grad_counter = 0
+
+CHECK_GRAD_COUNTER = 0
 def check_grad(func, mod=None):
     """
     Test that directional gradient calculated by reverse mode
     is close to the one calculated by finite difference.
     """
-    global check_grad_counter
+    global CHECK_GRAD_COUNTER
     if mod is None:
         mod = relay.Module()
     def make(name):
-        return GlobalVar(name + str(check_grad_counter))
+        return GlobalVar(name + str(CHECK_GRAD_COUNTER))
     func_name = make("func_")
     back_func_name = make("back_func_")
     finite_difference_func_name = make("finite_difference_")
     reverse_mode_func_name = make("reverse_mode_")
     check_func_name = make("check_func_")
-    check_grad_counter = check_grad_counter + 1
+    CHECK_GRAD_COUNTER = CHECK_GRAD_COUNTER + 1
     epsilon = relay.const(0.01)
     mod[func_name] = func
     mod[back_func_name] = gradient(mod[func_name], mod=mod)
