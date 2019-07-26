@@ -1016,7 +1016,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
     } else if (auto imm = op->indices[i].as<IntImm>()) {
       idx[i] = imm->value;
     }
-    CHECK(idx[i] >= 0);
+    CHECK_GE(idx[i], 0);
   }
   llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);
   return builder_->CreateShuffleVector(v0, llvm::UndefValue::get(v0->getType()), mask);
