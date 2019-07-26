@@ -79,7 +79,7 @@ class PkgConfig(object):
             self.lib_source += glob.glob("%s/vta/src/zynq/*.cc" % (proj_root))
 
         # Linker flags
-        if self.TARGET in ["pynq", "ultra96"] :
+        if self.TARGET in ["pynq", "ultra96"]:
             self.ldflags = [
                 "-L/usr/lib",
                 "-l:libcma.so"]
@@ -117,11 +117,11 @@ class PkgConfig(object):
             self.fpga_log_axi_bus_width = 7
             self.axi_prot_bits = '010'
             # IP register address map
-            self.ip_reg_map_range  = "0x1000"
-            self.fetch_base_addr   = "0xA0000000"
-            self.load_base_addr    = "0xA0001000"
+            self.ip_reg_map_range = "0x1000"
+            self.fetch_base_addr = "0xA0000000"
+            self.load_base_addr = "0xA0001000"
             self.compute_base_addr = "0xA0002000"
-            self.store_base_addr   = "0xA0003000"
+            self.store_base_addr = "0xA0003000"
         else:
             # By default, we use the pynq parameters
             self.fpga_device = "xc7z020clg484-1"
@@ -131,11 +131,11 @@ class PkgConfig(object):
             self.fpga_log_axi_bus_width = 6
             self.axi_prot_bits = '000'
             # IP register address map
-            self.ip_reg_map_range  = "0x1000"
-            self.fetch_base_addr   = "0x43C00000"
-            self.load_base_addr    = "0x43C01000"
+            self.ip_reg_map_range = "0x1000"
+            self.fetch_base_addr = "0x43C00000"
+            self.load_base_addr = "0x43C01000"
             self.compute_base_addr = "0x43C02000"
-            self.store_base_addr   = "0x43C03000"
+            self.store_base_addr = "0x43C03000"
         # Set coherence settings
         coherent = True
         if coherent:
@@ -146,15 +146,15 @@ class PkgConfig(object):
         # In HLS 0x00-0x0C is reserved for block-level I/O protocol.
         # Make sure to leave 8B between register offsets to maintain
         # compatibility with 64bit systems.
-        self.fetch_insn_count_offset    = 0x10
-        self.fetch_insn_addr_offset     = self.fetch_insn_count_offset + 0x08
-        self.load_inp_addr_offset       = 0x10
-        self.load_wgt_addr_offset       = self.load_inp_addr_offset + 0x08
-        self.compute_done_wr_offet      = 0x10
-        self.compute_done_rd_offet      = self.compute_done_wr_offet + 0x08
-        self.compute_uop_addr_offset    = self.compute_done_rd_offet + 0x08
-        self.compute_bias_addr_offset   = self.compute_uop_addr_offset + 0x08
-        self.store_out_addr_offset      = 0x10
+        self.fetch_insn_count_offset = 0x10
+        self.fetch_insn_addr_offset = self.fetch_insn_count_offset + 0x08
+        self.load_inp_addr_offset = 0x10
+        self.load_wgt_addr_offset = self.load_inp_addr_offset + 0x08
+        self.compute_done_wr_offet = 0x10
+        self.compute_done_rd_offet = self.compute_done_wr_offet + 0x08
+        self.compute_uop_addr_offset = self.compute_done_rd_offet + 0x08
+        self.compute_bias_addr_offset = self.compute_uop_addr_offset + 0x08
+        self.store_out_addr_offset = 0x10
 
         # Derive SRAM parameters
         # The goal here is to determine how many memory banks are needed,
@@ -173,34 +173,34 @@ class PkgConfig(object):
         inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
                                   cfg["LOG_BATCH"] + \
                                   cfg["LOG_BLOCK_IN"])
-        self.inp_mem_size_B = 1 << cfg["LOG_INP_BUFF_SIZE"]
+        self.inp_mem_size = 1 << cfg["LOG_INP_BUFF_SIZE"]  # bytes
         self.inp_mem_banks = (inp_mem_bus_width + \
                               max_bus_width - 1) // \
                               max_bus_width
         self.inp_mem_width = min(inp_mem_bus_width, max_bus_width)
-        self.inp_mem_depth = self.inp_mem_size_B * 8 // inp_mem_bus_width
+        self.inp_mem_depth = self.inp_mem_size * 8 // inp_mem_bus_width
         self.inp_mem_axi_ratio = self.inp_mem_width // mem_bus_width
         # Weight memory
         wgt_mem_bus_width = 1 << (cfg["LOG_WGT_WIDTH"] + \
                                   cfg["LOG_BLOCK_IN"] + \
                                   cfg["LOG_BLOCK_OUT"])
-        self.wgt_mem_size_B = 1 << cfg["LOG_WGT_BUFF_SIZE"]
+        self.wgt_mem_size = 1 << cfg["LOG_WGT_BUFF_SIZE"]  # bytes
         self.wgt_mem_banks = (wgt_mem_bus_width + \
                               max_bus_width - 1) // \
                               max_bus_width
         self.wgt_mem_width = min(wgt_mem_bus_width, max_bus_width)
-        self.wgt_mem_depth = self.wgt_mem_size_B * 8 // wgt_mem_bus_width
+        self.wgt_mem_depth = self.wgt_mem_size * 8 // wgt_mem_bus_width
         self.wgt_mem_axi_ratio = self.wgt_mem_width // mem_bus_width
         # Output memory
         out_mem_bus_width = 1 << (cfg["LOG_OUT_WIDTH"] + \
                                   cfg["LOG_BATCH"] + \
                                   cfg["LOG_BLOCK_OUT"])
-        self.out_mem_size_B = 1 << cfg["LOG_OUT_BUFF_SIZE"]
+        self.out_mem_size = 1 << cfg["LOG_OUT_BUFF_SIZE"]  # bytes
         self.out_mem_banks = (out_mem_bus_width + \
                               max_bus_width - 1) // \
                               max_bus_width
         self.out_mem_width = min(out_mem_bus_width, max_bus_width)
-        self.out_mem_depth = self.out_mem_size_B * 8 // out_mem_bus_width
+        self.out_mem_depth = self.out_mem_size * 8 // out_mem_bus_width
         self.out_mem_axi_ratio = self.out_mem_width // mem_bus_width
 
         # Macro defs
