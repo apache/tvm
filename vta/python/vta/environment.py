@@ -84,7 +84,8 @@ class Environment(object):
 
     Parameters
     ----------
-    pkg : a PkgConfig instance
+    cfg : dict of str to value.
+         The configuration parameters.
 
     Example
     --------
@@ -111,9 +112,10 @@ class Environment(object):
     acc_scope = "local.acc_buffer"
 
     # initialization function
-    def __init__(self, pkg):
-        self.pkg = pkg
-        self.__dict__.update(self.pkg.cfg_dump)
+    def __init__(self, cfg):
+        # Produce the derived parameters and update dict
+        self.pkg = self.pkg_config(cfg)
+        self.__dict__.update(self.pkg.cfg_dict)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
@@ -152,7 +154,7 @@ class Environment(object):
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
         self.out_dtype = "int%d" % self.OUT_WIDTH
         # bistream name
-        self.BITSTREAM = pkg.bitstream
+        self.BITSTREAM = self.pkg.bitstream
         # model string
         self.MODEL = self.TARGET
         # lazy cached members
@@ -168,6 +170,16 @@ class Environment(object):
 
     def __exit__(self, ptype, value, trace):
         Environment.current = self._last_env
+
+    def pkg_config(self, cfg):
+        """PkgConfig instance"""
+        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+        return PkgConfig(cfg, proj_root)
+
+    @property
+    def cfg_dict(self):
+        return self.pkg.cfg_dict
 
     @property
     def dev(self):
@@ -306,7 +318,6 @@ def _init_env():
         raise RuntimeError(
             "Error: vta_config.json not found.")
     cfg = json.load(open(path_list[0]))
-    pkg = PkgConfig(cfg, proj_root)
-    return Environment(pkg)
+    return Environment(cfg)
 
 Environment.current = _init_env()
