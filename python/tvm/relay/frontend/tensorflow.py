@@ -2031,15 +2031,6 @@ class GraphProto(object):
                 # Pass the target layout
                 attr["_target_layout"] = layout
 
-                #ToDo: Some of the tensorflow operators internaly maintain
-                #execution layers and its output name will the layer number along with
-                #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                #the digit has to be ignored.
-                if ":" in node.input[0]:
-                    in_name, _ = node.input[0].split(':')
-                    node.input[0] = in_name
-
                 # Fill shapes for all inputs in a list
                 inputs = []
                 for i in node.input:
