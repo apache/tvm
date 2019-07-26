@@ -757,10 +757,11 @@ def test_where_fusion():
     where = topi.where(gt, one, two)
     add = topi.add(conv1, where)
     outs = [add]
-    s = topi.generic.schedule_conv2d_nchw(outs)
 
     for backend in get_all_backend():
-        tvm.build(s, [data, w, add], target=backend)
+        with tvm.target.create(backend):
+            s = topi.generic.schedule_conv2d_nchw(outs)
+            tvm.build(s, [data, w, add], target=backend)
 
 
 if __name__ == "__main__":
