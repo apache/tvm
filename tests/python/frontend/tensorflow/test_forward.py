@@ -836,9 +836,10 @@ def _test_split(in_shape, axis, num_or_size_splits, dtype):
     in_data = tf.placeholder(dtype, in_shape, name="in_data")
     num_split = len(num_or_size_splits) if isinstance(num_or_size_splits, list)\
                 else num_or_size_splits
-    tf.split(in_data, num_or_size_splits, axis=axis)
+    split = tf.split(in_data, num_or_size_splits, axis=axis)
+    relu = [tf.nn.relu(i) for i in split]
 
-    compare_tf_with_tvm([np_data], ['in_data:0'], [f'split:{n}' for n in range(num_split)])
+    compare_tf_with_tvm([np_data], ['in_data:0'], [n.name for n in relu])
 
     # and now test together with concat
     tf.reset_default_graph()
