@@ -86,7 +86,8 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     for device in get_all_backend():
         check_device(device)
 
-def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
+def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True,
+                     add_relu=False):
     iw = ih
     kw = kh
     sw = sh
@@ -110,6 +111,8 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
     PoolGrad = topi.nn.pool_grad(OutGrad, A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                                  pool_type=pool_type, ceil_mode=ceil_mode,
                                  layout="NCHW", count_include_pad=count_include_pad)
+    if add_relu:
+        PoolGrad = topi.nn.relu(PoolGrad)
 
     a_np = np.random.uniform(low=0.001, size=(n, ic, ih, iw)).astype(dtype)
     out_grad_np = np.random.uniform(low=0.001, size=bshape).astype(dtype)
@@ -117,6 +120,8 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
                                                strides=(sh, sw), padding=padding,
                                                pool_type=pool_type, ceil_mode=ceil_mode,
                                                count_include_pad=count_include_pad)
+    if add_relu:
+        pool_grad_np = np.maximum(pool_grad_np, 0.)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -134,7 +139,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
         f(a, out_grad, pool_grad)
         tvm.testing.assert_allclose(pool_grad.asnumpy(), pool_grad_np, rtol=1e-5)
 
-    for device in ['llvm']:  # only support llvm
+    for device in get_all_backend():
         check_device(device)
 
 def test_pool():
@@ -152,6 +157,7 @@ def test_pool():
     verify_pool(1, 256, 31, 3, 3, [1, 0, 3, 2], 'max', False)
     verify_pool(1, 256, 31, 3, 3, [3, 2, 1, 0], 'max', True)
 
+def test_pool_grad():
     verify_pool_grad(1, 256, 32, 3, 2, [1, 1, 1, 1], 'avg', False, False)
     verify_pool_grad(1, 256, 32, 2, 2, [0, 0, 0, 0], 'avg', False, True)
     verify_pool_grad(1, 256, 31, 3, 3, [1, 2, 1, 2], 'avg', False, True)
@@ -168,6 +174,9 @@ def test_pool():
     verify_pool_grad(1, 256, 31, 3, 3, [3, 2, 1, 0], 'max', True)
     verify_pool_grad(1, 256, 32, 3, 2, [1, 1, 1, 1], 'max', False)
     verify_pool_grad(1, 256, 32, 1, 2, [1, 1, 1, 1], 'avg', False, False)
+
+    verify_pool_grad(1, 256, 31, 4, 4, [0, 0, 0, 0], 'avg', False, False, add_relu=True)
+    verify_pool_grad(1, 256, 32, 2, 2, [0, 0, 0, 0], 'max', False, add_relu=True)
 
 
 def verify_global_pool(n, c, h, w, pool_type):
@@ -258,5 +267,6 @@ def test_adaptive_pool():
 
 if __name__ == "__main__":
     test_pool()
+    test_pool_grad()
     test_global_pool()
     test_adaptive_pool()
