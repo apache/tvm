@@ -176,7 +176,6 @@ def schedule_pool_grad_cuda(outs):
             out = op
         else:
             out = outs[0].op.output(0)
-            s[op].set_scope('local')
         fused = s[out].fuse(*s[out].op.axis)
         num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         bx, tx = s[out].split(fused, factor=num_thread)
@@ -186,7 +185,6 @@ def schedule_pool_grad_cuda(outs):
         if tag.COMM_REDUCE_IDX in op.input_tensors[0].op.tag:
             max_pool_index = op.input_tensors[0]
             s[max_pool_index].compute_at(s[out], tx)
-            s[max_pool_index].set_scope('local')
 
             pool_input = max_pool_index.op.input_tensors[0]
             if isinstance(pool_input.op, tvm.tensor.ComputeOp):
