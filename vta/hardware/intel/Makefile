@@ -42,6 +42,12 @@ CONF = $(shell ${VTA_CONFIG} --cfg-str)
 IP_BUILD_PATH = $(BUILD_DIR)/chisel/$(CONF)
 HW_BUILD_PATH = $(BUILD_DIR)/quartus/$(CONF)
 
+ifeq ($(NO_DSP), true)
+  DSP_FLAG = --dsp
+else
+  DSP_FLAG =
+endif
+
 # IP file path
 IP_PATH = $(IP_BUILD_PATH)/VTA.DefaultDe10Config.v
 
@@ -62,13 +68,9 @@ $(IP_PATH): $(SRC_DIR)
 $(BIT_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
-    cp -r $(SCRIPT_DIR)/* $(HW_BUILD_PATH)
-ifeq ($(NO_DSP), true)
-	python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v --verbose --dsp
-else
-	python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v --verbose
-endif
-	$(TCLSH) -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
+    cp -r $(SCRIPT_DIR)/* $(HW_BUILD_PATH) && \
+    python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v --verbose $(DSP_FLAG) && \
+    $(TCLSH) -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
     mkdir -p $(shell dirname $(BIT_PATH)) && \
     quartus_cpf -c $(HW_BUILD_PATH)/DE10_NANO_SoC_GHRD.sof $(BIT_PATH)
 

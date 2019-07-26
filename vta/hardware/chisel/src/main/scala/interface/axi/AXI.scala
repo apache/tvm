@@ -62,7 +62,6 @@ abstract class AXIBase(params: AXIParams)
 
 class AXILiteAddress(params: AXIParams) extends AXIBase(params) {
   val addr = UInt(params.addrBits.W)
-  val prot = UInt(params.protBits.W)
 }
 
 class AXILiteWriteData(params: AXIParams) extends AXIBase(params) {
@@ -89,14 +88,12 @@ class AXILiteMaster(params: AXIParams) extends AXIBase(params) {
   def tieoff() {
     aw.valid := false.B
     aw.bits.addr := 0.U
-    aw.bits.prot := 0.U
     w.valid := false.B
     w.bits.data := 0.U
     w.bits.strb := 0.U
     b.ready := false.B
     ar.valid := false.B
     ar.bits.addr := 0.U
-    ar.bits.prot := 0.U
     r.ready := false.B
   }
 }
@@ -130,6 +127,7 @@ class AXIAddress(params: AXIParams) extends AXILiteAddress(params) {
   val burst = UInt(params.burstBits.W)
   val lock = UInt(params.lockBits.W)
   val cache = UInt(params.cacheBits.W)
+  val prot = UInt(params.protBits.W)
   val qos = UInt(params.qosBits.W)
   val region = UInt(params.regionBits.W)
 }

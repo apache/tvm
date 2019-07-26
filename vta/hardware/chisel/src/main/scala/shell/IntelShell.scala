@@ -46,7 +46,6 @@ class IntelShell(implicit p: Parameters) extends Module {
   io.host.aw.ready := vcr.io.host.aw.ready
   vcr.io.host.aw.valid := io.host.aw.valid
   vcr.io.host.aw.bits.addr := io.host.aw.bits.addr
-  vcr.io.host.aw.bits.prot := io.host.aw.bits.prot
   io.host.w.ready := vcr.io.host.w.ready
   vcr.io.host.w.valid := io.host.w.valid
   vcr.io.host.w.bits.data := io.host.w.bits.data
@@ -54,21 +53,20 @@ class IntelShell(implicit p: Parameters) extends Module {
   vcr.io.host.b.ready := io.host.b.ready
   io.host.b.valid := vcr.io.host.b.valid
   io.host.b.bits.resp := vcr.io.host.b.bits.resp
+  io.host.b.bits.id := io.host.w.bits.id
 
   io.host.ar.ready := vcr.io.host.ar.ready
   vcr.io.host.ar.valid := io.host.ar.valid
   vcr.io.host.ar.bits.addr := io.host.ar.bits.addr
-  vcr.io.host.ar.bits.prot := io.host.ar.bits.prot
   vcr.io.host.r.ready := io.host.r.ready
   io.host.r.valid := vcr.io.host.r.valid
   io.host.r.bits.data := vcr.io.host.r.bits.data
   io.host.r.bits.resp := vcr.io.host.r.bits.resp
+  io.host.r.bits.id := io.host.ar.bits.id
 
-  io.host.b.bits.id := io.host.w.bits.id
   io.host.b.bits.user <> DontCare
   io.host.r.bits.user <> DontCare
   io.host.r.bits.last := 1.U
-  io.host.r.bits.id := io.host.ar.bits.id
 
   io.mem <> vme.io.mem
 }
