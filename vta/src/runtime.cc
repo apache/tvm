@@ -44,9 +44,9 @@ namespace vta {
 static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8,
               "VTA_UOP_WIDTH do not match VTAUop size");
 
-/*! \brief Enable coherent access of data buffers between VTA and CPU (used on shared mem systems). */
+/*! \brief Enable coherent access of data buffers between VTA and CPU */
 static const bool kBufferCoherent = VTA_COHERENT_ACCESSES;
-/*! \brief Always cache buffers (otherwise, write back to DRAM from CPU) (used on shared mem systems). */
+/*! \brief Always cache buffers (otherwise, write back to DRAM from CPU) */
 static const bool kAlwaysCache = true;
 
 /*!
