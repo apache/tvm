@@ -17,9 +17,13 @@
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
+from topi.util import get_const_tuple
+from topi.nn.util import get_pad_tuple
 from ..expr import const, Tuple, TupleGetItem
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where
+from .reduce import sum as _sum
+from .transform import collapse_sum_like, broadcast_to_like, where, transpose, reshape, tile, \
+        strided_slice
 from .tensor import exp, negative, power, less, cos, sin
 from .tensor import zeros_like, ones_like
 from . import nn as _nn
@@ -187,3 +191,62 @@ def concatenate_grad(orig, grad):
     # Assume only two element in tuple rn.
     # In the real implementation, concatenate_grad probably need to be implemented by an operator.
     return [Tuple([zeros_like(x), zeros_like(y)])]
+
+@register_gradient("nn.conv2d")
+def conv2d_grad(orig, grad):
+    """Gradient of conv2d"""
+    attrs = orig.attrs
+    data, weight = orig.args
+    data_shape = get_const_tuple(data.checked_type.shape)
+    weight_shape = get_const_tuple(weight.checked_type.shape)
+    _, _, grad_h, grad_w = get_const_tuple(orig.checked_type.shape)
+    batch, in_channel, in_h, in_w = data_shape
+    out_channel, _, filter_h, filter_w = weight_shape
+
+    # infer output_padding
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(get_const_tuple(attrs.padding),
+                                                                 (filter_h, filter_w))
+    stride_h, stride_w = get_const_tuple(attrs.strides)
+    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+    out_h = (grad_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
+    out_w = (grad_w - 1) * stride_w - fpad_left - fpad_right + filter_w
+    output_padding = (in_h - out_h, in_w - out_w)
+
+    assert attrs.data_layout == 'NCHW', 'only support NCHW data layout'
+    assert attrs.kernel_layout == 'OIHW', 'only support OIHW kernel layout'
+    assert attrs.out_layout in ['', 'NCHW'], 'only support NCHW output layout'
+
+
+    backward_data = _nn.conv2d_transpose(grad, weight,
+                                         strides=attrs.strides,
+                                         padding=attrs.padding,
+                                         dilation=attrs.dilation,
+                                         groups=attrs.groups,
+                                         output_padding=output_padding)
+    grad = tile(grad, [1, in_channel // attrs.groups, 1, 1])
+    grad = reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
+    data = reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
+
+    backward_weight = _nn.conv2d(data, grad,
+                                 strides=attrs.dilation,
+                                 padding=attrs.padding,
+                                 dilation=attrs.strides,
+                                 groups=in_channel * batch)
+    # infer shape of backward_weight
+    padded_weight_grad_h = (in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom) \
+                           // dilation_h + 1
+    padded_weight_grad_w = (in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right) \
+                           // dilation_w + 1
+    backward_weight = reshape(backward_weight,
+                              [batch, in_channel // attrs.groups, out_channel,
+                               padded_weight_grad_h, padded_weight_grad_w])
+    backward_weight = _sum(backward_weight, axis=0)
+    backward_weight = transpose(backward_weight, [1, 0, 2, 3])
+
+    assert padded_weight_grad_h >= filter_h
+    assert padded_weight_grad_w >= filter_w
+    if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
+        backward_weight = strided_slice(backward_weight, begin=[0, 0, 0, 0],
+                                        end=[None, None, filter_h, filter_w])
+
+    return [backward_data, backward_weight]

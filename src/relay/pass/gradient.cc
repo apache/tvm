@@ -348,11 +348,16 @@ struct ReverseAD : ExprMutator {
           args.push_back(ll->Push(VisitExpr(arg)));
         }
         std::vector<Expr> orig_args;
-        for (size_t i = 0; i < args.size(); ++i) {
-          orig_args.push_back(GetValue(op->args[i]->checked_type(), args[i], ll));
+        for (size_t i = 0; i < args.size(); i++) {
+            auto orig_arg = GetField(args[i], 0);
+            orig_arg->checked_type_ = op->args[i]->checked_type();
+            orig_args.push_back(orig_arg);
         }
         Expr orig = CallNode::make(op->op, orig_args, op->attrs, op->type_args);
-        auto ret = ll->Push(GetRev(op->checked_type(), ll->Push(orig), ll));
+        orig->checked_type_ = op->checked_type();
+        Var orig_var = ll->Push(orig);
+        orig_var->checked_type_ = op->checked_type();
+        auto ret = ll->Push(GetRev(op->checked_type(), orig_var, ll));
         auto bpv = ll->Push(RefReadNode::make(bp));
         Expr nbp = FunctionNode::make(
           {},

@@ -116,6 +116,7 @@ def conv2d_transpose(data,
                      kernel_size=None,
                      data_layout="NCHW",
                      kernel_layout="OIHW",
+                     out_layout="",
                      output_padding=(0, 0),
                      out_dtype=""):
     """Two dimensional transposed convolution operator.
@@ -152,6 +153,9 @@ def conv2d_transpose(data,
     kernel_layout : str, optional
         Layout of the weight.
 
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
     output_padding : Tuple[int], optional
         Additional zero-padding to be added to one side of the output.
 
@@ -165,7 +169,7 @@ def conv2d_transpose(data,
     """
     return _make.conv2d_transpose(data, weight, strides, padding, dilation,
                                   groups, channels, kernel_size, data_layout,
-                                  kernel_layout, output_padding, out_dtype)
+                                  kernel_layout, out_layout, output_padding, out_dtype)
 
 
 def softmax(data, axis=-1):
