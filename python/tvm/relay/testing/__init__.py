@@ -79,49 +79,46 @@ def check_grad(func, mod=None):
     mod[back_func_name] = gradient(mod[func_name], mod=mod)
     params = mod[func_name].params
     directions = [rand_from_type(x.checked_type) for x in params]
+    ft = TensorType(())
     sb = ScopeBuilder()
     def get_reverse_mode_result(e, d, t):
-        if isinstance(t, TensorType):
-            return op.cast(e * d, 'float32')
-        else:
-            assert isinstance(t, TupleType)
-            raise
-            #return [get_reverse_mode_result(sb.let("e", TupleGetItem(e, i)), TupleGetItem(d, i), t)
-            #        for i, t in enumerate(t.fields)]
+        assert isinstance(t, TensorType)
+        return op.cast(e * d, 'float32')
     bf = sb.let("bf", TupleGetItem(back_func_name(*params), 1))
-    reverse_mode_results = [get_reverse_mode_result(sb.let("e", TupleGetItem(bf, i)), directions[i], x.checked_type)
+    reverse_mode_results = [get_reverse_mode_result(TupleGetItem(bf, i),
+                                                    directions[i],
+                                                    x.checked_type)
                             for i, x in enumerate(params)]
     reverse_mode_result = relay.const(0.0)
     for x in reverse_mode_results:
-        reverse_mode_result = reverse_mode_result + x
+        reverse_mode_result = reverse_mode_result + op.reduce.sum(x)
     sb.ret(reverse_mode_result)
     reverse_mode_result = sb.get()
     mod[reverse_mode_func_name] = Function(params,
                                            reverse_mode_result,
-                                           mod[func_name].ret_type,
+                                           ft,
                                            mod[func_name].type_params,
                                            mod[func_name].attrs)
-    finite_difference_result = ((func_name(*[x + epsilon * y for x, y in
-                                             zip(params, directions)]) -
-                                 func_name(*params)) /
-                                epsilon)
+    finite_difference_result = op.reduce.sum((func_name(*[x + epsilon * y for x, y in
+                                                          zip(params, directions)]) -
+                                              func_name(*params)) /
+                                             epsilon)
 
     mod[finite_difference_func_name] = Function(params,
                                                 finite_difference_result,
-                                                mod[func_name].ret_type,
+                                                ft,
                                                 mod[func_name].type_params,
                                                 mod[func_name].attrs)
     check_func_result = op.abs(reverse_mode_func_name(*params) -
                                finite_difference_func_name(*params))
     mod[check_func_name] = Function(params,
                                     check_func_result,
-                                    mod[func_name].ret_type,
+                                    ft,
                                     mod[func_name].type_params,
                                     mod[func_name].attrs)
     ex = create_executor(mod=mod)
     res = ex.evaluate(check_func_name(*[rand_from_type(x.checked_type) for x in params]))
-    print(res)
-    raise
+    assert res.data.asnumpy() < 0.001
 
 def rand(dtype='float32', *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))

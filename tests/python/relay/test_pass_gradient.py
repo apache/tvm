@@ -22,15 +22,10 @@ from tvm.relay.analysis import free_vars, free_type_vars
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad
-
-
-def rand(dtype='float32', *shape):
-    return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand
 
 
 def test_id():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -47,7 +42,6 @@ def test_id():
 
 
 def test_add():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -72,8 +66,8 @@ def test_check_grad():
     func = relay.Function([x, y], x + y)
     check_grad(func)
 
+
 def test_temp_add():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -91,7 +85,6 @@ def test_temp_add():
 
 
 def test_sub():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -108,7 +101,6 @@ def test_sub():
 
 
 def test_broadcast_add():
-    return
     shape1 = (3, 4, 1)
     shape2 = (1, 5)
     dtype = 'float32'
@@ -137,7 +129,6 @@ def test_broadcast_add():
 
 
 def test_broadcast_subtract():
-    return
     shape1 = (3, 4, 1)
     shape2 = (1, 5)
     dtype = 'float32'
@@ -166,7 +157,6 @@ def test_broadcast_subtract():
 
 
 def test_tuple():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -197,7 +187,6 @@ def test_tuple():
 
 
 def test_pow():
-    return
     mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
@@ -221,7 +210,6 @@ def test_pow():
 
 
 def test_ref():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -243,7 +231,6 @@ def test_ref():
 
 
 def test_square_second_order():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -264,7 +251,6 @@ def test_square_second_order():
 
 
 def test_if():
-    return
     x = relay.var("x", shape=(1, 16, 64, 64))
     y = relay.var("y", shape=(1, 16, 64, 64))
     cond = relay.var("cond", shape=(), dtype='uint1')
@@ -277,7 +263,6 @@ def test_if():
 
 
 def test_grad_tuple():
-    return
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
