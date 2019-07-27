@@ -755,7 +755,7 @@ def _batch_matmul():
             inputs[0] = _op.transpose(inputs[0], axes=(0,2,1))
         if not attr['adj_y']:
             inputs[1] = _op.transpose(inputs[1], axes=(0,2,1))
-        return AttrCvt(op_name = "batch_matmul", ignores = ['adj_x','adj_y','T'])
+        return AttrCvt(op_name = "batch_matmul", ignores = ['adj_x','adj_y','T'])(inputs, attr)
     return _impl
 
 def _squeeze():
@@ -1322,7 +1322,7 @@ _convert_map = {
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
     'BroadcastTo'                       : _broadcast_to(),
-    'BatchMatMul'                       :_batch_matmul(), 
+    'BatchMatMul'                       : _batch_matmul(), 
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
