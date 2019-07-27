@@ -34,9 +34,6 @@ extern "C" {
 /*! Memory bus width */
 #define VTA_BUS_WIDTH (1 << VTA_LOG_BUS_WIDTH)
 
-/*! Register file width */
-#define VTA_REG_WIDTH 32
-
 /*! log2 of instruction data type width */
 #define VTA_LOG_INS_WIDTH 7
 /*! Instruction data type width */

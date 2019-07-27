@@ -56,9 +56,6 @@ typedef ap_int<VTA_OUT_WIDTH> out_T;
 /* \typedef acc_T Accumulator datatype*/
 typedef ap_int<VTA_ACC_WIDTH> acc_T;
 
-/* \typedef acc_T Accumulator datatype*/
-typedef ap_int<VTA_REG_WIDTH> reg_T;
-
 /* \typedef mul_T Multiplier output datatype*/
 typedef ap_int<VTA_WGT_WIDTH+VTA_INP_WIDTH+1> mul_T;
 

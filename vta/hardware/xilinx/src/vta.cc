@@ -279,8 +279,8 @@ void gemm(
         inp_T i_tensor[VTA_BATCH][VTA_BLOCK_IN];
         read_tensor<bus_T, inp_T, inp_idx_T, VTA_BUS_WIDTH, VTA_INP_WIDTH, VTA_BATCH, VTA_BLOCK_IN>(src_idx, inp_mem, i_tensor);
         // Read in accum tensor
-        reg_T a_tensor[VTA_BATCH][VTA_BLOCK_OUT];
-        read_tensor<bus_T, reg_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, acc_mem, a_tensor);
+        acc_T a_tensor[VTA_BATCH][VTA_BLOCK_OUT];
+        read_tensor<bus_T, acc_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, acc_mem, a_tensor);
         // Output tensor
         out_T o_tensor[VTA_BATCH][VTA_BLOCK_OUT];
 
@@ -288,7 +288,7 @@ void gemm(
         for (int b = 0; b < VTA_BATCH; b++) {
           for (int oc = 0; oc < VTA_BLOCK_OUT; oc++) {
             // Initialize the accumulator values
-            reg_T accum = a_tensor[b][oc];
+            acc_T accum = a_tensor[b][oc];
             // Dot product sum
             sum_T tmp = 0;
             // Inner matrix multiplication loop (input channel/feature)
@@ -299,16 +299,16 @@ void gemm(
               tmp += (sum_T) prod_dsp;
             }
             // Update summation
-            accum += (reg_T) tmp;
+            accum += (acc_T) tmp;
             // Write back result acc_mem
-            a_tensor[b][oc] = insn.reset_reg ? (reg_T) 0 : accum;
+            a_tensor[b][oc] = insn.reset_reg ? (acc_T) 0 : accum;
             // And output vector
             o_tensor[b][oc] = (out_T) accum.range(VTA_OUT_WIDTH - 1, 0);
           }
         }
 
         // Write the results back into accumulator
-        write_tensor<bus_T, reg_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, a_tensor, acc_mem);
+        write_tensor<bus_T, acc_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, a_tensor, acc_mem);
         // Write the results back in the output buffer
         write_tensor<bus_T, out_T, acc_idx_T, VTA_BUS_WIDTH, VTA_OUT_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, o_tensor, out_mem);
       }
@@ -359,11 +359,11 @@ void alu(
             uop.range(VTA_UOP_ALU_1_1, VTA_UOP_ALU_1_0) + src_offset_in;
 
         // Read in src tensor
-        reg_T src_tensor[VTA_BATCH][VTA_BLOCK_OUT];
-        read_tensor<bus_T, reg_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(src_idx, acc_mem, src_tensor);
+        acc_T src_tensor[VTA_BATCH][VTA_BLOCK_OUT];
+        read_tensor<bus_T, acc_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(src_idx, acc_mem, src_tensor);
         // Read in dst tensor
-        reg_T dst_tensor[VTA_BATCH][VTA_BLOCK_OUT];
-        read_tensor<bus_T, reg_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, acc_mem, dst_tensor);
+        acc_T dst_tensor[VTA_BATCH][VTA_BLOCK_OUT];
+        read_tensor<bus_T, acc_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, acc_mem, dst_tensor);
         // Output tensor
         out_T o_tensor[VTA_BATCH][VTA_BLOCK_OUT];
 
@@ -371,26 +371,26 @@ void alu(
         for (int i = 0; i < VTA_BATCH; i++) {
           for (int b = 0; b < VTA_BLOCK_OUT; b++) {
             // Read in operands
-            reg_T src_0 = dst_tensor[i][b];
-            reg_T src_1 = insn.use_imm ? (reg_T) insn.imm : src_tensor[i][b];
+            acc_T src_0 = dst_tensor[i][b];
+            acc_T src_1 = insn.use_imm ? (acc_T) insn.imm : src_tensor[i][b];
             aluop_shr_arg_T shft_by = src_1.range(VTA_SHR_ARG_BIT_WIDTH - 1, 0);
             aluop_mul_arg_T mul_by = src_1.range(VTA_MUL_ARG_BIT_WIDTH - 1, 0);
             if (insn.alu_opcode == VTA_ALU_OPCODE_MIN || insn.alu_opcode == VTA_ALU_OPCODE_MAX) {
               // Compute Min/Max
-              reg_T mix_val = src_0 < src_1 ?
+              acc_T mix_val = src_0 < src_1 ?
                   (insn.alu_opcode == VTA_ALU_OPCODE_MIN ? src_0 : src_1) :
                   (insn.alu_opcode == VTA_ALU_OPCODE_MIN ? src_1 : src_0);
               dst_tensor[i][b] = mix_val;
               o_tensor[i][b] = (out_T) mix_val.range(VTA_OUT_WIDTH - 1, 0);
             } else if (insn.alu_opcode == VTA_ALU_OPCODE_ADD) {
               // Compute Sum
-              reg_T add_val =
-                  src_0.range(VTA_REG_WIDTH - 1, 0) + src_1.range(VTA_REG_WIDTH - 1, 0);
+              acc_T add_val =
+                  src_0.range(VTA_ACC_WIDTH - 1, 0) + src_1.range(VTA_ACC_WIDTH - 1, 0);
               dst_tensor[i][b] = add_val;
               o_tensor[i][b] = (out_T) add_val.range(VTA_OUT_WIDTH - 1, 0);
             } else if (insn.alu_opcode == VTA_ALU_OPCODE_SHR) {
               // Compute Shift Right
-              reg_T shr_val = src_0 >> shft_by;
+              acc_T shr_val = src_0 >> shft_by;
               dst_tensor[i][b] = shr_val;
               o_tensor[i][b] = (out_T) shr_val.range(VTA_OUT_WIDTH - 1, 0);
             }
@@ -398,7 +398,7 @@ void alu(
         }
 
         // Write the results back into accumulator
-        write_tensor<bus_T, reg_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, dst_tensor, acc_mem);
+        write_tensor<bus_T, acc_T, acc_idx_T, VTA_BUS_WIDTH, VTA_ACC_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, dst_tensor, acc_mem);
         // Write the results back in the output buffer
         write_tensor<bus_T, out_T, acc_idx_T, VTA_BUS_WIDTH, VTA_OUT_WIDTH, VTA_BATCH, VTA_BLOCK_OUT>(dst_idx, o_tensor, out_mem);
       }
