@@ -622,8 +622,8 @@ def test_forward_variable():
 
 
 #######################################################################
-# MatMul
-# ------
+# MatMul, BatchMatMul, BatchMatMulV2
+# ----------------------------------
 
 def _test_matmul(i, j, k, dtype, outer=None):
     """ One iteration of matmul """
@@ -647,10 +647,28 @@ def _test_matmul(i, j, k, dtype, outer=None):
                 compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
 
 def test_forward_matmul():
-    """ Matmul op test"""
+    """ MatMul op test"""
     _test_matmul(1, 3, 6, 'int32')
     _test_matmul(5, 3, 1, 'float64')
-    # TODO non-empty outer requires BatchMatMul (BatchMatMulV2 for some cases?) support
+
+def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False):
+
+    with tf.Graph().as_default():
+        A = tf.placeholder(shape=A_shape, dtype=dtype, name='A')
+        B = tf.placeholder(shape=B_shape, dtype=dtype, name='B')
+        result = tf.matmul(A, B, adjoint_a=adjoint_a,
+                           adjoint_b=adjoint_b, name='batchmatmul')
+
+        A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+        compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+
+def test_forward_batch_matmul():
+    """ TF op BatchMatMul, BatchMatMulV2 test"""
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'int32')
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32', True, True)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'int32', True, False)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', False, True)
 
 
 #######################################################################
@@ -2197,6 +2215,7 @@ if __name__ == '__main__':
     test_forward_rel_ops()
     test_forward_logical()
     test_forward_where()
-
     test_forward_matmul()
-    # TODO missing tests: rank, range
+    test_forward_batch_matmul()
+
+    # TODO missing tests: rank
