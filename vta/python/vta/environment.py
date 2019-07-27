@@ -85,7 +85,7 @@ class Environment(object):
     Parameters
     ----------
     cfg : dict of str to value.
-         The configuration parameters.
+        The configuration parameters.
 
     Example
     --------
