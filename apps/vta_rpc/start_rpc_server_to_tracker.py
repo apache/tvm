@@ -17,7 +17,10 @@
 # under the License.
 PROJROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../" && pwd )"
 
+# Derive target specified by vta_config.json
+VTA_CONFIG=$(pwd)/../../vta/config/vta_config.py
+TARGET=$(python ${VTA_CONFIG} --target)
 
 export PYTHONPATH=${PYTHONPATH}:${PROJROOT}/python:${PROJROOT}/vta/python
 export PYTHONPATH=${PYTHONPATH}:/home/xilinx/pynq
-python3 -m vta.exec.rpc_server --tracker fleet:9190 --key ultra96
+python3 -m vta.exec.rpc_server --tracker fleet:9190 --key $TARGET
