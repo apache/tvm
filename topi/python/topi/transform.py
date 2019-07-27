@@ -499,4 +499,28 @@ def ndarray_size(array, dtype="int32"):
 
 
 def where(cond, x, y):
+    """Selecting elements from either x or y depending on the value of the
+    condition.
+
+    .. note::
+        The shape of condition, x, and y needs to be the same.
+
+    Parameters
+    ----------
+    condition : tvm.Tensor
+        The condition array. The n-th element in `y` is selected when the n-th
+        value in the `condition` array is zero. Otherwise, the corresponding
+        element from `x` will be picked.
+
+    x : tvm.Tensor
+        The first array to be selected.
+
+    y : tvm.Tensor
+        The second array to be selected.
+
+    Returns
+    -------
+    result : tvm.Tensor
+		The selected array.
+	"""
     return cpp.where(cond, x, y)
