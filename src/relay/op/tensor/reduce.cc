@@ -485,8 +485,8 @@ bool VarianceRel(const Array<Type>& types,
   const auto* mean = types[1].as<TensorTypeNode>();
   if (mean == nullptr) return false;
 
-  std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
-  std::vector<IndexExpr>&& mean_shape = AsVector(mean->shape);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+  std::vector<IndexExpr> mean_shape(mean->shape.begin(), mean->shape.end());
   CHECK_EQ(in_shape.size(), mean_shape.size());
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
