@@ -22,11 +22,7 @@ from tvm.relay.analysis import free_vars, free_type_vars
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
-
-
-def rand(dtype='float32', *shape):
-    return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand
 
 
 def test_id():
@@ -59,6 +55,16 @@ def test_add():
     forward, (grad,) = ex.evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.asnumpy(), 2 * x.asnumpy())
     tvm.testing.assert_allclose(grad.asnumpy(), 2 * np.ones_like(x.asnumpy()))
+
+
+def test_check_grad():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    y = relay.var("y", t)
+    func = relay.Function([x, y], x + y)
+    check_grad(func)
 
 
 def test_temp_add():
@@ -252,9 +258,26 @@ def test_if():
     net = relay.log(net)
     func = relay.Function(free_vars(net), net)
     func = run_infer_type(func)
-    net = run_infer_type(func)
-    net = gradient(net, mode='higher_order')
+    net = gradient(func, mode='higher_order')
     net = run_infer_type(net)
+
+
+def test_grad_tuple():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    y = x + x
+    func = relay.Function([x], relay.Tuple([y + y, y]))
+    func = run_infer_type(func)
+    back_func = run_infer_type(gradient(func))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([relay.TupleType([t, t]), relay.TupleType([t])]))
+    ex = create_executor()
+    x = rand(dtype, *shape)
+    (forward_four, forward_two), (grad,) = ex.evaluate(back_func)(x)
+    tvm.testing.assert_allclose(forward_four.asnumpy(), 4 * x.asnumpy())
+    tvm.testing.assert_allclose(forward_two.asnumpy(), 2 * x.asnumpy())
+    tvm.testing.assert_allclose(grad.asnumpy(), 4 * np.ones_like(x.asnumpy()))
 
 
 if __name__ == "__main__":
@@ -269,3 +292,4 @@ if __name__ == "__main__":
     test_ref()
     test_square_second_order()
     test_if()
+    test_grad_tuple()

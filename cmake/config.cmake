@@ -62,6 +62,9 @@ set(USE_VULKAN OFF)
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
+# Whether enable MicroTVM runtime
+set(USE_MICRO OFF)
+
 # Whether to enable SGX runtime
 #
 # Possible values for USE_SGX:
@@ -134,4 +137,3 @@ set(USE_ANTLR OFF)
 
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
-

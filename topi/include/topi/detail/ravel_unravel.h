@@ -42,7 +42,7 @@ using namespace tvm;
 *
 * \return The index after flattening
 */
-inline Expr RavelIndex(Array<Var> indices, Array<Expr> shape) {
+inline Expr RavelIndex(Array<Expr> indices, Array<Expr> shape) {
   CHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   CHECK_GT(indices.size(), 0) << "indices must not be empty";
   Expr idx;

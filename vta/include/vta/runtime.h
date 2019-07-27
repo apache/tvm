@@ -105,6 +105,7 @@ TVM_DLL void VTAWriteBarrier(VTACommandHandle cmd,
                              uint32_t elem_bits,
                              uint32_t start,
                              uint32_t extent);
+
 /*!
  * \brief Perform a read barrier to a memory region visible to VTA.
  * \param cmd The VTA command handle.

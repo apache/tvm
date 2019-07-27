@@ -114,6 +114,7 @@ This level enables additional math and transform operators.
    tvm.relay.full
    tvm.relay.full_like
    tvm.relay.cast
+   tvm.relay.reinterpret
    tvm.relay.split
    tvm.relay.arange
    tvm.relay.stack
@@ -263,6 +264,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.full
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast
+.. autofunction:: tvm.relay.reinterpret
 .. autofunction:: tvm.relay.split
 .. autofunction:: tvm.relay.arange
 .. autofunction:: tvm.relay.stack

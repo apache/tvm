@@ -36,6 +36,7 @@ tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
+tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 
@@ -68,7 +69,6 @@ include_directories(${COMPILER_RT_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Generic compilation options
 if(MSVC)
@@ -207,6 +207,7 @@ include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
 include(cmake/modules/SGX.cmake)
 include(cmake/modules/LLVM.cmake)
+include(cmake/modules/Micro.cmake)
 include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
@@ -252,20 +253,31 @@ target_include_directories(
 # Tests
 set(TEST_EXECS "")
 file(GLOB TEST_SRCS tests/cpp/*.cc)
+find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
 find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
 
-if(GTEST_LIB)
+# Create the `cpptest` target if we can find GTest.  If not, we create dummy
+# targets that give the user an informative error message.
+if(GTEST_INCLUDE_DIR AND GTEST_LIB)
   foreach(__srcpath ${TEST_SRCS})
     get_filename_component(__srcname ${__srcpath} NAME)
     string(REPLACE ".cc" "" __execname ${__srcname})
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
-    target_link_libraries(${__execname}
-      tvm ${GTEST_LIB} pthread dl)
+    target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+    target_link_libraries(${__execname} tvm ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()
   add_custom_target(cpptest DEPENDS ${TEST_EXECS})
+elseif(NOT GTEST_INCLUDE_DIR)
+  add_custom_target(cpptest
+      COMMAND echo "Missing Google Test headers in include path"
+      COMMAND exit 1)
+elseif(NOT GTEST_LIB)
+  add_custom_target(cpptest
+      COMMAND echo "Missing Google Test library"
+      COMMAND exit 1)
 endif()
 
 # Custom targets

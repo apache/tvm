@@ -23,7 +23,6 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..nn.util import infer_pad
 from ..util import get_const_tuple
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
-from .check_targets import check_skylake
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -186,19 +185,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     More details - https://software.intel.com/en-us/articles/
     lower-numerical-precision-deep-learning-inference-and-training
     """
-
-    # Currently INT8 operations are supported for only Skylake
-    # In future the _intrin_reduce4int8 will be updated for VNNI instructions
-    # In case of unsupported target, the schedule will go to the original
-    # compute
-
-    target = tvm.target.current_target(allow_none=False)
-    int32_lanes = -1
-    if check_skylake(target):
-        int32_lanes = 16
-    else:
-        return s
-    assert int32_lanes != -1
+    int32_lanes = 16
 
     reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
     _, _, _, _, ic_bn = get_const_tuple(data.shape)

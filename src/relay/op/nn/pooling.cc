@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -556,6 +556,162 @@ RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                Pool2DInferCorrectLayout<AdaptivePool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
+
+
+bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[1].as<TensorTypeNode>();
+
+  if (data == nullptr) return false;
+
+  // assign output type
+  reporter->Assign(types[2], types[1]);
+  return true;
+}
+
+template <typename AttrType, topi::nn::PoolType mode>
+Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+                                const Type& out_type, const Target& target) {
+  static const Layout kNCHW("NCHW");
+  const auto* param = attrs.as<AttrType>();
+  CHECK(param != nullptr);
+  CHECK_EQ(inputs.size(), 2);
+  auto pool_size = param->pool_size;
+  auto strides = param->strides;
+  auto padding = param->padding;
+  auto ceil_mode = param->ceil_mode;
+  Layout layout(param->layout);
+
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+      << "pool2d_grad currently only supports layouts that are convertible from NCHW";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
+      << "pool2d_grad does not support input split on height";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
+      << "pool2d_grad does not support input split on width";
+
+  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
+      << "Pool2DGrad only support 4-D output gradient (e.g., NCHW)"
+      << " or 5-D output gradient (last dimension is a split of channel)";
+
+  CHECK(inputs[1].ndim() == 4U || inputs[1].ndim() == 5U)
+      << "Pool2DGrad only support 4-D input (e.g., NCHW)"
+      << " or 5-D input (last dimension is a split of channel)";
+
+  if (param->padding.size() == 1) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+  } else if (param->padding.size() == 2) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[1]);
+  }
+  if (mode == topi::nn::kAvgPool) {
+    bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
+    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+        mode, ceil_mode, layout.name(), count_include_pad)};
+  } else {
+    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+        mode, ceil_mode, layout.name())};
+  }
+}
+
+
+// MaxPool2DGrad
+Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
+    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode) {
+  auto attrs = make_node<MaxPool2DAttrs>();
+  attrs->pool_size = std::move(pool_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->layout = std::move(layout);
+  attrs->ceil_mode = ceil_mode;
+  static const Op& op = Op::Get("nn.max_pool2d_grad");
+  return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.max_pool2d_grad").set_body_typed(MakeMaxPool2DGrad);
+
+
+RELAY_REGISTER_OP("nn.max_pool2d_grad")
+    .describe(R"code(Gradient of max pooling operation for two dimensional data.
+
+- **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
+                shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+                out_height and out_width are are the output size of the pooling operation,
+                which are calculated as::
+                    out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
+                    out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
+
+                where padding will be an expanded array based on number of values passed as::
+                    one int : all sides same padding used.
+                    two int : bottom, right use same as top and left.
+                    four int: padding width in the order of (top, left, bottom, right).
+
+                When `ceil_mode` is `True`, ceil will be used instead of floor in this
+                equation.
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **grad**: This depends on the `layout` parameter. Grad is 4D array of shape
+           (batch_size, channels, height, width)  if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(2)
+.add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+.set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
+
+
+// AvgPool2DGrad
+Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
+    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode,
+    bool count_include_pad) {
+  auto attrs = make_node<AvgPool2DAttrs>();
+  attrs->pool_size = std::move(pool_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->layout = std::move(layout);
+  attrs->ceil_mode = ceil_mode;
+  attrs->count_include_pad = count_include_pad;
+  static const Op& op = Op::Get("nn.avg_pool2d_grad");
+  return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.avg_pool2d_grad").set_body_typed(MakeAvgPool2DGrad);
+
+
+RELAY_REGISTER_OP("nn.avg_pool2d_grad")
+    .describe(R"code(Gradient of average pooling operation for two dimensional data.
+
+- **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
+                shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+                out_height and out_width are are the output size of the pooling operation,
+                which are calculated as::
+                    out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
+                    out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
+
+                where padding will be an expanded array based on number of values passed as::
+                    one int : all sides same padding used.
+                    two int : bottom, right use same as top and left.
+                    four int: padding width in the order of (top, left, bottom, right).
+
+                When `ceil_mode` is `True`, ceil will be used instead of floor in this
+                equation.
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **grad**: This depends on the `layout` parameter. Grad is 4D array of shape
+           (batch_size, channels, height, width)  if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(2)
+.add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+.set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
+
 
 }  // namespace relay
 }  // namespace tvm

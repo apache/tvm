@@ -56,13 +56,6 @@ void VTAUnmapRegister(void *vta, size_t length);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 
-/*! \brief (Pynq only) Path to /dev/mem */
-#define VTA_PYNQ_DEV_MEM_PATH "/dev/mem"
-/*! \brief (Pynq only) MMIO driver constant */
-#define VTA_PYNQ_MMIO_WORD_LENGTH 4
-/*! \brief (Pynq only) MMIO driver constant */
-#define VTA_PYNQ_MMIO_WORD_MASK (~(MMIO_WORD_LENGTH - 1))
-
 /*! \brief VTA configuration register address range */
 #define VTA_RANGE 0x100
 /*! \brief VTA configuration register start value */

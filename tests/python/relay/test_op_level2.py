@@ -264,6 +264,25 @@ def _test_pool2d(opfunc, reffunc):
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+def _test_pool2d_int(opfunc, reffunc, dtype):
+    n, c, h, w = tvm.var("n"), 10, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+    y = opfunc(x, pool_size=(1, 1))
+    assert "pool_size=" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 10, 224, 224), dtype)
+    # test execution
+    dtype = "int32"
+    dshape = (1, 3, 28, 28)
+    x = relay.var("x", shape=dshape, dtype=dtype)
+    y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+    func = relay.Function([x], y)
+    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def _test_global_pool2d(opfunc, reffunc):
     n, c, h, w = tvm.var("n"), tvm.var("c"), 224, 224
@@ -294,6 +313,8 @@ def _test_global_pool2d(opfunc, reffunc):
 def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max)
     _test_pool2d(relay.nn.avg_pool2d, np.mean)
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'int32')
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
@@ -517,6 +538,65 @@ def test_upsampling():
     _test_upsampling("NHWC", "BILINEAR")
 
 
+def test_conv2d_int8_intrinsics():
+    def _compile(input_dtype, weight_dtype, output_dtype, target):
+        n, ic, h, w, oc, ch, cw = 1, 16, 224, 224, 32, 3, 3
+        x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+        w = relay.var("w", relay.TensorType((oc, ic, ch, cw), weight_dtype))
+        y = relay.nn.conv2d(x, w,
+                            kernel_size=(ch, cw),
+                            channels=oc,
+                            padding=(1, 1),
+                            dilation=(1, 1),
+                            out_dtype=output_dtype)
+        func = relay.Function([x, w], y)
+        wdata = np.random.rand(oc, ic, ch, cw) * 10
+        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(func, target, params=parameters)
+        assembly = lib.get_source("asm")
+        return assembly
+
+    # compile conv2d for x86 (skylake) and test assembly contains *pmadd* instructions
+    target = "llvm -mcpu=skylake-avx512"
+    name = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
+    if llvm_id != 0:
+        # Intel Int8 instruction need uint8 data and int8 kernel
+        asm = _compile(input_dtype="uint8",
+                       weight_dtype="int8",
+                       output_dtype="int32",
+                       target=target)
+        # Check that intrinisic is present in the assembly.
+        assert "pmaddubs" in asm
+
+        # Ensure that code is generated when datatypes are not HW supported.
+        asm = _compile(input_dtype="int8",
+                       weight_dtype="int8",
+                       output_dtype="int32",
+                       target=target)
+        # Check that intrinisic is not present in the assembly.
+        assert "pmaddubs" not in asm
+
+        # Ensure that code is generated when datatypes are not HW supported.
+        asm = _compile(input_dtype="uint8",
+                       weight_dtype="uint8",
+                       output_dtype="int32",
+                       target=target)
+        # Check that intrinisic is not present in the assembly.
+        assert "pmaddubs" not in asm
+
+    # Check that a vectorized instruction is generated for older Intel
+    # generations, because we default to NCHWc layout.
+    target = "llvm -mcpu=core-avx2"
+    asm = _compile(input_dtype="int8",
+                  weight_dtype="int8",
+                  output_dtype="int32",
+                  target=target)
+    # Check that vector int mult and add instructions are generated.
+    assert "vpmulld" in asm and "vpadd" in asm
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
@@ -532,3 +612,4 @@ if __name__ == "__main__":
     test_conv2d_run()
     test_batch_flatten()
     test_upsampling()
+    test_conv2d_int8_intrinsics()

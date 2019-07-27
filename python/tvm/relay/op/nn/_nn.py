@@ -85,6 +85,19 @@ def schedule_batch_matmul(attrs, outputs, target):
 
 reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# sparse_dense
+@reg.register_compute("nn.sparse_dense")
+def compute_sparse_dense(attrs, inputs, out_type, target):
+    """Compute definition of sparse_dense"""
+    return [topi.nn.sparse_dense(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+@reg.register_schedule("nn.sparse_dense")
+def schedule_sparse_dense(attrs, outputs, target):
+    """Schedule definition of batch_matmul"""
+    with target:
+        return topi.generic.schedule_sparse_dense(outputs)
+
+reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # conv2d
 def _find_conv2d_op(op):
@@ -240,6 +253,28 @@ def schedule_avg_pool2d(attrs, outs, target):
 
 
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# max_pool2d_grad
+@reg.register_schedule("nn.max_pool2d_grad")
+def schedule_max_pool2d_grad(attrs, outs, target):
+    """Schedule definition of max_pool2d_grad"""
+    with target:
+        return topi.generic.schedule_pool_grad(outs)
+
+
+reg.register_pattern("nn.max_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool2d_grad
+@reg.register_schedule("nn.avg_pool2d_grad")
+def schedule_avg_pool2d_grad(attrs, outs, target):
+    """Schedule definition of avg_pool2d_grad"""
+    with target:
+        return topi.generic.schedule_pool_grad(outs)
+
+
+reg.register_pattern("nn.avg_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # global_max_pool2d

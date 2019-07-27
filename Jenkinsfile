@@ -53,7 +53,7 @@ tvm_multilib = "build/libtvm.so, " +
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 60
+max_time = 120
 
 // initialize source codes
 def init_git() {

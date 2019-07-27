@@ -103,11 +103,18 @@ def test_conv2d_nchw():
     autotvm.DispatchContext.current.silent = True
 
     with WinogradFallback():
+
+        # inception v3 workloads
+        verify_conv2d_nchw(1, 128, 17, 192, 7, 1, 3, devices=['cuda'])
+        verify_conv2d_nchw(1, 128, 17, 128, 7, 1, 3, devices=['cuda'])
+        verify_conv2d_nchw(1, 160, 17, 160, 7, 1, 3, devices=['cuda'])
+
         # resnet 18 workloads
         verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
         verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1)
         verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1)
         verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+        verify_conv2d_nchw(1, 48,  35, 64, 5, 1, 2, devices=['cuda'])
 
         # batch size = 2
         verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1)

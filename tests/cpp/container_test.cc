@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <vector>
+#include <unordered_map>
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/packed_func_ext.h>
@@ -40,6 +42,13 @@ TEST(Array, Mutate) {
   list.Set(1, x);
   CHECK(list[1].same_as(x));
   CHECK(list2[1].same_as(z));
+}
+
+TEST(Array, Iterator) {
+  using namespace tvm;
+  Array<Expr> array{1, 2, 3};
+  std::vector<Expr> vector(array.begin(), array.end());
+  CHECK(vector[1].as<IntImm>()->value == 2);
 }
 
 TEST(Map, Expr) {
@@ -84,6 +93,14 @@ TEST(Map, Mutate) {
   CHECK(it == dict.end());
 
   LOG(INFO) << dict;
+}
+
+TEST(Map, Iterator) {
+  using namespace tvm;
+  Expr a = 1, b = 2;
+  Map<Expr, Expr> map1{{a, b}};
+  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(), map1.end());
+  CHECK(map2[a].as<IntImm>()->value == 2);
 }
 
 int main(int argc, char ** argv) {

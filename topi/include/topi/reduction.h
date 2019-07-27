@@ -224,7 +224,7 @@ inline Tensor CommReduceIdx(const Tensor& data,
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
   (const Array<Var>& indices) {
     Array<Expr> eval_range;
-    Array<Var> eval_indices;
+    Array<Expr> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -466,6 +466,22 @@ inline Tensor argmin(const Tensor& data,
   return CommReduceIdx(data, axis, func, keepdims, atleast1d);
 }
 
+inline FCommReduce MakeArgmaxReducer() {
+  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
+    Array<Expr> result;
+    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
+    return result;
+  };
+  auto fidentity = [](std::vector<Type> types) {
+    Array<Expr> result;
+    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(types[1].min());  // val
+    return result;
+  };
+  return MakeCommReducer(fcombine, fidentity, "argmax");
+}
+
 /*!
 * \brief Creates an operation that finds the indices of the maximum
 * values over a given axis.
@@ -484,20 +500,8 @@ inline Tensor argmax(const Tensor& data,
                      const Array<Integer>& axis,
                      bool keepdims = false,
                      bool atleast1d = false) {
-  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
-    Array<Expr> result;
-    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
-    return result;
-  };
-  auto fidentity = [](std::vector<Type> types) {
-    Array<Expr> result;
-    result.push_back(tvm::make_const(types[0], -1));  // idx
-    result.push_back(types[1].min());  // val
-    return result;
-  };
-  auto func = MakeCommReducer(fcombine, fidentity, "argmax");
-  return CommReduceIdx(data, axis, func, keepdims, atleast1d);
+  auto reducer = MakeArgmaxReducer();
+  return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
 }
 
 /*!

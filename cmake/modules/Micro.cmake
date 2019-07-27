@@ -14,15 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
-"""Checks different x86 targets for target specific schedules"""
 
-def check_skylake(target):
-    """
-    Checks if the target is skylake
-    """
-
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            return True
-    return False
+if(USE_MICRO)
+  message(STATUS "Build with Micro support")
+  file(GLOB RUNTIME_MICRO_SRCS src/runtime/micro/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_MICRO_SRCS})
+endif(USE_MICRO)
