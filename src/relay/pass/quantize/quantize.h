@@ -40,6 +40,7 @@ enum QAnnotateKind : int {
   kQInput = 1,
   kQWeight = 2,
   kQActivation = 3,
+  kQIdentity = 4
 };
 
 /*! \brief Attribute for simulated quantize operator */

@@ -54,12 +54,22 @@ class StatsCollector : private ExprMutator {
     CHECK(new_call);
     if (new_call->op.same_as(simulated_quantize)) {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
+      // rewrite the annotation
+      auto new_attrs = make_node<SimulatedQuantizeAttrs>();
       const Expr& quantize_input = new_call->args[0];  // expression being quantized
+      auto placeholder = MakeConstantScalar(Float(32), 0.);  // unused argument for simulated_quantize
+      Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};
+      new_attrs->kind = QAnnotateKind::kQIdentity;
+      new_attrs->sign = attrs->sign;
+      new_attrs->rounding = attrs->rounding;
+      Expr identity_quantize = CallNode::make(new_call->op, new_args, Attrs{new_attrs}, {});
+
+      // add non-const expressions to profile data
       if (attrs->kind != QAnnotateKind::kQWeight) {
         CHECK(!quantize_input.as<ConstantNode>());
-        profile_data_.push_back(quantize_input);
+        profile_data_.push_back(identity_quantize);
       }
-      return quantize_input;
+      return identity_quantize;
     } else {
       return new_e;
     }
@@ -70,8 +80,8 @@ class StatsCollector : private ExprMutator {
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
  * calibration dataset.
  *
- * This pass finds simulated_quantize op and collects its input into a tuple. The tuple is the
- * output of the profile graph. Both input and output of this pass
+ * This pass collects simulated_quantize op into a tuple. Simulated_quantize ops are rewritten to
+ * identity mode. The tuple is the output of the profile graph. Both input and output of this pass
  * are relay::Function.
  *
  * \param expr The simulation graph after annotation.

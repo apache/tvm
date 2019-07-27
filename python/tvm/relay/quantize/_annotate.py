@@ -39,6 +39,9 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 
     data, scale, clip_min, clip_max = inputs
 
+    if attrs.kind == QAnnotateKind.IDENTITY:
+        return [topi.identity(data)]
+
     # simulate rounding error
     scaled_data = topi.divide(data, scale)
     clipped_data = topi.maximum(topi.minimum(scaled_data, clip_max), clip_min)
@@ -52,7 +55,7 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 _reg.register_schedule("relay.op.annotation.simulated_quantize",
                        _reg.schedule_injective)
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
-                      _reg.OpPattern.OPAQUE)
+                      _reg.OpPattern.ELEMWISE)
 
 
 @register_relay_node

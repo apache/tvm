@@ -35,6 +35,7 @@ class QAnnotateKind(object):
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
+    IDENTITY = 4
 
 
 def kind2str(kind):
@@ -43,6 +44,7 @@ def kind2str(kind):
         QAnnotateKind.INPUT: "input",
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
+        QAnnotateKind.IDENTITY: "identity"
     }
     assert kind in str_map
     return str_map[kind]
@@ -197,8 +199,9 @@ def annotate_context():
 
 def collect_stats(graph):
     """Given an annotated graph, create a profile graph to collect profile data from the
-    calibration dataset. This pass finds simulated_quantize op and collects its input into a tuple.
-    The tuple is the output of the profile graph.
+    calibration dataset. This pass collects simulated_quantize op input into a tuple.
+    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
+    graph.
 
     Parameters
     ----------
