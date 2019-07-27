@@ -749,6 +749,15 @@ def _broadcast_to():
         return _op.broadcast_to(inputs[0], shape)
     return _impl
 
+def _batch_matmul():
+    def _impl(inputs, attr, params):
+        if attr['adj_x']:
+            inputs[0] = _op.transpose(inputs[0], axes=(0,2,1))
+        if not attr['adj_y']:
+            inputs[1] = _op.transpose(inputs[1], axes=(0,2,1))
+        return AttrCvt(op_name = "batch_matmul", ignores = ['adj_x','adj_y','T'])
+    return _impl
+
 def _squeeze():
     def _impl(inputs, attr, params):
         if len(attr['squeeze_dims']) == 0:
@@ -1313,6 +1322,7 @@ _convert_map = {
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
     'BroadcastTo'                       : _broadcast_to(),
+    'BatchMatMul'                       :_batch_matmul(), 
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
