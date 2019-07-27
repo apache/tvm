@@ -39,10 +39,10 @@ class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
   val rA = RegNext(io.a)
   val rB = RegNext(io.b)
   val rC = RegNext(io.c)
-  
+
   mult := rA * rB
   add := rC +& mult
-  
+
   io.y := add
 }
 
@@ -226,9 +226,9 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   when (state === sIdle) {
     inflight := 0.U
   } .elsewhen (!dec.reset) {
-    when (state === sExe && inflight =/= ((1 << pBits) - 1).asUInt) { // overflow check
+    when (state === sReadTensor) { // issue a tensor
       inflight := inflight + 1.U
-    } .elsewhen (mvc.io.acc_o.data.valid && inflight =/= 0.U) { // underflow check
+    } .elsewhen (mvc.io.acc_o.data.valid) { // commit a tensor
       inflight := inflight - 1.U
     }
   }
