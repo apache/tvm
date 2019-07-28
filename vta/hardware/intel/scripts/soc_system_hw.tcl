@@ -267,8 +267,6 @@ proc compose { } {
     set_instance_parameter_value hps_0 {PINGPONGPHY_EN} {0}
     set_instance_parameter_value hps_0 {POWER_OF_TWO_BUS} {0}
     set_instance_parameter_value hps_0 {PRIORITY_PORT} {1 1 1 1 1 1}
-    set_instance_parameter_value hps_0 {QSPI_Mode} {N/A}
-    set_instance_parameter_value hps_0 {QSPI_PinMuxing} {Unused}
     set_instance_parameter_value hps_0 {RATE} {Full}
     set_instance_parameter_value hps_0 {RDIMM_CONFIG} {0000000000000000}
     set_instance_parameter_value hps_0 {READ_DQ_DQS_CLOCK_SOURCE} {INVERTED_DQS_BUS}
@@ -314,14 +312,8 @@ proc compose { } {
     set_instance_parameter_value hps_0 {SKIP_MEM_INIT} {1}
     set_instance_parameter_value hps_0 {SOPC_COMPAT_RESET} {0}
     set_instance_parameter_value hps_0 {SPEED_GRADE} {7}
-    set_instance_parameter_value hps_0 {SPIM0_Mode} {N/A}
-    set_instance_parameter_value hps_0 {SPIM0_PinMuxing} {Unused}
     set_instance_parameter_value hps_0 {SPIM1_Mode} {Single Slave Select}
     set_instance_parameter_value hps_0 {SPIM1_PinMuxing} {HPS I/O Set 0}
-    set_instance_parameter_value hps_0 {SPIS0_Mode} {N/A}
-    set_instance_parameter_value hps_0 {SPIS0_PinMuxing} {Unused}
-    set_instance_parameter_value hps_0 {SPIS1_Mode} {N/A}
-    set_instance_parameter_value hps_0 {SPIS1_PinMuxing} {Unused}
     set_instance_parameter_value hps_0 {STARVE_LIMIT} {10}
     set_instance_parameter_value hps_0 {STM_Enable} {0}
     set_instance_parameter_value hps_0 {TEST_Enable} {0}
@@ -435,11 +427,8 @@ proc compose { } {
 
     # connections and connection parameters
     add_connection clk_0.clk hps_0.f2h_axi_clock clock
-
     add_connection clk_0.clk hps_0.h2f_lw_axi_clock clock
-
     add_connection clk_0.clk vta_0.clock clock
-
     add_connection clk_0.clk_reset vta_0.reset reset
 
     add_connection hps_0.h2f_lw_axi_master vta_0.s_axi_control avalon
