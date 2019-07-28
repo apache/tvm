@@ -31,6 +31,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/vm.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>

@@ -26,6 +26,7 @@
 #include "deserializer.h"
 
 #include <tvm/runtime/registry.h>
+#include <memory>
 #include <sstream>
 
 #include "serialize_util.h"

@@ -28,6 +28,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 
 #include <algorithm>
+#include <memory>
 #include <sstream>
 #include <utility>
 #include <vector>
