@@ -216,13 +216,14 @@ class Conv(OnnxOpConverter):
                 raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
             attr.pop('auto_pad')
 
-        out = AttrCvt(op_name=dimension_picker('conv'),
-                      transforms={
-                          'kernel_shape': 'kernel_size',
-                          'dilations': ('dilation', (0, 0)),
-                          'pads': ('padding', (0, 0), revert_caffe2_pad),
-                          'group': ('groups', 1)},
-                      custom_check=dimension_constraint())(inputs[:2], attr, params)
+        out = AttrCvt(
+            op_name=dimension_picker('conv'),
+            transforms={
+                'kernel_shape': 'kernel_size',
+                'dilations': ('dilation', (0, 0)),
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'group': ('groups', 1)},
+            custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
