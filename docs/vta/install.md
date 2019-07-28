@@ -61,7 +61,7 @@ To do so,
 
 ```bash
 cd <tvm root>
-cp vta/config/vta_config.json vta_config.json
+vim vta/config/vta_config.json
 # edit vta_config.json
 make vta
 ```
@@ -147,13 +147,12 @@ export VTA_PYNQ_RPC_PORT=9091
 ```
 
 In addition, you'll need to edit the `vta_config.json` file on the host to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to `"pynq"`.
-Alternatively, you can copy the default `vta/config/pynq_sample.json` into the TVM root as `vta_config.json`.
 > Note: in contrast to our simulation setup, there are no libraries to compile on the host side since the host offloads all of the computation to the Pynq board.
 
 ```bash
 # On the Host-side
 cd <tvm root>
-cp vta/config/pynq_sample.json vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench.
