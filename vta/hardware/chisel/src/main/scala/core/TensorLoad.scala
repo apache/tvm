@@ -24,7 +24,7 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
-/** TensorStore.
+/** TensorLoad.
   *
   * Load 1D and 2D tensors from main memory (DRAM) to input/weight
   * scratchpads (SRAM). Also, there is support for zero padding, while
