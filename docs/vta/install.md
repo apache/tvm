@@ -182,7 +182,7 @@ You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tut
 
 ## VTA FPGA Toolchain Installation
 
-This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel (a.k.a Altera) compilation toolchains.
+This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel compilation toolchains.
 
 ### Xilinx Toolchain Installation
 
