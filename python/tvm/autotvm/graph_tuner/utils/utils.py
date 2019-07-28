@@ -19,7 +19,7 @@
 from tvm import relay
 from tvm.relay import transform
 
-from .._base import LAYOUT_FIXED_OP
+from .._base import LAYOUT_FIXED_OP, SKIPPED_OP
 
 
 def has_multiple_inputs(node_list, node_idx, input_names):
@@ -75,6 +75,22 @@ def is_boundary_node(node_entry, input_names):
     out = node_entry["op"] in LAYOUT_FIXED_OP or \
           ("name" in node_entry and node_entry["name"] in input_names)
     return out
+
+
+def is_skipped_node(node_entry):
+    """Whether a node is not counted.
+
+    Parameters
+    ----------
+    node_entry : dict
+        Node entry.
+
+    Returns
+    -------
+    out : bool
+        whether node is skipped.
+    """
+    return node_entry["op"] in SKIPPED_OP
 
 
 def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
