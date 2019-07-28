@@ -236,7 +236,7 @@ export PATH=${XILINX_VIVADO}/bin:${PATH}
 
 ### Intel Toolchain Installation
 
-It is recommended to use `Intel Quartus Prime 18.0`, since the test scripts contained in this document have been tested on this version. 
+It is recommended to use `Intel Quartus Prime 18.1`, since the test scripts contained in this document have been tested on this version. 
 
 You would need to install Intel's FPGA compilation toolchain, [Quartus Prime Lite](http://fpgasoftware.intel.com/?edition=lite), which is a license-free version of the Intel Quartus Prime software.
 
@@ -247,20 +247,20 @@ You would need to install Intel's FPGA compilation toolchain, [Quartus Prime Lit
 3. After signed in, you are able to download the installer and the device support files.
 4. Now that the files are downloaded, go to your `Downloads` directory, and change the file permissions:
 ```bash
-chmod u+x QuartusLiteSetup-18.0.0.614-linux.run
+chmod u+x QuartusLiteSetup-18.1.0.625-linux.run
 ```
 5. Now ensure both the installer and device support files are in the same directory, and you can run the install with:
 ```bash
-./QuartusLiteSetup-18.0.0.614-linux.run
+./QuartusLiteSetup-18.1.0.625-linux.run
 ```
-6. Follow the instructions on the pop-up GUI form, and install all the content in the `/usr/local` directory. After installation, `/usr/local/intelFPGA_lite/18.0` would be created and the Quartus program along with other programs would be available in the folder.
+6. Follow the instructions on the pop-up GUI form, and install all the content in the `/usr/local` directory. After installation, `/usr/local/intelFPGA_lite/18.1` would be created and the Quartus program along with other programs would be available in the folder.
 
 #### Environment Setup
 
 Similar to what should be done for Xilinx toolchain, the following line should be added to your `~/.bashrc`.
 ```bash
-# Intel Quartus 18.0 environment
-export QUARTUS_ROOTDIR="/usr/local/intelFPGA_lite/18.0/quartus"
+# Intel Quartus 18.1 environment
+export QUARTUS_ROOTDIR="/usr/local/intelFPGA_lite/18.1/quartus"
 export PATH=${QUARTUS_ROOTDIR}/bin:${PATH}
 ```
 This would add quartus binary path into your `PATH` environment variable, so you can launch compilation scripts from the command line.

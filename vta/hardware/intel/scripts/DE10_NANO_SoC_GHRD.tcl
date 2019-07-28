@@ -59,9 +59,9 @@ if {[is_project_open]} {
 if {$make_assignments} {
 	set_global_assignment -name FAMILY "Cyclone V"
 	set_global_assignment -name DEVICE 5CSEBA6U23I7
-	set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.0.0
+	set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
 	set_global_assignment -name PROJECT_CREATION_TIME_DATE "14:21:53  JUNE 17, 2019"
-	set_global_assignment -name LAST_QUARTUS_VERSION "18.0.0 Lite Edition"
+	set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Lite Edition"
 	set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
 	set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 	set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
