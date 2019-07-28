@@ -1,21 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--- Licensed to the Apache Software Foundation (ASF) under one -->
-<!--- or more contributor license agreements.  See the NOTICE file -->
-<!--- distributed with this work for additional information -->
-<!--- regarding copyright ownership.  The ASF licenses this file -->
-<!--- to you under the Apache License, Version 2.0 (the -->
-<!--- "License"); you may not use this file except in compliance -->
-<!--- with the License.  You may obtain a copy of the License at -->
-
-<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
-
-<!--- Unless required by applicable law or agreed to in writing, -->
-<!--- software distributed under the License is distributed on an -->
-<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
-<!--- KIND, either express or implied.  See the License for the -->
-<!--- specific language governing permissions and limitations -->
-<!--- under the License. -->
-
 <system name="$${FILENAME}">
  <component
    name="$${FILENAME}"
@@ -30,20 +13,7 @@
    {
       datum _sortIndex
       {
-         value = "3";
-         type = "int";
-      }
-      datum sopceditor_expanded
-      {
          value = "1";
-         type = "boolean";
-      }
-   }
-   element fpga_only_master
-   {
-      datum _sortIndex
-      {
-         value = "2";
          type = "int";
       }
       datum sopceditor_expanded
@@ -56,7 +26,7 @@
    {
       datum _sortIndex
       {
-         value = "1";
+         value = "0";
          type = "int";
       }
       datum sopceditor_expanded
@@ -305,37 +275,11 @@
          type = "String";
       }
    }
-   element sysid_qsys
-   {
-      datum _sortIndex
-      {
-         value = "0";
-         type = "int";
-      }
-      datum sopceditor_expanded
-      {
-         value = "1";
-         type = "boolean";
-      }
-   }
-   element sysid_qsys.control_slave
-   {
-      datum _lockedAddress
-      {
-         value = "1";
-         type = "boolean";
-      }
-      datum baseAddress
-      {
-         value = "4096";
-         type = "String";
-      }
-   }
    element vta_0
    {
       datum _sortIndex
       {
-         value = "4";
+         value = "2";
          type = "int";
       }
    }
@@ -361,7 +305,7 @@
  <parameter name="hideFromIPCatalog" value="false" />
  <parameter name="lockedInterfaceDefinition" value="" />
  <parameter name="maxAdditionalLatency" value="1" />
- <parameter name="projectName">DE10_NANO_SoC_GHRD.qpf</parameter>
+ <parameter name="projectName" value="" />
  <parameter name="sopcBorderPoints" value="false" />
  <parameter name="systemHash" value="0" />
  <parameter name="testBenchDutName" value="" />
@@ -386,27 +330,13 @@
  <interface name="vta_adaptor_0_compute_done" internal="vta_0.compute_done" />
  <interface name="vta_adaptor_0_compute_upos" internal="vta_0.compute_upos" />
  <interface name="vta_adaptor_0_store_outputs" internal="vta_0.store_outputs" />
- <module name="clk_0" kind="clock_source" version="18.1" enabled="1">
+ <module name="clk_0" kind="clock_source" version="18.0" enabled="1">
   <parameter name="clockFrequency" value="50000000" />
   <parameter name="clockFrequencyKnown" value="true" />
   <parameter name="inputClockFrequency" value="0" />
   <parameter name="resetSynchronousEdges" value="NONE" />
  </module>
- <module
-   name="fpga_only_master"
-   kind="altera_jtag_avalon_master"
-   version="18.1"
-   enabled="1">
-  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
-  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
-  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
-  <parameter name="COMPONENT_CLOCK" value="0" />
-  <parameter name="FAST_VER" value="0" />
-  <parameter name="FIFO_DEPTHS" value="2" />
-  <parameter name="PLI_PORT" value="50000" />
-  <parameter name="USE_PLI" value="0" />
- </module>
- <module name="hps_0" kind="altera_hps" version="18.1" enabled="1">
+ <module name="hps_0" kind="altera_hps" version="18.0" enabled="1">
   <parameter name="ABSTRACT_REAL_COMPARE_TEST" value="false" />
   <parameter name="ABS_RAM_MEM_INIT_FILENAME" value="meminit" />
   <parameter name="ACV_PHY_CLK_ADD_FR_PHASE" value="0.0" />
@@ -936,17 +866,10 @@
   <parameter name="usb_mp_clk_div" value="0" />
   <parameter name="use_default_mpu_clk" value="true" />
  </module>
- <module
-   name="sysid_qsys"
-   kind="altera_avalon_sysid_qsys"
-   version="18.1"
-   enabled="1">
-  <parameter name="id" value="-1395322110" />
- </module>
  <module name="vta_0" kind="vta" version="1.0" enabled="1" />
  <connection
    kind="avalon"
-   version="18.1"
+   version="18.0"
    start="hps_0.h2f_lw_axi_master"
    end="vta_0.s_axi_control">
   <parameter name="arbitrationPriority" value="1" />
@@ -955,50 +878,25 @@
  </connection>
  <connection
    kind="avalon"
-   version="18.1"
+   version="18.0"
    start="vta_0.m_axi_gmem"
    end="hps_0.f2h_axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
  </connection>
- <connection
-   kind="avalon"
-   version="18.1"
-   start="fpga_only_master.master"
-   end="sysid_qsys.control_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x1000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection kind="clock" version="18.1" start="clk_0.clk" end="sysid_qsys.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="vta_0.clock" />
  <connection
    kind="clock"
-   version="18.1"
-   start="clk_0.clk"
-   end="fpga_only_master.clk" />
- <connection kind="clock" version="18.1" start="clk_0.clk" end="vta_0.clock" />
- <connection
-   kind="clock"
-   version="18.1"
+   version="18.0"
    start="clk_0.clk"
    end="hps_0.f2h_axi_clock" />
  <connection
    kind="clock"
-   version="18.1"
+   version="18.0"
    start="clk_0.clk"
    end="hps_0.h2f_lw_axi_clock" />
- <connection
-   kind="reset"
-   version="18.1"
-   start="clk_0.clk_reset"
-   end="fpga_only_master.clk_reset" />
- <connection
-   kind="reset"
-   version="18.1"
-   start="clk_0.clk_reset"
-   end="sysid_qsys.reset" />
- <connection kind="reset" version="18.1" start="clk_0.clk_reset" end="vta_0.reset" />
+ <connection kind="reset" version="18.0" start="clk_0.clk_reset" end="vta_0.reset" />
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
  <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />
 </system>
