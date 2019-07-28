@@ -76,7 +76,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val xcnt = Reg(chiselTypeOf(io.vme_rd.cmd.bits.len))
   val xlen = Reg(chiselTypeOf(io.vme_rd.cmd.bits.len))
   val xrem = Reg(chiselTypeOf(dec.xsize))
-  val xsize = dec.xsize(0) + (dec.xsize >> log2Ceil(numUop)) - 1.U
+  val xsize =  (dec.xsize >> log2Ceil(numUop)) + dec.xsize(0) + (dec.sram_offset % 2.U) - 1.U
   val xmax = (1 << mp.lenBits).U
   val xmax_bytes = ((1 << mp.lenBits)*mp.dataBits/8).U
 
