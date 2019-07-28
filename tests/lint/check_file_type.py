@@ -69,7 +69,6 @@ ALLOW_EXTENSION = {
     "properties",
     "v",
     "sdc",
-    "qsys",
     # generated parser
     "interp",
     "tokens"
