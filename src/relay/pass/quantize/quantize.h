@@ -37,10 +37,10 @@ namespace quantize {
 
 /*! \brief Kind of annotate field */
 enum QAnnotateKind : int {
+  kQIdentity = 0,
   kQInput = 1,
   kQWeight = 2,
-  kQActivation = 3,
-  kQIdentity = 4
+  kQActivation = 3
 };
 
 /*! \brief Attribute for simulated quantize operator */

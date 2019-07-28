@@ -32,10 +32,10 @@ from ..base import NodeBase, register_relay_node
 class QAnnotateKind(object):
     """Denote the kind of annotation field, corresponding
     to different nbit configure."""
+    IDENTITY = 0
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
-    IDENTITY = 4
 
 
 def kind2str(kind):
