@@ -22,8 +22,8 @@ license = "Apache-2.0"
 authors = ["TVM Contributors"]
 
 [dependencies]
-ndarray="0.12.1"
+ndarray="0.12"
 tvm-runtime = { path = "../../" }
 
 [build-dependencies]
-ar = "0.6.0"
+ar = "0.6"

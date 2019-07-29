@@ -30,7 +30,7 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-goblin = "0.0.22"
+goblin = "0.0.24"
 proc-macro2 = "0.4"
 proc-quote = "0.2"
 syn = "0.15"
