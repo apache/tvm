@@ -321,7 +321,7 @@ Once the compilation completes, the generated bistream can be found under `<tvmr
 
 #### Flash SD Card and Boot Angstrom Linux
 
-To use the above built bistream on DE10-Nano hardware, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
+To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
 After registeration and login on the webpage, the prebuild Angstrom Linux image would be available for downloading and flashing.
 Specifically, to flash the downloaded Linux SD card image into your physical SD card:
 
@@ -338,11 +338,30 @@ Second, plugin a SD card that is ready to flash in your PC, and identify the dev
 Then, flash the disk image into your physical SD card with the following command:
 
 ``` bash
+# NOTE: root privilege is typically required to run the following command.
 dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progress
 ```
 This would take a few minutes for your PC to write the whole file systems into the SD card.
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
+
+#### Build Additional Components to Use VTA Bitstream
+
+To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
+Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
+
+For easier program debugging (e.g. `metal_test` program at `vta/tests/hardware/metal_test`), it is also recommended to install `gdbserver` on you device. For instance, you can start your program on the device by runninng:
+
+``` bash
+gdbserver localhost:4444 ./metal_test
+```
+, and then you can set break points and print values of desired varilables on the host:
+``` bash
+gdb-multiarch --fullname metal_test
+(gdb) target remote <device-ip>:4444
+```
+
+In addition, to enable fully featured VTA for DE10-Nano, you would also need `python3-numpy`, `python3-decorate`, `python3-attrs` to be cross-compiled.
 
 ### Use the Custom Bitstream
 
