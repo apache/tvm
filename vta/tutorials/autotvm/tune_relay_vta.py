@@ -355,7 +355,19 @@ def tune_and_evaluate(tuning_opt):
     assert len(tasks) == 10
     print("Extracted {} conv2d tasks:".format(len(tasks)))
     for tsk in tasks:
-        print("\t{}".format(tsk))
+        inp = tsk.args[0][1]
+        wgt = tsk.args[1][1]
+        batch = inp[0]*inp[4]
+        in_filter = inp[1]*inp[5]
+        out_filter = wgt[0]*wgt[4]
+        height, width = inp[2], inp[3]
+        hkernel, wkernel = wgt[2], wgt[3]
+        hstride, wstride = tsk.args[2][0], tsk.args[2][1]
+        hpad, wpad = tsk.args[3][0], tsk.args[3][1]
+        print("({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})".format(
+                batch, height, width, in_filter, out_filter,
+                hkernel, wkernel, hpad, wpad, hstride, wstride
+        ))
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Comment the following line to run it by yourself.
