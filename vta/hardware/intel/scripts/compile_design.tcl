@@ -18,8 +18,8 @@
 # Load Quartus Prime Tcl Project package
 package require ::quartus::project
 
-set DEVICE 5CSEBA6U23I7
-set PROJECT_NAME de10_nano_top
+set DEVICE [lindex $argv 0]
+set PROJECT_NAME [lindex $argv 1]
 
 set need_to_close_project 0
 set make_assignments 1

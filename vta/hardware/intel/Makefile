@@ -28,6 +28,8 @@ DEBUG = false
 NO_DSP = true
 # Device
 DEVICE = 5CSEBA6U23I7
+# Project name
+PROJECT = de10_nano_top
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
@@ -76,9 +78,9 @@ $(QSYS_PATH): $(IP_PATH)
 
 $(BIT_PATH): $(QSYS_PATH)
 	cd $(HW_BUILD_PATH) && \
-    quartus_sh -t $(SCRIPT_DIR)/compile_design.tcl && \
+    quartus_sh -t $(SCRIPT_DIR)/compile_design.tcl $(DEVICE) $(PROJECT) && \
     mkdir -p $(shell dirname $(BIT_PATH)) && \
-    quartus_cpf -c $(HW_BUILD_PATH)/DE10_NANO_SoC_GHRD.sof $(BIT_PATH)
+    quartus_cpf -c $(HW_BUILD_PATH)/$(PROJECT).sof $(BIT_PATH)
 
 clean:
 	rm -rf $(BUILD_DIR)
