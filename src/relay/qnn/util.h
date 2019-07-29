@@ -33,32 +33,6 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
-enum class QuantizeOpType {
-  Quantize,
-  Dequantize,
-  Requantize
-};
-
-static inline bool IsValidOpInputType(const QuantizeOpType& op_type,
-        const DataType& in_dtype) {
-  switch (op_type) {
-    case QuantizeOpType::Requantize:
-      return in_dtype == Int(8) || in_dtype == UInt(8) || in_dtype == Int(32);
-    default:
-      return false;
-  }
-}
-
-static inline bool IsValidOpOutputType(const QuantizeOpType& op_type,
-        const DataType& out_dtype) {
-  switch (op_type) {
-    case QuantizeOpType::Requantize:
-      return out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32);
-    default:
-      return false;
-  }
-}
-
 static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";

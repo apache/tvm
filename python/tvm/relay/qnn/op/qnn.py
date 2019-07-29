@@ -41,16 +41,16 @@ def requantize(data,
         The input data to the operator.
 
     input_scale: float
-           The quantization scale for the input tensor.
+        The quantization scale for the input tensor.
 
     input_zero_point: int
-           The zero point of the input tensor.
+        The zero point of the input tensor.
 
     output_scale: float
-           The quantization scale for the output tensor.
+        The quantization scale for the output tensor.
 
     output_zero_point: int
-           The zero point of the output tensor.
+        The zero point of the output tensor.
 
     rounding : string, optional
         Defines the rounding direction when the value is midway between two

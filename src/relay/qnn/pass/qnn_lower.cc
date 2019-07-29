@@ -109,11 +109,11 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(
  *
  *       The whole computation this can be broken down into following steps
  *       1) Calculate the integer multiplier and integer shift.
- *       2) Subtract the input integer point.
- *       3) Multiply the integer fixed point multiplier with quantized tensor.
+ *       2) Subtract the input integer zero point.
+ *       3) Multiply the fixed point multiplier with quantized tensor.
  *       4) Round the result.
  *       5) Right shift the result.
- *       6) Add the output_zero_point.
+ *       6) Add the output zero point.
  *       7) Cast to the out_dtype.
  */
 Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
@@ -187,8 +187,7 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
   auto q_min = GetQmin(param->out_dtype);
   auto q_max = GetQmax(param->out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
-  auto requantized_output = Cast(clipped_t, param->out_dtype);
-  return requantized_output;
+  return Cast(clipped_t, param->out_dtype);
 }
 
 /*
