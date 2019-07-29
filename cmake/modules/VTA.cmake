@@ -42,18 +42,17 @@ elseif(PYTHON)
   if(${VTA_TARGET} STREQUAL "sim")
     file(GLOB __vta_target_srcs vta/src/sim/*.cc)
   endif()
+  # Add tsim driver sources
+  if(${VTA_TARGET} STREQUAL "tsim")
+    file(GLOB __vta_target_srcs vta/src/tsim/*.cc)
+    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
+  endif()
   # Add pynq driver sources
   if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
     file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
   endif()
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
-  # Add tsim driver sources
-  if(${VTA_TARGET} STREQUAL "tsim")
-    target_compile_definitions(vta PUBLIC USE_TSIM)
-    include_directories("vta/include")
-    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
-  endif()
 
   add_library(vta SHARED ${VTA_RUNTIME_SRCS})
 
@@ -63,6 +62,12 @@ elseif(PYTHON)
     string(SUBSTRING ${__def} 3 -1 __strip_def)
     target_compile_definitions(vta PUBLIC ${__strip_def})
   endforeach()
+
+  # Enable tsim macro
+  if(${VTA_TARGET} STREQUAL "tsim")
+    include_directories("vta/include")
+    target_compile_definitions(vta PUBLIC USE_TSIM)
+  endif()
 
   if(APPLE)
     set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
