@@ -21,8 +21,6 @@ from __future__ import absolute_import
 import os
 import shutil
 import sys
-import sysconfig
-import platform
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
