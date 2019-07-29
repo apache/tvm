@@ -96,8 +96,8 @@ ALLOW_SPECIFIC_FILE = {
     "LICENSE",
     "NOTICE",
     "Jenkinsfile",
-    # sgx file
-    "apps/sgx/enclave/sgx-deps.diff",
+    # sgx config
+    "apps/sgx/.cargo/config",
     # html for demo purposes
     "nnvm/tutorials/web/resnet.html",
     "tests/webgl/test_static_webgl_library.html",
