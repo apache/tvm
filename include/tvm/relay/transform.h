@@ -521,6 +521,13 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Rewrite an expr with another expression.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RewriteOp();
+
+/*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
  *
  * \return The pass.

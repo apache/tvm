@@ -21,11 +21,21 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
+import tvm.contrib.graph_runtime as runtime
 import topi.testing
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
     mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
+def run_opt_pass(expr, passes):
+    passes = passes if isinstance(passes, list) else [passes]
+    mod = relay.Module.from_expr(expr)
+    seq = transform.Sequential(passes)
+    with transform.PassContext(opt_level=3):
+        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
@@ -106,7 +116,7 @@ def test_conv2d_run():
                         **attrs):
         if except_targets is None:
           except_targets = []
-          
+
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
@@ -570,13 +580,12 @@ def test_conv2d_int8_intrinsics():
         # Check that intrinisic is present in the assembly.
         assert "pmaddubs" in asm
 
-        # Ensure that code is generated when datatypes are not HW supported.
+        # Ensure that code is generated for i8 x i8 conv.
         asm = _compile(input_dtype="int8",
                        weight_dtype="int8",
                        output_dtype="int32",
                        target=target)
-        # Check that intrinisic is not present in the assembly.
-        assert "pmaddubs" not in asm
+        assert "pmaddubs" in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
         asm = _compile(input_dtype="uint8",
@@ -596,6 +605,47 @@ def test_conv2d_int8_intrinsics():
     # Check that vector int mult and add instructions are generated.
     assert "vpmulld" in asm and "vpadd" in asm
 
+def test_rewrite_conv2d_intel_int8():
+    def verify(orig, rewritten, input_shape, weight_shape):
+        data = np.random.random_integers(-10, 10,
+                                         size=input_shape).astype('int8')
+        weight = np.random.random_integers(-10, 10,
+                                           size=weight_shape).astype('int8')
+        def _get_output(func):
+            params = {"w": weight}
+            with relay.build_config(opt_level=0):
+                graph, lib, params = relay.build(func, 'llvm', params=params)
+
+            ctx = tvm.cpu(0)
+            module = runtime.create(graph, lib, ctx)
+            module.set_input('data', data)
+            module.set_input(**params)
+            module.run()
+            return module.get_output(0).asnumpy()
+        orig_output = _get_output(orig)
+        rewritten_output = _get_output(rewritten)
+        np.testing.assert_equal(orig_output, rewritten_output)
+
+    input_shape = (1, 128, 28, 28)
+    weight_shape = (256, 128, 3, 3)
+    idtype = "int8"
+    wdtype = "int8"
+    odtype = "int32"
+
+    var_input = relay.var("data", shape=input_shape, dtype=idtype)
+    var_weight = relay.var("w", shape=weight_shape, dtype=wdtype)
+
+    f = relay.nn.conv2d(var_input,
+                        var_weight,
+                        kernel_size=(3, 3),
+                        channels=256,
+                        out_dtype=odtype)
+
+    orig = relay.Function([var_input, var_weight], f)
+    with tvm.target.create("llvm"):
+        rewritten = run_opt_pass(orig, transform.InferType())
+        rewritten = run_opt_pass(rewritten, transform.RewriteOp())
+    verify(orig, rewritten, input_shape, weight_shape)
 
 if __name__ == "__main__":
     test_pool2d()
@@ -613,3 +663,4 @@ if __name__ == "__main__":
     test_batch_flatten()
     test_upsampling()
     test_conv2d_int8_intrinsics()
+    test_rewrite_conv2d_intel_int8()

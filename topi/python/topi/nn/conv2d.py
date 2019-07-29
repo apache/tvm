@@ -95,6 +95,29 @@ def conv2d_alter_layout(attrs, inputs, tinfos, F):
     return None
 
 @tvm.target.generic_func
+def conv2d_rewrite_op(attrs, inputs, tinfos, F):
+    """Rewrite Conv2D op.
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : nnvm.symbol or tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    """
+    # not to change by default
+    return None
+
+@tvm.target.generic_func
 def conv2d_infer_layout(workload, cfg):
     """Infer input/output shapes and layouts from a workload and cfg.
 

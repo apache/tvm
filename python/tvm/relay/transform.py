@@ -435,6 +435,20 @@ def AlterOpLayout():
     return _transform.AlterOpLayout()
 
 
+def RewriteOp():
+    """Rewrites a expression with another expression.
+    This pass can be used for strength reduction, replacing operators with a
+    sequence of semantically equivalent operators. This can be be helpful in
+    layout transformations.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that rewrites an expr.
+    """
+    return _transform.RewriteOp()
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.
