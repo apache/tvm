@@ -524,17 +524,12 @@ def inject_dma_intrin(stmt_in):
             if pad_before:
                 assert pad_after
                 ndim = len(pad_before)
-                if ndim <= 2 or ndim > 4:
+                if ndim <= 2 or ndim > 5:
                     raise ValueError("Limitation of 2D pad load forbid ndim=%d" % ndim)
-                if ndim > 2:
-                    if not util.equal_const_int(pad_before[ndim - 1], 0):
+                for dim in range(2, ndim):
+                    if not util.equal_const_int(pad_before[dim], 0):
                         raise ValueError("Do not support pad on the innermost block")
-                    if not util.equal_const_int(pad_after[ndim - 1], 0):
-                        raise ValueError("Do not support pad on the innermost block")
-                if ndim > 3:
-                    if not util.equal_const_int(pad_before[ndim - 2], 0):
-                        raise ValueError("Do not support pad on the innermost block")
-                    if not util.equal_const_int(pad_after[ndim - 2], 0):
+                    if not util.equal_const_int(pad_after[dim], 0):
                         raise ValueError("Do not support pad on the innermost block")
                 y_pad_before = pad_before[0]
                 x_pad_before = pad_before[1]
