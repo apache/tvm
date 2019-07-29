@@ -69,6 +69,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   })
   val numUop = 2 // store two uops per sram word
   val uopBits = p(CoreKey).uopBits
+  val uopBytes = uopBits / 8
   val uopDepth = p(CoreKey).uopMemDepth / numUop
 
   val dec = io.inst.asTypeOf(new MemDecode)
@@ -129,7 +130,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
     when (offsetIsEven) {
       raddr := io.baddr + dec.dram_offset
     } .otherwise {
-      raddr := io.baddr + dec.dram_offset - 4.U
+      raddr := io.baddr + dec.dram_offset - uopBytes.U
     }
   } .elsewhen (state === sReadData && xcnt === xlen && xrem =/= 0.U) {
     raddr := raddr + xmax_bytes
