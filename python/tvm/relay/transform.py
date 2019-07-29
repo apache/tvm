@@ -22,7 +22,9 @@ import types
 import inspect
 import functools
 
+import tvm
 from tvm._ffi.runtime_ctypes import TVMContext
+from tvm import relay
 from . import _transform
 from .base import RelayNode, register_relay_node
 from .. import nd as _nd
@@ -908,3 +910,40 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_function_pass(pass_func)
     return create_function_pass
+
+@function_pass(opt_level=1)
+class ChangeBatch:
+    def __init__(self, data, batch_size=16):
+        """
+        Change the batch size.
+
+        Parameters
+        ----------
+        data: Dict[relay.Var, int]
+          A dictionary of all the params to change.
+          The keys are all params, and the values is which dimension hold the batch.
+
+        batch_size: int
+          The batch size to change to.
+
+        Returns
+        -------
+        pass: FunctionPass
+          The pass.
+        """
+        self.data = data
+        self.batch_size = batch_size
+
+    def transform_function(self, func, mod, ctx):
+        func = relay.Function(func.params, func.body, None, func.type_params, func.attrs)
+        change_batch = self
+        class ChangeBatchMutator(tvm.relay.ExprMutator):
+            def visit_var(self, var):
+                if var in change_batch.data:
+                    ty = var.type_annotation
+                    new_shape = list(ty.shape)
+                    new_shape[change_batch.data[var]] = change_batch.batch_size
+                    return relay.Var(var.name_hint, relay.TensorType(new_shape, ty.dtype))
+                else:
+                    return var
+        return ChangeBatchMutator().visit(func)
