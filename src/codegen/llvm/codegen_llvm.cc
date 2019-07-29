@@ -30,6 +30,7 @@
 
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
+#include "../build_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -1005,20 +1006,17 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
   std::vector<llvm::Value *> vecs(op->vectors.size());
+  int total_lanes = 0;
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
     vecs[i] = VisitExpr(op->vectors[i]);
+    total_lanes += op->vectors[i].type().lanes();
   }
   llvm::Value* v0 = CreateVecConcat(vecs);
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
-    if (auto uimm = op->indices[i].as<UIntImm>()) {
-      idx[i] = uimm->value;
-    } else if (auto imm = op->indices[i].as<IntImm>()) {
-      idx[i] = imm->value;
-    } else {
-      LOG(FATAL) << "Shuffle vector indices are required to be constant ints.";
-    }
-    CHECK_GE(idx[i], 0);
+    const int64_t *val = as_const_int(op->indices[i]);
+    CHECK(val && *val >= 0 && *val  < total_lanes);
+    idx[i] = *val;
   }
   llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);
   return builder_->CreateShuffleVector(v0, llvm::UndefValue::get(v0->getType()), mask);
