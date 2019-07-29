@@ -317,7 +317,32 @@ make
 
 This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
-Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/DE10_NANO_SoC_GHRD.qpf` to look around the generated reports.
+Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
+
+#### Flash SD Card and Boot Angstrom Linux
+
+To use the above built bistream on DE10-Nano hardware, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
+After registeration and login on the webpage, the prebuild Angstrom Linux image would be available for downloading and flashing.
+Specifically, to flash the downloaded Linux SD card image into your physical SD card:
+
+First, extract the gzipped archive file.
+
+``` bash
+tar xf de10-nano-image-Angstrom-v2016.12.socfpga-sdimg.2017.03.31.tgz
+```
+
+This would produce a single SD card image named `de10-nano-image-Angstrom-v2016.12.socfpga-sdimg` (approx. 2.4 GB), it contains all the file systems to boot Angstrom Linux.
+
+Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`. 
+
+Then, flash the disk image into your physical SD card with the following command:
+
+``` bash
+dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progress
+```
+This would take a few minutes for your PC to write the whole file systems into the SD card.
+After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
+Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
 ### Use the Custom Bitstream
 
