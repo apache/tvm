@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,arguments-differ,no-else-return,unused-argument,missing-docstring
 """
 Relay pass transformation infrastructure.
 """
@@ -913,24 +913,24 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
 
 @function_pass(opt_level=1)
 class ChangeBatch:
+    """
+    Change the batch size.
+
+    Parameters
+    ----------
+    data: Dict[relay.Var, int]
+      A dictionary of all the params to change.
+      The keys are all params, and the values is which dimension hold the batch.
+
+    batch_size: int
+      The batch size to change to.
+
+    Returns
+    -------
+    pass: FunctionPass
+      The pass.
+    """
     def __init__(self, data, batch_size=16):
-        """
-        Change the batch size.
-
-        Parameters
-        ----------
-        data: Dict[relay.Var, int]
-          A dictionary of all the params to change.
-          The keys are all params, and the values is which dimension hold the batch.
-
-        batch_size: int
-          The batch size to change to.
-
-        Returns
-        -------
-        pass: FunctionPass
-          The pass.
-        """
         self.data = data
         self.batch_size = batch_size
 

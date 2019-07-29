@@ -215,8 +215,8 @@ class ExprMutator(ExprFunctor):
         new_args = [self.visit(arg) for arg in call.args]
         return Call(new_fn, new_args, call.attrs)
 
-    def visit_var(self, rvar):
-        return rvar
+    def visit_var(self, var):
+        return var
 
     def visit_global_id(self, global_var):
         return global_var
