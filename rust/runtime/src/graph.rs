@@ -181,7 +181,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 
     /// Runs the computation graph.
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         self.op_execs.iter().for_each(|op_exec| {
             op_exec();
         });

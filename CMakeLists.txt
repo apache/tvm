@@ -33,6 +33,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
@@ -260,7 +261,6 @@ endif()
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
-<<<<<<< HEAD
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
@@ -269,13 +269,6 @@ else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
-if(NOT USE_SGX STREQUAL "OFF")
-  add_dependencies(tvm sgx_edl)
-  add_dependencies(tvm_runtime sgx_edl tvm_t)
-  install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
-endif()
-=======
->>>>>>> f531c1a7... Remove SGX in preparation for adding SGX
 add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 
 if(USE_THREADS)

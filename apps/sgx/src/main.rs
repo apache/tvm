@@ -16,13 +16,12 @@ fn main() {
     let mut exec = tvm_runtime::GraphExecutor::new(graph, &syslib).unwrap();
     exec.load_params(params);
 
-    // this is actually unsafe but is necessary until tensors can be constructed from bytes
-    let mut input_bytes = exec.get_input("data").unwrap().data().view();
-
     let listener = std::net::TcpListener::bind("127.0.0.1:4242").unwrap();
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
-        if let Err(_) = stream.read_exact(input_bytes.as_mut_slice()) {
+        if let Err(_) =
+            stream.read_exact(exec.get_input("data").unwrap().data().view().as_mut_slice())
+        {
             continue;
         }
         exec.run();
