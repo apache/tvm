@@ -27,12 +27,12 @@ set_module_property NAME soc_system
 
 # Instances and instance parameters
 # (disabled instances are intentionally culled)
-add_instance clk_0 clock_source 18.0
+add_instance clk_0 clock_source 18.1
 set_instance_parameter_value clk_0 {clockFrequency} {50000000.0}
 set_instance_parameter_value clk_0 {clockFrequencyKnown} {1}
 set_instance_parameter_value clk_0 {resetSynchronousEdges} {NONE}
 
-add_instance hps_0 altera_hps 18.0
+add_instance hps_0 altera_hps 18.1
 set_instance_parameter_value hps_0 {HPS_PROTOCOL} {DDR3}
 set_instance_parameter_value hps_0 {MEM_ASR} {Manual}
 set_instance_parameter_value hps_0 {MEM_ATCL} {Disabled}
