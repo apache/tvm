@@ -19,6 +19,10 @@ import numpy as np
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
 
+tx = tvm.thread_axis("threadIdx.x")
+bx = tvm.thread_axis("blockIdx.x")
+
+
 def test_cuda_vectorize_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
@@ -35,8 +39,8 @@ def test_cuda_vectorize_add():
         B = tvm.compute((n,), lambda i: A[i]+tvm.const(1, A.dtype), name='B')
         s = tvm.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
-        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
         fun = tvm.build(s, [A, B], "cuda")
         ctx = tvm.gpu(0)
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(
@@ -65,8 +69,8 @@ def test_cuda_multiply_add():
                         lambda i: tvm.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
         s = tvm.create_schedule(D.op)
         xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
-        s[D].bind(xo, tvm.thread_axis("blockIdx.x"))
-        s[D].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[D].bind(xo, bx)
+        s[D].bind(xi, tx)
         fun = tvm.build(s, [A, B, C, D], "cuda")
         np_a = np.random.randint(low=-128, high=127, size=(n,lanes))
         np_b = np.random.randint(low=-128, high=127, size=(n,lanes))
@@ -91,9 +95,9 @@ def test_cuda_vectorize_load():
         A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
         B = tvm.compute((n,), lambda i: A[i], name='B')
         s = tvm.create_schedule(B.op)
-        bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
-        s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+        block, thread = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(block, bx)
+        s[B].bind(thread, tx)
         fun = tvm.build(s, [A, B], "cuda", name="vector_load")
         np_a = np.random.randint(low=-128, high=127, size=(n,lanes))
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
@@ -115,7 +119,7 @@ def test_cuda_make_int8x4():
         s = tvm.create_schedule(A.op)
         y, x = s[A].op.axis
         s[A].vectorize(x)
-        s[A].bind(y, tvm.thread_axis("blockIdx.x"))
+        s[A].bind(y, bx)
         fun = tvm.build(s, [A], "cuda", name="make_int8x4")
         np_a = np.full((n, lanes), value, dtype=dtype)
         a = tvm.nd.empty(np_a.shape, dtype, ctx)
@@ -133,7 +137,7 @@ def test_cuda_inf_nan():
         inf_value = tvm.const(value, dtype=dtype)
         C = tvm.compute((n,), lambda i: inf_value, name='C')
         s = tvm.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], tvm.thread_axis("threadIdx.x"))
+        s[C].bind(s[C].op.axis[0], tx)
         fun = tvm.build(s, [A, C], target)
         a = tvm.nd.empty((n,), A.dtype, ctx)
         c = tvm.nd.empty((n,), A.dtype, ctx)
@@ -217,6 +221,40 @@ def test_cuda_reducition_binding():
 
     fcuda = tvm.build(s, [A, B], "cuda")
 
+def test_rfactor_predicates():
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    n = tvm.reduce_axis((0, 129), 'n')
+    A = tvm.placeholder((129,), name='A')
+    B = tvm.compute( (1, ), lambda b:
+                     tvm.sum(A[n],
+                             axis=n),
+                     name='B'
+    )
+
+    s = tvm.create_schedule(B.op)
+
+    _, ni = s[B].split(s[B].op.reduce_axis[0], factor=8)
+
+    BF = s.rfactor(B, ni, 0)
+    s[B].set_store_predicate(tx.var.equal(0))
+
+    s[B].bind(s[B].op.reduce_axis[0], tx)
+    s[B].bind(s[B].op.axis[0], bx)
+
+    s[BF].compute_at(s[B], s[B].op.axis[0])
+
+    _, noi = s[BF].split(s[BF].op.reduce_axis[0], factor=2)
+
+    BF2 = s.rfactor(BF, noi, 0)
+
+    s[BF].bind(s[BF].op.axis[0], tx)
+    s[BF2].compute_at(s[BF], s[BF].op.axis[1])
+
+    fcuda = tvm.build(s, [A, B], "cuda")
+
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
@@ -226,3 +264,4 @@ if __name__ == "__main__":
     test_cuda_inf_nan()
     test_cuda_shuffle()
     test_cuda_reducition_binding()
+    test_rfactor_predicates()
