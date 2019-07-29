@@ -40,6 +40,9 @@ case class CoreParams (
   outMemDepth: Int = 512,
   instQueueEntries: Int = 32
 )
+{
+  require (uopBits % 8 == 0, s"\n\n[VTA] [CoreParams] uopBits must be byte aligned\n\n")
+}
 
 case object CoreKey extends Field[CoreParams]
 
