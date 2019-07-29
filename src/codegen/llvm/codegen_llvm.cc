@@ -1015,6 +1015,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
       idx[i] = uimm->value;
     } else if (auto imm = op->indices[i].as<IntImm>()) {
       idx[i] = imm->value;
+    } else {
+      LOG(FATAL) << "Shuffle vector indices are required to be constant ints.";
     }
     CHECK_GE(idx[i], 0);
   }

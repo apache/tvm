@@ -551,7 +551,7 @@ def test_dwarf_debug_information():
 def test_llvm_shuffle():
     a = tvm.placeholder((8, ), 'int32')
     b = tvm.placeholder((8, ), 'int32')
-    c = tvm.compute((8, ), lambda x: a[x] + a[7-x])
+    c = tvm.compute((8, ), lambda x: a[x] + b[7-x])
     sch = tvm.create_schedule(c.op)
 
     def my_vectorize(stmt):
