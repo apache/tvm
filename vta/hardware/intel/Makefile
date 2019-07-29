@@ -22,13 +22,12 @@ BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel
 SCRIPT_DIR = $(ROOTDIR)/scripts
 SRC_DIR = $(ROOTDIR)/../chisel
 
-# Executables
-TCLSH = quartus_sh
-
 # Debug flag
 DEBUG = false
 # Prevent generation of DSP
 NO_DSP = true
+# Device
+DEVICE = 5CSEBA6U23I7
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
@@ -54,6 +53,9 @@ IP_PATH = $(IP_BUILD_PATH)/VTA.DefaultDe10Config.v
 # Bitstream file path
 BIT_PATH = $(HW_BUILD_PATH)/export/vta.rbf
 
+# Bitstream file path
+QSYS_PATH = $(HW_BUILD_PATH)/soc_system.qsys
+
 .PHONY: all ip bit bsp clean clean_all
 
 all: bit
@@ -65,12 +67,16 @@ $(IP_PATH): $(SRC_DIR)
 	cd $(SRC_DIR) && \
     make CONFIG=DefaultDe10Config chisel_build_dir=$(IP_BUILD_PATH) verilog
 
-$(BIT_PATH): $(IP_PATH)
+$(QSYS_PATH): $(IP_PATH)
 	mkdir -p $(HW_BUILD_PATH)
 	cd $(HW_BUILD_PATH) && \
     cp -r $(SCRIPT_DIR)/* $(HW_BUILD_PATH) && \
-    python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v --verbose $(DSP_FLAG) && \
-    $(TCLSH) -t $(SCRIPT_DIR)/DE10_NANO_SoC_GHRD.tcl && \
+    python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v $(DSP_FLAG) && \
+    qsys-script --script=soc_system.tcl --part=$(DEVICE)
+
+$(BIT_PATH): $(QSYS_PATH)
+	cd $(HW_BUILD_PATH) && \
+    quartus_sh -t $(SCRIPT_DIR)/compile_design.tcl && \
     mkdir -p $(shell dirname $(BIT_PATH)) && \
     quartus_cpf -c $(HW_BUILD_PATH)/DE10_NANO_SoC_GHRD.sof $(BIT_PATH)
 
