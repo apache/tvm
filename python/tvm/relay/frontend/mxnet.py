@@ -1183,8 +1183,10 @@ def from_mxnet(symbol,
         params = {}
         for k, v in symbol.collect_params().items():
             params[k] = _nd.array(v.data().asnumpy())
-        data = mx.sym.Variable("data")
-        sym = symbol(data)
+        inputs = []
+        for name in shape:
+            inputs.append(mx.sym.Variable(name))
+        sym = symbol(*inputs)
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
