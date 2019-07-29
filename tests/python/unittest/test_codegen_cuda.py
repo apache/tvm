@@ -155,6 +155,10 @@ def test_cuda_inf_nan():
 
 
 def test_cuda_shuffle():
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
     a = tvm.placeholder((64, ), 'int32')
     b = tvm.placeholder((64, ), 'int32')
     c = tvm.compute((64, ), lambda x: a[x] + b[x / 4 + (4 - x % 4)])
