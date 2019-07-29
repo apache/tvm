@@ -26,7 +26,6 @@ format_code_in_doc_comments = false
 comment_width = 80
 normalize_comments = false
 normalize_doc_attributes = false
-license_template_path = ""
 format_strings = false
 format_macro_matchers = false
 format_macro_bodies = true

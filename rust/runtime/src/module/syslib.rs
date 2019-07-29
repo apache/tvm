@@ -50,7 +50,9 @@ impl Module for SystemLibModule {
 impl Default for SystemLibModule {
     fn default() -> Self {
         #[cfg(target_env = "sgx")]
-        unsafe { __tvm_module_startup(); }
+        unsafe {
+            __tvm_module_startup();
+        }
         SystemLibModule {}
     }
 }
