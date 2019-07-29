@@ -113,15 +113,9 @@ class Environment(object):
 
     # initialization function
     def __init__(self, cfg):
-        self.__dict__.update(cfg)
-        for key in PkgConfig.cfg_keys:
-            if key not in cfg:
-                raise ValueError("Expect key %s in cfg" % key)
-        # derive output buffer size
-        self.LOG_OUT_BUFF_SIZE = (
-            self.LOG_ACC_BUFF_SIZE +
-            self.LOG_OUT_WIDTH -
-            self.LOG_ACC_WIDTH)
+        # Produce the derived parameters and update dict
+        self.pkg = self.pkg_config(cfg)
+        self.__dict__.update(self.pkg.cfg_dict)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
@@ -154,25 +148,15 @@ class Environment(object):
         self.WGT_ELEM_BYTES = self.WGT_ELEM_BITS // 8
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
         self.OUT_ELEM_BYTES = self.OUT_ELEM_BITS // 8
-        # Configuration bitstream name
-        self.BITSTREAM = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_{}MHz_{}ns_v{}.bit".format(
-            (1 << cfg["LOG_BATCH"]),
-            (1 << cfg["LOG_BLOCK_IN"]),
-            (1 << cfg["LOG_BLOCK_OUT"]),
-            (1 << cfg["LOG_INP_WIDTH"]),
-            (1 << cfg["LOG_WGT_WIDTH"]),
-            cfg["LOG_UOP_BUFF_SIZE"],
-            cfg["LOG_INP_BUFF_SIZE"],
-            cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"],
-            cfg["HW_FREQ"],
-            cfg["HW_CLK_TARGET"],
-            cfg["HW_VER"].replace('.', '_'))
         # dtypes
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
         self.out_dtype = "int%d" % self.OUT_WIDTH
+        # bistream name
+        self.BITSTREAM = self.pkg.bitstream
+        # model string
+        self.MODEL = self.TARGET + "_" + self.BITSTREAM
         # lazy cached members
         self.mock_mode = False
         self._mock_env = None
@@ -187,11 +171,15 @@ class Environment(object):
     def __exit__(self, ptype, value, trace):
         Environment.current = self._last_env
 
-    def pkg_config(self):
+    def pkg_config(self, cfg):
         """PkgConfig instance"""
         curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
         proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
-        return PkgConfig(self.__dict__, proj_root)
+        return PkgConfig(cfg, proj_root)
+
+    @property
+    def cfg_dict(self):
+        return self.pkg.cfg_dict
 
     @property
     def dev(self):
@@ -236,13 +224,15 @@ class Environment(object):
 
     @property
     def target(self):
-        return tvm.target.vta(model=self.TARGET)
+        return tvm.target.vta(model=self.MODEL)
 
     @property
     def target_host(self):
         """The target host"""
         if self.TARGET == "pynq":
             return "llvm -target=armv7-none-linux-gnueabihf"
+        if self.TARGET == "ultra96":
+            return "llvm -target=aarch64-linux-gnu"
         if self.TARGET == "sim" or self.TARGET == "tsim":
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
@@ -316,21 +306,18 @@ def coproc_dep_pop(op):
 
 
 def _init_env():
-    """Iniitalize the default global env"""
+    """Initialize the default global env"""
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
     path_list = [
-        os.path.join(curr_path, "vta_config.json"),
-        os.path.join(proj_root, "build", "vta_config.json"),
-        os.path.join(proj_root, "vta_config.json"),
         os.path.join(proj_root, "vta/config/vta_config.json")
     ]
     path_list = [p for p in path_list if os.path.exists(p)]
     if not path_list:
         raise RuntimeError(
-            "Error: {} not found.make sure you have config.json in your vta root"
-            .format(filename))
-    return Environment(json.load(open(path_list[0])))
+            "Error: vta_config.json not found.")
+    cfg = json.load(open(path_list[0]))
+    return Environment(cfg)
 
 Environment.current = _init_env()

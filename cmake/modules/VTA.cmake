@@ -38,17 +38,24 @@ elseif(PYTHON)
   string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_=.]*" VTA_DEFINITIONS "${__vta_defs}")
 
   file(GLOB VTA_RUNTIME_SRCS vta/src/*.cc)
-  file(GLOB __vta_target_srcs vta/src/${VTA_TARGET}/*.cc)
+  # Add sim driver sources
+  if(${VTA_TARGET} STREQUAL "sim")
+    file(GLOB __vta_target_srcs vta/src/sim/*.cc)
+  endif()
+  # Add pynq driver sources
+  if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
+    file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
+  endif()
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
-
-  add_library(vta SHARED ${VTA_RUNTIME_SRCS})
-
+  # Add tsim driver sources
   if(${VTA_TARGET} STREQUAL "tsim")
     target_compile_definitions(vta PUBLIC USE_TSIM)
     include_directories("vta/include")
     file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
     list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
   endif()
+
+  add_library(vta SHARED ${VTA_RUNTIME_SRCS})
 
   target_include_directories(vta PUBLIC vta/include)
 
@@ -62,7 +69,7 @@ elseif(PYTHON)
   endif(APPLE)
 
   # PYNQ rules for Pynq v2.4
-  if(${VTA_TARGET} STREQUAL "pynq")
+  if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
   endif()

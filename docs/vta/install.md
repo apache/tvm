@@ -61,7 +61,7 @@ To do so,
 
 ```bash
 cd <tvm root>
-cp vta/config/vta_config.json vta_config.json
+vim vta/config/vta_config.json
 # edit vta_config.json
 make vta
 ```
@@ -118,7 +118,7 @@ cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
 # Copy pynq specific configuration
-cp vta/config/pynq_sample.json build/vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 cd build
 cmake ..
 make runtime vta -j2
@@ -147,13 +147,12 @@ export VTA_PYNQ_RPC_PORT=9091
 ```
 
 In addition, you'll need to edit the `vta_config.json` file on the host to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to `"pynq"`.
-Alternatively, you can copy the default `vta/config/pynq_sample.json` into the TVM root as `vta_config.json`.
 > Note: in contrast to our simulation setup, there are no libraries to compile on the host side since the host offloads all of the computation to the Pynq board.
 
 ```bash
 # On the Host-side
 cd <tvm root>
-cp vta/config/pynq_sample.json vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench.
@@ -187,28 +186,28 @@ This third and last guide allows users to generate custom VTA bitstreams using f
 
 ### Xilinx Toolchain Installation
 
-We recommend using `Vivado 2018.2` since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using `Vivado 2019.1` since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2018.2](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2019.1](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
 
 #### Obtaining and Launching the Vivado GUI Installer
 
-1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-2.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2018.2: WebPACK and Editions.
+1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2019-1.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2019.1: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin`.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin`.
 4. Now that the file is downloaded, go to your `Downloads` directory, and change the file permissions so it can be executed:
 ```bash
-chmod u+x Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin
+chmod u+x Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
 ```
 5. Now you can execute the binary:
 ```bash
-./Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin
+./Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
 ```
 
 #### Xilinx Vivado GUI Installer Steps
 
-At this point you've launched the Vivado 2018.2 Installer GUI program.
+At this point you've launched the Vivado 2019.1 Installer GUI program.
 
 1. Click “Next” on the *Welcome* screen.
 2. On the *Select Install Type* screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next” .
@@ -230,8 +229,8 @@ At this point you've launched the Vivado 2018.2 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2018.2 environment
-export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.2
+# Xilinx Vivado 2019.1 environment
+export XILINX_VIVADO=${XILINX_PATH}/Vivado/2019.1
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 ```
 
