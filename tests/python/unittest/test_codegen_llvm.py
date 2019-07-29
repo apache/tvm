@@ -563,7 +563,7 @@ def test_llvm_shuffle():
             value = store.value
             b_idx = tvm.make.Shuffle([idx], [tvm.const(i, 'int32') for i in range(7, -1, -1)])
             new_a = tvm.make.Load('int32x8', value.a.buffer_var, idx, all_ones)
-            new_b = tvm.make.Load('int32x8', value.a.buffer_var, b_idx, all_ones)
+            new_b = tvm.make.Load('int32x8', value.b.buffer_var, b_idx, all_ones)
             value = new_a + new_b
             return tvm.make.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 

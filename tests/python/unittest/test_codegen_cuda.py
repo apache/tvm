@@ -161,7 +161,7 @@ def test_cuda_shuffle():
 
     a = tvm.placeholder((64, ), 'int32')
     b = tvm.placeholder((64, ), 'int32')
-    c = tvm.compute((64, ), lambda x: a[x] + b[x / 4 + (4 - x % 4)])
+    c = tvm.compute((64, ), lambda x: a[x] + b[x - (x % 4) + (4 - x % 4)])
     sch = tvm.create_schedule(c.op)
     x = c.op.axis[0]
     xo, xi = sch[c].split(x, 4)
