@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file hw_spec.h
  * \brief Preprocessor definitions for VTA HLS design and runtime.
  */
@@ -31,6 +30,9 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+
+/*! Memory bus width */
+#define VTA_BUS_WIDTH (1 << VTA_LOG_BUS_WIDTH)
 
 /*! log2 of instruction data type width */
 #define VTA_LOG_INS_WIDTH 7
@@ -48,10 +50,6 @@ extern "C" {
 #define VTA_OUT_WIDTH (1 << VTA_LOG_OUT_WIDTH)
 /*! Accumulator data type width */
 #define VTA_ACC_WIDTH (1 << VTA_LOG_ACC_WIDTH)
-/*! log2 of ALU data type width */
-#define VTA_LOG_ALU_WIDTH (VTA_LOG_ACC_WIDTH - 1)
-/*! ALU data type width */
-#define VTA_ALU_WIDTH (1 << VTA_LOG_ALU_WIDTH)
 
 /*! Batch size (corresponds to A in (A,B)x(B,C) mat mult)*/
 #define VTA_BATCH (1 << VTA_LOG_BATCH)
@@ -59,15 +57,6 @@ extern "C" {
 #define VTA_BLOCK_IN (1 << VTA_LOG_BLOCK_IN)
 /*! Blocking factor of the outer loop (corresponds to C in (A,B)x(B,C) mat mult) */
 #define VTA_BLOCK_OUT (1 << VTA_LOG_BLOCK_OUT)
-
-/*! Weight vector width */
-#define VTA_WGT_VECTOR_WIDTH (VTA_WGT_WIDTH * VTA_BLOCK_IN)
-/*! Input vector width */
-#define VTA_INP_VECTOR_WIDTH (VTA_INP_WIDTH * VTA_BLOCK_IN)
-/*! Accumulator vector width */
-#define VTA_ACC_VECTOR_WIDTH (VTA_ACC_WIDTH * VTA_BLOCK_OUT)
-/*! Output vector width */
-#define VTA_OUT_VECTOR_WIDTH (VTA_OUT_WIDTH * VTA_BLOCK_OUT)
 
 /*! On-chip micro-op buffer size in B */
 #define VTA_UOP_BUFF_SIZE (1 << VTA_LOG_UOP_BUFF_SIZE)
@@ -78,16 +67,36 @@ extern "C" {
 /*! On-chip accumulator buffer size in B */
 #define VTA_ACC_BUFF_SIZE (1 << VTA_LOG_ACC_BUFF_SIZE)
 
+/*! Input vector size in bits */
+#define VTA_INP_MATRIX_WIDTH (VTA_INP_WIDTH * VTA_BATCH * VTA_BLOCK_IN)
+/*! Weight vector size in bits */
+#define VTA_WGT_MATRIX_WIDTH (VTA_WGT_WIDTH * VTA_BLOCK_OUT * VTA_BLOCK_IN)
+/*! Accumulator vector size in bits */
+#define VTA_ACC_MATRIX_WIDTH (VTA_ACC_WIDTH * VTA_BATCH * VTA_BLOCK_OUT)
+/*! Output vector size in bits */
+#define VTA_OUT_MATRIX_WIDTH (VTA_OUT_WIDTH * VTA_BATCH * VTA_BLOCK_OUT)
+
+/*! Ratio between input matrix size and axi width */
+#define INP_MAT_AXI_RATIO (VTA_INP_MATRIX_WIDTH / VTA_BUS_WIDTH)
+/*! Ratio between weight matrix size and axi width */
+#define WGT_MAT_AXI_RATIO (VTA_WGT_MATRIX_WIDTH / VTA_BUS_WIDTH)
+/*! Ratio between accumulator matrix size and axi width */
+#define ACC_MAT_AXI_RATIO (VTA_ACC_MATRIX_WIDTH / VTA_BUS_WIDTH)
+/*! Ratio between output matrix size and axi width */
+#define OUT_MAT_AXI_RATIO (VTA_OUT_MATRIX_WIDTH / VTA_BUS_WIDTH)
+
 /*! Size of instruction buffer element in B */
 #define VTA_INS_ELEM_BYTES (VTA_INS_WIDTH / 8)
 /*! Size of uop buffer element in B*/
 #define VTA_UOP_ELEM_BYTES (VTA_UOP_WIDTH / 8)
 /*! Size of activation buffer element in B*/
-#define VTA_INP_ELEM_BYTES (VTA_BATCH * VTA_BLOCK_IN * VTA_INP_WIDTH / 8)
+#define VTA_INP_ELEM_BYTES (VTA_INP_MATRIX_WIDTH / 8)
 /*! Size of weight buffer element in B*/
-#define VTA_WGT_ELEM_BYTES (VTA_BLOCK_OUT * VTA_BLOCK_IN * VTA_WGT_WIDTH / 8)
+#define VTA_WGT_ELEM_BYTES (VTA_WGT_MATRIX_WIDTH / 8)
 /*! Size of accumulator buffer element in B*/
-#define VTA_ACC_ELEM_BYTES (VTA_BATCH * VTA_BLOCK_OUT * VTA_ACC_WIDTH / 8)
+#define VTA_ACC_ELEM_BYTES (VTA_ACC_MATRIX_WIDTH / 8)
+/*! Size of output buffer element in B*/
+#define VTA_OUT_ELEM_BYTES (VTA_OUT_MATRIX_WIDTH / 8)
 
 /*! On-chip micro-op buffer depth */
 #define VTA_UOP_BUFF_DEPTH (VTA_UOP_BUFF_SIZE / VTA_UOP_ELEM_BYTES)
@@ -148,10 +157,14 @@ extern "C" {
 #define VTA_MEMOP_PAD_BIT_WIDTH 4
 /*! Load/Store Instruction: padding value encoding width*/
 #define VTA_MEMOP_PAD_VAL_BIT_WIDTH 2
-/*! ALU Instruction: immediate bitwidth*/
-#define VTA_ALUOP_IMM_BIT_WIDTH 16
 /*! GEMM/ALU Instruction: loop max iter bits */
 #define VTA_LOOP_ITER_WIDTH 14
+/*! ALU Instruction: immediate bitwidth*/
+#define VTA_ALUOP_IMM_BIT_WIDTH 16
+/*! ALU Instruction: shift arg bitwidth*/
+#define VTA_SHR_ARG_BIT_WIDTH (VTA_LOG_ACC_WIDTH)
+/*! ALU Instruction: multiply arg bitwidth*/
+#define VTA_MUL_ARG_BIT_WIDTH 8
 
 /*! Mem ID constant: uop memory */
 #define VTA_MEM_ID_UOP 0
@@ -163,186 +176,6 @@ extern "C" {
 #define VTA_MEM_ID_ACC 3
 /*! Mem ID constant: output store buffer */
 #define VTA_MEM_ID_OUT 4
-
-// Instruction organization layout:
-//
-// LOAD/STORE
-// _____________________________|_type______________|
-// arg 0: opcode                | opcode_T          |
-// arg 1: pop_prev_dependence   | bool              |
-// arg 2: pop_next_dependence   | bool              |
-// arg 3: push_prev_dependence  | bool              |
-// arg 4: push_next_dependence  | bool              |
-// arg 5: memory_type           | memop_id_T        |
-// arg 6: pad_value             | memop_pad_val_T   |
-// arg 7: sram_base             | memop_sram_T      |
-// arg 8: dram_base             | memop_dram_T      |
-// arg 9: y_size                | memop_size_T      |
-// arg a: x_size                | memop_size_T      |
-// arg b: x_stride              | memop_stride_T    |
-// arg c: y_pad_0               | memop_pad_T       |
-// arg d: y_pad_1               | memop_pad_T       |
-// arg e: x_pad_0               | memop_pad_T       |
-// arg f: x_pad_1               | memop_pad_T       |
-//
-// GEMM
-// _____________________________|_type______________|
-// arg 0: opcode                | opcode_T          |
-// arg 1: pop_prev_dependence   | bool              |
-// arg 2: pop_next_dependence   | bool              |
-// arg 3: push_prev_dependence  | bool              |
-// arg 4: push_next_dependence  | bool              |
-// arg 5: reset_reg             | bool              |
-// arg 6: uop_bgn               | uop_idx_T         |
-// arg 7: uop_end               | uop_idx_T         |
-// arg 8: iteration count ax0   | loop_T            |
-// arg 9: iteration count ax1   | loop_T            |
-// arg a: accum idx factor ax0  | acc_idx_T         |
-// arg b: accum idx factor ax1  | acc_idx_T         |
-// arg c: input idx factor ax0  | inp_idx_T         |
-// arg d: input idx factor ax1  | inp_idx_T         |
-// arg e: weight idx factor ax0 | wgt_idx_T         |
-// arg f: weight idx factor ax1 | wgt_idx_T         |
-//
-// ALU
-// _____________________________|_type______________|
-// arg 0: opcode                | opcode_T          |
-// arg 1: pop_prev_dependence   | bool              |
-// arg 2: pop_next_dependence   | bool              |
-// arg 3: push_prev_dependence  | bool              |
-// arg 4: push_next_dependence  | bool              |
-// arg 5: reset_reg             | bool              |
-// arg 6: uop_bgn               | uop_idx_T         |
-// arg 7: uop_end               | uop_idx_T         |
-// arg 8: iteration count ax0   | loop_T            |
-// arg 9: iteration count ax1   | loop_T            |
-// arg a: dst idx factor ax0    | acc_idx_T         |
-// arg b: dst idx factor ax1    | acc_idx_T         |
-// arg c: src idx factor ax0    | inp_idx_T         |
-// arg d: src idx factor ax1    | inp_idx_T         |
-// arg e: alu_opcode            | aluop_opcode_T    |
-// arg f: use_imm               | bool              |
-// arg g: imm                   | alu_imm_T         |
-
-/*! Load/Store instruction start position of the opcode field */
-#define VTA_INSN_MEM_0_0 0
-/*! Load/Store instruction end position of the opcode field */
-#define VTA_INSN_MEM_0_1 (VTA_INSN_MEM_0_0 + VTA_OPCODE_BIT_WIDTH - 1)
-/*! Load/Store instruction position of the pop_prev_dep field */
-#define VTA_INSN_MEM_1   (VTA_INSN_MEM_0_1 + 1)
-/*! Load/Store instruction position of the pop_next_dep field */
-#define VTA_INSN_MEM_2   (VTA_INSN_MEM_1 + 1)
-/*! Load/Store instruction position of the push_prev_dependence field */
-#define VTA_INSN_MEM_3   (VTA_INSN_MEM_2 + 1)
-/*! Load/Store instruction position of the push_next_dependence field */
-#define VTA_INSN_MEM_4   (VTA_INSN_MEM_3 + 1)
-/*! Load/Store instruction start position of the memory_type field */
-#define VTA_INSN_MEM_5_0 (VTA_INSN_MEM_4 + 1)
-/*! Load/Store instruction end position of the memory_type field */
-#define VTA_INSN_MEM_5_1 (VTA_INSN_MEM_5_0 + VTA_MEMOP_ID_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the sram_base field */
-#define VTA_INSN_MEM_6_0 (VTA_INSN_MEM_5_1 + 1)
-/*! Load/Store instruction end position of the sram_base field */
-#define VTA_INSN_MEM_6_1 (VTA_INSN_MEM_6_0 + VTA_MEMOP_SRAM_ADDR_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the dram_base field */
-#define VTA_INSN_MEM_7_0 (VTA_INSN_MEM_6_1 + 1)
-/*! Load/Store instruction end position of the dram_base field */
-#define VTA_INSN_MEM_7_1 (VTA_INSN_MEM_7_0 + VTA_MEMOP_DRAM_ADDR_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the y_size field */
-#define VTA_INSN_MEM_8_0 64
-/*! Load/Store instruction end position of the y_size field */
-#define VTA_INSN_MEM_8_1 (VTA_INSN_MEM_8_0 + VTA_MEMOP_SIZE_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the x_size field */
-#define VTA_INSN_MEM_9_0 (VTA_INSN_MEM_8_1 + 1)
-/*! Load/Store instruction start position of the x_size field */
-#define VTA_INSN_MEM_9_1 (VTA_INSN_MEM_9_0 + VTA_MEMOP_SIZE_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the x_stride field */
-#define VTA_INSN_MEM_A_0 (VTA_INSN_MEM_9_1 + 1)
-/*! Load/Store instruction end position of the x_stride field */
-#define VTA_INSN_MEM_A_1 (VTA_INSN_MEM_A_0 + VTA_MEMOP_STRIDE_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the y_pad_0 field */
-#define VTA_INSN_MEM_B_0 (VTA_INSN_MEM_A_1 + 1)
-/*! Load/Store instruction start position of the y_pad_0 field */
-#define VTA_INSN_MEM_B_1 (VTA_INSN_MEM_B_0 + VTA_MEMOP_PAD_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the y_pad_1 field */
-#define VTA_INSN_MEM_C_0 (VTA_INSN_MEM_B_1 + 1)
-/*! Load/Store instruction start position of the y_pad_1 field */
-#define VTA_INSN_MEM_C_1 (VTA_INSN_MEM_C_0 + VTA_MEMOP_PAD_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the x_pad_0 field */
-#define VTA_INSN_MEM_D_0 (VTA_INSN_MEM_C_1 + 1)
-/*! Load/Store instruction start position of the x_pad_0 field */
-#define VTA_INSN_MEM_D_1 (VTA_INSN_MEM_D_0 + VTA_MEMOP_PAD_BIT_WIDTH - 1)
-/*! Load/Store instruction start position of the x_pad_1 field */
-#define VTA_INSN_MEM_E_0 (VTA_INSN_MEM_D_1 + 1)
-/*! Load/Store instruction start position of the x_pad_1 field */
-#define VTA_INSN_MEM_E_1 (VTA_INSN_MEM_E_0 + VTA_MEMOP_PAD_BIT_WIDTH - 1)
-
-/*! GEMM instruction start position of the opcode field */
-#define VTA_INSN_GEM_0_0 0
-/*! GEMM instruction end position of the opcode field */
-#define VTA_INSN_GEM_0_1 (VTA_INSN_GEM_0_0 + VTA_OPCODE_BIT_WIDTH - 1)
-/*! GEMM instruction position of the pop_prev_dep field */
-#define VTA_INSN_GEM_1   (VTA_INSN_GEM_0_1 + 1)
-/*! GEMM instruction position of the pop_next_dep field */
-#define VTA_INSN_GEM_2   (VTA_INSN_GEM_1 + 1)
-/*! GEMM instruction position of the push_prev_dependence field */
-#define VTA_INSN_GEM_3   (VTA_INSN_GEM_2 + 1)
-/*! GEMM instruction position of the push_next_dependence field */
-#define VTA_INSN_GEM_4   (VTA_INSN_GEM_3 + 1)
-/*! GEMM instruction position of the reset register bit */
-#define VTA_INSN_GEM_5   (VTA_INSN_GEM_4 + 1)
-/*! GEMM instruction start position of the uop_bgn field */
-#define VTA_INSN_GEM_6_0 (VTA_INSN_GEM_5 + 1)
-/*! GEMM instruction end position of the uop_bgn field */
-#define VTA_INSN_GEM_6_1 (VTA_INSN_GEM_6_0 + VTA_LOG_UOP_BUFF_DEPTH - 1)
-/*! GEMM instruction start position of the uop_end field */
-#define VTA_INSN_GEM_7_0 (VTA_INSN_GEM_6_1 + 1)
-/*! GEMM instruction end position of the uop_end field */
-#define VTA_INSN_GEM_7_1 (VTA_INSN_GEM_7_0 + VTA_LOG_UOP_BUFF_DEPTH + 1 - 1)
-/*! GEMM instruction start position of the iter_out field */
-#define VTA_INSN_GEM_8_0 (VTA_INSN_GEM_7_1 + 1)
-/*! GEMM instruction end position of the iter_out field */
-#define VTA_INSN_GEM_8_1 (VTA_INSN_GEM_8_0 + VTA_LOOP_ITER_WIDTH - 1)
-/*! GEMM instruction start position of the iter_in field */
-#define VTA_INSN_GEM_9_0 (VTA_INSN_GEM_8_1 + 1)
-/*! GEMM instruction end position of the iter_in field */
-#define VTA_INSN_GEM_9_1 (VTA_INSN_GEM_9_0 + VTA_LOOP_ITER_WIDTH - 1)
-/*! GEMM instruction start position of the dst_factor_out field */
-#define VTA_INSN_GEM_A_0 64
-/*! GEMM instruction end position of the dst_factor_out field */
-#define VTA_INSN_GEM_A_1 (VTA_INSN_GEM_A_0 + VTA_LOG_ACC_BUFF_DEPTH - 1)
-/*! GEMM instruction start position of the dst_factor_in field */
-#define VTA_INSN_GEM_B_0 (VTA_INSN_GEM_A_1 + 1)
-/*! GEMM instruction end position of the dst_factor_in field */
-#define VTA_INSN_GEM_B_1 (VTA_INSN_GEM_B_0 + VTA_LOG_ACC_BUFF_DEPTH - 1)
-/*! GEMM instruction start position of the src_factor_out field */
-#define VTA_INSN_GEM_C_0 (VTA_INSN_GEM_B_1 + 1)
-/*! GEMM instruction end position of the src_factor_out field */
-#define VTA_INSN_GEM_C_1 (VTA_INSN_GEM_C_0 + VTA_LOG_INP_BUFF_DEPTH - 1)
-/*! GEMM instruction start position of the src_factor_in field */
-#define VTA_INSN_GEM_D_0 (VTA_INSN_GEM_C_1 + 1)
-/*! GEMM instruction end position of the src_factor_in field */
-#define VTA_INSN_GEM_D_1 (VTA_INSN_GEM_D_0 + VTA_LOG_INP_BUFF_DEPTH - 1)
-
-/*! GEMM instruction start position of the wgt_factor_out field */
-#define VTA_INSN_GEM_E_0 (VTA_INSN_GEM_D_1 + 1)
-/*! GEMM instruction end position of the wgt_factor_out field */
-#define VTA_INSN_GEM_E_1 (VTA_INSN_GEM_E_0 + VTA_LOG_WGT_BUFF_DEPTH - 1)
-/*! GEMM instruction start position of the wgt_factor_in field */
-#define VTA_INSN_GEM_F_0 (VTA_INSN_GEM_E_1 + 1)
-/*! GEMM instruction end position of the wgt_factor_in field */
-#define VTA_INSN_GEM_F_1 (VTA_INSN_GEM_F_0 + VTA_LOG_WGT_BUFF_DEPTH - 1)
-
-/*! ALU instruction start position of the alu_opcode field */
-#define VTA_INSN_ALU_E_0 (VTA_INSN_GEM_D_1 + 1)
-/*! ALU instruction end position of the alu_opcode field */
-#define VTA_INSN_ALU_E_1 (VTA_INSN_ALU_E_0 + VTA_ALU_OPCODE_BIT_WIDTH - 1)
-/*! ALU instruction position of the use_imm field */
-#define VTA_INSN_ALU_F   (VTA_INSN_ALU_E_1 + 1)
-/*! ALU instruction start position of the immediate field */
-#define VTA_INSN_ALU_G_0 (VTA_INSN_ALU_F + 1)
-/*! ALU instruction end position of the immediate field */
-#define VTA_INSN_ALU_G_1 (VTA_INSN_ALU_G_0 + VTA_ALUOP_IMM_BIT_WIDTH - 1)
 
 /*! GEMM Micro-op start position of the acc_idx field */
 #define VTA_UOP_GEM_0_0 0
@@ -368,8 +201,20 @@ extern "C" {
 
 /*! \brief VTA generic instruction */
 typedef struct {
-  uint64_t word_0         : 64;
-  uint64_t word_1         : 64;
+  /*! \brief The instruction opcode */
+  uint64_t opcode         : VTA_OPCODE_BIT_WIDTH;
+  /*! \brief Unused in this instruction */
+  uint64_t pop_prev_dep   : 1;
+  /*! \brief Pop dependence token from GEMM stage */
+  uint64_t pop_next_dep   : 1;
+  /*! \brief Unused in this instruction */
+  uint64_t push_prev_dep  : 1;
+  /*! \brief Push dependence token to GEMM stage */
+  uint64_t push_next_dep  : 1;
+  /*! \brief Padding */
+  uint64_t pad_0          : 64 - VTA_OPCODE_BIT_WIDTH - 4;
+  /*! \brief Padding */
+  uint64_t pad_1          : 64;
 } VTAGenericInsn;
 
 /*! \brief VTA load/store instruction

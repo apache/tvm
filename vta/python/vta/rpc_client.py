@@ -30,7 +30,7 @@ def reconfig_runtime(remote):
     """
     env = get_env()
     freconfig = remote.get_function("tvm.contrib.vta.reconfig_runtime")
-    freconfig(env.pkg_config().cfg_json)
+    freconfig(env.pkg.cfg_json)
 
 
 def program_fpga(remote, bitstream=None):
