@@ -136,19 +136,23 @@ void VTAMemCopyToHost(void* dst, const void* src, size_t size);
 
 /*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be flushed.
- *            This need to be the physical address.
+ * \param vir_addr Pointer to memory region allocated with VTAMemAlloc to be flushed.
+ *                 This need to be the virtual address.
+ * \param phy_addr Pointer to memory region allocated with VTAMemAlloc to be flushed.
+ *                 This need to be the physical address.
  * \param size Size of the region to flush in Bytes.
  */
-void VTAFlushCache(vta_phy_addr_t buf, int size);
+void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
 
 /*!
  * \brief Invalidates the region of memory that is cached.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be invalidated.
- *            This need to be the physical address.
+ * \param vir_addr Pointer to memory region allocated with VTAMemAlloc to be invalidated.
+ *                 This need to be the virtual address.
+ * \param phy_addr Pointer to memory region allocated with VTAMemAlloc to be invalidated.
+ *                 This need to be the physical address.
  * \param size Size of the region to invalidate in Bytes.
  */
-void VTAInvalidateCache(vta_phy_addr_t buf, int size);
+void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
 
 #ifdef __cplusplus
 }

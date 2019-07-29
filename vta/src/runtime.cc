@@ -44,8 +44,10 @@ namespace vta {
 static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8,
               "VTA_UOP_WIDTH do not match VTAUop size");
 
-/*! \brief Enable coherent access between VTA and CPU (used on shared mem systems). */
-static const bool kBufferCoherent = true;
+/*! \brief Enable coherent access of data buffers between VTA and CPU */
+static const bool kBufferCoherent = VTA_COHERENT_ACCESSES;
+/*! \brief Always cache buffers (otherwise, write back to DRAM from CPU) */
+static const bool kAlwaysCache = true;
 
 /*!
  * \brief Data buffer represents data on CMA.
@@ -65,8 +67,10 @@ struct DataBuffer {
    * \param size The size of the data.
    */
   void InvalidateCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAInvalidateCache(phy_addr_ + offset, size);
+    if (!kBufferCoherent && kAlwaysCache) {
+      VTAInvalidateCache(reinterpret_cast<char *>(data_) + offset,
+                         phy_addr_ + offset,
+                         size);
     }
   }
   /*!
@@ -75,8 +79,10 @@ struct DataBuffer {
    * \param size The size of the data.
    */
   void FlushCache(size_t offset, size_t size) {
-    if (!kBufferCoherent) {
-      VTAFlushCache(phy_addr_ + offset, size);
+    if (!kBufferCoherent && kAlwaysCache) {
+      VTAFlushCache(reinterpret_cast<char *>(data_) + offset,
+                    phy_addr_ + offset,
+                    size);
     }
   }
   /*!
@@ -102,7 +108,7 @@ struct DataBuffer {
    * \param size The size of the buffer.
    */
   static DataBuffer* Alloc(size_t size) {
-    void* data = VTAMemAlloc(size, 1);
+    void* data = VTAMemAlloc(size, kAlwaysCache);
     CHECK(data != nullptr);
     DataBuffer* buffer = new DataBuffer();
     buffer->data_ = data;
@@ -469,7 +475,9 @@ class UopQueue : public BaseQueue<VTAUop> {
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
-      VTAFlushCache(fpga_buff_phy_, offset);
+      VTAFlushCache(fpga_buff_,
+                    fpga_buff_phy_,
+                    offset);
     }
   }
 
@@ -860,7 +868,9 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
-      VTAFlushCache(fpga_buff_phy_, buff_size);
+      VTAFlushCache(fpga_buff_,
+                    fpga_buff_phy_,
+                    buff_size);
     }
   }
 
@@ -1302,9 +1312,9 @@ class CommandQueue {
   // The kernel we are currently recording
   UopKernel* record_kernel_{nullptr};
   // Micro op queue
-  UopQueue<VTA_MAX_XFER, true, true> uop_queue_;
+  UopQueue<VTA_MAX_XFER, kBufferCoherent, kAlwaysCache> uop_queue_;
   // instruction queue
-  InsnQueue<VTA_MAX_XFER, true, true> insn_queue_;
+  InsnQueue<VTA_MAX_XFER, kBufferCoherent, kAlwaysCache> insn_queue_;
   // Device handle
   VTADeviceHandle device_{nullptr};
 #ifdef USE_TSIM

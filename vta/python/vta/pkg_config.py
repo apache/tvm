@@ -38,48 +38,208 @@ class PkgConfig(object):
     """
     cfg_keys = [
         "TARGET",
-        "HW_FREQ",
-        "HW_CLK_TARGET",
-        "HW_VER",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
-        "LOG_OUT_WIDTH",
         "LOG_BATCH",
-        "LOG_BLOCK_IN",
-        "LOG_BLOCK_OUT",
+        "LOG_BLOCK",
         "LOG_UOP_BUFF_SIZE",
         "LOG_INP_BUFF_SIZE",
         "LOG_WGT_BUFF_SIZE",
         "LOG_ACC_BUFF_SIZE",
     ]
+
     def __init__(self, cfg, proj_root):
-        # include path
+
+        # Derived parameters
+        cfg["LOG_BLOCK_IN"] = cfg["LOG_BLOCK"]
+        cfg["LOG_BLOCK_OUT"] = cfg["LOG_BLOCK"]
+        cfg["LOG_OUT_WIDTH"] = cfg["LOG_INP_WIDTH"]
+        cfg["LOG_OUT_BUFF_SIZE"] = (
+            cfg["LOG_ACC_BUFF_SIZE"] +
+            cfg["LOG_OUT_WIDTH"] -
+            cfg["LOG_ACC_WIDTH"])
+
+        # Update cfg now that we've extended it
+        self.__dict__.update(cfg)
+
+        # Include path
         self.include_path = [
             "-I%s/include" % proj_root,
             "-I%s/vta/include" % proj_root,
             "-I%s/3rdparty/dlpack/include" % proj_root,
             "-I%s/3rdparty/dmlc-core/include" % proj_root
         ]
+
         # List of source files that can be used to build standalone library.
         self.lib_source = []
         self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
-        self.lib_source += glob.glob("%s/vta/src/%s/*.cc" % (proj_root, cfg["TARGET"]))
-        # macro keys
-        self.macro_defs = []
-        self.cfg_dict = {}
-        for key in self.cfg_keys:
-            self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
-            self.cfg_dict[key] = cfg[key]
+        if self.TARGET in ["pynq", "ultra96"]:
+            # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
+            self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
 
-        self.target = cfg["TARGET"]
-
-        if self.target == "pynq":
+        # Linker flags
+        if self.TARGET in ["pynq", "ultra96"]:
             self.ldflags = [
                 "-L/usr/lib",
                 "-l:libcma.so"]
         else:
             self.ldflags = []
+
+        # Derive bitstream config string.
+        self.bitstream = "{}x{}_i{}w{}a{}_{}_{}_{}_{}".format(
+            (1 << cfg["LOG_BATCH"]),
+            (1 << cfg["LOG_BLOCK"]),
+            (1 << cfg["LOG_INP_WIDTH"]),
+            (1 << cfg["LOG_WGT_WIDTH"]),
+            (1 << cfg["LOG_ACC_WIDTH"]),
+            cfg["LOG_UOP_BUFF_SIZE"],
+            cfg["LOG_INP_BUFF_SIZE"],
+            cfg["LOG_WGT_BUFF_SIZE"],
+            cfg["LOG_ACC_BUFF_SIZE"])
+
+        # Derive FPGA parameters from target
+        #   - device:           part number
+        #   - family:           fpga family
+        #   - freq:             PLL frequency
+        #   - per:              clock period to achieve in HLS
+        #                       (how aggressively design is pipelined)
+        #   - axi_bus_width:    axi bus width used for DMA transactions
+        #                       (property of FPGA memory interface)
+        #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
+        #                       (e.g. 1111 is write-back read and write allocate)
+        #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
+        if self.TARGET == "ultra96":
+            self.fpga_device = "xczu3eg-sbva484-1-e"
+            self.fpga_family = "zynq-ultrascale+"
+            self.fpga_freq = 333
+            self.fpga_per = 2
+            self.fpga_log_axi_bus_width = 7
+            self.axi_prot_bits = '010'
+            # IP register address map
+            self.ip_reg_map_range = "0x1000"
+            self.fetch_base_addr = "0xA0000000"
+            self.load_base_addr = "0xA0001000"
+            self.compute_base_addr = "0xA0002000"
+            self.store_base_addr = "0xA0003000"
+        else:
+            # By default, we use the pynq parameters
+            self.fpga_device = "xc7z020clg484-1"
+            self.fpga_family = "zynq-7000"
+            self.fpga_freq = 100
+            self.fpga_per = 7
+            self.fpga_log_axi_bus_width = 6
+            self.axi_prot_bits = '000'
+            # IP register address map
+            self.ip_reg_map_range = "0x1000"
+            self.fetch_base_addr = "0x43C00000"
+            self.load_base_addr = "0x43C01000"
+            self.compute_base_addr = "0x43C02000"
+            self.store_base_addr = "0x43C03000"
+        # Set coherence settings
+        coherent = True
+        if coherent:
+            self.axi_cache_bits = '1111'
+            self.coherent = True
+
+        # Define IP memory mapped registers offsets.
+        # In HLS 0x00-0x0C is reserved for block-level I/O protocol.
+        # Make sure to leave 8B between register offsets to maintain
+        # compatibility with 64bit systems.
+        self.fetch_insn_count_offset = 0x10
+        self.fetch_insn_addr_offset = self.fetch_insn_count_offset + 0x08
+        self.load_inp_addr_offset = 0x10
+        self.load_wgt_addr_offset = self.load_inp_addr_offset + 0x08
+        self.compute_done_wr_offet = 0x10
+        self.compute_done_rd_offet = self.compute_done_wr_offet + 0x08
+        self.compute_uop_addr_offset = self.compute_done_rd_offet + 0x08
+        self.compute_bias_addr_offset = self.compute_uop_addr_offset + 0x08
+        self.store_out_addr_offset = 0x10
+
+        # Derive SRAM parameters
+        # The goal here is to determine how many memory banks are needed,
+        # how deep and wide each bank needs to be. This is derived from
+        # the size of each memory element (result of data width, and tensor shape),
+        # and also how wide a memory can be as permitted by the FPGA tools.
+        #
+        # The mem axi ratio is a parameter used by HLS to resize memories
+        # so memory read/write ports are the same size as the design axi bus width.
+        #
+        # Max bus width allowed (property of FPGA vendor toolchain)
+        max_bus_width = 1024
+        # Bus width of a memory interface
+        mem_bus_width = 1 << self.fpga_log_axi_bus_width
+        # Input memory
+        inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
+                                  cfg["LOG_BATCH"] + \
+                                  cfg["LOG_BLOCK_IN"])
+        self.inp_mem_size = 1 << cfg["LOG_INP_BUFF_SIZE"]  # bytes
+        self.inp_mem_banks = (inp_mem_bus_width + \
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.inp_mem_width = min(inp_mem_bus_width, max_bus_width)
+        self.inp_mem_depth = self.inp_mem_size * 8 // inp_mem_bus_width
+        self.inp_mem_axi_ratio = self.inp_mem_width // mem_bus_width
+        # Weight memory
+        wgt_mem_bus_width = 1 << (cfg["LOG_WGT_WIDTH"] + \
+                                  cfg["LOG_BLOCK_IN"] + \
+                                  cfg["LOG_BLOCK_OUT"])
+        self.wgt_mem_size = 1 << cfg["LOG_WGT_BUFF_SIZE"]  # bytes
+        self.wgt_mem_banks = (wgt_mem_bus_width + \
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.wgt_mem_width = min(wgt_mem_bus_width, max_bus_width)
+        self.wgt_mem_depth = self.wgt_mem_size * 8 // wgt_mem_bus_width
+        self.wgt_mem_axi_ratio = self.wgt_mem_width // mem_bus_width
+        # Output memory
+        out_mem_bus_width = 1 << (cfg["LOG_OUT_WIDTH"] + \
+                                  cfg["LOG_BATCH"] + \
+                                  cfg["LOG_BLOCK_OUT"])
+        self.out_mem_size = 1 << cfg["LOG_OUT_BUFF_SIZE"]  # bytes
+        self.out_mem_banks = (out_mem_bus_width + \
+                              max_bus_width - 1) // \
+                              max_bus_width
+        self.out_mem_width = min(out_mem_bus_width, max_bus_width)
+        self.out_mem_depth = self.out_mem_size * 8 // out_mem_bus_width
+        self.out_mem_axi_ratio = self.out_mem_width // mem_bus_width
+
+        # Macro defs
+        self.macro_defs = []
+        self.cfg_dict = {}
+        for key in cfg:
+            self.macro_defs.append("-DVTA_%s=%s" % (key, str(cfg[key])))
+            self.cfg_dict[key] = cfg[key]
+        self.macro_defs.append("-DVTA_LOG_BUS_WIDTH=%s" % (self.fpga_log_axi_bus_width))
+        # Macros used by the VTA driver
+        self.macro_defs.append("-DVTA_IP_REG_MAP_RANGE=%s" % (self.ip_reg_map_range))
+        self.macro_defs.append("-DVTA_FETCH_ADDR=%s" % (self.fetch_base_addr))
+        self.macro_defs.append("-DVTA_LOAD_ADDR=%s" % (self.load_base_addr))
+        self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
+        self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
+        # IP register offsets
+        self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % \
+                (self.fetch_insn_count_offset))
+        self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % \
+                (self.fetch_insn_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % \
+                (self.load_inp_addr_offset))
+        self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % \
+                (self.load_wgt_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % \
+                (self.compute_done_wr_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % \
+                (self.compute_done_rd_offet))
+        self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % \
+                (self.compute_uop_addr_offset))
+        self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % \
+                (self.compute_bias_addr_offset))
+        self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % \
+                (self.store_out_addr_offset))
+        # Coherency
+        if coherent:
+            self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")
+        else:
+            self.macro_defs.append("-DVTA_COHERENT_ACCESSES=false")
 
     @property
     def cflags(self):

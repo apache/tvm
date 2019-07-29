@@ -24,7 +24,7 @@ def test_env():
 
 def test_env_scope():
     env = vta.get_env()
-    cfg = env.pkg_config().cfg_dict
+    cfg = env.cfg_dict
     cfg["TARGET"] = "xyz"
     with vta.Environment(cfg):
         assert vta.get_env().TARGET == "xyz"
