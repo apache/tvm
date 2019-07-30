@@ -247,9 +247,10 @@ if env.TARGET in ["sim", "tsim"]:
         print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
 else:
     tcost = timer()
-    std = np.std(tcost.results) * 1000 / env.BATCH
-    mean = tcost.mean * 1000 / env.BATCH
-    print("\nPerformed inference in %.2fms/sample (std = %.2f)" % (mean, std))
+    std = np.std(tcost.results) * 1000
+    mean = tcost.mean * 1000
+    print("\nPerformed inference in %.2fms (std = %.2f) for %d samples" % (mean, std, env.BATCH))
+    print("Average per sample inference time: %.2fms" % (mean/env.BATCH))
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
