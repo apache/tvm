@@ -23,6 +23,7 @@
  * \brief The Relay virtual machine.
  */
 
+#include <dmlc/memory_io.h>
 #include <tvm/logging.h>
 #include <tvm/runtime/vm.h>
 
@@ -578,6 +579,23 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         Object obj = args[i];
         func_args.push_back(obj);
       }
+      auto it = std::find_if(functions.begin(), functions.end(),
+                             [func_name](const VMFunction& func) {
+                               return func.name == func_name;
+                             });
+      CHECK(it != functions.end()) << "Cannot find function " << func_name << "\n";
+      CHECK_EQ(func_args.size() + params_.size(), it->params.size())
+          << "The number of provided parameters doesn't match the number of arguments"
+          << "\n";
+      if (!params_.empty()) {
+        for (const auto& p : it->params) {
+          const auto& pit = params_.find(p);
+          if (pit != params_.end()) {
+            func_args.push_back(pit->second);
+          }
+        }
+        CHECK_EQ(func_args.size(), it->params.size());
+      }
       *rv = this->Invoke(func_name, func_args);
     });
   } else if (name == "init") {
@@ -593,9 +611,37 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       this->Init(contexts);
     });
+  } else if (name == "load_params") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->LoadParams(args[0].operator std::string());
+      });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+  }
+}
+
+void VirtualMachine::LoadParams(const std::string& param) {
+  dmlc::MemoryStringStream mss(const_cast<std::string*>(&param));
+  dmlc::Stream* strm = &mss;
+  uint64_t header, reserved;
+  CHECK(strm->Read(&header)) << "Invalid parameter file";
+  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameter file";
+  CHECK(strm->Read(&reserved)) << "Invalid parameter file";
+
+  std::vector<std::string> names;
+  CHECK(strm->Read(&names)) << "Invalid parameter file";
+
+  uint64_t sz;
+  strm->Read(&sz);
+  size_t size = static_cast<size_t>(sz);
+  CHECK(size == names.size()) << "Invalid parameter file";
+
+  for (size_t i = 0; i < size; i++) {
+    NDArray arr;
+    CHECK(arr.Load(strm)) << "Invalid parameter file";
+    runtime::Object obj = runtime::Object::Tensor(arr);
+    params_.emplace(std::make_pair(names[i], obj));
   }
 }
 

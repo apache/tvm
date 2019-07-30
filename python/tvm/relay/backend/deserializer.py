@@ -18,7 +18,7 @@
 """
 The Relay Virtual Machine deserializer.
 
-Implements Python interfaces to deserialize a serialized VM object.
+Python interface for deserializing a Relay VM.
 """
 from tvm import module
 from tvm._ffi.runtime_ctypes import TVMByteArray

@@ -66,6 +66,7 @@
 #ifndef TVM_RELAY_BACKEND_VM_SERIALIZER_H_
 #define TVM_RELAY_BACKEND_VM_SERIALIZER_H_
 
+#include <dmlc/io.h>
 #include <dmlc/memory_io.h>
 #include <tvm/ir.h>
 #include <tvm/node/container.h>
@@ -168,6 +169,8 @@ class Serializer : public runtime::ModuleNode {
    * \return The runtime module that contains the hardwre dependent code.
    */
   inline runtime::Module GetLib() const;
+
+  virtual ~Serializer() { delete strm_; }
 
  private:
   /*! \brief Serialize the globals in vm_. */

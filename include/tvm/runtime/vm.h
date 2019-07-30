@@ -36,6 +36,9 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
+/*! \brief Magic number for NDArray list file  */
+constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
+
 /*! \brief A register name. */
 using RegName = int64_t;
 
@@ -450,6 +453,12 @@ class VirtualMachine : public runtime::ModuleNode {
   void Init(const std::vector<TVMContext>& contexts);
   void Run();
 
+  /*!
+   * \brief Load parameters from the parameter bytearray.
+   * \param param_file The binary file that contains parameters.
+   */
+  void LoadParams(const std::string& param);
+
   /*! \brief A map from globals (as strings) to their index in the function map.
    */
   std::unordered_map<std::string, Index> global_map;
@@ -465,6 +474,9 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<Object>& args);
+
+  /*! \brief The parameter name to data mapping. */
+  std::unordered_map<std::string, Object> params_;
 };
 
 }  // namespace vm

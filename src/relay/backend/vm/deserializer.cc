@@ -43,6 +43,7 @@ void Deserializer::Init(const std::string& code, const runtime::Module& lib) {
   code_ = code;
   vm_ = std::make_shared<VirtualMachine>();
   vm_->lib = lib;
+  strm_ = new dmlc::MemoryStringStream(&code_);
 }
 
 runtime::PackedFunc Deserializer::GetFunction(
@@ -60,10 +61,6 @@ runtime::PackedFunc Deserializer::GetFunction(
 }
 
 void Deserializer::Deserialize() {
-  // Setup the stream.
-  dmlc::MemoryStringStream mss(&code_);
-  strm_ = &mss;
-
   // Check header.
   uint64_t header;
   STREAM_CHECK(strm_->Read(&header), "header");
@@ -80,7 +77,7 @@ void Deserializer::Deserialize() {
   // Constant section.
   DeserializeConstantSection();
 
-  // Primitive names.
+  // Primitive names that will be invoked by `InvokePacked` instructions.
   DeserializePrimitiveOpNames();
 
   // Code section.
@@ -136,18 +133,24 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
   switch (opcode) {
     case Opcode::Move: {
       // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
       return Instruction::Move(instr.fields[0], instr.fields[1]);
     }
     case Opcode::Ret: {
       // Number of fields = 1
+      DCHECK_EQ(instr.fields.size(), 1U);
       return Instruction::Ret(instr.fields[0]);
     }
     case Opcode::Fatal: {
       // Number of fields = 0
+      DCHECK(instr.fields.empty());
       return Instruction::Fatal();
     }
     case Opcode::InvokePacked: {
       // Number of fields = 3 + instr.arity
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
       Index packed_index = instr.fields[0];
       Index arity = instr.fields[1];
       Index output_size = instr.fields[2];
@@ -156,6 +159,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::AllocTensor: {
       // Number of fields = 5 + instr.alloc_tensor.ndim
+      DCHECK_GE(instr.fields.size(), 5U);
+      DCHECK_EQ(instr.fields.size(), 5U + static_cast<size_t>(instr.fields[3]));
+
       DLDataType dtype;
       dtype.code = instr.fields[0];
       dtype.bits = instr.fields[1];
@@ -170,6 +176,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::AllocTensorReg: {
       // Number of fields = 5
+      DCHECK_EQ(instr.fields.size(), 5U);
       Index shape_register = instr.fields[0];
 
       DLDataType dtype;
@@ -183,6 +190,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::AllocDatatype: {
       // Number of fields = 3 + instr.num_fields
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
       Index constructor_tag = instr.fields[0];
       Index num_fields = instr.fields[1];
       RegName dst = instr.fields[2];
@@ -192,6 +202,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::AllocClosure: {
       // Number of fields = 3 + instr.num_freevar
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
       Index clo_index = instr.fields[0];
       Index num_freevar = instr.fields[1];
       RegName dst = instr.fields[2];
@@ -201,6 +214,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::If: {
       // Number of fields = 4
+      DCHECK_EQ(instr.fields.size(), 4U);
       Index test = instr.fields[0];
       Index target = instr.fields[1];
       Index true_offset = instr.fields[2];
@@ -210,6 +224,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::Invoke: {
       // Number of fields = 3 + instr.num_args
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
       Index func_index = instr.fields[0];
       Index num_args = instr.fields[1];
       RegName dst = instr.fields[2];
@@ -219,6 +236,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::InvokeClosure: {
       // Number of fields = 3 + instr.num_closure_args
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
       Index closure = instr.fields[0];
       Index num_closure_args = instr.fields[1];
       RegName dst = instr.fields[2];
@@ -228,22 +248,27 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     }
     case Opcode::LoadConst: {
       // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
       return Instruction::LoadConst(instr.fields[0], instr.fields[1]);
     }
     case Opcode::LoadConsti: {
       // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
       return Instruction::LoadConsti(instr.fields[0], instr.fields[1]);
     }
     case Opcode::GetField: {
       // Number of fields = 3
+      DCHECK_EQ(instr.fields.size(), 3U);
       return Instruction::GetField(instr.fields[0], instr.fields[1], instr.fields[2]);
     }
     case Opcode::GetTag: {
       // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
       return Instruction::GetTag(instr.fields[0], instr.fields[1]);
     }
     case Opcode::Goto: {
       // Number of fields = 1
+      DCHECK_EQ(instr.fields.size(), 1U);
       return Instruction::Goto(instr.fields[0]);
     }
     default:

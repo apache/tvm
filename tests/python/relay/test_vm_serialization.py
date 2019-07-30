@@ -26,6 +26,7 @@ from tvm.relay import serializer, deserializer
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.contrib import util
+from tvm.relay import testing
 
 def create_vm(f, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
@@ -48,6 +49,37 @@ def veval(vm, *args, ctx=tvm.cpu()):
     vm.init(ctx)
     ret = vm.run(*args)
     return ret
+
+
+def run_network(mod,
+                params,
+                data_shape=(1, 3, 224, 224),
+                dtype='float32'):
+    def get_vm_output(mod, data, params, target, ctx, dtype='float32'):
+        ex = relay.create_executor('vm', mod=mod, ctx=ctx)
+        result = ex.evaluate()(data, **params)
+        return result.asnumpy().astype(dtype)
+
+    def get_serialized_output(mod, data, params, target, ctx, dtype='float32'):
+        vm = create_vm(mod, ctx, target)
+        ser = serializer.Serializer(vm)
+        code, lib = ser.serialize()
+        deser = deserializer.Deserializer(code, lib)
+        des_vm = deser.deserialize()
+        des_vm.init(ctx)
+        des_vm.load_params(params)
+        result = des_vm.run(data)
+        return result.asnumpy().astype(dtype)
+
+    data = np.random.uniform(size=data_shape).astype(dtype)
+    target = "llvm"
+    ctx = tvm.cpu(0)
+
+    tvm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params,
+                            target, ctx, dtype)
+    vm_out = get_serialized_output(mod, tvm.nd.array(data.astype(dtype)), params,
+                                   target, ctx, dtype)
+    tvm.testing.assert_allclose(vm_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 def test_serializer():
@@ -87,7 +119,6 @@ def test_serializer():
     assert any(item.startswith('fused_multiply') for item in prim_ops)
 
     code = ser.bytecode
-    print(code)
     assert "main 5 2 5" in code
     assert "f1 3 1 4" in code
     assert "f2 3 1 4" in code
@@ -301,6 +332,16 @@ def test_closure():
     tvm.testing.assert_allclose(res.asnumpy(), 3.0)
 
 
+def test_resnet():
+    mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
+    run_network(mod, params)
+
+
+def test_mobilenet():
+    mod, params = testing.mobilenet.get_workload(batch_size=1)
+    run_network(mod, params)
+
+
 if __name__ == "__main__":
     test_serializer()
     test_save_load()
@@ -311,3 +352,5 @@ if __name__ == "__main__":
     test_adt_list()
     test_adt_compose()
     test_closure()
+    test_resnet()
+    test_mobilenet()

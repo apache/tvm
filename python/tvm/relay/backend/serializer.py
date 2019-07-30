@@ -18,7 +18,7 @@
 """
 The Relay Virtual Machine serializer.
 
-Implements Python interfaces to serialize a Relay VM.
+Python interface for serializing a Relay VM.
 """
 import tvm
 from . import _vm
@@ -124,8 +124,8 @@ class Serializer:
         Returns
         -------
         code : bytearray
-            The serialized Relay VM in the binary form. It then could be saved
-            to the disk and loaded back to create a new VM by the deserializer.
+            The binary blob representing a serialized Relay VM. It can then be
+            saved to disk and later deserialized into a new VM.
 
         lib : :py:class:`~tvm.module.Module`
             The runtime module that contains the generated code. It is

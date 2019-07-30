@@ -70,6 +70,8 @@ class Deserializer : public runtime::ModuleNode {
   /*! \brief Deserialize the serialized VM. */
   void Deserialize();
 
+  virtual ~Deserializer() { delete strm_; }
+
  private:
   /*! \brief Deserialize the globals in `vm_`. */
   void DeserializeGlobalSection();

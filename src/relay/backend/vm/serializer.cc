@@ -39,7 +39,11 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-void Serializer::Init(const VirtualMachine* vm) { vm_ = vm; }
+void Serializer::Init(const VirtualMachine* vm) {
+  vm_ = vm;
+  // Initialize the stream object.
+  strm_ = new dmlc::MemoryStringStream(&code_);
+}
 
 runtime::PackedFunc Serializer::GetFunction(
     const std::string& name,
@@ -136,9 +140,6 @@ std::string Serializer::Stats() const {
 }
 
 TVMByteArray Serializer::Serialize() {
-  // Initialize the stream object.
-  dmlc::MemoryStringStream mss(&code_);
-  strm_ = &mss;
   uint64_t header = kTVMVMBytecodeMagic;
   strm_->Write(header);
   std::string version = TVM_VERSION;
