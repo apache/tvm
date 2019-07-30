@@ -28,16 +28,6 @@
 
 #include <cstdint>
 
-/*! page size of virtual address */
-#ifndef VTA_TSIM_VM_PAGE_SIZE
-#define VTA_TSIM_VM_PAGE_SIZE (4096)
-#endif  // VTA_TSIM_VM_PAGE_SIZE
-
-/*! starting point of the virtual address system */
-#ifndef VTA_TSIM_VM_ADDR_BEGIN
-#define VTA_TSIM_VM_ADDR_BEGIN (0x40000000)
-#endif  // VTA_TSIM_VM_ADDR_BEGIN
-
 /*!
  * \brief Virtual memory based memory allocation
  */
