@@ -57,7 +57,7 @@ IP_PATH = $(IP_BUILD_PATH)/VTA.DefaultDe10Config.v
 # Bitstream file path
 BIT_PATH = $(HW_BUILD_PATH)/export/vta.rbf
 
-# Bitstream file path
+# System design file path
 QSYS_PATH = $(HW_BUILD_PATH)/soc_system.qsys
 
 .PHONY: all ip bit qsys clean
