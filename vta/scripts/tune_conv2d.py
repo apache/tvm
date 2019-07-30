@@ -122,6 +122,7 @@ if __name__ == '__main__':
 
         task = autotvm.task.create(conv2d, args=(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype),
                 target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
+        print(task.config_space)
 
         # Tune
         measure_option = autotvm.measure_option(
@@ -140,6 +141,3 @@ if __name__ == '__main__':
             callbacks=[
                     autotvm.callback.progress_bar(len(task.config_space), prefix=prefix),
                     autotvm.callback.log_to_file(tmp_log_file)])
-
-        print("\nBest tuner config:")
-        print(tuner.best_config)
