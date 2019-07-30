@@ -76,7 +76,12 @@ def test_add_pipeline():
             return
         if not tvm.module.enabled(host):
             return
-        fmt = "ptx" if device == "cuda" else device
+        if device == "cuda":
+            fmt = "ptx"
+        elif device == "rocm":
+            fmt = "hsaco"
+        else:
+            fmt = device
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
         temp = util.tempdir()
@@ -99,8 +104,9 @@ def test_add_pipeline():
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
     check_target("vulkan", host="llvm")
-    check_target("rocm", host="llvm")
     check_module_save("vulkan", host="stackvm")
+    check_target("rocm", host="llvm")
+    check_module_save("rocm", host="llvm")
 
 
 if __name__ == "__main__":
