@@ -145,7 +145,7 @@ def run_conv2d(env, remote, wl, target,
             wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
             wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
         bias_np = bias_np.reshape(
-            wl.batch // env.BATCH, wl.out_filter // env.BLOCK_OUT,
+            wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
             1, 1, env.BATCH, env.BLOCK_OUT)
 
     # Build
@@ -203,8 +203,10 @@ def run_conv2d(env, remote, wl, target,
         if data_pack:
             res_orig = res_orig.transpose(
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
+            bias_np = bias_np.transpose(
+                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
         res_ref = res_ref >> 8
-        res_ref += bias_np.reshape(wl.out_filter, 1, 1)
+        res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)
         correct = np.allclose(res_orig, res_ref)
