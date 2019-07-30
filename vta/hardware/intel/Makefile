@@ -22,17 +22,19 @@ BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel
 SCRIPT_DIR = $(ROOTDIR)/scripts
 SRC_DIR = $(ROOTDIR)/../chisel
 
+# Process VTA JSON config
+VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
+
 # Debug flag
 DEBUG = false
 # Prevent generation of DSP
 NO_DSP = true
 # Device
-DEVICE = 5CSEBA6U23I7
+DEVICE = $(shell $(VTA_CONFIG) --get-fpga-dev)
+# Device family
+DEVICE_FAMILY = $(shell $(VTA_CONFIG) --get-fpga-family)
 # Project name
 PROJECT = de10_nano_top
-
-# Process VTA JSON config
-VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
 
 #---------------------
 # Compilation parameters
@@ -58,11 +60,12 @@ BIT_PATH = $(HW_BUILD_PATH)/export/vta.rbf
 # Bitstream file path
 QSYS_PATH = $(HW_BUILD_PATH)/soc_system.qsys
 
-.PHONY: all ip bit bsp clean clean_all
+.PHONY: all ip bit qsys clean
 
 all: bit
 ip: $(IP_PATH)
 bit: $(BIT_PATH)
+qsys: $(QSYS_PATH)
 
 $(IP_PATH): $(SRC_DIR)
 	mkdir -p $(IP_BUILD_PATH)
@@ -74,7 +77,7 @@ $(QSYS_PATH): $(IP_PATH)
 	cd $(HW_BUILD_PATH) && \
     cp -r $(SCRIPT_DIR)/* $(HW_BUILD_PATH) && \
     python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v $(DSP_FLAG) && \
-    qsys-script --script=soc_system.tcl --part=$(DEVICE)
+    qsys-script --script=soc_system.tcl $(DEVICE) $(DEVICE_FAMILY)
 
 $(BIT_PATH): $(QSYS_PATH)
 	cd $(HW_BUILD_PATH) && \
