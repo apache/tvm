@@ -19,8 +19,8 @@ package require -exact qsys 16.0
 
 create_system soc_system
 
-set_project_property DEVICE_FAMILY {Cyclone V}
-set_project_property DEVICE {5CSEBA6U23I7}
+set_project_property DEVICE [lindex $argv 0]
+set_project_property DEVICE_FAMILY [lindex $argv 1]
 
 # module properties
 set_module_property NAME soc_system
