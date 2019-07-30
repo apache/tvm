@@ -141,3 +141,7 @@ if __name__ == '__main__':
             callbacks=[
                     autotvm.callback.progress_bar(len(task.config_space), prefix=prefix),
                     autotvm.callback.log_to_file(tmp_log_file)])
+
+    # Pick best records to a cache file
+    autotvm.record.pick_best(tmp_log_file, log_file)
+    os.remove(tmp_log_file)
