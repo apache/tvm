@@ -79,7 +79,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     if (format == fmt_) { return data_; }
-    if (format == "llvm") { return hip_source_; }
+    if (format == "llvm" || format == "") { return hip_source_; }
     if (format == "asm") { return assembly_; }
     return "";
   }
