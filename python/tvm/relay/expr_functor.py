@@ -195,9 +195,10 @@ class ExprMutator(ExprFunctor):
     and reconstructs the AST.
     """
     def visit_function(self, fn):
+        new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
         return Function(
-            list(fn.params),
+            list(new_params),
             new_body,
             fn.ret_type,
             fn.type_params,
@@ -214,8 +215,8 @@ class ExprMutator(ExprFunctor):
         new_args = [self.visit(arg) for arg in call.args]
         return Call(new_fn, new_args, call.attrs)
 
-    def visit_var(self, rvar):
-        return rvar
+    def visit_var(self, var):
+        return var
 
     def visit_global_id(self, global_var):
         return global_var
