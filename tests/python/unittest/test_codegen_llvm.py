@@ -576,7 +576,7 @@ def test_llvm_shuffle():
         b_ = tvm.ndarray.array(np.arange(8, 0, -1, dtype='int32'))
         c_ = tvm.ndarray.array(np.zeros((8, ), dtype='int32'))
         module(a_, b_, c_)
-        tvm.testing.assert_allclose(c_.asnumpy(), np.array([9] * 8))
+        tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 if __name__ == "__main__":
     test_llvm_import()
