@@ -164,7 +164,7 @@ def schedule_bitserial_dense(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
 
         elif op.tag == 'bitserial_dense' or 'bitserial_dense_unipolar':

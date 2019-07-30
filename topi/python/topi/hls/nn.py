@@ -34,7 +34,7 @@ def _schedule_conv2d(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule conv2d
         elif OP.tag.find("conv2d") >= 0:
@@ -220,7 +220,7 @@ def schedule_reduce(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         elif OP.tag in ["comm_reduce", "comm_reduce_idx"]:
             if OP.tag == "comm_reduce":
@@ -298,7 +298,7 @@ def schedule_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule dense
         elif OP.tag == 'dense':
@@ -342,7 +342,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -386,7 +386,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):

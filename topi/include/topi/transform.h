@@ -807,7 +807,7 @@ inline Tensor where(const Tensor& condition,
                     const Tensor& x,
                     const Tensor& y,
                     std::string name = "T_where",
-                    std::string tag = kInjective) {
+                    std::string tag = kBroadcast) {
   CHECK_EQ(x->shape.size(), y->shape.size())
     << "x and y must have the same shape.Got different number of dimension: "
     << x->shape.size() << " vs " << y->shape.size();

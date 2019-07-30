@@ -54,7 +54,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].opengl()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):
@@ -108,7 +108,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op not in scheduled_ops and tensor.op.input_tensors:
+                if tensor.op not in scheduled_ops and isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
