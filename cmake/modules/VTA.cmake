@@ -44,7 +44,7 @@ elseif(PYTHON)
   endif()
   # Add tsim driver sources
   if(${VTA_TARGET} STREQUAL "tsim")
-    file(GLOB __vta_target_srcs vta/src/tsim/*.cc)
+    file(GLOB __vta_target_srcs vta/src/tsim/*.cc vta/src/tsim/*.h)
     file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
     list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
   endif()
