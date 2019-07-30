@@ -253,23 +253,24 @@ else:
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
-top_categories = np.argsort(tvm_output.asnumpy()[0])
+for b in range(0, env.BATCH):
+    top_categories = np.argsort(tvm_output.asnumpy()[b])
 
-# Report top-5 classification results
-print("\n%s prediction" % model)
-print("\t#1:", synset[top_categories[-1]])
-print("\t#2:", synset[top_categories[-2]])
-print("\t#3:", synset[top_categories[-3]])
-print("\t#4:", synset[top_categories[-4]])
-print("\t#5:", synset[top_categories[-5]])
+    # Report top-5 classification results
+    print("\n{} prediction for sample {}".format(model, b))
+    print("\t#1:", synset[top_categories[-1]])
+    print("\t#2:", synset[top_categories[-2]])
+    print("\t#3:", synset[top_categories[-3]])
+    print("\t#4:", synset[top_categories[-4]])
+    print("\t#5:", synset[top_categories[-5]])
 
-# This just checks that one of the 5 top categories
-# is one variety of cat; this is by no means an accurate
-# assessment of how quantization affects classification
-# accuracy but is meant to catch changes to the
-# quantization pass that would accuracy in the CI.
-cat_detected = False
-for k in top_categories[-5:]:
-    if "cat" in synset[k]:
-        cat_detected = True
-assert(cat_detected)
+    # This just checks that one of the 5 top categories
+    # is one variety of cat; this is by no means an accurate
+    # assessment of how quantization affects classification
+    # accuracy but is meant to catch changes to the
+    # quantization pass that would accuracy in the CI.
+    cat_detected = False
+    for k in top_categories[-5:]:
+        if "cat" in synset[k]:
+            cat_detected = True
+    assert(cat_detected)
