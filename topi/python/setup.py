@@ -18,8 +18,9 @@
 # pylint: disable=invalid-name, exec-used
 """Setup TOPI package."""
 from __future__ import absolute_import
-import sys
 import os
+import shutil
+import sys
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -31,6 +32,9 @@ else:
     from setuptools import setup
     from setuptools.extension import Extension
 
+CURRENT_DIR = os.path.dirname(__file__)
+
+
 def get_lib_names():
     if sys.platform.startswith('win32'):
         return ['libtvm_topi.dll', 'tvm_topi.dll']
@@ -38,14 +42,15 @@ def get_lib_names():
         return ['libtvm_topi.dylib', 'tvm_topi.dylib']
     return ['libtvm_topi.so', 'tvm_topi.so']
 
+
 def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
     # Will be invoked which introduces dependences
-    CURRENT_DIR = os.path.dirname(__file__)
     libinfo_py = os.path.join(CURRENT_DIR, '../../python/tvm/_ffi/libinfo.py')
     libinfo = {'__file__': libinfo_py}
-    exec(compile(open(libinfo_py, "rb").read(), libinfo_py, 'exec'), libinfo, libinfo)
+    exec(compile(open(libinfo_py, "rb").read(),
+                 libinfo_py, 'exec'), libinfo, libinfo)
     version = libinfo['__version__']
     if not os.getenv('CONDA_BUILD'):
         lib_path = libinfo['find_lib_path'](get_lib_names())
@@ -58,6 +63,7 @@ def get_lib_path():
     else:
         libs = None
     return libs, version
+
 
 LIB_LIST, __version__ = get_lib_path()
 
@@ -72,13 +78,50 @@ if not os.getenv('CONDA_BUILD'):
 else:
     setup_kwargs = {}
 
+
+include_libs = False
+wheel_include_libs = False
+if not os.getenv('CONDA_BUILD'):
+    if "bdist_wheel" in sys.argv:
+        wheel_include_libs = True
+    else:
+        include_libs = True
+
+# For bdist_wheel only
+if wheel_include_libs:
+    with open("MANIFEST.in", "w") as fo:
+        for path in LIB_LIST:
+            shutil.copy(path, os.path.join(CURRENT_DIR, 'topi'))
+            _, libname = os.path.split(path)
+            fo.write("include topi/%s\n" % libname)
+    setup_kwargs = {
+        "include_package_data": True
+    }
+
+if include_libs:
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    for i, path in enumerate(LIB_LIST):
+        LIB_LIST[i] = os.path.relpath(path, curr_path)
+    setup_kwargs = {
+        "include_package_data": True,
+        "data_files": [('topi', LIB_LIST)]
+    }
+
 setup(name='topi',
       version=__version__,
       description="TOPI: TVM operator index",
       install_requires=[
-        "numpy",
-        "decorator",
-        ],
+          "numpy",
+          "decorator",
+      ],
       packages=find_packages(),
       url='https://github.com/dmlc/tvm',
       **setup_kwargs)
+
+
+if wheel_include_libs:
+    # Wheel cleanup
+    os.remove("MANIFEST.in")
+    for path in LIB_LIST:
+        _, libname = os.path.split(path)
+        os.remove("topi/%s" % libname)
