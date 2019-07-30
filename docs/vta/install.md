@@ -310,7 +310,7 @@ make ip
 ```
 Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
 
-If you would like to run the full hardware compilation for the `de10-nano` board:
+If you would like to run the full hardware compilation for the `de10nano` board:
 ```bash
 make
 ```

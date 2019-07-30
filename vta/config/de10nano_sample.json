@@ -1,5 +1,5 @@
 {
-  "TARGET" : "de10-nano",
+  "TARGET" : "de10nano",
   "HW_VER" : "0.0.1",
   "LOG_INP_WIDTH" : 3,
   "LOG_WGT_WIDTH" : 3,
