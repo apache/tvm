@@ -36,18 +36,17 @@ Workload = namedtuple("Conv2DWorkload",
 
 resnet_wkls = [
     # Workloads of resnet18 on imagenet
-    # ('resnet-18.C1',  Workload(1, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
-    ('resnet-18.C2',  Workload(1,  56,  56, 64,  64,  3, 3, 1, 1, 1, 1)),
-    # ('resnet-18.C3',  Workload(1,  56,  56, 64,  64,  1, 1, 0, 0, 1, 1)), # this layer does not appear in ResNet
-    ('resnet-18.C4',  Workload(1,  56,  56, 64,  128, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C5',  Workload(1,  56,  56, 64,  128, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C6',  Workload(1,  28,  28, 128, 128, 3, 3, 1, 1, 1, 1)),
-    ('resnet-18.C7',  Workload(1,  28,  28, 128, 256, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C8',  Workload(1,  28,  28, 128, 256, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C9',  Workload(1,  14,  14, 256, 256, 3, 3, 1, 1, 1, 1)),
-    ('resnet-18.C10', Workload(1,  14,  14, 256, 512, 3, 3, 1, 1, 2, 2)),
-    ('resnet-18.C11', Workload(1,  14,  14, 256, 512, 1, 1, 0, 0, 2, 2)),
-    ('resnet-18.C12', Workload(1,   7,   7, 512, 512, 3, 3, 1, 1, 1, 1)),
+    # ('resnet-18.C1',  Workload(env.BATCH, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
+    ('resnet-18.C2',  Workload(env.BATCH,  56,  56, 64,  64,  3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C3',  Workload(env.BATCH,  56,  56, 64,  128, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C4',  Workload(env.BATCH,  56,  56, 64,  128, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C5',  Workload(env.BATCH,  28,  28, 128, 128, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C6',  Workload(env.BATCH,  28,  28, 128, 256, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C7',  Workload(env.BATCH,  28,  28, 128, 256, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C8',  Workload(env.BATCH,  14,  14, 256, 256, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C9',  Workload(env.BATCH,  14,  14, 256, 512, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C10', Workload(env.BATCH,  14,  14, 256, 512, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C11', Workload(env.BATCH,   7,   7, 512, 512, 3, 3, 1, 1, 1, 1)),
 ]
 
 @tvm.tag_scope(tag=topi.tag.ELEMWISE)
@@ -87,16 +86,25 @@ if __name__ == '__main__':
 
     # Logging config (for printing tuning log to the screen)
     logging.basicConfig()
-    logging.getLogger('autotvm').setLevel(logging.DEBUG)
+    # logging.getLogger('autotvm').setLevel(logging.DEBUG)
+
+    # Tuning log files
+    log_file = "%s.conv2d.log" % (env.TARGET)
+    # create tmp log file
+    tmp_log_file = log_file + ".tmp"
+    if os.path.exists(log_file):
+        os.remove(log_file)
 
     # Get tracker info from env
-    tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracket_port = os.environ.get("TVM_TRACKER_PORT", None)
-    if not tracket_host or not tracket_port:
+    tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
+    tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
+    if not tracker_host or not tracker_port:
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
-    for wl_name, wl in resnet_wkls:
+    for idx, (wl_name, wl) in enumerate(resnet_wkls):
+
+        prefix = "[Task %2d/%2d] " % (idx, len(resnet_wkls))
 
         # Workload parameters
         N = wl.batch
@@ -116,15 +124,24 @@ if __name__ == '__main__':
                 target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
         print(task.config_space)
 
+        # Tune
         measure_option = autotvm.measure_option(
-                builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-                runner=autotvm.RPCRunner(env.TARGET, tracket_host, int(tracket_port), number=4, repeat=3, timeout=10000,
-                                        check_correctness=True))
+                builder=autotvm.LocalBuilder(),
+                runner=autotvm.RPCRunner(
+                    env.TARGET, host=tracker_host, port=int(tracker_port),
+                    number=5, timeout=60,
+                    check_correctness=True))
 
+        # Run Tuner
         tuner = autotvm.tuner.RandomTuner(task)
-        tuner.tune(n_trial=len(task.config_space),
-                measure_option=measure_option,
-                callbacks=[autotvm.callback.log_to_file('conv2d.log')])
+        tuner.tune(
+            n_trial=len(task.config_space),
+            early_stopping=None,
+            measure_option=measure_option,
+            callbacks=[
+                    autotvm.callback.progress_bar(len(task.config_space), prefix=prefix),
+                    autotvm.callback.log_to_file(tmp_log_file)])
 
-        print("\nBest tuner config:")
-        print(tuner.best_config)
+    # Pick best records to a cache file
+    autotvm.record.pick_best(tmp_log_file, log_file)
+    os.remove(tmp_log_file)
