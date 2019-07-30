@@ -39,6 +39,7 @@ import subprocess
 import time
 import sys
 import signal
+import psutil
 
 from .._ffi.function import register_func
 from .._ffi.base import py_str
@@ -210,6 +211,11 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         server_proc.join(opts.get("timeout", None))
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
+            parent = psutil.Process(server_proc.pid)
+            # terminate worker childs
+            for child in parent.children(recursive=True):
+                child.terminate()
+            # terminate the worker
             server_proc.terminate()
         work_path.remove()
 
