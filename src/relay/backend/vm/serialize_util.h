@@ -71,7 +71,7 @@ struct VMFunctionSerializer {
         params(params) {}
 
   /*!
-   * \brief Load the serialized function headher.
+   * \brief Load the serialized function header.
    * \param strm The stream used to load data.
    * \return True if successful. Otherwise, false.
    */
@@ -88,7 +88,7 @@ struct VMFunctionSerializer {
   }
 
   /*!
-   * \brief Save the VM function heaher into the serialized form. 
+   * \brief Save the VM function header into the serialized form. 
    * \param strm The stream used to save data.
    */
   void Save(dmlc::Stream* strm) const {

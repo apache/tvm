@@ -612,9 +612,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       this->Init(contexts);
     });
   } else if (name == "load_params") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->LoadParams(args[0].operator std::string());
-      });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->LoadParams(args[0].operator std::string());
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
