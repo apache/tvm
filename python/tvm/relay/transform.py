@@ -920,7 +920,7 @@ class ChangeBatch:
     ----------
     data: Dict[relay.Var, int]
       A dictionary of all the params to change.
-      The keys are all params, and the values is which dimension hold the batch.
+      The keys are all params, and the values are which dimension hold the batch.
 
     batch_size: int
       The batch size to change to.
