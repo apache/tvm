@@ -455,9 +455,9 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*!
    * \brief Load parameters from the parameter bytearray.
-   * \param param_file The binary file that contains parameters.
+   * \param params The binary file that contains parameters.
    */
-  void LoadParams(const std::string& param);
+  void LoadParams(const std::string& params);
 
   /*! \brief A map from globals (as strings) to their index in the function map.
    */

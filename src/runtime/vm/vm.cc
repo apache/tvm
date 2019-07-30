@@ -621,8 +621,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachine::LoadParams(const std::string& param) {
-  dmlc::MemoryStringStream mss(const_cast<std::string*>(&param));
+void VirtualMachine::LoadParams(const std::string& params) {
+  dmlc::MemoryStringStream mss(const_cast<std::string*>(&params));
   dmlc::Stream* strm = &mss;
   uint64_t header, reserved;
   CHECK(strm->Read(&header)) << "Invalid parameter file";
