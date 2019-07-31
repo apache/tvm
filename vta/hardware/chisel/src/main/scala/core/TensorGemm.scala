@@ -39,10 +39,10 @@ class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
   val rA = RegNext(io.a)
   val rB = RegNext(io.b)
   val rC = RegNext(io.c)
-  
+
   mult := rA * rB
   add := rC +& mult
-  
+
   io.y := add
 }
 
