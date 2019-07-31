@@ -95,7 +95,7 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
     }
     is (sReadLSB) {
       when (io.vme_rd.data.valid) {
-          state := sReadMSB
+        state := sReadMSB
       }
     }
     is (sReadMSB) {

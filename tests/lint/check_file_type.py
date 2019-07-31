@@ -68,6 +68,7 @@ ALLOW_EXTENSION = {
     "sbt",
     "properties",
     "v",
+    "sdc",
     # generated parser
     "interp",
     "tokens"
