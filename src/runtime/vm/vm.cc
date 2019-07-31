@@ -23,6 +23,7 @@
  * \brief The Relay virtual machine.
  */
 
+#include <dmlc/memory_io.h>
 #include <tvm/logging.h>
 #include <tvm/runtime/vm.h>
 
@@ -91,8 +92,8 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::InvokeClosure:
       this->closure = instr.closure;
-      this->closure_args_num = instr.closure_args_num;
-      this->closure_args = Duplicate<RegName>(instr.closure_args, instr.closure_args_num);
+      this->num_closure_args = instr.num_closure_args;
+      this->closure_args = Duplicate<RegName>(instr.closure_args, instr.num_closure_args);
       return;
     case Opcode::Invoke:
       this->func_index = instr.func_index;
@@ -179,9 +180,9 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       return *this;
     case Opcode::InvokeClosure:
       this->closure = instr.closure;
-      this->closure_args_num = instr.closure_args_num;
+      this->num_closure_args = instr.num_closure_args;
       FreeIf(this->closure_args);
-      this->closure_args = Duplicate<RegName>(instr.closure_args, instr.closure_args_num);
+      this->closure_args = Duplicate<RegName>(instr.closure_args, instr.num_closure_args);
       return *this;
     case Opcode::Invoke:
       this->func_index = instr.func_index;
@@ -262,7 +263,9 @@ Instruction Instruction::Fatal() {
   return instr;
 }
 
-Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index output_size,
+Instruction Instruction::InvokePacked(Index packed_index,
+                                      Index arity,
+                                      Index output_size,
                                       const std::vector<RegName>& args) {
   Instruction instr;
   instr.op = Opcode::InvokePacked;
@@ -380,7 +383,7 @@ Instruction Instruction::InvokeClosure(RegName closure, const std::vector<RegNam
   instr.op = Opcode::InvokeClosure;
   instr.dst = dst;
   instr.closure = closure;
-  instr.closure_args_num = args.size();
+  instr.num_closure_args = args.size();
   instr.closure_args = new RegName[args.size()];
   for (size_t i = 0; i < args.size(); ++i) {
     instr.closure_args[i] = args[i];
@@ -396,7 +399,7 @@ Instruction Instruction::LoadConst(Index const_index, RegName dst) {
   return instr;
 }
 
-Instruction Instruction::LoadConsti(size_t val, RegName dst) {
+Instruction Instruction::LoadConsti(Index val, RegName dst) {
   Instruction instr;
   instr.op = Opcode::LoadConsti;
   instr.dst = dst;
@@ -432,7 +435,7 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
 }
 
 template<typename T>
-std::string StrJoin(T* items, int offset, int cnt, std::string delim = ",") {
+std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ") {
   if (cnt == 0) {
     return "";
   }
@@ -447,11 +450,11 @@ std::string StrJoin(T* items, int offset, int cnt, std::string delim = ",") {
 void InstructionPrint(std::ostream& os, const Instruction& instr) {
   switch (instr.op) {
     case Opcode::Move: {
-      os << "move $" << instr.dst << " $" << instr.from;
+      os << "move $" << instr.dst << " $" << instr.from << std::endl;
       break;
     }
     case Opcode::Ret: {
-      os << "ret $" << instr.result;
+      os << "ret $" << instr.result  << std::endl;
       break;
     }
     case Opcode::Fatal: {
@@ -459,74 +462,86 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::InvokePacked: {
-      os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
-         << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
+      os << "invoke_packed PackedFunc[" << instr.packed_index << "] (in: $"
+         << StrJoin<RegName>(instr.packed_args, 0,
+                             instr.arity - instr.output_size, ", $")
          << ", out: $"
          << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
-                 instr.output_size, ",$")
-         << ")";
+                             instr.output_size, ", $")
+         << ")" << std::endl;
       break;
     }
     case Opcode::AllocTensor: {
       os << "alloc_tensor $" << instr.dst << " ["
-         << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim)
+         << StrJoin<int64_t>(instr.alloc_tensor.shape, 0,
+                             instr.alloc_tensor.ndim)
          << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
+      os << std::endl;
       break;
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $"
          << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
+      os << std::endl;
       break;
     }
     case Opcode::AllocDatatype: {
       os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
-         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
+         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]"
+         << std::endl;
       break;
     }
     case Opcode::AllocClosure: {
       os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index
          << "]($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
-         << ")";
+         << ")"
+         << std::endl;
       break;
     }
     case Opcode::If: {
       os << "if " << "$" << instr.if_op.test << " " << instr.if_op.target << " "
-         << instr.if_op.true_offset << " " << instr.if_op.false_offset;
+         << instr.if_op.true_offset << " " << instr.if_op.false_offset
+         << std::endl;
       break;
     }
     case Opcode::Invoke: {
       os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
          << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
-         << ")";
+         << ")"
+         << std::endl;
       break;
     }
     case Opcode::InvokeClosure: {
       os << "invoke_closure $" << instr.dst << " $" << instr.closure << "($"
-         << StrJoin<RegName>(instr.closure_args, 0, instr.closure_args_num, ",$")
-         << ")";
+         << StrJoin<RegName>(instr.closure_args, 0, instr.num_closure_args, ",$")
+         << ")"
+         << std::endl;
       break;
     }
     case Opcode::LoadConst: {
-      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]";
+      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]"
+         << std::endl;
       break;
     }
     case Opcode::LoadConsti: {
-      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]";
+      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]"
+         << std::endl;
       break;
     }
     case Opcode::GetField: {
       os << "get_field $" << instr.dst << " $" << instr.object << "["
-         << instr.field_index << "]";
+         << instr.field_index << "]"
+         << std::endl;
       break;
     }
     case Opcode::GetTag: {
-      os << "get_tag $" << instr.dst << " $" << instr.get_tag.object;
+      os << "get_tag $" << instr.dst << " $" << instr.get_tag.object << std::endl;
       break;
     }
     case Opcode::Goto: {
-      os << "goto " << instr.pc_offset;
+      os << "goto " << instr.pc_offset << std::endl;
       break;
     }
     default:
@@ -564,6 +579,23 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         Object obj = args[i];
         func_args.push_back(obj);
       }
+      auto it = std::find_if(functions.begin(), functions.end(),
+                             [func_name](const VMFunction& func) {
+                               return func.name == func_name;
+                             });
+      CHECK(it != functions.end()) << "Cannot find function " << func_name << "\n";
+      CHECK_EQ(func_args.size() + params_.size(), it->params.size())
+          << "The number of provided parameters doesn't match the number of arguments"
+          << "\n";
+      if (!params_.empty()) {
+        for (const auto& p : it->params) {
+          const auto& pit = params_.find(p);
+          if (pit != params_.end()) {
+            func_args.push_back(pit->second);
+          }
+        }
+        CHECK_EQ(func_args.size(), it->params.size());
+      }
       *rv = this->Invoke(func_name, func_args);
     });
   } else if (name == "init") {
@@ -579,9 +611,37 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       this->Init(contexts);
     });
+  } else if (name == "load_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->LoadParams(args[0].operator std::string());
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+  }
+}
+
+void VirtualMachine::LoadParams(const std::string& params) {
+  dmlc::MemoryStringStream mss(const_cast<std::string*>(&params));
+  dmlc::Stream* strm = &mss;
+  uint64_t header, reserved;
+  CHECK(strm->Read(&header)) << "Invalid parameter file";
+  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameter file";
+  CHECK(strm->Read(&reserved)) << "Invalid parameter file";
+
+  std::vector<std::string> names;
+  CHECK(strm->Read(&names)) << "Invalid parameter file";
+
+  uint64_t sz;
+  strm->Read(&sz);
+  size_t size = static_cast<size_t>(sz);
+  CHECK(size == names.size()) << "Invalid parameter file";
+
+  for (size_t i = 0; i < size; i++) {
+    NDArray arr;
+    CHECK(arr.Load(strm)) << "Invalid parameter file";
+    runtime::Object obj = runtime::Object::Tensor(arr);
+    params_.emplace(std::make_pair(names[i], obj));
   }
 }
 
@@ -662,7 +722,22 @@ void InvokePacked(const PackedFunc& func, Index arg_count, Index output_size,
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
-void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { this->ctxs = ctxs; }
+void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
+  this->ctxs = ctxs;
+
+  // Get the list of packed functions.
+  CHECK(primitive_map.empty() || lib.operator->())
+      << "runtime module should have been built for primitive functions"
+      << "\n";
+  for (const auto& it : primitive_map) {
+    const auto& packed_name = it.first;
+    auto packed_index = static_cast<size_t>(it.second);
+    if (packed_funcs.size() <= packed_index) {
+      packed_funcs.resize(packed_index + 1);
+    }
+    packed_funcs[packed_index] = lib.GetFunction(packed_name);
+  }
+}
 
 inline void VirtualMachine::WriteRegister(Index r, const Object& val) {
   frames.back().register_file[r] = val;
@@ -716,8 +791,8 @@ void VirtualMachine::Run() {
         goto main_loop;
       }
       case Opcode::LoadConsti: {
-        auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
-        reinterpret_cast<int32_t*>(tensor->data)[0] = instr.load_consti.val;
+        auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, {kDLCPU, 0});
+        reinterpret_cast<int64_t*>(tensor->data)[0] = instr.load_consti.val;
         WriteRegister(instr.dst, Object::Tensor(tensor));
         pc++;
         goto main_loop;
@@ -753,7 +828,7 @@ void VirtualMachine::Run() {
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);
         }
-        for (Index i = 0; i < instr.closure_args_num; ++i) {
+        for (Index i = 0; i < instr.num_closure_args; ++i) {
           args.push_back(ReadRegister(instr.closure_args[i]));
         }
         InvokeGlobal(this->functions[closure->func_index], args);
