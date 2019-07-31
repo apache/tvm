@@ -26,7 +26,7 @@ import scala.util.Random
 import scala.math.pow
 import vta.core._
 
-class Tester(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
+class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
     
   def gemv_ref(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
     val size = inp.length
