@@ -28,7 +28,7 @@ import vta.core._
 
 class Tester(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
     
-  def gemv(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
+  def gemv_ref(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
     val size = inp.length
     val res = Array.fill(size) {0}
     for (i <- 0 until size) {
@@ -46,7 +46,7 @@ class Tester(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
     val r = new Random
     val in_a = Array.fill(c.size) { r.nextInt(pow(2, c.inpBits).toInt) - pow(2, c.inpBits-1).toInt}
     val in_b = Array.fill(c.size, c.size) { r.nextInt(pow(2, c.wgtBits).toInt) - pow(2, c.wgtBits-1).toInt}
-    val res = gemv(in_a, in_b, 0)  
+    val res = gemv_ref(in_a, in_b, 0)  
     val inpMask = (pow(2, c.inpBits) - 1).toLong
     val wgtMask = (pow(2, c.wgtBits) - 1).toLong
     val accMask = (pow(2, c.accBits) - 1).toLong
@@ -59,20 +59,17 @@ class Tester(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
       }
     }
     
-    // poke(c.io.shift.data.bits, 0)
     poke(c.io.reset, 0)
     
     poke(c.io.inp.data.valid, 1)
     poke(c.io.wgt.data.valid, 1)
     poke(c.io.acc_i.data.valid, 1)
-    // poke(c.io.shift.data.valid, 1)
       
     step(1)
 
     poke(c.io.inp.data.valid, 0)
     poke(c.io.wgt.data.valid, 0)
     poke(c.io.acc_i.data.valid, 0)
-    // poke(c.io.shift.data.valid, 0)
 
     // wait for valid signal
     while (peek(c.io.acc_o.data.valid) == BigInt(0)) {
