@@ -46,8 +46,10 @@ from gluoncv import model_zoo, data, utils
 #   :ref:`tune_relay_arm` for arm CPU.
 #
 #   To get best inference performance on Intel graphics,
-#   change target argument to :code:`opencl -device=intel_graphics`,
-#   except for Mac, target needs to be set to `opencl` only.
+#   change target argument to :code:`opencl -device=intel_graphics`.
+#   But when using Intel graphics on Mac, target needs to 
+#   be set to `opencl` only for the reason that Intel subgroup
+#   extension is not supported on Mac.
 #
 #   To get best inference performance on CUDA-based GPUs,
 #   change the target argument to :code:`cuda`; and for
