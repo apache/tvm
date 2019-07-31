@@ -45,8 +45,15 @@ from gluoncv import model_zoo, data, utils
 #   follow the :ref:`tune_relay_x86` to tune x86 CPU and
 #   :ref:`tune_relay_arm` for arm CPU.
 #
-#   To get best performance fo SSD on Intel graphics,
-#   change target argument to 'opencl -device=intel_graphics'
+#   To get best inference performance on Intel graphics,
+#   change target argument to :code:`opencl -device=intel_graphics`,
+#   except for Mac, target needs to be set to `opencl` only.
+#
+#   To get best inference performance on CUDA-based GPUs,
+#   change the target argument to :code:`cuda`; and for
+#   OPENCL-based GPUs, change target argument to
+#   :code:`opencl` followed by device argument according
+#   to your device.
 
 supported_model = [
     'ssd_512_resnet50_v1_voc',
