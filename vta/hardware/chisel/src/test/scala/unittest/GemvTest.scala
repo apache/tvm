@@ -28,6 +28,10 @@ import vta.core._
 
 class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
     
+  /*
+   * This is a software function that computes dot product with a programmable shift
+   * This is used as a reference for the hardware
+   */
   def gemv_ref(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
     val size = inp.length
     val res = Array.fill(size) {0}
@@ -44,6 +48,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
   val cycles = 5
   for (i <- 0 until cycles) {
     val r = new Random
+    // generate random data based on config bits
     val in_a = Array.fill(c.size) { r.nextInt(pow(2, c.inpBits).toInt) - pow(2, c.inpBits-1).toInt}
     val in_b = Array.fill(c.size, c.size) { r.nextInt(pow(2, c.wgtBits).toInt) - pow(2, c.wgtBits-1).toInt}
     val res = gemv_ref(in_a, in_b, 0)  
