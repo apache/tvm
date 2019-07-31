@@ -33,7 +33,7 @@ object Launcher {
   val tests = Map(
     "gemv" -> { (manager: TesterOptionsManager) =>
       Driver.execute(() => new MatrixVectorMultiplication, manager) {
-        (c) => new Tester(c)
+        (c) => new TestMatrixVectorMultiplication(c)
       }
     }
   )
