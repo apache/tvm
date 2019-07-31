@@ -241,7 +241,9 @@ class MatchNode : public ExprNode {
   /*! \brief The match node clauses. */
   tvm::Array<Clause> clauses;
 
-  /*! \brief Is the match complete (cover all cases)? */
+  /*! \brief Should this match be complete (cover all cases)? 
+   *  If yes, the type checker will generate an error if there are any missing cases.
+   */
   bool complete;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
