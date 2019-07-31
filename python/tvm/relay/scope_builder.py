@@ -19,6 +19,7 @@
 from __future__ import absolute_import
 
 from . import expr as _expr
+from . import ty as _ty
 from .._ffi import base as _base
 
 class WithScope(object):

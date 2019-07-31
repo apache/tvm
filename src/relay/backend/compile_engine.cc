@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -194,7 +194,8 @@ class ScheduleGetter :
     }
     if (count_tuple) {
       CHECK_EQ(call_node->args.size(), 1U)
-          << "Only allow function with a single tuple input";
+          << "Can only compile functions with a single input tuple "
+          << AsText(GetRef<Call>(call_node), false);
     }
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
