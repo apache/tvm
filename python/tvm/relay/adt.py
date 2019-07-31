@@ -198,7 +198,8 @@ class Match(Expr):
             The pattern match clauses.
 
         complete: Optional[Bool]
-            Is the pattern complete(cover all cases)?
+            Should the match be complete (cover all cases)?
+            If yes, the type checker will generate an error if there are any missing cases. 
 
         Returns
         -------
