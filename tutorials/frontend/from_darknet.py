@@ -45,6 +45,11 @@ from tvm.relay.testing.darknet import __darknetffi__
 import tvm.relay.testing.yolo_detection
 import tvm.relay.testing.darknet
 
+######################################################################
+# Choose the model
+# -----------------------
+# Models are: 'yolov2', 'yolov3' or 'yolov3-tiny'
+
 # Model name
 MODEL_NAME = 'yolov3'
 
@@ -124,6 +129,11 @@ m.set_input(**params)
 # execute
 print("Running the test image...")
 
+# detection
+# thresholds
+thresh = 0.5
+nms_thresh = 0.45
+
 m.run()
 # get outputs
 tvm_out = []
@@ -155,9 +165,22 @@ elif MODEL_NAME == 'yolov3':
         layer_out['classes'] = layer_attr[4]
         tvm_out.append(layer_out)
 
+elif MODEL_NAME == 'yolov3-tiny':
+    for i in range(2):
+        layer_out = {}
+        layer_out['type'] = 'Yolo'
+        # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
+        layer_attr = m.get_output(i*4+3).asnumpy()
+        layer_out['biases'] = m.get_output(i*4+2).asnumpy()
+        layer_out['mask'] = m.get_output(i*4+1).asnumpy()
+        out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
+                     layer_attr[2], layer_attr[3])
+        layer_out['output'] = m.get_output(i*4).asnumpy().reshape(out_shape)
+        layer_out['classes'] = layer_attr[4]
+        tvm_out.append(layer_out)
+        thresh = 0.560
+
 # do the detection and bring up the bounding boxes
-thresh = 0.5
-nms_thresh = 0.45
 img = tvm.relay.testing.darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
 dets = tvm.relay.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
