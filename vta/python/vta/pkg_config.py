@@ -109,7 +109,24 @@ class PkgConfig(object):
         #   - axi_cache_bits:   ARCACHE/AWCACHE signals for the AXI bus
         #                       (e.g. 1111 is write-back read and write allocate)
         #   - axi_prot_bits:    ARPROT/AWPROT signals for the AXI bus
-        if self.TARGET == "ultra96":
+        if self.TARGET == "de10nano":
+            self.fpga_device = "5CSEBA6U23I7"
+            self.fpga_family = "Cyclone\\ V"
+            # TODO: The following parameters have not been propagated into
+            # current Chisel-based implement of VTA hardware for DE10-Nano.
+            # A future change should be made to propagate these parameters,
+            # in order to avoid duplicated definition.
+            self.fpga_freq = 100
+            self.fpga_per = 2
+            self.fpga_log_axi_bus_width = 6
+            self.axi_prot_bits = '100'
+            # IP register address map
+            self.ip_reg_map_range = "0x1000"
+            self.fetch_base_addr = "0xFF220000"
+            self.load_base_addr = "0xFF221000"
+            self.compute_base_addr = "0xFF222000"
+            self.store_base_addr = "0xFF223000"
+        elif self.TARGET == "ultra96":
             self.fpga_device = "xczu3eg-sbva484-1-e"
             self.fpga_family = "zynq-ultrascale+"
             self.fpga_freq = 333
