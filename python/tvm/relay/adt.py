@@ -199,7 +199,7 @@ class Match(Expr):
 
         complete: Optional[Bool]
             Should the match be complete (cover all cases)?
-            If yes, the type checker will generate an error if there are any missing cases. 
+            If yes, the type checker will generate an error if there are any missing cases.
 
         Returns
         -------
