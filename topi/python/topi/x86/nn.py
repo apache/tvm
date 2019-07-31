@@ -35,16 +35,21 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    x = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
-    if len(s[x].op.axis) >= 5:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) >= 3:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
-        s[x].parallel(fused)
-    else:
-        s[x].parallel(s[x].op.axis[0])
+    softmax = outs[0]
+    s = tvm.create_schedule([softmax.op for softmax in outs])
+
+    exp = softmax.op.input_tensors[0]
+    expsum = softmax.op.input_tensors[1]
+    maxelem = s[exp].op.input_tensors[1]
+    axis = int(softmax.op.attrs["axis"])
+
+    # only parallelize outer dimensions up to axis
+    outer_axes = [s[softmax].op.axis[i] for i in range(0, axis)]
+    fused_outer_axes = s[softmax].fuse(*outer_axes)
+    s[softmax].parallel(fused_outer_axes)
+
+    # move computations with the same outer dimensions under the same root
+    s[maxelem].compute_at(s[softmax], fused_outer_axes)
+    s[exp].compute_at(s[softmax], fused_outer_axes)
+    s[expsum].compute_at(s[softmax], fused_outer_axes)
     return s
