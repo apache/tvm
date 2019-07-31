@@ -67,9 +67,6 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
-            print("Skip because int8 intrinsics are not available")
-            return
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
@@ -94,7 +91,7 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ["llvm"]:
+    for device in ["llvm", "cuda"]:
         check_device(device)
 
 
