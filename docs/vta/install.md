@@ -261,6 +261,7 @@ Similar to what should be done for Xilinx toolchain, the following line should b
 # Intel Quartus 18.1 environment
 export QUARTUS_ROOTDIR="/usr/local/intelFPGA_lite/18.1/quartus"
 export PATH=${QUARTUS_ROOTDIR}/bin:${PATH}
+export PATH=${QUARTUS_ROOTDIR}/sopc_builder/bin:${PATH}
 ```
 This would add quartus binary path into your `PATH` environment variable, so you can launch compilation scripts from the command line.
 

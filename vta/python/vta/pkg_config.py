@@ -112,6 +112,10 @@ class PkgConfig(object):
         if self.TARGET == "de10nano":
             self.fpga_device = "5CSEBA6U23I7"
             self.fpga_family = "Cyclone\\ V"
+            # TODO: The following parameters have not been propagated into
+            # current Chisel-based implement of VTA hardware for DE10-Nano.
+            # A future change should be made to propagate these parameters,
+            # in order to avoid duplicated definition.
             self.fpga_freq = 100
             self.fpga_per = 2
             self.fpga_log_axi_bus_width = 6
