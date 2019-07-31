@@ -28,6 +28,15 @@ import vta.shell._
 
 class TestConfig extends Config(new CoreConfig ++ new PynqConfig)
 
+/* 
+ * The Launcher object includes a test list for the TestRunner to check.
+ * Users can utilize this Launcher to run custom tests.
+ *
+ * How to Use:
+ * When the user input: sbt 'test:runMain unittest.Launcher gemv'
+ * the TestRunner will look for 'gemv' in the map and executes the 
+ * test that 'gemv' is mapped to
+ */
 object Launcher {
   implicit val p: Parameters = new TestConfig
   val tests = Map(
