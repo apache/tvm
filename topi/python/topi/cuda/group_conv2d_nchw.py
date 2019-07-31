@@ -433,8 +433,8 @@ def schedule_group_conv2d_nchw_direct(cfg, s, conv):
     s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 
     N, CO, OH, OW = get_const_tuple(output.shape)
-    _, KH, KW, CI = get_const_tuple(kernel.shape)
-    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW // groups)
+    _, CI_div_groups, KH, KW = get_const_tuple(kernel.shape)
+    cfg.add_flop(2 * N * OH * OW * CO * CI_div_groups * KH * KW)
 
 
 @autotvm.register_topi_schedule(generic.schedule_group_conv2d_nchw,
