@@ -570,7 +570,7 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
-Object CopyTo(Object src, const DLContext& ctx, bool force=false) {
+Object CopyTo(Object src, const DLContext& ctx, bool force = false) {
   if (src->tag == ObjectTag::kTensor) {
     auto tensor = ToNDArray(src);
     if (force || tensor->ctx.device_type != ctx.device_type) {
