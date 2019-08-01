@@ -212,7 +212,6 @@ class VMExecutor(Executor):
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):
-        assert expr is None
         main = self.mod["main"]
 
         def _vm_wrapper(*args, **kwargs):

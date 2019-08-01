@@ -451,7 +451,10 @@ class VirtualMachine : public runtime::ModuleNode {
    *  \param contexts The set of TVM contexts.
    */
   void Init(const std::vector<TVMContext>& contexts);
-  void Run();
+
+  /*! \brief Run VM dispatch loop.
+   */
+  void RunLoop();
 
   /*!
    * \brief Load parameters from the parameter bytearray.
@@ -474,6 +477,10 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<Object>& args);
+
+  /*! \brief Get device context for params.
+   */
+  TVMContext GetParamsContext() const;
 
   /*! \brief The parameter name to data mapping. */
   std::unordered_map<std::string, Object> params_;
