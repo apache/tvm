@@ -26,6 +26,7 @@
 #define TVM_CODEGEN_BUILD_COMMON_H_
 
 #include <tvm/codegen.h>
+#include <tvm/ir.h>
 #include <unordered_map>
 #include <string>
 #include "../runtime/meta_data.h"
