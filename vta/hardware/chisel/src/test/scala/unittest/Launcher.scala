@@ -40,7 +40,7 @@ class TestConfig extends Config(new CoreConfig ++ new PynqConfig)
 object Launcher {
   implicit val p: Parameters = new TestConfig
   val tests = Map(
-    "gemv" -> { (manager: TesterOptionsManager) =>
+    "mvm" -> { (manager: TesterOptionsManager) =>
       Driver.execute(() => new MatrixVectorMultiplication, manager) {
         (c) => new TestMatrixVectorMultiplication(c)
       }

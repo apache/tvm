@@ -44,7 +44,7 @@ vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
-test_name = gemv
+test_name = mvm
 
 verilator_opt = --cc
 verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
