@@ -193,7 +193,7 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
     FILE * fin = fopen(VTA_VMEM_PAGEFILE, "rb");
     CHECK(fin);
     if (fin) {
-      uint64_t * tlb = (uint64_t*)malloc(size);
+      uint64_t * tlb = new uint64_t[size / sizeof(uint64_t)];
       fread(tlb, size, 1, fin);
       uint32_t cnt = size / (sizeof(uint64_t) * 3);
       for (uint32_t i = 0; i < cnt; i++) {
@@ -203,7 +203,7 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
           break;
         }
       }
-      free(tlb);
+      delete [] tlb;
       fclose(fin);
       CHECK(laddr != 0);
     }

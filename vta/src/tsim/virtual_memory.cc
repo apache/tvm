@@ -19,6 +19,7 @@
 
 #include "virtual_memory.h"
 
+#include <dmlc/logging.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -26,7 +27,6 @@
 #include <utility>
 #include <iterator>
 #include <unordered_map>
-#include <dmlc/logging.h>
 
 /*! page size of virtual address */
 #ifndef VTA_TSIM_VM_PAGE_SIZE
@@ -50,7 +50,7 @@ class VirtualMemoryManager {
   /*! \brief translation lookaside buffer */
   std::unordered_map<uint64_t, size_t> _tlb;
 
-public:
+ public:
   /*! \brief allocate virtual memory for given size */
   void * Allocate(uint64_t sz) {
     uint64_t size = ((sz + kPageSize - 1) / kPageSize) * kPageSize;
@@ -78,7 +78,7 @@ public:
     if (fout) {
       uint32_t tlb_size = sizeof(uint64_t)*3*_tlb.size();
       uint32_t tlb_cnt = 0;
-      uint64_t * tlb = (uint64_t*)malloc(tlb_size);
+      uint64_t * tlb = new uint64_t[3*_tlb.size()];
       for (auto iter = _tlb.begin(); iter != _tlb.end(); iter++, tlb_cnt++) {
         tlb[tlb_cnt * 3] = (*iter).first;
         uint64_t vend = 0;
@@ -104,8 +104,8 @@ public:
       if (((*it).first <= src) && ((*it).second > src)) { break; }
     }
     CHECK(it != _page_table.end());
-    void * laddr = reinterpret_cast<void*>(_tlb[(*it).first]);
-    free(laddr);
+    uint64_t * laddr = reinterpret_cast<uint64_t*>(_tlb[(*it).first]);
+    delete [] laddr;
     _page_table.erase(it);
     _tlb.erase((*it).first);
   }
@@ -149,7 +149,7 @@ public:
     }
     CHECK(it != _page_table.end());
     return reinterpret_cast<void*>(_tlb[(*it).first]);
-  }  
+  }
 
   /*! \brief get global handler of the instance */
   static VirtualMemoryManager* Global() {

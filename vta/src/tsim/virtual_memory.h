@@ -29,8 +29,8 @@
 #include <cstdint>
 
 enum VMemCopyType {
- kVirtualMemCopyFromHost = 0,
- kVirtualMemCopyToHost = 1
+  kVirtualMemCopyFromHost = 0,
+  kVirtualMemCopyToHost = 1
 };
 
 #define VTA_VMEM_PAGEFILE "/tmp/vta_tsim_vmem_pagefile.sys"
