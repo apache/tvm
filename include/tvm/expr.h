@@ -89,6 +89,9 @@ class Stmt : public NodeRef {
 };
 
 class Var;
+namespace ir {
+class Any;
+}
 /*!
  * \brief A variable node in the IR.
  *
@@ -107,6 +110,8 @@ class Variable : public ExprNode {
    * \note Each variable is uniquely identified by its address.
    */
   std::string name_hint;
+  /*! \brief Whether the variable is converted from Any */
+  inline bool is_any() const { return is_any_; }
 
   static Var make(DataType dtype, std::string name_hint);
 
@@ -117,6 +122,13 @@ class Variable : public ExprNode {
 
   static constexpr const char* _type_key = "Variable";
   TVM_DECLARE_NODE_TYPE_INFO(Variable, ExprNode);
+
+ private:
+  static Var make(DataType dtype, std::string name_hint, bool is_any);
+
+  friend class ir::Any;
+  /*! \brief Whether the variable is converted from Any */
+  bool is_any_ = false;
 };
 
 /*! \brief a named variable in TVM */

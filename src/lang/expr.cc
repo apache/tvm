@@ -107,6 +107,14 @@ Var Variable::make(DataType t, std::string name_hint) {
   return Var(node);
 }
 
+Var Variable::make(DataType t, std::string name_hint, bool is_any) {
+  NodePtr<Variable> node = make_node<Variable>();
+  node->type = t;
+  node->name_hint = std::move(name_hint);
+  node->is_any_ = is_any;
+  return Var(node);
+}
+
 Range::Range(Expr begin, Expr end)
     : Range(make_node<RangeNode>(
           begin,

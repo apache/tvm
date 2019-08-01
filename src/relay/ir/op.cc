@@ -143,6 +143,8 @@ TVM_REGISTER_API("relay.op._Register")
       reg.set_num_inputs(value);
     } else if (attr_key == "attrs_type_key" && plevel > 128) {
       reg.set_attrs_type_key(value);
+    } else if (attr_key == "shape_data_dependant") {
+      reg.set_shape_data_dependant(value);
     } else {
       // normal attr table override.
       if (args[2].type_code() == kFuncHandle) {

@@ -18,8 +18,9 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 import topi
-from .op import register_compute, register_schedule, register_pattern
+from .op import register_compute, register_schedule, register_pattern, register_shape_func
 from .op import schedule_injective, OpPattern
+from ...hybrid import script
 
 schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
@@ -104,3 +105,43 @@ def clip_compute(attrs, inputs, output_type, target):
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
 register_schedule("clip", schedule_elemwise)
+
+# shape func
+@script
+def _broadcast_shape_func(x, y):
+    ndim1 = x.shape[0]
+    ndim2 = y.shape[0]
+    ndim = max(ndim1, ndim2)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(1, min(ndim1, ndim2)+1):
+        if x[ndim1-i] == y[ndim2-i]:
+            out[ndim-i] = x[ndim1-i]
+        elif x[ndim1-i] == 1:
+            out[ndim-i] = y[ndim2-i]
+        else:
+            assert y[ndim2 - i] == 1, "Incompatible broadcast type %s and %s" % (
+                x[ndim1-i], y[ndim2-i])
+            out[ndim-i] = x[ndim1-i]
+    for i in const_range(min(ndim1, ndim2)+1, ndim+1):
+        if ndim1 >= ndim2:
+            out[ndim-i] = x[ndim1-i]
+        else:
+            out[ndim-i] = y[ndim2-i]
+    return out
+
+def broadcast_shape_func(attrs, inputs, out_ndims):
+    return [_broadcast_shape_func(*inputs)]
+
+register_shape_func("add", False, broadcast_shape_func)
+register_shape_func("subtract", False, schedule_broadcast)
+register_shape_func("multiply", False, schedule_broadcast)
+register_shape_func("divide", False, schedule_broadcast)
+register_shape_func("mod", False, schedule_broadcast)
+register_shape_func("logical_and", False, schedule_broadcast)
+register_shape_func("logical_or", False, schedule_broadcast)
+register_shape_func("equal", False, schedule_broadcast)
+register_shape_func("not_equal", False, schedule_broadcast)
+register_shape_func("less", False, schedule_broadcast)
+register_shape_func("less_equal", False, schedule_broadcast)
+register_shape_func("greater", False, schedule_broadcast)
+register_shape_func("greater_equal", False, schedule_broadcast)

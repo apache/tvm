@@ -81,6 +81,10 @@ class OpNode : public relay::ExprNode {
    *  This is in analogies to BLAS levels.
    */
   int32_t support_level = 10;
+  /*!
+   * \brief indicate whether output shape is data dependant.
+   */
+  bool shape_data_dependant = false;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -226,6 +230,12 @@ class OpRegistry {
    * \return reference to self.
    */
   inline OpRegistry& set_support_level(int32_t level);  // NOLINT(*)
+  /*!
+   * \brief Set whether output shape is data dependant.
+   * \param flag Flag for data dependancy.
+   * \return reference to self.
+   */
+  inline OpRegistry& set_shape_data_dependant(bool flag);
   /*!
    * \brief Register additional attributes to operator.
    * \param attr_name The name of the attribute.
@@ -489,6 +499,11 @@ inline OpRegistry& OpRegistry::set_attrs_type_key(  // NOLINT(*)
 
 inline OpRegistry& OpRegistry::set_support_level(int32_t n) {  // NOLINT(*)
   get()->support_level = n;
+  return *this;
+}
+
+inline OpRegistry& OpRegistry::set_shape_data_dependant(bool flag) {
+  get()->shape_data_dependant = flag;
   return *this;
 }
 

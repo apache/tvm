@@ -314,14 +314,14 @@ class Interpreter :
 
   Array<Shape> ComputeDynamicShape(Function func,
                                    const Array<Value>& args) {
-    static auto fshape_func =
-            Op::GetAttr<FShapeFunc>("FShapeFunc");
+    static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
     DLContext cpu_ctx;
     cpu_ctx.device_type = kDLCPU;
     cpu_ctx.device_id = 0;
 
     auto call = Downcast<Call>(func->body);
     auto op = Downcast<Op>(call->op);
+    auto shape_data_dependant = op->shape_data_dependant;
     CHECK_GT(fshape_func.count(op), 0)
       << "internal error, cannot find ShapeFunc for " << op->name;
 
@@ -346,22 +346,37 @@ class Interpreter :
     std::vector<TVMValue> values(arg_len);
     std::vector<int> codes(arg_len);
     TVMArgsSetter setter(values.data(), codes.data());
-    Array<tvm::Tensor> shape_func_in_tensors;
-    Array<Shape> shape_func_out_shapes;
+    Array<tvm::Tensor> in_tensors;
+    Array<IndexExpr> out_ndims;
     Array<TensorValue> shape_func_outputs;
 
     auto fset_input = [&](size_t i, Value val) {
-        const TensorValueNode* tv = val.as<TensorValueNode>();
-        CHECK(tv != nullptr) << "expect Tensor argument";
+      const TensorValueNode* tv = val.as<TensorValueNode>();
+      CHECK(tv != nullptr) << "expect Tensor argument";
+      std::stringstream ss;
+      if (shape_data_dependant) {
+        ss << "data" << i;
         Shape shape;
         for (auto dim : tv->data.Shape()) {
           shape.push_back(tvm::Integer(dim));
         }
-        shape_func_in_tensors.push_back(
-                tvm::placeholder(shape, TVMType2Type(tv->data->dtype)));
+        in_tensors.push_back(
+                tvm::placeholder(shape, TVMType2Type(tv->data->dtype), ss.str()));
         auto data = tv->data.CopyTo(cpu_ctx);
         args_cpu.push_back(data);
         setter(i, data);
+      } else {
+        ss << "shape" << i;
+        int64_t ndim = tv->data.Shape().size();
+        Shape shape{tvm::Integer(ndim)};
+        in_tensors.push_back(tvm::placeholder(shape, Int(64), ss.str()));
+        auto data = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+        for (auto j = 0; j < ndim; ++j) {
+          reinterpret_cast<int64_t*>(data->data)[j] = tv->data.Shape()[j];
+        }
+        args_cpu.push_back(data);
+        setter(i, data);
+      }
     };
 
     int arg_counter = 0;
@@ -378,14 +393,14 @@ class Interpreter :
     }
 
     auto fset_shape_output = [&](size_t i, Type val_type) {
-        const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
-        CHECK(rtype != nullptr);
-        int64_t ndim = rtype->shape.size();
-        shape_func_out_shapes.push_back({Integer(ndim)});
-        TensorValue out_tensor = TensorValueNode::make(
-                NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx));
-        shape_func_outputs.push_back(out_tensor);
-        setter(num_inputs + i, out_tensor->data);
+      const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
+      CHECK(rtype != nullptr);
+      int64_t ndim = rtype->shape.size();
+      out_ndims.push_back(IntImm::make(Int(32), ndim));
+      TensorValue out_tensor = TensorValueNode::make(
+              NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx));
+      shape_func_outputs.push_back(out_tensor);
+      setter(num_inputs + i, out_tensor->data);
     };
 
     auto ret_type = func->body->checked_type();
@@ -399,9 +414,8 @@ class Interpreter :
     }
 
     // Compile and run shape func
-    auto shape_func_out_tensors = fshape_func[op](
-            call->attrs, shape_func_in_tensors, shape_func_out_shapes);
-    auto shape_func = engine_->CompileShapeFunc(shape_func_in_tensors, shape_func_out_tensors);
+    auto out_tensors = fshape_func[op](call->attrs, in_tensors, out_ndims);
+    auto shape_func = engine_->CompileShapeFunc(in_tensors, out_tensors);
     TVMRetValue rv;
     shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
 
@@ -410,7 +424,7 @@ class Interpreter :
     for (auto out_tensor : shape_func_outputs) {
       int64_t* shape_data = reinterpret_cast<int64_t*>(out_tensor->data->data);
       Shape out_shape;
-      for (int i = 0; i < out_tensor->data->ndim; ++i) {
+      for (int i = 0; i < out_tensor->data->shape[0]; ++i) {
         out_shape.push_back(tvm::Integer(shape_data[i]));
       }
       out_shapes.push_back(out_shape);
@@ -505,6 +519,9 @@ class Interpreter :
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
     bool is_dyn = IsDynamic(ret_type);
+    for (auto param : func->params) {
+      is_dyn |= IsDynamic(param->checked_type());
+    }
 
     if (is_dyn) {
       CHECK(func->IsPrimitive());

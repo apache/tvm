@@ -219,7 +219,7 @@ def register_gradient(op_name, fgradient=None, level=10):
     """
     return register(op_name, "FPrimalGradient", fgradient, level)
 
-def register_shape_func(op_name, shape_func=None, level=10):
+def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     """Register operator shape function for an op.
 
     Parameters
@@ -227,13 +227,17 @@ def register_shape_func(op_name, shape_func=None, level=10):
     op_name : str
         The name of the op.
 
-    shape_func : function (attrs: Attrs, inputs: List[Tensor], out_shapes: List[Shape])
+    data_dependant : bool
+        Whether the shape function depends on input data.
+
+    shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
                  -> shape_tensors: List<Tensor>
         The function for computing the dynamic output shapes
 
     level : int
         The priority level
     """
+    register(op_name, "shape_data_dependant", data_dependant)
     return register(op_name, "FShapeFunc", shape_func, level)
 
 _init_api("relay.op", __name__)

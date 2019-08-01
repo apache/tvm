@@ -17,14 +17,12 @@
 """Backend compiler related feature registration"""
 # pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
-from topi.util import get_const_int
+from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from ._reduce import _schedule_reduce
 from .op import OpPattern
-from ... import ir_builder as _ir_builder
-from ... import intrin as _intrin
-from ... import generic as _generic
-from ...api import extern as _extern
+from ...hybrid import script
+from ...api import convert
 
 schedule_injective = _reg.schedule_injective
 schedule_broadcast = _reg.schedule_injective
@@ -64,43 +62,103 @@ _reg.register_schedule("layout_transform", schedule_injective)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 
 # shape func
-def _arange_shape_func(attrs, inputs, outputs):
-    ib = _ir_builder.create()
-    start = _generic.cast(ib.buffer_ptr(inputs[0])[0], "float32")
-    stop = _generic.cast(ib.buffer_ptr(inputs[1]), "float32")
-    step = _generic.cast(ib.buffer_ptr(inputs[2]), "float32")
-    out_buf = ib.buffer_ptr(outputs[0])
-    out_buf[0] = _generic.cast(_intrin.ceil((stop-start) / step), "int64")
-    body = ib.get()
-    return body
+@script
+def _arange_shape_func(start, stop, step):
+    out = output_tensor((1,), "int64")
+    out[0] = int64(ceil_div((float32(stop[0]) - float32(start[0])), float32(step[0])))
+    return out
 
-@_reg.register_shape_func("arange")
-def arange_shape_func(attrs, inputs, out_shapes):
-    out = _extern(out_shapes, inputs,
-                  lambda ins, outs: _arange_shape_func(attrs, ins, outs),
-                  dtype="int64")
-    return [out]
+@_reg.register_shape_func("arange", True)
+def arange_shape_func(attrs, inputs, _):
+    return [_arange_shape_func(*inputs)]
 
-def _concatenate_shape_func(attrs, inputs, outputs):
-    axis = get_const_int(attrs.axis)
-    ndim = len(inputs[0].shape)
-    if axis < 0:
-        axis += ndim
-    ib = _ir_builder.create()
-    out_buf = ib.buffer_ptr(outputs[0])
-    for i in range(ndim):
+@script
+def _concatenate_shape_func(inputs, axis):
+    ndim = inputs[0].shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
         if i != axis:
-            out_buf[i] = _generic.cast(inputs[0].shape[i], "int64")
+            out[i] = inputs[0][i]
+            for j in const_range(1, len(inputs)):
+                assert out[i] == inputs[j][i], \
+                    "Dims mismatch in the inputs of concatenate."
         else:
-            out_buf[i] = _generic.cast(
-                sum([inputs[j].shape[i] for j in range(len(inputs))]),
-                "int64")
-    body = ib.get()
-    return body
+            out[i] = int64(0)
+            for j in const_range(len(inputs)):
+                out[i] += inputs[j][i]
+    return out
 
-@_reg.register_shape_func("concatenate")
-def concatenate_shape_func(attrs, inputs, out_shapes):
-    out = _extern(out_shapes, inputs,
-                  lambda ins, outs: _concatenate_shape_func(attrs, ins, outs),
-                  dtype="int64")
-    return [out]
+@_reg.register_shape_func("concatenate", False)
+def concatenate_shape_func(attrs, inputs, _):
+    axis = get_const_int(attrs.axis)
+    return [_concatenate_shape_func(inputs, convert(axis))]
+
+@script
+def _reshape_shape_func(x, newshape, ndim):
+    out = output_tensor((ndim,), "int64")
+    src_idx = 0
+    dst_idx = 0
+    infer_idx = -1
+    copy = False
+    skip = 0
+    for i in const_range(len(newshape)):
+        if skip > 0:
+            skip -= 1
+        elif newshape[i] > 0:
+            out[dst_idx] = int64(newshape[i])
+            src_idx += 1
+            dst_idx += 1
+        elif newshape[i] == 0:
+            out[dst_idx] = x[src_idx]
+            src_idx += 1
+            dst_idx += 1
+        elif newshape[i] == -1:
+            assert infer_idx < 0, "One and only one dim can be inferred"
+            out[dst_idx] = int64(1)
+            infer_idx = i
+            dst_idx += 1
+        elif newshape[i] == -2:
+            copy = True
+        elif newshape[i] == -3:
+            assert x.shape[0] - src_idx > 1, \
+                "Not enough dims in input shape for -3"
+            out[dst_idx] = x[src_idx] * x[src_idx+1]
+            src_idx += 2
+            dst_idx += 1
+        elif newshape[i] == -4:
+            assert len(newshape) - i > 2, "Not enough dims in new shape for -4"
+            if newshape[i+1] == -1:
+                assert newshape[i+2] != -1, "Split dims cannot both be -1."
+                out[dst_idx] = x[src_idx] / int64(newshape[i+2])
+                out[dst_idx+1] = int64(newshape[i+2])
+            else:
+                out[dst_idx] = int64(newshape[i+1])
+                if newshape[i+2] == -1:
+                    out[dst_idx+1] = x[src_idx] / int64(newshape[i+1])
+                else:
+                    out[dst_idx+1] = int64(newshape[i+2])
+            assert x[src_idx] == out[dst_idx] * out[dst_idx+1],\
+                "Product of split dims doesn't match to input dim"
+            src_idx += 1
+            dst_idx += 2
+            skip = 2
+        else:
+            assert False, "Invalid special values in new shape"
+    if copy:
+        for i in range(src_idx, x.shape[0]):
+            out[dst_idx] = x[i]
+            dst_idx += 1
+    if infer_idx >= 0:
+        old_size = int64(1)
+        for i in const_range(x.shape[0]):
+            old_size *= x[i]
+        new_size = int64(1)
+        for i in const_range(out.shape[0]):
+            new_size *= out[i]
+        out[infer_idx] = old_size / new_size
+    return out
+
+@_reg.register_shape_func("reshape", False)
+def reshape_shape_func(attrs, inputs, out_ndims):
+    newshape = get_const_tuple(attrs.newshape)
+    return [_reshape_shape_func(inputs[0], convert(newshape), out_ndims[0])]

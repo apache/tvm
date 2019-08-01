@@ -66,6 +66,8 @@ class ScheduleGetter :
         CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
         CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
         res.push_back(ir::IntImm::make(Int(32), *pval));
+      } else if (val->is_type<ir::Any>()) {
+        res.push_back(val.as<ir::Any>()->ToVar());
       } else {
         res.push_back(val);
       }

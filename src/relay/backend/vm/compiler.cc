@@ -404,33 +404,30 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     CHECK_GT(fshape_func.count(op), 0) << "internal error, cannot find ShapeFunc for " << op->name;
 
     // Prepare input and output shapes for shape func
-    Array<tvm::Tensor> shape_func_in_tensors;
-    Array<Shape> shape_func_out_shapes;
+    Array<tvm::Tensor> in_shape_tensors;
+    Array<IndexExpr> out_ndims;
     std::vector<DataType> out_types;
     for (auto arg : args) {
       auto ty = arg->checked_type().as<TensorTypeNode>();
-      shape_func_in_tensors.push_back(tvm::placeholder(ty->shape, ty->dtype));
+      in_shape_tensors.push_back(tvm::placeholder(ty->shape, ty->dtype));
     }
     if (const auto* tuple_type = ret_type.as<TupleTypeNode>()) {
       for (auto field : tuple_type->fields) {
         const TensorTypeNode* tty = field.as<TensorTypeNode>();
         CHECK(tty);
-        int64_t ndim = tty->shape.size();
-        shape_func_out_shapes.push_back({Integer(ndim)});
+        out_ndims.push_back(IntImm::make(Int(32), tty->shape.size()));
         out_types.push_back(tty->dtype);
       }
     } else {
       auto tty = ret_type.as<TensorTypeNode>();
       CHECK(tty);
-      int64_t ndim = tty->shape.size();
-      shape_func_out_shapes.push_back({Integer(ndim)});
+      out_ndims.push_back(IntImm::make(Int(32), tty->shape.size()));
       out_types.push_back(tty->dtype);
     }
 
     // Lower the shape func
-    auto shape_func_out_tensors = fshape_func[op](call_node->attrs, shape_func_in_tensors,
-                                                  shape_func_out_shapes);
-    auto shape_func = engine_->LowerShapeFunc(shape_func_in_tensors, shape_func_out_tensors);
+    auto out_shape_tensors = fshape_func[op](call_node->attrs, in_shape_tensors, out_ndims);
+    auto shape_func = engine_->LowerShapeFunc(in_shape_tensors, out_shape_tensors);
     int func_idx = -1;
     if (context_->seen_funcs.count(shape_func) > 0) {
       func_idx = context_->seen_funcs[shape_func];
@@ -442,7 +439,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     // Emit instructions
     std::vector<Index> shape_func_args(*args_registers);
-    for (auto tensor : shape_func_out_tensors) {
+    for (auto tensor : out_shape_tensors) {
       std::vector<int64_t> shape;
       for (auto dim : tensor->shape) {
         shape.push_back(Downcast<Integer>(dim)->value);
@@ -450,8 +447,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       Emit(Instruction::AllocTensor(shape, Type2TVMType(tensor->dtype), NewRegister()));
       shape_func_args.push_back(last_register_);
     }
-    size_t num_inputs = shape_func_in_tensors.size();
-    size_t num_outputs = shape_func_out_tensors.size();
+    size_t num_inputs = in_shape_tensors.size();
+    size_t num_outputs = out_shape_tensors.size();
     size_t arity = shape_func_args.size();
     Emit(Instruction::InvokePacked(func_idx, arity, num_outputs, shape_func_args));
     for (size_t i = 0; i < num_outputs; ++i) {

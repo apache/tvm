@@ -186,7 +186,7 @@ using Shape = Array<IndexExpr>;
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<Tensor>(const Attrs& attrs,
                 const Array<Tensor>& inputs,
-                const Array<Shape>& out_shapes)>;
+                const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm
