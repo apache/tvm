@@ -60,7 +60,7 @@ def onnx_storage_order2layout(storage_order):
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
 
-    return 'NCHW' if sotrage_order == 0 else 'NHWC'
+    return 'NCHW' if storage_order == 0 else 'NHWC'
 
 
 def dimension_constraint():

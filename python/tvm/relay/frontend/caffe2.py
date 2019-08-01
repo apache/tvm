@@ -123,7 +123,7 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        raise tvm.error.OpNotInplemented(
+        raise tvm.error.OpNotImplemented(
             'Operator {} is not supported in frontend Caffe2.'.format(cls.__name__))
 
 
