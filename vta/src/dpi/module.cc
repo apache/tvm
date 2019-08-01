@@ -205,7 +205,7 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
       }
       delete [] tlb;
       fclose(fin);
-      CHECK(laddr != 0);
+      CHECK_NE(laddr, 0);
     }
   }
 #endif

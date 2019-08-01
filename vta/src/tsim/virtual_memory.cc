@@ -172,7 +172,7 @@ void vfree(void * ptr) {
 
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
   auto * mgr = vta::tsim::VirtualMemoryManager::Global();
-  CHECK(mgr != 0);
+  CHECK_NE(mgr, 0);
   if (kVirtualMemCopyFromHost == dir) {
     mgr->MemCopyFromHost(dst, src, size);
   } else {
