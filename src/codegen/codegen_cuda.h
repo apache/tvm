@@ -57,6 +57,7 @@ class CodeGenCUDA final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
   void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const Shuffle* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;

@@ -126,6 +126,7 @@ class CodeGenC :
   void VisitExpr_(const Not* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Select* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Shuffle* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)

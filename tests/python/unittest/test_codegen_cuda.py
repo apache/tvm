@@ -154,9 +154,53 @@ def test_cuda_inf_nan():
     check_inf_nan(ctx, 1, float('nan'), 'float64')
 
 
+def test_cuda_shuffle():
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    a = tvm.placeholder((64, ), 'int32')
+    b = tvm.placeholder((64, ), 'int32')
+    c = tvm.compute((64, ), lambda x: a[x] + b[x - (x % 4) + (3 - x % 4)])
+    sch = tvm.create_schedule(c.op)
+    x = c.op.axis[0]
+    xo, xi = sch[c].split(x, 4)
+    thrx = tvm.thread_axis("threadIdx.x")
+    sch[c].bind(xo, thrx)
+    sch[c].vectorize(xi)
+
+    def my_vectorize(stmt):
+        def vectorizer(op):
+            if op.for_type == tvm.stmt.For.Vectorized:
+                four = tvm.const(4, 'int32')
+                idx = tvm.make.Ramp(thrx.var * four, tvm.const(1, 'int32'), 4)
+                all_ones = tvm.const(1, 'int32x4')
+                store = op.body
+                value = store.value
+                new_a = tvm.make.Load('int32x4', value.a.buffer_var, idx, all_ones)
+                bs, ids = [], []
+                for i in range(4):
+                    bs.append(tvm.make.Load('int32', value.b.buffer_var, thrx.var * four + tvm.const(i, 'int32')))
+                    ids.append(tvm.const(3 - i, 'int32'))
+                new_b = tvm.make.Shuffle(bs, ids)
+                return tvm.make.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+            return None
+        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+
+    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+        module = tvm.build(sch, [a, b, c], target='cuda')
+        a_ = np.array(list(range(64)), dtype='int32')
+        b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
+        c_ = np.zeros((64, ), dtype='int32')
+        ref = a_ +  np.array((list(range(4))) * 16, dtype='int32')
+        nda, ndb, ndc = [tvm.ndarray.array(i, tvm.gpu(0)) for i in [a_, b_, c_]]
+        module(nda, ndb, ndc)
+        tvm.testing.assert_allclose(ndc.asnumpy(), ref)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
     test_cuda_make_int8x4()
     test_cuda_inf_nan()
+    test_cuda_shuffle()
