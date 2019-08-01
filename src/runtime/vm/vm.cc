@@ -818,9 +818,8 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::LoadConst: {
         auto constant_obj = this->constants[instr.const_index];
-        auto constant_tensor = ToNDArray(constant_obj);
-        auto device_tensor = constant_tensor.CopyTo(ctxs[0]);
-        WriteRegister(instr.dst, Object::Tensor(device_tensor));
+        auto device_obj = CopyTo(constant_obj, ctxs[0]);
+        WriteRegister(instr.dst, device_obj);
         pc++;
         goto main_loop;
       }
