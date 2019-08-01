@@ -98,7 +98,16 @@ public:
 
   /*! \brief release virtual memory for pointer */
   void Release(void * ptr) {
-    (void)ptr;
+    uint64_t src = reinterpret_cast<uint64_t>(ptr);
+    auto it = _page_table.begin();
+    for (; it != _page_table.end(); it++) {
+      if (((*it).first <= src) && ((*it).second > src)) { break; }
+    }
+    CHECK(it != _page_table.end());
+    void * laddr = reinterpret_cast<void*>(_tlb[(*it).first]);
+    free(laddr);
+    _page_table.erase(it);
+    _tlb.erase((*it).first);
   }
 
   /*! \brief copy virtual memory from host */
