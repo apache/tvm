@@ -28,7 +28,8 @@ import vta.shell._
 
 class TestConfig extends Config(new CoreConfig ++ new PynqConfig)
 
-/* 
+/* Launcher.
+ *
  * The Launcher object includes a test list for the TestRunner to check.
  * Users can utilize this Launcher to run custom tests.
  *

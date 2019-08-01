@@ -28,7 +28,8 @@ import vta.core._
 
 class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
     
-  /*
+  /* mvm_ref
+   *
    * This is a software function that computes dot product with a programmable shift
    * This is used as a reference for the hardware
    */
