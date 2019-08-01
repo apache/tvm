@@ -86,7 +86,6 @@ object TestRunner {
       println(s"Errors: ${errors.length}: in the following tests")
       println(errors.mkString("\n"))
       println("=" * 80)
-      // Runtime.getRuntime().halt(0) // end sbt  
     }
   }
 }
