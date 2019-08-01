@@ -67,10 +67,14 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
     } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
-    } else if (var1 && var1->is_any()) {
+    } else if (var1 && var2) {
+      bh.common_shape.push_front(max(shape1[s1_size - i], shape2[s2_size - i]));
+      bh.vars1.push_front(bh.all_vars[0]);
+      bh.vars2.push_front(bh.all_vars[0]);
+    } else if (var1) {
       bh.common_shape.push_front(shape2[s2_size - i]);
       bh.vars2.push_front(bh.all_vars[0]);
-    } else if (var2 && var2->is_any()) {
+    } else if (var2) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
     } else {

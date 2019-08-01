@@ -706,7 +706,7 @@ class Any : public ExprNode {
   void VisitAttrs(AttrVisitor* v) final {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return Variable::make(Int(32), "any_dim", true);
+    return Variable::make(Int(32), "any_dim");
   }
 
   TVM_DLL static Expr make();
