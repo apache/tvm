@@ -133,7 +133,7 @@ def _interpolation_points(degree):
     return np.array(in_pts[degree-1], dtype=np.float64)
 
 
-@memoize("topi.nn.winograd_util", save_at_exit=False)
+@memoize("topi.nn.winograd_matrices", save_at_exit=False)
 def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
     """Compute the A, B, and G transform matrices for `tile_size` as a `tvm.Expr`.
     """
