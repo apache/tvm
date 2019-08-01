@@ -22,7 +22,7 @@ from tvm.relay.op import add
 from tvm.relay.module import Module
 from tvm.relay.testing.config import ctx_list
 
-def check_result(expr, args, expected_result, mod=None):
+def check_result(args, expected_result, mod=None):
     """
     Check that evaluating `expr` applied to the arguments produces
     `result` on Relay VM.
@@ -39,10 +39,9 @@ def check_result(expr, args, expected_result, mod=None):
         The expected result of running the expression.
     """
     for target, ctx in ctx_list():
-        print("Testing {} {}\n".format(target, ctx))
         vm = relay.create_executor('vm', ctx=ctx, target=target, mod=mod)
 
-        rts_result = vm.evaluate(expr)(*args)
+        rts_result = vm.evaluate()(*args)
         tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
 
 def test_add_op_scalar():
@@ -59,7 +58,7 @@ def test_add_op_scalar():
     x_data = np.array(10.0, dtype='float32')
     y_data = np.array(1.0, dtype='float32')
     mod["main"] = func
-    check_result(func, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 def test_add_op_tensor():
     """
@@ -75,7 +74,7 @@ def test_add_op_tensor():
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(10, 5).astype('float32')
     mod["main"] = func
-    check_result(func, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 def test_add_op_broadcast():
     """
@@ -91,7 +90,7 @@ def test_add_op_broadcast():
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(1, 5).astype('float32')
     mod["main"] = func
-    check_result(func, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result([x_data, y_data], x_data + y_data, mod=mod)
 
 if __name__ == "__main__":
     test_add_op_scalar()
