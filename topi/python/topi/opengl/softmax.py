@@ -37,8 +37,9 @@ def schedule_softmax(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     softmax = outs[0]
-    max_elem = softmax.op.input_tensors[1]
-    expsum = softmax.op.input_tensors[2]
+    exp = softmax.op.input_tensors[0]
+    expsum = softmax.op.input_tensors[1]
+    maxelem = s[exp].op.input_tensors[1]
     s[max_elem].opengl()
     s[expsum].opengl()
     s[softmax].opengl()
