@@ -205,7 +205,7 @@ void CodeGenCUDA::PrintVecBinaryOp(
 
 void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, Type t, int i, std::ostream& os) {  // NOLINT(*)
-  const char access[] = {'x', 'y', 'z', 'w'};
+  static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
   os << vec << "." << access[i];
 }
@@ -213,7 +213,7 @@ void CodeGenCUDA::PrintVecElemLoad(
 void CodeGenCUDA::PrintVecElemStore(
     const std::string& vec, Type t, int i, const std::string& value) {
   this->PrintIndent();
-  const char access[] = {'x', 'y', 'z', 'w'};
+  static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
   stream << vec << "." << access[i] << " = " << value << ";\n";
 }
@@ -308,7 +308,7 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   std::string v = PrintExpr(op->value);
   os << "make_";
   PrintType(op->type, os);
-  os << "(";
+  os << '(';
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
@@ -316,6 +316,23 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   os << ')';
 }
 
+void CodeGenCUDA::VisitExpr_(const Shuffle* op, std::ostream &os) {
+  std::vector<std::string> to_shuffle(op->vectors.size());
+  for (int i = 0, e = op->vectors.size(); i < e; ++i) {
+    CHECK(op->vectors[i].type().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
+    to_shuffle[i] = PrintExpr(op->vectors[i]);
+  }
+  os << "make_";
+  PrintType(op->type, os);
+  os << '(';
+  for (int i = 0, e = op->indices.size(); i < e; ++i) {
+    const int64_t *val = as_const_int(op->indices[i]);
+    CHECK(val && *val >= 0 && (int) *val < (int) to_shuffle.size());
+    if (i != 0) os << ", ";
+    os << to_shuffle[*val];
+  }
+  os << ')';
+}
 
 inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
   switch (op->type.bits()) {
