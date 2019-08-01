@@ -262,7 +262,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
         c->lhs,
         GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
-    return Compound(e, MatchNode::make(data, clauses), v);
+    return Compound(e, MatchNode::make(data, clauses, m->complete), v);
   }
 };
 

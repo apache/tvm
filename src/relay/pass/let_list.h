@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 #include <tuple>
+#include <string>
 #include "tvm/relay/type.h"
 
 namespace tvm {
