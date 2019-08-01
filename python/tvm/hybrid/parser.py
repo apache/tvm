@@ -376,11 +376,10 @@ class HybridParser(ast.NodeVisitor):
                                      "All indices are supposed to be constants")
                     arr = arr[i.value]
             return arr
-        elif isinstance(node.ctx, ast.Load):
+        if isinstance(node.ctx, ast.Load):
             return _make.Call(arr.dtype, arr.name, args,
                               _expr.Call.Halide, arr.op, arr.value_index)
-        else:
-            return arr, args
+        return arr, args
 
     def visit_With(self, node):
         if sys.version_info[0] < 3:
