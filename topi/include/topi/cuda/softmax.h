@@ -50,8 +50,20 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   auto s = create_schedule(out_ops);
 
   auto softmax = outs[0];
-  auto max_elem = softmax->op->InputTensors()[1];
-  auto expsum = softmax->op->InputTensors()[2];
+  tvm::Tensor max_elem;
+  tvm::Tensor expsum;
+
+  auto tag = softmax->op.as<ComputeOpNode>()->tag;
+  if (tag == "softmax_output") {
+    expsum = softmax->op->InputTensors()[1];
+    tvm::Tensor exp = softmax->op->InputTensors()[0];
+    max_elem = s[exp]->op->InputTensors()[1];
+  } else if (tag == "log_softmax_output") {
+    max_elem = softmax->op->InputTensors()[1];
+    expsum = softmax->op->InputTensors()[2];
+  } else {
+    LOG(ERROR) << "Tag is expected to be softmax_output or log_softmax_output. Got " << tag;
+  }
 
   int num_thread = 64;
   auto block_x = tvm::thread_axis(Range(), "blockIdx.x");

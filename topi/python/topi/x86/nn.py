@@ -39,10 +39,20 @@ def schedule_softmax(outs):
     softmax = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
 
-    exp = softmax.op.input_tensors[0]
-    expsum = softmax.op.input_tensors[1]
-    maxelem = s[exp].op.input_tensors[1]
-    axis = int(softmax.op.attrs["axis"])
+    op_tag = softmax.op.tag
+    if op_tag == 'softmax_output':
+        exp = softmax.op.input_tensors[0]
+        expsum = softmax.op.input_tensors[1]
+        max_elem = s[exp].op.input_tensors[1]
+        axis = int(softmax.op.attrs['axis'])
+    elif op_tag == 'log_softmax_output':
+        exp = None
+        max_elem = softmax.op.input_tensors[1]
+        expsum = softmax.op.input_tensors[2]
+        axis = 1
+    else:
+        raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
+                         Got {0}'.format(op_tag))
 
     # only parallelize outer dimensions up to axis
     outer_axes = [s[softmax].op.axis[i] for i in range(0, axis)]
@@ -50,7 +60,10 @@ def schedule_softmax(outs):
     s[softmax].parallel(fused_outer_axes)
 
     # move computations with the same outer dimensions under the same root
-    s[maxelem].compute_at(s[softmax], fused_outer_axes)
-    s[exp].compute_at(s[softmax], fused_outer_axes)
+    s[max_elem].compute_at(s[softmax], fused_outer_axes)
     s[expsum].compute_at(s[softmax], fused_outer_axes)
+
+    if exp != None:
+        s[exp].compute_at(s[softmax], fused_outer_axes)
+
     return s
