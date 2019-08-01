@@ -199,6 +199,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(Not);
     IR_EXPR_FUNCTOR_DISPATCH(Select);
     IR_EXPR_FUNCTOR_DISPATCH(Ramp);
+    IR_EXPR_FUNCTOR_DISPATCH(Shuffle);
     IR_EXPR_FUNCTOR_DISPATCH(Broadcast);
     IR_EXPR_FUNCTOR_DISPATCH(IntImm);
     IR_EXPR_FUNCTOR_DISPATCH(UIntImm);

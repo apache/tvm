@@ -728,6 +728,10 @@ void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
   os << "))";
 }
 
+void CodeGenC::VisitExpr_(const Shuffle* op, std::ostream& os) {
+  LOG(FATAL) << "Shuffle: not supported ";
+}
+
 void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
