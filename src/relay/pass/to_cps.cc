@@ -195,7 +195,7 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const
           for (const auto& c : op->clauses) {
             clauses.push_back(ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs, kf)));
           }
-          return MatchNode::make(v, clauses);
+          return MatchNode::make(v, clauses, op->complete);
         });
       });
     }

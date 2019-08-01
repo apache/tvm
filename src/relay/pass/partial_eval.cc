@@ -825,7 +825,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
               clauses.push_back(ClauseNode::make(c->lhs, expr));
             }
             store_.Invalidate();
-            return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses)));
+            return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses, op->complete)));
           }
         }
         LOG(FATAL) << "No case Match";
