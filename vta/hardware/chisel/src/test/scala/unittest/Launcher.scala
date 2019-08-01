@@ -34,9 +34,9 @@ class TestConfig extends Config(new CoreConfig ++ new PynqConfig)
  * Users can utilize this Launcher to run custom tests.
  *
  * How to Use:
- * When the user input: sbt 'test:runMain unittest.Launcher gemv'
- * the TestRunner will look for 'gemv' in the map and executes the 
- * test that 'gemv' is mapped to
+ * When the user input: sbt 'test:runMain unittest.Launcher mvm'
+ * the TestRunner will look for 'mvm' in the map and executes the 
+ * test that 'mvm' is mapped to
  */
 object Launcher {
   implicit val p: Parameters = new TestConfig
@@ -52,5 +52,3 @@ object Launcher {
     TestRunner(tests, args)
   }
 }
-
-
