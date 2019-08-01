@@ -131,7 +131,9 @@ void TouchExtractor::ExitItervar_() {
   }
   itervar_stack_.pop_back();
 
-  topdown_product_ /= itervar_map[var].length;
+  int64_t length = itervar_map[var].length;
+  if (length != 0)
+      topdown_product_ /= length;
   int64_t bottomup_product = -1;
   for (auto kv : itervar_map[var].touch_feature) {
     bottomup_product = std::max(bottomup_product, kv.second.count * kv.second.reuse);
