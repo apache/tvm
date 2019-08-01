@@ -478,6 +478,10 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<Object>& args);
 
+  /*! \brief Get device context for params.
+   */
+  TVMContext GetParamsContext() const;
+
   /*! \brief The parameter name to data mapping. */
   std::unordered_map<std::string, Object> params_;
 };

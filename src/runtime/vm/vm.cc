@@ -570,10 +570,15 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
-Object CopyTo(Object src, const DLContext& ctx) {
+Object CopyTo(Object src, const DLContext& ctx, bool force=false) {
   if (src->tag == ObjectTag::kTensor) {
-    auto tensor = ToNDArray(src).CopyTo(ctx);
-    return Object::Tensor(tensor);
+    auto tensor = ToNDArray(src);
+    if (force || tensor->ctx.device_type != ctx.device_type) {
+      auto copy = tensor.CopyTo(ctx);
+      return Object::Tensor(copy);
+    } else {
+      return src;
+    }
   } else {
     return src;
   }
@@ -584,16 +589,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
-      // Use the fallback device if no device index is available.
-      int fallback_device_type = static_cast<int>(ctxs[0].device_type);
-      // TODO(wweic): For heterogeneous execution, get device information from byte
-
-      const auto& cit =
-        std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
-          return fallback_device_type == static_cast<int>(c.device_type);
-        });
-      TVMContext ctx = cit == ctxs.end() ? ctxs[0] : *cit;
-
+      auto ctx = this->GetParamsContext();
       std::vector<Object> func_args;
       for (int i = 1; i < args.size(); ++i) {
         Object obj = CopyTo(args[i], ctx);
@@ -612,7 +608,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         for (const auto& p : it->params) {
           const auto& pit = params_.find(p);
           if (pit != params_.end()) {
-            func_args.push_back(CopyTo(pit->second, ctx));
+            func_args.push_back(pit->second);
           }
         }
         CHECK_EQ(func_args.size(), it->params.size());
@@ -642,6 +638,18 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
+TVMContext VirtualMachine::GetParamsContext() const {
+  // Use the fallback device if no device index is available.
+  int fallback_device_type = static_cast<int>(ctxs[0].device_type);
+  // TODO(wweic): For heterogeneous execution, get device information from byte
+
+  const auto& cit =
+    std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
+      return fallback_device_type == static_cast<int>(c.device_type);
+    });
+  return (cit == ctxs.end() ? ctxs[0] : *cit);
+}
+
 void VirtualMachine::LoadParams(const std::string& params) {
   dmlc::MemoryStringStream mss(const_cast<std::string*>(&params));
   dmlc::Stream* strm = &mss;
@@ -658,11 +666,13 @@ void VirtualMachine::LoadParams(const std::string& params) {
   size_t size = static_cast<size_t>(sz);
   CHECK(size == names.size()) << "Invalid parameter file";
 
+  auto ctx = GetParamsContext();
   for (size_t i = 0; i < size; i++) {
     NDArray arr;
     CHECK(arr.Load(strm)) << "Invalid parameter file";
     runtime::Object obj = runtime::Object::Tensor(arr);
-    params_.emplace(std::make_pair(names[i], obj));
+    auto copy = CopyTo(obj, ctx);
+    params_.emplace(std::make_pair(names[i], copy));
   }
 }
 
