@@ -84,6 +84,8 @@ def test_ewise():
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
     test_apply(topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True)
+    test_apply(topi.cos, "cos", np.cos, -2.0*np.pi, 2.0*np.pi)
+    test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
 
 
 def test_cast():

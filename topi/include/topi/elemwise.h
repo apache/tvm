@@ -54,6 +54,8 @@ TOPI_DECLARE_UNARY_OP(ceil);
 TOPI_DECLARE_UNARY_OP(round);
 TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
+TOPI_DECLARE_UNARY_OP(cos);
+TOPI_DECLARE_UNARY_OP(sin);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen
