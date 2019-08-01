@@ -417,7 +417,7 @@ class HybridParser(ast.NodeVisitor):
         return _make.IfThenElse(cond, if_body, else_body)
 
 
-    def visit_IfEsp(self, node):
+    def visit_IfExp(self, node):
         cond = self.visit(node.test)
         if_body = self.visit(node.body)
         else_body = self.visit(node.orelse)
