@@ -553,7 +553,7 @@ class Device {
           src_index += y * op->src_factor_out + x * op->src_factor_in;
           BitPacker<VTA_ACC_WIDTH> dst(acc_.BeginPtr(dst_index));
           BitPacker<VTA_ACC_WIDTH> src(acc_.BeginPtr(src_index));
-          for (int k = 0; k < VTA_BLOCK_OUT; ++k) {
+          for (int k = 0; k < VTA_BATCH * VTA_BLOCK_OUT; ++k) {
             if (use_imm) {
               dst.SetSigned(k, func(dst.GetSigned(k), op->imm));
             } else {

@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name
 """
-The Relay Virtual Vachine.
+The Relay Virtual Machine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
 import numpy as np
 
 import tvm
+from tvm._ffi.runtime_ctypes import TVMByteArray
 from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
@@ -71,6 +72,7 @@ class VirtualMachine(object):
     def __init__(self, mod):
         self.mod = mod
         self._init = self.mod["init"]
+        self._load_params = self.mod["load_params"]
         self._invoke = self.mod["invoke"]
 
     def init(self, ctx):
@@ -83,6 +85,23 @@ class VirtualMachine(object):
         """
         args = [ctx.device_type, ctx.device_id]
         self._init(*args)
+
+    def load_params(self, params):
+        """Load parameters for the VM.
+
+        Parameters
+        ----------
+        params : Union[bytearray, Dict]
+            The dictionary that contains serialized parameters.
+        """
+        if isinstance(params, dict):
+            params = tvm.relay.save_param_dict(params)
+        elif isinstance(params, (bytes, str)):
+            params = bytearray(params)
+        if not isinstance(params, (bytearray, TVMByteArray)):
+            raise TypeError("params must be a bytearray")
+
+        self._load_params(bytearray(params))
 
     def invoke(self, func_name, *args):
         """Invoke a function.
@@ -117,6 +136,11 @@ class VirtualMachine(object):
             The output.
         """
         return self.invoke("main", *args)
+
+    @property
+    def module(self):
+        """Return the runtime module contained in a virtual machine."""
+        return self.mod
 
 
 class VMCompiler(object):

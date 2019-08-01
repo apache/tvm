@@ -55,7 +55,7 @@ def schedule_conv2d_nchw(outs):
             if OP not in s.outputs:
                 s[OP].opengl()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule conv2d_nchw
         elif OP.tag.startswith('conv2d_nchw'):

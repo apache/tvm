@@ -327,7 +327,7 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'spatial_bitserial_conv_nhwc' in op.tag:

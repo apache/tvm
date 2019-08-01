@@ -49,7 +49,7 @@ def traverse_inline(s, final_op, callback):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     _traverse(tensor.op)
         callback(op)
 

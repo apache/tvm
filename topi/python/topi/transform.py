@@ -496,3 +496,25 @@ def ndarray_size(array, dtype="int32"):
         The resulting tensor.
     """
     return cpp.ndarray_size(array, dtype)
+
+
+def where(condition, x, y):
+    """Get the elements, either from x or y, depending on the condition.
+
+    Parameters
+    ----------
+    condition : tvm.Tensor
+        The condition array.
+
+    x : tvm.Tensor
+        First array to be selected.
+
+    y : tvm.Tensor
+        Second array to be selected.
+
+    Returns
+    -------
+    result : tvm.Tensor
+        A Tensor selected from x or y depending on condition.
+    """
+    return cpp.where(condition, x, y)

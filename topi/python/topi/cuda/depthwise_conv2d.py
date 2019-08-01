@@ -198,7 +198,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
         if OP.tag == 'depthwise_conv2d_nhwc':
