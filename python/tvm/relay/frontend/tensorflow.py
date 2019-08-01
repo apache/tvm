@@ -1301,6 +1301,13 @@ def _prod():
         return _op.prod(inputs[0], int(axis), keepdims=keepdims)
     return _impl
 
+def _log1p():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/log1p
+    def _impl(inputs, attr, params):
+        one = tvm.relay.const(1, attr['T'].name)
+        add_out = _get_relay_op('add')(inputs[0], one)
+        return _get_relay_op('log')(add_out)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1354,6 +1361,9 @@ _convert_map = {
     'Less'                              : _broadcast('less'),
     'LessEqual'                         : _broadcast('less_equal'),
     'Log'                               : AttrCvt('log'),
+    'Log1p'                             : _log1p(),
+    'Cos'                               : AttrCvt('cos'),
+    'Sin'                               : AttrCvt('sin'),
     'LogicalAnd'                        : _logical('logical_and'),
     'LogicalOr'                         : _logical('logical_or'),
     'LogicalNot'                        : _logical('logical_not'),

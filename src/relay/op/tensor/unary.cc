@@ -53,6 +53,28 @@ RELAY_REGISTER_UNARY_OP("log")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::log));
 
 
+RELAY_REGISTER_UNARY_OP("cos")
+.describe(R"code(Returns the cos of input array, computed element-wise.
+
+.. math::
+   Y = cos(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::cos));
+
+
+RELAY_REGISTER_UNARY_OP("sin")
+.describe(R"code(Returns the sin of input array, computed element-wise.
+
+.. math::
+   Y = sin(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sin));
+
+
 RELAY_REGISTER_UNARY_OP("exp")
 .describe(R"code(Returns the exp input array, computed element-wise.
 

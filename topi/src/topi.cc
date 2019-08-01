@@ -148,6 +148,16 @@ TVM_REGISTER_GLOBAL("topi.exp")
   *rv = exp(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.cos")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = cos(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.sin")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = sin(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
