@@ -517,7 +517,8 @@ TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(rsqrt);
 TVM_DECLARE_INTRIN_UNARY(log);
 TVM_DECLARE_INTRIN_UNARY(popcount);
-
+TVM_DECLARE_INTRIN_UNARY(cos);
+TVM_DECLARE_INTRIN_UNARY(sin);
 
 // Implementation details after this
 inline bool is_const(const Expr& x) {
