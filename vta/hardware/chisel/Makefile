@@ -112,7 +112,9 @@ $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v:
 	sbt 'runMain vta.$(config_test) --target-dir $(chisel_build_dir) --top-name $(TOP_TEST).$(CONFIG)'
 
 clean:
-	-rm -rf target project/target project/project
+	rm -rf target project/target project/project
 
 cleanall:
-	-rm -rf $(vta_dir)/$(BUILD_NAME)
+	rm -rf $(vta_dir)/$(BUILD_NAME)/verilator
+	rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.so
+	rm -rf $(vta_dir)/$(BUILD_NAME)/chisel

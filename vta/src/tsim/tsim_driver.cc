@@ -22,10 +22,6 @@
 #include <vta/driver.h>
 #include <vta/dpi/module.h>
 
-#ifndef VTA_TSIM_USE_VIRTUAL_MEMORY
-#define VTA_TSIM_USE_VIRTUAL_MEMORY (1)
-#endif  // VTA_TSIM_USE_VIRTUAL_MEMORY
-
 #if VTA_TSIM_USE_VIRTUAL_MEMORY
 #include "virtual_memory.h"
 #endif
@@ -237,11 +233,19 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+  vmemcpy(dst, src, size, kVirtualMemCopyFromHost);
+#else
   memcpy(dst, src, size);
+#endif
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+  vmemcpy(dst, src, size, kVirtualMemCopyToHost);
+#else
   memcpy(dst, src, size);
+#endif
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {

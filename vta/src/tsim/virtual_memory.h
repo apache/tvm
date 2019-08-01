@@ -28,6 +28,13 @@
 
 #include <cstdint>
 
+enum VMemCopyType {
+ kVirtualMemCopyFromHost = 0,
+ kVirtualMemCopyToHost = 1
+};
+
+#define VTA_VMEM_PAGEFILE "/tmp/vta_tsim_vmem_pagefile.sys"
+
 /*!
  * \brief Virtual memory based memory allocation
  */
@@ -37,5 +44,15 @@ void * vmalloc(uint64_t size);
  * \brief Virtual memory based memory release
  */
 void vfree(void * ptr);
+
+/*!
+ * \brief Directed virtual memory based memory copy
+ */
+void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
+
+/*!
+ * \brief Map logical address from virtual address
+ */
+void * vmem_get_log_addr(uint64_t vaddr);
 
 #endif /* VTA_TSIM_VIRTUAL_MEMORY_H_ */

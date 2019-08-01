@@ -33,6 +33,11 @@
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <fstream>
+
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+#include "../tsim/virtual_memory.h"
+#endif
 
 namespace vta {
 namespace dpi {
@@ -179,12 +184,45 @@ void HostDevice::WaitPopResponse(HostResponse* r) {
 
 void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   std::lock_guard<std::mutex> lock(mutex_);
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+  // get logical address
+  uint64_t laddr = 0;
+  {
+    std::ifstream in(VTA_VMEM_PAGEFILE, std::ifstream::ate | std::ifstream::binary);
+    size_t size = in.tellg();
+    FILE * fin = fopen(VTA_VMEM_PAGEFILE, "rb");
+    CHECK(fin);
+    if (fin) {
+      uint64_t * tlb = (uint64_t*)malloc(size);
+      fread(tlb, size, 1, fin);
+      uint32_t cnt = size / (sizeof(uint64_t) * 3);
+      for (uint32_t i = 0; i < cnt; i++) {
+        if ((addr >= tlb[i * 3]) && (addr < tlb[i * 3 + 1])) {
+          uint32_t offset = addr - tlb[i * 3];
+          laddr = tlb[i * 3 + 2] + offset;
+          break;
+        }
+      }
+      free(tlb);
+      fclose(fin);
+      CHECK(laddr != 0);
+    }
+  }
+#endif
   if (opcode == 1) {
     wlen_ = len + 1;
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+    waddr_ = reinterpret_cast<uint64_t*>(laddr);
+#else
     waddr_ = reinterpret_cast<uint64_t*>(addr);
+#endif
   } else {
     rlen_ = len + 1;
+#if VTA_TSIM_USE_VIRTUAL_MEMORY
+    raddr_ = reinterpret_cast<uint64_t*>(laddr);
+#else
     raddr_ = reinterpret_cast<uint64_t*>(addr);
+#endif
   }
 }
 
