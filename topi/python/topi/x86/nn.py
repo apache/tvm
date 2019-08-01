@@ -35,8 +35,9 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     softmax = outs[0]
-    s = tvm.create_schedule([softmax.op for softmax in outs])
+    s = tvm.create_schedule([x.op for x in outs])
 
     exp = softmax.op.input_tensors[0]
     expsum = softmax.op.input_tensors[1]
