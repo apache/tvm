@@ -202,9 +202,9 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.contrib.adaptive_avg_pool2d
 
 
-**Level 11: QNN Dialect Operators**
+**Level 11: Dialect Operators**
 
-This level supports quantized operators present in the QNN dialect.
+This level supports dialect operators.
 
 .. autosummary::
    :nosignatures:
