@@ -306,6 +306,12 @@ def test_double():
     assert alpha_equal(res.body, make_nat_expr(p, 6))
 
 
+def test_concat():
+    t = relay.TensorType([10], "float32")
+    x = Var("x", t)
+    y = Var("x", t)
+    res = dcpe(Function([x, y], op.concatenate([x, y], axis=0)))
+
 if __name__ == '__main__':
     test_ref()
     test_tuple()
@@ -323,3 +329,4 @@ if __name__ == '__main__':
     test_nat_id()
     test_global_match_nat_id()
     test_match_nat_id()
+    test_concat()
