@@ -367,7 +367,7 @@ def _extract_knob_feature_index(index):
     try:
         config = _extract_space.get(index)
         return config.get_flatten_feature()
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return None
 
 def _extract_knob_feature_log(arg):
