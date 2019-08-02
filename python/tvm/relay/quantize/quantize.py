@@ -32,6 +32,7 @@ from ..base import NodeBase, register_relay_node
 class QAnnotateKind(object):
     """Denote the kind of annotation field, corresponding
     to different nbit configure."""
+    IDENTITY = 0
     INPUT = 1
     WEIGHT = 2
     ACTIVATION = 3
@@ -43,6 +44,7 @@ def kind2str(kind):
         QAnnotateKind.INPUT: "input",
         QAnnotateKind.WEIGHT: "weight",
         QAnnotateKind.ACTIVATION: "activation",
+        QAnnotateKind.IDENTITY: "identity"
     }
     assert kind in str_map
     return str_map[kind]
@@ -195,7 +197,26 @@ def annotate_context():
     return AnnotateContext.Current
 
 
-def calibrate(graph, mod=None, ctx=None):
+def collect_stats(graph):
+    """Given an annotated graph, create a profile graph to collect profile data from the
+    calibration dataset. This pass collects simulated_quantize op input into a tuple.
+    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
+    graph.
+
+    Parameters
+    ----------
+    graph: Function
+        The simulation graph after annotation.
+
+    Returns
+    -------
+    ret: Function
+        The profile graph which outputs a tuple of profile data.
+    """
+    return _quantize.CollectStats(graph)
+
+
+def calibrate(graph, mod=None, ctx=None, weight_scales='power2', scales=None):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
     operator.
@@ -211,6 +232,16 @@ def calibrate(graph, mod=None, ctx=None):
     ctx: tvm.relay.PassContext
         The pass context used for calibration.
 
+    weight_scales: 'power2' or 'max'.
+        The way to calculate scales for weights (annotated with QAnnotateKind.WEIGHT).
+        power2: Find the maximum of the absolute value of the tensor, and then round up to power
+        of two.
+        max: Find the maximum of the absolute value of the tensor.
+
+    scales: List[float]
+        Pre-calculated scales for input and activations. Length and the order of elements of the
+        scales list should match the output tuple of the profile graph created by collect_stats.
+
     Returns
     -------
     ret: Function
@@ -221,12 +252,20 @@ def calibrate(graph, mod=None, ctx=None):
         val = np.amax(np.abs(arr.asnumpy()))
         return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
+    def max_scale(arr):
+        """calculate weight scale with maximum absolute value"""
+        val = np.amax(np.abs(arr.asnumpy()))
+        return val
+
+    scale_idx = 0
+
     cfg = current_qconfig()
     const_params = {}
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
 
     def visit_func(expr):
         """Internal visit function"""
+        nonlocal scale_idx
         if isinstance(expr, _expr.Call) and expr.op == quantize_op:
             _, ndom_scale, nclip_min, nclip_max = expr.args
             attrs = expr.attrs
@@ -234,11 +273,21 @@ def calibrate(graph, mod=None, ctx=None):
             nbit = cfg.get_nbit_by_kind(kind)
 
             valid_bit = nbit - attrs.sign
-
-            if kind == QAnnotateKind.WEIGHT:
+            if kind in [QAnnotateKind.WEIGHT]:
+                if all([isinstance(arg, _expr.Constant)
+                        for arg in [ndom_scale, nclip_min, nclip_max]]):
+                    return
                 var = expr.args[0]
                 assert isinstance(var, _expr.Constant)
-                scale = power2_scale(var.data)
+                if weight_scales == 'max':
+                    scale = max_scale(var.data)
+                elif weight_scales == 'power2':
+                    scale = power2_scale(var.data)
+                else:
+                    raise ValueError('{} not supported'.format(weight_scales))
+            elif scales is not None:
+                scale = scales[scale_idx]
+                scale_idx += 1
             else:
                 scale = cfg.global_scale
 
