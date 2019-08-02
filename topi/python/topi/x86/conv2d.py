@@ -27,9 +27,8 @@ from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple, get_shape
-from ..nn.conv2d import conv2d, conv2d_NCHWc
-from ..nn.conv2d import conv2d_alter_layout, conv2d_infer_layout, conv2d_rewrite_op
-from ..nn.conv2d import _get_workload as _get_conv2d_workload
+from ..nn.conv2d import conv2d, conv2d_NCHWc, \
+    conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
@@ -38,7 +37,7 @@ from . import conv2d_avx_1x1, conv2d_avx_common
 
 logger = logging.getLogger('topi')
 
-def _is_int8_hw_support(data_dtype, kernel_dtype, target, ignore_dtype=False):
+def _is_int8_hw_support(data_dtype, kernel_dtype, target):
     """
     Checks to ensure that we can use Intel DLBoost instructions
     1) The datatypes are correct.
@@ -59,8 +58,6 @@ def _is_int8_hw_support(data_dtype, kernel_dtype, target, ignore_dtype=False):
         if opt == '-mcpu=skylake-avx512':
             is_target_support = True
 
-    if ignore_dtype:
-        return is_llvm_support and is_target_support
     return is_dtype_support and is_llvm_support and is_target_support
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False,
@@ -411,54 +408,6 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
                                 data_layout, out_layout, dtype)
     s = _schedule_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
-
-@conv2d_rewrite_op.register("cpu")
-def _conv2d_rewrite_op(attrs, inputs, arg_types, F):
-    if F.__name__ != 'tvm.relay.op':
-        return None
-    data_type, kernel_type = arg_types[0], arg_types[1]
-    target = tvm.target.current_target()
-    data_layout = attrs['data_layout']
-    kernel_layout = attrs['kernel_layout']
-    # Uncomment when this bug is resolved
-    # https://discuss.tvm.ai/t/segfault-in-llvm/3567
-    # if not ((data_layout == 'NCHW' and kernel_layout == 'OIHW')
-    #         or (data_layout == 'NHWC' and kernel_layout == 'HWIO')):
-    #     return None
-    if not (data_layout == 'NCHW' and kernel_layout == 'OIHW'):
-        return None
-
-    if not (data_type.dtype == 'int8' and kernel_type.dtype == 'int8'):
-        return  None
-
-    if not _is_int8_hw_support(data_type.dtype, kernel_type.dtype,
-                               target,
-                               ignore_dtype=True):
-        return None
-
-    # Convert i8 x i8 to u8 x i8
-    # Intel has fast instructions for u8 x i8 conv. For i8 x i8 conv, we can
-    # convert the i8 tensor to u8 by adding 128 and use u8 x i8 conv. Since 128
-    # has been added, the output now has to be adjusted.
-    out_channel = attrs["channels"]
-    data_expr, kernel_expr = inputs
-    data_expr = F.cast(data_expr, "int32")
-    data_expr = F.add(data_expr, F.const(128, "int32"))
-    data_expr = F.clip(data_expr, a_min=0, a_max=255)
-    data_expr = F.cast(data_expr, "uint8")
-    conv = F.nn.conv2d(data_expr, kernel_expr, **attrs)
-    bias_adjust = F.cast(kernel_expr, "int32")
-    if kernel_layout == 'OIHW' and data_layout == 'NCHW':
-        bias_adjust = F.sum(bias_adjust, axis=(1, 2, 3))
-        bias_adjust = F.reshape(bias_adjust,
-                                newshape=(1, out_channel, 1, 1))
-    elif kernel_layout == 'HWIO' and data_layout == 'NHWC':
-        bias_adjust = F.sum(bias_adjust, axis=(0, 1, 2))
-        bias_adjust = F.reshape(bias_adjust,
-                                newshape=(1, 1, 1, out_channel))
-    bias_adjust = F.cast(bias_adjust, 'int32')
-    bias_adjust = F.multiply(bias_adjust, F.const(128, 'int32'))
-    return F.subtract(conv, bias_adjust)
 
 
 @conv2d_alter_layout.register("cpu")
