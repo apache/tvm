@@ -254,6 +254,11 @@ bool ConcatenateRel(const Array<Type>& types,
     if (e_dtype != dtype) {
       throw relay::Error("relay.concatenate requires all tensors have the same dtype");
     }
+    for (int j = 0; j < first->shape.size(); ++j ) {
+      if (j == param->axis) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw relay::Error("relay.concatenate requires all tensors have the same shape on non-concatenating axes");
+    }
   }
   // Sanity check: axis
   int axis = param->axis;
