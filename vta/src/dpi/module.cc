@@ -35,9 +35,7 @@
 #include <condition_variable>
 #include <fstream>
 
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
 #include "../tsim/virtual_memory.h"
-#endif
 
 namespace vta {
 namespace dpi {
@@ -184,7 +182,7 @@ void HostDevice::WaitPopResponse(HostResponse* r) {
 
 void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   std::lock_guard<std::mutex> lock(mutex_);
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
+
   // get logical address
   uint64_t laddr = 0;
   {
@@ -208,21 +206,13 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
       CHECK_NE(laddr, 0);
     }
   }
-#endif
+
   if (opcode == 1) {
     wlen_ = len + 1;
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
     waddr_ = reinterpret_cast<uint64_t*>(laddr);
-#else
-    waddr_ = reinterpret_cast<uint64_t*>(addr);
-#endif
   } else {
     rlen_ = len + 1;
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
     raddr_ = reinterpret_cast<uint64_t*>(laddr);
-#else
-    raddr_ = reinterpret_cast<uint64_t*>(addr);
-#endif
   }
 }
 

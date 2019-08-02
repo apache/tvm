@@ -22,9 +22,7 @@
 #include <vta/driver.h>
 #include <vta/dpi/module.h>
 
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
 #include "virtual_memory.h"
-#endif
 
 namespace vta {
 namespace tsim {
@@ -212,20 +210,12 @@ TVM_REGISTER_GLOBAL("vta.tsim.profiler_status")
 }  // namespace vta
 
 void* VTAMemAlloc(size_t size, int cached) {
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
   void *p = vmalloc(size);
-#else
-  void *p = malloc(size);
-#endif
   return p;
 }
 
 void VTAMemFree(void* buf) {
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
   vfree(buf);
-#else
-  free(buf);
-#endif
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
@@ -233,19 +223,11 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
   vmemcpy(dst, src, size, kVirtualMemCopyFromHost);
-#else
-  memcpy(dst, src, size);
-#endif
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
-#if VTA_TSIM_USE_VIRTUAL_MEMORY
   vmemcpy(dst, src, size, kVirtualMemCopyToHost);
-#else
-  memcpy(dst, src, size);
-#endif
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {

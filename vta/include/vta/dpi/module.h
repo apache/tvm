@@ -26,10 +26,6 @@
 #include <condition_variable>
 #include <string>
 
-#ifndef VTA_TSIM_USE_VIRTUAL_MEMORY
-#define VTA_TSIM_USE_VIRTUAL_MEMORY (1)
-#endif  // VTA_TSIM_USE_VIRTUAL_MEMORY
-
 namespace vta {
 namespace dpi {
 
