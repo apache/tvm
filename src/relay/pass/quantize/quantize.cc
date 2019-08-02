@@ -36,8 +36,8 @@
 #include <vector>
 #include <stack>
 #include <utility>
-#include "pattern_util.h"
-#include "quantize.h"
+#include "../pattern_util.h"
+#include "./quantize.h"
 
 
 namespace tvm {
@@ -45,22 +45,6 @@ namespace relay {
 namespace quantize {
 
 using namespace relay::transform;
-
-/*! \brief Attribute for simulated quantize operator */
-struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
-  int kind;
-  bool sign;
-  std::string rounding;
-
-  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
-    TVM_ATTR_FIELD(kind)
-        .describe("kind of field, hint for nbit/dtype configuration.");
-    TVM_ATTR_FIELD(sign).set_default(true)
-        .describe("whether to use signed data type.");
-    TVM_ATTR_FIELD(rounding).set_default("round")
-        .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
-  }
-};
 
 TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
 
@@ -166,23 +150,22 @@ inline Expr ForwardOp(const Call& ref_call, const Array<Expr>& args) {
 
 
 /* calculate `data * s1 / s2`, use shift if possible */
-inline Expr MulAndDiv(Expr data, float s1, float s2) {
+inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype) {
   // here we assume the dtype of data is dtype activation
-  const QConfig& cfg = QConfig::Current();
   if (s1 == s2) return data;
 
   float factor = s1 / s2;
   float shift_factor = std::log2(factor);
   CHECK_GT(shift_factor, 0);
   if (static_cast<int>(shift_factor) == shift_factor) {
-    return LeftShift(data, MakeConstantScalar(cfg->dtype_activation,
+    return LeftShift(data, MakeConstantScalar(dtype,
                                               static_cast<int>(shift_factor)));
   } else if (static_cast<int>(factor) == factor) {
-    return Multiply(data, MakeConstantScalar(cfg->dtype_activation, factor));
+    return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
-    LOG(FATAL) << "fall back to float computation";
     data = Cast(data, Float(32));
-    return Multiply(data, MakeConstantScalar(Float(32), factor));
+    data = Multiply(data, MakeConstantScalar(Float(32), factor));
+    return Cast(Round(data), dtype);
   }
 }
 
@@ -216,15 +199,21 @@ Expr QuantizeRealize(const Call& ref_call,
     }
 
     float shift_nbit = std::log2(odom_scale_imm / idom_scale_imm);
-    CHECK_GT(shift_nbit, 0);
+    CHECK_NE(shift_nbit, 0);
     if (static_cast<int>(shift_nbit) == shift_nbit) {
-      // use right shift
-      if (cfg->round_for_shift) {
-        float round_bias = std::pow(2.0, shift_nbit - 1);
-        data = Add(data, MakeConstantScalar(cfg->dtype_activation, static_cast<int>(round_bias)));
+      if (shift_nbit > 0) {
+        // use right shift
+        if (cfg->round_for_shift) {
+          float round_bias = std::pow(2.0, shift_nbit - 1);
+          data = Add(data, MakeConstantScalar(cfg->dtype_activation,
+                                              static_cast<int>(round_bias)));
+        }
+        data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,
+                                                   static_cast<int>(shift_nbit)));
+      } else {
+        data = LeftShift(data, MakeConstantScalar(cfg->dtype_activation,
+                                                  static_cast<int>(shift_nbit)));
       }
-      data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,
-                                                 static_cast<int>(shift_nbit)));
       data = Clip(data, clip_min_imm, clip_max_imm);
       return QRealizeIntExprNode::make(data, dom_scale, n->dtype);
     } else {
@@ -338,15 +327,11 @@ Expr MulRealize(const Call& ref_call,
     Expr rdata = rhs->data;
 
     DataType dtype = cfg->dtype_activation;
-    if (lhs->dtype == Float(32)) {
+    if (lhs->dtype != dtype) {
       ldata = Cast(ldata, dtype);
-    } else {
-      CHECK_EQ(lhs->dtype, dtype);
     }
-    if (rhs->dtype == Float(32)) {
+    if (rhs->dtype != dtype) {
       rdata = Cast(rdata, dtype);
-    } else {
-      CHECK_EQ(rhs->dtype, dtype);
     }
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
@@ -418,7 +403,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   Expr dom_scale = MakeConstantScalar(Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-    ret.Set(i, MulAndDiv(ret[i], cur_s, s));
+    ret.Set(i, MulAndDiv(ret[i], cur_s, s, dtype));
   }
 
   *dtype_ptr = dtype;

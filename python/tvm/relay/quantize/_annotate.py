@@ -39,6 +39,9 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 
     data, scale, clip_min, clip_max = inputs
 
+    if attrs.kind == QAnnotateKind.IDENTITY:
+        return [topi.identity(data)]
+
     # simulate rounding error
     scaled_data = topi.divide(data, scale)
     clipped_data = topi.maximum(topi.minimum(scaled_data, clip_max), clip_min)
@@ -52,7 +55,7 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 _reg.register_schedule("relay.op.annotation.simulated_quantize",
                        _reg.schedule_injective)
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
-                      _reg.OpPattern.OPAQUE)
+                      _reg.OpPattern.ELEMWISE)
 
 
 @register_relay_node
@@ -251,7 +254,7 @@ def add_rewrite(ref_call, new_args, ctx):
 
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
-        assert rhs_kind == QAnnotateKind.INPUT
+        assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.INPUT)
@@ -275,7 +278,8 @@ def add_rewrite(ref_call, new_args, ctx):
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
-        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT:
+        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or \
+            (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
     raise ValueError()
