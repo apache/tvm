@@ -18,13 +18,12 @@
 VTA in Chisel 
 ===================================================
 For contributors who wants to test a chisel module:\
-    You can add your test files in  `src/test/scala/unitttest`\
-    Add your test name and tests to the `test` object in `src/test/scala/unitttest/Launcher.scala`\
-    Check out the provided sample test `mvm` which tests the MatrixVectorComputation module\
+    - You can add your test files in  `src/test/scala/unitttest`\
+    - Add your test name and tests to the `test` object in `src/test/scala/unitttest/Launcher.scala`\
+    - Check out the provided sample test `mvm` which tests the MatrixVectorComputation module\
     in `src/main/scala/core/TensorGemm.scala`\
 
-Running unit tests:\
-    `make test test_name=your_own test_name`
+Running unit tests: `make test test_name=your_own test_name`
 	
 
 
