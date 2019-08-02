@@ -72,8 +72,8 @@ def is_boundary_node(node_entry, input_names):
     """
     # Operators dependent on original layouts.
     _LAYOUT_FIXED_OP = ["batch_flatten", "transpose", "reshape",
-                       "multibox_prior", "multibox_transform_loc", "where",
-                       "non_max_suppression", "strided_slice"]
+                        "multibox_prior", "multibox_transform_loc", "where",
+                        "non_max_suppression", "strided_slice"]
 
     out = node_entry["op"] in _LAYOUT_FIXED_OP or \
           ("name" in node_entry and node_entry["name"] in input_names)
