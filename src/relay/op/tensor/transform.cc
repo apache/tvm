@@ -394,6 +394,11 @@ bool StackRel(const Array<Type>& types,
     const DataType& e_dtype = e->dtype;
     CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
+    for (int j = 0; j < first->shape.size(); ++j ) {
+      if (j == int(param->axis)) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw relay::Error("relay.stack requires all tensors have the same shape on non-stacking axes");
+    }
   }
   // Sanity check: axis
   int axis = param->axis;
