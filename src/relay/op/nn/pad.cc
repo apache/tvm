@@ -102,14 +102,21 @@ Array<Tensor> PadCompute(const Attrs& attrs,
   }
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
-                                  tvm::make_const(out_ttype->dtype, param->pad_value)) };
+                                  tvm::make_const(out_ttype->dtype, param->pad_value),
+                                  "T_pad",
+                                  topi::kElementWise,
+                                  param->pad_mode) };
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
+Expr MakePad(Expr data,
+             Array<Array<IndexExpr> > pad_width,
+             double pad_value,
+             std::string pad_mode) {
   auto attrs = make_node<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
+  attrs->pad_mode = std::move(pad_mode);
   static const Op& op = Op::Get("nn.pad");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
