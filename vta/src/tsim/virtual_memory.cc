@@ -53,19 +53,20 @@ class VirtualMemoryManager {
     size_t laddr = reinterpret_cast<size_t>(ptr);
     // search for available virtual memory space
     uint64_t vaddr = kVirtualMemoryOffset;
-    auto it = page_table_.begin();
-    if (((*it).first - kVirtualMemoryOffset) < size) {
-      it++;
-      for (; it != page_table_.end(); it++) {
+    auto it = page_table_.end();
+    if (page_table_.size() > 0) {
+      for (it = page_table_.begin(); it != page_table_.end(); it++) {
+        if (it == page_table_.begin()) { continue; }
         if (((*it).first - (*std::prev(it)).second) > size) {
-          vaddr = (*std::prev(it)).second;
+          vaddr = (*it).second;
+          break;
         }
       }
       if (it == page_table_.end()) {
         vaddr = (*std::prev(it)).second;
       }
     }
-    page_table_.push_back(std::make_pair(vaddr, vaddr + size));
+    page_table_.insert(it, std::make_pair(vaddr, vaddr + size));
     tlb_[vaddr] = laddr;
     // save tlb to file in order to be accessed externally.
     FILE * fout = fopen(VTA_VMEM_PAGEFILE, "wb");
@@ -173,7 +174,6 @@ void vfree(void * ptr) {
 
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
   auto * mgr = vta::tsim::VirtualMemoryManager::Global();
-  CHECK_NE(mgr, 0);
   if (kVirtualMemCopyFromHost == dir) {
     mgr->MemCopyFromHost(dst, src, size);
   } else {

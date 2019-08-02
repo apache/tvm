@@ -38,6 +38,7 @@ TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
 VTA_LIBNAME = libvta_hw
+DEBUG = 0
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
@@ -56,7 +57,11 @@ verilator_opt += --top-module ${TOP_TEST}
 verilator_opt += -Mdir ${verilator_build_dir}
 verilator_opt += -I$(chisel_build_dir)
 
-cxx_flags = -O2 -Wall -fPIC -shared
+ifeq ($(DEBUG), 1)
+  cxx_flags = -O0 -g -Wall -fPIC -shared
+else
+  cxx_flags = -O2 -Wall -fPIC -shared
+endif
 cxx_flags += -fvisibility=hidden -std=c++11
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
