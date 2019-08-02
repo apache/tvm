@@ -130,7 +130,7 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise tvm.error.OpAttributeUnimplemented(
+                raise tvm.error.OpAttributeUnImplemented(
                     'Attribute {} in operator {} is not supported.'.format(k, op_name))
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
@@ -517,7 +517,7 @@ def _crop_and_resize():
         attrs['size'] = crop_size
         attrs['layout'] = 'NHWC'
         if method.lower() == 'nearest':
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Attribute method=nearest is not supported')
         else:
             attrs['align_corners'] = True

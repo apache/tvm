@@ -242,7 +242,7 @@ def _convert_convolution(inexpr, keras_layer, etab):
     else:
         msg = 'Padding with {} is not supported for operator Convolution ' \
               'in frontend Keras.'
-        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
+        raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
     if is_deconv:
         out = _op.nn.conv2d_transpose(data=inexpr, **params)
     else:
@@ -290,7 +290,7 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
     else:
         msg = 'Padding with {} is not supported for operator Separable ' \
               'Convolution in frontend Keras.'
-        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
+        raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
 
     depthconv = _op.nn.conv2d(data=inexpr, **params0)
     # pointwise conv

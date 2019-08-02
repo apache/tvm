@@ -207,7 +207,7 @@ def _PoolingLayerParams(op, inexpr, etab):
         else:
             msg = 'PoolingPaddingType {} is not supported in operator Pooling.'
             op_name = op.WhichOneof('PoolingPaddingType')
-            raise tvm.error.OpAttributeUnimplemented(msg.format(op_name))
+            raise tvm.error.OpAttributeUnImplemented(msg.format(op_name))
 
         # consume padding layer
         if etab.in_padding:
@@ -280,7 +280,7 @@ def _PaddingLayerParams(op, inexpr, etab):
     if op.WhichOneof('PaddingType') == 'constant':
         constant = op.constant
         if constant.value != 0:
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 '{} is not supported in operator Padding.'.format(constant.value))
         padding = [b.startEdgeSize for b in op.paddingAmounts.borderAmounts]
         padding2 = [b.endEdgeSize for b in op.paddingAmounts.borderAmounts]
