@@ -170,21 +170,21 @@ def register_alter_op_layout(op_name, alter_layout=None, level=10):
     return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
 
 
-def register_legalize(op_name, rewrite_op=None, level=10):
-    """Register alter op layout function for an op
+def register_legalize(op_name, legal_op=None, level=10):
+    """Register legal transformation function for an op
 
     Parameters
     ----------
     op_name : str
         The name of the operator
 
-    rewrite_op: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
+    legal_op: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
         The function for transforming an expr to another expr.
 
     level : int
         The priority level
     """
-    return register(op_name, "FTVMLegalize", rewrite_op, level)
+    return register(op_name, "FTVMLegalize", legal_op, level)
 
 
 def register_pattern(op_name, pattern, level=10):
