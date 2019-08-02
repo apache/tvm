@@ -143,7 +143,7 @@ def _mx_conv2d(inputs, attrs):
 
 def _mx_conv2d_transpose(inputs, attrs):
     if "target_shape" in attrs.attrs:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -222,7 +222,7 @@ def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
 
 def _mx_batch_norm(inputs, attrs):
     if attrs.get_bool("output_mean_var", False):
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "output_mean_var" is not supported for operator Batch Norm.')
     if attrs.get_bool("use_global_stats", False):
         _warn_not_used("use_global_stats", "batch_norm")

@@ -683,7 +683,7 @@ class OperatorConverter(object):
                                                           (pad_left, pad_right),
                                                           (0, 0)))
         else:
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Padding format {} is not supported for operator Conv.'.format(padding))
 
         out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
@@ -786,7 +786,7 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, filter_w, stride_w)
             params['padding'] = [pad_top, pad_left, pad_bottom, pad_right]
         else:
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Padding format {} for operator Pool2D is not supported.'.format(padding))
 
         if pool_type == "average":
