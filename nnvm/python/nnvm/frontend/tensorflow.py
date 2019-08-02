@@ -84,7 +84,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Non-2D kernels are not supported for operator {}.'.format(prefix))
     return _impl
 
@@ -177,7 +177,7 @@ def _pooling(name):
             attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             msg = 'Value {} in attribute "padding" of operator Pooling is not valid.'
-            raise tvm.error.OpAttributeUnimplemented(msg.format(attr['padding']))
+            raise tvm.error.OpAttributeUnImplemented(msg.format(attr['padding']))
 
         if name == "avg_pool":
             attr['count_include_pad'] = False
