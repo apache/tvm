@@ -191,11 +191,11 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
 
-@reg.register_rewrite_op("nn.conv2d")
+@reg.register_legalize("nn.conv2d")
 def rewrite_conv2d(attrs, inputs, tinfos):
     """Rewrite conv2d"""
     from ... import op
-    return topi.nn.conv2d_rewrite_op(attrs, inputs, tinfos, op)
+    return topi.nn.conv2d_legalize(attrs, inputs, tinfos, op)
 
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)

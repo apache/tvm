@@ -129,14 +129,14 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
 
 /*!
  * \brief Rewrites an expression with another expression. This function will be
- *  invoked in RewriteOp pass.
+ *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
  * \param inputs The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
-using FTVMRewriteOp = runtime::TypedPackedFunc<
+using FTVMLegalize = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
        const Array<tvm::relay::Type>& arg_types)>;

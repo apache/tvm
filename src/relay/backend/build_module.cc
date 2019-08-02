@@ -306,7 +306,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Rewrite op is only applied to homogeneous execution yet.
     if (targets.size() == 1) {
-      pass_seqs.push_back(transform::RewriteOp());
+      pass_seqs.push_back(transform::Legalize());
     }
 
     // Alter layout transformation is only applied to homogeneous execution yet.

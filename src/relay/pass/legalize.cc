@@ -19,9 +19,9 @@
 
 /*!
  * Copyright (c) 2019 by Contributors
- * \file rewrite_op.cc
- * \brief Rewrites an expr with another expr. This pass can be used to transform
- * an op based on its shape, dtype or layout to another op or a sequence of ops.
+ * \file legalize.cc
+ * \brief Converts an expr to another expr. This pass can be used to transform an op based on its
+ * shape, dtype or layout to another op or a sequence of ops.
  */
 
 #include <tvm/operation.h>
@@ -31,24 +31,24 @@
 namespace tvm {
 namespace relay {
 
-namespace rewrite_op {
+namespace legalize {
 
-// Call registered FTVMRewriteOp of an op
-// Returns the altered expression
-Expr OpRewriter(const Call& ref_call, const Array<Expr>& new_args, const NodeRef& ctx) {
-  static auto fop_rewrite = Op::GetAttr<FTVMRewriteOp>("FTVMRewriteOp");
+// Call registered FTVMLegalize of an op
+// Returns the legalized expression
+Expr Legalizer(const Call& ref_call, const Array<Expr>& new_args, const NodeRef& ctx) {
+  static auto fop_legalize = Op::GetAttr<FTVMLegalize>("FTVMLegalize");
   Op op = Downcast<Op>(ref_call->op);
 
   Expr new_e;
   bool modified = false;
-  if (fop_rewrite.count(op)) {
+  if (fop_legalize.count(op)) {
     tvm::Array<tvm::relay::Type> arg_types;
     for (auto& expr : ref_call->args) {
       arg_types.push_back(expr->checked_type());
     }
-    Expr altered_value = fop_rewrite[op](ref_call->attrs, new_args, arg_types);
-    if (altered_value.defined()) {
-      new_e = altered_value;
+    Expr legalized_value = fop_legalize[op](ref_call->attrs, new_args, arg_types);
+    if (legalized_value.defined()) {
+      new_e = legalized_value;
       modified = true;
     }
   }
@@ -61,21 +61,21 @@ Expr OpRewriter(const Call& ref_call, const Array<Expr>& new_args, const NodeRef
   return GetRef<Call>(new_call);
 }
 
-Expr RewriteOp(const Expr& expr) { return ForwardRewrite(expr, OpRewriter, nullptr); }
+Expr Legalize(const Expr& expr) { return ForwardRewrite(expr, Legalizer, nullptr); }
 
-}  // namespace rewrite_op
+}  // namespace legalize
 
 namespace transform {
 
-Pass RewriteOp() {
+Pass Legalize() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
       [=](Function f, Module m, PassContext pc) {
-        return Downcast<Function>(relay::rewrite_op::RewriteOp(f));
+        return Downcast<Function>(relay::legalize::Legalize(f));
       };
-  return CreateFunctionPass(pass_func, 3, "RewriteOp", {ir::StringImm::make("InferType")});
+  return CreateFunctionPass(pass_func, 3, "Legalize", {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.RewriteOp").set_body_typed(RewriteOp);
+TVM_REGISTER_API("relay._transform.Legalize").set_body_typed(Legalize);
 
 }  // namespace transform
 

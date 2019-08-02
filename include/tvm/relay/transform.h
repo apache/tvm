@@ -525,7 +525,7 @@ TVM_DLL Pass AlterOpLayout();
  *
  * \return The pass.
  */
-TVM_DLL Pass RewriteOp();
+TVM_DLL Pass Legalize();
 
 /*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
