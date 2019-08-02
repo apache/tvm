@@ -45,11 +45,6 @@ static const uint64_t kPageSize = VTA_TSIM_VM_PAGE_SIZE;
 static const uint64_t kVirtualMemoryOffset = VTA_TSIM_VM_ADDR_BEGIN;
 
 class VirtualMemoryManager {
-  /*! \brief page table */
-  std::list<std::pair<uint64_t, uint64_t> > _page_table;
-  /*! \brief translation lookaside buffer */
-  std::unordered_map<uint64_t, size_t> _tlb;
-
  public:
   /*! \brief allocate virtual memory for given size */
   void * Allocate(uint64_t sz) {
@@ -58,31 +53,31 @@ class VirtualMemoryManager {
     size_t laddr = reinterpret_cast<size_t>(ptr);
     // search for available virtual memory space
     uint64_t vaddr = kVirtualMemoryOffset;
-    auto it = _page_table.begin();
+    auto it = page_table_.begin();
     if (((*it).first - kVirtualMemoryOffset) < size) {
       it++;
-      for (; it != _page_table.end(); it++) {
+      for (; it != page_table_.end(); it++) {
         if (((*it).first - (*std::prev(it)).second) > size) {
           vaddr = (*std::prev(it)).second;
         }
       }
-      if (it == _page_table.end()) {
+      if (it == page_table_.end()) {
         vaddr = (*std::prev(it)).second;
       }
     }
-    _page_table.push_back(std::make_pair(vaddr, vaddr + size));
-    _tlb[vaddr] = laddr;
+    page_table_.push_back(std::make_pair(vaddr, vaddr + size));
+    tlb_[vaddr] = laddr;
     // save tlb to file in order to be accessed externally.
     FILE * fout = fopen(VTA_VMEM_PAGEFILE, "wb");
     CHECK(fout);
     if (fout) {
-      uint32_t tlb_size = sizeof(uint64_t)*3*_tlb.size();
+      uint32_t tlb_size = sizeof(uint64_t)*3*tlb_.size();
       uint32_t tlb_cnt = 0;
-      uint64_t * tlb = new uint64_t[3*_tlb.size()];
-      for (auto iter = _tlb.begin(); iter != _tlb.end(); iter++, tlb_cnt++) {
+      uint64_t * tlb = new uint64_t[3*tlb_.size()];
+      for (auto iter = tlb_.begin(); iter != tlb_.end(); iter++, tlb_cnt++) {
         tlb[tlb_cnt * 3] = (*iter).first;
         uint64_t vend = 0;
-        for (auto iter_in = _page_table.begin(); iter_in != _page_table.end(); iter_in++) {
+        for (auto iter_in = page_table_.begin(); iter_in != page_table_.end(); iter_in++) {
           if ((*iter_in).first == (*iter).first) { vend = (*iter_in).second; break; }
         }
         tlb[tlb_cnt * 3 + 1] = vend;
@@ -99,28 +94,28 @@ class VirtualMemoryManager {
   /*! \brief release virtual memory for pointer */
   void Release(void * ptr) {
     uint64_t src = reinterpret_cast<uint64_t>(ptr);
-    auto it = _page_table.begin();
-    for (; it != _page_table.end(); it++) {
+    auto it = page_table_.begin();
+    for (; it != page_table_.end(); it++) {
       if (((*it).first <= src) && ((*it).second > src)) { break; }
     }
-    CHECK(it != _page_table.end());
-    uint64_t * laddr = reinterpret_cast<uint64_t*>(_tlb[(*it).first]);
+    CHECK(it != page_table_.end());
+    uint64_t * laddr = reinterpret_cast<uint64_t*>(tlb_[(*it).first]);
     delete [] laddr;
-    _page_table.erase(it);
-    _tlb.erase((*it).first);
+    page_table_.erase(it);
+    tlb_.erase((*it).first);
   }
 
   /*! \brief copy virtual memory from host */
   void MemCopyFromHost(void * dstptr, const void * src, uint64_t size) {
     // get logical address from virtual address
     size_t dst = reinterpret_cast<size_t>(dstptr);
-    auto it = _page_table.begin();
-    for (; it != _page_table.end(); it++) {
+    auto it = page_table_.begin();
+    for (; it != page_table_.end(); it++) {
       if (((*it).first <= dst) && ((*it).second > dst)) { break; }
     }
-    CHECK(it != _page_table.end());
+    CHECK(it != page_table_.end());
     size_t offset = dst - (*it).first;
-    char * laddr = reinterpret_cast<char*>(_tlb[(*it).first]);
+    char * laddr = reinterpret_cast<char*>(tlb_[(*it).first]);
     // copy content from src to logic address
     memcpy(laddr + offset, src, size);
   }
@@ -129,13 +124,13 @@ class VirtualMemoryManager {
   void MemCopyToHost(void * dst, const void * srcptr, uint64_t size) {
     // get logical address from virtual address
     size_t src = reinterpret_cast<size_t>(srcptr);
-    auto it = _page_table.begin();
-    for (; it != _page_table.end(); it++) {
+    auto it = page_table_.begin();
+    for (; it != page_table_.end(); it++) {
       if (((*it).first <= src) && ((*it).second > src)) { break; }
     }
-    CHECK(it != _page_table.end());
+    CHECK(it != page_table_.end());
     size_t offset = src - (*it).first;
-    char * laddr = reinterpret_cast<char*>(_tlb[(*it).first]);
+    char * laddr = reinterpret_cast<char*>(tlb_[(*it).first]);
     // copy content from logic address to dst
     memcpy(dst, laddr + offset, size);
   }
@@ -143,12 +138,12 @@ class VirtualMemoryManager {
   /*! \brief get logical address from virtual memory */
   void * GetLogicalAddr(uint64_t src) {
     if (src == 0) { return 0; }
-    auto it = _page_table.begin();
-    for (; it != _page_table.end(); it++) {
+    auto it = page_table_.begin();
+    for (; it != page_table_.end(); it++) {
       if (((*it).first <= src) && ((*it).second > src)) { break; }
     }
-    CHECK(it != _page_table.end());
-    return reinterpret_cast<void*>(_tlb[(*it).first]);
+    CHECK(it != page_table_.end());
+    return reinterpret_cast<void*>(tlb_[(*it).first]);
   }
 
   /*! \brief get global handler of the instance */
@@ -156,6 +151,12 @@ class VirtualMemoryManager {
     static VirtualMemoryManager inst;
     return &inst;
   }
+
+ private:
+  /*! \brief page table */
+  std::list<std::pair<uint64_t, uint64_t> > page_table_;
+  /*! \brief translation lookaside buffer */
+  std::unordered_map<uint64_t, size_t> tlb_;
 };
 
 }  // namespace tsim

@@ -46,12 +46,12 @@ void * vmalloc(uint64_t size);
 void vfree(void * ptr);
 
 /*!
- * \brief Directed virtual memory based memory copy
+ * \brief Memory copy between virtual and logical
  */
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
 
 /*!
- * \brief Map logical address from virtual address
+ * \brief Map virtual address to logical address
  */
 void * vmem_get_log_addr(uint64_t vaddr);
 
