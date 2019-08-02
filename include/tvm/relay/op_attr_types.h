@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file nnvm/compiler/op_attr_types.h
+ * \file tvm/relay/op_attr_types.h
  * \brief The Expr and related elements in DataFlow construction.
  */
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_

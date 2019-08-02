@@ -31,7 +31,7 @@ def run_opt_pass(expr, passes):
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
-def test_rewrite_op():
+def test_legalize():
     """Test directly replacing an operator with a new one"""
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -67,7 +67,7 @@ def test_rewrite_op():
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
-def test_rewrite_op_none():
+def test_legalize_none():
     """Test doing nothing by returning 'None' """
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -90,7 +90,7 @@ def test_rewrite_op_none():
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
-def test_rewrite_op_multi_input():
+def test_legalize_multi_input():
     """Test directly replacing an operator with a new one"""
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -125,6 +125,6 @@ def test_rewrite_op_multi_input():
 
 
 if __name__ == "__main__":
-    test_rewrite_op()
-    test_rewrite_op_none()
-    test_rewrite_op_multi_input()
+    test_legalize()
+    test_legalize_none()
+    test_legalize_multi_input()
