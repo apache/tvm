@@ -20,4 +20,8 @@ set -e
 set -u
 set -o pipefail
 
+<<<<<<< HEAD
 pip3 install dgl
+=======
+pip3 install dgl
+>>>>>>> add dgl to docker file
