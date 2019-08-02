@@ -724,8 +724,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr Reflect(const PStatic& st) {
     if (!st->pstatic.defined()) {
       throw ReflectError();
-    }
-    else if (const STensorNode* op = st->pstatic.as<STensorNode>()) {
+    } else if (const STensorNode* op = st->pstatic.as<STensorNode>()) {
       return ConstantNode::make(op->data);
     } else if (const STupleNode* op = st->pstatic.as<STupleNode>()) {
       tvm::Array<Expr> fields;

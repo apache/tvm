@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.analysis import alpha_equal
+from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
@@ -310,7 +310,9 @@ def test_concat():
     t = relay.TensorType([10], "float32")
     x = Var("x", t)
     y = Var("x", t)
-    res = dcpe(Function([x, y], op.concatenate([x, y], axis=0)))
+    orig = run_infer_type(Function([x, y], op.concatenate([x, y], axis=0)))
+    assert_alpha_equal(orig, dcpe(orig))
+
 
 if __name__ == '__main__':
     test_ref()
