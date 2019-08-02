@@ -187,6 +187,36 @@ struct QnnConv2DAttrs : public tvm::AttrsNode<QnnConv2DAttrs> {
   }
 };
 
+/*! \brief Attribute for QNN binary operator */
+struct QnnBinaryOpAttrs : public tvm::AttrsNode<QnnBinaryOpAttrs> {
+  int32_t lhs_zero_point;
+  double lhs_scale;
+  int32_t rhs_zero_point;
+  double rhs_scale;
+  int32_t output_zero_point;
+  double output_scale;
+
+  TVM_DECLARE_ATTRS(QnnBinaryOpAttrs, "relay.attrs.QnnBinaryOpAttrs") {
+    TVM_ATTR_FIELD(lhs_zero_point)
+      .describe("The zero_point for the lhs input tensor of this op.");
+
+    TVM_ATTR_FIELD(lhs_scale)
+      .describe("The scale for the lhs input tensor of this op.");
+
+    TVM_ATTR_FIELD(rhs_zero_point)
+      .describe("The zero_point for the rhs input tensor of this op.");
+
+    TVM_ATTR_FIELD(rhs_scale)
+      .describe("The scale for the rhs input tensor of this op.");
+
+    TVM_ATTR_FIELD(output_zero_point)
+      .describe("The zero_point for the activation of this op.");
+
+    TVM_ATTR_FIELD(output_scale)
+      .describe("The scale for the activation of this op.");
+  }
+};
+
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
