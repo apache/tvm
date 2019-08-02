@@ -316,6 +316,7 @@ class XGBoostCostModel(CostModel):
         for idx in indexes:
             if fea_cache[idx] is not None:
                 feature_len = fea_cache[idx].shape[-1]
+                break
 
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):
