@@ -45,6 +45,7 @@ def schedule_softmax(outs):
         exp = softmax.op.input_tensors[0]
         max_elem = s[exp].op.input_tensors[1]
     elif op_tag == 'log_softmax_output':
+        exp = None
         max_elem = softmax.op.input_tensors[1]
         expsum = softmax.op.input_tensors[2]
     else:
@@ -52,12 +53,19 @@ def schedule_softmax(outs):
                          Got {0}'.format(op_tag))
 
     if len(softmax.shape) > 2:
-        for op in [max_elem.op, expsum.op, softmax.op]:
+        ops = [max_elem.op, expsum.op, softmax.op]
+        if exp != None:
+            ops.append(exp.op)
+            
+        for op in ops:
             s = _schedule_injective(op, s)
     else:
         num_thread = 64
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+
+        if exp != None:
+            s[exp].bind(exp.op.axis[0], block_x)
 
         s[max_elem].bind(max_elem.op.axis[0], block_x)
         k = expsum.op.reduce_axis[0]
