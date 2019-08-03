@@ -291,7 +291,7 @@ const FuelNode* Fuel::operator->() const {
 Fuel MkFSeq(const std::vector<Fuel>& fuels);
 struct FSeqNode : FuelNode {
   std::vector<Fuel> fuels;
-  virtual Fuel Meet(const Fuel& f, bool* progress) const final {
+  Fuel Meet(const Fuel& f, bool* progress) const final {
     auto x = f.as<FSeqNode>();
     CHECK(x);
     CHECK_EQ(fuels.size(), x->fuels.size());
@@ -315,7 +315,7 @@ Fuel MkFSeq(const std::vector<Fuel>& fuels) {
 Fuel MkFTime(Time time);
 struct FTimeNode : FuelNode {
   Time time;
-  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
+  std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTimeNode>();
     CHECK(x);
     Time new_time = std::min(time, x->time);
@@ -336,7 +336,7 @@ Fuel MkFTValue(size_t tvalue);
 /*! \brief If the pstatic is hold a positive integer scalar, that number, else 0. */
 struct FTValueNode : FuelNode {
   size_t tvalue;
-  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
+  std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTValueNode>();
     CHECK(x);
     size_t new_tvalue = std::min(tvalue, x->tvalue);
@@ -359,7 +359,7 @@ Fuel MkFTValue(size_t tvalue) {
  * doing so break the finite descending chain property.
  */
 struct FBottomNode : FuelNode {
-  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
+  std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     return std::make_tuple(f, !f.as<FBottomNode>());
   }
   static constexpr const char* _type_key = "relay.FBottom";
@@ -610,7 +610,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         return VisitExpr(op->args[0], ll, name);
       }
     }
-    PStatic ret = e.as<FunctionNode>() ? VisitFunc(Downcast<Function>(e), ll, name) : VisitExpr(e, ll);
+    PStatic ret = e.as<FunctionNode>() ?
+      VisitFunc(Downcast<Function>(e), ll, name) :
+      VisitExpr(e, ll);
     CHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
     return ret;
   }
@@ -828,8 +830,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           if (std::get<1>(meet_res)) {
             FuelFrame tf(this, fid, std::get<0>(meet_res));
             return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
-          }
-          else {
+          } else {
             std::vector<Expr> dyn;
             for (const auto& v : pv) {
               dyn.push_back(v->dynamic);
@@ -858,7 +859,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     });
   }
 
-  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name = VarNode::make("x", Type())) {
+  PStatic VisitFunc(const Function& func,
+                    LetList* ll,
+                    const Var& name = VarNode::make("x", Type())) {
     Func f = VisitFuncStatic(func, name);
     Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
