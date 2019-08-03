@@ -37,21 +37,17 @@ elseif(PYTHON)
 
   string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_=.]*" VTA_DEFINITIONS "${__vta_defs}")
 
+  # Driver sources
   file(GLOB VTA_RUNTIME_SRCS vta/src/*.cc)
   # Add sim driver sources
-  if(${VTA_TARGET} STREQUAL "sim")
+  if(${VTA_TARGET} STREQUAL "sim" OR ${VTA_TARGET} STREQUAL "tsim")
     file(GLOB __vta_target_srcs vta/src/sim/*.cc)
-  endif()
-  # Add tsim driver sources
-  if(${VTA_TARGET} STREQUAL "tsim")
-    file(GLOB __vta_target_srcs vta/src/tsim/*.cc)
-    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
   endif()
   # Add pynq driver sources
   if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
     file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
   endif()
+
   list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
 
   add_library(vta SHARED ${VTA_RUNTIME_SRCS})
@@ -63,12 +59,6 @@ elseif(PYTHON)
     target_compile_definitions(vta PUBLIC ${__strip_def})
   endforeach()
 
-  # Enable tsim macro
-  if(${VTA_TARGET} STREQUAL "tsim")
-    include_directories("vta/include")
-    target_compile_definitions(vta PUBLIC USE_TSIM)
-  endif()
-
   if(APPLE)
     set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
   endif(APPLE)
@@ -77,6 +67,24 @@ elseif(PYTHON)
   if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
+  endif()
+
+  # TSim-specific driver
+  if(${VTA_TARGET} STREQUAL "tsim")
+    file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
+    list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
+    list(APPEND RUNTIME_SRCS vta/src/dpi/module.cc)
+    add_library(tsim SHARED ${TSIM_RUNTIME_SRCS})
+    target_include_directories(tsim PUBLIC vta/include)
+    foreach(__def ${VTA_DEFINITIONS})
+      string(SUBSTRING ${__def} 3 -1 __strip_def)
+      target_compile_definitions(tsim PUBLIC ${__strip_def})
+    endforeach()
+    include_directories("vta/include")
+    target_compile_definitions(tsim PUBLIC USE_TSIM)
+    if(APPLE)
+      set_target_properties(tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    endif(APPLE)
   endif()
 
 else()
