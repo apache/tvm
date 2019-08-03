@@ -762,19 +762,6 @@ def _mx_rnn_param_concat(inputs, _):
     return [inputs]
 
 
-def _mx_contrib_div_sqrt_dim(inputs, _):
-    assert len(inputs) == 1
-    ndim = len(_infer_type(inputs[0]).checked_type.shape)
-    dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
-    sqrt_dim = _op.sqrt(dim.astype('float32'))
-    out = inputs[0] / sqrt_dim
-    return out
-
-
-def _mx_sequence_mask(inputs, attrs):
-    return inputs[0]
-
-
 def _mx_rnn_layer(inputs, attrs):
     def _rnn_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias, activation):
         i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
