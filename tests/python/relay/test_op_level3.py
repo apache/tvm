@@ -682,7 +682,8 @@ def test_gather_nd():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
     verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
-
+    verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 if __name__ == "__main__":
     test_arange()
