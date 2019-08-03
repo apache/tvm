@@ -292,7 +292,6 @@ def variance(data, axis=None, keepdims=False, exclude=False):
     return _make._variance(data, m, axis, keepdims, exclude)
 
 
-
 def std(data, axis=None, keepdims=False, exclude=False):
     """Computes the standard deviation of data over given axes.
 
@@ -389,10 +388,10 @@ def mean_std(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    std = sqrt(_make._variance(data, m, axis, keepdims, exclude))
+    s = sqrt(_make._variance(data, m, axis, keepdims, exclude))
     if not keepdims:
         m = squeeze(m)
-    return TupleWrapper(Tuple((m, std)), 2)
+    return TupleWrapper(Tuple((m, s)), 2)
 
 
 def prod(data, axis=None, keepdims=False, exclude=False):
