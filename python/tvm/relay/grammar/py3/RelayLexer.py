@@ -1,4 +1,4 @@
-# Generated from /home/marisa/Work/tvm/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.2
+# Generated from /workspace/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.1
 from antlr4 import *
 from io import StringIO
 from typing.io import TextIO
@@ -233,7 +233,7 @@ class RelayLexer(Lexer):
 
     def __init__(self, input=None, output:TextIO = sys.stdout):
         super().__init__(input, output)
-        self.checkVersion("4.7.2")
+        self.checkVersion("4.7.1")
         self._interp = LexerATNSimulator(self, self.atn, self.decisionsToDFA, PredictionContextCache())
         self._actions = None
         self._predicates = None

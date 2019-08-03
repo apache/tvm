@@ -1,4 +1,4 @@
-# Generated from /home/marisa/Work/tvm/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.2
+# Generated from /workspace/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.1
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO
@@ -283,7 +283,7 @@ class RelayParser ( Parser ):
 
     def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
         super().__init__(input, output)
-        self.checkVersion("4.7.2")
+        self.checkVersion("4.7.1")
         self._interp = ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)
         self._predicates = None
 
@@ -724,8 +724,6 @@ class RelayParser ( Parser ):
             super().__init__(parser)
             self.copyFrom(ctx)
 
-        def SUB(self):
-            return self.getToken(RelayParser.SUB, 0)
         def expr(self):
             return self.getTypedRuleContext(RelayParser.ExprContext,0)
 
@@ -869,26 +867,6 @@ class RelayParser ( Parser ):
             else:
                 return self.getTypedRuleContext(RelayParser.ExprContext,i)
 
-        def MUL(self):
-            return self.getToken(RelayParser.MUL, 0)
-        def DIV(self):
-            return self.getToken(RelayParser.DIV, 0)
-        def ADD(self):
-            return self.getToken(RelayParser.ADD, 0)
-        def SUB(self):
-            return self.getToken(RelayParser.SUB, 0)
-        def LT(self):
-            return self.getToken(RelayParser.LT, 0)
-        def GT(self):
-            return self.getToken(RelayParser.GT, 0)
-        def LE(self):
-            return self.getToken(RelayParser.LE, 0)
-        def GE(self):
-            return self.getToken(RelayParser.GE, 0)
-        def EQ(self):
-            return self.getToken(RelayParser.EQ, 0)
-        def NE(self):
-            return self.getToken(RelayParser.NE, 0)
 
         def accept(self, visitor:ParseTreeVisitor):
             if hasattr( visitor, "visitBinOp" ):
