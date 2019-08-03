@@ -182,8 +182,8 @@ class Executor(object):
             if i < num_of_args:
                 if kwargs.get(name):
                     raise Exception(
-                        "duplicate argument supplied in" +
-                        "both positional args (at position: {0})," +
+                        "duplicate argument supplied in " +
+                        "both positional args (at position: {0}), " +
                         "and keyword argument (with name: {1})".format(i, name))
             else:
                 cargs.append(kwargs[name])
