@@ -528,6 +528,8 @@ def test_forward_gather_nd():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 def test_forward_bilinear_resize():
     # add tests including scale_height and scale_width when mxnet is updated to version 1.5
