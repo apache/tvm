@@ -241,11 +241,11 @@ Static MkSFunc(const Func& func) {
 
 
 class FuelNode;
-/*! \brief A join-semilattice with finite ascending chain.
- * It mean that we can join two element to get an element,
- * and for every element, there is only finite amount of join before getting back the same element.
+/*! \brief A meet-semilattice with finite descending chain.
+ * It mean that we can meet two element to get an element,
+ * and for every element, there is only finite amount of meet before getting back the same element.
  *
- * Every time we recurse, we do a join and require that progress must be made.
+ * Every time we recurse, we do a meet and require that progress must be made.
  * This make sure we do not recurse infinitely in the Partial Evaluator.
  */
 class Fuel : public NodeRef {
@@ -264,19 +264,19 @@ class FuelNode : public RelayNode {
    *
    * Note that progress is not symmetric - it only measure progress for (*this).
    *
-   * Thus, if the generated is smaller then the argument of Join,
+   * Thus, if the generated is smaller then the argument of Meet,
    * and the generated is not smaller then (*this),
    * progress should be false.
    */
-  virtual std::tuple<Fuel, bool> Join(const Fuel& f) const {
+  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const {
     bool progress = false;
-    auto ret = Join(f, &progress);
+    auto ret = Meet(f, &progress);
     return std::make_tuple(ret, progress);
   }
   /*! \brief return the new Fuel, and write true only iff progress is made. */
-  virtual Fuel Join(const Fuel& f, bool* progress) const {
+  virtual Fuel Meet(const Fuel& f, bool* progress) const {
     CHECK(progress);
-    auto ret = Join(f);
+    auto ret = Meet(f);
     *progress |= std::get<1>(ret);
     return std::get<0>(ret);
   }
@@ -291,13 +291,13 @@ const FuelNode* Fuel::operator->() const {
 Fuel MkFSeq(const std::vector<Fuel>& fuels);
 struct FSeqNode : FuelNode {
   std::vector<Fuel> fuels;
-  virtual Fuel Join(const Fuel& f, bool* progress) const final {
+  virtual Fuel Meet(const Fuel& f, bool* progress) const final {
     auto x = f.as<FSeqNode>();
     CHECK(x);
     CHECK_EQ(fuels.size(), x->fuels.size());
     std::vector<Fuel> new_fuels;
     for (size_t i = 0; i < fuels.size(); ++i) {
-      new_fuels.push_back(fuels[i]->Join(x->fuels[i], progress));
+      new_fuels.push_back(fuels[i]->Meet(x->fuels[i], progress));
     }
     return MkFSeq(new_fuels);
   }
@@ -315,7 +315,7 @@ Fuel MkFSeq(const std::vector<Fuel>& fuels) {
 Fuel MkFTime(Time time);
 struct FTimeNode : FuelNode {
   Time time;
-  virtual std::tuple<Fuel, bool> Join(const Fuel& f) const final {
+  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTimeNode>();
     CHECK(x);
     Time new_time = std::min(time, x->time);
@@ -336,7 +336,7 @@ Fuel MkFTValue(size_t tvalue);
 /*! \brief If the pstatic is hold a positive integer scalar, that number, else 0. */
 struct FTValueNode : FuelNode {
   size_t tvalue;
-  virtual std::tuple<Fuel, bool> Join(const Fuel& f) const final {
+  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTValueNode>();
     CHECK(x);
     size_t new_tvalue = std::min(tvalue, x->tvalue);
@@ -356,10 +356,10 @@ Fuel MkFTValue(size_t tvalue) {
 /*! \brief Initially every element has Fuel of FBottom. It is the smallest element.
  *
  * Note that it is illegal to has FBottom inside some other Fuel -
- * doing so break the finite ascending chain property.
+ * doing so break the finite descending chain property.
  */
 struct FBottomNode : FuelNode {
-  virtual std::tuple<Fuel, bool> Join(const Fuel& f) const final {
+  virtual std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     return std::make_tuple(f, !f.as<FBottomNode>());
   }
   static constexpr const char* _type_key = "relay.FBottom";
@@ -824,9 +824,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           if (fuel_map_.count(fid) == 0) {
             fuel_map_.insert({fid, MkFBottom()});
           }
-          auto join_res = fuel_map_[fid]->Join(MkFSeq(args_fuel));
-          if (std::get<1>(join_res)) {
-            FuelFrame tf(this, fid, std::get<0>(join_res));
+          auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
+          if (std::get<1>(meet_res)) {
+            FuelFrame tf(this, fid, std::get<0>(meet_res));
             return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
           }
           else {
@@ -1126,11 +1126,11 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  We partially map each FunctionId to a Fuel.
    *  Every time we try to inline a Function,
    *  we make sure it either does not have a Fuel,
-   *  or we join the existing fuel with the fuel calculated from the argument.
+   *  or we meet the existing fuel with the fuel calculated from the argument.
    *  If no progress is made, we do not inline.
    *  In both case, we remap the mapping to the new Fuel
    *  when we PE inside the Function body.
-   *  Termination is guaranteed because Fuel is finitely ascending - there can only be so many join.
+   *  Termination is guaranteed because Fuel is finitely descending - there can only be so many meet.
    */
   std::unordered_map<Function, FuncId, NodeHash, NodeEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
