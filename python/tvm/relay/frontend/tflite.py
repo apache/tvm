@@ -743,6 +743,32 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_transpose(self, op):
+        """transpose implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 2, "input tensors length should be == 2"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        axis_tensor = input_tensors[1]
+        transpose_axis = self.get_tensor_value(axis_tensor)
+
+        if transpose_axis is None:
+            out = _op.transpose(data=in_expr, axis=None)
+        else:
+            out = _op.transpose(data=in_expr, axis=tuple(transpose_axis))
+
+        return out
+
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
         try:
