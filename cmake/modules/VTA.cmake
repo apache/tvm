@@ -43,8 +43,10 @@ elseif(PYTHON)
   if(${VTA_TARGET} STREQUAL "pynq" OR
      ${VTA_TARGET} STREQUAL "ultra96")
     file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
-  else()
-  # Default case is to add simulator driver sources (sim and tsim targets)
+  endif()
+  # Add sim driver sources
+  if(${VTA_TARGET} STREQUAL "sim" OR
+     ${VTA_TARGET} STREQUAL "tsim")
     file(GLOB __vta_target_srcs vta/src/sim/*.cc)
   endif()
 
@@ -67,8 +69,9 @@ elseif(PYTHON)
     target_link_libraries(vta ${__cma_lib})
   endif()
 
-  # TSim-specific driver
-  if(USE_TSIM)
+  # TSIM-specific driver: we build when in either simulation modes
+  if(${VTA_TARGET} STREQUAL "sim" OR
+     ${VTA_TARGET} STREQUAL "tsim")
     file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
     list(APPEND RUNTIME_SRCS vta/src/dpi/module.cc)
