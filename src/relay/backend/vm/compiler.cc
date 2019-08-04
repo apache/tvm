@@ -33,6 +33,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include "../../../runtime/vm/debug/debug_vm.h"
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
@@ -666,6 +667,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 class VMCompiler : public runtime::ModuleNode {
  public:
+  virtual ~VMCompiler() {}
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     if (name == "compile") {
@@ -691,14 +693,20 @@ class VMCompiler : public runtime::ModuleNode {
     return vm_;
   }
 
+
+  virtual void InitVM() {
+    vm_ = std::make_shared<VirtualMachine>();
+  }
+
   void Compile(const Module& mod_ref,
                const TargetsMap& targets,
                const tvm::Target& target_host) {
     CHECK_EQ(targets.size(), 1)
       << "Currently VM compiler doesn't support heterogeneous compilation";
+
+    InitVM();
     targets_ = targets;
     target_host_ = target_host;
-    vm_ = std::make_shared<VirtualMachine>();
 
     // Run some optimizations first, this code should
     // be moved to pass manager.
@@ -819,6 +827,28 @@ runtime::Module CreateVMCompiler() {
 TVM_REGISTER_GLOBAL("relay._vm._VMCompiler")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = CreateVMCompiler();
+});
+
+
+class VMCompilerDebug : public VMCompiler {
+  public:
+    VMCompilerDebug() {}
+
+    void InitVM() override {
+      vm_ = std::make_shared<VirtualMachineDebug>();
+    }
+
+    virtual ~VMCompilerDebug() {}
+};
+
+runtime::Module CreateVMCompilerDebug() {
+  std::shared_ptr<VMCompilerDebug> exec = std::make_shared<VMCompilerDebug>();
+  return runtime::Module(exec);
+}
+
+TVM_REGISTER_GLOBAL("relay._vm._VMCompilerDebug")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = CreateVMCompilerDebug();
 });
 
 }  // namespace vm

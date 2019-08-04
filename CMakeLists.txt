@@ -198,6 +198,12 @@ if(USE_GRAPH_RUNTIME)
   endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
 
+message(STATUS "Build with Relay VM debug support...")
+file(GLOB RUNTIME_VM_DEBUG_SRCS src/runtime/vm/debug/*.cc)
+list(APPEND RUNTIME_SRCS ${RUNTIME_VM_DEBUG_SRCS})
+set_source_files_properties(${RUNTIME_GRAPH_SRCS}
+  PROPERTIES COMPILE_DEFINITIONS "TVM_VM_RUNTIME_DEBUG")
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
