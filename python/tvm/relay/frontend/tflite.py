@@ -81,7 +81,8 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
-            'SPLIT': self.convert_split
+            'SPLIT': self.convert_split,
+            'TRANSPOSE': self.convert_transpose
         }
 
     def check_unsupported_ops(self):
