@@ -956,7 +956,7 @@ def sparse_dense(data, weight):
 
 def sparse_transpose(x):
     r"""
-    Computes the fast matrix transpose of x, 
+    Computes the fast matrix transpose of x,
     where x is a sparse tensor in CSR format (represented as a namedtuple
     with fields `data`, `indices`, and `indptr`).
 
@@ -977,7 +977,7 @@ def sparse_transpose(x):
     Returns
     -------
     result : relay.Tuple([tvm.relay.Expr, tvm.relay.Expr, tvm.relay.Expr])
-        Tuple of output sparse tensor (same shape and format as input), 
+        Tuple of output sparse tensor (same shape and format as input),
         i.e. if CSR then output is in ([data, indices, indptr]) form
     """
     return TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
