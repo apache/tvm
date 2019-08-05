@@ -23,6 +23,7 @@ from topi.util import get_const_tuple
 import tvm.contrib.sparse as tvmsp
 from collections import namedtuple
 import time
+import scipy.sparse as sp
 
 def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
     nr, nc, n = tvm.var("nr"), tvm.var("nc"), tvm.var("n")
@@ -217,7 +218,6 @@ def test_dense():
 
 
 def test_sparse_dense_csr():
-    import scipy.sparse as sp
     M, N, K, density = 1, 17, 47, 0.2
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = sp.random(N, K, density=density, format='csr', dtype="float32")
@@ -236,8 +236,7 @@ def test_sparse_dense_csr():
     tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 def test_sparse_transpose_csr():
-    import scipy.sparse as sp
-    N, density = 100, 0.05
+    N, density = 1023, 0.3
 
     X_sp = sp.random(N, N, density=density, format='csr', dtype='float32')
 
@@ -264,7 +263,6 @@ def test_sparse_transpose_csr():
     tvm.testing.assert_allclose(X_np_T, X_T_out, atol=1e-4, rtol=1e-4)
 
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
-    import scipy.sparse as sp
     import itertools
     Y = np.zeros((M, N), dtype=dtype)
     assert M % BS_R == 0
