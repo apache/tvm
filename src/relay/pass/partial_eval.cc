@@ -273,7 +273,7 @@ class FuelNode : public RelayNode {
     auto ret = Meet(f, &progress);
     return std::make_tuple(ret, progress);
   }
-  /*! \brief return the new Fuel, and write true only iff progress is made. */
+  /*! \brief return the new Fuel, and write (*progress | is progress made) to *progress. */
   virtual Fuel Meet(const Fuel& f, bool* progress) const {
     CHECK(progress);
     auto ret = Meet(f);
@@ -353,23 +353,23 @@ Fuel MkFTValue(size_t tvalue) {
   return Fuel(make_node<FTValueNode>(tvalue));
 }
 
-/*! \brief Initially every element has Fuel of FBottom. It is the smallest element.
+/*! \brief Initially every element has Fuel of FTop. It is the largest element.
  *
- * Note that it is illegal to has FBottom inside some other Fuel -
+ * Note that it is illegal to has FTop inside some other Fuel -
  * doing so break the finite descending chain property.
  */
-struct FBottomNode : FuelNode {
+struct FTopNode : FuelNode {
   std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
-    return std::make_tuple(f, !f.as<FBottomNode>());
+    return std::make_tuple(f, !f.as<FTopNode>());
   }
-  static constexpr const char* _type_key = "relay.FBottom";
-  TVM_DECLARE_NODE_TYPE_INFO(FBottomNode, FuelNode);
+  static constexpr const char* _type_key = "relay.FTop";
+  TVM_DECLARE_NODE_TYPE_INFO(FTopNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FBottom, FBottomNode, Fuel);
+RELAY_DEFINE_NODE_REF(FTop, FTopNode, Fuel);
 
-Fuel MkFBottom() {
-  return Fuel(make_node<FBottomNode>());
+Fuel MkFTop() {
+  return Fuel(make_node<FTopNode>());
 }
 
 /*!
@@ -824,7 +824,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           CHECK_GT(func_map_.count(func), 0);
           FuncId fid = func_map_.at(func);
           if (fuel_map_.count(fid) == 0) {
-            fuel_map_.insert({fid, MkFBottom()});
+            fuel_map_.insert({fid, MkFTop()});
           }
           auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
           if (std::get<1>(meet_res)) {
