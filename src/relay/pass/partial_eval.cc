@@ -128,7 +128,7 @@ struct VarEqual {
 
 Expr PostProcess(const Expr&);
 
-/*! \brief A StaticNode contain some static data that the Partial Evaluator can use. */
+/*! \brief A StaticNode contains some static data that the Partial Evaluator can use. */
 class StaticNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Static";
@@ -242,11 +242,11 @@ Static MkSFunc(const Func& func) {
 
 class FuelNode;
 /*! \brief A meet-semilattice with finite descending chain.
- * It mean that we can meet two element to get an element,
- * and for every element, there is only finite amount of meet before getting back the same element.
+ * It means that we can meet two element to get an element,
+ * and for every element, there is only a finite amount of meet before getting back the same element.
  *
  * Every time we recurse, we do a meet and require that progress must be made.
- * This make sure we do not recurse infinitely in the Partial Evaluator.
+ * This ensures we do not recurse infinitely in the Partial Evaluator.
  */
 class Fuel : public NodeRef {
  public:
