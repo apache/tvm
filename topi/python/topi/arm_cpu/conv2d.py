@@ -32,7 +32,7 @@ from ..nn import dilate, pad, conv2d, conv2d_alter_layout, \
                  conv2d_winograd_nnpack_without_weight_transform, \
                  depthwise_conv2d_nchw
 from ..nn.util import get_const_int, get_pad_tuple
-from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.winograd_util import winograd_transform_matrices, enum_tile_sizes
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['direct'])
 def conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
@@ -302,11 +302,14 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['winograd'])
 def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """ TOPI compute callback. Use winograd template """
-    tile_size = 4
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout,
-                          out_dtype, tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
 
-def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
+def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                   tile_size=None):
+
+    cfg.define_knob('tile_size', enum_tile_sizes(data))
+    tile_size = tile_size if tile_size else cfg["tile_size"].val
+
     N, CI, IH, IW = get_const_tuple(data.shape)
 
     if isinstance(dilation, int):
@@ -326,11 +329,14 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
         CO *= VC
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
-    data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
+    assert KH == KW and HSTR == 1 and WSTR == 1
+    data_pad = pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_bottom, pad_right])
 
     r = KW
     m = tile_size
@@ -340,8 +346,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     K = CO
     C = CI
 
-    H = (IH + 2 * HPAD - 3) // HSTR + 1
-    W = (IW + 2 * WPAD - 3) // WSTR + 1
+    H = (IH + pad_top + pad_bottom - KH) // HSTR + 1
+    W = (IW + pad_left + pad_right - KW) // WSTR + 1
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 
@@ -510,12 +516,15 @@ def conv2d_arm_cpu_winograd_nnpack(
     assert len(kernel.shape) == 4
     CO, _, KH, KW = get_const_tuple(kernel.shape)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HPAD == 1 and WPAD == 1 and HSTR == 1 and WSTR == 1
-    H = (IH + 2 * HPAD - 3) // HSTR + 1
-    W = (IW + 2 * WPAD - 3) // WSTR + 1
+    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
+    H = (IH + pad_top + pad_bottom - KH) // HSTR + 1
+    W = (IW + pad_left + pad_right - KW) // WSTR + 1
 
     cfg.define_knob('winograd_nnpack_algorithm', [convolution_algorithm])
 
@@ -530,7 +539,7 @@ def conv2d_arm_cpu_winograd_nnpack(
         output = tvm.contrib.nnpack.convolution_inference_without_weight_transform(
             data, transformed_kernel,
             bias=None,
-            padding=[HPAD, HPAD, WPAD, WPAD],
+            padding=[pad_top, pad_bottom, pad_left, pad_right],
             stride=[HSTR, WSTR],
             algorithm=cfg['winograd_nnpack_algorithm'].val)
 
@@ -590,13 +599,16 @@ def conv2d_winograd_nnpack_ww(cfg, data, transformed_kernel, bias, strides,
     assert len(transformed_kernel.shape) == 4
     CO, _, _, _ = get_const_tuple(transformed_kernel.shape)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, (3, 3))
     KH, KW = 3, 3
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HPAD == 1 and WPAD == 1 and HSTR == 1 and WSTR == 1
-    H = (IH + 2 * HPAD - 3) // HSTR + 1
-    W = (IW + 2 * WPAD - 3) // WSTR + 1
+    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
+    H = (IH + pad_top + pad_bottom - KH) // HSTR + 1
+    W = (IW + pad_left + pad_right - KW) // WSTR + 1
 
     assert N == 1
     with tvm.tag_scope("winograd_nnpack_conv2d_output"):
@@ -604,7 +616,7 @@ def conv2d_winograd_nnpack_ww(cfg, data, transformed_kernel, bias, strides,
             data=data,
             transformed_kernel=transformed_kernel,
             bias=bias,
-            padding=[HPAD, HPAD, WPAD, WPAD],
+            padding=[pad_top, pad_bottom, pad_left, pad_right],
             stride=[HSTR, WSTR],
             algorithm=cfg['winograd_nnpack_algorithm'].val)
 
@@ -701,14 +713,16 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             dispatch_ctx.update(target, new_workload, cfg)
 
             return F.nn.conv2d(*copy_inputs, **new_attrs)
+
         elif cfg.template_key == "winograd":  # pre-compute weight transformation in winograd
+            # safe default tile_size 2,4
+            # 4 (if winograd polynomial not excessive)
             if "-device=arm_cpu" in target.options:
-                tile_size = 4
                 VC = cfg['tile_k'].size[-1]
+                tile_size = 4 if KH < 4 else 2
             else:
-                from ..mali.conv2d import _pick_tile_size
-                tile_size = _pick_tile_size(tinfos[0], tinfos[1])
                 VC = cfg['tile_bna'].val
+                tile_size = 4 if (H % 4 == 0) and (KH < 4) else 2
 
             weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
                                                                    tile_size=tile_size)
@@ -730,6 +744,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             dispatch_ctx.update(target, new_workload, cfg)
 
             return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
+
         elif cfg.template_key in ["winograd_nnpack_fp16", "winograd_nnpack_fp32"]:
             # pre-compute winograd_nnpack transform
             # for winograd_nnpack_fp16, the the precomputeprune pass must run on device,

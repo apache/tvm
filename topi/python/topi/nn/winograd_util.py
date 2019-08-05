@@ -15,23 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-""" Utility functions for implementing Winograd convolutions
-    [*] Fast Algorithms for Convolutional Neural Networks
-        Andrew Lavin, Scott Gray
-        https://arxiv.org/abs/1509.09308
-        https://github.com/andravin/wincnn
-"""
+""" Utility functions for implementing Winograd convolutions"""
 
 from operator import mul
 from functools import reduce
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
-from ..util import const_matrix
+from ..util import const_matrix, get_const_tuple
 
 
 # pylint: disable=invalid-name
 def _cook_toom_convolution(a, n, r):
     """Compute Cook-Toom convolution A,B,G matrices"""
+
+    #
+    # [*] Fast Algorithms for Convolutional Neural Networks
+    #     Andrew Lavin, Scott Gray
+    #     https://arxiv.org/abs/1509.09308
+    #     https://github.com/andravin/wincnn
+    #
 
     def _F_m(a, n):
         f = lambda j, i: reduce(mul, ((a[i]-a[k] if k != i else 1) for k in range(0, n-1)), 1)
@@ -152,3 +154,16 @@ def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
         const_matrix(B_data.astype(out_dtype), "B"),
         const_matrix(G_data.astype(out_dtype), "G"),
     )
+
+def enum_tile_sizes(data):
+    """Propose tile sizes for winograd convolution"""
+    _, _, H, _ = get_const_tuple(data.shape)
+
+    sizes = [2,]
+    # 2 always present
+    for s in range(3, 9):
+    # overlap less then half
+        if H % s < (H//2):
+            sizes.append(s)
+
+    return sizes

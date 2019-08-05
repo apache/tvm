@@ -24,7 +24,7 @@ from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_wei
 from ..util import traverse_inline, get_const_int, get_const_tuple
 from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
     get_pad_tuple, pad, conv2d_alter_layout
-from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.winograd_util import winograd_transform_matrices, enum_tile_sizes
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d import _decl_spatial_pack, _alter_conv2d_layout_arm
@@ -188,21 +188,16 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     return s
 
 ##### WINOGRAD TEMPLATE #####
-def _pick_tile_size(data, kernel):
-    N, CI, H, W = get_const_tuple(data.shape)
-
-    if H % 4 == 0:
-        return 4
-    else:
-        return 2
-
 @autotvm.register_topi_compute(conv2d, 'mali', ['winograd'])
 def conv2d_mali_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
-    tile_size = _pick_tile_size(data, kernel)
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
-                          tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
 
-def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
+def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                   tile_size=None):
+
+    cfg.define_knob('tile_size', enum_tile_sizes(data))
+    tile_size = tile_size if tile_size else cfg["tile_size"].val
+
     N, CI, IH, IW = get_const_tuple(data.shape)
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
@@ -222,19 +217,22 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
         CO *= VC
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
 
     assert layout == 'NCHW'
-    assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
-    data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
+    assert KH == KW and HSTR == 1 and WSTR == 1
+    data_pad = pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_bottom, pad_right])
 
     r = KW
     m = tile_size
     alpha = m + r - 1
     A, B, G = winograd_transform_matrices(m, r, out_dtype)
 
-    H = (IH + 2 * HPAD - 3) // HSTR + 1
-    W = (IW + 2 * WPAD - 3) // WSTR + 1
+    H = (IH + pad_top + pad_bottom - KH) // HSTR + 1
+    W = (IW + pad_left + pad_right - KW) // WSTR + 1
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 
@@ -250,6 +248,9 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     ##### space definition end #####
 
     if cfg.is_fallback:
+        # safe default tile_size always 2,4
+        # 4 (if winograd polynomial not excessive)
+        cfg['tile_size'].val = 4 if (IH % 4 == 0) and (KH < 4) else 2
         cfg['tile_bnb'].val = 4
         cfg['tile_bna'].val = 4
         while CO % cfg['tile_bna'].val != 0:

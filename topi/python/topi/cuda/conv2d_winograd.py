@@ -20,27 +20,24 @@
 import tvm
 from tvm import autotvm
 
-from .. import nn
-from ..nn import conv2d, group_conv2d_nchw, conv2d_winograd_without_weight_transform
+from ..nn import pad, conv2d, conv2d_alter_layout, group_conv2d_nchw, \
+                 conv2d_winograd_without_weight_transform
 from ..util import get_const_int, get_const_tuple, traverse_inline
+from ..nn.util import get_pad_tuple
 from ..generic import schedule_conv2d_winograd_without_weight_transform
-from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.winograd_util import winograd_transform_matrices, enum_tile_sizes
 
 
-def _infer_tile_size(data, kernel):
-    N, CI, H, W = get_const_tuple(data.shape)
-
-    if H % 8 == 0:
-        return 4
-    return 2
-
-def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, pre_computed):
+def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size=None,
+                  pre_computed=False):
     """Compute declaration for winograd"""
     assert layout == 'NCHW'
 
-    tile_size = _infer_tile_size(data, kernel)
+    cfg.define_knob('tile_size', enum_tile_sizes(data))
+    tile_size = tile_size if tile_size else cfg["tile_size"].val
 
     N, CI, H, W = get_const_tuple(data.shape)
+
 
     if not pre_computed: # kernel tensor is raw tensor, do strict check
         if isinstance(dilation, int):
@@ -51,18 +48,18 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
             kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
 
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
-        HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
+        HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
         HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
         assert HSTR == 1 and WSTR == 1 and KH == KW
-    else:                   # kernel tensor is pre-transfomred. this op is created by
-                            # alter op layout, do not check
+    else: # kernel tensor is pre-transformed.
+          # this op is created by alter op layout, do not check
         # dilation is not supported
         HSTR = WSTR = 1
         HPAD = WPAD = 1
         KH = KW = 3
         _, _, CI, CO = get_const_tuple(kernel.shape)
 
-    data_pad = nn.pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
+    data_pad = pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
 
     r = KW
     m = tile_size
@@ -106,7 +103,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     # inverse transform
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
-    r_b = tvm.reduce_axis((0, alpha), 'r_a')
+    r_b = tvm.reduce_axis((0, alpha), 'r_b')
     inverse = tvm.compute((CO, P, m, m), lambda co, p, vh, vw:
                           tvm.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse')
@@ -280,7 +277,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
                                ['cuda', 'gpu'], ['winograd'])
 def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
-                         pre_computed=True)
+                         tile_size, pre_computed=True)
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
@@ -298,7 +295,7 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 
 
 ##### REGISTER ALTER OP LAYOUT #####
-@nn.conv2d_alter_layout.register(["cuda", "gpu"])
+@conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     """Alter op layout for pre-computing kernel transformation
 
@@ -382,25 +379,28 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
             warnings.warn("Does not support weight pre-transform for dilated convolution.")
             return None
 
-        # pre-compute weight transformation in winograd
-        tile_size = _infer_tile_size(tinfos[0], tinfos[1])
+        if cfg.template_key == "winograd":
+            # safe default tile_size
+            # 4 (if winograd polynomial not excessive)
+            tile_size = 4 if (H % 8 == 0) and (KH < 4) else 2
+            new_attrs['tile_size'] = tile_size
 
-        weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
-                                                               tile_size=tile_size)
-        weight = F.transpose(weight, axes=[0, 1, 3, 2])
-        copy_inputs[1] = weight
-        new_attrs['tile_size'] = tile_size
+            weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
+                                                                   tile_size=tile_size)
+            weight = F.transpose(weight, axes=[0, 1, 3, 2])
+            copy_inputs[1] = weight
 
-        # Store the same config for the altered operator (workload)
-        new_data = data
-        new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
-                                     dtype=kernel.dtype)
-        new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, dilation, layout, out_dtype, tile_size],
-            conv2d_winograd_without_weight_transform
-        )
-        dispatch_ctx.update(target, new_workload, cfg)
-        return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
+            # Store the same config for the altered operator (workload)
+            new_data = data
+            new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
+                                         dtype=kernel.dtype)
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, layout, out_dtype, tile_size],
+                conv2d_winograd_without_weight_transform
+            )
+            dispatch_ctx.update(target, new_workload, cfg)
+            return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
+
     if groups != CI:
         workload = autotvm.task.args_to_workload(
             [tinfos[0], tinfos[1], strides, padding, dilation, groups, out_dtype],
