@@ -144,7 +144,8 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     output_data, output_indices, output_indptr = tvm.extern(
         shape=output_shape,
         inputs=[sparse_data, sparse_indices, sparse_indptr],
-        fcompute=lambda ins, outs: csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
+        fcompute=lambda ins, outs: 
+        csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
         tag="sparse_transpose_csr",
         dtype=['float32', 'int32', 'int32'],
         name='out')
