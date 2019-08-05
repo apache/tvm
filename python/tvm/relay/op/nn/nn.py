@@ -956,8 +956,9 @@ def sparse_dense(data, weight):
 
 def sparse_transpose(x):
     r"""
-    Computes the fast matrix transpose of x, where x is a sparse tensor in CSR format (represented as a namedtuple with
-    fields `data`, `indices`, and `indptr`).
+    Computes the fast matrix transpose of x, 
+    where x is a sparse tensor in CSR format (represented as a namedtuple
+    with fields `data`, `indices`, and `indptr`).
 
     ** Currently only support Square Matrices **
 
@@ -965,7 +966,8 @@ def sparse_transpose(x):
 
         \mbox{sparse_transpose}(x)[n, n] = (x^T)[n, n]
 
-    Please refer to https://github.com/scipy/scipy/blob/v1.3.0/scipy/sparse/csr.py for the algorithm implemented in this operator.
+    Please refer to https://github.com/scipy/scipy/blob/v1.3.0/scipy/sparse/csr.py
+    for the algorithm implemented in this operator.
 
     Parameters
     ----------
@@ -975,7 +977,8 @@ def sparse_transpose(x):
     Returns
     -------
     result : relay.Tuple([tvm.relay.Expr, tvm.relay.Expr, tvm.relay.Expr])
-        Tuple of output sparse tensor (same shape and format as input), i.e. if CSR then output is in ([data, indices, indptr]) form
+        Tuple of output sparse tensor (same shape and format as input), 
+        i.e. if CSR then output is in ([data, indices, indptr]) form
     """
     return TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
 
