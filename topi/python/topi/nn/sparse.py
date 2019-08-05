@@ -107,7 +107,6 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     """
     Transpose a square sparse matrix,
     `A` is an n-by-n sparse matrix in the CSR format.
-    
     ** Currently only support Square Matrices **
 
     Parameters
@@ -132,19 +131,23 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     out_indptr : tvm.Tensor
         1-D with shape [n+1], dtype of 'int32'
     """
-    assert len(sparse_data.shape) == 1 , "error in data dimension"
+    assert len(sparse_data.shape) == 1, "error in data dimension"
     assert len(sparse_indices.shape) == 1, "error in indices dimension"
     assert len(sparse_indptr.shape) == 1, "error in indptr dimension"
 
-    NNZ = get_const_tuple(sparse_data.shape)[0]
-    N = get_const_tuple(sparse_indptr.shape)[0] - 1
-    output_shape = [(NNZ,), (NNZ,), (N+1,)]
+    nnz = get_const_tuple(sparse_data.shape)[0]
+    n = get_const_tuple(sparse_indptr.shape)[0] - 1
+    output_shape = [(nnz,), (nnz,), (n+1,)]
 
     # TODO: Add BSR transpose support
 
-    output_data, output_indices, output_indptr = tvm.extern(shape=output_shape, inputs=[sparse_data, sparse_indices, sparse_indptr],
-                           fcompute=lambda ins, outs: csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
-                           tag="sparse_transpose_csr", dtype=['float32', 'int32', 'int32'], name='out')
+    output_data, output_indices, output_indptr = tvm.extern(
+        shape=output_shape,
+        inputs=[sparse_data, sparse_indices, sparse_indptr],
+        fcompute=lambda ins, outs: csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
+        tag="sparse_transpose_csr",
+        dtype=['float32', 'int32', 'int32'],
+        name='out')
 
     return [output_data, output_indices, output_indptr]
 
@@ -160,26 +163,26 @@ def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     out_indices_ptr = irb.buffer_ptr(out_indices)
     out_indptr_ptr = irb.buffer_ptr(out_indptr)
 
-    N = get_const_tuple(indptr.shape)[0] - 1
-    NNZ = get_const_tuple(data.shape)[0]
+    n = get_const_tuple(indptr.shape)[0] - 1
+    nnz = get_const_tuple(data.shape)[0]
 
-    with irb.for_range(0, N, for_type="parallel", name='col') as col:
+    with irb.for_range(0, n, for_type="parallel", name='col') as col:
         out_indptr_ptr[col] = 0
 
-    with irb.for_range(0, NNZ, for_type="serial", name='n') as n:
-        out_indptr_ptr[indices_ptr[n]] += 1
+    with irb.for_range(0, nnz, for_type="serial", name='nz_idx') as nz_idx:
+        out_indptr_ptr[indices_ptr[nz_idx]] += 1
 
     cumsum = irb.allocate('int32', (1,), name='cumsum', scope='local')
     temp = irb.allocate('int32', (1,), name='temp', scope='local')
     cumsum[0] = 0
-    with irb.for_range(0, N, for_type="serial", name='col') as col:
+    with irb.for_range(0, n, for_type="serial", name='col') as col:
         temp[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = cumsum[0]
         cumsum[0] += temp[0]
 
-    out_indptr_ptr[N] = NNZ
+    out_indptr_ptr[n] = nnz
 
-    with irb.for_range(0, N, for_type="serial", name='row') as row:
+    with irb.for_range(0, n, for_type="serial", name='row') as row:
         offset = indptr_ptr[row]
         diff = indptr_ptr[row+1] - indptr_ptr[row]
         with irb.for_range(0, diff, for_type="serial", name='idx') as idx:
@@ -194,7 +197,7 @@ def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     last = irb.allocate('int32', (1,), name='last', scope='local')
     temp2 = irb.allocate('int32', (1,), name='temp2', scope='local')
     last[0] = 0
-    with irb.for_range(0, N, for_type="serial", name="col") as col:
+    with irb.for_range(0, n, for_type="serial", name="col") as col:
         temp2[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = last[0]
         last[0] = temp2[0]
