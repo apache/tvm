@@ -235,6 +235,33 @@ def test_sparse_dense_csr():
     func(tvm.ndarray.array(X_np), tvm.ndarray.array(W_sp_np.data), tvm.ndarray.array(W_sp_np.indices), tvm.ndarray.array(W_sp_np.indptr), Y_tvm)
     tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
+def test_sparse_transpose_csr():
+    import scipy.sparse as sp
+    N, density = 100, 0.05
+
+    X_sp = sp.random(N, N, density=density, format='csr', dtype='float32')
+
+    X_sp_T = X_sp.transpose()
+    X_np_T = X_sp_T.todense()
+
+    X_data = tvm.placeholder(shape=X_sp.data.shape, dtype=str(X_sp.data.dtype))
+    X_indices = tvm.placeholder(shape=X_sp.indices.shape, dtype=str(X_sp.indices.dtype))
+    X_indptr = tvm.placeholder(shape=X_sp.indptr.shape, dtype=str(X_sp.indptr.dtype))
+    
+    X_T_data, X_T_indices, X_T_indptr = topi.nn.sparse_transpose(X_data, X_indices, X_indptr)
+    s = tvm.create_schedule([X_T_data.op, X_T_indices.op, X_T_indptr.op])
+    func = tvm.build(s, [X_data, X_indices, X_indptr, X_T_data, X_T_indices, X_T_indptr])
+
+
+    X_T_data_tvm = tvm.ndarray.array(np.zeros(X_sp_T.data.shape, dtype=X_sp_T.data.dtype))
+    X_T_indices_tvm = tvm.ndarray.array(np.zeros(X_sp_T.indices.shape, dtype=X_sp_T.indices.dtype))
+    X_T_indptr_tvm = tvm.ndarray.array(np.zeros(X_sp_T.indptr.shape, dtype=X_sp_T.indptr.dtype))
+
+    func(tvm.ndarray.array(X_sp.data), tvm.ndarray.array(X_sp.indices), tvm.ndarray.array(X_sp.indptr),
+        X_T_data_tvm,  X_T_indices_tvm, X_T_indptr_tvm)
+
+    X_T_out = sp.csr_matrix((X_T_data_tvm.asnumpy(), X_T_indices_tvm.asnumpy(), X_T_indptr_tvm.asnumpy()), shape=(N,N)).todense()
+    tvm.testing.assert_allclose(X_np_T, X_T_out, atol=1e-4, rtol=1e-4)
 
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     import scipy.sparse as sp
@@ -318,3 +345,4 @@ if __name__ == "__main__":
     test_csrmm()
     test_dense()
     test_sparse_dense()
+    test_sparse_transpose_csr()
