@@ -53,6 +53,9 @@ class CodeGenMetal final : public CodeGenC {
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
 
+  // overload visitor
+  void VisitExpr_(const Call* op, std::ostream& os) final; // NOLINT(*)
+
  private:
   int thread_index_bits_{32};
 };

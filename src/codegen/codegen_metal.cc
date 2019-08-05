@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -244,6 +244,19 @@ void CodeGenMetal::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLI
     os << v;
   }
   os << ')';
+}
+
+void CodeGenMetal::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
+  if (op->is_intrinsic(Call::reinterpret)) {
+    // generate as_type<TYPE>(ARG)
+    os << "(as_type<";
+    this->PrintType(op->type, os);
+    os << ">(";
+    this->PrintExpr(op->args[0], os);
+    os << "))";
+  } else {
+    CodeGenC::VisitExpr_(op, os);
+  }
 }
 
 runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
