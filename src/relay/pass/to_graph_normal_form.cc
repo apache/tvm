@@ -68,7 +68,7 @@ class GNF : public ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* ln) override {
-    var_map_.insert(std::pair<Var, Expr>(ln->var, VisitExpr(WrapRec(ln->var, ln->value))));
+    var_map_.insert(std::pair<Var, Expr>(ln->var, WrapRec(ln->var, VisitExpr(ln->value))));
     return VisitExpr(ln->body);
   }
 };
