@@ -419,8 +419,8 @@ class AlphaEqualHandler:
 
   bool VisitExpr_(const LetNode* lhs, const Expr& other) final {
     if (const LetNode* rhs = other.as<LetNode>()) {
-      if (!ExprEqual(lhs->value, rhs->value)) return false;
       if (!MergeVarDecl(lhs->var, rhs->var)) return false;
+      if (!ExprEqual(lhs->value, rhs->value)) return false;
       return ExprEqual(lhs->body, rhs->body);
     } else {
       return false;

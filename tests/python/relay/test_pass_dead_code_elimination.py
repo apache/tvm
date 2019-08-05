@@ -19,7 +19,7 @@ from nose.tools import nottest
 import tvm
 from tvm import relay
 from tvm.relay import Function, transform
-from tvm.relay.analysis import alpha_equal, graph_equal, free_vars
+from tvm.relay.analysis import alpha_equal, graph_equal, free_vars, assert_alpha_equal
 from tvm.relay.op import log, add, equal, subtract
 
 
@@ -65,11 +65,10 @@ def test_used_let():
     expected = relay.Let(e.c, e.one, e.c + e.c)
     assert alpha_equal(Function([e.c], orig), Function([e.c], expected))
 
-@nottest
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
-    orig = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
+    orig = run_opt_pass(orig, transform.DeadCodeElimination(True))
+    assert_alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
 
 
 def test_chain_unused_let():
@@ -77,6 +76,17 @@ def test_chain_unused_let():
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
 
+
+def use_f(func):
+    f = relay.Var("f")
+    n = relay.Var("n", e.int32)
+    data = relay.Var("data", e.float32)
+    funcbody = relay.If(equal(n, relay.const(0)),
+                        data,
+                        relay.Call(f, [subtract(n, relay.const(1)),
+                                       log(data)]))
+    value = relay.Function([n, data], funcbody, e.float32, [])
+    return relay.Let(f, value, func(f))
 
 # make sure we dont infinite loop
 def test_recursion():
@@ -91,21 +101,15 @@ def test_recursion():
        }
        f(2, 10000);
     """
-    f = relay.Var("f")
-    f1 = relay.Var("f1")
-    n = relay.Var("n", e.int32)
-    data = relay.Var("data", e.float32)
-    funcbody = relay.If(equal(n, relay.const(0)),
-                        data,
-                        relay.Call(f1, [subtract(n, relay.const(1)),
-                                       log(data)]))
-    value = relay.Function([n, data], funcbody, e.float32, [])
-    orig = relay.Let(f, value, relay.Call(f, [relay.const(2), relay.const(10000.0)]))
+    orig = use_f(lambda f: relay.Call(f, [relay.const(2), relay.const(10000.0)]))
     dced = run_opt_pass(orig, transform.DeadCodeElimination())
     orig = run_opt_pass(orig, transform.InferType())
-    assert graph_equal(dced, orig)
-    dced = run_opt_pass(relay.Let(f, value, e.three),
-                        transform.DeadCodeElimination())
+    assert_alpha_equal(dced, orig)
+
+def test_recursion_dead():
+    x = relay.Let(e.a, e.one, e.three)
+    dced_f = lambda f: x
+    dced = run_opt_pass(use_f(dced_f), transform.DeadCodeElimination())
     assert alpha_equal(dced, e.three)
 
 
@@ -133,5 +137,6 @@ if __name__ == "__main__":
     test_inline()
     test_chain_unused_let()
     test_recursion()
+    test_recursion_dead()
     test_op_let()
     test_tuple_get_item()
