@@ -100,9 +100,9 @@ bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
                     const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* sparse_data = types[0].as<TensorTypeNode>();
-  CHECK(sparse_data->shape.size() == 1);
+  CHECK_EQ(sparse_data->shape.size(), 1);
   const auto* sparse_indices = types[1].as<TensorTypeNode>();
-  CHECK(sparse_indices->shape.size() == 1);
+  CHECK_EQ(sparse_indices->shape.size(), 1);
   const auto* sparse_indptr = types[2].as<TensorTypeNode>();
 
   std::vector<Type> output_types;
