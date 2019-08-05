@@ -39,7 +39,7 @@
 // - Periodically cleanup the old versions on local workers
 //
 ci_lint = "tvmai/ci-lint:v0.51"
-ci_gpu = "tvmai/ci-gpu:v0.53"
+ci_gpu = "tvmai/ci-gpu:v0.54"
 ci_cpu = "tvmai/ci-cpu:v0.51"
 ci_i386 = "tvmai/ci-i386:v0.51"
 
