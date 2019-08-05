@@ -170,9 +170,9 @@ def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
         out_indptr_ptr[indices_ptr[n]] += 1
 
     cumsum = irb.allocate('int32', (1,), name='cumsum', scope='local')
+    temp = irb.allocate('int32', (1,), name='temp', scope='local')
     cumsum[0] = 0
     with irb.for_range(0, N, for_type="serial", name='col') as col:
-        temp = irb.allocate('int32', (1,), name='temp', scope='local')
         temp[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = cumsum[0]
         cumsum[0] += temp[0]
@@ -192,9 +192,9 @@ def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
             out_indptr_ptr[col] += 1
 
     last = irb.allocate('int32', (1,), name='last', scope='local')
+    temp2 = irb.allocate('int32', (1,), name='temp2', scope='local')
     last[0] = 0
     with irb.for_range(0, N, for_type="serial", name="col") as col:
-        temp2 = irb.allocate('int32', (1,), name='temp2', scope='local')
         temp2[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = last[0]
         last[0] = temp2[0]
