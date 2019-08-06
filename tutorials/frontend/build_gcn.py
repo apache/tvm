@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Build a Graph Convolutional Network
+Building a Graph Convolutional Network
 =====================
 **Author**: `Yulun Yao <https://yulunyao.io/>`_
 
@@ -65,7 +65,7 @@ def GraphConv(
     layer_name: str
     Name of layer
 
-    input_dim: int,
+    input_dim: int
     Input dimension per node feature
 
     output_dim: int,
@@ -158,7 +158,7 @@ target: str
     currently only support llvm, GPU support will be added in next few weeks
 
 activation: <function relay.op.nn>,
-    Activation function applies to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
+    Activation function applied to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
 
 dataset: str
     Name of dataset. You can pick from ['cora', 'citeseer', 'pubmed'] or you can use your own.
