@@ -99,6 +99,20 @@ def schedule_sparse_dense(attrs, outputs, target):
 
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# sparse_transpose
+@reg.register_compute("nn.sparse_transpose")
+def compute_sparse_transpose(attrs, inputs, out_type, target):
+    """Compute definition of sparse_transpose"""
+    return topi.nn.sparse_transpose(inputs[0], inputs[1], inputs[2])
+
+@reg.register_schedule("nn.sparse_transpose")
+def schedule_sparse_transpose(attrs, outputs, target):
+    """Schedule definition of batch_matmul"""
+    with target:
+        return topi.generic.schedule_sparse_transpose(outputs)
+
+reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
 # conv2d
 def _find_conv2d_op(op):
     """Find the op with conv2d in its tag by traversing."""
