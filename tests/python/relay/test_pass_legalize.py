@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test alter op layout pass"""
+"""Test legalize pass"""
 import tvm
 
 from tvm import relay
@@ -45,7 +45,7 @@ def test_legalize():
         return y
 
     @register_legalize("nn.conv2d", level=100)
-    def alter_conv2d(attrs, inputs, arg_types):
+    def legalize_conv2d(attrs, inputs, arg_types):
         data, weight = inputs
         weight = relay.multiply(weight, relay.const(2.0, "float32"))
         return relay.nn.conv2d(data, weight, **attrs)
@@ -78,7 +78,7 @@ def test_legalize_none():
     called = [False]
 
     @register_legalize("nn.global_max_pool2d", level=101)
-    def alter_conv2d(attrs, inputs, arg_types):
+    def legalize_conv2d(attrs, inputs, arg_types):
         called[0] = True
         return None
 
@@ -101,7 +101,7 @@ def test_legalize_multi_input():
         return func
 
     @register_legalize("concatenate", level=100)
-    def alter_concatenate(attrs, inputs, arg_types):
+    def legalize_concatenate(attrs, inputs, arg_types):
         # Check that the correct multi-input case is handled.
         assert len(inputs) == 1
         assert isinstance(inputs[0], tvm.relay.expr.Tuple)

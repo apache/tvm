@@ -128,7 +128,7 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
        const Array<Tensor>& tinfos)>;
 
 /*!
- * \brief Rewrites an expression with another expression. This function will be
+ * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
  * \param inputs The input symbols of the original node.

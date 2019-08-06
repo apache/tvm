@@ -304,7 +304,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     pass_seqs.push_back(transform::CanonicalizeCast());
     pass_seqs.push_back(transform::CanonicalizeOps());
 
-    // Rewrite op is only applied to homogeneous execution yet.
+    // Legalize pass is restricted to homogeneous execution for now.
     if (targets.size() == 1) {
       pass_seqs.push_back(transform::Legalize());
     }

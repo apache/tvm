@@ -521,7 +521,7 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
- * \brief Rewrite an expr with another expression.
+ * \brief Legalizes an expr with another expression.
  *
  * \return The pass.
  */
