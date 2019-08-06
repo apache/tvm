@@ -22,4 +22,3 @@ from .l2_normalize import *
 from .batch_matmul import *
 from .sparse import *
 from .pad import *
-
