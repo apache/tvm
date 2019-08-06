@@ -311,7 +311,7 @@ def test_dense():
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.TensorType((2, w), "float32"))
     y = relay.nn.dense(x, w, units=2)
-    "units=2" in y.astext()
+    assert "units=2" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
 
