@@ -1019,6 +1019,19 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
+def _mirror_pad():
+    def _impl(inputs, attr, params):
+        padlist = _get_param(params, inputs[1])
+        paddings = tuple(tuple(l) for l in padlist)
+        attr['pad_width'] = paddings
+        mode = attr['mode'].decode('utf-8')
+        attr['mode'] = mode
+        new_inputs = [inputs[0]]
+        return AttrCvt(
+            op_name='mirror_pad',
+            ignores=['Tpaddings'],)(new_inputs, attr)
+    return _impl
+
 def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
@@ -1383,6 +1396,7 @@ _convert_map = {
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
+    'MirrorPad'                         : _mirror_pad(),
     'Pow'                               : _elemwise('power'),
     'Prod'                              : _prod(),
     'Range'                             : _range(),
