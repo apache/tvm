@@ -117,7 +117,7 @@ def mirror_pad(data,
     out_shape = tuple(
         tvm.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
         for i in range(n))
-    assert (mode == 'SYMMETRIC' or mode == 'REFLECT')
+    assert mode in ('SYMMETRIC', 'REFLECT')
     mode = int(mode == 'SYMMETRIC')
 
     def _pad(*indices):
