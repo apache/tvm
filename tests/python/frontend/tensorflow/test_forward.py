@@ -485,7 +485,6 @@ def _test_spacetodepth(data, block_size):
 def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]), 2)
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]), 4)
-    print("PASS SPACETODEPTH")
 
 #######################################################################
 # Squeeze
@@ -2165,6 +2164,7 @@ if __name__ == '__main__':
     test_forward_transpose()
     test_forward_reshape()
     test_forward_depthtospace()
+    test_forward_spacetodepth()
     test_forward_squeeze()
     test_forward_pack()
     test_forward_size()

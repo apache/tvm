@@ -767,10 +767,10 @@ def _space_to_depth():
             new_c = int(in_c * block_size * block_size)
             newshape = (in_n, new_c, new_h, new_w)
 
-        return _annotation.stop_fusion(AttrCvt(
+        return AttrCvt(
             op_name="reshape",
             extras={'newshape': newshape},
-            ignores=['data_format', 'block_size'])([transposed], attr))
+            ignores=['data_format', 'block_size'])([transposed], attr)
 
     return _impl
 
