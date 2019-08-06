@@ -1330,6 +1330,8 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
                 out_name = 'PadV2:0'
             else:
                 out_name = 'Pad:0'
+        else:
+            out_name = 'MirrorPad:0'
 
         compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
@@ -1337,6 +1339,8 @@ def test_forward_pad():
     """ Pad """
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT")
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT", constant_values=1.0)
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="SYMMETRIC")
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="REFLECT")
 
 #######################################################################
 # Logical operators
