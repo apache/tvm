@@ -756,21 +756,21 @@ def _space_to_depth():
             new_c = in_c * block_size * block_size
             newshape = (in_n, new_h, new_w, new_c)
 
-            else: # Handle NCHW layout
-                in_n, in_c, in_h, in_w = input_shape
-                new_h = int(in_h / block_size)
-                new_w = int(in_w / block_size)
+        else: # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
 
-                expanded = _op.reshape(
-                    inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
-                transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
-                new_c = int(in_c * block_size * block_size)
-                newshape = (in_n, new_c, new_h, new_w)
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+            new_c = int(in_c * block_size * block_size)
+            newshape = (in_n, new_c, new_h, new_w)
 
-            return _annotation.stop_fusion(AttrCvt(
-                op_name="reshape",
-                extras={'newshape': newshape},
-                ignores=['data_format', 'block_size'])([transposed], attr))
+        return _annotation.stop_fusion(AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr))
 
     return _impl
 

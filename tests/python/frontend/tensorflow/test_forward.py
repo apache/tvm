@@ -469,6 +469,23 @@ def test_forward_depthtospace():
     _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]), 2)
     _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]), 4)
 
+#######################################################################
+# SpaceToDepth
+# ------------
+
+def _test_spacetodepth(data, block_size):
+    """ One iteration of space_to_depth operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        array_ops.space_to_depth(in_data, block_size)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'SpaceToDepth:0')
+
+def test_forward_spacetodepth():
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]), 4)
+    print("PASS SPACETODEPTH")
 
 #######################################################################
 # Squeeze
