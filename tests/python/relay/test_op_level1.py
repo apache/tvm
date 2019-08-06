@@ -223,7 +223,7 @@ def test_concatenate():
         y = relay.var('p2', shape=(2, 3))
         c = relay.concatenate([x, y], axis=0)
         func = relay.Function([x, y], c)
-        relay_module = relay.Module.from_expr(func)
+        zz = run_infer_type(func)
     except tvm._ffi.base.TVMError:
         pass
     else:
