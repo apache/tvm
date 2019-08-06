@@ -521,6 +521,13 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Legalizes an expr with another expression.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass Legalize();
+
+/*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
  *
  * \return The pass.
