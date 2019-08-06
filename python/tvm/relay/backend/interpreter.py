@@ -269,7 +269,6 @@ class Interpreter(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        self._intrp = _backend.CreateInterpreter(mod, ctx, target)
 
     def optimize(self):
         """Optimize functions in a module.
@@ -313,5 +312,6 @@ class Interpreter(Executor):
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)
-            return self._intrp(opt_expr)
+            _intrp = _backend.CreateInterpreter(mod, self.ctx, self.target)
+            return _intrp(opt_expr)
         return _interp_wrapper
