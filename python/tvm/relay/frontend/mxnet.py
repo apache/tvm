@@ -20,13 +20,14 @@ from __future__ import absolute_import as _abs
 
 import json
 import tvm
-from .. import analysis, transform
+from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from .. import module as _module
 from ... import nd as _nd
 
 from .common import StrAttrsDict
+from .common import infer_type as _infer_type
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
 from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
 from .nnvm_common import _clip, _transpose, _upsampling
@@ -40,13 +41,6 @@ _activation_map = {
     "tanh"   : _op.tanh,
     "relu"   : _op.nn.relu
 }
-
-def _infer_type(node):
-    """A method to infer the type of an intermediate node in the relay graph."""
-    mod = _module.Module.from_expr(node)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(node, _expr.Function) else entry.body
 
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
