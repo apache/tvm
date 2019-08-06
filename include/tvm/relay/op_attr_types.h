@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file nnvm/compiler/op_attr_types.h
+ * \file tvm/relay/op_attr_types.h
  * \brief The Expr and related elements in DataFlow construction.
  */
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
@@ -126,6 +126,20 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
        const Array<Tensor>& tinfos)>;
+
+/*!
+ * \brief Legalizes an expression with another expression. This function will be
+ *  invoked in Legalize pass. It is a target-dependent pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos An array of placeholders, use for getting the inferred shape
+ *               and dtype of the inputs.
+ * \return new_expr The modified expression.
+ */
+using FTVMLegalize = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args,
+       const Array<tvm::relay::Type>& arg_types)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

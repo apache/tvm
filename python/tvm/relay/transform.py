@@ -437,6 +437,21 @@ def AlterOpLayout():
     return _transform.AlterOpLayout()
 
 
+def Legalize():
+    """Legalizes an expression with another expression.
+    This pass can be used to replace an expr with another expr for target
+    dependent optimizations. For example, one expr, though semnatically
+    equivalent to the other, can have better performance on a target. This pass
+    can be used to legalize the expr in a target-dependent manner.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that rewrites an expr.
+    """
+    return _transform.Legalize()
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.

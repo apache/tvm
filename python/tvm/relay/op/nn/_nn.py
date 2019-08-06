@@ -204,6 +204,10 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     from ... import op
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
+# A placeholder to have at least one invocation of register legalize to register FTVMLegalize.
+@reg.register_legalize("nn.conv2d")
+def legalize_conv2d(attrs, inputs, arg_dtypes):
+    return None
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
