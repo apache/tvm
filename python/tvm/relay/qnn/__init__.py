@@ -18,4 +18,3 @@
 """QNN dialect operators and IR passes."""
 from __future__ import absolute_import as _abs
 from . import op
-from . import transform
