@@ -749,14 +749,14 @@ def _space_to_depth():
 
             # First expand input to larger dimension.
             expanded = _op.reshape(
-            inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
             # Now reorder to expand spatial blocks.
             transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
             # Finally reshape to proper output.
             new_c = in_c * block_size * block_size
             newshape = (in_n, new_h, new_w, new_c)
 
-        else: # Handle NCHW layout
+        else:  # Handle NCHW layout
             in_n, in_c, in_h, in_w = input_shape
             new_h = int(in_h / block_size)
             new_w = int(in_w / block_size)
