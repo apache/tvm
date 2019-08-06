@@ -737,6 +737,44 @@ def _depth_to_space():
     return _impl
 
 
+def _space_to_depth():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+            inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_c = in_c * block_size * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+            else: # Handle NCHW layout
+                in_n, in_c, in_h, in_w = input_shape
+                new_h = int(in_h / block_size)
+                new_w = int(in_w / block_size)
+
+                expanded = _op.reshape(
+                    inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+                transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+                new_c = int(in_c * block_size * block_size)
+                newshape = (in_n, new_c, new_h, new_w)
+
+            return _annotation.stop_fusion(AttrCvt(
+                op_name="reshape",
+                extras={'newshape': newshape},
+                ignores=['data_format', 'block_size'])([transposed], attr))
+
+    return _impl
+
+
 def _bias_add():
     def _impl(inputs, attr, params):
         # Must expand for proper broadcasting in NCHW.
@@ -1389,6 +1427,7 @@ _convert_map = {
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
     'Minimum'                           : _elemwise('minimum'),
+    'MirrorPad'                         : _mirror_pad(),
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
@@ -1396,7 +1435,6 @@ _convert_map = {
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
-    'MirrorPad'                         : _mirror_pad(),
     'Pow'                               : _elemwise('power'),
     'Prod'                              : _prod(),
     'Range'                             : _range(),
@@ -1422,6 +1460,7 @@ _convert_map = {
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
+    'SpaceToDepth'                      : _space_to_depth(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Sqrt'                              : AttrCvt('sqrt'),
