@@ -34,9 +34,7 @@
 #include <cassert>
 #include <cstring>
 #include <vector>
-#include <thread>
 #include <memory>
-#include <atomic>
 
 namespace vta {
 
