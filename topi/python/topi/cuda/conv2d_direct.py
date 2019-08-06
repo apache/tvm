@@ -90,8 +90,8 @@ def schedule_direct_cuda(cfg, s, conv):
     n, f, y, x = s[OL].op.axis
     rc, ry, rx = s[OL].op.reduce_axis
     rco, rci = cfg['tile_rc'].apply(s, OL, rc)
-    ryo, ryi = cfg['tile_rx'].apply(s, OL, ry)
-    rxo, rxi = cfg['tile_ry'].apply(s, OL, rx)
+    ryo, ryi = cfg['tile_ry'].apply(s, OL, ry)
+    rxo, rxi = cfg['tile_rx'].apply(s, OL, rx)
     s[OL].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x)
 
     s[AA].compute_at(s[OL], rxo)
