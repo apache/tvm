@@ -314,7 +314,7 @@ def test_concat():
     assert_alpha_equal(dcpe(orig), orig)
 
 
-def test_triangle():
+def test_triangle_number():
     t = relay.TensorType([], "int32")
     x = Var("x", t)
     f_var = Var("f")
@@ -341,4 +341,4 @@ if __name__ == '__main__':
     test_global_match_nat_id()
     test_match_nat_id()
     test_concat()
-    test_triangle()
+    test_triangle_number()
