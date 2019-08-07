@@ -281,17 +281,15 @@ struct ReverseAD : ExprMutator {
         std::vector<Expr> orig_args;
         std::function<Expr(const Type& t, const Expr& e)> get_orig_args;
         get_orig_args = [&](const Type& t, const Expr& e) -> Expr{
-          if(t.as<TensorTypeNode>()) {
+          if (t.as<TensorTypeNode>()) {
             return GetField(e, 0);
-          }
-          else if (auto* tt = t.as<TupleTypeNode>()) {
+          } else if (auto* tt = t.as<TupleTypeNode>()) {
             tvm::Array<Expr> fields;
             for (size_t i = 0; i < tt->fields.size(); ++i) {
               fields.push_back(get_orig_args(tt->fields[i], ll->Push(GetField(e, i))));
             }
             return TupleNode::make(fields);
-          }
-          else {
+          } else {
             LOG(FATAL) << "unsupported arg type of operator: " << t;
             throw;
           }
@@ -304,15 +302,13 @@ struct ReverseAD : ExprMutator {
         get_ret = [&](const Type& t, const Expr& e) -> Expr {
           if (t.as<TensorTypeNode>()) {
             return Pair(e, ll->Push(RefCreateNode::make(ZerosLike(e))));
-          }
-          else if (auto* tt = t.as<TupleTypeNode>()) {
+          } else if (auto* tt = t.as<TupleTypeNode>()) {
             tvm::Array<Expr> fields;
             for (size_t i = 0; i < tt->fields.size(); ++i) {
               fields.push_back(get_ret(tt->fields[i], ll->Push(GetField(e, i))));
             }
             return TupleNode::make(fields);
-          }
-          else {
+          } else {
             LOG(FATAL) << "unsupported return type of operator: " << t;
             throw;
           }
@@ -326,15 +322,13 @@ struct ReverseAD : ExprMutator {
             get_grad = [&](const Type& t, const Expr& e) -> Expr {
               if (t.as<TensorTypeNode>()) {
                 return ll->Push(RefReadNode::make(GetField(e, 1)));
-              }
-              else if (auto* tt = t.as<TupleTypeNode>()) {
+              } else if (auto* tt = t.as<TupleTypeNode>()) {
                 tvm::Array<Expr> fields;
                 for (size_t i = 0; i < tt->fields.size(); ++i) {
                   fields.push_back(get_grad(tt->fields[i], ll->Push(GetField(e, i))));
                 }
                 return TupleNode::make(fields);
-              }
-              else {
+              } else {
                 LOG(FATAL) << "unsupported return type of operator: " << t;
                 throw;
               }
@@ -347,15 +341,13 @@ struct ReverseAD : ExprMutator {
                 ll->Push(RefWriteNode::make(GetField(arg, 1),
                                             Add(ll->Push(RefReadNode::make(GetField(arg, 1))),
                                                 grad)));
-              }
-              else if (auto* tt = t.as<TupleTypeNode>()) {
+              } else if (auto* tt = t.as<TupleTypeNode>()) {
                 for (size_t i = 0; i < tt->fields.size(); ++i) {
                   update_grad(tt->fields[i],
                               ll->Push(GetField(arg, i)),
                               ll->Push(GetField(grad, i)));
                 }
-              }
-              else {
+              } else {
                 LOG(FATAL) << "unsupported arg type of operator: " << t;
                 throw;
               }
