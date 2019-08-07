@@ -899,20 +899,14 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     num_states = len(in_state_locs)
 
     data = inputs[:num_data]
+    assert len(data) == 1, "only supports one input currently"
     prev_states = inputs[num_data:num_data+num_states]
     params = inputs[num_data+num_states:]
 
-    # The parameters will be generated in DFS order for the
-    # subgraph representing the iteration function.
-    #
-    # Here we will normalize the order of names to make
-    # code generation uniform for the foreach construct.
-    loop_body_param_order = {}
-    param_names = [n['name'] for n in loop_body_json['nodes']]
-    for i in in_data_locs:
-        loop_body_param_order[param_names[i]] = i
-    for i in in_state_locs:
-        loop_body_param_order[param_names[i]] = i
+    # Build a name map for the input.
+    input_name_map = {}
+    for inp in params:
+        input_name_map[inp.name_hint] = inp
 
     # Next we will compute the shape information for the loop body
     # arguments.
@@ -932,17 +926,21 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     # Run the converter on the subgraph that represents the body.
     loop_body = _from_mxnet_impl(loop_body, loop_body_arg_shapes, dtype_info, mod=mod)
 
-    # Noramlize the order of arguments.
-    params_map = dict((k.name_hint, k) for k in loop_body.params)
-    params = []
-    for name in loop_body_param_order.keys():
-        params.append(params_map[name])
 
-    # We then replace the loop body with the normalized parameters.
+    # Right now we bind ML parameters statically, at the top, we will
+    # have to change for training at some point.
+    # TODO(@jroesch)
+    new_params = []
+    for param in loop_body.params:
+        inp = input_name_map.get(param.name_hint)
+        if inp is not None and inp in params:
+            continue
+
+        new_params.append(param)
+
     loop_body = _expr.Function(
-        params,
-        loop_body.body,
-        loop_body.ret_type,
+        new_params,
+        loop_body.body, None,
         loop_body.type_params,
         loop_body.attrs)
 
@@ -965,7 +963,8 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     # In the case where the output data is ignored, we will pass
     # it along as normal.
     if num_out_data == 0:
-        tupled_body = _expr.Tuple([*loop_body.params[num_data:], loop_body.body])
+        unit = _expr.Tuple([])
+        tupled_body = _expr.Tuple([unit, loop_body.body])
         loop_body = _expr.Function(
             loop_body.params,
             tupled_body, None,
@@ -975,13 +974,21 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     # Finally we will invoke `relay.loops.foreach` with the data,
     # loop_body, and then initial states.
     loop = loops.foreach(data[0], loop_body, prev_states, mod=mod)
+
     loop_var = _expr.GlobalVar('foreach')
 
     # We insert the generated loop into the module.
     mod[loop_var] = loop
 
-    # Apply the loop to the data and previous states.
-    return loop(data[0], *prev_states)
+    # We return a tuple with a list of outputs (1), and
+    # the number of previous states.
+    start_loop = loop_var(data[0], *(prev_states + params))
+
+    # Now we can just drop the data.
+    if num_out_data == 0:
+        return _expr.Tuple([_expr.TupleGetItem(start_loop, 1)])
+
+    return _expr.TupleWrapper(start_loop, 1 + len(prev_states))
 
 
 def _mx_while_loop(inputs, attrs, subgraphs, dtype_info, mod):
@@ -1281,7 +1288,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
-    outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
+    outputs = []
+    for edge in jgraph["heads"]:
+        outputs.append(node_map[edge[0]][edge[1]])
+
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _expr.Function(analysis.free_vars(outputs), outputs)
     return func
