@@ -867,7 +867,7 @@ def batch_norm(data,
         Specify along which shape axis the channel is specified.
 
     epsilon : double, optional, default=1e-5
-        Small float added to variance to avoid diving by zero.
+        Small float added to variance to avoid dividing by zero.
 
     center : boolean, optional, default=True
         If True, add offset of beta to normalized tensor, If False,
@@ -938,7 +938,7 @@ def layer_norm(data,
         The axis that should be normalized, typically the axis of the channels.
 
     epsilon : double, optional, default=1e-5
-        Small float added to variance to avoid diving by zero.
+        Small float added to variance to avoid dividing by zero.
 
     center : boolean, optional, default=True
         If True, add offset of beta to normalized tensor, If False,

@@ -239,8 +239,8 @@ def mean(data, axis=None, keepdims=False, exclude=False):
 
     axis : None or int or tuple of int
         Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will compute the mean of all elements in the input array.
+        If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -269,9 +269,9 @@ def variance(data, axis=None, keepdims=False, exclude=False):
         The input data
 
     axis : None or int or tuple of int
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a variance operation is performed.
+        The default, axis=None, will compute the variance of all elements in the input array.
+        If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -301,9 +301,9 @@ def std(data, axis=None, keepdims=False, exclude=False):
         The input data
 
     axis : None or int or tuple of int
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a standard deviation operation is performed.
+        The default, axis=None, will compute the standard deviation of all elements in the
+        input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -333,8 +333,8 @@ def mean_variance(data, axis=None, keepdims=False, exclude=False):
         The input data
 
     axis : None or int or tuple of int
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
+        Axis or axes along which a mean and variance operation is performed.
+        The default, axis=None, will compute the mean and variance of all elements in
         the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
@@ -368,8 +368,8 @@ def mean_std(data, axis=None, keepdims=False, exclude=False):
         The input data
 
     axis : None or int or tuple of int
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
+        Axis or axes along which a mean and standard deviation operation is performed.
+        The default, axis=None, will compute the mean and standard deviation of all elements in
         the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
