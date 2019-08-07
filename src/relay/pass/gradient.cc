@@ -261,7 +261,7 @@ struct ReverseAD : ExprMutator {
   Var bp;
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
 
-  ReverseAD(const Var& bp) : bp(bp) { } /// NOLINT(*)
+  explicit ReverseAD(const Var& bp) : bp(bp) { }
 
   Expr VisitExpr_(const OpNode* op) final {
     LOG(FATAL) << "op should only be inside call";
@@ -279,29 +279,96 @@ struct ReverseAD : ExprMutator {
           args.push_back(ll->Push(VisitExpr(arg)));
         }
         std::vector<Expr> orig_args;
-        for (const auto& arg : args) {
-          orig_args.push_back(GetField(arg, 0));
+        std::function<Expr(const Type& t, const Expr& e)> get_orig_args;
+        get_orig_args = [&](const Type& t, const Expr& e) -> Expr{
+          if(t.as<TensorTypeNode>()) {
+            return GetField(e, 0);
+          }
+          else if (auto* tt = t.as<TupleTypeNode>()) {
+            tvm::Array<Expr> fields;
+            for (size_t i = 0; i < tt->fields.size(); ++i) {
+              fields.push_back(get_orig_args(tt->fields[i], ll->Push(GetField(e, i))));
+            }
+            return TupleNode::make(fields);
+          }
+          else {
+            LOG(FATAL) << "unsupported arg type of operator: " << t;
+            throw;
+          }
+        };
+        for (size_t i = 0; i < args.size(); ++i) {
+          orig_args.push_back(get_orig_args(op->args[i]->checked_type(), args[i]));
         }
         Expr orig = CallNode::make(op->op, orig_args, op->attrs, op->type_args);
-        Var orig_var = ll->Push(orig);
-        auto ref = ll->Push(RefCreateNode::make(ZerosLike(orig_var)));
+        std::function<Expr(const Type& t, const Expr& e)> get_ret;
+        get_ret = [&](const Type& t, const Expr& e) -> Expr {
+          if (t.as<TensorTypeNode>()) {
+            return Pair(e, ll->Push(RefCreateNode::make(ZerosLike(e))));
+          }
+          else if (auto* tt = t.as<TupleTypeNode>()) {
+            tvm::Array<Expr> fields;
+            for (size_t i = 0; i < tt->fields.size(); ++i) {
+              fields.push_back(get_ret(tt->fields[i], ll->Push(GetField(e, i))));
+            }
+            return TupleNode::make(fields);
+          }
+          else {
+            LOG(FATAL) << "unsupported return type of operator: " << t;
+            throw;
+          }
+        };
+        auto ret = get_ret(op->checked_type(), ll->Push(orig));
         auto bpv = ll->Push(RefReadNode::make(bp));
         Expr nbp = FunctionNode::make(
           {},
           LetList::With([&](LetList* ll) {
-              tvm::Array<Expr> rev = rev_map[op_ref](orig, ll->Push(RefReadNode::make(ref)));
-              CHECK(args.size() == rev.size());
-              for (size_t i = 0; i < args.size(); ++i) {
-                ll->Push(RefWriteNode::make(GetField(args[i], 1),
-                                            Add(ll->Push(RefReadNode::make(GetField(args[i], 1))),
-                                                rev[i])));
+            std::function<Expr(const Type& t, const Expr& e)> get_grad;
+            get_grad = [&](const Type& t, const Expr& e) -> Expr {
+              if (t.as<TensorTypeNode>()) {
+                return ll->Push(RefReadNode::make(GetField(e, 1)));
               }
+              else if (auto* tt = t.as<TupleTypeNode>()) {
+                tvm::Array<Expr> fields;
+                for (size_t i = 0; i < tt->fields.size(); ++i) {
+                  fields.push_back(get_grad(tt->fields[i], ll->Push(GetField(e, i))));
+                }
+                return TupleNode::make(fields);
+              }
+              else {
+                LOG(FATAL) << "unsupported return type of operator: " << t;
+                throw;
+              }
+            };
+            tvm::Array<Expr> rev = rev_map[op_ref](orig, get_grad(op->checked_type(), ret));
+            CHECK(args.size() == rev.size());
+            std::function<void(const Type& t, const Expr& arg, const Expr& grad)> update_grad;
+            update_grad = [&](const Type& t, const Expr& arg, const Expr& grad) {
+              if (t.as<TensorTypeNode>()) {
+                ll->Push(RefWriteNode::make(GetField(arg, 1),
+                                            Add(ll->Push(RefReadNode::make(GetField(arg, 1))),
+                                                grad)));
+              }
+              else if (auto* tt = t.as<TupleTypeNode>()) {
+                for (size_t i = 0; i < tt->fields.size(); ++i) {
+                  update_grad(tt->fields[i],
+                              ll->Push(GetField(arg, i)),
+                              ll->Push(GetField(grad, i)));
+                }
+              }
+              else {
+                LOG(FATAL) << "unsupported arg type of operator: " << t;
+                throw;
+              }
+            };
+            for (size_t i = 0; i < args.size(); ++i) {
+              update_grad(op->args[i]->checked_type(), args[i], rev[i]);
+            }
             return CallNode::make(bpv, {});
-            }),
+          }),
           TupleTypeNode::make({}),
           {});
         ll->Push(RefWriteNode::make(bp, nbp));
-        return Pair(orig_var, ref);
+        return ret;
       });
     }
     return ExprMutator::VisitExpr_(op);
