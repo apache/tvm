@@ -18,6 +18,9 @@
 # pylint: disable=redefined-builtin
 
 from . import _make
+from .tensor import sqrt
+from .transform import squeeze
+from ..expr import Tuple, TupleWrapper
 
 def argmax(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the maximum values along an axis.
@@ -236,8 +239,8 @@ def mean(data, axis=None, keepdims=False, exclude=False):
 
     axis : None or int or tuple of int
         Axis or axes along which a mean operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
+        The default, axis=None, will compute the mean of all elements in the input array.
+        If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -255,6 +258,140 @@ def mean(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     return _make.mean(data, axis, keepdims, exclude)
+
+
+def variance(data, axis=None, keepdims=False, exclude=False):
+    """Computes the variance of data over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a variance operation is performed.
+        The default, axis=None, will compute the variance of all elements in the input array.
+        If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    axis = [axis] if isinstance(axis, int) else axis
+    m = mean(data, axis, True, exclude)
+    return _make._variance(data, m, axis, keepdims, exclude)
+
+
+def std(data, axis=None, keepdims=False, exclude=False):
+    """Computes the standard deviation of data over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a standard deviation operation is performed.
+        The default, axis=None, will compute the standard deviation of all elements in the
+        input array. If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    axis = [axis] if isinstance(axis, int) else axis
+    m = mean(data, axis, True, exclude)
+    return sqrt(_make._variance(data, m, axis, keepdims, exclude))
+
+
+def mean_variance(data, axis=None, keepdims=False, exclude=False):
+    """Computes the mean and variance of data over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a mean and variance operation is performed.
+        The default, axis=None, will compute the mean and variance of all elements in
+        the input array. If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    axis = [axis] if isinstance(axis, int) else axis
+    m = mean(data, axis, True, exclude)
+    var = _make._variance(data, m, axis, keepdims, exclude)
+    if not keepdims:
+        m = squeeze(m)
+    return TupleWrapper(Tuple((m, var)), 2)
+
+
+def mean_std(data, axis=None, keepdims=False, exclude=False):
+    """Computes the mean and standard deviation of data over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a mean and standard deviation operation is performed.
+        The default, axis=None, will compute the mean and standard deviation of all elements in
+        the input array. If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    axis = [axis] if isinstance(axis, int) else axis
+    m = mean(data, axis, True, exclude)
+    s = sqrt(_make._variance(data, m, axis, keepdims, exclude))
+    if not keepdims:
+        m = squeeze(m)
+    return TupleWrapper(Tuple((m, s)), 2)
 
 
 def prod(data, axis=None, keepdims=False, exclude=False):

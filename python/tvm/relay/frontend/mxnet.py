@@ -224,8 +224,19 @@ def _mx_batch_norm(inputs, attrs):
     new_attrs["axis"] = attrs.get_int("axis", 1)
     new_attrs["epsilon"] = attrs.get_float("eps", 0.001)
     new_attrs["center"] = True
-    new_attrs["scale"] = not attrs.get_bool("fix_gamma", False)
+    new_attrs["scale"] = not attrs.get_bool("fix_gamma", True)
     return _op.nn.batch_norm(*inputs, **new_attrs)
+
+
+def _mx_layer_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Layer Norm.')
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
 def _mx_slice(inputs, attrs):
@@ -997,6 +1008,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
     "slice"         : _mx_slice,

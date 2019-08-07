@@ -203,6 +203,8 @@ def test_reduce_functions():
                  [relay.max, np.max],
                  [relay.min, np.min],
                  [relay.mean, np.mean],
+                 [relay.variance, np.var],
+                 [relay.std, np.std],
                  [relay.prod, np.prod],
                  [relay.all, np.all],
                  [relay.argmin, _with_keepdims(np.argmin)],
@@ -224,6 +226,43 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), False, False, (24,))
         verify_reduce(func, (128, 24, 128), (0, 1), True, False, (1, 1, 128))
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
+
+
+def verify_mean_var_std(funcs, shape, axis, keepdims):
+    test_func = funcs[0]
+    ref_func = funcs[1]
+    dtype = "float32"
+
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    z = test_func(x, axis, keepdims)
+    func = relay.Function([x], z.astuple())
+    x_data = np.random.uniform(size=shape).astype(dtype)
+    ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+    ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1[0].asnumpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1[1].asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2[0].asnumpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2[1].asnumpy(), ref_res, rtol=1e-5)
+
+def test_mean_var_std():
+    for func in [[relay.mean_variance, np.var],
+                 [relay.mean_std, np.std]]:
+        verify_mean_var_std(func, (2, 3, 4), 1, True)
+        verify_mean_var_std(func, (2, 3, 4), (1,), True)
+        verify_mean_var_std(func, (2, 3, 4), -1, True)
+        verify_mean_var_std(func, (2, 3, 4), (0, 1, 2), False)
+        verify_mean_var_std(func, (4, 4, 3), None, False)
+        verify_mean_var_std(func, (4, 4, 3), (0, 2), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 1), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 2), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 1), True)
+        verify_mean_var_std(func, (128, 24, 128), (0, 2), True)
 
 
 def test_strided_slice():
@@ -267,3 +306,4 @@ if __name__ == "__main__":
     test_binary_int_broadcast()
     test_where()
     test_reduce_functions()
+    test_mean_var_std()
