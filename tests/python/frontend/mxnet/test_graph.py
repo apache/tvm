@@ -118,28 +118,6 @@ def to_list(mod, relay_list):
 
     return py_list
 
-def test_while_loop():
-    class Loop(gluon.HybridBlock):
-        def hybrid_forward(self, F, data):
-            def sum(state, i):
-                s = state + F.take(data, i)
-                return [], [s, i + 1]
-
-            def sum_cond(state, i):
-                return i < 4
-
-            out, state = F.contrib.while_loop(
-              sum_cond,
-              sum,
-              [F.zeros((1)), F.zeros((1))],
-              max_iterations=5)
-            return out, state
-
-    data = mx.nd.arange(5)
-    loop_layer = Loop()
-    out, state = loop_layer(data)
-    mod, _ = relay.frontend.from_mxnet(loop_layer, shape={'data': (5,)})
-
 def test_foreach_map():
     def add1(data, _):
         return data + 1, []
@@ -180,14 +158,13 @@ def test_foreach_fold():
     np.testing.assert_allclose(mxnet_out, relay_out)
 
 if __name__ == "__main__":
-    # test_mlp()
-    # test_resnet()
-    # test_vgg()
-    # test_multi_outputs()
-    # test_dqn()
-    # test_dcgan()
-    # test_squeezenet()
-    # test_inception_v3()
-    # test_while_loop()
+    test_mlp()
+    test_resnet()
+    test_vgg()
+    test_multi_outputs()
+    test_dqn()
+    test_dcgan()
+    test_squeezenet()
+    test_inception_v3()
     test_foreach_map()
     test_foreach_fold()

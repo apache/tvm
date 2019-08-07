@@ -1008,121 +1008,21 @@ def _mx_foreach(inputs, attrs, subgraphs_json, dtype_info, mod):
 
 
 def _mx_while_loop(inputs, attrs, subgraphs_json, dtype_info, mod):
-    # Parse out the metadata about the loop from MxNet's JSON format.
+    cond_json, loop_body_json = subgraphs_json
+    cond = _mx.symbol.load_json(json.dumps(cond_json))
     loop_body = _mx.symbol.load_json(json.dumps(loop_body_json))
-    in_data_locs = json.loads(attrs.get_str('in_data_locs'))
-    in_state_locs = json.loads(attrs.get_str('in_state_locs'))
-    remain_locs = json.loads(attrs.get_str('remain_locs'))
-    num_out_data = json.loads(attrs.get_str('num_out_data'))
-    num_outputs = json.loads(attrs.get_str('num_outputs'))
-    num_data = len(in_data_locs)
-    num_states = len(in_state_locs)
 
-    data = inputs[:num_data]
-    assert len(data) == 1, "only supports one input currently"
-    prev_states = inputs[num_data:num_data+num_states]
-    params = inputs[num_data+num_states:]
+    cond_input_locs = attrs.get_int_tuple("cond_input_locs")
+    func_input_locs = attrs.get_int_tuple("func_input_locs")
+    func_var_locs = attrs.get_int_tuple("func_var_locs")
+    num_out_data = attrs.get_int("num_out_data")
+    num_outputs = attrs.get_int("num_outputs")
 
-    # Build a name map for the input.
-    param_name_map = {}
-    for inp in params:
-        param_name_map[inp.name_hint] = inp
+    import pdb; pdb.set_trace()
+    loop = loops.while_loop(cond, inputs, loop_body)
+    import pdb; pdb.set_trace()
 
-    # Next we will compute the shape information for the loop body
-    # arguments.
-    loop_body_arg_shapes = []
-    for k, v in enumerate(in_data_locs):
-        exp = _op.take(data[k], _expr.const(0, dtype="int32"), 0)
-        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
 
-    for k, v in enumerate(in_state_locs):
-        exp = prev_states[k]
-        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
-
-    for k, v in enumerate(remain_locs):
-        exp = params[k]
-        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
-
-    # Run the converter on the subgraph that represents the body.
-    loop_body = _from_mxnet_impl(loop_body, loop_body_arg_shapes, dtype_info, mod=mod)
-
-    # Right now parameters are static inline parameters based on name.
-    binds = {}
-    for param in loop_body.params:
-        if param.name_hint in param_name_map:
-            binds[param] = param_name_map[param.name_hint]
-
-    new_body = _expr.bind(loop_body.body, binds)
-    loop_body = _expr.Function(
-        list(set(analysis.free_vars(new_body)) - set(params)),
-        new_body,
-        loop_body.ret_type,
-        loop_body.type_params,
-        loop_body.attrs)
-
-    # relay.loops.foreach is typed and therefore stricter then the
-    # interface MxNet exposes.
-    #
-    # In order to handle this we check two cases and normalize the
-    # appropriate code.
-    #
-    # When returning zero states we will tuple the singleton
-    # body.
-    if len(prev_states) == 0:
-        tupled_body = _expr.Tuple([loop_body.body])
-        loop_body = _expr.Function(
-            loop_body.params,
-            tupled_body, None,
-            loop_body.type_params,
-            loop_body.attrs)
-
-    # In the case where the output data is ignored, we will pass
-    # it along as normal.
-    if num_out_data == 0:
-        unit = _expr.Tuple([])
-        tupled_body = _expr.Tuple([unit, loop_body.body])
-        loop_body = _expr.Function(
-            loop_body.params,
-            tupled_body, None,
-            loop_body.type_params,
-            loop_body.attrs)
-
-    # Finally we will invoke `relay.loops.foreach` with the data,
-    # loop_body, and then initial states.
-    loop = loops.foreach(data[0], loop_body, prev_states, mod=mod)
-
-    loop_var = _expr.GlobalVar('foreach_loop')
-
-    # Bind the parameters outside of the loop,
-    # the final function will take the data to iterate over
-    # the state, and the parameters.
-    inner_params = []
-    binds = {}
-    for param in params:
-        inner_param = _expr.Var(param.name_hint, param.type_annotation)
-        binds[param] =  inner_param
-        inner_params.append(inner_param)
-
-    new_body = _expr.bind(loop.body, binds)
-    loop = _expr.Function(
-        [*loop.params, *inner_params],
-        new_body,
-        loop.ret_type,
-        loop.type_params,
-        loop.attrs)
-
-    # We insert the generated loop into the module.
-    mod[loop_var] = loop
-
-    # We return a tuple with a list of outputs (1), and
-    # the number of previous states.
-    start_loop = loop_var(data[0], *(prev_states + params))
-
-    # Now we can just drop the data.
-    if num_out_data == 0:
-        return _expr.Tuple([_expr.TupleGetItem(start_loop, 1)])
-
-    return _expr.TupleWrapper(start_loop, 1 + len(prev_states))
 
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
