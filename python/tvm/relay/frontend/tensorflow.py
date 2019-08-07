@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import warnings
 from collections import defaultdict
+from functools import reduce
 # Numpy support
 import numpy as np
 
@@ -451,14 +452,16 @@ def _batch_matmul():
         input_x = inputs[0]
         input_y = inputs[1]
         orig_shape_x = attr['_input_shapes'][inputs[0]]
+        orig_shape_y = attr['_input_shapes'][inputs[1]]
 
         # reshape n-dimensional batch matmul into 3d
-        if len(orig_shape_x > 3):
-            outer_dims = [input_x.shape[i] for i in range(0, len(orig_shape_x) - 2)]
+        if len(orig_shape_x) > 3:
+            outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
             num_outer_elts = reduce((lambda x, y: x * y), outer_dims)
-            new_shape = (num_outer_elts, orig_shape_x[:-2], orig_shape_x[:-1])
-            input_x = _op.reshape(input_x, newshape=new_shape)
-            input_x = _op.reshape(input_y, newshape=new_shape)
+            new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
+            new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            input_x = _op.reshape(input_x, newshape=new_shape_x)
+            input_y = _op.reshape(input_y, newshape=new_shape_y)
 
         adj_x = attr['adj_x']
         adj_y = attr['adj_y']
@@ -467,7 +470,7 @@ def _batch_matmul():
         ret = _get_relay_op('batch_matmul')(input_x, input_y)
 
         # reshape result back to n-dimensional
-        if len(orig_shape_x > 3):
+        if len(orig_shape_x) > 3:
             final_shape = attr['_output_shapes'][0]
             ret = _op.reshape(ret, final_shape)
 
