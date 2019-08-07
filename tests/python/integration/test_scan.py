@@ -24,7 +24,9 @@ def test_scan():
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])
     s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-    res = tvm.scan(s_init, s_update, s_state)
+    scan = tvm.scan(s_init, s_update, s_state)
+    # test scan + compute case
+    res = tvm.compute((m, n), lambda i, j: scan[i, j])
 
     # schedule
     s = tvm.create_schedule(res.op)
