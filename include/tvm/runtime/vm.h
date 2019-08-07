@@ -389,7 +389,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \return PackedFunc(nullptr) when it is not available.
    *
    * \note The function will always remain valid.
-   *   If the function need resource from the module(e.g. late linking),
+   *   If the function needs resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
   virtual PackedFunc GetFunction(const std::string& name,

@@ -42,7 +42,7 @@ def _update_target(target):
                         "{}".format(type(target)))
     return tgts
 
-class VMCompilerDebug(object):
+class VMCompilerDebug(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._VMCompilerDebug()
