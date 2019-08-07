@@ -48,7 +48,10 @@ tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
-               "build/libvta_fsim.so, build/libtvm_topi.so, build/libnnvm_compiler.so, " + tvm_runtime
+               "build/libvta_tsim.so, " +
+               "build/libvta_fsim.so, " +
+               "build/libtvm_topi.so, " +
+               "build/libnnvm_compiler.so, " + tvm_runtime
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
