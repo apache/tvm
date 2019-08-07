@@ -117,6 +117,7 @@ ssh xilinx@192.168.2.99
 cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
+echo 'set(USE_VTA_ON_HOST OFF)' >> build/config.cmake
 # Copy pynq specific configuration
 cp vta/config/pynq_sample.json vta/config/vta_config.json
 cd build
