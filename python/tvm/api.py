@@ -323,7 +323,6 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, sformat=None):
                                                  body.tensors,
                                                  body.regions,
                                                  body.scalar_inputs)
-
     elif sformat is not None:
         # sparse compute
         if not isinstance(body, (list, tuple)):
