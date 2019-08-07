@@ -38,7 +38,7 @@ elseif(PYTHON)
   string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_=.]*" VTA_DEFINITIONS "${__vta_defs}")
 
   # Fast simulator driver build
-  if(USE_VTA_ON_HOST)
+  if(USE_VTA_FSIM)
     # Add fsim driver sources
     file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
@@ -56,7 +56,7 @@ elseif(PYTHON)
   endif()
 
   # Cycle accurate simulator driver build
-  if(USE_VTA_ON_HOST)
+  if(USE_VTA_TSIM)
     # Add tsim driver sources
     file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
@@ -77,7 +77,7 @@ elseif(PYTHON)
   endif()
 
   # VTA FPGA driver sources
-  if(NOT USE_VTA_ON_HOST)
+  if(USE_VTA_FPGA)
     file(GLOB FPGA_RUNTIME_SRCS vta/src/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR

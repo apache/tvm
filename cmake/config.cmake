@@ -138,5 +138,11 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
-# Whether to build VTA dlls on host or device
-set(USE_VTA_ON_HOST ON)
+# Whether to build fast VTA simulator driver
+set(USE_VTA_FSIM ON)
+
+# Whether to build cycle-accurate VTA simulator driver
+set(USE_VTA_TSIM ON)
+
+# Whether to build VTA FPGA driver (device side only)
+set(USE_VTA_FPGA OFF)
