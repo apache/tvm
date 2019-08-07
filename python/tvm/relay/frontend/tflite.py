@@ -758,7 +758,14 @@ class OperatorConverter(object):
         input_tensor_idx = input_tensor.tensor_idx
 
         in_expr = self.get_expr(input_tensor_idx)
-        out = _op.transpose(data=in_expr)
+
+        # axis
+        in_axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        if in_axis is None:
+            out = _op.transpose(data=in_expr)
+        else:
+            out = _op.transpose(in_expr, in_axis)
 
         return out
 
