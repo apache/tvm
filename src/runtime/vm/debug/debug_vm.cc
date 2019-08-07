@@ -29,6 +29,7 @@
 #include <chrono>
 #include <iomanip>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -47,14 +48,20 @@ PackedFunc VirtualMachineDebug::GetFunction(
       os << std::setw(30) << std::left << "#OpName"
          << "\t" << std::setw(10) << std::left << "#InvokeCount"
          << "\t"
-         << "#Duration(us)" << std::endl;
+         << "#Duration(us): Sum/Mean/Min/Max" << std::endl;
 
       for (auto kv : op_durations) {
+        auto vals = op_durations[kv.first];
+        auto sum = std::accumulate(vals.begin(), vals.end(), 0.0);;
+        auto mean = sum / double(vals.size());
+        auto min_value = *std::min_element(vals.begin(), vals.end());
+        auto max_value = *std::max_element(vals.begin(), vals.end());
+
         os << std::setw(30) << std::left << packed_index_map[kv.first] << "\t"
            << std::setw(10) << std::left << op_invokes[kv.first] << "\t"
-           << op_durations[kv.first] << std::endl;
+           <<  sum << "/" << mean << "/" << min_value << "/" << max_value << std::endl;
 
-        total_duration += op_durations[kv.first];
+        total_duration += sum;
       }
       os << "Total Duration " << total_duration << " us" << std::endl;
       *rv = os.str();
@@ -81,7 +88,6 @@ void VirtualMachineDebug::Init(const std::vector<TVMContext>& ctxs) {
   VirtualMachine::Init(ctxs);
   for (auto kv : primitive_map) {
     packed_index_map[kv.second] = kv.first;
-    op_durations[kv.second] = 0.0;
     op_invokes[kv.second] = 0;
   }
 }
@@ -99,7 +105,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
                                                                  op_begin)
           .count();
 
-  op_durations[packed_index] += op_duration * 1e6;
+  op_durations[packed_index].push_back(op_duration * 1e6);
   op_invokes[packed_index] += 1;
 }
 

@@ -53,7 +53,7 @@ class VirtualMachineDebug : public VirtualMachine {
   void Init(const std::vector<TVMContext>& ctxs);
 
   std::unordered_map<Index, std::string> packed_index_map;
-  std::unordered_map<Index, double> op_durations;
+  std::unordered_map<Index, std::vector<double>> op_durations;
   std::unordered_map<Index, int> op_invokes;
 };
 
