@@ -887,7 +887,9 @@ def _mx_rnn_layer(inputs, attrs):
             ret.append(_op.stack(inputs, axis=0))
     return ret
 
-def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
+def _mx_foreach(inputs, attrs, subgraphs_json, dtype_info, mod):
+    assert len(subgraphs_json) == 1, "foreach should only have a single subgraph"
+    loop_body_json = subgraphs_json[0]
     # Parse out the metadata about the loop from MxNet's JSON format.
     loop_body = _mx.symbol.load_json(json.dumps(loop_body_json))
     in_data_locs = json.loads(attrs.get_str('in_data_locs'))
@@ -904,9 +906,9 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     params = inputs[num_data+num_states:]
 
     # Build a name map for the input.
-    input_name_map = {}
+    param_name_map = {}
     for inp in params:
-        input_name_map[inp.name_hint] = inp
+        param_name_map[inp.name_hint] = inp
 
     # Next we will compute the shape information for the loop body
     # arguments.
@@ -926,21 +928,17 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     # Run the converter on the subgraph that represents the body.
     loop_body = _from_mxnet_impl(loop_body, loop_body_arg_shapes, dtype_info, mod=mod)
 
-
-    # Right now we bind ML parameters statically, at the top, we will
-    # have to change for training at some point.
-    # TODO(@jroesch)
-    new_params = []
+    # Right now parameters are static inline parameters based on name.
+    binds = {}
     for param in loop_body.params:
-        inp = input_name_map.get(param.name_hint)
-        if inp is not None and inp in params:
-            continue
+        if param.name_hint in param_name_map:
+            binds[param] = param_name_map[param.name_hint]
 
-        new_params.append(param)
-
+    new_body = _expr.bind(loop_body.body, binds)
     loop_body = _expr.Function(
-        new_params,
-        loop_body.body, None,
+        list(set(analysis.free_vars(new_body)) - set(params)),
+        new_body,
+        loop_body.ret_type,
         loop_body.type_params,
         loop_body.attrs)
 
@@ -975,7 +973,25 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     # loop_body, and then initial states.
     loop = loops.foreach(data[0], loop_body, prev_states, mod=mod)
 
-    loop_var = _expr.GlobalVar('foreach')
+    loop_var = _expr.GlobalVar('foreach_loop')
+
+    # Bind the parameters outside of the loop,
+    # the final function will take the data to iterate over
+    # the state, and the parameters.
+    inner_params = []
+    binds = {}
+    for param in params:
+        inner_param = _expr.Var(param.name_hint, param.type_annotation)
+        binds[param] =  inner_param
+        inner_params.append(inner_param)
+
+    new_body = _expr.bind(loop.body, binds)
+    loop = _expr.Function(
+        [*loop.params, *inner_params],
+        new_body,
+        loop.ret_type,
+        loop.type_params,
+        loop.attrs)
 
     # We insert the generated loop into the module.
     mod[loop_var] = loop
@@ -991,63 +1007,122 @@ def _mx_foreach(inputs, attrs, loop_body_json, dtype_info, mod):
     return _expr.TupleWrapper(start_loop, 1 + len(prev_states))
 
 
-def _mx_while_loop(inputs, attrs, subgraphs, dtype_info, mod):
-    from tvm.relay.prelude import Prelude
-    p = Prelude(mod)
-    nil = p.nil
-    cons = p.cons
-    l = p.l
+def _mx_while_loop(inputs, attrs, subgraphs_json, dtype_info, mod):
+    # Parse out the metadata about the loop from MxNet's JSON format.
+    loop_body = _mx.symbol.load_json(json.dumps(loop_body_json))
+    in_data_locs = json.loads(attrs.get_str('in_data_locs'))
+    in_state_locs = json.loads(attrs.get_str('in_state_locs'))
+    remain_locs = json.loads(attrs.get_str('remain_locs'))
+    num_out_data = json.loads(attrs.get_str('num_out_data'))
+    num_outputs = json.loads(attrs.get_str('num_outputs'))
+    num_data = len(in_data_locs)
+    num_states = len(in_state_locs)
 
-    assert len(subgraphs) == 2
-    input_args = []
-    for i, arg in enumerate(inputs):
-        var = _expr.var("arg%s" % i, ir_pass.infer_type(arg).checked_type)
-        input_args.append(var)
+    data = inputs[:num_data]
+    assert len(data) == 1, "only supports one input currently"
+    prev_states = inputs[num_data:num_data+num_states]
+    params = inputs[num_data+num_states:]
 
-    cond_input_locs = attrs.get_int_tuple("cond_input_locs")
-    func_input_locs = attrs.get_int_tuple("func_input_locs")
-    # indices of state vars in the func_input_locs
-    func_var_locs = attrs.get_int_tuple("func_var_locs")
-    num_out_data = attrs.get_int("num_out_data")
-    num_outputs = attrs.get_int("num_outputs")
+    # Build a name map for the input.
+    param_name_map = {}
+    for inp in params:
+        param_name_map[inp.name_hint] = inp
 
-    all_outs = _expr.var("all_outs")
-    while_loop = _expr.GlobalVar("while_loop")
-    prev_states = [input_args[func_input_locs[j]] for j in func_var_locs]
+    # Next we will compute the shape information for the loop body
+    # arguments.
+    loop_body_arg_shapes = []
+    for k, v in enumerate(in_data_locs):
+        exp = _op.take(data[k], _expr.const(0, dtype="int32"), 0)
+        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
 
-    cond_args = [input_args[j] for j in cond_input_locs]
-    cond_arg_shapes = [arg.type_annotation.shape for arg in cond_args]
-    cond_body = _from_mxnet_impl(mod, subgraphs[0], cond_arg_shapes, dtype_info)
-    cond_ret = _expr.Call(cond_body, cond_args)
-    cond = _op.take(cond_ret, _expr.const(0)).astype("bool")
+    for k, v in enumerate(in_state_locs):
+        exp = prev_states[k]
+        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
 
-    sb = _scope_builder.ScopeBuilder()
-    with sb.if_scope(cond):
-        func_args = [input_args[j] for j in func_input_locs]
-        func_arg_shapes = [arg.type_annotation.shape for arg in func_args]
-        func = _from_mxnet_impl(mod, subgraphs[1], func_arg_shapes, dtype_info)
-        func_ret = _expr.Call(func, func_args)
-        if num_out_data == 1:
-            out = _expr.TupleGetItem(func_ret, 0)
-        else:
-            out = _expr.Tuple([_expr.TupleGetItem(func_ret, j) for j in range(num_out_data)])
-        new_all_outs = cons(out, all_outs)
-        states = [_expr.TupleGetItem(func_ret, j) for j in range(num_out_data, num_outputs)]
-        recur_args = input_args[:]
-        for i, func_idx in enumerate(func_var_locs):
-            recur_args[func_input_locs[func_idx]] = states[i]
-        recur_ret = _expr.Call(while_loop, recur_args + [new_all_outs])
-        sb.ret(recur_ret)
-    with sb.else_scope():
-        sb.ret(_expr.Tuple([all_outs] + prev_states))
+    for k, v in enumerate(remain_locs):
+        exp = params[k]
+        loop_body_arg_shapes.append(_infer_type(exp).checked_type.shape)
 
-    body = sb.get()
-    while_args = input_args + [all_outs]
-    # print(while_args)
-    func = _expr.Function(while_args, body)
-    mod[while_loop] = func
-    ret = _expr.Call(while_loop, inputs + [nil()])
-    return _expr.TupleWrapper(ret, num_outputs)
+    # Run the converter on the subgraph that represents the body.
+    loop_body = _from_mxnet_impl(loop_body, loop_body_arg_shapes, dtype_info, mod=mod)
+
+    # Right now parameters are static inline parameters based on name.
+    binds = {}
+    for param in loop_body.params:
+        if param.name_hint in param_name_map:
+            binds[param] = param_name_map[param.name_hint]
+
+    new_body = _expr.bind(loop_body.body, binds)
+    loop_body = _expr.Function(
+        list(set(analysis.free_vars(new_body)) - set(params)),
+        new_body,
+        loop_body.ret_type,
+        loop_body.type_params,
+        loop_body.attrs)
+
+    # relay.loops.foreach is typed and therefore stricter then the
+    # interface MxNet exposes.
+    #
+    # In order to handle this we check two cases and normalize the
+    # appropriate code.
+    #
+    # When returning zero states we will tuple the singleton
+    # body.
+    if len(prev_states) == 0:
+        tupled_body = _expr.Tuple([loop_body.body])
+        loop_body = _expr.Function(
+            loop_body.params,
+            tupled_body, None,
+            loop_body.type_params,
+            loop_body.attrs)
+
+    # In the case where the output data is ignored, we will pass
+    # it along as normal.
+    if num_out_data == 0:
+        unit = _expr.Tuple([])
+        tupled_body = _expr.Tuple([unit, loop_body.body])
+        loop_body = _expr.Function(
+            loop_body.params,
+            tupled_body, None,
+            loop_body.type_params,
+            loop_body.attrs)
+
+    # Finally we will invoke `relay.loops.foreach` with the data,
+    # loop_body, and then initial states.
+    loop = loops.foreach(data[0], loop_body, prev_states, mod=mod)
+
+    loop_var = _expr.GlobalVar('foreach_loop')
+
+    # Bind the parameters outside of the loop,
+    # the final function will take the data to iterate over
+    # the state, and the parameters.
+    inner_params = []
+    binds = {}
+    for param in params:
+        inner_param = _expr.Var(param.name_hint, param.type_annotation)
+        binds[param] =  inner_param
+        inner_params.append(inner_param)
+
+    new_body = _expr.bind(loop.body, binds)
+    loop = _expr.Function(
+        [*loop.params, *inner_params],
+        new_body,
+        loop.ret_type,
+        loop.type_params,
+        loop.attrs)
+
+    # We insert the generated loop into the module.
+    mod[loop_var] = loop
+
+    # We return a tuple with a list of outputs (1), and
+    # the number of previous states.
+    start_loop = loop_var(data[0], *(prev_states + params))
+
+    # Now we can just drop the data.
+    if num_out_data == 0:
+        return _expr.Tuple([_expr.TupleGetItem(start_loop, 1)])
+
+    return _expr.TupleWrapper(start_loop, 1 + len(prev_states))
 
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
@@ -1267,11 +1342,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
             # Handle Control-Flow.
             if op_name in ['_foreach', '_while_loop']:
                 subgraphs = node['subgraphs']
-                assert len(subgraphs) == 1, "only supports loop constructs with a single subgraph"
-                import mxnet as _mx
-                loop_body = subgraphs[0]
-                # loop_body = _mx.symbol.load_json(json.dumps(subgraphs[0]))
-                res = _convert_map[op_name](children, attrs, loop_body, dtype_info, mod)
+                res = _convert_map[op_name](children, attrs, subgraphs, dtype_info, mod)
             else:
                 res = _convert_map[op_name](children, attrs)
             if res is None:
