@@ -54,7 +54,7 @@ PackedFunc VirtualMachineDebug::GetFunction(
       for (auto kv : op_durations) {
         auto vals = op_durations[kv.first];
         auto sum = std::accumulate(vals.begin(), vals.end(), 0.0);;
-        auto mean = sum / double(vals.size());
+        auto mean = sum / static_cast<double>(vals.size());
         auto min_value = *std::min_element(vals.begin(), vals.end());
         auto max_value = *std::max_element(vals.begin(), vals.end());
 
