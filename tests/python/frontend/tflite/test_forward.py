@@ -215,7 +215,7 @@ def _test_forward_transpose(ishape, axes=None):
         if axes is None:
             out = array_ops.transpose(in_data)
         else:
-            out = array_ops.transpose(in_data, perm=axes)
+            out = array_ops.transpose(in_data, axes)
 
         compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
@@ -224,6 +224,9 @@ def test_forward_transpose():
     _test_forward_transpose((2, 2))
     _test_forward_transpose((2, 3, 4))
     _test_forward_transpose((7, 8, 8, 10))
+    _test_forward_transpose((2, 3, 4), (1, 2, 0))
+    _test_forward_transpose((2, 3, 4), (0, 1, 2))
+    _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
 
 
 #######################################################################
