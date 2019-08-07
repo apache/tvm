@@ -29,6 +29,7 @@ from .. import module as _module
 from ... import nd as _nd
 from .. import scope_builder as _scope_builder
 from .. import loops
+from .. import transform
 
 from .common import StrAttrsDict
 from .common import infer_type as _infer_type
