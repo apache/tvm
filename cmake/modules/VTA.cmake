@@ -76,25 +76,24 @@ elseif(PYTHON)
     endif(APPLE)
   endif()
 
-
   # VTA FPGA driver sources
   if(USE_VTA_RPC)
+    file(GLOB FPGA_RUNTIME_SRCS vta/src/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      file(GLOB FPGA_RUNTIME_SRCS vta/src/*.cc)
       file(GLOB FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
-      # Target lib: vta
-      add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
-      target_include_directories(vta PUBLIC vta/include)
-      foreach(__def ${VTA_DEFINITIONS})
-        string(SUBSTRING ${__def} 3 -1 __strip_def)
-        target_compile_definitions(vta PUBLIC ${__strip_def})
-      endforeach()
-      # Rules for Pynq v2.4
-      find_library(__cma_lib NAMES cma PATH /usr/lib)
-      target_link_libraries(vta ${__cma_lib})
     endif()
+    # Target lib: vta
+    add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
+    target_include_directories(vta PUBLIC vta/include)
+    foreach(__def ${VTA_DEFINITIONS})
+      string(SUBSTRING ${__def} 3 -1 __strip_def)
+      target_compile_definitions(vta PUBLIC ${__strip_def})
+    endforeach()
+    # Rules for Pynq v2.4
+    find_library(__cma_lib NAMES cma PATH /usr/lib)
+    target_link_libraries(vta ${__cma_lib})
   endif()
 
 else()
