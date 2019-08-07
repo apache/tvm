@@ -23,6 +23,7 @@ from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand
+import tvm.relay.op as op
 
 
 def test_id():
@@ -278,6 +279,19 @@ def test_grad_tuple():
     tvm.testing.assert_allclose(forward_four.asnumpy(), 4 * x.asnumpy())
     tvm.testing.assert_allclose(forward_two.asnumpy(), 2 * x.asnumpy())
     tvm.testing.assert_allclose(grad.asnumpy(), 4 * np.ones_like(x.asnumpy()))
+
+
+def test_concat():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    y = op.concatenate([x, x], axis=1)
+    func = relay.Function([x], y)
+    func = run_infer_type(func)
+    back_func = run_infer_type(gradient(func))
+    assert back_func.checked_type == relay.FuncType([t], t)
+    # no value validation as concatenate has dummy gradient right now.
 
 
 if __name__ == "__main__":
