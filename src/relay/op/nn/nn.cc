@@ -678,6 +678,53 @@ axis to be the last item in the input shape.
 .add_type_rel("BatchNorm", BatchNormRel);
 
 
+// layer_norm
+TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
+
+bool LayerNormRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  const LayerNormAttrs* param = attrs.as<LayerNormAttrs>();
+  int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
+  CHECK(axis >= 0 && axis < (int)data->shape.size());
+  reporter->Assign(types[1], TensorTypeNode::make({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[3], TensorTypeNode::make(data->shape, data->dtype));
+
+  return true;
+}
+
+Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
+                   bool center, bool scale) {
+  auto attrs = make_node<LayerNormAttrs>();
+  attrs->axis = axis;
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+  static const Op& op = Op::Get("nn.layer_norm");
+  return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.layer_norm")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.layer_norm")
+.describe(R"code(
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.LayerNormAttrs")
+.set_num_inputs(3)
+.add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
+.add_argument("gamma", "Tensor", "The gamma scale factor.")
+.add_argument("beta", "Tensor", "The beta offset factor.")
+.set_support_level(1)
+.add_type_rel("LayerNorm", LayerNormRel);
+
 // relay.nn.batch_matmul
 bool BatchMatmulRel(const Array<Type>& types,
                     int num_inputs,

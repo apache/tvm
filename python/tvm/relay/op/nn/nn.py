@@ -867,7 +867,7 @@ def batch_norm(data,
         Specify along which shape axis the channel is specified.
 
     epsilon : double, optional, default=1e-5
-        Small float added to variance to avoid diving by zero.
+        Small float added to variance to avoid dividing by zero.
 
     center : boolean, optional, default=True
         If True, add offset of beta to normalized tensor, If False,
@@ -895,6 +895,64 @@ def batch_norm(data,
                               center,
                               scale)
     return TupleWrapper(result, 3)
+
+
+def layer_norm(data,
+               gamma,
+               beta,
+               axis=-1,
+               epsilon=1e-5,
+               center=True,
+               scale=True):
+    r"""
+    Layer normalization (Lei Ba and et al., 2016).
+    Applies layer normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array and normalizes
+    the input using the given axis:
+
+    .. math::
+
+        out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+            * gamma + beta
+
+    Unlike batch normalization, the mean and var are computed along the channel dimension.
+
+    Assume the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input to which batch_norm will be applied.
+
+    gamma : tvm.relay.Expr
+        The gamma scale factor.
+
+    beta : tvm.relay.Expr
+        The beta offset factor.
+
+    axis : int, optional, default=-1
+        The axis that should be normalized, typically the axis of the channels.
+
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid dividing by zero.
+
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+
+    scale : boolean, optional, default=True
+        If True, multiply by gamma. If False, gamma is not used.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The normalized data.
+    """
+    return _make.layer_norm(data, gamma, beta, axis, epsilon, center, scale)
 
 
 def batch_matmul(x, y):

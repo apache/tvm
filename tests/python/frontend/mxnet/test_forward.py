@@ -728,6 +728,56 @@ def test_forward_contrib_div_sqrt_dim():
     verify((3, 4))
     verify((3, 4, 5))
 
+def test_forward_batch_norm():
+    def verify(shape, axis=1, fix_gamma=False):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[axis])).astype("float32")
+        beta = np.random.uniform(size=(shape[axis])).astype("float32")
+        moving_mean = np.random.uniform(size=(shape[axis])).astype("float32")
+        moving_var = np.random.uniform(size=(shape[axis])).astype("float32")
+        ref_res = mx.nd.BatchNorm(mx.nd.array(x), mx.nd.array(gamma), mx.nd.array(beta),
+                                  mx.nd.array(moving_mean), mx.nd.array(moving_var),
+                                  axis=axis, use_global_stats=True, fix_gamma=fix_gamma)
+        mx_sym = mx.sym.BatchNorm(mx.sym.var("x"), mx.sym.var("gamma"),
+                                  mx.sym.var("beta"), mx.sym.var("mean"),
+                                  mx.sym.var("var"), axis=axis, use_global_stats=True,
+                                  fix_gamma=fix_gamma)
+
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape,
+                      "mean": moving_mean.shape, "var": moving_var.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        #print(mod)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta, moving_mean, moving_var)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((2, 3, 4, 5))
+    verify((2, 3, 4, 5), axis=0)
+    verify((2, 3, 4, 5), axis=-1)
+    verify((2, 3, 4, 5), fix_gamma=True)
+
+
+def test_forward_layer_norm():
+    def verify(shape, axis=-1):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[axis])).astype("float32")
+        beta = np.random.uniform(size=(shape[axis])).astype("float32")
+        ref_res = mx.nd.LayerNorm(mx.nd.array(x), mx.nd.array(gamma), mx.nd.array(beta),
+                                  axis=axis)
+        mx_sym = mx.sym.LayerNorm(mx.sym.var("x"), mx.sym.var("gamma"),
+                                  mx.sym.var("beta"), axis=axis)
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((2, 5))
+    verify((2, 5), axis=0)
+    verify((2, 5, 6))
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -773,3 +823,5 @@ if __name__ == '__main__':
     test_forward_topk()
     test_forward_sequence_mask()
     test_forward_contrib_div_sqrt_dim()
+    test_forward_batch_norm()
+    test_forward_layer_norm()

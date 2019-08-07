@@ -150,6 +150,10 @@ This level enables additional math and transform operators.
    tvm.relay.max
    tvm.relay.min
    tvm.relay.mean
+   tvm.relay.variance
+   tvm.relay.std
+   tvm.relay.mean_variance
+   tvm.relay.mean_std
    tvm.relay.prod
    tvm.relay.strided_slice
    tvm.relay.broadcast_to
@@ -297,6 +301,10 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.max
 .. autofunction:: tvm.relay.min
 .. autofunction:: tvm.relay.mean
+.. autofunction:: tvm.relay.variance
+.. autofunction:: tvm.relay.std
+.. autofunction:: tvm.relay.mean_variance
+.. autofunction:: tvm.relay.mean_std
 .. autofunction:: tvm.relay.prod
 .. autofunction:: tvm.relay.strided_slice
 .. autofunction:: tvm.relay.broadcast_to

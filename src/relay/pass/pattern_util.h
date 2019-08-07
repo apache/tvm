@@ -33,7 +33,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/attrs/reduce.h>
 #include <string>
+#include <utility>
 
 
 namespace tvm {
@@ -370,6 +372,25 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
 inline Expr Copy(Expr data) {
   static const Op& op = Op::Get("copy");
   return CallNode::make(op, {data}, Attrs(), {});
+}
+
+
+inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  auto attrs = make_node<ReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  static const Op& op = Op::Get("mean");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
+  auto attrs = make_node<ReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  static const Op& op = Op::Get("variance");
+  return CallNode::make(op, {data, mean}, Attrs(attrs), {});
 }
 
 
