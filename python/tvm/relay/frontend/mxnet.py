@@ -715,7 +715,7 @@ def _mx_topk(inputs, attrs):
     return _op.topk(inputs[0], **new_attrs)
 
 
-def _mx_SequenceMask(inputs, attrs):
+def _mx_sequence_mask(inputs, attrs):
     assert len(inputs) == 1 or len(inputs) == 2
     new_attrs = {}
     use_sequence_length = attrs.get_bool('use_sequence_length', False)
@@ -725,6 +725,15 @@ def _mx_SequenceMask(inputs, attrs):
         return _op.sequence_mask(*inputs, **new_attrs)
     else:
         return inputs[0]
+
+
+def _mx_contrib_div_sqrt_dim(inputs, _):
+    assert len(inputs) == 1
+    ndim = len(_infer_type(inputs[0]).checked_type.shape)
+    dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
+    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    out = inputs[0] / sqrt_dim
+    return out
 
 
 def _mx_rnn_param_concat(inputs, _):
@@ -1014,11 +1023,12 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
-    "SequenceMask"  : _mx_SequenceMask,
+    "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -1183,8 +1193,10 @@ def from_mxnet(symbol,
         params = {}
         for k, v in symbol.collect_params().items():
             params[k] = _nd.array(v.data().asnumpy())
-        data = mx.sym.Variable("data")
-        sym = symbol(data)
+        inputs = []
+        for name in shape:
+            inputs.append(mx.sym.Variable(name))
+        sym = symbol(*inputs)
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
