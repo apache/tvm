@@ -474,7 +474,7 @@ def _batch_matmul():
         # reshape result back to n-dimensional
         if len(orig_shape_x) > 3:
             final_shape = attr['_output_shapes'][0]
-            ret = _op.reshape(ret, final_shape)
+            ret = _op.reshape(ret, newshape=final_shape)
 
         return ret
     return _impl
