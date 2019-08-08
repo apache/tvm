@@ -191,7 +191,7 @@ class VME(implicit p: Parameters) extends Module {
       }
     }
     is (sWriteData) {
-      when (io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
+      when (io.vme.wr(0).data.valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
         wstate := sWriteResp
       }
     }
