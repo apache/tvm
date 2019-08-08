@@ -41,11 +41,11 @@ cd vta/hardware/chisel/ && make && cd -
 # Set default VTA config to use TSIM cycle accurate sim
 cp vta/config/tsim_sample.json vta/config/vta_config.json
 
-# Run unit tests in functional/fast simulator
+# Run unit tests in cycle accurate simulator
 echo "Running unittest in tsim..."
 python3 -m nose -v vta/tests/python/unittest
 
-# Run unit tests in functional/fast simulator
+# Run unit tests in cycle accurate simulator
 echo "Running integration test in tsim..."
 python3 -m nose -v vta/tests/python/integration
 
