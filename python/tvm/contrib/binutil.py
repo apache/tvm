@@ -75,8 +75,12 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
         entry_size = int(tokens[1])
         if entry_name in sections_to_sum:
             section_size += entry_size
-    return section_size
-
+    # TODO(weberlo): For some reason, section sizes on RISC-V are sometimes
+    # reported to be smaller than they are.  Figure out why.
+    if "riscv" in toolchain_prefix:
+        return section_size + 32
+    else:
+        return section_size
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
@@ -169,6 +173,7 @@ SECTIONS
         msg = "linking error using ld:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
     return rel_bin
