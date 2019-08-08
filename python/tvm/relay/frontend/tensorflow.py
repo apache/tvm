@@ -21,7 +21,6 @@ from __future__ import print_function
 
 import warnings
 from collections import defaultdict
-from functools import reduce
 # Numpy support
 import numpy as np
 
@@ -457,7 +456,10 @@ def _batch_matmul():
         # reshape n-dimensional batch matmul into 3d
         if len(orig_shape_x) > 3:
             outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
-            num_outer_elts = reduce((lambda x, y: x * y), outer_dims)
+            num_outer_elts = 1
+            for outer_dim in outer_dims:
+                num_outer_elts *= outer_dim
+
             new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
             new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
             input_x = _op.reshape(input_x, newshape=new_shape_x)
