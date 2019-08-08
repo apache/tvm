@@ -37,6 +37,7 @@ def lower(sch, args):
     bounds = tvm.schedule.InferBound(sch)
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.RemoveNoOp(stmt)
     stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64, True)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.VectorizeLoop(stmt)
