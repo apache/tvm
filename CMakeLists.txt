@@ -131,10 +131,29 @@ file(GLOB COMPILER_SRCS
     src/schedule/*.cc
     )
 
-file(GLOB_RECURSE RELAY_SRCS
-    src/relay/*.cc
+file(GLOB_RECURSE RELAY_OP_SRCS
+    src/relay/op/*.cc
     )
-list(APPEND COMPILER_SRCS ${RELAY_SRCS})
+file(GLOB_RECURSE RELAY_PASS_SRCS
+    src/relay/pass/*.cc
+    )
+file(GLOB RELAY_BACKEND_SRCS
+    src/relay/backend/*.cc
+    src/relay/backend/vm/*.cc
+    )
+file(GLOB_RECURSE RELAY_IR_SRCS
+    src/relay/ir/*.cc
+    )
+list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
+
+if(USE_VM_DEBUG)
+  message(STATUS "Build compiler with Relay VM debug support...")
+  file(GLOB BACKEND_VM_DEBUG_SRCS src/relay/backend/vm/debug/*.cc)
+  list(APPEND COMPILER_SRCS ${BACKEND_VM_DEBUG_SRCS})
+endif(USE_VM_DEBUG)
 
 file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
@@ -198,11 +217,11 @@ if(USE_GRAPH_RUNTIME)
   endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
 
-message(STATUS "Build with Relay VM debug support...")
-file(GLOB RUNTIME_VM_DEBUG_SRCS src/runtime/vm/debug/*.cc)
-list(APPEND RUNTIME_SRCS ${RUNTIME_VM_DEBUG_SRCS})
-set_source_files_properties(${RUNTIME_GRAPH_SRCS}
-  PROPERTIES COMPILE_DEFINITIONS "TVM_VM_RUNTIME_DEBUG")
+if(USE_VM_DEBUG)
+  message(STATUS "Build with Relay VM debug support...")
+  file(GLOB RUNTIME_VM_DEBUG_SRCS src/runtime/vm/debug/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_VM_DEBUG_SRCS})
+endif(USE_VM_DEBUG)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
