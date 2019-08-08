@@ -394,6 +394,26 @@ inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, b
 }
 
 
+static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
+  static const Op& op = Op::Get("where");
+  return CallNode::make(op, {condition, x, y});
+}
+
+static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("greater_equal");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Full(Expr fill_value,
+                        Array<IndexExpr> shape,
+                        DataType dtype) {
+  auto attrs = make_node<InitOpAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("full");
+  return CallNode::make(op, {fill_value}, Attrs(attrs), {});
+}
+
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
