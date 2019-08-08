@@ -31,14 +31,10 @@ namespace relay {
 namespace vm {
 
 class VMCompilerDebug : public VMCompiler {
-  public:
-    VMCompilerDebug() {}
-
-    void InitVM() override {
-      vm_ = std::make_shared<VirtualMachineDebug>();
-    }
-
-    virtual ~VMCompilerDebug() {}
+ public:
+  VMCompilerDebug() {}
+  void InitVM() override { vm_ = std::make_shared<VirtualMachineDebug>(); }
+  virtual ~VMCompilerDebug() {}
 };
 
 runtime::Module CreateVMCompilerDebug() {
@@ -47,9 +43,9 @@ runtime::Module CreateVMCompilerDebug() {
 }
 
 TVM_REGISTER_GLOBAL("relay._vm._VMCompilerDebug")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CreateVMCompilerDebug();
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      *rv = CreateVMCompilerDebug();
+    });
 
 }  // namespace vm
 }  // namespace relay

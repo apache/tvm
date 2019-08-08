@@ -33,8 +33,11 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include "../../../runtime/vm/debug/debug_vm.h"
 #include "../../../runtime/vm/naive_allocator.h"
