@@ -451,8 +451,8 @@ def _batch_matmul():
     def _impl(inputs, attr, params):
         input_x = inputs[0]
         input_y = inputs[1]
-        orig_shape_x = attr['_input_shapes'][inputs[0]]
-        orig_shape_y = attr['_input_shapes'][inputs[1]]
+        orig_shape_x = attr['_input_shapes'][input_x]
+        orig_shape_y = attr['_input_shapes'][input_y]
 
         # reshape n-dimensional batch matmul into 3d
         if len(orig_shape_x) > 3:
