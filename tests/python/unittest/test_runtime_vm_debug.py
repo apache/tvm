@@ -17,9 +17,12 @@
 import os
 import tvm
 import numpy as np
+
+from nose.tools import nottest
 from tvm import relay
 from tvm.relay.testing import resnet
 
+@nottest
 def test_basic():
     mod, params = resnet.get_workload()
     compiler = relay.debug_vm.VMCompilerDebug()
