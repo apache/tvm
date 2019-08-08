@@ -469,7 +469,7 @@ def _batch_matmul():
         adj_y = attr['adj_y']
         input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
         input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
-        ret = _get_relay_op('batch_matmul')(input_x, input_y)
+        ret = get_relay_op('batch_matmul')(input_x, input_y)
 
         # reshape result back to n-dimensional
         if len(orig_shape_x) > 3:
