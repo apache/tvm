@@ -45,6 +45,7 @@ def _update_target(target):
 class VMCompilerDebug(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
+        super().__init__()
         self.mod = _vm._VMCompilerDebug()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
