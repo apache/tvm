@@ -40,7 +40,7 @@ tensorization in the core) to massage the compute graph for the hardware target.
 
 from __future__ import absolute_import, print_function
 
-import argparse, json, os, requests, time
+import argparse, json, os, requests, sys, time
 from io import BytesIO
 from os.path import join, isfile
 from PIL import Image
@@ -53,6 +53,7 @@ import tvm
 from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_runtime, util, download
 from tvm.contrib.debugger import debug_runtime
+from tvm.relay import transform
 
 import vta
 from vta.testing import simulator
@@ -61,6 +62,8 @@ from vta.top import graph_pack
 # Make sure that TVM was compiled with RPC=1
 assert tvm.module.enabled("rpc")
 
+# Increase python recursion limit to traverse Relay program
+sys.setrecursionlimit(10000)
 
 ######################################################################
 # Define the platform and model targets
@@ -75,13 +78,24 @@ env = vta.get_env()
 device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
+# Dictionary lookup for when to start/end bit packing
+# TODO(zihengjiang, tmoreau89) v2s will be supported once #3543 is merged
+pack_dict = {
+    "resnet18_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet34_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet18_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet34_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet50_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet101_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet152_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+}
+
 # Name of Gluon model to compile
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
 model = "resnet18_v1"
-start_pack="nn.max_pool2d"
-stop_pack="nn.global_avg_pool2d"
+assert model in pack_dict
 
 ######################################################################
 # Obtain an execution remote
@@ -170,8 +184,8 @@ with autotvm.tophub.context(target):
             env.BATCH,
             env.BLOCK_OUT,
             env.WGT_WIDTH,
-            start_name=start_pack,
-            stop_name=stop_pack)
+            start_name=pack_dict[model][0],
+            stop_name=pack_dict[model][1])
 
     # Compile Relay program with AlterOpLayout disabled
     with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
