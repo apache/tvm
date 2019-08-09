@@ -204,7 +204,8 @@ class ExprPack(ExprMutator):
                         output_padding=call.attrs.output_padding,
                         out_dtype=call.attrs.out_dtype)
                 return conv2d
-            elif call.op == self.add and tuple(input_types[0].shape) == tuple(input_types[1].shape):
+            elif call.op == self.add and \
+                    tuple(input_types[0].shape) == tuple(input_types[1].shape):
                 pass
             elif call.op == self.add and len(input_types[1].shape) == 3:
                 data, const = args
@@ -214,7 +215,8 @@ class ExprPack(ExprMutator):
                                     self.bfactor,
                                     self.cfactor)
                 return relay.Call(self.add, [data, const])
-            elif call.op == self.multiply and tuple(input_types[0].shape) == tuple(input_types[1].shape):
+            elif call.op == self.multiply and \
+                    tuple(input_types[0].shape) == tuple(input_types[1].shape):
                 pass
             elif call.op == self.multiply and len(input_types[1].shape) == 3:
                 data, const = args
