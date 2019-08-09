@@ -17,7 +17,7 @@
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
-from ..expr import const
+from ..expr import const, Tuple, TupleGetItem
 from .op import register_gradient
 from .transform import collapse_sum_like, broadcast_to_like, where
 from .tensor import exp, negative, power, less, cos, sin
@@ -176,3 +176,14 @@ def avg_pool2d_grad(orig, grad):
                                     layout=attrs.layout, ceil_mode=attrs.ceil_mode,
                                     count_include_pad=attrs.count_include_pad)
     return [pool_grad]
+
+# not implemented, this is only for testing.
+@register_gradient("concatenate")
+def concatenate_grad(orig, grad):
+    assert len(orig.args) == 1
+    t = orig.args[0]
+    x = TupleGetItem(t, 0)
+    y = TupleGetItem(t, 1)
+    # Assume only two element in tuple rn.
+    # In the real implementation, concatenate_grad probably need to be implemented by an operator.
+    return [Tuple([zeros_like(x), zeros_like(y)])]
