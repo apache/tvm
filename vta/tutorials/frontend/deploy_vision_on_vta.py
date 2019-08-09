@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Deploy Pretrained Vision Model from MxNet on VTA
+Deploy Pretrained ResNet Model from MxNet on VTA
 ================================================
 **Author**: `Thierry Moreau <https://homes.cs.washington.edu/~moreau/>`_
 
-This tutorial provides an end-to-end demo, on how to run ImageNet classification
-inference onto the VTA accelerator design to perform ImageNet classification tasks.
+This tutorial provides an end-to-end demo, on how to run ResNet-18 inference
+onto the VTA accelerator design to perform ImageNet classification tasks.
 It showcases Relay as a front end compiler that can perform quantization (VTA
 only supports int8/32 inference) as well as graph packing (in order to enable
 tensorization in the core) to massage the compute graph for the hardware target.
@@ -111,16 +111,16 @@ if env.TARGET not in ["sim", "tsim"]:
     # To set up the tracker, you'll need to follow the "Auto-tuning
     # a convolutional network for VTA" tutorial.
     tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
+    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
     # Otherwise if you have a device you want to program directly from
     # the host, make sure you've set the variables below to the IP of
     # your board.
     device_host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-    device_port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
+    device_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
     if not tracker_host or not tracker_port:
-        remote = rpc.connect(device_host, int(device_port))
+        remote = rpc.connect(device_host, device_port)
     else:
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
 
     # Reconfigure the JIT runtime and FPGA.
     # You can program the FPGA with your own custom bitstream
@@ -141,7 +141,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 ######################################################################
 # Build the inference graph runtime
 # ---------------------------------
-# Grab vision model from Gluon model zoo and compile with Relay.
+# Grab ResNet-18 model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
 #    1) Front end translation from MxNet into Relay module.
 #    2) Apply 8-bit quantization: here we skip the first conv layer,
@@ -156,7 +156,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
 
-    # Populate the shape and data type dictionary for ImageNet input
+    # Populate the shape and data type dictionary for ResNet input
     dtype_dict = {"data": 'float32'}
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
@@ -215,7 +215,7 @@ with autotvm.tophub.context(target):
     m = graph_runtime.create(graph, lib, ctx)
 
 ######################################################################
-# Perform image classification
+# Perform ResNet-18 inference
 # ---------------------------
 # We run classification on an image sample from ImageNet
 # We just need to download the categories files, `synset.txt`
@@ -263,31 +263,29 @@ if env.TARGET in ["sim", "tsim"]:
         print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
 else:
     tcost = timer()
-    std = np.std(tcost.results) * 1000
-    mean = tcost.mean * 1000
-    print("\nPerformed inference in %.2fms (std = %.2f) for %d samples" % (mean, std, env.BATCH))
-    print("Average per sample inference time: %.2fms" % (mean/env.BATCH))
+    std = np.std(tcost.results) * 1000 / env.BATCH
+    mean = tcost.mean * 1000 / env.BATCH
+    print("\nPerformed inference in %.2fms/sample (std = %.2f)" % (mean, std))
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
-for b in range(env.BATCH):
-    top_categories = np.argsort(tvm_output.asnumpy()[b])
+top_categories = np.argsort(tvm_output.asnumpy()[0])
 
-    # Report top-5 classification results
-    print("\n{} prediction for sample {}".format(model, b))
-    print("\t#1:", synset[top_categories[-1]])
-    print("\t#2:", synset[top_categories[-2]])
-    print("\t#3:", synset[top_categories[-3]])
-    print("\t#4:", synset[top_categories[-4]])
-    print("\t#5:", synset[top_categories[-5]])
+# Report top-5 classification results
+print("\n%s prediction" % model)
+print("\t#1:", synset[top_categories[-1]])
+print("\t#2:", synset[top_categories[-2]])
+print("\t#3:", synset[top_categories[-3]])
+print("\t#4:", synset[top_categories[-4]])
+print("\t#5:", synset[top_categories[-5]])
 
-    # This just checks that one of the 5 top categories
-    # is one variety of cat; this is by no means an accurate
-    # assessment of how quantization affects classification
-    # accuracy but is meant to catch changes to the
-    # quantization pass that would accuracy in the CI.
-    cat_detected = False
-    for k in top_categories[-5:]:
-        if "cat" in synset[k]:
-            cat_detected = True
-    assert(cat_detected)
+# This just checks that one of the 5 top categories
+# is one variety of cat; this is by no means an accurate
+# assessment of how quantization affects classification
+# accuracy but is meant to catch changes to the
+# quantization pass that would accuracy in the CI.
+cat_detected = False
+for k in top_categories[-5:]:
+    if "cat" in synset[k]:
+        cat_detected = True
+assert(cat_detected)
