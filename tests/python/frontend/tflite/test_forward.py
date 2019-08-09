@@ -206,13 +206,13 @@ def test_forward_split():
 # ---------
 
 
-def _test_forward_transpose(ishape, axes=None):
+def _test_forward_transpose(ishape, axes=()):
     data = np.random.uniform(size=ishape).astype(np.float32)
 
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
 
-        if axes is None:
+        if not axes:
             out = array_ops.transpose(in_data)
         else:
             out = array_ops.transpose(in_data, axes)
@@ -227,6 +227,7 @@ def test_forward_transpose():
     _test_forward_transpose((2, 3, 4), (1, 2, 0))
     _test_forward_transpose((2, 3, 4), (0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
+    _test_forward_transpose((2, 3, 4, 5), ())
 
 
 #######################################################################
