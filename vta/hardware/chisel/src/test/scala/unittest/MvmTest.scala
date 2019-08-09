@@ -39,7 +39,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     for (i <- 0 until size) {
         var dot = 0
         for (j <- 0 until size) {
-            dot += wgt(i)(j) * inp(j)
+          dot += wgt(i)(j) * inp(j)
         }
         res(i) = dot * pow(2, shift).toInt
     }
@@ -62,7 +62,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
       poke(c.io.inp.data.bits(0)(i), in_a(i) & inpMask)
       poke(c.io.acc_i.data.bits(0)(i), 0)
       for (j <- 0 until c.size) {
-          poke(c.io.wgt.data.bits(i)(j), in_b(i)(j) & wgtMask)
+        poke(c.io.wgt.data.bits(i)(j), in_b(i)(j) & wgtMask)
       }
     }
     
@@ -80,13 +80,12 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
 
     // wait for valid signal
     while (peek(c.io.acc_o.data.valid) == BigInt(0)) {
-        step(1) // advance clock
+      step(1) // advance clock
     } 
     if (peek(c.io.acc_o.data.valid) == BigInt(1)) {
-        for (i <- 0 until c.size) {
-            expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
-        }
+      for (i <- 0 until c.size) {
+          expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
+      }
     }
   }
-  
 }

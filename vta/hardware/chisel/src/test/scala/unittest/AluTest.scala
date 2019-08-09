@@ -57,7 +57,7 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     } else {
       // default
       for (i <- 0 until size) {
-         res(i) = if (a(i) < b(i)) a(i) else b(i)
+        res(i) = if (a(i) < b(i)) a(i) else b(i)
       }
     }
     return res
@@ -92,14 +92,12 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
 
     // wait for valid signal
     while (peek(c.io.acc_y.data.valid) == BigInt(0)) {
-        step(1) // advance clock
+      step(1) // advance clock
     } 
     if (peek(c.io.acc_y.data.valid) == BigInt(1)) {
-        for (i <- 0 until c.blockOut) {
-            expect(c.io.acc_y.data.bits(0)(i), res(i) & mask)
-        }
+      for (i <- 0 until c.blockOut) {
+          expect(c.io.acc_y.data.bits(0)(i), res(i) & mask)
+      }
     }
-  }
-  
+  } 
 }
-
