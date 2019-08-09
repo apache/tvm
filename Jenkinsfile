@@ -192,6 +192,10 @@ stage('Build') {
            """
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+        }
       }
     }
   },
@@ -236,8 +240,6 @@ stage('Unit Test') {
         init_git()
         unpack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
