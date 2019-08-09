@@ -39,6 +39,9 @@ def test_scan():
     xo, xi = s[s_update].split(s_update.op.axis[1], factor=num_thread)
     s[s_update].bind(xo, block_x)
     s[s_update].bind(xi, thread_x)
+    xo, xi = s[res].split(res.op.axis[1], factor=num_thread)
+    s[res].bind(xo, block_x)
+    s[res].bind(xi, thread_x)
 
     # one line to build the function.
     def check_device(device):
