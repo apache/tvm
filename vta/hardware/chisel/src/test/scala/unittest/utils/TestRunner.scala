@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package unittest
+package unittest.util
 // taken from https://github.com/freechipsproject/chisel-testers
 
 import scala.collection.mutable.ArrayBuffer

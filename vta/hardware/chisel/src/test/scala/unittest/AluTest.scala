@@ -22,8 +22,7 @@ package unittest
 import chisel3._
 import chisel3.util._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
-import scala.util.Random
-import scala.math.pow
+import unittest.util._
 import vta.core._
 
 class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
@@ -34,7 +33,7 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
    */
   def alu_ref(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
     val size = a.length
-    val mask = (pow(2, log2Ceil(width)) - 1).toLong
+    val mask = helper.getMask(log2Ceil(width))
     val res = Array.fill(size) {0}
     
     if (opcode == 1) {
@@ -63,17 +62,16 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     }
     return res
   } 
+
   val num_ops = ALU_OP_NUM
   for (i <- 0 until num_ops) {
-    val r = new Random
-    // generate random data based on config bits
+    // generate data based on bits
     val bits = c.aluBits
+    val dataGen = new VTARandomArray(c.blockOut, bits)
     val op = i
-    val in_a = Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt}
-    val in_b = if (op != 4) 
-     Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt} else 
-      Array.fill(c.blockOut) { 0 - r.nextInt(pow(2, bits-1).toInt)}
-    val mask = (pow(2, bits) - 1).toLong
+    val in_a = dataGen.get_random()
+    val in_b = if (op != 4) dataGen.get_random() else dataGen.get_negative()
+    val mask = helper.getMask(bits)
     val res = alu_ref(op, in_a, in_b, bits)  
     
     for (i <- 0 until c.blockOut) {
