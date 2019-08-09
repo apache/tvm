@@ -191,10 +191,13 @@ stage('Build') {
            echo set\\(HIDE_PRIVATE_SYMBOLS ON\\) >> config.cmake
            """
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_multilib)
+        pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
         }
       }
     }
@@ -234,19 +237,6 @@ stage('Unit Test') {
       }
     }
   },
-  'python3: cpu': {
-    node('CPU') {
-      ws('workspace/tvm/ut-python-cpu') {
-        init_git()
-        unpack_lib('cpu', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
-        }
-      }
-    }
-  },
   'python3: i386': {
     node('CPU') {
       ws('workspace/tvm/ut-python-i386') {
@@ -255,6 +245,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
         }
       }
     }
