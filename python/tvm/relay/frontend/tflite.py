@@ -762,8 +762,8 @@ class OperatorConverter(object):
         # axis
         in_axis = tuple(self.get_tensor_value(input_tensors[1]))
 
-        if in_axis is None:
-            out = _op.transpose(data=in_expr)
+        if not in_axis:
+            out = _op.transpose(in_expr)
         else:
             out = _op.transpose(in_expr, in_axis)
 
