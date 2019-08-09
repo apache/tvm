@@ -45,7 +45,12 @@ object Launcher {
       Driver.execute(() => new MatrixVectorMultiplication, manager) {
         (c) => new TestMatrixVectorMultiplication(c)
       }
-    }
+    },
+		"alu" -> { (manager: TesterOptionsManager) =>
+      Driver.execute(() => new AluVector, manager) {
+        (c) => new TestAluVector(c)
+      }   
+    } 
   )
 
   def main(args: Array[String]): Unit = {
