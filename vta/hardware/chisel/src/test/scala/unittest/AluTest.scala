@@ -63,8 +63,8 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     }
     return res
   } 
-  val cycles = ALU_OP_NUM
-  for (i <- 0 until cycles) {
+  val num_ops = ALU_OP_NUM
+  for (i <- 0 until num_ops) {
     val r = new Random
     // generate random data based on config bits
     val bits = c.aluBits
