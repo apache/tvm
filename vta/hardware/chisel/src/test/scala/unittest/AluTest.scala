@@ -34,14 +34,14 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
    */
   def alu_ref(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
     val size = a.length
-		val mask = (pow(2, log2Ceil(width)) - 1).toLong
-		val res = Array.fill(size) {0}
-		
-		if (opcode == 1) {
-			for (i <- 0 until size) {
+    val mask = (pow(2, log2Ceil(width)) - 1).toLong
+    val res = Array.fill(size) {0}
+    
+    if (opcode == 1) {
+      for (i <- 0 until size) {
         res(i) = if (a(i) < b(i)) b(i) else a(i)
-      }	
-		} else if (opcode == 2) {
+      } 
+    } else if (opcode == 2) {
       for (i <- 0 until size) {
         res(i) = a(i) + b(i)
       }
@@ -50,40 +50,40 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
         res(i) = a(i) >> (b(i) & mask).toInt
       }
     } else if (opcode == 4) {
-			// HLS shift left by >> negative number
-			// b always < 0 when opcode == 4
-			for (i <- 0 until size) {
-			  res(i) = a(i) << ((-1*b(i)) & mask)
+      // HLS shift left by >> negative number
+      // b always < 0 when opcode == 4
+      for (i <- 0 until size) {
+        res(i) = a(i) << ((-1*b(i)) & mask)
       }
-		} else {
-			// default
-			for (i <- 0 until size) {
+    } else {
+      // default
+      for (i <- 0 until size) {
          res(i) = if (a(i) < b(i)) a(i) else b(i)
       }
-		}
-		return res
-	} 
+    }
+    return res
+  } 
   val cycles = ALU_OP_NUM
   for (i <- 0 until cycles) {
     val r = new Random
     // generate random data based on config bits
-		val bits = c.aluBits
+    val bits = c.aluBits
     val op = i
-		val in_a = Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt}
+    val in_a = Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt}
     val in_b = if (op != 4) 
-		 Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt} else 
-			Array.fill(c.blockOut) { 0 - r.nextInt(pow(2, bits-1).toInt)}
+     Array.fill(c.blockOut) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt} else 
+      Array.fill(c.blockOut) { 0 - r.nextInt(pow(2, bits-1).toInt)}
     val mask = (pow(2, bits) - 1).toLong
-		val res = alu_ref(op, in_a, in_b, bits)  
+    val res = alu_ref(op, in_a, in_b, bits)  
     
     for (i <- 0 until c.blockOut) {
       poke(c.io.acc_a.data.bits(0)(i), in_a(i) & mask)
       poke(c.io.acc_b.data.bits(0)(i), in_b(i) & mask)
     }
-		poke(c.io.opcode, op) 
+    poke(c.io.opcode, op) 
 
     poke(c.io.acc_a.data.valid, 1)
-		poke(c.io.acc_b.data.valid, 1)
+    poke(c.io.acc_b.data.valid, 1)
     poke(c.io.acc_y.data.valid, 1)
       
     step(1)
