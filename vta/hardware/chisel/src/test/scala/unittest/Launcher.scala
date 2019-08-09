@@ -22,6 +22,7 @@ package unittest
 
 import chisel3._
 import chisel3.iotesters.{Driver, TesterOptionsManager}
+import unittest.util._
 import vta.core._
 import vta.util.config._
 import vta.shell._

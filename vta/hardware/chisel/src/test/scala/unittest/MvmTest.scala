@@ -22,8 +22,8 @@ package unittest
 import chisel3._
 import chisel3.util._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
-import scala.util.Random
 import scala.math.pow
+import unittest.util._
 import vta.core._
 
 class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
@@ -48,14 +48,15 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
 
   val cycles = 5
   for (i <- 0 until cycles) {
-    val r = new Random
-    // generate random data based on config bits
-    val in_a = Array.fill(c.size) { r.nextInt(pow(2, c.inpBits).toInt) - pow(2, c.inpBits-1).toInt}
-    val in_b = Array.fill(c.size, c.size) { r.nextInt(pow(2, c.wgtBits).toInt) - pow(2, c.wgtBits-1).toInt}
+    // generate data based on bits
+    val inpGen = new VTARandomArray(c.size, c.inpBits)
+    val wgtGen = new VTARandomArray(c.size, c.wgtBits)
+    val in_a = inpGen.get_random()
+    val in_b = Array.fill(c.size) {wgtGen.get_random()}
     val res = mvm_ref(in_a, in_b, 0)  
-    val inpMask = (pow(2, c.inpBits) - 1).toLong
-    val wgtMask = (pow(2, c.wgtBits) - 1).toLong
-    val accMask = (pow(2, c.accBits) - 1).toLong
+    val inpMask = helper.getMask(c.inpBits)
+    val wgtMask = helper.getMask(c.wgtBits)
+    val accMask = helper.getMask(c.accBits)
     
     for (i <- 0 until c.size) {
       poke(c.io.inp.data.bits(0)(i), in_a(i) & inpMask)
