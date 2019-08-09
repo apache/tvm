@@ -23,6 +23,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
 import scala.math.pow
+import scala.util.Random
 import unittest.util._
 import vta.core._
 
@@ -49,10 +50,11 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
   val cycles = 5
   for (i <- 0 until cycles) {
     // generate data based on bits
-    val inpGen = new VTARandomArray(c.size, c.inpBits)
-    val wgtGen = new VTARandomArray(c.size, c.wgtBits)
-    val in_a = inpGen.get_random()
-    val in_b = Array.fill(c.size) { wgtGen.get_random() }
+    val r = new Random
+    val inpGen = new RandomArray(r, c.size, c.inpBits)
+    val wgtGen = new RandomArray(r, c.size, c.wgtBits)
+    val in_a = inpGen.any
+    val in_b = Array.fill(c.size) { wgtGen.any }
     val res = mvm_ref(in_a, in_b, 0)  
     val inpMask = helper.getMask(c.inpBits)
     val wgtMask = helper.getMask(c.wgtBits)
