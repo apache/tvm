@@ -373,7 +373,7 @@ Stmt DecorateDeviceScope(Stmt stmt);
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
- *   - Map the values in the api_args to of Var that is required by body.
+ *   - Map the values in the api_args to Var that is required by body.
  *   - Insert assertions to check type/value of the passed arguments.
  *
  * \param body The body of the function.
