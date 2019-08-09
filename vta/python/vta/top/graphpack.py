@@ -209,28 +209,28 @@ class ExprPack(ExprMutator):
             elif call.op == self.add and len(input_types[1].shape) == 3:
                 data, const = args
                 const = _pack_const(const,
-                                  _to_shape(input_types[1].shape),
-                                  input_types[1].dtype,
-                                  self.bfactor,
-                                  self.cfactor)
+                                    _to_shape(input_types[1].shape),
+                                    input_types[1].dtype,
+                                    self.bfactor,
+                                    self.cfactor)
                 return relay.Call(self.add, [data, const])
             elif call.op == self.multiply and tuple(input_types[0].shape) == tuple(input_types[1].shape):
                 pass
             elif call.op == self.multiply and len(input_types[1].shape) == 3:
                 data, const = args
                 const = _pack_const(const,
-                                  _to_shape(input_types[1].shape),
-                                  input_types[1].dtype,
-                                  self.bfactor,
-                                  self.cfactor)
+                                    _to_shape(input_types[1].shape),
+                                    input_types[1].dtype,
+                                    self.bfactor,
+                                    self.cfactor)
                 return relay.Call(self.multiply, [data, const])
             elif self.start_pack and call.op == self.bias_add:
                 data, bias = args
                 bias = _pack_const(bias,
-                                  _to_shape(input_types[1].shape),
-                                  input_types[1].dtype,
-                                  self.bfactor,
-                                  self.cfactor)
+                                   _to_shape(input_types[1].shape),
+                                   input_types[1].dtype,
+                                   self.bfactor,
+                                   self.cfactor)
                 return relay.Call(self.add, [data, bias])
             elif self.start_pack and call.op == op.op.get('cast') and \
                     input_types[0].dtype == 'int32':
