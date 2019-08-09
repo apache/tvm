@@ -59,6 +59,10 @@ from . import qnn
 
 from .scope_builder import ScopeBuilder
 
+# Required to traverse large programs
+from sys import setrecursionlimit
+setrecursionlimit(10000)
+
 # Span
 Span = base.Span
 
@@ -136,3 +140,4 @@ Sequential = transform.Sequential
 
 # Feature
 Feature = feature.Feature
+

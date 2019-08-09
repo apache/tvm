@@ -321,11 +321,6 @@ def graph_pack(expr,
     """
     import sys
     assert isinstance(expr, relay.Function)
-
-    # Increase python recursion limit to traverse Relay program
-    oldrecursionlimit = sys.getrecursionlimit()
-    sys.setrecursionlimit(10000)
-
     expr = get_subgraph(expr, start_name, stop_name)
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
@@ -333,8 +328,4 @@ def graph_pack(expr,
         weight_bits)
     expr = packer.visit(expr)
     assert not packer.start_pack
-
-    # Restore recursion limit
-    sys.setrecursionlimit(oldrecursionlimit)
-
     return run_opt_pass(expr, transform.InferType())
