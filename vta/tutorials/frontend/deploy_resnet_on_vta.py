@@ -62,9 +62,6 @@ from vta.top import graph_pack
 # Make sure that TVM was compiled with RPC=1
 assert tvm.module.enabled("rpc")
 
-# Increase python recursion limit to traverse Relay program
-sys.setrecursionlimit(10000)
-
 ######################################################################
 # Define the platform and model targets
 # -------------------------------------
