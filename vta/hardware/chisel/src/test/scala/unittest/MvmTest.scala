@@ -52,7 +52,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     val inpGen = new VTARandomArray(c.size, c.inpBits)
     val wgtGen = new VTARandomArray(c.size, c.wgtBits)
     val in_a = inpGen.get_random()
-    val in_b = Array.fill(c.size) {wgtGen.get_random()}
+    val in_b = Array.fill(c.size) { wgtGen.get_random() }
     val res = mvm_ref(in_a, in_b, 0)  
     val inpMask = helper.getMask(c.inpBits)
     val wgtMask = helper.getMask(c.wgtBits)
