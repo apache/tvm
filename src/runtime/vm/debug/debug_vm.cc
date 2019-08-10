@@ -97,9 +97,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
                                        const PackedFunc& func, Index arg_count,
                                        Index output_size,
                                        const std::vector<Object>& args) {
+  auto ctx = VirtualMachine::GetParamsContext();
   auto op_begin = std::chrono::high_resolution_clock::now();
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,
                                args);
+  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
   auto op_end = std::chrono::high_resolution_clock::now();
   double op_duration =
       std::chrono::duration_cast<std::chrono::duration<double> >(op_end -
