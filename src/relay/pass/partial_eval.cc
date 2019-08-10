@@ -605,6 +605,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr(const Expr& e, LetList* ll, const Var& name) {
+    if (const CallNode* c = e.as<CallNode>()) {
+      if (c->op.same_as(WithFuncIdOp())) {
+        CHECK_EQ(c->args.size(), 1);
+        return VisitExpr(c->args[0], ll, name);
+      }
+    }
     PStatic ret = e.as<FunctionNode>() ?
       VisitFunc(Downcast<Function>(e), ll, name) :
       VisitExpr(e, ll);
@@ -718,6 +724,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
+    if (op->op.same_as(WithFuncIdOp())) {
+      CHECK_EQ(op->args.size(), 1);
+      return VisitExpr(op->args[0], ll);
+    }
     PStatic f = VisitExpr(op->op, ll);
     std::vector<PStatic> x;
     tvm::Array<Expr> x_dyn;
@@ -804,8 +814,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
           if (std::get<1>(meet_res)) {
             FuelFrame tf(this, fid, std::get<0>(meet_res));
-            Expr dedup_func = ConsumeFuncId(DeDup(AnnotateFuncId(func)));
-            Function func = Downcast<Function>(dedup_func);
+            Expr dedup_func = RegisterFuncId(DeDup(AnnotateFuncId(func)));
+            Function func = AsFunc(dedup_func);
             if (var.as<VarNode>()) {
               env_.Insert(Downcast<Var>(var), self);
             }
@@ -822,7 +832,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
               subst.Set(func->type_params[i], IncompleteTypeNode::make(kType));
             }
-            return VisitExpr(ConsumeFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
+            return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
           } else {
             std::vector<Expr> dyn;
             for (const auto& v : pv) {
@@ -856,7 +866,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
                     LetList* ll,
                     const Var& name = VarNode::make("x", Type())) {
     Func f = VisitFuncStatic(func, name);
-    Function u_func = Downcast<Function>(ConsumeFuncId(DeDup(AnnotateFuncId(func))));
+    Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
     // restore letrec support across whole relay.
     return HasStatic(MkSFunc(f),
@@ -1094,10 +1104,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return e;
   }
 
-  Expr ConsumeFuncId(const Expr& e) {
-    return StripWithFuncId(RegisterFuncId(e));
-  }
-
   Expr AnnotateFuncId(const Expr& e) {
     struct AnnotateFuncIdMutator : ExprMutator, PatternMutator {
       PartialEvaluator* pe;
@@ -1105,12 +1111,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       Expr VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
-        if (pe->func_map_.count(f) == 0) {
-          std::cout << "FAIL!";
-          int* np = nullptr;
-          *np = 1;
-        }
-        CHECK_GT(pe->func_map_.count(f), 0) << AsText(f, false);
+        CHECK_GT(pe->func_map_.count(f), 0);
         return MkWithFuncId(ExprMutator::VisitExpr_(op), pe->func_map_.at(f));
       }
 
