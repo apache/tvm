@@ -30,7 +30,6 @@
 namespace tvm {
 namespace relay {
 
-// the change catch (let x = y in x) + x
 //! brief make sure each Var is bind at most once.
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;

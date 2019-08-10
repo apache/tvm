@@ -1,7 +1,7 @@
 """TVM TOPI connector, eventually most of these should go to TVM repo"""
 
 from . import bitpack
-from .graphpack import graph_pack, GraphPack
+from .graphpack import graph_pack
 from . import op
 from . import vta_conv2d
 from . import vta_dense

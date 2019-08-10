@@ -19,7 +19,7 @@
 
 from tvm import relay
 from tvm.relay import op, transform
-from tvm.relay import ExprMutator, function_pass
+from tvm.relay import ExprMutator
 
 def run_opt_pass(expr, opt_pass):
     """Exectue a relay pass."""
@@ -315,14 +315,3 @@ def graph_pack(expr,
     expr = packer.visit(expr)
     assert not packer.start_pack
     return run_opt_pass(expr, transform.InferType())
-
-@function_pass(opt_level=1)
-class GraphPack:
-    """
-    graph_pack as a pass.
-    """
-    def __init__(self, *args):
-        self.args = args
-
-    def transform_function(self, func, mod, ctx):
-        return graph_pack(func, *self.args)
