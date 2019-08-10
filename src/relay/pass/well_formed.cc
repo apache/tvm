@@ -30,6 +30,7 @@
 namespace tvm {
 namespace relay {
 
+
 //! brief make sure each Var is bind at most once.
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
@@ -41,7 +42,7 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
 
   struct Scope {
     WellFormedChecker* wfc;
-    Scope(WellFormedChecker* wfc) : wfc(wfc) {
+    explicit Scope(WellFormedChecker* wfc) : wfc(wfc) {
       wfc->scope.push_back({});
     }
     ~Scope() {
@@ -113,6 +114,7 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
       ExprVisitor::VisitExpr(e);
     }
   }
+
  public:
   bool CheckWellFormed(const Expr& e) {
     this->VisitExpr(e);
