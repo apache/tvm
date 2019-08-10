@@ -19,14 +19,13 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal
-from tvm.relay.prelude import Prelude, define_list_adt, define_list_hd
+from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
 from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import GlobalVar, Call
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
-from tvm.relay.testing.nat import define_nat_update
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     ctx = tvm.context("llvm", 0)
@@ -326,10 +325,10 @@ def test_triangle_number():
 
 def test_nat_update():
     m = Module()
-    define_list_adt()
-    define_list_hd()
-    define_nat_adt()
-    define_nat_update(m)
+    p = Prelude(m)
+    add_nat_definitions(p)
+    m = transform.ToANormalForm()(m)
+    transform.PartialEvaluate()(m)
 
 
 if __name__ == '__main__':

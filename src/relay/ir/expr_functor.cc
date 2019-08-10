@@ -396,7 +396,9 @@ class ExprBinder : public ExprMutator, PatternMutator {
   }
 
   Var VisitVar(const Var& v) final {
-    return Downcast<Var>(VisitExpr(v));
+    CHECK(!args_map_.count(v))
+      << "Cannnot bind an internal pattern variable";
+    return v;
   }
 
  private:

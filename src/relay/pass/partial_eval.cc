@@ -396,12 +396,12 @@ class Environment {
 
   void Insert(const Var& v, const PStatic& ps) {
     CHECK(ps.defined());
-    CHECK(!LookupAux(v));
+    CHECK_GT(env_.size(), 0);
     CHECK_EQ(env_.back().locals.count(v), 0);
     env_.back().locals[v] = ps;
   }
 
-  PStatic LookupAux(const Var& v) {
+  PStatic Lookup(const Var& v) {
     auto rit = env_.rbegin();
     while (rit != env_.rend()) {
       if (rit->locals.find(v) != rit->locals.end()) {
@@ -409,17 +409,8 @@ class Environment {
       }
       ++rit;
     }
-    return PStatic();
-  }
-
-  PStatic Lookup(const Var& v) {
-    auto ret = LookupAux(v);
-    if (ret) {
-      return ret;
-    } else {
-      LOG(FATAL) << "Unknown Variable: " << v;
-      throw;
-    }
+    LOG(FATAL) << "Unknown Variable: " << v;
+    throw;
   }
 
  private:
@@ -614,12 +605,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr(const Expr& e, LetList* ll, const Var& name) {
-    if (auto* op = e.as<CallNode>()) {
-      if (op->op.same_as(WithFuncIdOp())) {
-        CHECK_EQ(op->args.size(), 1);
-        return VisitExpr(op->args[0], ll, name);
-      }
-    }
     PStatic ret = e.as<FunctionNode>() ?
       VisitFunc(Downcast<Function>(e), ll, name) :
       VisitExpr(e, ll);
@@ -733,10 +718,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
-    if (op->op.same_as(WithFuncIdOp())) {
-      CHECK_EQ(op->args.size(), 1);
-      return VisitExpr(op->args[0], ll);
-    }
     PStatic f = VisitExpr(op->op, ll);
     std::vector<PStatic> x;
     tvm::Array<Expr> x_dyn;
@@ -811,35 +792,37 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
                LetList* ll) {
       return env_.Extend<PStatic>([&]() {
           CHECK_EQ(pv.size(), func->params.size());
-          if (var.as<VarNode>()) {
-            env_.Insert(Downcast<Var>(var), self);
-          }
-          for (size_t i = 0; i < pv.size(); ++i) {
-            env_.Insert(func->params[i], pv[i]);
-          }
-          for (const auto& p : free_vars) {
-            env_.Insert(p.first, p.second);
-          }
-          tvm::Map<TypeVar, Type> subst;
-          for (size_t i = 0; i < type_args.size(); ++i) {
-            subst.Set(func->type_params[i], type_args[i]);
-          }
-          for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
-            subst.Set(func->type_params[i], IncompleteTypeNode::make(kType));
-          }
-          std::vector<Fuel> args_fuel;
-          for (const auto& v : pv) {
-            args_fuel.push_back(GetFuel(v));
-          }
           CHECK_GT(func_map_.count(func), 0);
           FuncId fid = func_map_.at(func);
           if (fuel_map_.count(fid) == 0) {
             fuel_map_.insert({fid, MkFTop()});
           }
+          std::vector<Fuel> args_fuel;
+          for (const auto& v : pv) {
+            args_fuel.push_back(GetFuel(v));
+          }
           auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
           if (std::get<1>(meet_res)) {
             FuelFrame tf(this, fid, std::get<0>(meet_res));
-            return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
+            Expr dedup_func = ConsumeFuncId(DeDup(AnnotateFuncId(func)));
+            Function func = Downcast<Function>(dedup_func);
+            if (var.as<VarNode>()) {
+              env_.Insert(Downcast<Var>(var), self);
+            }
+            for (size_t i = 0; i < pv.size(); ++i) {
+              env_.Insert(func->params[i], pv[i]);
+            }
+            for (const auto& p : free_vars) {
+              env_.Insert(p.first, p.second);
+            }
+            tvm::Map<TypeVar, Type> subst;
+            for (size_t i = 0; i < type_args.size(); ++i) {
+              subst.Set(func->type_params[i], type_args[i]);
+            }
+            for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
+              subst.Set(func->type_params[i], IncompleteTypeNode::make(kType));
+            }
+            return VisitExpr(ConsumeFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
           } else {
             std::vector<Expr> dyn;
             for (const auto& v : pv) {
@@ -873,7 +856,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
                     LetList* ll,
                     const Var& name = VarNode::make("x", Type())) {
     Func f = VisitFuncStatic(func, name);
-    Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
+    Function u_func = Downcast<Function>(ConsumeFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
     // restore letrec support across whole relay.
     return HasStatic(MkSFunc(f),
@@ -989,32 +972,37 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitExpr_(const MatchNode* op, LetList* ll) final {
     PStatic ps = VisitExpr(op->data, ll);
     return env_.Extend<PStatic>([&]() {
-        for (const Clause& c : op->clauses) {
-          switch (VisitPattern(c->lhs, ps)) {
-          case MatchStatus::Match:
-            return VisitExpr(c->rhs, ll);
-          case MatchStatus::NoMatch:
-            continue;
-          case MatchStatus::Unknown:
+      for (const Clause& c : op->clauses) {
+        switch (VisitPattern(c->lhs, ps)) {
+        case MatchStatus::Match:
+          return VisitExpr(c->rhs, ll);
+        case MatchStatus::NoMatch:
+          continue;
+        case MatchStatus::Unknown:
+          return [&]() {
             tvm::Array<Clause> clauses;
             for (const Clause& c : op->clauses) {
               Expr expr = store_.Extend<Expr>([&]() {
-                  return LetList::With([&](LetList* ll) {
-                      for (const Var& v : BoundVars(c->lhs)) {
-                        env_.Insert(v, NoStatic(v));
-                      }
-                      return VisitExpr(c->rhs, ll)->dynamic;
-                    });
+                return LetList::With([&](LetList* ll) {
+                  for (const Var& v : BoundVars(c->lhs)) {
+                    env_.Insert(v, NoStatic(v));
+                  }
+                  return VisitExpr(c->rhs, ll)->dynamic;
                 });
+              });
               clauses.push_back(ClauseNode::make(c->lhs, expr));
             }
             store_.Invalidate();
             return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses, op->complete)));
-          }
+          }();
+        default:
+          LOG(FATAL) << "Unknown MatchStatus";
+          throw;
         }
-        LOG(FATAL) << "No case Match";
-        throw;
-      });
+      }
+      LOG(FATAL) << "No case Match";
+      throw;
+    });
   }
 
   MatchStatus VisitPattern_(const PatternWildcardNode* op, const PStatic& ps) final {
@@ -1106,6 +1094,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return e;
   }
 
+  Expr ConsumeFuncId(const Expr& e) {
+    return StripWithFuncId(RegisterFuncId(e));
+  }
+
   Expr AnnotateFuncId(const Expr& e) {
     struct AnnotateFuncIdMutator : ExprMutator, PatternMutator {
       PartialEvaluator* pe;
@@ -1113,7 +1105,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       Expr VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
-        CHECK_GT(pe->func_map_.count(f), 0);
+        if (pe->func_map_.count(f) == 0) {
+          std::cout << "FAIL!";
+          int* np = nullptr;
+          *np = 1;
+        }
+        CHECK_GT(pe->func_map_.count(f), 0) << AsText(f, false);
         return MkWithFuncId(ExprMutator::VisitExpr_(op), pe->func_map_.at(f));
       }
 
