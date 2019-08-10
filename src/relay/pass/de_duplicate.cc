@@ -44,6 +44,8 @@ Expr DeDup(const Expr& e) {
     }
 
     Var Fresh(const Var& v) {
+      CHECK_EQ(rename_.count(v), 0);
+      CHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
       Var ret = VarNode::make(v->name_hint(), VisitType(v->type_annotation));
       rename_[v] = ret;
       return ret;
@@ -84,16 +86,11 @@ Expr DeDup(const Expr& e) {
     }
 
     Pattern VisitPattern(const Pattern& p) final {
-      return PatternMutator::VisitPattern(p);
+      return PatternFunctor::VisitPattern(p);
     }
 
     Pattern VisitPattern_(const PatternVarNode* op) final {
       return PatternVarNode::make(Fresh(op->var));
-    }
-
-    Clause VisitClause(const Clause& c) final {
-      Pattern pat = VisitPattern(c->lhs);
-      return ClauseNode::make(pat, VisitExpr(c->rhs));
     }
 
     Type VisitType_(const TypeVarNode* op) final {
@@ -109,9 +106,10 @@ Expr DeDup(const Expr& e) {
     std::unordered_map<Var, Var, NodeHash, NodeEqual> rename_;
     std::unordered_map<TypeVar, TypeVar, NodeHash, NodeEqual> type_rename_;
   };
-
+  CHECK(WellFormed(e)) << AsText(e, false);
   Expr ret = DeDupMutator().VisitExpr(e);
-  CHECK_EQ(FreeVars(ret).size(), FreeVars(e).size());
+  CHECK(WellFormed(ret));
+  CHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
   return ret;
 }
 

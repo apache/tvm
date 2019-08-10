@@ -216,7 +216,8 @@ Expr ExprMutator::VisitExpr_(const MatchNode* m) {
 }
 
 Clause ExprMutator::VisitClause(const Clause& c) {
-  return ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs));
+  Pattern p = VisitPattern(c->lhs);
+  return ClauseNode::make(p, VisitExpr(c->rhs));
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }

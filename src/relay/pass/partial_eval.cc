@@ -396,11 +396,12 @@ class Environment {
 
   void Insert(const Var& v, const PStatic& ps) {
     CHECK(ps.defined());
+    CHECK(!LookupAux(v));
     CHECK_EQ(env_.back().locals.count(v), 0);
     env_.back().locals[v] = ps;
   }
 
-  PStatic Lookup(const Var& v) {
+  PStatic LookupAux(const Var& v) {
     auto rit = env_.rbegin();
     while (rit != env_.rend()) {
       if (rit->locals.find(v) != rit->locals.end()) {
@@ -408,8 +409,17 @@ class Environment {
       }
       ++rit;
     }
-    LOG(FATAL) << "Unknown Variable: " << v;
-    throw;
+    return PStatic();
+  }
+
+  PStatic Lookup(const Var& v) {
+    auto ret = LookupAux(v);
+    if (ret) {
+      return ret;
+    } else {
+      LOG(FATAL) << "Unknown Variable: " << v;
+      throw;
+    }
   }
 
  private:
