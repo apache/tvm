@@ -187,14 +187,7 @@ class TensorNode : public Node {
 
   static constexpr const char* _type_key = "Tensor";
   TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
-
-  // inline const char* type_key() const override {
-  //   return TensorNode::_type_key;
-  // }
-  // inline const uint32_t type_index() const {
-  //   static uint32_t tidx = TypeKey2Index(TensorNode::_type_key);
-  //   return tidx;
-  // }
+  
 };
 
 
