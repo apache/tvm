@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Deploy Pretrained ResNet Model from MxNet on VTA
+Deploy Pretrained Vision Model from MxNet on VTA
 ================================================
 **Author**: `Thierry Moreau <https://homes.cs.washington.edu/~moreau/>`_
 
-This tutorial provides an end-to-end demo, on how to run ResNet-18 inference
-onto the VTA accelerator design to perform ImageNet classification tasks.
+This tutorial provides an end-to-end demo, on how to run ImageNet classification
+inference onto the VTA accelerator design to perform ImageNet classification tasks.
 It showcases Relay as a front end compiler that can perform quantization (VTA
 only supports int8/32 inference) as well as graph packing (in order to enable
 tensorization in the core) to massage the compute graph for the hardware target.
@@ -141,7 +141,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 ######################################################################
 # Build the inference graph runtime
 # ---------------------------------
-# Grab ResNet-18 model from Gluon model zoo and compile with Relay.
+# Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
 #    1) Front end translation from MxNet into Relay module.
 #    2) Apply 8-bit quantization: here we skip the first conv layer,
@@ -156,7 +156,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
 
-    # Populate the shape and data type dictionary for ResNet input
+    # Populate the shape and data type dictionary for ImageNet classifier input
     dtype_dict = {"data": 'float32'}
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
@@ -215,8 +215,8 @@ with autotvm.tophub.context(target):
     m = graph_runtime.create(graph, lib, ctx)
 
 ######################################################################
-# Perform ResNet-18 inference
-# ---------------------------
+# Perform image classification inference
+# --------------------------------------
 # We run classification on an image sample from ImageNet
 # We just need to download the categories files, `synset.txt`
 # and an input test image.
