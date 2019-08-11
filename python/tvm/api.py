@@ -248,6 +248,9 @@ def placeholder(shape, dtype=None, name="placeholder", sformat=None):
     name: str, optional
         The name hint of the tensor
 
+    sformat: SparseFormat, optional
+        Specifies each dimension as Sparse or Dense.
+
     Returns
     -------
     tensor: Tensor
@@ -281,6 +284,9 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, sformat=None):
 
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
+
+    sformat: SparseFormat, optional
+        Specifies each dimension as Sparse or Dense.
 
     Returns
     -------

@@ -14,7 +14,7 @@ def dense_format(n):
 def is_dense(sformat):
     if sformat is None:
         return True
-    elif SparseFormat.Sparse in sformat.types:
+    if SparseFormat.Sparse in sformat.types:
         return False
     else:
         return True

@@ -28,9 +28,6 @@ namespace tvm {
 SparseFormat SparseFormatNode::make(Array<Expr> types) {
   NodePtr<SparseFormatNode> n = make_node<SparseFormatNode>();
   n->types = std::move(types);
-  // for (auto type : types) {
-  //   n->types.push_back(type.as<IntImm>()->value);
-  // }
   return SparseFormat(n);
 }
 
@@ -60,19 +57,5 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     }
     p->stream << "])";
 });
-
-// SparseTensor SparseTensorNode::make(Array<Expr> shape,
-//                                     Type dtype,
-//                                     SparseFormat sformat,
-//                                     Operation op,
-//                                     int value_index) {
-//   auto n = make_node<SparseTensorNode>();
-//   n->shape = std::move(shape);
-//   n->dtype = dtype;
-//   n->sformat = std::move(sformat);
-//   n->op = op;
-//   n->value_index = value_index;
-//   return SparseTensor(n);
-// }
 
 }// namespace tvm

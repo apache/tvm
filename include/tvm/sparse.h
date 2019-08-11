@@ -30,7 +30,6 @@
 namespace tvm {
 
 class SparseFormatNode;
-// class SparseFormatNode;
 
 enum SFormatType : int {
   kDense = 0,

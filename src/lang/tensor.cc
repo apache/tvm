@@ -48,7 +48,6 @@ Expr Tensor::operator()(Array<Expr> indices) const {
 }
 
 SparseFormat OperationNode::output_sformat(size_t i) const {
-  //CHECK_EQ(i, 0);
   return DeclDenseFormat(this->output_shape(i).size());
 }
 
