@@ -32,7 +32,7 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
    *
    * This is a software function used as a reference for the hardware
    */
-  def alu_ref(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
+  def aluRef(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
     val size = a.length
     val mask = helper.getMask(log2Ceil(width))
     val res = Array.fill(size) {0}
