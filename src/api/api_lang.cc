@@ -288,7 +288,6 @@ TVM_REGISTER_API("_Placeholder")
   Array<Expr> shape, Type dtype, std::string name, SparseFormat sformat
 ) {
   return PlaceholderOpNode::make(name, shape, dtype, sformat).output(0);
-  // return placeholder(shape, dtype, sformat, name);
 });
 
 TVM_REGISTER_API("_ComputeOp")

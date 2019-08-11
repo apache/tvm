@@ -74,35 +74,5 @@ inline const SparseFormatNode* SparseFormat::operator->() const {
 
 SparseFormat DeclDenseFormat(int ndim);
 
-// class SparseTensorNode;
-//
-// class SparseTensor : public Tensor {
-//  public:
-//   SparseTensor() {}
-//   explicit SparseTensor(NodePtr<Node> n) : Tensor(n) {}
-//   inline const SparseTensorNode* operator->() const;
-//   operator bool() { return this->defined(); }
-//   using ContainerType = SparseTensorNode;
-// };
-//
-// class SparseTensorNode : public TensorNode {
-//  public:
-//
-//   SparseFormat sformat;
-//   TVM_DLL static SparseTensor make(Array<Expr> shape,
-//                                    Type dtype,
-//                                    SparseFormat sformat,
-//                                    Operation op,
-//                                    int value_index);
-//
-//   static constexpr const char* _type_key = "SparseTensor";
-//   TVM_DECLARE_NODE_TYPE_INFO(SparseTensorNode, TensorNode);
-//
-// };
-//
-// inline const SparseTensorNode* SparseTensor::operator->() const {
-//   return static_cast<const SparseTensorNode*>(node_.get());
-// }
-
 }  // namespace tvm
 #endif  // TVM_SPARSE_H_

@@ -378,9 +378,6 @@ def lower(sch,
     for f in lower_phase0:
         stmt = f(stmt)
     # Phase 1
-    #print('lowered simple IR:')
-    #print(stmt)
-    #raise ValueError
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:

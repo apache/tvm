@@ -18,6 +18,3 @@ def is_dense(sformat):
         return False
     else:
         return True
-
-# def decl_sparse_fmt(stypes):
-#     return _api_internal._SparseFormat(stypes)
