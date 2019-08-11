@@ -216,7 +216,8 @@ Expr ExprMutator::VisitExpr_(const MatchNode* m) {
 }
 
 Clause ExprMutator::VisitClause(const Clause& c) {
-  return ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs));
+  Pattern p = VisitPattern(c->lhs);
+  return ClauseNode::make(p, VisitExpr(c->rhs));
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
@@ -395,7 +396,9 @@ class ExprBinder : public ExprMutator, PatternMutator {
   }
 
   Var VisitVar(const Var& v) final {
-    return Downcast<Var>(VisitExpr(v));
+    CHECK(!args_map_.count(v))
+      << "Cannnot bind an internal pattern variable";
+    return v;
   }
 
  private:

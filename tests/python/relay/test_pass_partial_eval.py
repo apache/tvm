@@ -323,7 +323,16 @@ def test_triangle_number():
     assert_alpha_equal(dcpe(orig), const(55))
 
 
+def test_nat_update():
+    m = Module()
+    p = Prelude(m)
+    add_nat_definitions(p)
+    m = transform.ToANormalForm()(m)
+    transform.PartialEvaluate()(m)
+
+
 if __name__ == '__main__':
+    test_nat_update()
     test_ref()
     test_tuple()
     test_empty_ad()
