@@ -19,8 +19,6 @@
 from tvm import relay
 from tvm.relay import transform
 
-from .._base import LAYOUT_FIXED_OP
-
 
 def has_multiple_inputs(node_list, node_idx, input_names):
     """Check whether a node has multiple input nodes
@@ -72,9 +70,33 @@ def is_boundary_node(node_entry, input_names):
     out : bool
         whether node is a boundary node.
     """
-    out = node_entry["op"] in LAYOUT_FIXED_OP or \
+    # Operators dependent on original layouts.
+    _LAYOUT_FIXED_OP = ["batch_flatten", "transpose", "reshape",
+                        "multibox_prior", "multibox_transform_loc", "where",
+                        "non_max_suppression", "strided_slice"]
+
+    out = node_entry["op"] in _LAYOUT_FIXED_OP or \
           ("name" in node_entry and node_entry["name"] in input_names)
     return out
+
+
+def is_skipped_node(node_entry):
+    """Whether a node is not counted.
+
+    Parameters
+    ----------
+    node_entry : dict
+        Node entry.
+
+    Returns
+    -------
+    out : bool
+        whether node is skipped.
+    """
+    # Operators not counted in graph tuner.
+    _SKIPPED_OP = ["Tuple"]
+
+    return node_entry["op"] in _SKIPPED_OP
 
 
 def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
