@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import tvm
 import numpy as np
 from tvm.sparse import *
@@ -7,15 +24,17 @@ tgt = 'llvm'
 Dense = SparseFormat.Dense
 Sparse = SparseFormat.Sparse
 
+# Create Sparse tensor
 sfmt = tvm.sformat([Dense, Sparse])
-#print(sfmt)
-# dense = dense_format(3)
-# print(dense)
+print(sfmt)
+
+# Create a Dense tensor
+dense = dense_format(3)
+print(dense)
 # spmv
 n = tvm.var("n")
 m = tvm.var("m")
 l = tvm.var("l")
-#A = tvm.placeholder((m,n),sformat=None,name='A')
 A = tvm.placeholder((m, n), sformat=tvm.sformat([Dense, Sparse]), name='A')
 B = tvm.placeholder((n), sformat=tvm.sformat([Dense]), name='B')
 k = tvm.reduce_axis((0, 8), 'k')
@@ -78,9 +97,8 @@ produce C {
 
 s = tvm.create_schedule(C.op)
 ir = tvm.lower(s, [A, B, C], simple_mode=True)
-#print(ir)
+print(ir)
 
-#raise ValueError
 # run
 
 fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
@@ -104,4 +122,4 @@ for i in range(m):
 
 tvm.testing.assert_allclose(c.asnumpy(), c_np)
 
-# print(fadd.get_source())
+#print(fadd.get_source())
