@@ -284,8 +284,8 @@ TVM_REGISTER_API("_TensorHash")
   });
 
 TVM_REGISTER_API("_Placeholder")
-.set_body_typed<Tensor(Array<Expr>, Type, SparseFormat, std::string)>([](
-  Array<Expr> shape, Type dtype, SparseFormat sformat, std::string name
+.set_body_typed<Tensor(Array<Expr>, Type, std::string, SparseFormat)>([](
+  Array<Expr> shape, Type dtype, std::string name, SparseFormat sformat
 ) {
   return PlaceholderOpNode::make(name, shape, dtype, sformat).output(0);
   // return placeholder(shape, dtype, sformat, name);

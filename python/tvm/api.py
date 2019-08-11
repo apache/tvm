@@ -234,7 +234,7 @@ def all(*args):
     return ret
 
 
-def placeholder(shape, dtype=None, sformat=None, name="placeholder"):
+def placeholder(shape, dtype=None, name="placeholder", sformat=None):
     """Construct an empty tensor object.
 
     Parameters
@@ -255,9 +255,9 @@ def placeholder(shape, dtype=None, sformat=None, name="placeholder"):
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     dtype = float32 if dtype is None else dtype
-    sformat = decl_dense(len(shape)) if sformat is None else sformat
+    sformat = _sparse.dense_format(len(shape)) if sformat is None else sformat
     return _api_internal._Placeholder(
-        shape, dtype, sformat, name)
+        shape, dtype, name, sformat)
 
 
 def compute(shape, fcompute, name="compute", tag="", attrs=None, sformat=None):
@@ -323,7 +323,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, sformat=None):
                                                  body.tensors,
                                                  body.regions,
                                                  body.scalar_inputs)
-    elif sformat is not None:
+    elif sformat is not None and not _sparse.is_dense(sformat):
         # sparse compute
         if not isinstance(body, (list, tuple)):
             body = [body]

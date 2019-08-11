@@ -58,7 +58,6 @@ class SparseFormatNode : public Node {
   Array<Expr> types;
 
   SparseFormatNode() {}
-
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("types", &types);
   };

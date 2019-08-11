@@ -11,5 +11,13 @@ class SparseFormat(NodeBase):
 def dense_format(n):
     return _api_internal._SparseFormat([SparseFormat.Dense for i in range(n)])
 
+def is_dense(sformat):
+    if sformat is None:
+        return True
+    elif SparseFormat.Sparse in sformat.types:
+        return False
+    else:
+        return True
+
 # def decl_sparse_fmt(stypes):
 #     return _api_internal._SparseFormat(stypes)

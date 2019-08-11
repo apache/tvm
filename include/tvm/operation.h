@@ -362,6 +362,7 @@ class SparseComputeOpNode : public BaseComputeOpNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(

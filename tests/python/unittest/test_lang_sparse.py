@@ -8,13 +8,14 @@ Dense = SparseFormat.Dense
 Sparse = SparseFormat.Sparse
 
 sfmt = tvm.sformat([Dense, Sparse])
-print(sfmt)
+#print(sfmt)
 # dense = dense_format(3)
 # print(dense)
 # spmv
 n = tvm.var("n")
 m = tvm.var("m")
 l = tvm.var("l")
+#A = tvm.placeholder((m,n),sformat=None,name='A')
 A = tvm.placeholder((m, n), sformat=tvm.sformat([Dense, Sparse]), name='A')
 B = tvm.placeholder((n), sformat=tvm.sformat([Dense]), name='B')
 k = tvm.reduce_axis((0, 8), 'k')
@@ -77,20 +78,30 @@ produce C {
 
 s = tvm.create_schedule(C.op)
 ir = tvm.lower(s, [A, B, C], simple_mode=True)
-print(ir)
+#print(ir)
 
-raise ValueError
+#raise ValueError
 # run
 
 fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
 
 ctx = tvm.context(tgt, 0)
 
+m = 2048
 n = 1024
-a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+a = tvm.nd.array(np.random.uniform(size=(m,n)).astype(A.dtype), ctx)
 b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
-c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+c = tvm.nd.array(np.zeros(shape=(m,), dtype=C.dtype), ctx)
 fadd(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() * b.asnumpy())
+
+a_np = a.asnumpy()
+b_np = b.asnumpy()
+c_np = np.zeros(m, dtype=C.dtype)
+for i in range(m):
+    c_np[i] = 0
+    for k in range(0,8):
+        c_np[i] += a_np[i, k] * b_np[k]
+
+tvm.testing.assert_allclose(c.asnumpy(), c_np)
 
 # print(fadd.get_source())

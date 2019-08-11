@@ -139,6 +139,7 @@ Operation SparseComputeOpNode::ReplaceInputs(
 
 void SparseComputeOpNode::PropBoundToInputs(
     const Operation& self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
@@ -295,7 +296,7 @@ Stmt MakeComputeStmt(const SparseComputeOpNode* self,
   Tensor t_crd = placeholder({Var("s2")}, Int(32), "A1_crd");
 
   // final var to index sparse tensor
-  VarExpr idx = HalideIR::VarExpr("idx", Int(32));
+  Var idx = Var("idx", Int(32));
 
   if (self->reduce_axis.size() != 0) {
     // make reduction.
