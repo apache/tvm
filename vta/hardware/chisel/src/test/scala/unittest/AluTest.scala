@@ -22,7 +22,6 @@ package unittest
 import chisel3._
 import chisel3.util._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
-import scala.util.Random
 import unittest.util._
 import vta.core._
 
@@ -68,13 +67,12 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
   for (i <- 0 until num_ops) {
     // generate data based on bits
     val bits = c.aluBits
-    val r = new Random
-    val dataGen = new RandomArray(r, c.blockOut, bits)
+    val dataGen = new RandomArray(c.blockOut, bits)
     val op = i
     val in_a = dataGen.any
     val in_b = if (op != 4) dataGen.any else dataGen.negative
     val mask = helper.getMask(bits)
-    val res = alu_ref(op, in_a, in_b, bits)  
+    val res = aluRef(op, in_a, in_b, bits)  
     
     for (i <- 0 until c.blockOut) {
       poke(c.io.acc_a.data.bits(0)(i), in_a(i) & mask)
