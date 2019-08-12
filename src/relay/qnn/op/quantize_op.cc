@@ -63,7 +63,8 @@ Expr MakeQuantize(Expr data,
   attrs->output_scale = output_scale;
   attrs->output_zero_point = output_zero_point;
   attrs->out_dtype = std::move(out_dtype);
-  // quantized_output =
+  // result_quantized_value = result_zero_point + result_real_value / result_scale.
+  // A more detailed explanation can be found here - https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   static const Op& op = Op::Get("qnn.quantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -75,8 +76,6 @@ Expr QuantizeLower(const Expr& input_tensor, const QuantizeAttrs* param) {
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
   auto scale_data = Cast(Round(Divide(input_tensor, scale)), Int(32));
-  // result_quantized_value = result_zero_point + result_real_value / result_scale.
-  // A more detailed explanation can be found here - https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   auto add_zero_point = Add(scale_data, output_zero_point);
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
   auto clamp_out_dtype = Cast(clamped_output, out_dtype);

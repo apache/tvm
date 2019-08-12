@@ -79,10 +79,10 @@ def quantize(input_data,
              output_zero_point,
              out_dtype='int8'):
     r""" Quantize op
-     This operator takes float32 as input and produces quantized int8 or unit8 as output.
-     The input tensor can be of any shape. The output shape is the same as input shape.
+    This operator takes float32 as input and produces quantized int8 or unit8 as output.
+    The input tensor can be of any shape. The output shape is the same as input shape.
 
-     Q_output = clamp(round(input_tensor/output_scale) + output_zero_point), out_dtype::min, out_dtype::max)
+    Q_output = clamp(round(input_tensor/output_scale) + output_zero_point), out_dtype::min, out_dtype::max)
 
     Parameters
     ----------
@@ -110,7 +110,7 @@ def dequantize(input_data,
                input_scale,
                input_zero_point):
     r""" Dequantize op
-     This operator takes quantized int8 and unit8 as input and produces
+    This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
     tensor can be of any shape.
 

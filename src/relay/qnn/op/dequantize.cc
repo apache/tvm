@@ -83,7 +83,7 @@ Expr DequantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.dequantize")
-  .describe(R"code(Dequantizes the input and produces float32 output.
+.describe(R"code(Dequantizes the input and produces float32 output.
 The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
