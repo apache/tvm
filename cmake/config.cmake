@@ -88,6 +88,9 @@ set(USE_GRAPH_RUNTIME ON)
 # Whether enable additional graph debug functions
 set(USE_GRAPH_RUNTIME_DEBUG OFF)
 
+# Whether enable additional vm debug functions
+set(USE_VM_DEBUG OFF)
+
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
 #
