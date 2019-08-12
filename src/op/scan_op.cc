@@ -83,7 +83,7 @@ Operation ScanOpNode::make(std::string name,
         << "init.shape[0] need to match scan_axis.dom.min";
     CHECK(prove_equal(
         state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
-        << "shate_placeholder.shape[0] need to match"
+        << "state_placeholder.shape[0] need to match"
         << " scan_axis.dom.min + scan_axis.dom.extent";
     CHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
         << "The dimension of init need to match state_placeholder";
@@ -242,7 +242,7 @@ void ScanOpNode::GatherBound(
       CHECK(fix_pt.count(sp_ax));
       if (fix_pt[sp_ax].as<ir::IntImm>()->value) {
         // fix point, we can slice it.
-        (*out_dom_map)[sp_ax] = arith::Union(d.data[k + 1]).cover_range(sp_ax->dom);
+        (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
       } else {
         // not a fix point, need to include everything.
         (*out_dom_map)[sp_ax] = sp_ax->dom;
