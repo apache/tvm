@@ -90,7 +90,6 @@ class QConfigNode : public Node {
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
-    // v->Visit("stop_ops", &stop_ops);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
   }
 

@@ -92,6 +92,18 @@ def check_kind(t, mod=None):
 
 
 def check_constant(expr):
+    """Check whether an expression is constant
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    result : bool
+        Whether the expression is constant.
+    """
     return _analysis.check_constant(expr)
 
 

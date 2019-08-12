@@ -134,6 +134,7 @@ def add_partition_generic(ref_call, new_args, ctx):
 def add_partition_function(ref_call, new_args, ctx):
     """Rewrite function for ewise add for partition"""
     if 'cuda' in _target.current_target().keys:
+        #TODO(wuwei/ziheng) cuda specific rules
         return add_partition_generic(ref_call, new_args, ctx)
     return add_partition_generic(ref_call, new_args, ctx)
 

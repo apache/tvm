@@ -82,7 +82,6 @@ class QConfig(NodeBase):
         "skip_conv_layers": [0],
         "do_simulation": False,
         "round_for_shift": True,
-        # "stop_ops": ["nn.global_avg_pool2d"],
         "debug_enabled_ops": None,
     }
 
