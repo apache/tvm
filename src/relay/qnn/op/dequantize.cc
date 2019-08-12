@@ -25,7 +25,6 @@
  */
 
 #include <tvm/relay/analysis.h>
-//#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 #include "../../pass/pattern_util.h"
@@ -53,11 +52,13 @@ bool DequantizeRel(const Array<Type>& types,
 }
 
 Expr MakeDequantize(Expr data,
-                    int32_t input_zero_point,
-                    double input_scale) {
+                    double input_scale,
+                    int32_t input_zero_point) {
   auto attrs = make_node<DequantizeAttrs>();
   attrs->input_scale = input_scale;
   attrs->input_zero_point = input_zero_point;
+  // real_value = scale * (quantized_value - zero_point)
+  // A more detailed explanation can be found here - https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   static const Op& op = Op::Get("qnn.dequantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -78,10 +79,6 @@ Expr DequantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
   CHECK(param != nullptr);
 
   CHECK_EQ(arg_types.size(), 1);
-  auto input_dtype = arg_types[0];
-  auto input_tensor_type = input_dtype.as<TensorTypeNode>();
-  CHECK(input_tensor_type != nullptr) << "Type information missing."
-                                      << " Please run infer_type pass.";
   return DequantizeLower(data, param);
 }
 

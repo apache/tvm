@@ -235,7 +235,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const RequantizeAttrs* param = attrs.as<RequantizeAttrs>();
   auto out_dtype = param->out_dtype;
   CHECK(out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32))
-      << "Output type should be one of [int8, uint8, int32] integer but was " << out_dtype;
+      << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[1], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }

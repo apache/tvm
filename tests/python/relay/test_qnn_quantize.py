@@ -33,8 +33,8 @@ def test_quantize_op():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         output_zero_point = quant_args['out_zero_point']
         output_scale = quant_args['out_scale']
-        quantized_output = relay.qnn.op.quantize(input_data, output_zero_point=output_zero_point,
-                                                 output_scale=output_scale, out_dtype=out_dtype)
+        quantized_output = relay.qnn.op.quantize(input_data, output_scale=output_scale,
+                                                 output_zero_point=output_zero_point,out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = relay.Module.from_expr(mod)
         mod = relay.transform.Legalize()(mod)

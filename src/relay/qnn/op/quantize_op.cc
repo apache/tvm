@@ -25,7 +25,6 @@
  */
 
 #include <tvm/relay/analysis.h>
-//#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 #include "../../pass/pattern_util.h"
@@ -57,13 +56,14 @@ bool QuantizeRel(const Array<Type>& types,
 }
 
 Expr MakeQuantize(Expr data,
-                  int32_t output_zero_point,
                   double output_scale,
+                  int32_t output_zero_point,
                   DataType out_dtype) {
   auto attrs = make_node<QuantizeAttrs>();
   attrs->output_scale = output_scale;
   attrs->output_zero_point = output_zero_point;
   attrs->out_dtype = std::move(out_dtype);
+  // quantized_output =
   static const Op& op = Op::Get("qnn.quantize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -75,7 +75,8 @@ Expr QuantizeLower(const Expr& input_tensor, const QuantizeAttrs* param) {
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
   auto scale_data = Cast(Round(Divide(input_tensor, scale)), Int(32));
-  // we are trying to do - std::min(std::max(unclamped, min_val), max_val);
+  // result_quantized_value = result_zero_point + result_real_value / result_scale.
+  // A more detailed explanation can be found here - https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   auto add_zero_point = Add(scale_data, output_zero_point);
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
   auto clamp_out_dtype = Cast(clamped_output, out_dtype);
@@ -90,10 +91,6 @@ Expr QuantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
   CHECK(param != nullptr);
 
   CHECK_EQ(arg_types.size(), 1);
-  auto input_dtype = arg_types[0];
-  auto input_tensor_type = input_dtype.as<TensorTypeNode>();
-  CHECK(input_tensor_type != nullptr) << "Type information missing."
-                                      << " Please run infer_type pass.";
   return QuantizeLower(data, param);
 }
 

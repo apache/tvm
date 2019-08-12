@@ -74,48 +74,60 @@ def requantize(data,
                             out_dtype)
 
 
-def quantize(input_data, output_zero_point, output_scale, out_dtype='int8'):
+def quantize(input_data,
+             output_scale,
+             output_zero_point,
+             out_dtype='int8'):
     r""" Quantize op
      This operator takes float32 as input and produces quantized int8 or unit8 as output.
      The input tensor can be of any shape. The output shape is the same as input shape.
-     ..math::
-            \mbox{out}[x] =
-                \mbox{clamp(round(input_tensor/output_scale) + output_zero_point);
-                 out_dtype::min, out_dtype::max}
-     Parameters
+
+     Q_output = clamp(round(input_tensor/output_scale) + output_zero_point), out_dtype::min, out_dtype::max)
+
+    Parameters
     ----------
     input_data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
-    output_zero_point :
+    output_zero_point : int
         The output zero_point.
-    output_scale:
+    output_scale : float
         The output scale.
-    input_dtype:
+    input_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8]
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.quantize(input_data, output_zero_point, output_scale, out_dtype)
+
+    return _make.quantize(input_data,
+                          output_scale,
+                          output_zero_point,
+                          out_dtype)
 
 
-def dequantize(input_data, input_zero_point, input_scale):
+def dequantize(input_data,
+               input_scale,
+               input_zero_point):
     r""" Dequantize op
      This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
     tensor can be of any shape.
-     Parameters
+
+    Parameters
     ----------
     input_data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8].
-    input_zero_point :
+    input_zero_point : int
         The output zero_point.
-    input_scale:
+    input_scale : float
         The output scale.
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.dequantize(input_data, input_zero_point, input_scale)
+
+    return _make.dequantize(input_data,
+                            input_scale,
+                            input_zero_point)
