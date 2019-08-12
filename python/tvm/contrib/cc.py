@@ -27,7 +27,7 @@ from .util import tempdir
 def create_shared(output,
                   objects,
                   options=None,
-                  compile_cmd="g++"):
+                  cc="g++"):
     """Create shared library.
 
     Parameters
@@ -41,11 +41,11 @@ def create_shared(output,
     options : List[str]
         The list of additional options string.
 
-    compile_cmd : Optional[str]
+    cc : Optional[str]
         The compiler command.
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
-        _linux_compile(output, objects, options, compile_cmd)
+        _linux_compile(output, objects, options, cc)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
