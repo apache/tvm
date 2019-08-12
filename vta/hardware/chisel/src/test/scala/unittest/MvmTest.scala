@@ -49,10 +49,17 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
   val cycles = 5
   for (i <- 0 until cycles) {
     // generate data based on bits
+<<<<<<< HEAD
     val inpGen = new RandomArray(c.size, c.inpBits)
     val wgtGen = new RandomArray(c.size, c.wgtBits)
     val in_a = inpGen.any
     val in_b = Array.fill(c.size) { wgtGen.any }
+=======
+    val inpGen = new VTARandomArray(c.size, c.inpBits)
+    val wgtGen = new VTARandomArray(c.size, c.wgtBits)
+    val in_a = inpGen.get_random()
+    val in_b = Array.fill(c.size) { wgtGen.get_random() }
+>>>>>>> parent of 3545ef3e... fixes
     val res = mvm_ref(in_a, in_b, 0)  
     val inpMask = helper.getMask(c.inpBits)
     val wgtMask = helper.getMask(c.wgtBits)

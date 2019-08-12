@@ -67,10 +67,14 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
   for (i <- 0 until num_ops) {
     // generate data based on bits
     val bits = c.aluBits
+<<<<<<< HEAD
     val dataGen = new RandomArray(c.blockOut, bits)
+=======
+    val dataGen = new VTARandomArray(c.blockOut, bits)
+>>>>>>> parent of 3545ef3e... fixes
     val op = i
-    val in_a = dataGen.any
-    val in_b = if (op != 4) dataGen.any else dataGen.negative
+    val in_a = dataGen.get_random()
+    val in_b = if (op != 4) dataGen.get_random() else dataGen.get_negative()
     val mask = helper.getMask(bits)
     val res = aluRef(op, in_a, in_b, bits)  
     
