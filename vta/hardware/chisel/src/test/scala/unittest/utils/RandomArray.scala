@@ -22,26 +22,18 @@ package unittest.util
 import scala.util.Random
 import scala.math.pow
 
-<<<<<<< HEAD
 class RandomArray(val len: Int, val bits: Int) {
   if (bits < 1) throw new IllegalArgumentException ("bits should be greater than 1")
   val r = new Random
   def any : Array[Int] = {
-=======
-class VTARandomArray(val len: Int, val bits: Int) {
-  if (bits < 1) throw new IllegalArgumentException ("bits should be greater than 1")
-  val r = new Random
-
-  def get_random() : Array[Int] = {
->>>>>>> parent of 3545ef3e... fixes
     return Array.fill(len) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt }
   }
 
-  def get_positive() : Array[Int] = {
+  def positive : Array[Int] = {
     return Array.fill(len) { r.nextInt(pow(2, bits-1).toInt) }
   }
 
-  def get_negative() : Array[Int] = {
+  def negative : Array[Int] = {
     return Array.fill(len) { 0 - r.nextInt(pow(2, bits-1).toInt) }
   }
 }
