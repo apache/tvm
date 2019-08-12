@@ -32,7 +32,7 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
    *
    * This is a software function used as a reference for the hardware
    */
-  def alu_ref(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
+  def aluRef(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
     val size = a.length
     val mask = helper.getMask(log2Ceil(width))
     val res = Array.fill(size) {0}
@@ -68,13 +68,12 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
   for (i <- 0 until num_ops) {
     // generate data based on bits
     val bits = c.aluBits
-    val r = new Random
-    val dataGen = new RandomArray(r, c.blockOut, bits)
+    val dataGen = new RandomArray(c.blockOut, bits)
     val op = i
     val in_a = dataGen.any
     val in_b = if (op != 4) dataGen.any else dataGen.negative
     val mask = helper.getMask(bits)
-    val res = alu_ref(op, in_a, in_b, bits)  
+    val res = aluRef(op, in_a, in_b, bits)  
     
     for (i <- 0 until c.blockOut) {
       poke(c.io.acc_a.data.bits(0)(i), in_a(i) & mask)
