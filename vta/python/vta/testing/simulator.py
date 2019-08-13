@@ -21,28 +21,32 @@ import tvm
 from ..environment import get_env
 from ..libinfo import find_libvta
 
-
 def _load_sw():
-    """Load software library, assuming they are simulator."""
-    lib_sw = find_libvta("libvta", optional=True)
-    if not lib_sw:
-        return []
+    """Load hardware library for simulator."""
+
+    env = get_env()
+    lib_driver_name = "libvta_tsim" if env.TARGET == "tsim" else "libvta_fsim"
+
+    # Load driver library
+    lib_driver = find_libvta(lib_driver_name, optional=True)
+    assert lib_driver
     try:
-        return [ctypes.CDLL(lib_sw[0], ctypes.RTLD_GLOBAL)]
+        libs = [ctypes.CDLL(lib_driver[0], ctypes.RTLD_GLOBAL)]
     except OSError:
         return []
 
-
-def _load_all():
-    """Load hardware library for tsim."""
-    lib = _load_sw()
-    env = get_env()
     if env.TARGET == "tsim":
-        lib = find_libvta("libvta_hw", optional=True)
-        f = tvm.get_global_func("vta.tsim.init")
-        m = tvm.module.load(lib[0], "vta-tsim")
-        f(m)
-    return lib
+        lib_hw = find_libvta("libvta_hw", optional=True)
+        assert lib_hw # make sure to build vta/hardware/chisel
+        try:
+            f = tvm.get_global_func("vta.tsim.init")
+            m = tvm.module.load(lib_hw[0], "vta-tsim")
+            f(m)
+            return lib_hw
+        except OSError:
+            return []
+
+    return libs
 
 
 def enabled():
@@ -91,4 +95,4 @@ def debug_mode(flag):
     tvm.get_global_func("vta.simulator.profiler_debug_mode")(flag)
 
 
-LIBS = _load_all()
+LIBS = _load_sw()
