@@ -33,7 +33,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
    * This is a software function that computes dot product with a programmable shift
    * This is used as a reference for the hardware
    */
-  def mvm_ref(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
+  def mvmRef(inp: Array[Int], wgt: Array[Array[Int]], shift: Int) : Array[Int] = {
     val size = inp.length
     val res = Array.fill(size) {0}
     for (i <- 0 until size) {
@@ -53,7 +53,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     val wgtGen = new RandomArray(c.size, c.wgtBits)
     val in_a = inpGen.any
     val in_b = Array.fill(c.size) { wgtGen.any }
-    val res = mvm_ref(in_a, in_b, 0)  
+    val res = mvmRef(in_a, in_b, 0)  
     val inpMask = helper.getMask(c.inpBits)
     val wgtMask = helper.getMask(c.wgtBits)
     val accMask = helper.getMask(c.accBits)
