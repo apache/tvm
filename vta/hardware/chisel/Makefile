@@ -116,7 +116,7 @@ unittest:
 	sbt 'test:runMain unittest.Launcher $(UNITTEST_NAME)'
 
 clean:
-	-rm -rf target project/target project/project
+	-rm -rf target project/target project/project test_run_dir
 
 cleanall:
 	-rm -rf $(vta_dir)/$(BUILD_NAME)
