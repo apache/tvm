@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_MICRO_TCL_SOCKET_H_
 #define TVM_RUNTIME_MICRO_TCL_SOCKET_H_
 
+#include <string>
+
 #include "../../common/socket.h"
 
 namespace tvm {
@@ -38,7 +40,7 @@ class TclSocket {
   /*!
    * \brief constructor to create the socket
    */
-  explicit TclSocket();
+  TclSocket();
 
   /*!
    * \brief destructor to close the socket connection
@@ -72,4 +74,4 @@ class TclSocket {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  //TVM_RUNTIME_MICRO_TCL_SOCKET_H_
+#endif  // TVM_RUNTIME_MICRO_TCL_SOCKET_H_

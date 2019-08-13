@@ -21,6 +21,8 @@
  *  Copyright (c) 2019 by Contributors
  * \file tcl_socket.cc
  */
+#include <string>
+
 #include "tcl_socket.h"
 
 namespace tvm {
@@ -57,7 +59,8 @@ std::string TclSocket::SendCommand(std::string cmd) {
       bytes_read = tcp_socket_.Recv(reply_buf, kReplyBufSize - 1);
       reply_buf[bytes_read] = '\0';
       for (int i = 0; i < bytes_read - 1; i++) {
-        CHECK_NE(reply_buf[i], kCommandTerminateToken) << "command terminator received in middle of reply";
+        CHECK_NE(reply_buf[i], kCommandTerminateToken)
+          << "command terminator received in middle of reply";
       }
       reply_builder << reply_buf;
     } while (bytes_read == kReplyBufSize - 1);

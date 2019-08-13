@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_
 
 #include <memory>
+#include <string>
 
 #include "micro_common.h"
 
@@ -66,8 +67,8 @@ class LowLevelDevice {
    */
   virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
 
-  // TODO: Should we just give the device the *entire* memory layout decided by
-  // the session?
+  // TODO(weberlo): Should we just give the device the *entire* memory layout
+  // decided by the session?
 
   /*!
    * \brief sets the offset of the top of the stack section

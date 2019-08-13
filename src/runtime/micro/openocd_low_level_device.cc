@@ -100,7 +100,9 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
         // The response from this command pairs indices with the contents of the
         // memory at that index.
         values >> index;
-        CHECK(index < num_bytes) << "index " << index << " out of bounds (length " << num_bytes << ")";
+        CHECK(index < num_bytes)
+          << "index " << index <<
+          " out of bounds (length " << num_bytes << ")";
         // Read the value into `curr_val`, instead of reading directly into
         // `buf_iter`, because otherwise it's interpreted as the ASCII value and
         // not the integral value.
