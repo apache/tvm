@@ -813,8 +813,8 @@ def test_cast_simplify():
         ck.verify(tvm.expr.Cast(dtype1, x - x), tvm.const(0, dtype1))
         ck.verify(tvm.expr.Cast(dtype1, x == x), tvm.const(1, dtype1))
         for dtype2 in dtypes:
-            ck.verify(tvm.expr.Cast(dtype1, tvm.const(0, dtype2)), tvm.const(0, dtype1))
-            ck.verify(tvm.expr.Cast(dtype1, tvm.const(1, dtype2)), tvm.const(1, dtype1))
+            for i in [0, 1, 2, 3]:
+                ck.verify(tvm.expr.Cast(dtype1, tvm.const(i, dtype2)), tvm.const(i, dtype1))
 
 if __name__ == "__main__":
     test_floordiv_index_simplify()
