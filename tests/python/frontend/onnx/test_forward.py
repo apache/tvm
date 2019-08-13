@@ -1083,7 +1083,7 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    shapes = { '0' : input_size }
+    shapes = { onnx_model.graph.input[0].name : input_size }
     expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
 
 def test_resnet():
