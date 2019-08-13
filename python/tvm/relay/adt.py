@@ -186,18 +186,24 @@ class Clause(NodeBase):
 class Match(Expr):
     """Pattern matching expression in Relay."""
 
-    def __init__(self, data, clauses):
+    def __init__(self, data, clauses, complete=True):
         """Construct a Match.
 
         Parameters
         ----------
         data: tvm.relay.Expr
             The value being deconstructed and matched.
+
         clauses: List[tvm.relay.Clause]
             The pattern match clauses.
+
+        complete: Optional[Bool]
+            Should the match be complete (cover all cases)?
+            If yes, the type checker will generate an error if there are any missing cases.
+
         Returns
         -------
         match: tvm.relay.Expr
             The match expression.
         """
-        self.__init_handle_by_constructor__(_make.Match, data, clauses)
+        self.__init_handle_by_constructor__(_make.Match, data, clauses, complete)

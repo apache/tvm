@@ -99,6 +99,20 @@ def schedule_sparse_dense(attrs, outputs, target):
 
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# sparse_transpose
+@reg.register_compute("nn.sparse_transpose")
+def compute_sparse_transpose(attrs, inputs, out_type, target):
+    """Compute definition of sparse_transpose"""
+    return topi.nn.sparse_transpose(inputs[0], inputs[1], inputs[2])
+
+@reg.register_schedule("nn.sparse_transpose")
+def schedule_sparse_transpose(attrs, outputs, target):
+    """Schedule definition of batch_matmul"""
+    with target:
+        return topi.generic.schedule_sparse_transpose(outputs)
+
+reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
 # conv2d
 def _find_conv2d_op(op):
     """Find the op with conv2d in its tag by traversing."""
@@ -190,6 +204,10 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     from ... import op
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
+# A placeholder to have at least one invocation of register legalize to register FTVMLegalize.
+@reg.register_legalize("nn.conv2d")
+def legalize_conv2d(attrs, inputs, arg_dtypes):
+    return None
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -359,6 +377,16 @@ def schedule_upsampling(_, outs, target):
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
+
+# mirror_pad
+reg.register_schedule("nn.mirror_pad", schedule_broadcast)
+
+@reg.register_compute("nn.mirror_pad")
+def compute_mirror_pad(attrs, inputs, out_dtype, target):
+    pad_before, pad_after = list(zip(*attrs.pad_width))
+    mode = attrs.mode
+    out = topi.nn.mirror_pad(inputs[0], pad_before=pad_before, pad_after=pad_after, mode=mode)
+    return [out]
 
 # winograd related operators
 @reg.register_compute("nn.contrib_conv2d_winograd_without_weight_transform")

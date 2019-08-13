@@ -95,6 +95,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
+.set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
+.set_body(DispatchExtern<CUDAFastMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
 .set_body(DispatchExtern<CUDAMath>);
 

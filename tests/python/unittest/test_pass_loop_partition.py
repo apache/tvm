@@ -384,6 +384,34 @@ def test_double_splitting_with_indivisible_factors():
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy(), rtol=1e-5)
     tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy(), rtol=1e-5)
 
+def test_simple_rfactor():
+    K = 16*4+4
+    k = tvm.reduce_axis((0, K), 'k')
+
+    A = tvm.placeholder((1, K), name='A')
+
+    B = tvm.compute( (1,), lambda b:
+            tvm.sum(A[b, k], axis=k),
+            name='B'
+    )
+
+    s = tvm.create_schedule(B.op)
+    ko, _ = s[B].split(s[B].op.reduce_axis[0], 16)
+    BF = s.rfactor(B, ko, 0)
+
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+
+    stmt1 = tvm.schedule.ScheduleOps(s, bounds)
+    stmt1 = tvm.ir_pass.Simplify(stmt1)
+
+    stmt2 = tvm.ir_pass.LoopPartition(stmt1, True)
+    stmt2 = tvm.ir_pass.Simplify(stmt2)
+
+    #make sure loop partition actually did something
+    assert not tvm.ir_pass.Equal(stmt1.body, stmt2.body)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -402,3 +430,4 @@ if __name__ == "__main__":
     test_cce_loop_3()
     test_conv_tiling()
     test_double_splitting_with_indivisible_factors()
+    test_simple_rfactor()

@@ -28,7 +28,6 @@ export CARGO_HOME=/opt/rust
 curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain nightly-2019-03-24
 . $CARGO_HOME/env
 rustup component add rustfmt
-cargo install sccache --no-default-features
 
 # make rust usable by all users
 chmod -R a+w /opt/rust

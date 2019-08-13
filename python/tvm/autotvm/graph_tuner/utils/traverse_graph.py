@@ -26,7 +26,7 @@ from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
 from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
-from .utils import has_multiple_inputs, is_boundary_node
+from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
 
 
 # Setup relay op base name -> topi compute functions
@@ -252,7 +252,7 @@ def get_in_nodes(node_list, target_ops, input_names):
     visited_dict = {}
     in_node_dict = {}
     for i, node in enumerate(node_list):
-        if is_boundary_node(node, input_names):
+        if is_boundary_node(node, input_names) or is_skipped_node(node):
             continue
         get_direct_ancestor(node_list, visited_dict, target_ops, i, input_names)
     for key, val in visited_dict.items():
@@ -282,9 +282,11 @@ def get_in_nodes(node_list, target_ops, input_names):
                         boundary_nodes.append(key)
         if boundary_nodes:
             for idx in boundary_nodes:
-                del in_node_dict[idx]
+                if idx in in_node_dict:
+                    del in_node_dict[idx]
         else:
             has_reduced_node = False
+
 
     # Remove empty nodes to ignore pre-computed sub-graph
     has_empty_node = True

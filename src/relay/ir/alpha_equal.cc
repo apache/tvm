@@ -117,9 +117,12 @@ class AlphaEqualHandler:
    * \return the comparison result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (!lhs.defined() || !rhs.defined()) return false;
-    return this->VisitType(lhs, rhs);
+    auto compute = [&](){
+      if (lhs.same_as(rhs)) return true;
+      if (!lhs.defined() || !rhs.defined()) return false;
+      return this->VisitType(lhs, rhs);
+    };
+    return Compare(compute(), lhs, rhs);
   }
 
   bool Compare(bool result, const NodeRef& lhs, const NodeRef& rhs) {
@@ -419,8 +422,8 @@ class AlphaEqualHandler:
 
   bool VisitExpr_(const LetNode* lhs, const Expr& other) final {
     if (const LetNode* rhs = other.as<LetNode>()) {
-      if (!ExprEqual(lhs->value, rhs->value)) return false;
       if (!MergeVarDecl(lhs->var, rhs->var)) return false;
+      if (!ExprEqual(lhs->value, rhs->value)) return false;
       return ExprEqual(lhs->body, rhs->body);
     } else {
       return false;
@@ -525,7 +528,8 @@ class AlphaEqualHandler:
 
     if (rhs == nullptr
         || !ExprEqual(lhs->data, rhs->data)
-        || lhs->clauses.size() != rhs->clauses.size()) {
+        || lhs->clauses.size() != rhs->clauses.size()
+        || lhs->complete != rhs->complete) {
       return false;
     }
 

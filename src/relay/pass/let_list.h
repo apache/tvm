@@ -31,9 +31,11 @@
 #define TVM_RELAY_PASS_LET_LIST_H_
 
 #include <tvm/relay/expr.h>
+#include <tvm/relay/analysis.h>
 #include <utility>
 #include <vector>
 #include <tuple>
+#include <string>
 #include "tvm/relay/type.h"
 
 namespace tvm {
@@ -62,6 +64,7 @@ class LetList {
    */
   Var Push(Var pv, Expr expr) {
     CHECK(!used_);
+    CHECK(WellFormed(expr));
     lets_.emplace_back(std::make_pair(pv, expr));
     return pv;
   }

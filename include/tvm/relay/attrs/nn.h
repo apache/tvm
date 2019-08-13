@@ -371,6 +371,11 @@ struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
   TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}
 };
 
+/*! \brief Attributes for sparse_transpose operator */
+struct SparseTransposeAttrs : public tvm::AttrsNode<SparseTransposeAttrs> {
+  TVM_DECLARE_ATTRS(SparseTransposeAttrs, "relay.attrs.SparseTransposeAttrs") {}
+};
+
 /*! \brief Attributes for upsampling operator */
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   int scale;
@@ -406,6 +411,19 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   }
 };
 
+/*! \brief Attributes used for the MirrorPadding operator */
+struct MirrorPadAttrs : public tvm::AttrsNode<MirrorPadAttrs> {
+  std::string mode;
+  Array<Array<IndexExpr> > pad_width;
+
+  TVM_DECLARE_ATTRS(MirrorPadAttrs, "relay.attrs.MirrorPadAttrs") {
+    TVM_ATTR_FIELD(mode).set_default("SYMMETRIC")
+      .describe("Specifies how mirroring should be performed.");
+    TVM_ATTR_FIELD(pad_width)
+      .describe("Number of values padded to the edges of each axis, "
+                "in the format of ((before_1, after_1), ..., (before_N, after_N))");
+  }
+};
 
 /*! \brief Attributes for leaky relu operator */
 struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
@@ -463,6 +481,27 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
       .set_default(true);
   }
 };  // struct BatchNormAttrs
+
+
+/*! \brief Attributes used in layer_norm operator */
+struct LayerNormAttrs : public tvm::AttrsNode<LayerNormAttrs> {
+  int axis;
+  double epsilon;
+  bool center;
+  bool scale;
+
+  TVM_DECLARE_ATTRS(LayerNormAttrs, "relay.attrs.LayerNormAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(-1)
+      .describe("Specify which shape axis denotes the channel.");
+    TVM_ATTR_FIELD(epsilon).set_default(1e-5)
+      .describe("Small float added to variance to avoid dividing by zero");
+    TVM_ATTR_FIELD(center).set_default(true)
+      .describe("If true, add offset of beta to normalized tensor; "
+                "otherwise, beta is ignored.");
+    TVM_ATTR_FIELD(scale).set_default(true)
+      .describe("If true, multiply by gamma; otherwise, gamma is ignored.");
+  }
+};  // struct LayerNormAttrs
 
 
 /*! \brief Attributes for LRN operator */

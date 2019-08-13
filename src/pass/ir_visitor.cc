@@ -177,6 +177,13 @@ void IRVisitor::Visit_(const Ramp *op) {
   this->Visit(op->stride);
 }
 
+void IRVisitor::Visit_(const Shuffle *op) {
+  for (const auto &elem : op->indices)
+    this->Visit(elem);
+  for (const auto &elem : op->vectors)
+    this->Visit(elem);
+}
+
 void IRVisitor::Visit_(const Broadcast *op) {
   this->Visit(op->value);
 }
@@ -269,6 +276,7 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Not)
 .DISPATCH_TO_VISIT(Select)
 .DISPATCH_TO_VISIT(Ramp)
+.DISPATCH_TO_VISIT(Shuffle)
 .DISPATCH_TO_VISIT(Broadcast)
 .DISPATCH_TO_VISIT(AssertStmt)
 .DISPATCH_TO_VISIT(ProducerConsumer)

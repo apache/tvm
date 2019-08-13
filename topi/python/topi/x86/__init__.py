@@ -15,3 +15,4 @@ from .dense import _schedule_dense, _schedule_dense_pack, _schedule_dense_nopack
 from .batch_matmul import schedule_batch_matmul
 from .roi_align import roi_align_nchw
 from .conv2d_transpose import schedule_conv2d_transpose
+from .sparse import *

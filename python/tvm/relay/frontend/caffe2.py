@@ -33,7 +33,7 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Non-2D kernels are not supported for operator {}2d'.format(prefix))
 
     return _impl
@@ -123,7 +123,7 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        raise tvm.error.OpNotInplemented(
+        raise tvm.error.OpNotImplemented(
             'Operator {} is not supported in frontend Caffe2.'.format(cls.__name__))
 
 
@@ -244,7 +244,7 @@ class Concat(Caffe2OpConverter):
                 return 1
             if order == 'NHWC':
                 return 3
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Order {} is not supported in operator Concat.'.format(order))
 
         return AttrCvt(

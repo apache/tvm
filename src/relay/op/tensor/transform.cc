@@ -1451,9 +1451,10 @@ bool WhereRel(const Array<Type>& types,
     CHECK(reporter->AssertEQ(x_shape[i], y_shape[i]))
         << "x and y must have the same shape: " << x_shape << " vs " << y_shape;
 
-    CHECK(reporter->AssertEQ(cond_shape[i], x_shape[i]))
-        << "Shape of condition " << condition->shape
-        << " must be either equal to x or has dimension of 1.";
+    if (i < cond_shape.size()) {
+        CHECK(reporter->AssertEQ(cond_shape[i], x_shape[i]))
+        << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
+    }
   }
   reporter->Assign(types[3], TensorTypeNode::make(x_shape, x->dtype));
   return true;
@@ -2332,7 +2333,7 @@ bool GatherNDRel(const Array<Type>& types,
     return false;
   }
   const size_t ndim = data->shape.size();
-  const IntImm* mdim = data->shape[0].as<IntImm>();
+  const IntImm* mdim = indices->shape[0].as<IntImm>();
   const size_t kdim = indices->shape.size() - 1;
   CHECK(size_t(mdim->value) <= ndim)
         << "GatherND: indices shape does satisfy.";

@@ -25,6 +25,9 @@ schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
 
 register_schedule("log", schedule_broadcast)
+register_schedule("log1p", schedule_broadcast)
+register_schedule("cos", schedule_broadcast)
+register_schedule("sin", schedule_broadcast)
 register_schedule("exp", schedule_broadcast)
 register_schedule("sqrt", schedule_broadcast)
 register_schedule("rsqrt", schedule_broadcast)

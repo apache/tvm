@@ -144,10 +144,11 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << node->rhs << ")";
   });
 
-Match MatchNode::make(Expr data, tvm::Array<Clause> clauses) {
+Match MatchNode::make(Expr data, tvm::Array<Clause> clauses, bool complete) {
   NodePtr<MatchNode> n = make_node<MatchNode>();
   n->data = std::move(data);
   n->clauses = std::move(clauses);
+  n->complete = complete;
   return Match(n);
 }
 
@@ -160,7 +161,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<MatchNode>([](const MatchNode* node,
                             tvm::IRPrinter* p) {
   p->stream << "MatchNode(" << node->data << ", "
-            << node->clauses << ")";
+            << node->clauses << ", " << node->complete << ")";
 });
 
 }  // namespace relay

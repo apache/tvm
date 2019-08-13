@@ -548,6 +548,37 @@ def test_dwarf_debug_information():
     check_llvm_object()
     check_llvm_ir()
 
+
+def test_llvm_shuffle():
+    a = tvm.placeholder((8, ), 'int32')
+    b = tvm.placeholder((8, ), 'int32')
+    c = tvm.compute((8, ), lambda x: a[x] + b[7-x])
+    sch = tvm.create_schedule(c.op)
+
+    def my_vectorize(stmt):
+
+        def vectorizer(op):
+            store = op.body
+            idx = tvm.make.Ramp(tvm.const(0, 'int32'), tvm.const(1, 'int32'), 8)
+            all_ones = tvm.const(1, 'int32x8')
+            value = store.value
+            b_idx = tvm.make.Shuffle([idx], [tvm.const(i, 'int32') for i in range(7, -1, -1)])
+            new_a = tvm.make.Load('int32x8', value.a.buffer_var, idx, all_ones)
+            new_b = tvm.make.Load('int32x8', value.b.buffer_var, b_idx, all_ones)
+            value = new_a + new_b
+            return tvm.make.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+
+        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+
+    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+        ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+        module = tvm.build(sch, [a, b, c])
+        a_ = tvm.ndarray.array(np.arange(1, 9, dtype='int32'))
+        b_ = tvm.ndarray.array(np.arange(8, 0, -1, dtype='int32'))
+        c_ = tvm.ndarray.array(np.zeros((8, ), dtype='int32'))
+        module(a_, b_, c_)
+        tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
+
 if __name__ == "__main__":
     test_llvm_import()
     test_alignment()
@@ -567,3 +598,4 @@ if __name__ == "__main__":
     test_llvm_div()
     test_llvm_fp_math()
     test_dwarf_debug_information()
+    test_llvm_shuffle()

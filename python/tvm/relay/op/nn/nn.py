@@ -689,6 +689,32 @@ def pad(data,
     return _make.pad(data, pad_width, pad_value)
 
 
+def mirror_pad(data,
+               pad_width,
+               mode="SYMMETRIC"):
+    r"""MirrorPadding
+
+    This operator takes in a tensor and pads each axis by the specified
+    widths using mirroring of the border pixels.
+
+    Parameters
+    ----------
+    data: tvm.relay.Expr
+        The input data to the operator
+    pad_width: tuple of <tuple of <int>>, required
+        Number of values padded to the edges of each axis, in the format
+        of ((before_1, after_1), ..., (before_N, after_N))
+    mode: string, optional, default='SYMMETRIC'
+        What type of mirroring to use, must be SYMMETRIC or REFLECT.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.mirror_pad(data, pad_width, mode)
+
+
 def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
     """This operator takes data as input and does local response normalization.
 
@@ -867,7 +893,7 @@ def batch_norm(data,
         Specify along which shape axis the channel is specified.
 
     epsilon : double, optional, default=1e-5
-        Small float added to variance to avoid diving by zero.
+        Small float added to variance to avoid dividing by zero.
 
     center : boolean, optional, default=True
         If True, add offset of beta to normalized tensor, If False,
@@ -895,6 +921,64 @@ def batch_norm(data,
                               center,
                               scale)
     return TupleWrapper(result, 3)
+
+
+def layer_norm(data,
+               gamma,
+               beta,
+               axis=-1,
+               epsilon=1e-5,
+               center=True,
+               scale=True):
+    r"""
+    Layer normalization (Lei Ba and et al., 2016).
+    Applies layer normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array and normalizes
+    the input using the given axis:
+
+    .. math::
+
+        out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+            * gamma + beta
+
+    Unlike batch normalization, the mean and var are computed along the channel dimension.
+
+    Assume the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input to which batch_norm will be applied.
+
+    gamma : tvm.relay.Expr
+        The gamma scale factor.
+
+    beta : tvm.relay.Expr
+        The beta offset factor.
+
+    axis : int, optional, default=-1
+        The axis that should be normalized, typically the axis of the channels.
+
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid dividing by zero.
+
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+
+    scale : boolean, optional, default=True
+        If True, multiply by gamma. If False, gamma is not used.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The normalized data.
+    """
+    return _make.layer_norm(data, gamma, beta, axis, epsilon, center, scale)
 
 
 def batch_matmul(x, y):
@@ -954,6 +1038,33 @@ def sparse_dense(data, weight):
     """
     return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
 
+def sparse_transpose(x):
+    r"""
+    Computes the fast matrix transpose of x,
+    where x is a sparse tensor in CSR format (represented as a namedtuple
+    with fields `data`, `indices`, and `indptr`).
+
+    ** Currently only support Square Matrices **
+
+    .. math::
+
+        \mbox{sparse_transpose}(x)[n, n] = (x^T)[n, n]
+
+    Please refer to https://github.com/scipy/scipy/blob/v1.3.0/scipy/sparse/csr.py
+    for the algorithm implemented in this operator.
+
+    Parameters
+    ----------
+    x : namedtuple.
+        The sparse weight matrix for the fast matrix transpose.
+
+    Returns
+    -------
+    result : relay.Tuple([tvm.relay.Expr, tvm.relay.Expr, tvm.relay.Expr])
+        Tuple of output sparse tensor (same shape and format as input),
+        i.e. if CSR then output is in ([data, indices, indptr]) form
+    """
+    return TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
 
 def contrib_conv2d_winograd_without_weight_transform(data,
                                                      weight,

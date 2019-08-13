@@ -469,6 +469,22 @@ def test_forward_depthtospace():
     _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]), 2)
     _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]), 4)
 
+#######################################################################
+# SpaceToDepth
+# ------------
+
+def _test_spacetodepth(data, block_size):
+    """ One iteration of space_to_depth operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        array_ops.space_to_depth(in_data, block_size)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'SpaceToDepth:0')
+
+def test_forward_spacetodepth():
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]), 4)
 
 #######################################################################
 # Squeeze
@@ -1330,6 +1346,8 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
                 out_name = 'PadV2:0'
             else:
                 out_name = 'Pad:0'
+        else:
+            out_name = 'MirrorPad:0'
 
         compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
@@ -1337,6 +1355,8 @@ def test_forward_pad():
     """ Pad """
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT")
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT", constant_values=1.0)
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="SYMMETRIC")
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="REFLECT")
 
 #######################################################################
 # Logical operators
@@ -1869,6 +1889,30 @@ def test_forward_log():
     tf.log(in_data, name="log")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
 
+def test_forward_log1p():
+    """test operator Log1p """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.log1p(in_data, name="log1p")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'log1p:0')
+
+def test_forward_cos():
+    """test operator cos """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.cos(in_data, name="cos")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
+
+def test_forward_sin():
+    """test operator sin """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.sin(in_data, name="sin")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sin:0')
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
@@ -2120,6 +2164,7 @@ if __name__ == '__main__':
     test_forward_transpose()
     test_forward_reshape()
     test_forward_depthtospace()
+    test_forward_spacetodepth()
     test_forward_squeeze()
     test_forward_pack()
     test_forward_size()
@@ -2159,6 +2204,9 @@ if __name__ == '__main__':
     test_forward_pow_exp()
     test_forward_sign()
     test_forward_log()
+    test_forward_log1p()
+    test_forward_cos()
+    test_forward_sin()
     test_forward_negative()
     test_forward_divide()
     test_forward_abs()

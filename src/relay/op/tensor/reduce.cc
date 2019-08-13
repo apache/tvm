@@ -24,6 +24,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/attrs/reduce.h>
 #include <topi/elemwise.h>
 #include <topi/reduction.h>
 #include <numeric>
@@ -34,34 +35,7 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Attributes for Reduce operators */
-struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
-  Array<Integer> axis;
-  bool keepdims;
-  bool exclude;
-
-  TVM_DECLARE_ATTRS(ReduceAttrs, "relay.attrs.ReduceAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(NullValue<Array<Integer>>())
-        .describe(R"code(The axis or axes along which to perform the reduction.
-
-      The default, `axis=()`, will compute over all elements into a
-      scalar array with shape `(1,)`.
-
-      If `axis` is int, a reduction is performed on a particular axis.
-
-      If `axis` is a tuple of ints, a reduction is performed on all the axes
-      specified in the tuple.
-
-      If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.)code");
-
-    TVM_ATTR_FIELD(keepdims).set_default(false)
-      .describe("If this is set to `True`, the reduced axes are left "
-                "in the result as dimension with size one.");
-    TVM_ATTR_FIELD(exclude).set_default(false)
-      .describe("Whether to perform reduction on axis that are NOT in axis instead.");
-  }
-};
+TVM_REGISTER_NODE_TYPE(ReduceAttrs);
 
 /*!
 * \brief GetReduceAxes, get the new axis from indim and other arguments
@@ -498,5 +472,84 @@ Example::
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+bool VarianceRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  CHECK(static_cast<int>(data->shape.size()) != 0);
+  const auto* mean = types[1].as<TensorTypeNode>();
+  if (mean == nullptr) return false;
+
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+  std::vector<IndexExpr> mean_shape(mean->shape.begin(), mean->shape.end());
+  CHECK_EQ(in_shape.size(), mean_shape.size());
+
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
+
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Array<Tensor> VarianceCompute(const Attrs& attrs,
+                              const Array<Tensor>& inputs,
+                              const Type& out_type,
+                              const Target& target) {
+  IndexExpr count = make_const(inputs[0]->dtype, 1);
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
+  auto axes = param->axis;
+  auto data = inputs[0];
+  auto mean = inputs[1];
+  for (int64_t i : GetReduceAxes(data->shape.size(),
+                                 param->axis,
+                                 param->exclude)) {
+    count *= data->shape[i];
+  }
+  std::vector<Integer> expand_shape;
+  auto sq_diff = topi::power(topi::subtract(data, mean), 2);
+  auto var = topi::divide(ReduceCompute(attrs, {sq_diff}, out_type, target, topi::sum)[0], count);
+
+  return {var};
+}
+
+Expr MakeVariance(Expr data,
+                  Expr mean,
+                  Array<Integer> axis,
+                  bool keepdims,
+                  bool exclude) {
+  auto attrs = make_node<ReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  static const Op& op = Op::Get("variance");
+  return CallNode::make(op, {data, mean}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make._variance")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  runtime::detail::unpack_call<Expr, 5>(MakeVariance, args, rv);
+});
+
+RELAY_REGISTER_OP("variance")
+.describe(R"code(Computes the variance of array elements over given axes.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("mean", "Tensor", "The mean tensor.")
+.add_type_rel("Variance", VarianceRel)
+.set_attr<FTVMCompute>("FTVMCompute", VarianceCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
 }  // namespace relay
 }  // namespace tvm

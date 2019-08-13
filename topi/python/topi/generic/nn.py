@@ -544,6 +544,23 @@ def schedule_sparse_dense(outs):
     return _default_schedule(outs, False)
 
 @tvm.target.generic_func
+def schedule_sparse_transpose(outs):
+    """Schedule for sparse_transpose
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of sparse_transpose
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+@tvm.target.generic_func
 def schedule_batch_matmul(outs):
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)

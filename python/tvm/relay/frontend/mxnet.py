@@ -20,13 +20,14 @@ from __future__ import absolute_import as _abs
 
 import json
 import tvm
-from .. import analysis, transform
+from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from .. import module as _module
 from ... import nd as _nd
 
 from .common import StrAttrsDict
+from .common import infer_type as _infer_type
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
 from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
 from .nnvm_common import _clip, _transpose, _upsampling
@@ -40,13 +41,6 @@ _activation_map = {
     "tanh"   : _op.tanh,
     "relu"   : _op.nn.relu
 }
-
-def _infer_type(node):
-    """A method to infer the type of an intermediate node in the relay graph."""
-    mod = _module.Module.from_expr(node)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(node, _expr.Function) else entry.body
 
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
@@ -143,7 +137,7 @@ def _mx_conv2d(inputs, attrs):
 
 def _mx_conv2d_transpose(inputs, attrs):
     if "target_shape" in attrs.attrs:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -222,7 +216,7 @@ def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
 
 def _mx_batch_norm(inputs, attrs):
     if attrs.get_bool("output_mean_var", False):
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "output_mean_var" is not supported for operator Batch Norm.')
     if attrs.get_bool("use_global_stats", False):
         _warn_not_used("use_global_stats", "batch_norm")
@@ -230,8 +224,19 @@ def _mx_batch_norm(inputs, attrs):
     new_attrs["axis"] = attrs.get_int("axis", 1)
     new_attrs["epsilon"] = attrs.get_float("eps", 0.001)
     new_attrs["center"] = True
-    new_attrs["scale"] = not attrs.get_bool("fix_gamma", False)
+    new_attrs["scale"] = not attrs.get_bool("fix_gamma", True)
     return _op.nn.batch_norm(*inputs, **new_attrs)
+
+
+def _mx_layer_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Layer Norm.')
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
 def _mx_slice(inputs, attrs):
@@ -721,7 +726,7 @@ def _mx_topk(inputs, attrs):
     return _op.topk(inputs[0], **new_attrs)
 
 
-def _mx_SequenceMask(inputs, attrs):
+def _mx_sequence_mask(inputs, attrs):
     assert len(inputs) == 1 or len(inputs) == 2
     new_attrs = {}
     use_sequence_length = attrs.get_bool('use_sequence_length', False)
@@ -731,6 +736,15 @@ def _mx_SequenceMask(inputs, attrs):
         return _op.sequence_mask(*inputs, **new_attrs)
     else:
         return inputs[0]
+
+
+def _mx_contrib_div_sqrt_dim(inputs, _):
+    assert len(inputs) == 1
+    ndim = len(_infer_type(inputs[0]).checked_type.shape)
+    dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
+    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    out = inputs[0] / sqrt_dim
+    return out
 
 
 def _mx_rnn_param_concat(inputs, _):
@@ -994,6 +1008,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
     "slice"         : _mx_slice,
@@ -1020,11 +1035,12 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
-    "SequenceMask"  : _mx_SequenceMask,
+    "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -1189,8 +1205,10 @@ def from_mxnet(symbol,
         params = {}
         for k, v in symbol.collect_params().items():
             params[k] = _nd.array(v.data().asnumpy())
-        data = mx.sym.Variable("data")
-        sym = symbol(data)
+        inputs = []
+        for name in shape:
+            inputs.append(mx.sym.Variable(name))
+        sym = symbol(*inputs)
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)

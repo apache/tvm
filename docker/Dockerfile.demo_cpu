@@ -38,7 +38,13 @@ RUN echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main \
 RUN pip3 install matplotlib Image Pillow jupyter[notebook]
 
 # Deep learning frameworks
-RUN pip3 install mxnet tensorflow keras gluoncv
+RUN pip3 install mxnet tensorflow keras gluoncv dgl
+
+# Chisel
+RUN echo "deb https://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list
+RUN sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
+RUN sudo apt-get update
+RUN sudo apt-get install -y verilator sbt
 
 # Build TVM
 COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
