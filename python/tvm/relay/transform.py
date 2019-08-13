@@ -32,7 +32,7 @@ from .. import nd as _nd
 
 @register_relay_node
 class PassInfo(RelayNode):
-    """The class that contains the meta data required by a pass. It is the
+    """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
     needed.
@@ -132,11 +132,12 @@ def build_config(opt_level=2,
                 "SimplifyInference": 0,
                 "OpFusion": 1,
                 "FoldConstant": 2,
-                "CombineParallelConv2D": 3,
                 "FoldScaleAxis": 3,
                 "AlterOpLayout": 3,
                 "CanonicalizeOps": 3,
+                "CanonicalizeCast": 3,
                 "EliminateCommonSubexpr": 3,
+                "CombineParallelConv2D": 4,
             }
 
     fallback_device : int, str, or tvm.TVMContext, optional
@@ -250,30 +251,6 @@ class Sequential(Pass):
                                             passes, opt_level, name, required)
 
 
-def infer_type(expr, mod=None):
-    """Infer the type of an expr.
-    Adding Function into a Module will change it's binding,
-    and some passes need type inference to work without binding modification.
-    However, InferType() work by putting stuff into a Module, thus changing all the binding.
-
-    This is an escape patch that allow type inference without binding changing.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    mod : Optional[tvm.relay.Module]
-        The input module
-
-    Returns
-    -------
-    ret : tvm.relay.Expr
-        The output expression.
-    """
-    return _transform.infer_type(expr, mod)
-
-
 def InferType():
     """Infer the type of an expr.
 
@@ -297,7 +274,7 @@ def FoldScaleAxis():
     Note
     ----
     Internally, we will call backward_fold_scale_axis before using
-    forward_fold_scale_axis. As backward folding targets common conv-bn
+    forward_fold_scale_axis as backward folding targets the common conv->bn
     pattern.
     """
     return _transform.FoldScaleAxis()
@@ -314,8 +291,8 @@ def BackwardFoldScaleAxis():
     Note
     ----
     It is recommended to call backward_fold_scale_axis
-    before using forward_fold_scale_axis.
-    As backward folding targets common conv-bn pattern.
+    before using forward_fold_scale_axis as backward folding targets the common
+    conv->bn pattern.
     """
     return _transform.BackwardFoldScaleAxis()
 
@@ -331,8 +308,8 @@ def ForwardFoldScaleAxis():
     Note
     ----
     It is recommended to call backward_fold_scale_axis
-    before using forward_fold_scale_axis.
-    As backward folding targets common conv-bn pattern.
+    before using forward_fold_scale_axis, as backward folding targets the
+    common conv->bn pattern.
     """
     return _transform.ForwardFoldScaleAxis()
 
@@ -350,9 +327,9 @@ def SimplifyInference():
 
 
 def CanonicalizeOps():
-    """ Canonicalize special operators to basic operators.
-    This can simplify followed analysis. (e.g. expanding bias_add to
-    expand_dims and broadcast_add.)
+    """Canonicalize special operators to basic operators.
+    This can simplify followed analysis, e.g. expanding bias_add to
+    expand_dims and broadcast_add.
 
     Returns
     -------
@@ -363,7 +340,7 @@ def CanonicalizeOps():
 
 
 def DeadCodeElimination(inline_once=False):
-    """Remove expressions which does not effect the program result (dead code).
+    """Remove expressions that do not have any users (dead code).
 
     Parameters
     ----------
@@ -379,7 +356,7 @@ def DeadCodeElimination(inline_once=False):
 
 
 def FoldConstant():
-    """Fold the constant expression in expr.
+    """Fold the constant expressions in a Relay program.
 
     Returns
     -------
@@ -513,7 +490,7 @@ def EtaExpand():
 
 
 def ToGraphNormalForm():
-    """Turn A Normal Form expression into Graph Normal Form expression
+    """Turn a Relay program in A Normal Form into Graph Normal Form
 
     Returns
     -------
