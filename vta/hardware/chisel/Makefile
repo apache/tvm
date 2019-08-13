@@ -44,7 +44,7 @@ vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
-test_name = mvm
+test_name = all
 
 verilator_opt = --cc
 verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
@@ -112,7 +112,7 @@ verilog_test: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
 $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v:
 	sbt 'runMain vta.$(config_test) --target-dir $(chisel_build_dir) --top-name $(TOP_TEST).$(CONFIG)'
 
-test:
+unittest:
 	sbt 'test:runMain unittest.Launcher $(test_name)'
 
 clean:
