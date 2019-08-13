@@ -57,6 +57,19 @@ struct CastHintAttrs : public tvm::AttrsNode<CastHintAttrs> {
   }
 };
 
+/*!
+ * \brief Options for the subgraph operators.
+ */
+struct SubgraphAttrs : public tvm::AttrsNode<SubgraphAttrs> {
+  /*! \brief The 3rd party compiler for subgraph code generation. */
+  std::string compiler;
+
+  TVM_DECLARE_ATTRS(SubgraphAttrs, "relay.attrs.SubgraphAttrs") {
+    TVM_ATTR_FIELD(compiler)
+      .describe("The 3rd compiler used for subgraph code generation.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ANNOTATION_H_
