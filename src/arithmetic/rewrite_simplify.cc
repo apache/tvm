@@ -1757,6 +1757,13 @@ Mutate_(const Variable* op, const Expr& self) {
   return self;
 }
 
+Expr RewriteSimplifier::Impl::
+Mutate_(const Cast* op, const Expr& self) {
+  Expr ret = IRMutator::Mutate_(op, self);
+  op = ret.as<Cast>();
+  return cast(op->type, op->value);
+}
+
 Expr RewriteSimplifier::operator()(const Expr& expr) {
   // Run simplification in post order
   Expr res = expr;
