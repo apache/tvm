@@ -18,9 +18,9 @@
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
 
+from ... import target as _target
 from .. import expr as _expr
 from .. import analysis as _analysis
-from .. import target as _target
 from ..base import register_relay_node
 from ..op import op as _reg
 from . import _quantize
