@@ -248,7 +248,7 @@ def run_opencl():
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
     func(a, b)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-    print("OpenCP test passed!")
+    print("OpenCL test passed!")
 
 ######################################################################
 # Summary
