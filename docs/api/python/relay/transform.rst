@@ -26,6 +26,50 @@ tvm.relay.transform
 
 .. autofunction:: tvm.relay.transform.function_pass
 
+.. autofunction:: tvm.relay.transform.InferType
+
+.. autofunction:: tvm.relay.transform.FoldScaleAxis
+
+.. autofunction:: tvm.relay.transform.BackwardFoldScaleAxis
+
+.. autofunction:: tvm.relay.transform.ForwardFoldScaleAxis
+
+.. autofunction:: tvm.relay.transform.SimplifyInference
+
+.. autofunction:: tvm.relay.transform.CanonicalizeOps
+
+.. autofunction:: tvm.relay.transform.DeadCodeElimination
+
+.. autofunction:: tvm.relay.transform.FoldConstant
+
+.. autofunction:: tvm.relay.transform.FuseOps
+
+.. autofunction:: tvm.relay.transform.CombineParallelConv2D
+
+.. autofunction:: tvm.relay.transform.AlterOpLayout
+
+.. autofunction:: tvm.relay.transform.Legalize
+
+.. autofunction:: tvm.relay.transform.RewriteAnnotatedOps
+
+.. autofunction:: tvm.relay.transform.ToANormalForm
+
+.. autofunction:: tvm.relay.transform.ToCPS
+
+.. autofunction:: tvm.relay.transform.EtaExpand
+
+.. autofunction:: tvm.relay.transform.ToGraphNormalForm
+
+.. autofunction:: tvm.relay.transform.EliminateCommonSubexpr
+
+.. autofunction:: tvm.relay.transform.PartialEvaluate
+
+.. autofunction:: tvm.relay.transform.CanonicalizeCast
+
+.. autofunction:: tvm.relay.transform.LambdaLift
+
+.. autofunction:: tvm.relay.transform.PrintIR
+
 .. autoclass:: tvm.relay.transform.Pass
     :members:
 
