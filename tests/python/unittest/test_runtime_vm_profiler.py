@@ -25,7 +25,7 @@ from tvm.relay.testing import resnet
 @nottest
 def test_basic():
     mod, params = resnet.get_workload()
-    compiler = relay.debug_vm.VMCompilerDebug()
+    compiler = relay.profiler_vm.VMCompilerProfiler()
     target = 'llvm'
     ctx = tvm.cpu()
     vm = compiler.compile(mod, target)

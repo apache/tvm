@@ -42,11 +42,11 @@ def _update_target(target):
                         "{}".format(type(target)))
     return tgts
 
-class VMCompilerDebug(vm.VMCompiler):
+class VMCompilerProfiler(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         super().__init__()
-        self.mod = _vm._VMCompilerDebug()
+        self.mod = _vm._VMCompilerProfiler()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
 
@@ -73,15 +73,15 @@ class VMCompilerDebug(vm.VMCompiler):
 
         Returns
         -------
-        vm : VirtualMachineDebug
-            The debug VM runtime.
+        vm : VirtualMachineProfiler
+            The profile VM runtime.
         """
         target = _update_target(target)
         self._compile(mod, target, target_host)
-        return VirtualMachineDebug(self._get_vm())
+        return VirtualMachineProfiler(self._get_vm())
 
-class VirtualMachineDebug(vm.VirtualMachine):
-    """Relay debug VM runtime."""
+class VirtualMachineProfiler(vm.VirtualMachine):
+    """Relay profile VM runtime."""
     def __init__(self, mod):
         super().__init__(mod)
         self._get_stat = self.mod["get_stat"]

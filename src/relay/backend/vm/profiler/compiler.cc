@@ -42,7 +42,7 @@ runtime::Module CreateVMCompilerDebug() {
   return runtime::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VMCompilerDebug")
+TVM_REGISTER_GLOBAL("relay._vm._VMCompilerProfiler")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = CreateVMCompilerDebug();
     });
