@@ -144,5 +144,51 @@ Mark the end of bitpacking.
                          return {topi::identity(inputs[0])};
                        });
 
+RELAY_REGISTER_OP("annotation.subgraph_begin")
+.describe(R"code(Begin region of a subgraph.)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
+TVM_REGISTER_API("relay.op.annotation._make.subgraph_begin")
+.set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
+  auto attrs = make_node<SubgraphAttrs>();
+  attrs->compiler = compiler;
+  static const Op& op = Op::Get("annotation.subgraph_begin");
+  return CallNode::make(op, {expr}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("annotation.subgraph_end")
+.describe(R"code(End region of a subgraph.)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
+TVM_REGISTER_API("relay.op.annotation._make.subgraph_end")
+.set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
+  auto attrs = make_node<SubgraphAttrs>();
+  attrs->compiler = compiler;
+  static const Op& op = Op::Get("annotation.subgraph_end");
+  return CallNode::make(op, {expr}, Attrs(attrs), {});
+});
+
 }  // namespace relay
 }  // namespace tvm

@@ -61,3 +61,42 @@ def stop_fusion(data):
         The annotated expression.
     """
     return _make.stop_fusion(data)
+
+
+def subgraph_begin(data, compiler):
+    """Annotate an expression to indicate that it is the beginning of
+    a subgraph.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    compiler : Str
+        The compiler used to generate code of a subgraph.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.subgraph_begin(data, compiler)
+
+
+def subgraph_end(data, compiler):
+    """Annotate an expression to indicate that it is the end of a subgraph.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    compiler : Str
+        The compiler used to generate code of a subgraph.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.subgraph_end(data, compiler)

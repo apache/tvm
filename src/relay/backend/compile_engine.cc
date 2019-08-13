@@ -24,6 +24,7 @@
  */
 #include <tvm/schedule.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/ir.h>
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>
@@ -567,8 +568,14 @@ class CompileEngineImpl : public CompileEngineNode {
   PackedFunc JIT(const CCacheKey& key) final {
     CCacheValue value = LowerInternal(key);
     if (value->packed_func != nullptr) return value->packed_func;
-    // build the function.
-    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+    // Handle 3rd party generated code library.
+    if (value->lib.operator->()) {
+      auto name = FunctionGetAttr(key->source_func, "func_name");
+      const tvm::ir::StringImm* func_name = name.as<tvm::ir::StringImm>();
+      CHECK(func_name);
+      value->packed_func = value->lib.GetFunction(func_name->value);
+    } else if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+      // build the function.
       tvm::runtime::Module m = (*f)(value->cached_func->funcs, key->target);
       value->packed_func = m.GetFunction(value->cached_func->func_name);
     } else {
@@ -621,6 +628,23 @@ class CompileEngineImpl : public CompileEngineNode {
       value->use_count = 0;
       cache_[key] = value;
     }
+
+    auto compiler = FunctionGetAttr(key->source_func, "External");
+    if (compiler.defined()) {
+      const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
+      CHECK(code_gen);
+      std::string ext_name = "relay.ext." + code_gen->value;
+      auto pf = tvm::runtime::Registry::Get(ext_name);
+      CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
+
+      // Invoke the 3rd party codegen to generate a library for the subgraph.
+      runtime::Module mod = (*pf)(key->source_func);
+      value->lib = mod;
+      value->cached_func = CachedFunc();
+      // value->packed_func = (*pf)(key->source_func);;
+      return value;
+    }
+
     // Enforce use the target.
     With<Target> target_scope(key->target);
 
