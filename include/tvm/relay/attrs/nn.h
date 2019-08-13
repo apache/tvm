@@ -411,6 +411,19 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   }
 };
 
+/*! \brief Attributes used for the MirrorPadding operator */
+struct MirrorPadAttrs : public tvm::AttrsNode<MirrorPadAttrs> {
+  std::string mode;
+  Array<Array<IndexExpr> > pad_width;
+
+  TVM_DECLARE_ATTRS(MirrorPadAttrs, "relay.attrs.MirrorPadAttrs") {
+    TVM_ATTR_FIELD(mode).set_default("SYMMETRIC")
+      .describe("Specifies how mirroring should be performed.");
+    TVM_ATTR_FIELD(pad_width)
+      .describe("Number of values padded to the edges of each axis, "
+                "in the format of ((before_1, after_1), ..., (before_N, after_N))");
+  }
+};
 
 /*! \brief Attributes for leaky relu operator */
 struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
