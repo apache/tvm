@@ -76,7 +76,6 @@ class QConfigNode : public Node {
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
   bool do_simulation = false;
   bool round_for_shift = true;
-  // Array<Expr> stop_ops = Array<Expr>(NodePtr<Node>(nullptr));
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
 
   void VisitAttrs(AttrVisitor* v) final {
