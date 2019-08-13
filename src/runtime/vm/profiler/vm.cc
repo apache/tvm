@@ -34,7 +34,7 @@
 #include <string>
 #include <vector>
 
-#include "debug_vm.h"
+#include "vm.h"
 
 namespace tvm {
 namespace runtime {

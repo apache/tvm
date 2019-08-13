@@ -39,7 +39,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "../../../runtime/vm/debug/debug_vm.h"
+#include "../../../runtime/vm/profiler/vm.h"
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"

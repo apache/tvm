@@ -23,7 +23,7 @@
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
-#include "../../../../runtime/vm/debug/debug_vm.h"
+#include "../../../../runtime/vm/profiler/vm.h"
 #include "../compiler.h"
 
 namespace tvm {

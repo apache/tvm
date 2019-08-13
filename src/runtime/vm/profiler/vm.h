@@ -23,8 +23,8 @@
  * \brief The Relay debug virtual machine.
  */
 
-#ifndef TVM_RUNTIME_VM_DEBUG_DEBUG_VM_H_
-#define TVM_RUNTIME_VM_DEBUG_DEBUG_VM_H_
+#ifndef TVM_RUNTIME_VM_PROFILER_VM_H_
+#define TVM_RUNTIME_VM_PROFILER_VM_H_
 
 #include <tvm/runtime/vm.h>
 
@@ -61,4 +61,4 @@ class VirtualMachineDebug : public VirtualMachine {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_DEBUG_DEBUG_VM_H_
+#endif  // TVM_RUNTIME_VM_PROFILER_VM_H_
