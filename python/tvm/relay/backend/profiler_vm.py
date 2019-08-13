@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name
 """
-The debug Relay Virtual Machine.
+The Relay Virtual Machine profiler.
 
-Provides extra APIs for debugging vm execution.
+Provides extra APIs for profiling vm execution.
 """
 import tvm
 from . import vm, _vm
