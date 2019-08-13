@@ -1120,7 +1120,7 @@ def test_inception():
 def test_sign():
     def Sign_x(x):
         return np.sign(x)
-    _test_onnx_op_elementwise((2, 4, 5, 6),
+    _test_onnx_op_elementwise((3, 4, 5, 6),
                               Sign_x,
                               {},
                               'float32',
