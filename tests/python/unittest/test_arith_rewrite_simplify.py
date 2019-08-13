@@ -804,6 +804,18 @@ def test_let_simplify():
     z = tvm.expr.Let(x, 1, x + 1)
     ck.verify(z + z, 4)
 
+def test_cast_simplify():
+    ck = RewriteChecker()
+    x = tvm.var("x")
+
+    dtypes = ["float32", "float16", "int32", "int8", "bool"]
+    for dtype1 in dtypes:
+        ck.verify(tvm.expr.Cast(dtype1, x - x), tvm.const(0, dtype1))
+        ck.verify(tvm.expr.Cast(dtype1, x == x), tvm.const(1, dtype1))
+        for dtype2 in dtypes:
+            for i in [0, 1, 2, 3]:
+                ck.verify(tvm.expr.Cast(dtype1, tvm.const(i, dtype2)), tvm.const(i, dtype1))
+
 if __name__ == "__main__":
     test_floordiv_index_simplify()
     test_floormod_index_simplify()
@@ -819,3 +831,4 @@ if __name__ == "__main__":
     test_select_simplify()
     test_logical_simplify()
     test_let_simplify()
+    test_cast_simplify()
