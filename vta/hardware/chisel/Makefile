@@ -38,13 +38,13 @@ TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
 VTA_LIBNAME = libvta_hw
+UNITTEST_NAME = all
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
-test_name = all
 
 verilator_opt = --cc
 verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
@@ -113,7 +113,7 @@ $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v:
 	sbt 'runMain vta.$(config_test) --target-dir $(chisel_build_dir) --top-name $(TOP_TEST).$(CONFIG)'
 
 unittest:
-	sbt 'test:runMain unittest.Launcher $(test_name)'
+	sbt 'test:runMain unittest.Launcher $(UNITTEST_NAME)'
 
 clean:
 	-rm -rf target project/target project/project
