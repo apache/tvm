@@ -16,6 +16,21 @@
 # under the License.
 import tvm
 
+def test_basic_likely_elimination():
+    n = tvm.var('n')
+    X = tvm.placeholder(shape=(n,), name="x")
+    W = tvm.placeholder(shape=(n + 1,), dtype="int32", name="w")
+
+    def f(i):
+        start = W[i]
+        extent = W[i+1] - W[i]
+        rv = tvm.reduce_axis((0, extent))
+        return tvm.sum(X[rv + start], axis=rv)
+    Y = tvm.compute(X.shape, f, name="y")
+    s = tvm.create_schedule([Y.op])
+    stmt = tvm.lower(s, [X, W, Y], simple_mode=True)
+    assert('if' not in str(stmt))
+
 def test_stmt_simplify():
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
@@ -32,3 +47,4 @@ def test_stmt_simplify():
 
 if __name__ == "__main__":
     test_stmt_simplify()
+    test_basic_likely_elimination()

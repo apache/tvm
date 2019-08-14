@@ -375,7 +375,9 @@ class IntervalSetEvaluator :
     IntervalSet min_set = this->Eval(val->min_value);
     IntervalSet max_set = this->Eval(val->max_value);
     --recur_depth_;
-    return IntervalSet(min_set->min_value, max_set->max_value);
+    return IntervalSet(
+        min_set->IsEverything() && !val->IsEverything() ? val->min_value : min_set->min_value,
+        max_set->IsEverything() && !val->IsEverything() ? val->max_value : max_set->max_value);
   }
 
   IntervalSet VisitExpr_(const IntImm* op) final {
