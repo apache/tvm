@@ -20,11 +20,11 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file virtual_memory.h
- * \brief The virtual memory manager for TSIM driver.
+ * \brief The virtual memory manager for device simulation
  */
 
-#ifndef VTA_TSIM_VIRTUAL_MEMORY_H_
-#define VTA_TSIM_VIRTUAL_MEMORY_H_
+#ifndef VTA_VMEM_VIRTUAL_MEMORY_H_
+#define VTA_VMEM_VIRTUAL_MEMORY_H_
 
 #include <cstdint>
 #include <vector>
@@ -34,29 +34,29 @@ enum VMemCopyType {
   kVirtualMemCopyToHost = 1
 };
 
-// #define VTA_VMEM_PAGEFILE "/tmp/vta_vmem_pagefile"
-// static std::vector<uint64_t> vmem_pagefile;
-
 /*!
- * \brief Virtual memory based memory allocation
+ * \brief virtual memory based memory allocation
  */
 void * vmalloc(uint64_t size);
 
 /*!
- * \brief Virtual memory based memory release
+ * \brief virtual memory based memory release
  */
 void vfree(void * ptr);
 
 /*!
- * \brief Memory copy between virtual and logical
+ * \brief memory copy between virtual and logical
  */
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
 
 /*!
- * \brief Map virtual address to logical address
+ * \brief map virtual address to logical address
  */
 void * vmem_get_log_addr(uint64_t vaddr);
 
+/*!
+ * \brief get page table for translating virtual memory address
+ */
 std::vector<uint64_t> vmem_get_pagefile();
 
-#endif /* VTA_TSIM_VIRTUAL_MEMORY_H_ */
+#endif /* VTA_VMEM_VIRTUAL_MEMORY_H_ */

@@ -43,7 +43,6 @@ namespace tsim {
 
 static const uint64_t kPageSize = VTA_TSIM_VM_PAGE_SIZE;
 static const uint64_t kVirtualMemoryOffset = VTA_TSIM_VM_ADDR_BEGIN;
-static std::vector<uint64_t> vmem_pagefile;
 
 class VirtualMemoryManager {
  public:
@@ -69,32 +68,12 @@ class VirtualMemoryManager {
     }
     page_table_.insert(it, std::make_pair(vaddr, vaddr + size));
     tlb_[vaddr] = laddr;
-    // save tlb to file in order to be accessed externally.
-    {
-      vmem_pagefile.clear();
-      uint32_t tlb_cnt = 0;
-      uint64_t * tlb = new uint64_t[3*tlb_.size()];
-      for (auto iter = tlb_.begin(); iter != tlb_.end(); iter++, tlb_cnt++) {
-        tlb[tlb_cnt * 3] = (*iter).first;
-        uint64_t vend = 0;
-        for (auto iter_in = page_table_.begin(); iter_in != page_table_.end(); iter_in++) {
-          if ((*iter_in).first == (*iter).first) { vend = (*iter_in).second; break; }
-        }
-        tlb[tlb_cnt * 3 + 1] = vend;
-        tlb[tlb_cnt * 3 + 2] = (*iter).second;
-        vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 0]);
-        vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 1]);
-        vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 2]);
-      }
-      delete [] tlb;
-    }
-    // return virtual address
     return reinterpret_cast<void*>(vaddr);
   }
 
-  std::vector<uint64_t> GetPageFile()
-  {
-    vmem_pagefile.clear();
+  /*! \brief get page table for virtual memory translation. */
+  std::vector<uint64_t> GetPageFile() {
+    std::vector<uint64_t> vmem_pagefile;
     uint32_t tlb_cnt = 0;
     uint64_t * tlb = new uint64_t[3*tlb_.size()];
     for (auto iter = tlb_.begin(); iter != tlb_.end(); iter++, tlb_cnt++) {
