@@ -70,27 +70,6 @@ class VirtualMemoryManager {
     page_table_.insert(it, std::make_pair(vaddr, vaddr + size));
     tlb_[vaddr] = laddr;
     // save tlb to file in order to be accessed externally.
-#if 0
-    FILE * fout = fopen(VTA_VMEM_PAGEFILE, "wb");
-    CHECK(fout);
-    if (fout) {
-      uint32_t tlb_size = sizeof(uint64_t)*3*tlb_.size();
-      uint32_t tlb_cnt = 0;
-      uint64_t * tlb = new uint64_t[3*tlb_.size()];
-      for (auto iter = tlb_.begin(); iter != tlb_.end(); iter++, tlb_cnt++) {
-        tlb[tlb_cnt * 3] = (*iter).first;
-        uint64_t vend = 0;
-        for (auto iter_in = page_table_.begin(); iter_in != page_table_.end(); iter_in++) {
-          if ((*iter_in).first == (*iter).first) { vend = (*iter_in).second; break; }
-        }
-        tlb[tlb_cnt * 3 + 1] = vend;
-        tlb[tlb_cnt * 3 + 2] = (*iter).second;
-      }
-      fwrite(tlb, tlb_size, 1, fout);
-      fflush(fout);
-      fclose(fout);
-    }
-#else
     {
       vmem_pagefile.clear();
       uint32_t tlb_cnt = 0;
@@ -109,7 +88,6 @@ class VirtualMemoryManager {
       }
       delete [] tlb;
     }
-#endif
     // return virtual address
     return reinterpret_cast<void*>(vaddr);
   }

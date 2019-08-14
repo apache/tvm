@@ -186,27 +186,6 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   // get logical address
   uint64_t laddr = 0;
   {
-#if 0
-    std::ifstream in(VTA_VMEM_PAGEFILE, std::ifstream::ate | std::ifstream::binary);
-    size_t size = in.tellg();
-    FILE * fin = fopen(VTA_VMEM_PAGEFILE, "rb");
-    CHECK(fin);
-    if (fin) {
-      uint64_t * tlb = new uint64_t[size / sizeof(uint64_t)];
-      fread(tlb, size, 1, fin);
-      uint32_t cnt = size / (sizeof(uint64_t) * 3);
-      for (uint32_t i = 0; i < cnt; i++) {
-        if ((addr >= tlb[i * 3]) && (addr < tlb[i * 3 + 1])) {
-          uint32_t offset = addr - tlb[i * 3];
-          laddr = tlb[i * 3 + 2] + offset;
-          break;
-        }
-      }
-      delete [] tlb;
-      fclose(fin);
-      CHECK_NE(laddr, 0);
-    }
-#else
     auto vmem_pagefile = vmem_get_pagefile();
     size_t size = vmem_pagefile.size();
     uint32_t cnt = size / 3;
@@ -220,7 +199,6 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
       }
     }
     CHECK_NE(laddr, 0);
-#endif
   }
 
   if (opcode == 1) {
