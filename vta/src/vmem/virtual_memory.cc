@@ -18,6 +18,7 @@
  */
 
 #include "virtual_memory.h"
+#include "vta/driver.h"
 
 #include <dmlc/logging.h>
 #include <cstdint>
@@ -28,36 +29,24 @@
 #include <iterator>
 #include <unordered_map>
 
-/*! page size of virtual address */
-#ifndef VTA_TSIM_VM_PAGE_SIZE
-#define VTA_TSIM_VM_PAGE_SIZE (4096)
-#endif  // VTA_TSIM_VM_PAGE_SIZE
-
-/*! starting point of the virtual address system */
-#ifndef VTA_TSIM_VM_ADDR_BEGIN
-#define VTA_TSIM_VM_ADDR_BEGIN (0x40000000)
-#endif  // VTA_TSIM_VM_ADDR_BEGIN
-
 namespace vta {
-namespace tsim {
-
-static const uint64_t kPageSize = VTA_TSIM_VM_PAGE_SIZE;
-static const uint64_t kVirtualMemoryOffset = VTA_TSIM_VM_ADDR_BEGIN;
+namespace vmem {
 
 class VirtualMemoryManager {
  public:
   /*! \brief allocate virtual memory for given size */
-  void * Allocate(uint64_t sz) {
-    uint64_t size = ((sz + kPageSize - 1) / kPageSize) * kPageSize;
-    void * ptr = malloc(size);
+  void * Allocate(uint64_t size) {
+    uint64_t npage = ((size + kPageSize - 1) / kPageSize);
+    size_t paged_size = npage * kPageSize;
+    void * ptr = malloc(paged_size);
     size_t laddr = reinterpret_cast<size_t>(ptr);
     // search for available virtual memory space
-    uint64_t vaddr = kVirtualMemoryOffset;
+    uint64_t vaddr = VTA_VADDR_BEGIN;
     auto it = page_table_.end();
     if (page_table_.size() > 0) {
       for (it = page_table_.begin(); it != page_table_.end(); it++) {
         if (it == page_table_.begin()) { continue; }
-        if (((*it).first - (*std::prev(it)).second) > size) {
+        if (((*it).first - (*std::prev(it)).second) > paged_size) {
           vaddr = (*it).second;
           break;
         }
@@ -66,7 +55,7 @@ class VirtualMemoryManager {
         vaddr = (*std::prev(it)).second;
       }
     }
-    page_table_.insert(it, std::make_pair(vaddr, vaddr + size));
+    page_table_.insert(it, std::make_pair(vaddr, vaddr + paged_size));
     tlb_[vaddr] = laddr;
     return reinterpret_cast<void*>(vaddr);
   }
@@ -154,26 +143,28 @@ class VirtualMemoryManager {
   }
 
  private:
+  // page size, also the maximum allocable size 16 K
+  static const uint64_t kPageSize = VTA_PAGE_BYTES;
   /*! \brief page table */
   std::list<std::pair<uint64_t, uint64_t> > page_table_;
   /*! \brief translation lookaside buffer */
   std::unordered_map<uint64_t, size_t> tlb_;
 };
 
-}  // namespace tsim
+}  // namespace vmem
 }  // namespace vta
 
 
 void * vmalloc(uint64_t size) {
-  return vta::tsim::VirtualMemoryManager::Global()->Allocate(size);
+  return vta::vmem::VirtualMemoryManager::Global()->Allocate(size);
 }
 
 void vfree(void * ptr) {
-  vta::tsim::VirtualMemoryManager::Global()->Release(ptr);
+  vta::vmem::VirtualMemoryManager::Global()->Release(ptr);
 }
 
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
-  auto * mgr = vta::tsim::VirtualMemoryManager::Global();
+  auto * mgr = vta::vmem::VirtualMemoryManager::Global();
   if (kVirtualMemCopyFromHost == dir) {
     mgr->MemCopyFromHost(dst, src, size);
   } else {
@@ -182,9 +173,9 @@ void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
 }
 
 void * vmem_get_log_addr(uint64_t vaddr) {
-  return vta::tsim::VirtualMemoryManager::Global()->GetLogicalAddr(vaddr);
+  return vta::vmem::VirtualMemoryManager::Global()->GetLogicalAddr(vaddr);
 }
 
 std::vector<uint64_t> vmem_get_pagefile() {
-  return vta::tsim::VirtualMemoryManager::Global()->GetPageFile();
+  return vta::vmem::VirtualMemoryManager::Global()->GetPageFile();
 }
