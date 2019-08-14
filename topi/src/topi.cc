@@ -769,4 +769,37 @@ TVM_REGISTER_GENERIC_FUNC(dense)
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
 .register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));
 
+/*! \brief Builder function for instantiating dense ops. */
+using FTVMBatchMatMulOpBuilder = std::function<tvm::Tensor(const Target& target,
+                                                           const tvm::Tensor& x,
+                                                           const tvm::Tensor& y)>;
+
+/*!
+* \brief Helper function for registering dense ops matching the
+* FTVMBatchMatMulOpBuilder signature. The op builder function is wrapped
+* with a PackedFunc suitable for passing to a tvm::GenericFunc.
+*
+* \param builder The op builder to wrap.
+*
+* \return The wrapped op builder
+*/
+inline PackedFunc WrapBatchMatMulOp(FTVMBatchMatMulOpBuilder builder) {
+  return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
+    auto target = Target::Current(false);
+    Tensor x = args[0];
+    Tensor y = args[1];
+
+    *ret = builder(target, x, y);
+  });
+}
+
+TVM_REGISTER_GENERIC_FUNC(batch_matmul)
+.set_default(WrapBatchMatMulOp([](const Target& target,
+                                  const tvm::Tensor& x,
+                                  const tvm::Tensor& y) {
+  return topi::nn::batch_matmul(x, y);
+}))
+.register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
+.register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));
+
 }  // namespace topi

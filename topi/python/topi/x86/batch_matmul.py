@@ -38,6 +38,10 @@ def schedule_batch_matmul(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
