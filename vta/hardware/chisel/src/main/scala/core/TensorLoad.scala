@@ -48,7 +48,7 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)
   val strideFactor = tp.tensorLength * tp.tensorWidth
 
   val dec = io.inst.asTypeOf(new MemDecode)
-  val dataCtrl = Module(new TensorDataCtrl(sizeFactor, strideFactor))
+  val dataCtrl = Module(new TensorDataCtrl(tensorType, sizeFactor, strideFactor))
   val dataCtrlDone = RegInit(false.B)
   val yPadCtrl0 = Module(new TensorPadCtrl(padType = "YPad0", sizeFactor))
   val yPadCtrl1 = Module(new TensorPadCtrl(padType = "YPad1", sizeFactor))
