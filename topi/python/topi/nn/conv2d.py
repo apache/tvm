@@ -72,6 +72,28 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
 
 
 @tvm.target.generic_func
+def conv2d_legalize(attrs, inputs, arg_dtypes, F):
+    """Legalizes Conv2D op.
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized.
+    arg_dtypes : list of types
+        List of types of input arguments
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    """
+    # not to change by default
+    return None
+
+
+@tvm.target.generic_func
 def conv2d_alter_layout(attrs, inputs, tinfos, F):
     """Change Conv2D layout.
 
