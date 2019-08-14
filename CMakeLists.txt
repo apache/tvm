@@ -59,6 +59,11 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
+# vta options
+tvm_option(USE_VTA_FSIM "Build with VTA fast simulator" ON)
+tvm_option(USE_VTA_TSIM "Build with VTA cycle accurate simulator" ON)
+tvm_option(USE_VTA_FPGA "Build with VTA fpga driver (device side only)" OFF)
+
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
