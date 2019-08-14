@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/runtime/vm/debug/vm_debug.cc
+ * \file src/runtime/vm/profiler/vm.cc
  * \brief The Relay debug virtual machine.
  */
 

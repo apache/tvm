@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/debug/debug_compiler.cc
+ * \file src/relay/backend/vm/profiler/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
