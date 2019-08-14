@@ -22,7 +22,7 @@
 #include <vta/driver.h>
 #include <vta/dpi/module.h>
 
-#include "virtual_memory.h"
+#include "../vmem/virtual_memory.h"
 
 namespace vta {
 namespace tsim {

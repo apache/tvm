@@ -35,7 +35,7 @@
 #include <condition_variable>
 #include <fstream>
 
-#include "../tsim/virtual_memory.h"
+#include "../vmem/virtual_memory.h"
 
 namespace vta {
 namespace dpi {
@@ -186,6 +186,7 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   // get logical address
   uint64_t laddr = 0;
   {
+#if 0
     std::ifstream in(VTA_VMEM_PAGEFILE, std::ifstream::ate | std::ifstream::binary);
     size_t size = in.tellg();
     FILE * fin = fopen(VTA_VMEM_PAGEFILE, "rb");
@@ -205,6 +206,21 @@ void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
       fclose(fin);
       CHECK_NE(laddr, 0);
     }
+#else
+    auto vmem_pagefile = vmem_get_pagefile();
+    size_t size = vmem_pagefile.size();
+    uint32_t cnt = size / 3;
+    CHECK_EQ(size, cnt * 3);
+    uint64_t * tlb = vmem_pagefile.data();
+    for (uint32_t i = 0; i < cnt; i++) {
+      if ((addr >= tlb[i * 3]) && (addr < tlb[i * 3 + 1])) {
+        uint32_t offset = addr - tlb[i * 3];
+        laddr = tlb[i * 3 + 2] + offset;
+        break;
+      }
+    }
+    CHECK_NE(laddr, 0);
+#endif
   }
 
   if (opcode == 1) {

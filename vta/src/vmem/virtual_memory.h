@@ -27,13 +27,15 @@
 #define VTA_TSIM_VIRTUAL_MEMORY_H_
 
 #include <cstdint>
+#include <vector>
 
 enum VMemCopyType {
   kVirtualMemCopyFromHost = 0,
   kVirtualMemCopyToHost = 1
 };
 
-#define VTA_VMEM_PAGEFILE "/tmp/vta_tsim_vmem_pagefile.sys"
+// #define VTA_VMEM_PAGEFILE "/tmp/vta_vmem_pagefile"
+// static std::vector<uint64_t> vmem_pagefile;
 
 /*!
  * \brief Virtual memory based memory allocation
@@ -54,5 +56,7 @@ void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
  * \brief Map virtual address to logical address
  */
 void * vmem_get_log_addr(uint64_t vaddr);
+
+std::vector<uint64_t> vmem_get_pagefile();
 
 #endif /* VTA_TSIM_VIRTUAL_MEMORY_H_ */
