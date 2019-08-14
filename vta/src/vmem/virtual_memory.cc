@@ -103,11 +103,23 @@ void VirtualMemoryManager::Free(void* data) {
   free_map_.insert(std::make_pair(p->num_pages, p));
 }
 
+/*!
+ * \brief Copy from the host memory to device memory (virtual).
+ * \param dst The device memory address (virtual)
+ * \param src The host memory address
+ * \param size The size of memory
+ */
 void VirtualMemoryManager::MemCopyFromHost(void* dst, const void * src, size_t size) {
   void * addr = this->GetAddr(reinterpret_cast<uint64_t>(dst));
   memcpy(addr, src, size);
 }
 
+/*!
+ * \brief Copy from the device memory (virtual) to host memory.
+ * \param dst The host memory address
+ * \param src The device memory address (virtual)
+ * \param size The size of memory
+ */
 void VirtualMemoryManager::MemCopyToHost(void* dst, const void * src, size_t size) {
   void * addr = this->GetAddr(reinterpret_cast<uint64_t>(src));
   memcpy(dst, addr, size);

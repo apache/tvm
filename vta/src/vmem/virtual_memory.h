@@ -73,7 +73,19 @@ class VirtualMemoryManager {
    * \return The virtual address
    */
   void Free(void* data);
+  /*!
+   * \brief Copy from the host memory to device memory (virtual).
+   * \param dst The device memory address (virtual)
+   * \param src The host memory address
+   * \param size The size of memory
+   */
   void MemCopyFromHost(void* dst, const void * src, size_t size);
+  /*!
+   * \brief Copy from the device memory (virtual) to host memory.
+   * \param dst The host memory address
+   * \param src The device memory address (virtual)
+   * \param size The size of memory
+   */
   void MemCopyToHost(void* dst, const void * src, size_t size);
   static VirtualMemoryManager* Global();
 
