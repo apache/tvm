@@ -748,3 +748,23 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
              [[  0.1,  0.1,  0.1], [  16.,  17.,  18.]]]
     """
     return _make.sequence_mask(data, valid_length, mask_value, axis)
+
+def one_hot(indices, depth):
+    """
+    Returns a one-hot tensor where the locations repsented by indices take value 1, 
+    other locations take value 0.
+
+    Parameters
+    ----------
+    indices : relay.Expr
+        Locations to set to 1.
+
+    depth : int
+        Depth of the one-hot dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The one-hot tensor.
+    """
+    return _make.one_hot(indices, depth)

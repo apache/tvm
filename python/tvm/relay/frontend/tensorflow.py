@@ -1212,6 +1212,19 @@ def _log1p():
         return get_relay_op('log')(add_out)
     return _impl
 
+def one_hot():
+    def _impl(inputs, attr, params):
+        one_hot = AttrCvt('one_hot', 
+                          ignores=['on_value', 'off_value', 'axis', 'dtype'])
+
+        out_dtype = attr.get("T", None)
+        if out_dtype is None:
+            out_dtype_name = "float32"
+        else:
+            out_dtype_name = out_dtype.name
+        return _op.cast(one_hot, out_dtype_name)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1284,6 +1297,7 @@ _convert_map = {
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),

@@ -2482,5 +2482,62 @@ Examples::
 .set_attr<FTVMCompute>("FTVMCompute", SequenceMaskCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// relay.one_hot
+TVM_REGISTER_NODE_TYPE(OneHotAttrs);
+
+bool OneHotRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [indices, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* indices = types[0].as<TensorTypeNode>();
+  CHECK(indices);
+
+  const auto param = attrs.as<OneHotAttrs>();
+  CHECK(param->depth != 0);
+
+  Array<IndexExpr> output_shape(indices->shape);
+  output_shape.push_back(param->depth);
+
+  reporter->Assign(types[1], TensorTypeNode::make(output_shape, indices->dtype));
+  return true;
+}
+
+Array<Tensor> OneHotCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  const auto* param = attrs.as<OneHotAttrs>();
+  CHECK(param != nullptr);
+  return Array<Tensor>{ topi::one_hot(inputs[0], param->depth) };
+}
+
+Expr MakeOneHot(Expr indices,
+                int depth) {
+  auto attrs = make_node<OneHotAttrs>();
+  attrs->depth = std::move(depth);
+  static const Op& op = Op::Get("one_hot");
+  return CallNode::make(op, {indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.one_hot")
+.set_body_typed(MakeOneHot);
+
+RELAY_REGISTER_OP("one_hot")
+.describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1, 
+    other locations take value 0.
+
+    **indices** Locations to set to 1.
+
+    **depth** Depth of the one-hot dimension.)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.OneHotAttrs")
+.set_num_inputs(1)
+.add_argument("indices", "Tensor", "Locations to set to 1.")
+.set_support_level(10)
+.add_type_rel("OneHot", OneHotRel)
+.set_attr<FTVMCompute>("FTVMCompute", OneHotCompute)
+.set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
 }  // namespace relay
 }  // namespace tvm

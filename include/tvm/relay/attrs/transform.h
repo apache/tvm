@@ -298,6 +298,16 @@ struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
   }
 };
 
+/*! \brief Attributes used in one-hot operator */
+struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
+  int depth;
+
+  TVM_DECLARE_ATTRS(OneHotAttrs, "relay.attrs.OneHotAttrs") {
+	TVM_ATTR_FIELD(depth).set_default(1)
+			  .describe("Depth of the one hot dimension.");
+  }
+};  // struct OneHotAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
