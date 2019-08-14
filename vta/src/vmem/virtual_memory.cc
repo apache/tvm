@@ -28,139 +28,108 @@
 #include <utility>
 #include <iterator>
 #include <unordered_map>
+#include <map>
+#include <mutex>
 
 namespace vta {
 namespace vmem {
 
-class VirtualMemoryManager {
- public:
-  /*! \brief allocate virtual memory for given size */
-  void * Allocate(uint64_t size) {
-    uint64_t npage = ((size + kPageSize - 1) / kPageSize);
-    size_t paged_size = npage * kPageSize;
-    void * ptr = malloc(paged_size);
-    size_t laddr = reinterpret_cast<size_t>(ptr);
-    // search for available virtual memory space
-    uint64_t vaddr = VTA_VADDR_BEGIN;
-    auto it = page_table_.end();
-    if (page_table_.size() > 0) {
-      for (it = page_table_.begin(); it != page_table_.end(); it++) {
-        if (it == page_table_.begin()) { continue; }
-        if (((*it).first - (*std::prev(it)).second) > paged_size) {
-          vaddr = (*it).second;
-          break;
-        }
-      }
-      if (it == page_table_.end()) {
-        vaddr = (*std::prev(it)).second;
-      }
-    }
-    page_table_.insert(it, std::make_pair(vaddr, vaddr + paged_size));
-    tlb_[vaddr] = laddr;
-    return reinterpret_cast<void*>(vaddr);
-  }
+/*!
+ * \brief Get virtual address given physical address.
+ * \param phy_addr The simulator phyiscal address.
+ * \return The true virtual address;
+ */
+void* VirtualMemoryManager::GetAddr(uint64_t phy_addr) {
+  CHECK_NE(phy_addr, 0)
+      << "trying to get address that is nullptr";
+  std::lock_guard<std::mutex> lock(mutex_);
+  uint64_t loc = (phy_addr >> kPageBits) - 1;
+  CHECK_LT(loc, ptable_.size())
+      << "phy_addr=" << phy_addr;
+  Page* p = ptable_[loc];
+  CHECK(p != nullptr);
+  size_t offset = (loc - p->ptable_begin) << kPageBits;
+  offset += phy_addr & (kPageSize - 1);
+  return reinterpret_cast<char*>(p->data) + offset;
+}
 
-  /*! \brief get page table for virtual memory translation. */
-  std::vector<uint64_t> GetPageFile() {
-    std::vector<uint64_t> vmem_pagefile;
-    uint32_t tlb_cnt = 0;
-    uint64_t * tlb = new uint64_t[3*tlb_.size()];
-    for (auto iter = tlb_.begin(); iter != tlb_.end(); iter++, tlb_cnt++) {
-      tlb[tlb_cnt * 3] = (*iter).first;
-      uint64_t vend = 0;
-      for (auto iter_in = page_table_.begin(); iter_in != page_table_.end(); iter_in++) {
-        if ((*iter_in).first == (*iter).first) { vend = (*iter_in).second; break; }
-      }
-      tlb[tlb_cnt * 3 + 1] = vend;
-      tlb[tlb_cnt * 3 + 2] = (*iter).second;
-      vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 0]);
-      vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 1]);
-      vmem_pagefile.push_back(tlb[tlb_cnt * 3 + 2]);
-    }
-    delete [] tlb;
-    return vmem_pagefile;
-  }
+/*!
+ * \brief Get physical address
+ * \param buf The virtual address.
+ * \return The true physical address;
+ */
+vta_phy_addr_t VirtualMemoryManager::GetPhyAddr(void* buf) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = pmap_.find(buf);
+  CHECK(it != pmap_.end());
+  Page* p = it->second.get();
+  return (p->ptable_begin + 1) << kPageBits;
+}
 
-  /*! \brief release virtual memory for pointer */
-  void Release(void * ptr) {
-    uint64_t src = reinterpret_cast<uint64_t>(ptr);
-    auto it = page_table_.begin();
-    for (; it != page_table_.end(); it++) {
-      if (((*it).first <= src) && ((*it).second > src)) { break; }
-    }
-    CHECK(it != page_table_.end());
-    uint64_t * laddr = reinterpret_cast<uint64_t*>(tlb_[(*it).first]);
-    delete [] laddr;
-    page_table_.erase(it);
-    tlb_.erase((*it).first);
+/*!
+ * \brief Allocate memory from manager
+ * \param size The size of memory
+ * \return The virtual address
+ */
+void* VirtualMemoryManager::Alloc(size_t size) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  size_t npage = (size + kPageSize - 1) / kPageSize;
+  auto it = free_map_.lower_bound(npage);
+  if (it != free_map_.end()) {
+    Page* p = it->second;
+    free_map_.erase(it);
+    return p->data;
   }
+  size_t start = ptable_.size();
+  std::unique_ptr<Page> p(new Page(start, npage));
+  // insert page entry
+  ptable_.resize(start + npage, p.get());
+  void* data = p->data;
+  pmap_[data] = std::move(p);
+  return data;
+}
 
-  /*! \brief copy virtual memory from host */
-  void MemCopyFromHost(void * dstptr, const void * src, uint64_t size) {
-    // get logical address from virtual address
-    size_t dst = reinterpret_cast<size_t>(dstptr);
-    auto it = page_table_.begin();
-    for (; it != page_table_.end(); it++) {
-      if (((*it).first <= dst) && ((*it).second > dst)) { break; }
-    }
-    CHECK(it != page_table_.end());
-    size_t offset = dst - (*it).first;
-    char * laddr = reinterpret_cast<char*>(tlb_[(*it).first]);
-    // copy content from src to logic address
-    memcpy(laddr + offset, src, size);
-  }
+/*!
+ * \brief Free the memory.
+ * \param size The size of memory
+ * \return The virtual address
+ */
+void VirtualMemoryManager::Free(void* data) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (pmap_.size() == 0) return;
+  auto it = pmap_.find(data);
+  CHECK(it != pmap_.end());
+  Page* p = it->second.get();
+  free_map_.insert(std::make_pair(p->num_pages, p));
+}
 
-  /*! \brief copy virtual memory to host */
-  void MemCopyToHost(void * dst, const void * srcptr, uint64_t size) {
-    // get logical address from virtual address
-    size_t src = reinterpret_cast<size_t>(srcptr);
-    auto it = page_table_.begin();
-    for (; it != page_table_.end(); it++) {
-      if (((*it).first <= src) && ((*it).second > src)) { break; }
-    }
-    CHECK(it != page_table_.end());
-    size_t offset = src - (*it).first;
-    char * laddr = reinterpret_cast<char*>(tlb_[(*it).first]);
-    // copy content from logic address to dst
-    memcpy(dst, laddr + offset, size);
-  }
+void VirtualMemoryManager::MemCopyFromHost(void* dst, const void * src, size_t size) {
+  void * addr = this->GetAddr(reinterpret_cast<uint64_t>(dst));
+  memcpy(addr, src, size);
+}
 
-  /*! \brief get logical address from virtual memory */
-  void * GetLogicalAddr(uint64_t src) {
-    if (src == 0) { return 0; }
-    auto it = page_table_.begin();
-    for (; it != page_table_.end(); it++) {
-      if (((*it).first <= src) && ((*it).second > src)) { break; }
-    }
-    CHECK(it != page_table_.end());
-    return reinterpret_cast<void*>(tlb_[(*it).first]);
-  }
+void VirtualMemoryManager::MemCopyToHost(void* dst, const void * src, size_t size) {
+  void * addr = this->GetAddr(reinterpret_cast<uint64_t>(src));
+  memcpy(dst, addr, size);
+}
 
-  /*! \brief get global handler of the instance */
-  static VirtualMemoryManager* Global() {
-    static VirtualMemoryManager inst;
-    return &inst;
-  }
-
- private:
-  // page size, also the maximum allocable size 16 K
-  static const uint64_t kPageSize = VTA_PAGE_BYTES;
-  /*! \brief page table */
-  std::list<std::pair<uint64_t, uint64_t> > page_table_;
-  /*! \brief translation lookaside buffer */
-  std::unordered_map<uint64_t, size_t> tlb_;
-};
+VirtualMemoryManager* VirtualMemoryManager::Global() {
+  static VirtualMemoryManager inst;
+  return &inst;
+}
 
 }  // namespace vmem
 }  // namespace vta
 
 
 void * vmalloc(uint64_t size) {
-  return vta::vmem::VirtualMemoryManager::Global()->Allocate(size);
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->Alloc(size);
+  return reinterpret_cast<void*>(vta::vmem::VirtualMemoryManager::Global()->GetPhyAddr(addr));
 }
 
 void vfree(void * ptr) {
-  vta::vmem::VirtualMemoryManager::Global()->Release(ptr);
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(reinterpret_cast<uint64_t>(ptr));
+  vta::vmem::VirtualMemoryManager::Global()->Free(addr);
 }
 
 void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
@@ -172,10 +141,6 @@ void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
   }
 }
 
-void * vmem_get_log_addr(uint64_t vaddr) {
-  return vta::vmem::VirtualMemoryManager::Global()->GetLogicalAddr(vaddr);
-}
-
-std::vector<uint64_t> vmem_get_pagefile() {
-  return vta::vmem::VirtualMemoryManager::Global()->GetPageFile();
+void * vmem_get_addr(uint64_t vaddr) {
+  return vta::vmem::VirtualMemoryManager::Global()->GetAddr(vaddr);
 }

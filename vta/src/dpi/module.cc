@@ -183,30 +183,12 @@ void HostDevice::WaitPopResponse(HostResponse* r) {
 void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  // get logical address
-  uint64_t laddr = 0;
-  {
-    auto vmem_pagefile = vmem_get_pagefile();
-    size_t size = vmem_pagefile.size();
-    uint32_t cnt = size / 3;
-    CHECK_EQ(size, cnt * 3);
-    uint64_t * tlb = vmem_pagefile.data();
-    for (uint32_t i = 0; i < cnt; i++) {
-      if ((addr >= tlb[i * 3]) && (addr < tlb[i * 3 + 1])) {
-        uint32_t offset = addr - tlb[i * 3];
-        laddr = tlb[i * 3 + 2] + offset;
-        break;
-      }
-    }
-    CHECK_NE(laddr, 0);
-  }
-
   if (opcode == 1) {
     wlen_ = len + 1;
-    waddr_ = reinterpret_cast<uint64_t*>(laddr);
+    waddr_ = reinterpret_cast<uint64_t*>(vmem_get_addr(addr));
   } else {
     rlen_ = len + 1;
-    raddr_ = reinterpret_cast<uint64_t*>(laddr);
+    raddr_ = reinterpret_cast<uint64_t*>(vmem_get_addr(addr));
   }
 }
 
