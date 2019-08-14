@@ -23,8 +23,6 @@ from tvm.relay.transform import gradient
 from tvm.relay.testing import ctx_list, check_grad
 from tvm.relay.testing import run_infer_type
 
-import torch
-import torch.nn.functional as F
 
 def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
     x = relay.var("x", relay.TensorType(x_shape, "float32"))
@@ -86,23 +84,36 @@ def test_avg_pool2d_grad():
 
 
 def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1):
+    try:
+        import torch
+        import torch.nn.functional as F
+    except ImportError:
+        print('Skip because pytorch is not installed')
+        return
+
     dtype = 'float32'
     data = relay.var('data', shape=dshape, dtype=dtype)
     weight = relay.var('weight', shape=wshape, dtype=dtype)
-    conv = relay.nn.conv2d(data, weight, strides=strides, padding=padding, dilation=dilation, groups=groups)
+    conv = relay.nn.conv2d(data, weight, strides=strides, padding=padding, dilation=dilation,
+                           groups=groups)
     fwd_func = relay.Function([data, weight], conv)
     fwd_func = run_infer_type(fwd_func)
     bwd_func = run_infer_type(gradient(fwd_func))
 
     data_pt = torch.randn(*dshape, dtype=torch.float32, requires_grad=True)
     weight_pt = torch.randn(*wshape, dtype=torch.float32, requires_grad=True)
-    out_pt = F.conv2d(data_pt, weight_pt, stride=strides, padding=padding, dilation=dilation, groups=groups)
+    out_pt = F.conv2d(data_pt, weight_pt, stride=strides, padding=padding, dilation=dilation,
+                      groups=groups)
     grad_output_pt = torch.ones(out_pt.shape)
-    grad_input_pt = F.grad.conv2d_input(dshape, weight_pt, grad_output_pt, stride=strides, padding=padding, dilation=dilation, groups=groups).detach().numpy()
-    grad_weight_pt = F.grad.conv2d_weight(data_pt, wshape, grad_output_pt, stride=strides, padding=padding, dilation=dilation, groups=groups).detach().numpy()
+    grad_input_pt = F.grad.conv2d_input(dshape, weight_pt, grad_output_pt, stride=strides,
+                                        padding=padding, dilation=dilation, groups=groups) \
+                          .detach().numpy()
+    grad_weight_pt = F.grad.conv2d_weight(data_pt, wshape, grad_output_pt, stride=strides,
+                                          padding=padding, dilation=dilation, groups=groups) \
+                           .detach().numpy()
 
 
-    for target, ctx in [('llvm', tvm.context('llvm', 0))]:
+    for target, ctx in ctx_list():
         data = tvm.nd.array(data_pt.detach().numpy(), ctx)
         weight = tvm.nd.array(weight_pt.detach().numpy(), ctx)
         intrp = relay.create_executor(ctx=ctx, target=target)

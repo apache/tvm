@@ -271,7 +271,9 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
                 LetList* ll) {
   CHECK(IsAtomic(e)) << e;
   if (t.as<TensorTypeNode>()) {
-    return f(e);
+    auto ret = f(e);
+    ret->checked_type_ = t;
+    return ret;
   } else if (auto* tt = t.as<TupleTypeNode>()) {
     tvm::Array<Expr> fields;
     for (size_t i = 0; i < tt->fields.size(); ++i) {
@@ -280,7 +282,9 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
                                   ll->Push(GetField(e, i)),
                                   ll));
     }
-    return TupleNode::make(fields);
+    auto ret = TupleNode::make(fields);
+    ret->checked_type_ = t;
+    return std::move(ret);
   } else {
     LOG(FATAL) << "unsupported input/output type: " << tt;
     throw;
@@ -349,9 +353,7 @@ struct ReverseAD : ExprMutator {
         }
         std::vector<Expr> orig_args;
         for (size_t i = 0; i < args.size(); i++) {
-            auto orig_arg = GetField(args[i], 0);
-            orig_arg->checked_type_ = op->args[i]->checked_type();
-            orig_args.push_back(orig_arg);
+          orig_args.push_back(GetValue(op->args[i]->checked_type(), args[i], ll));
         }
         Expr orig = CallNode::make(op->op, orig_args, op->attrs, op->type_args);
         orig->checked_type_ = op->checked_type();
