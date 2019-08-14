@@ -180,9 +180,11 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)
   val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)), tread)
 
   // write-to-dram
+  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
+  val elemBytes = (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).outBits) / 8
   when (state === sIdle) {
-    waddr_cur := io.baddr + dec.dram_offset
-    waddr_nxt := io.baddr + dec.dram_offset
+    waddr_cur := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    waddr_nxt := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
   } .elsewhen (state === sWriteAck && io.vme_wr.ack && xrem =/= 0.U) {
     waddr_cur := waddr_cur + xmax_bytes
   } .elsewhen (stride) {
