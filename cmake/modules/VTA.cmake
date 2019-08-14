@@ -41,7 +41,8 @@ elseif(PYTHON)
   if(USE_VTA_FSIM)
     # Add fsim driver sources
     file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
-    list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc vta/src/vmem/*.cc vta/src/vmem/*.h)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/vmem/*.cc vta/src/vmem/*.h)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
     target_include_directories(vta_fsim PUBLIC vta/include)
@@ -61,6 +62,7 @@ elseif(PYTHON)
     file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/dpi/module.cc)
+    list(APPEND TSIM_RUNTIME_SRCS vta/src/vmem/*.cc vta/src/vmem/*.h)
     # Target lib: vta_tsim
     add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
     target_include_directories(vta_tsim PUBLIC vta/include)

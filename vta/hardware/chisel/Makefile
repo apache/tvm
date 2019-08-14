@@ -123,7 +123,6 @@ unittest:
 clean:
 	rm -rf target project/target project/project test_run_dir
 
-
 cleanall:
 	rm -rf $(vta_dir)/$(BUILD_NAME)/verilator
 	rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.so
