@@ -63,23 +63,24 @@ Expr MakeDequantize(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Expr DequantizeLower(const Expr& input_tensor, const DequantizeAttrs* param) {
-  const auto input_zero_point = MakeConstantScalar(Int(32), param->input_zero_point);
-  const auto input_scale = MakeConstantScalar(Float(32), param->input_scale);
+Expr DequantizeLower(const Expr& input_tensor,
+                     const DequantizeAttrs* attrs) {
+  const auto input_zero_point = MakeConstantScalar(Int(32), attrs->input_zero_point);
+  const auto input_scale = MakeConstantScalar(Float(32), attrs->input_scale);
   auto shift = Subtract(Cast(input_tensor, Int(32)), input_zero_point);
   auto scaled_output = Multiply(Cast(shift, Float(32)), input_scale);
   return scaled_output;
 }
 
-Expr DequantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
-                          const Array<tvm::relay::Type>& arg_types) {
+Expr DequantizeLegalize(const Attrs& attrs,
+                        const Array<Expr>& new_args,
+                        const Array<tvm::relay::Type>& arg_types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
-  const auto* param = attrs.as<DequantizeAttrs>();
-  CHECK(param != nullptr);
-
+  const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
+  CHECK(dequantize_attrs != nullptr);
   CHECK_EQ(arg_types.size(), 1);
-  return DequantizeLower(data, param);
+  return DequantizeLower(data, dequantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.dequantize")

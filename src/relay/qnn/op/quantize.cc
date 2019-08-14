@@ -45,9 +45,9 @@ bool QuantizeRel(const Array<Type>& types,
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == Float(32))
     << "Input type should be one of float32 but was " <<  input_dtype;
-  const auto* param = attrs.as<QuantizeAttrs>();
+  const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   const Array<tvm::Expr> oshape = data->shape;
-  const DataType out_dtype = param->out_dtype;
+  const DataType out_dtype = quantize_attrs->out_dtype;
   CHECK(out_dtype == Int(8) || out_dtype == UInt(8))
     << "Output type should be one of [int8, unit8 ] but was " << out_dtype;
   // assign output type
@@ -69,10 +69,11 @@ Expr MakeQuantize(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Expr QuantizeLower(const Expr& input_tensor, const QuantizeAttrs* param) {
-  const auto out_dtype = param->out_dtype;
-  const auto output_zero_point = MakeConstantScalar(Int(32), param->output_zero_point);
-  const auto scale = MakeConstantScalar(Float(32), param->output_scale);
+Expr QuantizeLower(const Expr& input_tensor,
+                   const QuantizeAttrs* attrs) {
+  const auto out_dtype = attrs->out_dtype;
+  const auto output_zero_point = MakeConstantScalar(Int(32), attrs->output_zero_point);
+  const auto scale = MakeConstantScalar(Float(32), attrs->output_scale);
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
   auto scale_data = Cast(Round(Divide(input_tensor, scale)), Int(32));
@@ -82,15 +83,16 @@ Expr QuantizeLower(const Expr& input_tensor, const QuantizeAttrs* param) {
   return clamp_out_dtype;
 }
 
-Expr QuantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
-                        const Array<tvm::relay::Type>& arg_types) {
+Expr QuantizeLegalize(const Attrs& attrs,
+                      const Array<Expr>& new_args,
+                      const Array<tvm::relay::Type>& arg_types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
-  const auto* param = attrs.as<QuantizeAttrs>();
-  CHECK(param != nullptr);
+  const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
+  CHECK(quantize_attrs != nullptr);
 
   CHECK_EQ(arg_types.size(), 1);
-  return QuantizeLower(data, param);
+  return QuantizeLower(data, quantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.quantize")

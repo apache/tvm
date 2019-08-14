@@ -74,7 +74,7 @@ def requantize(data,
                             out_dtype)
 
 
-def quantize(input_data,
+def quantize(data,
              output_scale,
              output_zero_point,
              out_dtype='int8'):
@@ -82,11 +82,11 @@ def quantize(input_data,
     This operator takes float32 as input and produces quantized int8 or unit8 as output.
     The input tensor can be of any shape. The output shape is the same as input shape.
 
-    Q_output = clamp(round(input_tensor/output_scale) + output_zero_point), out_dtype::min, out_dtype::max)
+    Q_output = clamp((round(input_tensor/output_scale) + output_zero_point), out_dtype::min, out_dtype::max)
 
     Parameters
     ----------
-    input_data : tvm.relay.Expr
+    data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
     output_zero_point : int
         The output zero_point.
@@ -100,13 +100,13 @@ def quantize(input_data,
         The computed result.
     """
 
-    return _make.quantize(input_data,
+    return _make.quantize(data,
                           output_scale,
                           output_zero_point,
                           out_dtype)
 
 
-def dequantize(input_data,
+def dequantize(data,
                input_scale,
                input_zero_point):
     r""" Dequantize op
@@ -116,7 +116,7 @@ def dequantize(input_data,
 
     Parameters
     ----------
-    input_data : tvm.relay.Expr
+    data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8].
     input_zero_point : int
         The output zero_point.
@@ -128,6 +128,6 @@ def dequantize(input_data,
         The computed result.
     """
 
-    return _make.dequantize(input_data,
+    return _make.dequantize(data,
                             input_scale,
                             input_zero_point)
