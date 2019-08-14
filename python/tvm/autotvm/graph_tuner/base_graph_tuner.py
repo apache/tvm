@@ -444,6 +444,7 @@ class BaseGraphTuner(object):
                                                timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
+            data, in_layout, out_layout = args
             args = serialize_args(args)
             ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
             if ltf_workload in  self._layout_transform_perf_records:
@@ -454,7 +455,18 @@ class BaseGraphTuner(object):
                 flops = 1
                 for i in input_shape:
                     flops *= i
-                inferred_time = flops * avg_time
+
+                # Rule out invalid layout transformations
+                out = topi.layout_transform(data, in_layout, out_layout)
+                out_flops = 1
+                for i in topi.util.get_const_tuple(out.shape):
+                    out_flops *= i
+
+                if flops != out_flops:
+                    inferred_time = INVALID_LAYOUT_TIME
+                else:
+                    inferred_time = flops * avg_time
+
                 record_input = MeasureInput(target=self._target, task=None, config=None)
                 record_output = MeasureResult(costs=(inferred_time,), error_no=0,
                                               all_cost=-1, timestamp=-1)

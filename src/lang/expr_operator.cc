@@ -105,11 +105,14 @@ bool is_const_power_of_two_integer(const Expr& x, int* shift) {
 
 Expr cast(const Type& t, Expr value) {
   using ir::IntImm;
+  using ir::UIntImm;
   using ir::FloatImm;
   if (value.type() == t) return value;
   // const fold IntImm as they are used in index computations
   if (t.lanes() == 1) {
     if (const IntImm* op = value.as<IntImm>()) {
+      return make_const(t, op->value);
+    } else if (const UIntImm* op = value.as<UIntImm>()) {
       return make_const(t, op->value);
     } else if (const FloatImm* op = value.as<FloatImm>()) {
       return make_const(t, op->value);
@@ -122,6 +125,8 @@ Expr cast(const Type& t, Expr value) {
       if (value.type() != vtype) {
         if (const IntImm* op = value.as<IntImm>()) {
           value = make_const(vtype, op->value);
+        } else if (const UIntImm* op = value.as<UIntImm>()) {
+          return make_const(t, op->value);
         } else if (const FloatImm* op = value.as<FloatImm>()) {
           value = make_const(vtype, op->value);
         } else {

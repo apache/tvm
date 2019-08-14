@@ -54,7 +54,7 @@ Our goal is to build the shared libraries:
 .. code:: bash
 
     sudo apt-get update
-    sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
+    sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
 
 The minimal building requirements are
 
@@ -181,25 +181,25 @@ Python dependencies
 
    .. code:: bash
 
-       pip install --user numpy decorator attrs
+       pip3 install --user numpy decorator attrs
 
    * If you want to use RPC Tracker
 
    .. code:: bash
 
-       pip install --user tornado
+       pip3 install --user tornado
 
    * If you want to use auto-tuning module
 
    .. code:: bash
 
-       pip install --user tornado psutil xgboost
+       pip3 install --user tornado psutil xgboost
 
    * If you want to parse Relay text format progams, you must use Python 3 and run the following
 
    .. code:: bash
 
-       pip install --user mypy orderedset antlr4-python3-runtime
+       pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
 Install Contrib Libraries

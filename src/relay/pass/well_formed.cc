@@ -35,28 +35,68 @@ namespace relay {
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
-  std::unordered_set<Var, NodeHash, NodeEqual> s;
+  std::vector<std::unordered_set<Var, NodeHash, NodeEqual>> scope;
+  std::unordered_set<Var, NodeHash, NodeEqual> current_bound;
+  std::unordered_set<Var, NodeHash, NodeEqual> total_bound;
+  std::unordered_set<Var, NodeHash, NodeEqual> free;
 
-  void Check(const Var& v) {
-    if (s.count(v) != 0) {
+  struct Scope {
+    WellFormedChecker* wfc;
+    explicit Scope(WellFormedChecker* wfc) : wfc(wfc) {
+      wfc->scope.push_back({});
+    }
+    ~Scope() {
+      CHECK_GE(wfc->scope.size(), 0);
+      for (const Var& v : wfc->scope.back()) {
+        CHECK_GE(wfc->current_bound.count(v), 0);
+        wfc->current_bound.erase(v);
+      }
+      wfc->scope.pop_back();
+    }
+  };
+
+  void Bound(const Var& v) {
+    if (current_bound.count(v) != 0 || total_bound.count(v) != 0 || free.count(v) != 0) {
       well_formed = false;
     }
-    s.insert(v);
+    CHECK_GE(scope.size(), 0);
+    scope.back().insert(v);
+    current_bound.insert(v);
+    total_bound.insert(v);
+  }
+
+  void VisitExpr_(const VarNode* op) final {
+    Var v = GetRef<Var>(op);
+    if (current_bound.count(v) == 0) {
+      if (total_bound.count(v) != 0) {
+        well_formed = false;
+      } else {
+        free.insert(v);
+      }
+    }
   }
 
   void VisitExpr_(const LetNode* l) final {
+    Scope s(this);
     // we do letrec only for FunctionNode,
     // but shadowing let in let binding is likely programming error, and we should forbidden it.
-    Check(l->var);
+    Bound(l->var);
     CheckWellFormed(l->value);
     CheckWellFormed(l->body);
   }
 
   void VisitExpr_(const FunctionNode* f) final {
+    Scope s(this);
     for (const Var& param : f->params) {
-      Check(param);
+      Bound(param);
     }
     CheckWellFormed(f->body);
+  }
+
+  void VisitClause(const Clause& c) final {
+    Scope s(this);
+    VisitPattern(c->lhs);
+    VisitExpr(c->rhs);
   }
 
   void VisitPattern(const Pattern& p) final {
@@ -64,7 +104,15 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   }
 
   void VisitVar(const Var& v) final {
-    Check(v);
+    Bound(v);
+  }
+
+  void VisitExpr(const Expr& e) final {
+    if (auto v = e.as<VarNode>()) {
+      VisitExpr_(v);
+    } else {
+      ExprVisitor::VisitExpr(e);
+    }
   }
 
  public:

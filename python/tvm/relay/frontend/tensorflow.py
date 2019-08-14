@@ -448,11 +448,31 @@ def _matmul():
 
 def _batch_matmul():
     def _impl(inputs, attr, params):
+        input_x = inputs[0]
+        input_y = inputs[1]
+        orig_shape_x = attr['_input_shapes'][input_x]
+        orig_shape_y = attr['_input_shapes'][input_y]
+
+        # reshape n-dimensional batch matmul into 3d
+        if len(orig_shape_x) > 3:
+            outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
+            num_outer_elts = np.prod(outer_dims)
+            new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
+            new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            input_x = _op.reshape(input_x, newshape=new_shape_x)
+            input_y = _op.reshape(input_y, newshape=new_shape_y)
+
         adj_x = attr['adj_x']
         adj_y = attr['adj_y']
-        input_x = _op.transpose(inputs[0], axes=[0, 2, 1]) if adj_x else inputs[0]
-        input_y = _op.transpose(inputs[1], axes=[0, 2, 1]) if not adj_y else inputs[1]
+        input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
+        input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
         ret = get_relay_op('batch_matmul')(input_x, input_y)
+
+        # reshape result back to n-dimensional
+        if len(orig_shape_x) > 3:
+            final_shape = attr['_output_shapes'][0]
+            ret = _op.reshape(ret, newshape=final_shape)
+
         return ret
     return _impl
 
@@ -559,6 +579,44 @@ def _depth_to_space():
             transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
             new_h = in_h * block_size
             new_w = in_w * block_size
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
+
+    return _impl
+
+
+def _space_to_depth():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_c = in_c * block_size * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else:  # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+            new_c = int(in_c * block_size * block_size)
             newshape = (in_n, new_c, new_h, new_w)
 
         return AttrCvt(
@@ -848,6 +906,19 @@ def _pad(name):
             attr['pad_value'] = constant_values
         return AttrCvt(
             op_name='pad',
+            ignores=['Tpaddings'],)(new_inputs, attr)
+    return _impl
+
+def _mirror_pad():
+    def _impl(inputs, attr, params):
+        padlist = _get_param(params, inputs[1])
+        paddings = tuple(tuple(l) for l in padlist)
+        attr['pad_width'] = paddings
+        mode = attr['mode'].decode('utf-8')
+        attr['mode'] = mode
+        new_inputs = [inputs[0]]
+        return AttrCvt(
+            op_name='mirror_pad',
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
@@ -1208,6 +1279,7 @@ _convert_map = {
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
     'Minimum'                           : _elemwise('minimum'),
+    'MirrorPad'                         : _mirror_pad(),
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
@@ -1240,6 +1312,7 @@ _convert_map = {
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
+    'SpaceToDepth'                      : _space_to_depth(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Sqrt'                              : AttrCvt('sqrt'),

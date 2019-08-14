@@ -43,7 +43,7 @@ def make_binary():
     with open(tmp_source, "w") as f:
         f.write(prog)
     cc.create_shared(tmp_obj, tmp_source, [],
-                     compile_cmd="{}gcc".format(TOOLCHAIN_PREFIX))
+                     cc="{}gcc".format(TOOLCHAIN_PREFIX))
     prog_bin = bytearray(open(tmp_obj, "rb").read())
     return prog_bin
 

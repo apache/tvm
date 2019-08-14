@@ -37,44 +37,61 @@ elseif(PYTHON)
 
   string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_=.]*" VTA_DEFINITIONS "${__vta_defs}")
 
-  file(GLOB VTA_RUNTIME_SRCS vta/src/*.cc)
-  # Add sim driver sources
-  if(${VTA_TARGET} STREQUAL "sim")
-    file(GLOB __vta_target_srcs vta/src/sim/*.cc)
-  endif()
-  # Add tsim driver sources
-  if(${VTA_TARGET} STREQUAL "tsim")
-    file(GLOB __vta_target_srcs vta/src/tsim/*.cc)
-    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
-  endif()
-  # Add pynq driver sources
-  if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
-    file(GLOB __vta_target_srcs vta/src/pynq/*.cc)
-  endif()
-  list(APPEND VTA_RUNTIME_SRCS ${__vta_target_srcs})
-
-  add_library(vta SHARED ${VTA_RUNTIME_SRCS})
-
-  target_include_directories(vta PUBLIC vta/include)
-
-  foreach(__def ${VTA_DEFINITIONS})
-    string(SUBSTRING ${__def} 3 -1 __strip_def)
-    target_compile_definitions(vta PUBLIC ${__strip_def})
-  endforeach()
-
-  # Enable tsim macro
-  if(${VTA_TARGET} STREQUAL "tsim")
+  # Fast simulator driver build
+  if(USE_VTA_FSIM)
+    # Add fsim driver sources
+    file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
+    # Target lib: vta_fsim
+    add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
+    target_include_directories(vta_fsim PUBLIC vta/include)
+    foreach(__def ${VTA_DEFINITIONS})
+      string(SUBSTRING ${__def} 3 -1 __strip_def)
+      target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
+    endforeach()
     include_directories("vta/include")
-    target_compile_definitions(vta PUBLIC USE_TSIM)
+    if(APPLE)
+      set_target_properties(vta_fsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    endif(APPLE)
   endif()
 
-  if(APPLE)
-    set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-  endif(APPLE)
+  # Cycle accurate simulator driver build
+  if(USE_VTA_TSIM)
+    # Add tsim driver sources
+    file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
+    list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
+    list(APPEND TSIM_RUNTIME_SRCS vta/src/dpi/module.cc)
+    # Target lib: vta_tsim
+    add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
+    target_include_directories(vta_tsim PUBLIC vta/include)
+    foreach(__def ${VTA_DEFINITIONS})
+      string(SUBSTRING ${__def} 3 -1 __strip_def)
+      target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
+    endforeach()
+    include_directories("vta/include")
+    # Set USE_TSIM macro
+    target_compile_definitions(vta_tsim PUBLIC USE_TSIM)
+    if(APPLE)
+      set_target_properties(vta_tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    endif(APPLE)
+  endif()
 
-  # PYNQ rules for Pynq v2.4
-  if(${VTA_TARGET} STREQUAL "pynq" OR ${VTA_TARGET} STREQUAL "ultra96")
+  # VTA FPGA driver sources
+  if(USE_VTA_FPGA)
+    file(GLOB FPGA_RUNTIME_SRCS vta/src/*.cc)
+    # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
+    if(${VTA_TARGET} STREQUAL "pynq" OR
+       ${VTA_TARGET} STREQUAL "ultra96")
+      file(GLOB FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
+    endif()
+    # Target lib: vta
+    add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
+    target_include_directories(vta PUBLIC vta/include)
+    foreach(__def ${VTA_DEFINITIONS})
+      string(SUBSTRING ${__def} 3 -1 __strip_def)
+      target_compile_definitions(vta PUBLIC ${__strip_def})
+    endforeach()
+    # Rules for Pynq v2.4
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
   endif()
