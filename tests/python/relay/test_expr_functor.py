@@ -121,6 +121,10 @@ def test_memo():
     check_visit(expr)
 
 
+def test_match():
+    p = relay.prelude.Prelude()
+    check_visit(p.mod[p.map])
+
 if __name__ == "__main__":
     test_constant()
     test_tuple()
@@ -134,3 +138,4 @@ if __name__ == "__main__":
     test_ref_read()
     test_ref_write()
     test_memo()
+    test_match()
