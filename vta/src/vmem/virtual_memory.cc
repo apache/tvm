@@ -18,9 +18,9 @@
  */
 
 #include "virtual_memory.h"
-#include "vta/driver.h"
 
 #include <dmlc/logging.h>
+#include <vta/driver.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>

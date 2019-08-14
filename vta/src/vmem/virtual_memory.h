@@ -135,4 +135,4 @@ void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
  */
 void * vmem_get_addr(uint64_t vaddr);
 
-#endif /* VTA_VMEM_VIRTUAL_MEMORY_H_ */
+#endif  // VTA_VMEM_VIRTUAL_MEMORY_H_

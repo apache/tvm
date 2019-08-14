@@ -49,11 +49,6 @@ extern "C" {
 #define VTA_PAGE_BITS 12
 #define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
 
-/*! \brief Starting point of the virtual address system */
-#ifndef VTA_VADDR_BEGIN
-#define VTA_VADDR_BEGIN (0x40000000)
-#endif
-
 /*! \brief Device resource context  */
 typedef void * VTADeviceHandle;
 
