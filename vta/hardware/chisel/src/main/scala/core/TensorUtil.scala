@@ -214,7 +214,7 @@ class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Modul
 }
 
 /** TensorDataCtrl. Data controller for TensorLoad. */
-class TensorDataCtrl(sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Parameters) extends Module {
+class TensorDataCtrl(tensorType: String = "none", sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -281,9 +281,19 @@ class TensorDataCtrl(sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Par
     ycnt := ycnt + 1.U
   }
 
+  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
+  val elemBytes =
+    if (tensorType == "inp") {
+      (p(CoreKey).batch * p(CoreKey).blockIn * p(CoreKey).inpBits) / 8
+    } else if (tensorType == "wgt") {
+      (p(CoreKey).blockOut * p(CoreKey).blockIn * p(CoreKey).wgtBits) / 8
+    } else {
+      (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).accBits) / 8
+    }
+
   when (io.start) {
-    caddr := io.baddr + dec.dram_offset
-    baddr := io.baddr + dec.dram_offset
+    caddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    baddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
   } .elsewhen (io.yupdate) {
     when (split) {
       caddr := caddr + xmax_bytes
