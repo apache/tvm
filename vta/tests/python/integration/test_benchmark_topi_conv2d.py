@@ -17,7 +17,6 @@
 
 """Testing topi conv2d operator for VTA"""
 
-import os
 import json
 from collections import namedtuple
 
@@ -88,7 +87,7 @@ def run_conv2d(env, remote, wl, target,
     b_shape = (wl.batch, wl.out_filter, 1, 1)
     if data_pack:
         data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
-                  wl.height, wl.width, env.BATCH, env.BLOCK_IN)
+                      wl.height, wl.width, env.BATCH, env.BLOCK_IN)
         kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
                         wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
         bias_shape = (wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
