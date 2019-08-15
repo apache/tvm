@@ -36,7 +36,6 @@ namespace tvm {
 namespace relay {
 namespace quantize {
 
-
 TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
 
 bool SimulatedQuantizeRel(const Array<Type>& types,
