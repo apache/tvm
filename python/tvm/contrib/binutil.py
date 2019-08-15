@@ -79,8 +79,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     # reported to be smaller than they are.  Figure out why.
     if "riscv" in toolchain_prefix:
         return section_size + 32
-    else:
-        return section_size
+    return section_size
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(

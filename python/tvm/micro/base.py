@@ -74,7 +74,7 @@ class Session:
             runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
         self.module = _CreateSession(
-                device_type, runtime_obj_path, toolchain_prefix, base_addr, server_addr, port)
+            device_type, runtime_obj_path, toolchain_prefix, base_addr, server_addr, port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
 
