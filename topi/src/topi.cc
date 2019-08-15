@@ -417,6 +417,11 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
   });
 
+TVM_REGISTER_GLOBAL("topi.one_hot")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = one_hot(args[0], args[1]);
+  });
+
 /* Ops from nn/upsampling.h */
 TVM_REGISTER_GLOBAL("topi.nn.upsampling")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

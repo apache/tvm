@@ -1247,5 +1247,29 @@ inline Tensor ndarray_size(const Tensor& src,
   }, name, tag);
 }
 
+/*!
+ * \brief Returns a one-hot tensor where the locations repsented by indices take value 1, 
+    other locations take value 0.
+ * \param indices locations to set to 1.
+ * \param depth depth of the one-hot dimension.
+ * \return one-hot tensor.
+ */
+inline Tensor one_hot(const Tensor& indices,
+                      int depth,
+                      const std::string name = "T_one_hot",
+                      const std::string tag = kInjective) {
+  Array<Expr> out_shape = indices->shape;
+  out_shape.push_back(depth);
+  return compute(out_shape, [&](const Array<Var>& iter_vars) {
+    Array<Var> outer_indices;
+    for (auto i = 0; i < iter_vars.size(); i++) {
+      outer_indices.push_back(iter_vars[i]);
+    }
+    
+    auto idx = iter_vars[iter_vars.size() - 1];
+    return tvm::if_then_else(indices(outer_indices) == idx, 1, 0);
+  }, name, tag);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

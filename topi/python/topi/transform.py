@@ -518,3 +518,23 @@ def where(condition, x, y):
         A Tensor selected from x or y depending on condition.
     """
     return cpp.where(condition, x, y)
+
+def one_hot(indices, depth):
+    """
+    Returns a one-hot tensor where the locations repsented by indices take value 1, 
+    other locations take value 0.
+
+    Parameters
+    ----------
+    indices : relay.Expr
+        Locations to set to 1.
+
+    depth : int
+        Depth of the one-hot dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The one-hot tensor.
+    """
+    return cpp.one_hot(indices, depth)

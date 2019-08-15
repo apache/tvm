@@ -1212,7 +1212,7 @@ def _log1p():
         return get_relay_op('log')(add_out)
     return _impl
 
-def one_hot():
+def _one_hot():
     def _impl(inputs, attr, params):
         one_hot = AttrCvt('one_hot', 
                           ignores=['on_value', 'off_value', 'axis', 'dtype'])
