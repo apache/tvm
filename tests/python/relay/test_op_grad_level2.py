@@ -83,7 +83,7 @@ def test_avg_pool2d_grad():
                            ceil_mode=False, count_include_pad=False)
 
 
-def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1):
+def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mode='higher_order'):
     try:
         import torch
         import torch.nn.functional as F
@@ -98,7 +98,7 @@ def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1):
                            groups=groups)
     fwd_func = relay.Function([data, weight], conv)
     fwd_func = run_infer_type(fwd_func)
-    bwd_func = run_infer_type(gradient(fwd_func))
+    bwd_func = run_infer_type(gradient(fwd_func, mode=mode))
 
     data_pt = torch.randn(*dshape, dtype=torch.float32, requires_grad=True)
     weight_pt = torch.randn(*wshape, dtype=torch.float32, requires_grad=True)
@@ -126,6 +126,7 @@ def test_conv2d_grad():
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 3, 3), [1, 1], [1, 1], [1, 1])
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 1, 1), [1, 1], [0, 0], [1, 1])
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 1, 1), [2, 2], [0, 0], [1, 1])
+    verify_conv2d_grad((1, 4, 16, 16), (16, 4, 3, 3), [1, 1], [1, 1], [1, 1], mode='first_order')
 
 
 if __name__ == "__main__":
