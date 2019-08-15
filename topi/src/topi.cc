@@ -768,4 +768,5 @@ TVM_REGISTER_GENERIC_FUNC(dense)
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
 .register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));
+
 }  // namespace topi
