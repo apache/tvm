@@ -18,6 +18,7 @@
 """Testing topi conv2d_transpose operator for VTA"""
 
 import json
+import os
 
 import numpy as np
 from collections import namedtuple
@@ -117,8 +118,8 @@ def run_conv2d_transpose(env, remote, wl, target,
             print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
 
     # Derive number of ops
-    fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
-    fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
+    fout_height = (wl.height - 1) * wl.hstride - 2 * wl.hpad + wl.hkernel
+    fout_width = (wl.width - 1) * wl.wstride - 2 * wl.wpad + wl.wkernel
     num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
 
     # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
@@ -142,9 +143,11 @@ def run_conv2d_transpose(env, remote, wl, target,
             wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
             wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
         kernel_np = kernel_np.reshape(
-            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
             wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-            wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
+            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
+            wl.hkernel, wl.wkernel).transpose((2, 0, 4, 5, 3, 1))
+        kernel_np = np.flip(kernel_np, 2)
+        kernel_np = np.flip(kernel_np, 3)
         bias_np = bias_np.reshape(
             wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
             1, 1, env.BATCH, env.BLOCK_OUT)
@@ -239,5 +242,5 @@ def test_conv2d_transpose(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    test_conv2d_transpose(device="arm_cpu")
+    # test_conv2d_transpose(device="arm_cpu")
     test_conv2d_transpose(device="vta")
