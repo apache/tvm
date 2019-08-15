@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,11 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=wildcard-import, redefined-builtin
-"""Automatic quantization utilities."""
-from __future__ import absolute_import as _abs
 
-from .quantize import *
-from ._partition import register_partition_function
-from ._annotate import register_annotate_function
-from .kl_divergence import kl_divergence_scale
+set -e
+set -u
+
+export PYTHONPATH=python:topi/python
+
+# Rebuild cython
+make cython3
+
+rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
+rm -rf topi/python/topi/*.pyc topi/python/topi/*/*.pyc topi/python/topi/*/*/*.pyc topi/python/topi/*/*/*/*.pyc 
+
+python3 -m nose -v topi/tests/python/nightly

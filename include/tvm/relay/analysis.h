@@ -52,6 +52,18 @@ namespace relay {
 TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
 /*!
+ * \brief Check whether an expression is constant.
+ *
+ * If the inputs of an expression are all constant, it means the expression
+ * itself is constant also.
+ *
+ * \param e the expression.
+ *
+ * \return whether the expression is constant.
+ */
+TVM_DLL bool ConstantCheck(const Expr& e);
+
+/*!
  * \brief Compare two expressions for structural equivalence.
  *
  * This comparison operator respects scoping and compares
