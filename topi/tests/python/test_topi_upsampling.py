@@ -23,7 +23,7 @@ import math
 
 from common import get_all_backend
 
-def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCHW', method="NEAREST_NEIGHBOR"):
+def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCHW', method="nearest_neighbor"):
 
 
     if layout == 'NCHW':
@@ -40,11 +40,11 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    B = topi.nn.upsampling(A, scale, layout=layout, method=method)
+    B = topi.nn.upsampling(A, scale, layout=layout, method=method, align_corners=False)
 
-    if method == "BILINEAR":
+    if method == "bilinear":
         out_size = (in_height*scale, in_width*scale)
-        b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout)
+        b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout, align_corners=False)
     else:
         b_np = topi.testing.upsampling_python(a_np, (scale, scale), layout)
 
@@ -67,21 +67,21 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         check_device(device)
 
 def test_upsampling():
-    # NEAREST_NEIGHBOR - NCHW
+    # nearest_neighbor - NCHW
     verify_upsampling(8, 16, 32, 32, 2)
     verify_upsampling(2, 32, 64, 64, 3)
 
-    # NEAREST_NEIGHBOR - NHWC
+    ## nearest_neighbor - NHWC
     verify_upsampling(8, 16, 32, 32, 2, layout="NHWC")
     verify_upsampling(2, 32, 64, 64, 3, layout="NHWC")
 
-    # BILINEAR - NCHW
-    verify_upsampling(2, 2, 32, 32, 2, method="BILINEAR")
-    verify_upsampling(2, 2, 32, 32, 3, method="BILINEAR")
+    # bilinear - NCHW
+    verify_upsampling(2, 2, 32, 32, 2, method="bilinear")
+    verify_upsampling(2, 2, 32, 32, 3, method="bilinear")
 
-    # BILINEAR - NHWC
-    verify_upsampling(2, 2, 32, 32, 2, layout="NHWC", method="BILINEAR")
-    verify_upsampling(2, 2, 32, 32, 3, layout="NHWC", method="BILINEAR")
+    # bilinear - NHWC
+    verify_upsampling(2, 2, 32, 32, 2, layout="NHWC", method="bilinear")
+    verify_upsampling(2, 2, 32, 32, 3, layout="NHWC", method="bilinear")
 
 if __name__ == "__main__":
     test_upsampling()

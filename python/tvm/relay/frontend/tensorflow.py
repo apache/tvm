@@ -358,7 +358,7 @@ def _crop_and_resize():
                 'Attribute method=nearest is not supported')
         else:
             attrs['align_corners'] = True
-            attrs['method'] = 'BILINEAR'
+            attrs['method'] = 'bilinear'
 
         out = None
         begin = [0] * data_dim
@@ -408,7 +408,7 @@ def _resize_bilinear():
 
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
-                       extras={'method': "BILINEAR"})(inputs, attr)
+                       extras={'method': "bilinear"})(inputs, attr)
     return _impl
 
 def _resize_nearest_neighbor():
@@ -423,7 +423,7 @@ def _resize_nearest_neighbor():
 
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
-                       extras={'method': "NEAREST_NEIGHBOR"})(inputs, attr)
+                       extras={'method': "nearest_neighbor"})(inputs, attr)
     return _impl
 
 def _check_numerics():

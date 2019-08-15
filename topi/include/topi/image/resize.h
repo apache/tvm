@@ -201,7 +201,6 @@ inline Tensor resize_nearest_neighbor(const Tensor& input,
                                       bool align_corners = false,
                                       std::string name = "tensor",
                                       std::string tag = kInjective) {
-  CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
   auto base_layout = layout.substr(0, 4);
   if (layout == "NHWC") {
     return resize_nearest_neighbor_nhwc(input, shape, align_corners);
