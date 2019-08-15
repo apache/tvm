@@ -111,8 +111,7 @@ def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), 
     logging.info('[final] validation: acc-top1=%f acc-top5=%f', top1, top5)
     return top1
 
-def test_quantize_acc(cfg):
-    rec_val = "/scratch/tqchen/imagenet/val.rec"
+def test_quantize_acc(cfg, rec_val):
     qconfig = qtz.qconfig(skip_conv_layers=[0],
                           nbit_input=cfg.nbit_input,
                           nbit_weight=cfg.nbit_input,
@@ -131,6 +130,9 @@ def test_quantize_acc(cfg):
 
 
 if __name__ == "__main__":
+    #TODO(for user): replace the line with the path to imagenet validation dataset
+    rec_val = "/scratch/tqchen/imagenet/val.rec"
+
     results = []
     configs = [
         Config('mobilenetv2_1.0', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.666),
@@ -145,7 +147,7 @@ if __name__ == "__main__":
     ]
 
     for config in configs:
-        acc = test_quantize_acc(config)
+        acc = test_quantize_acc(config, rec_val)
         results.append((config, acc))
     for res in results:
         print(res)
