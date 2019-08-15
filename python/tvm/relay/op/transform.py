@@ -774,8 +774,8 @@ def one_hot(indices, depth):
         indices = [1., 2., 3.]
 
         relay.one_hot(indices, 2) =
-            [[[1., 0., 0.]],
-             [[0., 1., 0.]],
-             [[0., 0., 1.]]]
+            [[1., 0., 0.],
+             [0., 1., 0.],
+             [0., 0., 1.]]
     """
     return _make.one_hot(indices, depth)
