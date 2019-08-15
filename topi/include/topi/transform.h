@@ -1252,6 +1252,8 @@ inline Tensor ndarray_size(const Tensor& src,
     other locations take value 0.
  * \param indices locations to set to 1.
  * \param depth depth of the one-hot dimension.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
  * \return one-hot tensor.
  */
 inline Tensor one_hot(const Tensor& indices,
@@ -1265,7 +1267,7 @@ inline Tensor one_hot(const Tensor& indices,
     for (size_t i = 0; i < iter_vars.size() - 1; i++) {
       outer_indices.push_back(iter_vars[i]);
     }
-    
+
     auto idx = iter_vars[iter_vars.size() - 1];
     return tvm::if_then_else(indices(outer_indices) == idx, 1, 0);
   }, name, tag);

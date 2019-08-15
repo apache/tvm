@@ -2495,7 +2495,7 @@ bool OneHotRel(const Array<Type>& types,
   CHECK(indices);
 
   const auto param = attrs.as<OneHotAttrs>();
-  CHECK(param->depth > 0);
+  CHECK_GT(param->depth, 0);
 
   Array<IndexExpr> output_shape(indices->shape);
   output_shape.push_back(param->depth);

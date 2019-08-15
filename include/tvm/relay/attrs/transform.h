@@ -303,8 +303,8 @@ struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   int depth;
 
   TVM_DECLARE_ATTRS(OneHotAttrs, "relay.attrs.OneHotAttrs") {
-	TVM_ATTR_FIELD(depth).set_default(1)
-			  .describe("Depth of the one hot dimension.");
+  TVM_ATTR_FIELD(depth).set_default(1)
+      .describe("Depth of the one hot dimension.");
   }
 };  // struct OneHotAttrs
 

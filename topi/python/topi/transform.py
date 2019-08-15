@@ -521,7 +521,7 @@ def where(condition, x, y):
 
 def one_hot(indices, depth):
     """
-    Returns a one-hot tensor where the locations repsented by indices take value 1, 
+    Returns a one-hot tensor where the locations repsented by indices take value 1,
     other locations take value 0.
 
     Parameters
