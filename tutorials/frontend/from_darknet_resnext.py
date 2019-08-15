@@ -57,11 +57,27 @@ MODEL_NAME = 'resnext50'
 # Download required files
 # -----------------------
 # Download cfg and weights file if first time.
+CFG_NAME = MODEL_NAME + '.cfg'
+WEIGHTS_NAME = MODEL_NAME + '.weights'
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
+CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
+WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
+
+cfg_path = download_testdata(CFG_URL, CFG_NAME, module="darknet")
+weights_path = download_testdata(WEIGHTS_URL, WEIGHTS_NAME, module="darknet")
 
 # Download and Load darknet library
-cfg_path = '/data/base_model/darknet/resnext50.cfg'
-weights_path = '/data/base_model/darknet/resnext50.weights'
-lib_path = '/data/tvm/libdarknet2.0.so'
+if sys.platform in ['linux', 'linux2']:
+    DARKNET_LIB = 'libdarknet2.0.so'
+    DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
+elif sys.platform == 'darwin':
+    DARKNET_LIB = 'libdarknet_mac2.0.so'
+    DARKNET_URL = REPO_URL + 'lib_osx/' + DARKNET_LIB + '?raw=true'
+else:
+    err = "Darknet lib is not supported on {} platform".format(sys.platform)
+    raise NotImplementedError(err)
+
+lib_path = download_testdata(DARKNET_URL, DARKNET_LIB, module="darknet")
 
 DARKNET_LIB = __darknetffi__.dlopen(lib_path)
 net = DARKNET_LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
@@ -93,7 +109,11 @@ with relay.build_config(opt_level=3):
 ######################################################################
 # Load a test image
 # -----------------
-img_path = '/data/tvm/eagle.jpg'
+test_image = 'eagle.jpg'
+print("Loading the test image...")
+img_url = REPO_URL + 'data/' + test_image + '?raw=true'
+img_path = download_testdata(img_url, test_image, "data")
+#img_path = '/data/tvm/eagle.jpg'
 
 data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 ######################################################################
@@ -115,7 +135,4 @@ output = m.get_output(0).asnumpy()
 index = np.argmax(output)
 conf = output[0, index]
 
-short_name_list = '/data/tvm/imagenet.shortnames.list'
-with open(short_name_list) as fp:
-    labels = fp.readlines()
-print(index, conf, labels[index])
+print(index, conf)
