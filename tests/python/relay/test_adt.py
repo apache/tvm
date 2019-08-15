@@ -18,8 +18,10 @@ import tvm
 from tvm import relay
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
-from tvm.relay.prelude import Prelude
+from tvm.relay.prelude import Prelude, TensorArrayOps
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
+
+import numpy as np
 
 mod = relay.Module()
 p = Prelude(mod)
@@ -683,6 +685,170 @@ def test_iterate():
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
 
+def test_tensor_array_add_one():
+    def run(dtype):
+        x = relay.var('x')
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        add_one_func = tensor_array_ops.get_var('tensor_add_one')
+        tensor1 = tensor_array_ops.get_var('tensor1')
+        mod["main"] = relay.Function([x], add_one_func(tensor1(x)))
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            x_np = np.random.uniform(size=(1,)).astype(dtype)
+            result = ex.evaluate()(x_np)
+            got = vmobj_to_list(result)
+            expected = [np.expand_dims(x_np, axis=0)]
+            tvm.testing.assert_allclose(expected, got)
+    run('float32')
+    run('int32')
+
+def test_tensor_array_constructor():
+    def run(dtype):
+        x = relay.var('x')
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        tensor_array = tensor_array_ops.get_var('tensor_array')
+        mod["main"] = relay.Function([x], tensor_array(x))
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            result = ex.evaluate()(5)
+            got = vmobj_to_list(result)
+            expected = np.array([0, 0, 0, 0, 0])
+            tvm.testing.assert_allclose(expected, got)
+    run('float32')
+    run('int32')
+
+def test_tensor_array_read():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        l = relay.var('l')
+        i = relay.var('i')
+        read_func = tensor_array_ops.get_var('tensor_array_read')
+        tensor_array = tensor_array_ops.get_var('tensor_array')
+        mod["main"] = relay.Function([l, i], read_func(tensor_array(l), i))
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            result = ex.evaluate()(10, 5)
+            got = vmobj_to_list(result)
+            expected = [0]
+            tvm.testing.assert_allclose(expected, got)
+    run('float32')
+    run('int32')
+
+def vmobj_to_list(o):
+    if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
+        return [o.asnumpy().tolist()]
+    elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
+        return [o.asnumpy()]
+    elif isinstance(o, tvm.relay.backend.vmobj.DatatypeObject):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+        return result
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == 'Cons':
+            tl = vmobj_to_list(o.fields[1])
+            hd = vmobj_to_list(o.fields[0])
+            hd.extend(tl)
+            return hd
+        elif o.constructor.name_hint == 'Nil':
+            return []
+        elif 'tensor_nil' in o.constructor.name_hint:
+            return [0]
+        elif 'tensor' in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
+
+def test_tensor_array_stack():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        tensor_array = tensor_array_ops.get_var('tensor_array')
+        tensor1 = tensor_array_ops.get_var('tensor1')
+        write = tensor_array_ops.get_var('tensor_array_write')
+        stack = tensor_array_ops.get_var('tensor_array_stack')
+        l = relay.var('l')
+        v = relay.var('v')
+        init_tensor_array = tensor_array(relay.const(3))
+        tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor1(v))    
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor1(v))        
+        tensor_array4 = stack(tensor_array3)
+        mod["main"] = relay.Function([v], tensor_array4)
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            t = np.random.uniform(size=(1,)).astype(dtype)
+            result = ex.evaluate()(t)
+            res = vmobj_to_list(result)
+            expected = [np.stack([t, t, t])]
+            tvm.testing.assert_allclose(expected, res)
+    run('float32')
+    run('int32')
+
+def test_tensor_array_unstack():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        unstack_tensor1 = tensor_array_ops.get_var('tensor_array_unstack_tensor1')
+        v = relay.var('v')
+        mod["main"] = relay.Function([v], unstack_tensor1(v))
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            t = np.random.uniform(size=(1,)).astype(dtype)
+            result = ex.evaluate()(t)
+            res = vmobj_to_list(result)
+            tvm.testing.assert_allclose(t, res)
+    run('float32')
+    run('int32')
+
+def test_tensor_take():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        tensor_array_ops = TensorArrayOps(p, dtype)
+        take = tensor_array_ops.get_var('tensor_take')
+        tensor2 = tensor_array_ops.get_var('tensor2')
+        v = relay.var('v')
+        lower = relay.var('lower')
+        upper = relay.var('upper')
+        mod["main"] = relay.Function([v, lower, upper], take(tensor2(v), lower, upper))
+        for kind in ["debug"]:
+            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+            t = np.random.uniform(size=(10, 10)).astype(dtype)
+            result = ex.evaluate()(t, 2, 5)
+            res = vmobj_to_list(result)
+            expected = [np.take(t, range(2, 5), axis=0)]
+            tvm.testing.assert_allclose(expected, res)
+    run('float32')
+    run('int32')
+
+def test_any_take():
+    mod = relay.Module()
+    p = Prelude(mod)
+    v = relay.var('v', relay.ty.TensorType([relay.ty.Any(), relay.ty.Any()]))
+    lower = relay.var('lower', 'int32')
+    upper = relay.var('upper', 'int32')
+
+    t1 = relay.op.take(v, relay.op.arange(lower, upper, dtype='int32'), axis=0)
+
+    mod["main"] = relay.Function([v, lower, upper], t1)
+    for kind in ["debug"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        t = np.random.uniform(size=(10, 10)).astype('float32')
+        result = ex.evaluate()(t, 2, 5)
+        res = vmobj_to_list(result)
+        expected = [np.take(t, np.arange(2, 5), axis=0)]
+        tvm.testing.assert_allclose(expected, res)
 
 if __name__ == "__main__":
     test_nat_constructor()
@@ -707,3 +873,9 @@ if __name__ == "__main__":
     test_size()
     test_compose()
     test_iterate()
+
+    test_tensor_array_add_one()
+    test_tensor_array_constructor()
+    test_tensor_array_read()
+    test_tensor_array_stack()
+    test_tensor_array_unstack()

@@ -22,10 +22,14 @@ from __future__ import print_function
 
 import warnings
 from collections import defaultdict
+
 # Numpy support
 import numpy as np
 
 import tvm
+
+from tvm.relay.prelude import Prelude
+
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
@@ -506,6 +510,78 @@ def _pack():
         axis = int(attr["axis"])
         inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
         return _op.concatenate(inputs_reshaped, axis)
+    return _impl
+
+def _tensor_array():
+    def _impl(inputs, attr, params, prelude):
+        dtype_str = attr.get('dtype').name
+        tensor_array_constructor = getattr(prelude, "tensor_array_{}".format(dtype_str))
+        return tensor_array_constructor(_op.take(inputs[0], tvm.relay.const(0)))
+    return _impl
+
+def _tensor_array_scatter():
+    def _impl(inputs, attr, params, prelude):
+        dtype_str = attr.get('T').name
+        values_rank = len(inputs[2].type_annotation.shape)
+        unstack_function_name = "tensor_array_unstack_tensor{}_{}".format(values_rank, dtype_str)
+
+        values = getattr(prelude, unstack_function_name)(inputs[2])
+
+        tensor_array_scatter_name = "tensor_array_scatter_{}".format(dtype_str)
+        tensor_array_scatter_var = getattr(prelude, tensor_array_scatter_name)
+        return tensor_array_scatter_var(inputs[0], inputs[1], values)
+    return _impl
+
+def _tensor_array_gather():
+    def _impl(inputs, attr, params, prelude):
+        return prelude.tensor_array_gather(inputs[2], inputs[1])
+    return _impl
+
+def _tensor_array_size():
+    def _impl(inputs, attr, params, prelude):
+        return prelude.length(inputs[0])
+    return _impl
+
+def _tensor_array_write():
+    def _impl(inputs, attr, params, prelude):
+        input_rank = len(inputs[2].type_annotation.shape)
+        dtype = attr.get('T').name
+
+        tensor_name = 'tensor{}_{}'.format(input_rank, dtype)
+        tensor_func = getattr(prelude, tensor_name)
+        v = tensor_func(inputs[2])
+
+        write_name = 'tensor_array_write_{}'.format(dtype)
+        write_func = getattr(prelude, write_name)
+
+        return write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
+    return _impl
+
+def _tensor_array_read():
+    def _impl(inputs, attr, params, prelude):
+        read_name = 'tensor_array_read_{}'.format(attr.get('dtype').name)
+        read_func = getattr(prelude, read_name)
+        return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+    return _impl
+
+def _tensor_array_split():
+    def _impl(inputs, attr, params, prelude):
+        input_rank = len(inputs[1].type_annotation.shape)
+        dtype_str = attr.get('T').name
+        tensor_constructor_name = "tensor{}_{}".format(input_rank, dtype_str)
+        v = getattr(prelude, tensor_constructor_name)(inputs[1])
+        lengths = _op.cast(inputs[2], 'int32')
+
+        split_name = "tensor_array_split_{}".format(dtype_str)
+        split_var = getattr(prelude, split_name)
+        return split_var(inputs[0], v, lengths)
+    return _impl
+
+def _tensor_array_concat():
+    def _impl(inputs, attr, params, prelude):
+        concat_name = 'tensor_array_concat_{}'.format(attr['dtype'].name)
+        concat_func = getattr(prelude, concat_name)
+        return concat_func(inputs[1])
     return _impl
 
 def _tile():
@@ -1313,6 +1389,14 @@ _convert_map = {
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
+    'TensorArrayV3'                     : _tensor_array(),
+    'TensorArrayScatterV3'              : _tensor_array_scatter(),
+    'TensorArrayGatherV3'               : _tensor_array_gather(),
+    'TensorArraySizeV3'                 : _tensor_array_size(),
+    'TensorArrayWriteV3'                : _tensor_array_write(),
+    'TensorArrayReadV3'                 : _tensor_array_read(),
+    'TensorArraySplitV3'                : _tensor_array_split(),
+    'TensorArrayConcatV3'               : _tensor_array_concat(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
@@ -1860,6 +1944,7 @@ class GraphProto(object):
         self._loops = {}
         self._branches = {}
         self._mod = _module.Module({})
+        self._prelude = Prelude(self._mod)
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2335,7 +2420,11 @@ class GraphProto(object):
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
-            sym = convert_map[op_name](inputs, attrs, self._params)
+            if 'TensorArray' in op_name:
+                sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
+            else:
+                sym = convert_map[op_name](inputs, attrs, self._params)
+
         elif op_name in convert_map_rnn:
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
                                              self._params, graph,
