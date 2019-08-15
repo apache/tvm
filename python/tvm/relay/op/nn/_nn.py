@@ -73,7 +73,8 @@ reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 @reg.register_compute("nn.batch_matmul")
 def compute_batch_matmul(attrs, inputs, out_type, target):
     """Compute definition of batch_matmul"""
-    return [topi.nn.batch_matmul(inputs[0], inputs[1])]
+    with target:
+        return [topi.nn.batch_matmul(inputs[0], inputs[1])]
 
 
 @reg.register_schedule("nn.batch_matmul")
