@@ -431,11 +431,7 @@ class UopQueue : public BaseQueue<VTAUop> {
       insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
       // Update cache idx to physical address map
-#ifdef USE_TSIM
-      insn->dram_base = fpga_buff_phy_ + offset;
-#else
       insn->dram_base = (fpga_buff_phy_ + offset) / kElemBytes;
-#endif
       insn->y_size = 1;
       insn->x_size = (sram_end_ - sram_begin_);
       insn->x_stride = (sram_end_ - sram_begin_);
@@ -1011,11 +1007,7 @@ class CommandQueue {
     insn->memory_type = dst_memory_type;
     insn->sram_base = dst_sram_index;
     DataBuffer* src = DataBuffer::FromHandle(src_dram_addr);
-#ifdef USE_TSIM
-    insn->dram_base = (uint32_t) src->phy_addr() + src_elem_offset*GetElemBytes(dst_memory_type);
-#else
     insn->dram_base = src->phy_addr() / GetElemBytes(dst_memory_type) + src_elem_offset;
-#endif
     insn->y_size = y_size;
     insn->x_size = x_size;
     insn->x_stride = x_stride;
@@ -1038,11 +1030,7 @@ class CommandQueue {
     insn->memory_type = src_memory_type;
     insn->sram_base = src_sram_index;
     DataBuffer* dst = DataBuffer::FromHandle(dst_dram_addr);
-#ifdef USE_TSIM
-    insn->dram_base = (uint32_t) dst->phy_addr() + dst_elem_offset*GetElemBytes(src_memory_type);
-#else
     insn->dram_base = dst->phy_addr() / GetElemBytes(src_memory_type) + dst_elem_offset;
-#endif
     insn->y_size = y_size;
     insn->x_size = x_size;
     insn->x_stride = x_stride;
