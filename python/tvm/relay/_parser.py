@@ -38,7 +38,7 @@ try:
     from .grammar.py3.RelayParser import RelayParser
     from .grammar.py3.RelayLexer import RelayLexer
 except ImportError:
-    raise Exeption("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
+    raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
 
 try:
     from antlr4 import InputStream, CommonTokenStream
