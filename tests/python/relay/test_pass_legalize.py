@@ -47,7 +47,7 @@ def test_legalize():
         return y
 
     @register_legalize("nn.conv2d", level=100)
-    def legalize_conv2d(attrs, inputs, arg_types):
+    def legalize_conv2d(attrs, inputs, types):
         data, weight = inputs
         weight = relay.multiply(weight, relay.const(2.0, "float32"))
         return relay.nn.conv2d(data, weight, **attrs)
@@ -80,7 +80,7 @@ def test_legalize_none():
     called = [False]
 
     @register_legalize("nn.global_max_pool2d", level=101)
-    def legalize_conv2d(attrs, inputs, arg_types):
+    def legalize_conv2d(attrs, inputs, types):
         called[0] = True
         return None
 
@@ -103,12 +103,13 @@ def test_legalize_multi_input():
         return func
 
     @register_legalize("concatenate", level=100)
-    def legalize_concatenate(attrs, inputs, arg_types):
+    def legalize_concatenate(attrs, inputs, types):
         # Check that the correct multi-input case is handled.
         assert len(inputs) == 1
         assert isinstance(inputs[0], tvm.relay.expr.Tuple)
-        assert len(arg_types) == 1
-        assert isinstance(arg_types[0], tvm.relay.ty.TupleType)
+        assert len(types) == 2
+        assert isinstance(types[0], tvm.relay.ty.TupleType)
+        assert isinstance(types[1], tvm.relay.ty.TensorType)
         return None
 
     def expected():
@@ -153,9 +154,9 @@ def test_legalize_arm_layout_functional():
         return func
 
     @register_legalize("nn.conv2d", level=101)
-    def legalize_conv2d(attrs, inputs, arg_types):
+    def legalize_conv2d(attrs, inputs, types):
         from topi.arm_cpu.conv2d import _conv2d_legalize
-        return _conv2d_legalize(attrs, inputs, arg_types, tvm.relay.op)
+        return _conv2d_legalize(attrs, inputs, types)
 
     a = before()
     b = run_opt_pass(a, transform.Legalize())
