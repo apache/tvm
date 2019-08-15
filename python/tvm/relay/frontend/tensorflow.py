@@ -1214,8 +1214,13 @@ def _log1p():
 
 def _one_hot():
     def _impl(inputs, attr, params):
+        indices = inputs[0]
+        depth = int(_infer_value(inputs[1], params).asnumpy()[0])
+
+        new_inputs = [inputs[0]]
         one_hot = AttrCvt('one_hot', 
-                          ignores=['on_value', 'off_value', 'axis', 'dtype'])
+                          ignores=['axis', 'TI'],
+                          extras={ 'depth' : depth })([inputs[0]], attr)
 
         out_dtype = attr.get("T", None)
         if out_dtype is None:

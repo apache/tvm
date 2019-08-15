@@ -1262,7 +1262,7 @@ inline Tensor one_hot(const Tensor& indices,
   out_shape.push_back(depth);
   return compute(out_shape, [&](const Array<Var>& iter_vars) {
     Array<Var> outer_indices;
-    for (auto i = 0; i < iter_vars.size(); i++) {
+    for (size_t i = 0; i < iter_vars.size() - 1; i++) {
       outer_indices.push_back(iter_vars[i]);
     }
     

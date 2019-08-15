@@ -2526,7 +2526,7 @@ TVM_REGISTER_API("relay.op._make.one_hot")
 
 RELAY_REGISTER_OP("one_hot")
 .describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1, 
-    other locations take value 0.
+    other locations take value 0. Final dimension is <indices dimensions> x depth.
 
     **indices** Locations to set to 1.
 

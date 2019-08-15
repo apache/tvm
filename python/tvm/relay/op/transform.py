@@ -752,7 +752,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
 def one_hot(indices, depth):
     """
     Returns a one-hot tensor where the locations repsented by indices take value 1, 
-    other locations take value 0.
+    other locations take value 0. Final dimension is <indices dimensions> x depth.
 
     Parameters
     ----------
@@ -766,5 +766,16 @@ def one_hot(indices, depth):
     -------
     ret : relay.Expr
         The one-hot tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [1., 2., 3.]
+
+        relay.one_hot(indices, 2) =
+            [[[1., 0., 0.]],
+             [[0., 1., 0.]],
+             [[0., 0., 1.]]]
     """
     return _make.one_hot(indices, depth)
