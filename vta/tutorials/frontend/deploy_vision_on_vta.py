@@ -76,7 +76,6 @@ device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
 # Dictionary lookup for when to start/end bit packing
-# TODO(zihengjiang, tmoreau89) some quantization will break until #3543 is merged
 pack_dict = {
     "alexnet": ["nn.max_pool2d", "nn.batch_flatten"],
     "resnet18_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
@@ -111,16 +110,16 @@ if env.TARGET not in ["sim", "tsim"]:
     # To set up the tracker, you'll need to follow the "Auto-tuning
     # a convolutional network for VTA" tutorial.
     tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
     # Otherwise if you have a device you want to program directly from
     # the host, make sure you've set the variables below to the IP of
     # your board.
     device_host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
     device_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
     if not tracker_host or not tracker_port:
-        remote = rpc.connect(device_host, device_port)
+        remote = rpc.connect(device_host, int(device_port))
     else:
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
 
     # Reconfigure the JIT runtime and FPGA.
     # You can program the FPGA with your own custom bitstream
@@ -263,29 +262,29 @@ if env.TARGET in ["sim", "tsim"]:
         print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
 else:
     tcost = timer()
-    std = np.std(tcost.results) * 1000 / env.BATCH
-    mean = tcost.mean * 1000 / env.BATCH
-    print("\nPerformed inference in %.2fms/sample (std = %.2f)" % (mean, std))
+    std = np.std(tcost.results) * 1000
+    mean = tcost.mean * 1000
+    print("\nPerformed inference in %.2fms (std = %.2f) for %d samples" % (mean, std, env.BATCH))
+    print("Average per sample inference time: %.2fms" % (mean/env.BATCH))
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
-top_categories = np.argsort(tvm_output.asnumpy()[0])
-
-# Report top-5 classification results
-print("\n%s prediction" % model)
-print("\t#1:", synset[top_categories[-1]])
-print("\t#2:", synset[top_categories[-2]])
-print("\t#3:", synset[top_categories[-3]])
-print("\t#4:", synset[top_categories[-4]])
-print("\t#5:", synset[top_categories[-5]])
-
-# This just checks that one of the 5 top categories
-# is one variety of cat; this is by no means an accurate
-# assessment of how quantization affects classification
-# accuracy but is meant to catch changes to the
-# quantization pass that would accuracy in the CI.
-cat_detected = False
-for k in top_categories[-5:]:
-    if "cat" in synset[k]:
-        cat_detected = True
-assert(cat_detected)
+for b in range(env.BATCH):
+    top_categories = np.argsort(tvm_output.asnumpy()[b])
+    # Report top-5 classification results
+    print("\n{} prediction for sample {}".format(model, b))
+    print("\t#1:", synset[top_categories[-1]])
+    print("\t#2:", synset[top_categories[-2]])
+    print("\t#3:", synset[top_categories[-3]])
+    print("\t#4:", synset[top_categories[-4]])
+    print("\t#5:", synset[top_categories[-5]])
+    # This just checks that one of the 5 top categories
+    # is one variety of cat; this is by no means an accurate
+    # assessment of how quantization affects classification
+    # accuracy but is meant to catch changes to the
+    # quantization pass that would accuracy in the CI.
+    cat_detected = False
+    for k in top_categories[-5:]:
+        if "cat" in synset[k]:
+            cat_detected = True
+    assert(cat_detected)

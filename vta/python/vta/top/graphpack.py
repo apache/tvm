@@ -319,7 +319,6 @@ def graph_pack(expr,
     expr : Expr
         The transformed expression.
     """
-    import sys
     assert isinstance(expr, relay.Function)
     expr = get_subgraph(expr, start_name, stop_name)
     expr = run_opt_pass(expr, transform.InferType())
