@@ -95,9 +95,9 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
         vec = cfg["tile_k"].size[-1]
         k = tvm.reduce_axis((0, in_dim // vec), "k")
         CC = tvm.compute((batch, out_dim, vec),
-                        lambda z, y, x: tvm.sum(
-                            data[z, k * vec + x].astype(out_dtype) *
-                            weight[y, k * vec + x].astype(out_dtype), axis=k))
+                         lambda z, y, x: tvm.sum(
+                             data[z, k * vec + x].astype(out_dtype) *
+                             weight[y, k * vec + x].astype(out_dtype), axis=k))
 
         kk = tvm.reduce_axis((0, vec), "kk")
         C = tvm.compute((batch, out_dim),

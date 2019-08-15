@@ -768,9 +768,4 @@ TVM_REGISTER_GENERIC_FUNC(dense)
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
 .register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));
-
-/*! \brief Builder function for instantiating dense ops. */
-using FTVMBatchMatMulOpBuilder = std::function<tvm::Tensor(const Target& target,
-                                                           const tvm::Tensor& x,
-                                                           const tvm::Tensor& y)>;
 }  // namespace topi

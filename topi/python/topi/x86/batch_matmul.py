@@ -25,7 +25,7 @@ from .. import generic
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 @batch_matmul.register(["cpu"])
-def batch_matmul(x, y):
+def batch_matmul_x86(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
