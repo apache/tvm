@@ -204,10 +204,11 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     from ... import op
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
-# A placeholder to have at least one invocation of register legalize to register FTVMLegalize.
 @reg.register_legalize("nn.conv2d")
 def legalize_conv2d(attrs, inputs, arg_dtypes):
-    return None
+    """Legalize conv2d"""
+    from ... import op
+    return topi.nn.conv2d_legalize(attrs, inputs, arg_dtypes, op)
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -377,6 +378,16 @@ def schedule_upsampling(_, outs, target):
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
+
+# mirror_pad
+reg.register_schedule("nn.mirror_pad", schedule_broadcast)
+
+@reg.register_compute("nn.mirror_pad")
+def compute_mirror_pad(attrs, inputs, out_dtype, target):
+    pad_before, pad_after = list(zip(*attrs.pad_width))
+    mode = attrs.mode
+    out = topi.nn.mirror_pad(inputs[0], pad_before=pad_before, pad_after=pad_after, mode=mode)
+    return [out]
 
 # winograd related operators
 @reg.register_compute("nn.contrib_conv2d_winograd_without_weight_transform")

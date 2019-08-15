@@ -126,11 +126,12 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   }
 
   // read-from-dram
+  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   when (state === sIdle) {
     when (offsetIsEven) {
-      raddr := io.baddr + dec.dram_offset
+      raddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))
     } .otherwise {
-      raddr := io.baddr + dec.dram_offset - uopBytes.U
+      raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) - uopBytes.U
     }
   } .elsewhen (state === sReadData && xcnt === xlen && xrem =/= 0.U) {
     raddr := raddr + xmax_bytes

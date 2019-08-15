@@ -469,6 +469,22 @@ def test_forward_depthtospace():
     _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]), 2)
     _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]), 4)
 
+#######################################################################
+# SpaceToDepth
+# ------------
+
+def _test_spacetodepth(data, block_size):
+    """ One iteration of space_to_depth operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        array_ops.space_to_depth(in_data, block_size)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'SpaceToDepth:0')
+
+def test_forward_spacetodepth():
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]), 4)
 
 #######################################################################
 # Squeeze
@@ -669,6 +685,10 @@ def test_forward_batch_matmul():
     _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32', True, True)
     _test_batch_matmul((3, 5, 4), (3, 5, 4), 'int32', True, False)
     _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', False, True)
+    _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), 'int32')
+    _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), 'float32', True, True)
+    _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), 'int32', True, False)
+    _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), 'float32', False, True)
 
 
 #######################################################################
@@ -1330,6 +1350,8 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
                 out_name = 'PadV2:0'
             else:
                 out_name = 'Pad:0'
+        else:
+            out_name = 'MirrorPad:0'
 
         compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
@@ -1337,6 +1359,8 @@ def test_forward_pad():
     """ Pad """
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT")
     _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT", constant_values=1.0)
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="SYMMETRIC")
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="REFLECT")
 
 #######################################################################
 # Logical operators
@@ -2144,6 +2168,7 @@ if __name__ == '__main__':
     test_forward_transpose()
     test_forward_reshape()
     test_forward_depthtospace()
+    test_forward_spacetodepth()
     test_forward_squeeze()
     test_forward_pack()
     test_forward_size()

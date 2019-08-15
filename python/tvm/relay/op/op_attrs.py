@@ -62,6 +62,9 @@ class UpSamplingAttrs(Attrs):
 class PadAttrs(Attrs):
     """Attributes for nn.pad"""
 
+@register_relay_attr_node
+class MirrorPadAttrs(Attrs):
+    """Attributes for nn.mirror_pad"""
 
 @register_relay_attr_node
 class LeakyReluAttrs(Attrs):
