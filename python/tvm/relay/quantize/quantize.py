@@ -50,6 +50,12 @@ def kind2str(kind):
     return str_map[kind]
 
 
+def _forward_op(ref_call, args):
+    """forward the operator of ref_call with provided arguments"""
+    return _expr.Call(
+        ref_call.op, args, ref_call.attrs, ref_call.type_args)
+
+
 @register_relay_node("relay.quantize.QConfig")
 class QConfig(NodeBase):
     """Configure the quantization behavior by setting config variables.
@@ -74,8 +80,8 @@ class QConfig(NodeBase):
         "dtype_activation": "int32",
         "global_scale": 8.0,
         "skip_conv_layers": [0],
+        "do_simulation": False,
         "round_for_shift": True,
-        "store_lowbit_output": True,
         "debug_enabled_ops": None,
     }
 
@@ -92,6 +98,7 @@ class QConfig(NodeBase):
         self.handle = handle
 
     def guard(self, ref_call):
+        """Return true if op is enabled, otherwise return false"""
         op_name = ref_call.op.name
         if self.debug_enabled_ops is not None:
             name_list = [x.value for x in self.debug_enabled_ops]
@@ -126,9 +133,7 @@ def current_qconfig():
     """Get the current quantization configuration."""
     return _quantize._GetCurrentQConfig()
 
-# TODO(tmoreau89, ZihengJiang) the skip parameters are
-# hacky - we should explore a more future-proof way to
-# skip operators based on pattern matching
+
 def qconfig(**kwargs):
     """Configure the quantization behavior by setting config variables.
 
@@ -142,14 +147,13 @@ def qconfig(**kwargs):
 
     skip_conv_layers: list
         Specifying which layers to be skipped. Provide a list of indices
-        that indicate which conv2d layers to leave untouched.
+        that indicate which conv2d layers to leave untouched. Start from 0.
+
+    do_simulation: boolean
+        Whether to do simulation with float operation only.
 
     round_for_shift: boolean
         Whether to add bias for rounding during shift.
-
-    store_lowbit_output: boolean
-        Whether to store low-bit integer back as output before dequantizing.
-        Some accelerators need this, e.g. VTA.
 
     debug_enabled_ops: None or list of str
         Partially quantize specified operators for debugging. The default value
@@ -166,35 +170,79 @@ def qconfig(**kwargs):
     return _make.node("relay.quantize.QConfig", **node_args)
 
 
-class AnnotateContext(object):
-    """A global singleton annotate scope"""
+class QuantizeContext(object):
+    """An internal used global context object for annotation,
+    for putting some state variables like `conv2d_counter`."""
     Current = None
 
     def __init__(self):
         self.qnode_map = dict()
         self._conv2d_counter = 0
+        self._stop_quantize = False
+
+    def check_to_skip(self, ref_call):
+        """Check the index of conv2d layer to decide whether to
+        skip the current operator."""
+        if self._stop_quantize:
+            return True
+
+        if current_qconfig().skip_conv_layers is not None:
+            # check skip conv layers
+            skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+            if self._conv2d_counter in skipped_indices:
+                if ref_call.op.name == 'nn.conv2d':
+                    self._conv2d_counter += 1
+                return True
+            if ref_call.op.name == 'nn.conv2d':
+                self._conv2d_counter += 1
+
+        return False
+
+    def stop_quantize(self):
+        self._stop_quantize = True
+
+    def reset(self):
+        self._conv2d_counter = 0
+        self._stop_quantize = False
 
     def __enter__(self):
-        self._conv2d_counter = 0
+        self.reset()
         return self
-
-    def conv2d_counter(self):
-        """Get the counter for conv2d."""
-        return self._conv2d_counter
-
-    def count_conv2d(self):
-        """Increase the value of the conv2d counter by one."""
-        self._conv2d_counter += 1
 
     def __exit__(self, ptype, value, traceback):
         pass
 
 
-def annotate_context():
+def quantize_context():
     """Get the global singleton scope"""
-    if AnnotateContext.Current is None:
-        AnnotateContext.Current = AnnotateContext()
-    return AnnotateContext.Current
+    if QuantizeContext.Current is None:
+        QuantizeContext.Current = QuantizeContext()
+    return QuantizeContext.Current
+
+
+def partition():
+    """Partition graph into small low-precision sections by `cast_hint` and
+    `stop_fusion`.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass for VTA rewrite.
+    """
+    return _quantize.QuantizePartition()
+
+
+def annotate():
+    """Given a float32 graph, this pass will rewrite the graph and return
+    a graph which simulates the error brought by the current quantization
+    scheme.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass for quantization annotation.
+    """
+    return _quantize.QuantizeAnnotate()
 
 
 def collect_stats(graph):
@@ -300,20 +348,8 @@ def calibrate(graph, mod=None, ctx=None, weight_scales='power2', scales=None):
             const_params[nclip_max] = _make_const((valid_range - 1))
 
     _analysis.post_order_visit(graph, visit_func)
-    return _expr.bind(graph, const_params)
-
-
-def annotate():
-    """Given a float32 graph, this pass will rewrite the graph and return
-    a graph which simulates the error brought by the current quantization
-    scheme.
-
-    Returns
-    -------
-    ret: tvm.relay.Pass
-        The registered pass for quantization annotation.
-    """
-    return _quantize.QuantizeAnnotate()
+    ret = _expr.bind(graph, const_params)
+    return ret
 
 
 def realize():
@@ -328,17 +364,6 @@ def realize():
         The registered pass for quantization realization.
     """
     return _quantize.QuantizeRealize()
-
-
-def rewrite_for_vta():
-    """Performs rewriting for VTA target.
-
-    Returns
-    -------
-    ret: tvm.relay.Pass
-        The registered pass for VTA rewrite.
-    """
-    return _quantize.QuantizeRewriteForVTA()
 
 
 def _bind_params(func, params):
@@ -360,6 +385,25 @@ def _bind_params(func, params):
             raise ValueError("Multiple args in the function have name %s" % k)
         bind_dict[arg] = _expr.const(v)
     return _expr.bind(func, bind_dict)
+
+
+def prerequisite_optimize(graph, params=None):
+    """ Prerequisite optimization passes for quantization. Perform
+    "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
+    "CanonicalizeOps" optimization before quantization. """
+    optimize = _transform.Sequential([_transform.SimplifyInference(),
+                                      _transform.FoldConstant(),
+                                      _transform.FoldScaleAxis(),
+                                      _transform.CanonicalizeOps(),
+                                      _transform.FoldConstant()])
+
+    if params:
+        graph = _bind_params(graph, params)
+
+    mod = _module.Module.from_expr(graph)
+    with _transform.PassContext(opt_level=3):
+        mod = optimize(mod)
+    return mod["main"]
 
 
 def quantize(graph, params=None, dataset=None):
@@ -385,33 +429,23 @@ def quantize(graph, params=None, dataset=None):
     ret: Function
         The graph after quantization
     """
-    if params:
-        graph = _bind_params(graph, params)
+    graph = prerequisite_optimize(graph, params)
 
     mod = _module.Module.from_expr(graph)
-    # Perform "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
-    # "CanonicalizeOps" optimization before quantization.
-    optimize = _transform.Sequential([_transform.SimplifyInference(),
-                                      _transform.FoldConstant(),
-                                      _transform.FoldScaleAxis(),
-                                      _transform.CanonicalizeOps(),
-                                      _transform.FoldConstant()])
-
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
-    # Quantize pass list
-    quant_passes = [annotate(),
-                    calibrate_pass,
-                    realize(),
-                    _transform.FoldConstant()]
-    if current_qconfig().store_lowbit_output:
-        quant_passes = [rewrite_for_vta()] + quant_passes
+    quant_passes = [partition(),
+                    annotate(),
+                    calibrate_pass]
+    if not current_qconfig().do_simulation:
+        quant_passes.append(realize())
+    quant_passes.append(_transform.FoldConstant())
     quantize_seq = _transform.Sequential(quant_passes)
     with _transform.PassContext(opt_level=3,
                                 required_pass=["QuantizeAnnotate",
                                                "QuantizeCalibrate",
                                                "QuantizeRealize"]):
-        mod = optimize(mod)
-        mod = quantize_seq(mod)
+        with quantize_context():
+            mod = quantize_seq(mod)
 
     return mod["main"]

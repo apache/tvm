@@ -66,6 +66,13 @@ class ConstantChecker : private ExprVisitor {
   }
 };
 
+bool ConstantCheck(const Expr& e) {
+  return ConstantChecker().Check(e);
+}
+
+TVM_REGISTER_API("relay._analysis.check_constant")
+.set_body_typed(ConstantCheck);
+
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
