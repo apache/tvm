@@ -1217,7 +1217,6 @@ def _one_hot():
         indices = inputs[0]
         depth = int(_infer_value(inputs[1], params).asnumpy()[0])
 
-        new_inputs = [inputs[0]]
         one_hot = AttrCvt('one_hot', 
                           ignores=['axis', 'TI'],
                           extras={ 'depth' : depth })([inputs[0]], attr)
