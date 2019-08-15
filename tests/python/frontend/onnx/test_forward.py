@@ -962,6 +962,7 @@ def test_binary_ops():
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
     verify_binary_ops("Greater", x, y, x > y, broadcast=True)
     verify_binary_ops("Less", x, y, x < y, broadcast=True)
+    verify_binary_ops("Equal", x, y, x == y, broadcast=True)
 
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
@@ -1116,6 +1117,15 @@ def test_inception():
 # def test_shufflenetv2():
 #     check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
 
+def test_sign():
+    def Sign_x(x):
+        return np.sign(x)
+    _test_onnx_op_elementwise((3, 4, 5, 6),
+                              Sign_x,
+                              {},
+                              'float32',
+                              'Sign',
+                              {})
 
 if __name__ == '__main__':
     test_flatten()
@@ -1159,3 +1169,4 @@ if __name__ == '__main__':
     test_resnet()
     test_inception()
     test_densenet()
+    test_sign()
