@@ -37,6 +37,7 @@
 #include <functional>
 #include <vector>
 #include <unordered_map>
+#include "../ir/type_functor.h"
 #include "compile_engine.h"
 
 namespace tvm {
@@ -47,6 +48,24 @@ CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
   n->source_func = std::move(source_func);
   n->target = std::move(target);
   return CCacheKey(n);
+}
+
+struct IsDynamicVisitor : public TypeVisitor {
+  bool is_dyn{false};
+  void VisitType_(const TensorTypeNode* tt) {
+    for (auto dim : tt->shape) {
+      if (dim.as<Any>()) {
+        is_dyn = true;
+        break;
+      }
+    }
+  }
+};
+
+bool IsDynamic(const Type& ty) {
+  IsDynamicVisitor v;
+  v.VisitType(ty);
+  return v.is_dyn;
 }
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {

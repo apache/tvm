@@ -506,7 +506,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   std::vector<Index> AllocReturnType(const Type& ret_type, const Function& func,
                                      const std::vector<Index>& unpacked_arg_regs) {
-    if (IsDynamic(ret_type)) {
+    // If either func param types or ret type is dynamic, we need to insert
+    // shape func to perform type checking at runtime.
+    if (IsDynamic(func->checked_type())) {
       return EmitShapeFunc(ret_type, func, unpacked_arg_regs);
     }
     std::vector<Index> ret_regs;

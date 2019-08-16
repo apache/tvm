@@ -22,7 +22,6 @@
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
-#include <tvm/operation.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/expr_functor.h>
@@ -31,7 +30,6 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
 #include "compile_engine.h"
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -510,10 +508,7 @@ class Interpreter :
 
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
-    bool is_dyn = IsDynamic(ret_type);
-    for (auto param : func->params) {
-      is_dyn |= IsDynamic(param->checked_type());
-    }
+    bool is_dyn = IsDynamic(func->checked_type());
 
     if (is_dyn) {
       CHECK(func->IsPrimitive());
