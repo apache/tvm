@@ -74,6 +74,66 @@ def requantize(data,
                             rounding,
                             out_dtype)
 
+
+def quantize(data,
+             output_scale,
+             output_zero_point,
+             out_dtype='int8'):
+    r""" Quantize op
+    This operator takes float32 as input and produces quantized int8 or unit8 as output.
+    The input tensor can be of any shape. The output shape is the same as input shape.
+
+    Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
+                     out_dtype::min,
+                     out_dtype::max)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be quantized. Can be of type float32.
+    output_zero_point : int
+        The output zero_point.
+    output_scale : float
+        The output scale.
+    input_dtype : str, optional
+        The data type of the input tensor. Can be [int8, uint8]
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.quantize(data,
+                          output_scale,
+                          output_zero_point,
+                          out_dtype)
+
+
+def dequantize(data,
+               input_scale,
+               input_zero_point):
+    r""" Dequantize op
+    This operator takes quantized int8 and unit8 as input and produces
+    dequantized float32 as output. The output shape is the same as input shape. The input
+    tensor can be of any shape.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be dequantized. Can be of type [int8, uint8].
+    input_zero_point : int
+        The output zero_point.
+    input_scale : float
+        The output scale.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.dequantize(data,
+                            input_scale,
+                            input_zero_point)
 def concatenate(data,
                 input_scales,
                 input_zero_points,
