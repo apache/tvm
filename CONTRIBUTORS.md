@@ -111,3 +111,4 @@ We do encourage everyone to work anything they are interested in.
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
+- [Shoubhik Bhattacharya](https://github.com/shoubhik)
