@@ -20,12 +20,6 @@ import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = relay.transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
-
 def test_quantize_op():
 
     def quantize_test_driver(in_dtype, quant_args, out_dtype, in_data, verify_output_data):
