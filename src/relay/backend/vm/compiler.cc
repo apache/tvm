@@ -408,7 +408,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
     }
     std::vector<Index> arg_regs{reg};
-    int64_t ndim = std::max(ttype->shape.size(), 1UL);
+    int64_t ndim = std::max(ttype->shape.size(), (size_t)1);
     Emit(Instruction::AllocTensor({ndim}, Int(64), NewRegister()));
     Index shape_reg = last_register_;
     arg_regs.push_back(shape_reg);

@@ -35,6 +35,7 @@
 #include <limits>
 #include <mutex>
 #include <functional>
+#include <vector>
 #include <unordered_map>
 #include "compile_engine.h"
 
@@ -399,11 +400,9 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
       CHECK(data_dependants_.size());
       bool data_dependant = data_dependants_.back();
       if (data_dependant) {
-        //LOG(INFO) << "Need input data: " << AsText(var, false);
         param_states_[var] |= kNeedInputData;
         return param_data_[var];
       } else {
-        //LOG(INFO) << "Need input shape: " << AsText(var, false);
         param_states_[var] |= kNeedInputShape;
         return param_shapes_[var];
       }

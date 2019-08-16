@@ -647,7 +647,9 @@ void InjectInline(ScheduleNode* sch) {
     } else if (hybrid_changed[i]) {
       const HybridOpNode* hybrid = sch->stages[i]->op.as<HybridOpNode>();
       CHECK(hybrid);
-      Operation op = HybridOpNode::make(hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs, hybrid->outputs, new_hybrid_body[i]);
+      Operation op = HybridOpNode::make(
+              hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
+              hybrid->outputs, new_hybrid_body[i]);
       op = op->ReplaceInputs(op, repl);
       for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
         repl[s->op.output(idx)] = op.output(idx);
