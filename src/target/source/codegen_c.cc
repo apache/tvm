@@ -470,11 +470,15 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
                             CodeGenC* p) {
   if (op->dtype.lanes() == 1) {
     if (isalpha(opstr[0])) {
-      os << opstr << '(';
+      os << opstr << "((";
+      p->PrintType(op->a.dtype(), os);
+      os << ")(";
       p->PrintExpr(op->a, os);
-      os << ", ";
+      os << "), (";
+      p->PrintType(op->b.dtype(), os);
+      os << ")(";
       p->PrintExpr(op->b, os);
-      os << ')';
+      os << "))";
     } else {
       os << '(';
       p->PrintExpr(op->a, os);
@@ -591,11 +595,22 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   } else if (op->is_intrinsic(CallNode::shift_right)) {
     PrintBinaryIntrinsic(op, " >> ", os, this);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    // os << "(";
+    // PrintExpr(op->args[0], os);
+    // os << " ? ";
+    // PrintExpr(op->args[1], os);
+    // os << " : ";
+    // PrintExpr(op->args[2], os);
+    // os << ")";
     os << "(";
     PrintExpr(op->args[0], os);
-    os << " ? ";
+    os << " ? (";
+    PrintType(op->args[1].dtype(), os);
+    os << ")";
     PrintExpr(op->args[1], os);
-    os << " : ";
+    os << " : (";
+    PrintType(op->args[2].dtype(), os);
+    os << ")";
     PrintExpr(op->args[2], os);
     os << ")";
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {

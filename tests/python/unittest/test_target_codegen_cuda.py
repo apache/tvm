@@ -693,6 +693,24 @@ def test_cuda_vectorize_load_permute_pad():
     check_cuda("float16", 64, 16, 3, 4)
     check_cuda("float32", 64, 16, 3, 4)
 
+def test_cuda_verify_nvcc_dtype():
+    shape = (1024, )
+    a = tvm.placeholder(shape, dtype='int32', name='a')
+    b = tvm.min_value("int32")
+    c = tvm.compute(shape, lambda i: tvm.min(32424, tvm.if_then_else(a[i] > 1024, a[i], b)), name='c')
+    s = tvm.create_schedule(c.op)
+    bx, tx = s[c].split(c.op.axis[0], factor=64)
+    s[c].bind(bx, tvm.thread_axis('blockIdx.x'))
+    s[c].bind(tx, tvm.thread_axis('threadIdx.x'))
+
+    func = tvm.build(s, [a, c], 'cuda')
+    ctx = tvm.gpu(0)
+    a_np = np.random.randint(0, 2048, size=shape).astype(a.dtype)
+    c_np = np.zeros(shape=shape, dtype=c.dtype)
+    a = tvm.nd.array(a_np, ctx)
+    c = tvm.nd.array(c_np, ctx)
+    func(a, c)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -713,3 +731,4 @@ if __name__ == "__main__":
     test_vectorized_intrin2()
     test_vectorized_popcount()
     test_cuda_vectorize_load_permute_pad()
+    test_cuda_verify_nvcc_dtype()

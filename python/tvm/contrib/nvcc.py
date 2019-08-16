@@ -100,6 +100,8 @@ def compile_cuda(code,
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
+        with open('error.cu', "w") as out_file:
+            out_file.write(code)
         raise RuntimeError(msg)
 
     data = bytearray(open(file_target, "rb").read())

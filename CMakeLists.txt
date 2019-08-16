@@ -193,6 +193,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/driver/*.cc
     src/printer/*.cc
     src/support/*.cc
+    src/hago/*.cc
     )
 
 file(GLOB CODEGEN_SRCS
