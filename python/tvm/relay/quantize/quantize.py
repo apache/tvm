@@ -387,7 +387,7 @@ def _bind_params(func, params):
     return _expr.bind(func, bind_dict)
 
 
-def prerequisite_optimize(graph, params=None):
+def prerequisite_optimize(mod, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
@@ -398,15 +398,14 @@ def prerequisite_optimize(graph, params=None):
                                       _transform.FoldConstant()])
 
     if params:
-        graph = _bind_params(graph, params)
+        mod['main'] = _bind_params(mod['main'], params)
 
-    mod = _module.Module.from_expr(graph)
     with _transform.PassContext(opt_level=3):
         mod = optimize(mod)
-    return mod["main"]
+    return mod
 
 
-def quantize(graph, params=None, dataset=None):
+def quantize(mod, params=None, dataset=None):
     """ The quantization procedure. Before running the three main
     procedure of quantization, "annotate", "calibrate" and "realize"
     , we need to do "SimplifyInference", "FoldScaleAxis", "FoldConstant"
@@ -429,9 +428,8 @@ def quantize(graph, params=None, dataset=None):
     ret: Function
         The graph after quantization
     """
-    graph = prerequisite_optimize(graph, params)
+    mod = prerequisite_optimize(mod, params)
 
-    mod = _module.Module.from_expr(graph)
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
     quant_passes = [partition(),
@@ -448,4 +446,4 @@ def quantize(graph, params=None, dataset=None):
         with quantize_context():
             mod = quantize_seq(mod)
 
-    return mod["main"]
+    return mod
