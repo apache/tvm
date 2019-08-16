@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
+#include <hip/hip_runtime.h>
 #include "codegen_llvm.h"
 #include "../build_common.h"
 #include "../codegen_source_base.h"
@@ -151,13 +152,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion(const std::string& target) {
-  size_t pos = target.find("=gfx");
-  if (pos != std::string::npos) {
-    int value;
-    std::stringstream is(target.substr(pos + 4));
-    if (is >> value) return value;
-  }
+inline int DetectROCMComputeVersion() {
+  hipDeviceProp_t props;
+  int deviceId = 0;
+  hipGetDeviceProperties(&props, deviceId);
   TVMContext tvm_ctx;
   tvm_ctx.device_type = kDLROCM;
   tvm_ctx.device_id = 0;
@@ -170,8 +168,7 @@ inline int DetectROCMComputeVersion(const std::string& target) {
       return val.operator int();
     }
   }
-  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx803";
-  return 803;
+  return props.gcnArch;
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
@@ -180,7 +177,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
         target.substr(0, 4) == "rocm");
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
-         << DetectROCMComputeVersion(target)
+         << DetectROCMComputeVersion()
          << target.substr(4, target.length() - 4);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
