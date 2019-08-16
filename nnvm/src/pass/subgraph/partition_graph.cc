@@ -735,7 +735,7 @@ Graph GraphPartition(Graph &&g) {
   if (!g.HasAttr("subgraph_property")) {  // treat the whole graph as a subgraph
     LOG(INFO) << "The graph has no attribute of subgraph_property attached. "
                  "The original graph is returned.";
-    return g;
+    return std::move(g);
   }
   const SubgraphPropertyPtr &subg_prop = g.GetAttr<SubgraphPropertyPtr>("subgraph_property");
   // top sort NodeEntry of all the nodes' inputs
@@ -755,7 +755,7 @@ Graph GraphPartition(Graph &&g) {
 #endif
     CreateSubgraphNode(&g, simple_nodes, subgraph_nodes[i], i, &entry_top_order_map);
   }
-  return g;
+  return std::move(g);
 }
 
 NNVM_REGISTER_PASS(GraphPartition)
