@@ -68,7 +68,7 @@ nnvm::Graph AnnotateTarget(nnvm::Graph&& g, const StringVector& targets,
             targets[std::distance(device_types.begin(), it)];
     }
   });
-  return g;
+  return std::move(g);
 }
 
 // Annotate nodes with the device type.
@@ -97,7 +97,7 @@ nnvm::Graph AnnotateDeviceTarget(nnvm::Graph&& g, const StringVector& targets,
         targets[std::distance(device_types.begin(), it)];
   });
 
-  return g;
+  return std::move(g);
 }
 
 nnvm::Graph AnnotateGraph(nnvm::Graph g) {
