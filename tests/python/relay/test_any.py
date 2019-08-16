@@ -47,6 +47,7 @@ def test_any_broadcast():
 
     # The following currently fail because topi compute treats Any as 1
     # will requires auto_broadcast buffer to solve the problem
+    # TODO(@zhiics): Fix this
     # verify_any_broadcast((relay.Any(),), (3, 2), (2,), (3, 2), relay.add, np.add)
     # verify_any_broadcast((relay.Any(), 2), (3, 2), (3, 2), (3, 2), relay.add, np.add)
 
