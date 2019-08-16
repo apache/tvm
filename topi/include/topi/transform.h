@@ -1148,9 +1148,9 @@ inline Tensor tensordot(const Tensor& A,
   return compute(output_shape, func, name, tag);
 }
 
-inline Tensor arange(const Expr start,
-                     const Expr stop,
-                     const Expr step,
+inline Tensor arange(const Expr& start,
+                     const Expr& stop,
+                     const Expr& step,
                      Type dtype,
                      std::string name = "T_arange",
                      std::string tag = kInjective) {

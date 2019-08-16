@@ -18,7 +18,6 @@ import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.relay import Kind, transform
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
@@ -33,7 +32,7 @@ def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     mod["main"] = relay.Function([x, y], op(x, y))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     y_np = np.random.uniform(size=y_np_shape).astype(dtype)
-    for kind in ["debug"]:
+    for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(x_np, y_np)
         tvm.testing.assert_allclose(result.asnumpy(), np_op(x_np, y_np))
@@ -59,7 +58,7 @@ def test_any_concat():
     mod["main"] = relay.Function([x, y], z)
     x_np = np.random.uniform(size=(3, 2)).astype('float32')
     y_np = np.random.uniform(size=(1, 2)).astype('float32')
-    for kind in ["debug"]:
+    for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(x_np, y_np)
         ref = np.concatenate([x_np, y_np], axis=0)
@@ -71,7 +70,7 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape):
     mod = relay.module.Module()
     mod["main"] = relay.Function([x], y)
     data = np.random.uniform(size=x_np_shape).astype('float32')
-    for kind in ["debug"]:
+    for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data).asnumpy()
         assert result.shape == out_shape
@@ -85,6 +84,18 @@ def test_any_reshape():
     verify_any_reshape(any_dim3, (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
     verify_any_reshape(any_dim3, (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
 
+def test_fused_ops():
+    x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
+    y0 = x + relay.const(1.0, 'float32')
+    y1 = y0 * relay.const(2.0, 'float32')
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], y1)
+    data = np.random.uniform(size=(5, 4)).astype('float32')
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data)
+        tvm.testing.assert_allclose(result.asnumpy(), (data + 1) * 2)
+
 def test_arange_with_dynamic_shape():
     m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
     x = relay.var('x', shape=(m.var, n.var, k.var), dtype='float32')
@@ -95,7 +106,7 @@ def test_arange_with_dynamic_shape():
     data = np.random.rand(10, 5, 3).astype('float32')
     mod = relay.module.Module()
     mod["main"] = relay.Function([x], y3, type_params=[m, n, k])
-    for kind in ["debug"]:
+    for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data)
         tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
@@ -131,6 +142,8 @@ def test_recursive_concat():
     mod = relay.module.Module()
     mod["main"] = func
     data = np.array(0.0, dtype='int32')
+    # TODO(@jroesch): After LambdaLift pass, TypeInfer pass will fail
+    # so currently we cannot run this test case on VM
     for kind in ["debug"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data)
@@ -188,6 +201,7 @@ if __name__ == "__main__":
     test_any_broadcast()
     test_any_concat()
     test_any_reshape()
+    test_fused_ops()
     test_arange_with_dynamic_shape()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()

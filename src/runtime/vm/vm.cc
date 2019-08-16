@@ -451,11 +451,11 @@ std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ") {
 void InstructionPrint(std::ostream& os, const Instruction& instr) {
   switch (instr.op) {
     case Opcode::Move: {
-      os << "move $" << instr.dst << " $" << instr.from << std::endl;
+      os << "move $" << instr.dst << " $" << instr.from;
       break;
     }
     case Opcode::Ret: {
-      os << "ret $" << instr.result  << std::endl;
+      os << "ret $" << instr.result;
       break;
     }
     case Opcode::Fatal: {
@@ -469,7 +469,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << ", out: $"
          << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
                              instr.output_size, ", $")
-         << ")" << std::endl;
+         << ")";
       break;
     }
     case Opcode::AllocTensor: {
@@ -478,71 +478,61 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
                              instr.alloc_tensor.ndim)
          << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
-      os << std::endl;
       break;
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $"
          << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
-      os << std::endl;
       break;
     }
     case Opcode::AllocDatatype: {
       os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
-         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]"
-         << std::endl;
+         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
       break;
     }
     case Opcode::AllocClosure: {
       os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index
          << "]($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
-         << ")"
-         << std::endl;
+         << ")";
       break;
     }
     case Opcode::If: {
       os << "if " << "$" << instr.if_op.test << " " << instr.if_op.target << " "
-         << instr.if_op.true_offset << " " << instr.if_op.false_offset
-         << std::endl;
+         << instr.if_op.true_offset << " " << instr.if_op.false_offset;
       break;
     }
     case Opcode::Invoke: {
       os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
          << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
-         << ")"
-         << std::endl;
+         << ")";
       break;
     }
     case Opcode::InvokeClosure: {
       os << "invoke_closure $" << instr.dst << " $" << instr.closure << "($"
          << StrJoin<RegName>(instr.closure_args, 0, instr.num_closure_args, ",$")
-         << ")"
-         << std::endl;
+         << ")";
       break;
     }
     case Opcode::LoadConst: {
-      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]"
-         << std::endl;
+      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]";
       break;
     }
     case Opcode::LoadConsti: {
-      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]"
-         << std::endl;
+      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]";
       break;
     }
     case Opcode::GetField: {
       os << "get_field $" << instr.dst << " $" << instr.object << "["
-         << instr.field_index << "]"
-         << std::endl;
+         << instr.field_index << "]";
       break;
     }
     case Opcode::GetTag: {
-      os << "get_tag $" << instr.dst << " $" << instr.get_tag.object << std::endl;
+      os << "get_tag $" << instr.dst << " $" << instr.get_tag.object;
       break;
     }
     case Opcode::Goto: {
-      os << "goto " << instr.pc_offset << std::endl;
+      os << "goto " << instr.pc_offset;
       break;
     }
     default:
@@ -559,9 +549,7 @@ std::ostream& operator<<(std::ostream& os, const Instruction& instr) {
 void VMFunctionPrint(std::ostream& os, const VMFunction& vm_func) {
   os << vm_func.name << ": " << std::endl;
   for (size_t i = 0; i < vm_func.instructions.size(); ++i) {
-    os << i << ": ";
-    InstructionPrint(os, vm_func.instructions[i]);
-    os << ";" << std::endl;
+    os << i << ": " << vm_func.instructions[i] << ";" << std::endl;
   }
 }
 
@@ -801,7 +789,7 @@ void VirtualMachine::RunLoop() {
   while (true) {
   main_loop:
     auto const& instr = this->code[this->pc];
-    DLOG(INFO) << "Executing(" << pc << "): ";
+    DLOG(INFO) << "Executing(" << pc << "): " << instr;
 #if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_DEBUG

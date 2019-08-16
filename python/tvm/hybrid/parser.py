@@ -98,8 +98,8 @@ class HybridParser(ast.NodeVisitor):
         ast.LtE     : operator.le,
         ast.Eq      : operator.eq,
         ast.NotEq   : operator.ne,
-        ast.And   : _all,
-        ast.Or    : _any,
+        ast.And     : _all,
+        ast.Or      : _any,
     }
 
 
