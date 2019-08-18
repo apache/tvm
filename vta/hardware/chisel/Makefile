@@ -107,16 +107,7 @@ default: lib
 
 lib: $(lib_path)
 
-$(verilator_build_dir)/%.o: $(verilator_build_dir)/%.cpp
-	$(CXX) -c $(cxx_flags) $^ -o $@
-
-$(verilator_build_dir)/verilated.o: verilated.cpp
-	$(CXX) -c $(cxx_flags) $^ -o $@
-
-$(verilator_build_dir)/verilated_dpi.o: verilated_dpi.cpp
-	$(CXX) -c $(cxx_flags) $^ -o $@
-
-$(verilator_build_dir)/verilated_vcd_c.o: verilated_vcd_c.cpp
+$(verilator_build_dir)/%.o: %.cpp
 	$(CXX) -c $(cxx_flags) $^ -o $@
 
 $(verilator_build_dir)/tsim_device.o: tsim_device.cc
