@@ -115,7 +115,7 @@ if env.TARGET not in ["sim", "tsim"]:
     # the host, make sure you've set the variables below to the IP of
     # your board.
     device_host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-    device_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
+    device_port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
     if not tracker_host or not tracker_port:
         remote = rpc.connect(device_host, int(device_port))
     else:
@@ -172,13 +172,12 @@ with autotvm.tophub.context(target):
     shape_dict.update({k: v.shape for k, v in params.items()})
     dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
 
-    # Perform quantization in Relay
-    with relay.quantize.qconfig(global_scale=8.0,
-                                skip_conv_layers=[0]):
-        relay_prog = relay.quantize.quantize(mod["main"], params=params)
-
-    # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
+        # Perform quantization in Relay
+        with relay.quantize.qconfig(global_scale=8.0,
+                                    skip_conv_layers=[0]):
+            relay_prog = relay.quantize.quantize(mod["main"], params=params)
+        # Perform graph packing and constant folding for VTA target
         assert env.BLOCK_IN == env.BLOCK_OUT
         relay_prog = graph_pack(
             relay_prog,
@@ -187,6 +186,8 @@ with autotvm.tophub.context(target):
             env.WGT_WIDTH,
             start_name=pack_dict[model][0],
             stop_name=pack_dict[model][1])
+    else:
+        relay_prog = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
     with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
