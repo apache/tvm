@@ -15,6 +15,9 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
+ *
+ * \file virtual_memory.cc
+ * \brief Thread-safe virtal memory manager
  */
 
 #include "virtual_memory.h"
