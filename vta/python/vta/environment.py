@@ -234,7 +234,6 @@ class Environment(object):
         elif self.TARGET == "ultra96":
             return "llvm -target=aarch64-linux-gnu"
         elif self.TARGET in ["sim", "tsim"]:
-        if self.TARGET == "sim" or self.TARGET == "tsim":
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 
