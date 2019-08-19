@@ -202,6 +202,35 @@ def test_forward_split():
     _test_split((1, 3, 5, 6), -1, 3, 'float32')
 
 #######################################################################
+# transpose
+# ---------
+
+
+def _test_forward_transpose(ishape, axes=()):
+    data = np.random.uniform(size=ishape).astype(np.float32)
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+
+        if not axes:
+            out = array_ops.transpose(in_data)
+        else:
+            out = array_ops.transpose(in_data, axes)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_transpose():
+    _test_forward_transpose((2, 2))
+    _test_forward_transpose((2, 3, 4))
+    _test_forward_transpose((7, 8, 8, 10))
+    _test_forward_transpose((2, 3, 4), (1, 2, 0))
+    _test_forward_transpose((2, 3, 4), (0, 1, 2))
+    _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
+    _test_forward_transpose((2, 3, 4, 5), ())
+
+
+#######################################################################
 # Pooling
 # -------
 def _test_pooling_iteration(input_shape, **kwargs):
@@ -823,6 +852,10 @@ def test_forward_ssd_mobilenet_v1():
 if __name__ == '__main__':
     # Split
     test_forward_split()
+
+    # Transpose
+    test_forward_transpose()
+
     # Transforms
     test_forward_concatenation()
     test_forward_pad()
