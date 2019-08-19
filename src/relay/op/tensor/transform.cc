@@ -2497,10 +2497,19 @@ bool OneHotRel(const Array<Type>& types,
   const auto param = attrs.as<OneHotAttrs>();
   CHECK_GT(param->depth, 0);
 
-  Array<IndexExpr> output_shape(indices->shape);
-  output_shape.push_back(param->depth);
+  Array<IndexExpr> oshape;
+  int ndim = indices->shape.size() + 1;
+  int indices_index = 0;
+  int true_axis = (param->axis == -1) ? indices->shape.size() : param->axis;
+  for (int i = 0; i < ndim; i++) {
+    if (i == true_axis) {
+      oshape.push_back(Integer(param->depth));
+    } else {
+      oshape.push_back(indices->shape[indices_index++]);
+    }
+  }
 
-  reporter->Assign(types[1], TensorTypeNode::make(output_shape, param->dtype));
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, param->dtype));
   return true;
 }
 

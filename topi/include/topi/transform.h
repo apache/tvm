@@ -1248,10 +1248,13 @@ inline Tensor ndarray_size(const Tensor& src,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value 1, 
-    other locations take value 0.
- * \param indices locations to set to 1.
+ * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value, 
+    other locations take value off_value.
+ * \param indices locations to set to on_value.
  * \param depth depth of the one-hot dimension.
+ * \param on_value value that locations represented by indices take on.
+ * \param off_value value that other locations take on.
+ * \param axis axis of one-hot dimension.
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return one-hot tensor.
@@ -1264,16 +1267,30 @@ inline Tensor one_hot(const Tensor& indices,
                       const Type& dtype,
                       const std::string name = "T_one_hot",
                       const std::string tag = kInjective) {
-  Array<Expr> out_shape = indices->shape;
-  out_shape.push_back(depth);
-  return compute(out_shape, [&](const Array<Var>& iter_vars) {
-    Array<Var> outer_indices;
-    for (size_t i = 0; i < iter_vars.size() - 1; i++) {
-      outer_indices.push_back(iter_vars[i]);
+  Array<Expr> oshape;
+  int ndim = indices->shape.size() + 1;
+  int indices_index = 0;
+  int true_axis = (axis == -1) ? indices->shape.size() : axis;
+  for (int i = 0; i < ndim; i++) {
+    if (i == true_axis) {
+      oshape.push_back(Integer(depth));
+    } else {
+      oshape.push_back(indices->shape[indices_index++]);
+    }
+  }
+
+  return compute(oshape, [&](const Array<Var>& iter_vars) {
+    Array<Var> indices_indices;
+    for (size_t i = 0; i < iter_vars.size(); i++) {
+      if (i == axis) {
+        continue;
+      }
+
+      indices_indices.push_back(iter_vars[i]);
     }
 
-    auto idx = iter_vars[iter_vars.size() - 1];
-    auto ret = ir::Select::make(indices(outer_indices) == idx, on_value, off_value);
+    auto idx = iter_vars[axis];
+    auto ret = ir::Select::make(indices(indices_indices) == idx, on_value, off_value);
     return tvm::cast(dtype, ret);
   }, name, tag);
 }
