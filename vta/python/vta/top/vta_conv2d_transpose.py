@@ -35,64 +35,41 @@ def _declatation_conv2d_transpose(cfg,
                                   out_dtype):
     env = get_env()
 
-    batch, in_c, in_h, in_w, B_BATCH, B_CI = get_const_tuple(data.shape)
-    out_c, _, filter_h, filter_w, B_CO, B_CI = get_const_tuple(kernel.shape)
+    N, CI, IH, IW, T_N, T_CI = get_const_tuple(data.shape)
+    CO, _, K_H, K_W, T_CO, T_CI = get_const_tuple(kernel.shape)
     stride_h, stride_w = strides
 
-    # padding stage
-    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
-    bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
-    bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    # derive padding parameters
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (K_H, K_W))
+    bpad_top = K_H - 1 - fpad_top
+    bpad_bottom = K_H - 1 - fpad_bottom
+    bpad_left = K_W - 1 - fpad_left
+    bpad_right = K_W - 1 - fpad_right
 
     # padding stage
-    FirstPad = topi.nn.pad(data,
-                           [0, 0, (bpad_top + stride_h - 1) // stride_h,
-                            (bpad_left + stride_w - 1) // stride_w, 0, 0],
-                           [0, 0, (bpad_bottom + stride_h - 1) // stride_h,
-                            (bpad_right + stride_w - 1) // stride_w, 0, 0],
-                           name='pad_data')
-    border_h = (stride_h - bpad_top % stride_h) % stride_h  # remove extra padding introduced by dilation
-    border_w = (stride_w - bpad_left % stride_w) % stride_w
+    dilated_input = topi.nn.dilate(data, [1, 1, stride_h, stride_w, 1, 1])
+    data_pad = topi.nn.pad(dilated_input,
+                           [0, 0, bpad_top, bpad_left, 0, 0],
+                           [0, 0, bpad_bottom, bpad_right, 0, 0])
 
-    # dilation stage
-    data = FirstPad
-    strides = [1, 1, stride_h, stride_w, 1, 1]
-    n = len(data.shape)
-
-    def _dilate(*indices):
-        not_zero = []
-        index_tuple = []
-        for i in range(n):
-            if not topi.util.equal_const_int(strides[i], 1):
-                index_tuple.append(indices[i] // strides[i])
-                not_zero.append((indices[i] % strides[i]).equal(0))
-            else:
-                index_tuple.append(indices[i])
-        if not_zero:
-            not_zero = tvm.all(*not_zero)
-            return tvm.expr.Select(not_zero, data(*index_tuple), tvm.const(0.0, data.dtype))
-        return data(*index_tuple)
-
-    # convolution stage
-    out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
-    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
-    dc = tvm.reduce_axis((0, in_c), name='dc')
-    dh = tvm.reduce_axis((0, filter_h), name='dh')
-    dw = tvm.reduce_axis((0, filter_w), name='dw')
-    dci = tvm.reduce_axis((0, B_CI), name='dci')
+    # convolution transpose stage
+    out_h = (IH - 1) * stride_h - fpad_top - fpad_bottom + K_H
+    out_w = (IW - 1) * stride_w - fpad_left - fpad_right + K_W
+    dc = tvm.reduce_axis((0, CI), name='dc')
+    dh = tvm.reduce_axis((0, K_H), name='dh')
+    dw = tvm.reduce_axis((0, K_W), name='dw')
+    dci = tvm.reduce_axis((0, T_CI), name='dci')
 
     out = tvm.compute(
-        (batch, out_c, out_h, out_w, B_BATCH, B_CO),
+        (N, CO, out_h, out_w, T_N, T_CO),
         lambda b, c, h, w, b_n, b_co: tvm.sum(
-            _dilate(b, dc, h + dh + border_h, w + dw + border_w, b_n, dci).astype(out_dtype) *
+            data_pad(b, dc, h + dh, w + dw, b_n, dci).astype(out_dtype) *
             kernel[c, dc, dh, dw, b_co, dci].astype(out_dtype),
             axis=[dc, dh, dw, dci]),
         tag="packed_conv2d_transpose",
         name='res',
-        attrs={"workload": (batch * env.BATCH, in_h, in_w, in_c * env.BLOCK_IN, out_c * env.BLOCK_OUT,
-                            filter_h, filter_w, padding[0], padding[1], stride_h, stride_w)})
+        attrs={"workload": (N * env.BATCH, IH, IW, CI * env.BLOCK_IN, CO * env.BLOCK_OUT,
+                            K_H, K_W, padding[0], padding[1], stride_h, stride_w)})
 
     return out
 
