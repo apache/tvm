@@ -31,6 +31,7 @@
 #include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/attrs/reduce.h>
@@ -420,7 +421,7 @@ Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array
 
 Expr StopFusion(Expr data);
 
-Expr ForceCast(Expr data);
+Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm

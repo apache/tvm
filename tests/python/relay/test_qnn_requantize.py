@@ -18,17 +18,9 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.testing import create_workload
 from tvm.contrib import graph_runtime
 
 roundings = ["UPWARD", "TONEAREST"]
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = relay.transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
-
 
 def test_requantize():
     def verify(mod, goldens):
