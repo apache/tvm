@@ -74,10 +74,11 @@ def _ConvolutionLayerParams(op, inexpr, etab):
             pad_l = valid.paddingAmounts.borderAmounts[1].startEdgeSize
             pad_b = valid.paddingAmounts.borderAmounts[0].endEdgeSize
             pad_r = valid.paddingAmounts.borderAmounts[1].endEdgeSize
-            inexpr = _op.nn.pad(data=inexpr, pad_width=((0, 0),
-                                                        (0, 0),
-                                                        (pad_t, pad_b),
-                                                        (pad_l, pad_r)))
+            if not all(v == 0 for v in (pad_t, pad_l, pad_b, pad_r)):
+                inexpr = _op.nn.pad(data=inexpr, pad_width=((0, 0),
+                                                            (0, 0),
+                                                            (pad_t, pad_b),
+                                                            (pad_l, pad_r)))
     elif op.WhichOneof('ConvolutionPaddingType') == 'same':
         assert op.same.asymmetryMode == 0, "Only support BOTTOM_RIGHT_HEAVY mode, " \
                                            "which is used by tf/caffe and so on"
@@ -208,7 +209,8 @@ def _PoolingLayerParams(op, inexpr, etab):
                 pad_l = valid.paddingAmounts.borderAmounts[1].startEdgeSize
                 pad_b = valid.paddingAmounts.borderAmounts[0].endEdgeSize
                 pad_r = valid.paddingAmounts.borderAmounts[1].endEdgeSize
-                params['padding'] = [pad_t, pad_l, pad_b, pad_r]
+                if not all(v == 0 for v in (pad_t, pad_l, pad_b, pad_r)):
+                    params['padding'] = [pad_t, pad_l, pad_b, pad_r]
         elif op.WhichOneof('PoolingPaddingType') == 'includeLastPixel':
             # I don't know if this is correct
             valid = op.includeLastPixel
