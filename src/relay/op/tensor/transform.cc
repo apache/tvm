@@ -2500,7 +2500,7 @@ bool OneHotRel(const Array<Type>& types,
   Array<IndexExpr> output_shape(indices->shape);
   output_shape.push_back(param->depth);
 
-  reporter->Assign(types[1], TensorTypeNode::make(output_shape, indices->dtype));
+  reporter->Assign(types[1], TensorTypeNode::make(output_shape, param->dtype));
   return true;
 }
 
@@ -2510,13 +2510,21 @@ Array<Tensor> OneHotCompute(const Attrs& attrs,
                             const Target& target) {
   const auto* param = attrs.as<OneHotAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::one_hot(inputs[0], param->depth) };
+  return Array<Tensor>{ topi::one_hot(inputs[0], param->depth, (float)param->on_value, (float)param->off_value, param->axis, param->dtype) };
 }
 
 Expr MakeOneHot(Expr indices,
-                int depth) {
+                int depth,
+                double on_value,
+                double off_value,
+                int axis,
+                DataType dtype) {
   auto attrs = make_node<OneHotAttrs>();
   attrs->depth = std::move(depth);
+  attrs->on_value = on_value;
+  attrs->off_value = off_value;
+  attrs->axis = axis;
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("one_hot");
   return CallNode::make(op, {indices}, Attrs(attrs), {});
 }
@@ -2533,7 +2541,7 @@ RELAY_REGISTER_OP("one_hot")
     **depth** Depth of the one-hot dimension.)code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.OneHotAttrs")
 .set_num_inputs(1)
-.add_argument("indices", "Tensor", "Locations to set to 1.")
+.add_argument("indices", "Tensor", "Locations to set to on_value.")
 .set_support_level(10)
 .add_type_rel("OneHot", OneHotRel)
 .set_attr<FTVMCompute>("FTVMCompute", OneHotCompute)

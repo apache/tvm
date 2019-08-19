@@ -419,7 +419,11 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
 
 TVM_REGISTER_GLOBAL("topi.one_hot")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = one_hot(args[0], args[1]);
+  double on_value = args[2];
+  double off_value = args[3];
+  int axis = args[4];
+  DataType dtype = args[5];
+  *rv = one_hot(args[0], args[1], (float)on_value, (float)off_value, axis, dtype);
   });
 
 /* Ops from nn/upsampling.h */

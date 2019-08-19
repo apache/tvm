@@ -1215,16 +1215,12 @@ def _log1p():
 def _one_hot():
     def _impl(inputs, attr, params):
         depth = int(_infer_value(inputs[1], params).asnumpy()[0])
-        one_hot = AttrCvt('one_hot',
-                          ignores=['axis', 'TI'],
-                          extras={'depth' : depth})([inputs[0]], attr)
-
-        out_dtype = attr.get("T", None)
-        if out_dtype is None:
-            out_dtype_name = "float32"
-        else:
-            out_dtype_name = out_dtype.name
-        return _op.cast(one_hot, out_dtype_name)
+        on_value = float(_infer_value(inputs[2], params).asnumpy()[0])
+        off_value = float(_infer_value(inputs[3], params).asnumpy()[0])
+        return AttrCvt('one_hot',
+                       ignores=['TI'],
+                       extras={'depth' : depth, 'on_value' : on_value, 'off_value' : off_value,\
+                               'dtype' : attr['T'].name})([inputs[0]], attr)
     return _impl
 
 # compatible operators that do NOT require any conversion.

@@ -1258,6 +1258,10 @@ inline Tensor ndarray_size(const Tensor& src,
  */
 inline Tensor one_hot(const Tensor& indices,
                       int depth,
+                      float on_value,
+                      float off_value,
+                      int axis,
+                      const Type& dtype,
                       const std::string name = "T_one_hot",
                       const std::string tag = kInjective) {
   Array<Expr> out_shape = indices->shape;
@@ -1269,7 +1273,8 @@ inline Tensor one_hot(const Tensor& indices,
     }
 
     auto idx = iter_vars[iter_vars.size() - 1];
-    return tvm::if_then_else(indices(outer_indices) == idx, 1, 0);
+    auto ret = ir::Select::make(indices(outer_indices) == idx, on_value, off_value);
+    return tvm::cast(dtype, ret);
   }, name, tag);
 }
 
