@@ -1083,8 +1083,11 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    shapes = { '0' : input_size }
-    expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
+    for target, ctx in ctx_list():
+        input_data = np.random.uniform(size=input_size).astype('int32')
+        c2_out = get_caffe2_output(onnx_model, input_data)
+        tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
+        tvm.testing.assert_allclose(c2_out, tvm_out)
 
 def test_resnet():
     check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
