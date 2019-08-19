@@ -273,9 +273,15 @@ class ExprTable(object):
     def get_expr(self, name):
         return self.exprs[name]
 
-    def set_expr(self, name, expr):
+    def set_expr(self, name, expr, force_override=False):
         assert isinstance(expr, _expr.Expr)
-        if name not in self.exprs:
+        # if name exists, we should override the value
+        # otherwise, we can not get like x = func(x) work.
+        # One example is CoreML preprocess, which will override
+        # the same name of input.
+        # However, according to git log, Find keras frontend depends
+        # on this property, so we add one force_override to control it.
+        if name not in self.exprs or force_override:
             self.exprs[name] = expr
 
     def has_expr(self, name):
