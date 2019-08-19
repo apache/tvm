@@ -83,13 +83,18 @@ TVM_ADD_FILELINE)
                          return {topi::identity(inputs[0])};
                        });
 
-Expr ForceCast(Expr data) {
-  static const Op& op = Op::Get("annotation.force_cast");
-  return CallNode::make(op, {data}, Attrs{}, {});
+// relay.annotation.cast_hint
+TVM_REGISTER_NODE_TYPE(CastHintAttrs);
+
+Expr CastHint(Expr data, DataType dtype) {
+  auto attrs = make_node<CastHintAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("annotation.cast_hint");
+  return CallNode::make(op, {data}, Attrs{attrs}, {});
 }
 
-RELAY_REGISTER_OP("annotation.force_cast")
-.describe(R"code(Annotate an expression to force a cast.)code"
+RELAY_REGISTER_OP("annotation.cast_hint")
+.describe(R"code(Annotate an expression to be cast into specific data type.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input data.")

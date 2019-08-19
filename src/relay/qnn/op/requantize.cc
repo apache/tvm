@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file requantize.cc
+ * \file src/relay/qnn/op/requantize.cc
  * \brief QNN requantize operator.
  */
 
@@ -228,14 +228,14 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto in_dtype = data->dtype;
   CHECK(in_dtype == Int(8) || in_dtype == UInt(8) || in_dtype == Int(32))
-      << "Input type should be an integer but was " << in_dtype;
+      << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type
   const RequantizeAttrs* param = attrs.as<RequantizeAttrs>();
   auto out_dtype = param->out_dtype;
   CHECK(out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32))
-      << "Output type should be an integer but was " << out_dtype;
+      << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[1], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
