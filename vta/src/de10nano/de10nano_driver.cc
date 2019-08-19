@@ -20,9 +20,11 @@
  * \brief VTA driver for DE10_Nano board.
  */
 
-#include <vta/driver.h>
-#include <thread>
 #include "de10nano_driver.h"
+
+#include <vta/driver.h>
+#include <dmlc/logging.h>
+#include <thread>
 #include "cma_api.h"
 
 void* VTAMemAlloc(size_t size, int cached) {
