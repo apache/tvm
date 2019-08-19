@@ -96,6 +96,13 @@ elseif(PYTHON)
     target_link_libraries(vta ${__cma_lib})
   endif()
 
+  # DE10-Nano rules
+  if(${VTA_TARGET} STREQUAL "de10-nano")
+    target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
+    target_include_directories(vta PUBLIC
+      "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
+  endif()
+
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
 endif()
