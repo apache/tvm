@@ -301,18 +301,12 @@ struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
 /*! \brief Attributes used in one-hot operator */
 struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   int depth;
-  double on_value;
-  double off_value;
   int axis;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(OneHotAttrs, "relay.attrs.OneHotAttrs") {
     TVM_ATTR_FIELD(depth).set_default(1)
         .describe("Depth of the one hot dimension.");
-    TVM_ATTR_FIELD(on_value).set_default(1)
-        .describe("On value.");
-    TVM_ATTR_FIELD(off_value).set_default(0)
-        .describe("Off value.");
     TVM_ATTR_FIELD(axis).set_default(-1)
         .describe("Axis to fill.");
     TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())

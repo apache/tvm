@@ -1214,13 +1214,15 @@ def _log1p():
 
 def _one_hot():
     def _impl(inputs, attr, params):
-        depth = int(_infer_value(inputs[1], params).asnumpy()[0])
-        on_value = float(_infer_value(inputs[2], params).asnumpy()[0])
-        off_value = float(_infer_value(inputs[3], params).asnumpy()[0])
+        depth = int(_get_num_param(params, inputs[1]))
+        dtype = attr['T'].name
+        
+        on_value = _get_num_param(params, inputs[2])
+        off_value = _get_num_param(params, inputs[3])
+        new_inputs = [inputs[0], tvm.relay.const(on_value, dtype), tvm.relay.const(off_value, dtype)]
         return AttrCvt('one_hot',
                        ignores=['TI'],
-                       extras={'depth' : depth, 'on_value' : on_value, 'off_value' : off_value,\
-                               'dtype' : attr['T'].name})([inputs[0]], attr)
+                       extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
     return _impl
 
 # compatible operators that do NOT require any conversion.

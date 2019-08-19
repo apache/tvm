@@ -1251,18 +1251,18 @@ inline Tensor ndarray_size(const Tensor& src,
  * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value, 
     other locations take value off_value.
  * \param indices locations to set to on_value.
- * \param depth depth of the one-hot dimension.
  * \param on_value value that locations represented by indices take on.
  * \param off_value value that other locations take on.
+ * \param depth depth of the one-hot dimension.
  * \param axis axis of one-hot dimension.
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return one-hot tensor.
  */
 inline Tensor one_hot(const Tensor& indices,
+                      const Expr on_value,
+                      const Expr off_value,
                       int depth,
-                      float on_value,
-                      float off_value,
                       int axis,
                       const Type& dtype,
                       const std::string name = "T_one_hot",
@@ -1279,10 +1279,12 @@ inline Tensor one_hot(const Tensor& indices,
     }
   }
 
+  Expr on_value_cast = cast(dtype, on_value);
+  Expr off_value_cast = cast(dtype, off_value);
   return compute(oshape, [&](const Array<Var>& iter_vars) {
     Array<Var> indices_indices;
     for (size_t i = 0; i < iter_vars.size(); i++) {
-      if (i == true_axis) {
+      if ((int)i == true_axis) {
         continue;
       }
 
@@ -1290,8 +1292,7 @@ inline Tensor one_hot(const Tensor& indices,
     }
 
     auto idx = iter_vars[true_axis];
-    auto ret = ir::Select::make(indices(indices_indices) == idx, on_value, off_value);
-    return tvm::cast(dtype, ret);
+    return ir::Select::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
   }, name, tag);
 }
 
