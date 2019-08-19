@@ -38,7 +38,6 @@ TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
 VTA_LIBNAME = libvta_hw
-DEBUG = 0
 UNITTEST_NAME = all
 CXX = g++
 DEBUG = 0
