@@ -35,5 +35,5 @@ else
 obj-m 	  := cma.o
 ccflags-y := -DDRIVER_NODE_NAME="\"$(DRIVER_NODE_NAME)\"" \
 			 -DCMA_DEBUG=$(CMA_DEBUG) \
-			 -DCMA_IOC_MAGIC=$(CMA_IOC_MAGIC) 
+			 -DCMA_IOC_MAGIC=$(CMA_IOC_MAGIC)
 endif

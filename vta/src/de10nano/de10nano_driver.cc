@@ -6,18 +6,16 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
-/*!
- *  Copyright (c) 2018 by Contributors
+ *
  * \file de10-nano_driver.cc
  * \brief VTA driver for DE10_Nano board.
  */
@@ -45,11 +43,11 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAFlushCache(vta_phy_addr_t buf, int size) {
-  // xlnkFlushCache(reinterpret_cast<void*>(buf), size);
+  CHECK(false) << "VTAFlushCache not implemented for de10nano";
 }
 
 void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
-  // xlnkInvalidateCache(reinterpret_cast<void*>(buf), size);
+  CHECK(false) << "VTAInvalidateCache not implemented for de10nano";
 }
 
 void *VTAMapRegister(uint32_t addr, size_t length) {
@@ -58,7 +56,7 @@ void *VTAMapRegister(uint32_t addr, size_t length) {
   // Calculate base address offset w.r.t the base address
   uint32_t virt_offset = addr - virt_base;
   // Open file and mmap
-  uint32_t mmap_file = open(VTA_DE10_NANO_DEV_MEM_PATH, O_RDWR|O_SYNC);
+  uint32_t mmap_file = open(VTA_DE10NANO_DEV_MEM_PATH, O_RDWR|O_SYNC);
   return mmap(NULL,
               (length+virt_offset),
               PROT_READ|PROT_WRITE,
@@ -85,7 +83,7 @@ class VTADevice {
  public:
   VTADevice() {
     // VTA stage handles
-    vta_host_handle_ = VTAMapRegister(VTA_FETCH_ADDR, VTA_RANGE);
+    vta_host_handle_ = VTAMapRegister(VTA_HOST_ADDR, VTA_RANGE);
   }
 
   ~VTADevice() {
@@ -99,17 +97,6 @@ class VTADevice {
     VTAWriteMappedReg(vta_host_handle_, 0x04, 0);
     VTAWriteMappedReg(vta_host_handle_, 0x08, insn_count);
     VTAWriteMappedReg(vta_host_handle_, 0x0c, insn_phy_addr);
-    VTAWriteMappedReg(vta_host_handle_, 0x10, 0);
-    VTAWriteMappedReg(vta_host_handle_, 0x14, 0);  // uop_phy_addr
-    VTAWriteMappedReg(vta_host_handle_, 0x18, 0);
-    VTAWriteMappedReg(vta_host_handle_, 0x1c, 0);  // input_phy_addr
-    VTAWriteMappedReg(vta_host_handle_, 0x20, 0);
-    VTAWriteMappedReg(vta_host_handle_, 0x24, 0);  // weight_phy_addr
-    VTAWriteMappedReg(vta_host_handle_, 0x28, 0);
-    VTAWriteMappedReg(vta_host_handle_, 0x2c, 0);  // bias_phy_addr
-    VTAWriteMappedReg(vta_host_handle_, 0x30, 0);
-    VTAWriteMappedReg(vta_host_handle_, 0x34, 0);  // output_phy_addr
-    VTAWriteMappedReg(vta_host_handle_, 0x38, 0);
 
     // VTA start
     VTAWriteMappedReg(vta_host_handle_, 0x0, VTA_START);
@@ -148,24 +135,5 @@ int VTADeviceRun(VTADeviceHandle handle,
 }
 
 void VTAProgram(const char* bitstream) {
-  int elem;
-  FILE *src, *dst;
-  src = fopen(bitstream, "rb");
-  if (src == NULL) {
-    printf("Cannot open bitstream %s\n", bitstream);
-    exit(1);
-  }
-  dst = fopen(VTA_DE10_NANO_BS_XDEVCFG, "wb");
-  if (dst == NULL) {
-    printf("Cannot open device file %s\n", VTA_DE10_NANO_BS_XDEVCFG);
-    fclose(dst);
-    exit(1);
-  }
-  elem = fgetc(src);
-  while (elem != EOF) {
-    fputc(elem, dst);
-    elem = fgetc(src);
-  }
-  fclose(src);
-  fclose(dst);
+  CHECK(false) << "VTAProgram not implemented for de10nano";
 }

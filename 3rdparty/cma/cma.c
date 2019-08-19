@@ -1,6 +1,5 @@
 /* cma.c - ARM specific Linux driver for allocating physically contigious memory.
  *
- *
  * The MIT License (MIT)
  *
  * COPYRIGHT (C) 2017 Institute of Electronics and Computer Science (EDI), Latvia.
@@ -12,10 +11,10 @@
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -28,9 +27,9 @@
  * DESCRIPTION:
  * In some DMA use cases there is a need or it is more efficient to use large
  * physically contigous memory regions. When Linux kernel is compiled with CMA
- * (Contigous Memory Allocator) feature, this module allows to allocate this 
+ * (Contigous Memory Allocator) feature, this module allows to allocate this
  * contigous memory and pass it to the user space. Memory can be either cached
- * or uncached. 
+ * or uncached.
  *
  * For api description, see "cma_api.h" header file.
  *
