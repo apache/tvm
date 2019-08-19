@@ -20,8 +20,9 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 1. [Simulator installation](#vta-simulator-installation)
-2. [Hardware test setup](#vta-pynq-based-test-setup)
-3. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
+2. [PYNQ-based test setup](#vta-pynq-based-test-setup)
+3. [Custom test setup for Intel FPGA](#vta-custom-test-setup-for-intel-fpga)
+4. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
 
 ## VTA Simulator Installation
 
@@ -223,6 +224,24 @@ dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progres
 This would take a few minutes for your PC to write the whole file systems into the SD card.
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
+
+> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-zimage/master/zImage).
+
+After connecting he usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
+
+``` bash
+# NOTE: root privilege is typically required to run the following command.
+minicom -D /dev/ttyUSB0
+```
+
+The default user name for the device would be `root`, and the password is empty for the default user.
+
+#### Install Required Python Packages
+
+After accessing bash terminal from the serial port, we need to install required Python packages before building and installing TVM and VTA programs.
+
+
+
 
 #### Build Additional Components to Use VTA Bitstream
 
