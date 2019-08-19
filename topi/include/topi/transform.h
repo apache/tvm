@@ -1282,14 +1282,14 @@ inline Tensor one_hot(const Tensor& indices,
   return compute(oshape, [&](const Array<Var>& iter_vars) {
     Array<Var> indices_indices;
     for (size_t i = 0; i < iter_vars.size(); i++) {
-      if (i == axis) {
+      if (i == true_axis) {
         continue;
       }
 
       indices_indices.push_back(iter_vars[i]);
     }
 
-    auto idx = iter_vars[axis];
+    auto idx = iter_vars[true_axis];
     auto ret = ir::Select::make(indices(indices_indices) == idx, on_value, off_value);
     return tvm::cast(dtype, ret);
   }, name, tag);
