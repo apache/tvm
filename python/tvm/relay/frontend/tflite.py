@@ -82,7 +82,8 @@ class OperatorConverter(object):
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
             'SPLIT': self.convert_split,
-            'TRANSPOSE': self.convert_transpose
+            'TRANSPOSE': self.convert_transpose,
+            'TILE': self.convert_tile
         }
 
     def check_unsupported_ops(self):
@@ -766,6 +767,28 @@ class OperatorConverter(object):
             out = _op.transpose(in_expr)
         else:
             out = _op.transpose(in_expr, in_axis)
+
+        return out
+
+    def convert_tile(self, op):
+        """tile implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # reps (tuple of int) – The number of times repeating the tensor data.
+        reps = tuple(self.get_tensor_value(input_tensors[1]))
+
+        out = _op.tile(in_expr, reps)
 
         return out
 
