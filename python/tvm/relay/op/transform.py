@@ -752,7 +752,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
     Returns a one-hot tensor where the locations repsented by indices take value on_value,
-    other locations take value off_value. 
+    other locations take value off_value.
     Final dimension is <indices outer dimensions> x depth x <indices inner dimensions>.
 
     Parameters

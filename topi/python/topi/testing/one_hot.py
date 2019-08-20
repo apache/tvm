@@ -22,7 +22,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """one_hot operator implemented in numpy.
 
     Returns a one-hot tensor where the locations repsented by indices take value on_value,
-    other locations take value off_value. 
+    other locations take value off_value.
     Final dimension is <indices outer dimensions> x depth x <indices inner dimensions>.
 
     Parameters
@@ -65,10 +65,10 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     output_indices = [index for index in np.ndindex(out.shape)]
     for output_index in output_indices:
         indices_indices = []
-        for i in range(0, len(output_index)):
+        for i, out_idx in enumerate(output_index):
             if i == true_axis:
                 continue
-            indices_indices.append(output_index[i])
+            indices_indices.append(out_idx)
 
         index = output_index[true_axis]
         if indices[tuple(indices_indices)] == index:

@@ -1285,7 +1285,7 @@ inline Tensor one_hot(const Tensor& indices,
   return compute(oshape, [&](const Array<Var>& iter_vars) {
     Array<Var> indices_indices;
     for (size_t i = 0; i < iter_vars.size(); i++) {
-      if ((int)i == true_axis) {
+      if (static_cast<int>(i) == true_axis) {
         continue;
       }
 

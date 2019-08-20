@@ -2519,7 +2519,14 @@ Array<Tensor> OneHotCompute(const Attrs& attrs,
                             const Target& target) {
   const auto* param = attrs.as<OneHotAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::one_hot(inputs[0], inputs[1](), inputs[2](), param->depth, param->axis, param->dtype) };
+  return Array<Tensor> {
+    topi::one_hot(inputs[0],
+                  inputs[1](),
+                  inputs[2](),
+                  param->depth,
+                  param->axis,
+                  param->dtype)
+  };
 }
 
 Expr MakeOneHot(Expr indices,

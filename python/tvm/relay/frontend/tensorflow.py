@@ -1216,10 +1216,12 @@ def _one_hot():
     def _impl(inputs, attr, params):
         depth = int(_get_num_param(params, inputs[1]))
         dtype = attr['T'].name
-        
+
         on_value = _get_num_param(params, inputs[2])
         off_value = _get_num_param(params, inputs[3])
-        new_inputs = [inputs[0], tvm.relay.const(on_value, dtype), tvm.relay.const(off_value, dtype)]
+        new_inputs = [inputs[0], \
+                      tvm.relay.const(on_value, dtype), \
+                      tvm.relay.const(off_value, dtype)]
         return AttrCvt('one_hot',
                        ignores=['TI'],
                        extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
