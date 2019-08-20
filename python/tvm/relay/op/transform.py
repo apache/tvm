@@ -760,14 +760,20 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     indices : relay.Expr
         Locations to set to on_value.
 
-    on_value : float
+    on_value : relay.Expr
         Value to fill at indices.
 
-    off_value : float
+    off_value : relay.Expr
         Value to fill at all other positions besides indices.
 
     depth : int
         Depth of the one-hot dimension.
+
+    axis : int
+        Axis to fill.
+
+    dtype : str
+        Data type of the output tensor.
 
     Returns
     -------

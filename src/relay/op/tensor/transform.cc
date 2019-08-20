@@ -2551,7 +2551,7 @@ RELAY_REGISTER_OP("one_hot")
 
     **depth** Depth of the one-hot dimension.
     
-    **axis** Axis of one-hot dimension.
+    **axis** Axis to fill.
     
     **dtype**)code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.OneHotAttrs")

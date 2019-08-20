@@ -1254,7 +1254,8 @@ inline Tensor ndarray_size(const Tensor& src,
  * \param on_value value that locations represented by indices take on.
  * \param off_value value that other locations take on.
  * \param depth depth of the one-hot dimension.
- * \param axis axis of one-hot dimension.
+ * \param axis axis to fill.
+ * \param dtype data type of the output tensor.
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return one-hot tensor.
