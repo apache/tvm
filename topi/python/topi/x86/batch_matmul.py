@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm.contrib import cblas
-
 from topi.nn import batch_matmul, batch_matmul_default
 from .. import generic
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
