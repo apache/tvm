@@ -134,6 +134,7 @@ class HybridParser(ast.NodeVisitor):
         """
         self.args = list(args)
         self.usage = usage.copy()
+        self.visited_vars = set()
 
         self.symbols = {} # Symbol table
         for k, v in symbols.items():
@@ -177,6 +178,8 @@ class HybridParser(ast.NodeVisitor):
         to_pop = []
         for key, val in self.usage.items():
             _, level, _ = val
+            if key not in self.visited_vars:
+                continue
             if level != node:
                 continue
             _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
@@ -322,6 +325,7 @@ class HybridParser(ast.NodeVisitor):
                 _internal_assert(ty != Symbol.LoopVar, \
                                  "Loop variable cannot be overwritten!")
             decl, _, rw = self.usage[lhs]
+            self.visited_vars.add(lhs)
             if decl == lhs_:
                 _internal_assert(lhs not in self.symbols.keys(),
                                  "This value should not be defined before this point!")

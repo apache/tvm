@@ -305,6 +305,7 @@ class ScheduleGetter :
   Array<Operation> scalars_;
 };
 
+// The getter to get shape function from functor.
 class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
  public:
   explicit ShapeFuncGetter() {}
@@ -432,11 +433,10 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
     CHECK(data_dependants_.size());
     CHECK(op->is_scalar());
     bool data_dependant = data_dependants_.back();
-    Shape shape{IntImm::make(Int(32), 1)};
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = TVMType2Type(op->data->dtype);
-      Tensor value = tvm::compute(shape, [&](const Array<tvm::Var>&) {
+      Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
           if (dtype == Int(32)) {
             return make_const(dtype, static_cast<const int32_t*>(data)[0]);
           } else if (dtype == Int(64)) {
@@ -455,8 +455,8 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
       scalars_.push_back(value);
       return {value};
     } else {
-      Tensor value = tvm::compute(shape, [&](const Array<tvm::Var>&) {
-          return make_const(Int(64), 1);
+      Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
+          return make_const(Int(64), 0);
       }, "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
@@ -474,6 +474,7 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
     CHECK_GT(fshape_func.count(op), 0)
       << "Internal error, cannot find ShapeFunc for " << op->name;
     data_dependants_.push_back(op->shape_data_dependant);
+    // Visit all inputs
     Array<Tensor> inputs;
     int count_tuple = 0;
     for (Expr arg : call_node->args) {
@@ -488,6 +489,7 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
       CHECK_EQ(call_node->args.size(), 1U)
         << "Only allow function with a single tuple input";
     }
+    // Get output ndims
     auto ret_type = call_node->checked_type();
     Array<IndexExpr> out_ndims;
     if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
@@ -501,6 +503,7 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
         out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
       }
     }
+    // Call shape function
     auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
     data_dependants_.pop_back();
     readable_name_stream_ << "_" << op->name;
@@ -532,12 +535,19 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
   }
 
  private:
+  /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;
+  /*! \brief Map from parameter to its shape function usage state */
   std::unordered_map<Expr, int, NodeHash, NodeEqual> param_states_;
+  /*! \brief Map from parameter to list of data placeholder */
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_data_;
+  /*! \brief Map from parameter to list of shape placeholder */
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_shapes_;
+  /*! \brief Memoized visit result */
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
+  /*! \brief Scalars used in the shape function */
   Array<Tensor> scalars_;
 };
 

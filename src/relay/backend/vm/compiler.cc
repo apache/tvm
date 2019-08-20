@@ -506,9 +506,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   std::vector<Index> AllocReturnType(const Type& ret_type, const Function& func,
                                      const std::vector<Index>& unpacked_arg_regs) {
-    // If either func param types or ret type is dynamic, we need to insert
+    auto op = func->body.as<CallNode>()->op;
+    // 1. If either func param types or ret type is dynamic, we need to insert
     // shape func to perform type checking at runtime.
-    if (IsDynamic(func->checked_type())) {
+    // 2. We skip the shape_of function since currently Relay doesn't support
+    // dynamic rank tensor.
+    if (op != Op::Get("shape_of") && IsDynamic(func->checked_type())) {
       return EmitShapeFunc(ret_type, func, unpacked_arg_regs);
     }
     std::vector<Index> ret_regs;

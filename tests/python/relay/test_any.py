@@ -24,6 +24,12 @@ from tvm.relay.testing import run_infer_type as infer_type
 def int32(val):
     return relay.const(val, 'int32')
 
+def any_dims(ndim):
+    shape = []
+    for _ in range(ndim):
+        shape.append(relay.Any())
+    return tuple(shape)
+
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     dtype = 'float32'
     x = relay.var('x', shape=x_shape, dtype=dtype)
@@ -41,7 +47,6 @@ def test_any_broadcast():
     verify_any_broadcast((relay.Any(),), (3, 2), (1,), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (1, 2), (1, 2), (1, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (1, 2), (3, 2), (1, 2), relay.add, np.add)
-    verify_any_broadcast((relay.Any(), 2), (1, 2), (4, 2), (1, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, 2), (1, 2), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, relay.Any()), (1, 2), (3, 1), relay.add, np.add)
 
@@ -78,12 +83,33 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape):
         tvm.testing.assert_allclose(result.flatten(), data.flatten())
 
 def test_any_reshape():
-    any_dim3 = (relay.Any(), relay.Any(), relay.Any())
-    verify_any_reshape(any_dim3, (1, -1), (2, 3, 4), (1, 24))
-    verify_any_reshape(any_dim3, (0, -1), (2, 3, 4), (2, 12))
-    verify_any_reshape(any_dim3, (0, -2), (2, 3, 4), (2, 3, 4))
-    verify_any_reshape(any_dim3, (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
-    verify_any_reshape(any_dim3, (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
+    verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24))
+    verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12))
+    verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
+    verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
+    verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
+
+def test_any_shape_of():
+    x = relay.var('x', shape=any_dims(2), dtype='float32')
+    y = relay.shape_of(x)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], y)
+    data = np.random.uniform(size=(3, 4)).astype('float32')
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data)
+        tvm.testing.assert_allclose(result.asnumpy(), np.array([3,4]).astype("int64"))
+
+    x = relay.var('x', shape=any_dims(3), dtype='float32')
+    y0 = relay.shape_of(x)
+    y1 = relay.take(y0, relay.const(1, 'int32'))
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], y1)
+    data = np.random.uniform(size=(2, 3, 4)).astype('float32')
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data)
+        tvm.testing.assert_allclose(result.asnumpy(), np.array(3).astype("int64"))
 
 def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
@@ -202,6 +228,7 @@ if __name__ == "__main__":
     test_any_broadcast()
     test_any_concat()
     test_any_reshape()
+    test_any_shape_of()
     test_fused_ops()
     test_arange_with_dynamic_shape()
     test_recursive_concat()

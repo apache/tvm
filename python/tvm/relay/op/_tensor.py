@@ -108,29 +108,35 @@ register_schedule("clip", schedule_elemwise)
 
 # shape func
 @script
-def _broadcast_shape_func(x, y):
-    ndim1 = x.shape[0]
-    ndim2 = y.shape[0]
-    ndim = max(ndim1, ndim2)
+def _broadcast_shape_func(x, y, ndim):
     out = output_tensor((ndim,), "int64")
-    for i in const_range(1, min(ndim1, ndim2)+1):
-        if x[ndim1-i] == y[ndim2-i]:
-            out[ndim-i] = x[ndim1-i]
-        elif x[ndim1-i] == 1:
-            out[ndim-i] = y[ndim2-i]
-        else:
-            assert y[ndim2 - i] == 1, "Incompatible broadcast type %s and %s" % (
-                x[ndim1-i], y[ndim2-i])
-            out[ndim-i] = x[ndim1-i]
-    for i in const_range(min(ndim1, ndim2)+1, ndim+1):
-        if ndim1 >= ndim2:
-            out[ndim-i] = x[ndim1-i]
-        else:
-            out[ndim-i] = y[ndim2-i]
+    if len(x.shape) == 0:
+        for i in const_range(ndim):
+            out[i] = y[i]
+    elif len(y.shape) == 0:
+        for i in const_range(ndim):
+            out[i] = x[i]
+    else:
+        ndim1 = x.shape[0]
+        ndim2 = y.shape[0]
+        for i in const_range(1, min(ndim1, ndim2)+1):
+            if x[ndim1-i] == y[ndim2-i]:
+                out[ndim-i] = x[ndim1-i]
+            elif x[ndim1-i] == 1:
+                out[ndim-i] = y[ndim2-i]
+            else:
+                assert y[ndim2 - i] == 1, "Incompatible broadcast type %s and %s" % (
+                    x[ndim1-i], y[ndim2-i])
+                out[ndim-i] = x[ndim1-i]
+        for i in const_range(min(ndim1, ndim2)+1, ndim+1):
+            if ndim1 >= ndim2:
+                out[ndim-i] = x[ndim1-i]
+            else:
+                out[ndim-i] = y[ndim2-i]
     return out
 
 def broadcast_shape_func(attrs, inputs, out_ndims):
-    return [_broadcast_shape_func(*inputs)]
+    return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)

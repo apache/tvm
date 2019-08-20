@@ -509,6 +509,11 @@ class Interpreter :
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
     bool is_dyn = IsDynamic(func->checked_type());
+    if (call_node->op == Op::Get("shape_of")) {
+      // The output shape of shape_of must be static since Relay doesn't support
+      // dynamic rank tensors.
+      is_dyn = false;
+    }
 
     if (is_dyn) {
       CHECK(func->IsPrimitive());

@@ -210,6 +210,11 @@ class CompileEngine : public NodeRef {
   TVM_DLL static const CompileEngine& Global();
 };
 
+/*!
+ * \brief Check if the type is dynamic.
+ * \param ty The type to be checked.
+ * \return The result.
+ */
 bool IsDynamic(const Type& ty);
 
 // implementations
