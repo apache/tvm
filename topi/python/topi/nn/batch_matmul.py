@@ -29,7 +29,7 @@ def batch_matmul_default(x, y):
     x : tvm.Tensor
         3-D with shape [batch, M, K]
 
-    y : tvm.TEnsor
+    y : tvm.Tensor
         3-D with shape [batch, N, K]
 
     Returns
@@ -59,7 +59,7 @@ def batch_matmul(x, y):
     x : tvm.Tensor
         3-D with shape [batch, M, K]
 
-    y : tvm.TEnsor
+    y : tvm.Tensor
         3-D with shape [batch, N, K]
 
     Returns
