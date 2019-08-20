@@ -225,7 +225,9 @@ This would take a few minutes for your PC to write the whole file systems into t
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
-> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-zimage/master/zImage).
+> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. 
+> In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. 
+> For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage).
 
 After connecting he usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
 
@@ -236,30 +238,21 @@ minicom -D /dev/ttyUSB0
 
 The default user name for the device would be `root`, and the password is empty for the default user.
 
+You may now start to install supporting Python3 packages (TVM has dropped the support for Python2), specifically, they are `numpy`, `attrs` and `decorator`.
+
+> Note: You might fail to install `numpy` by using `pip3` on the DE10-Nano device. 
+> In that case, you have the option to either build your own filesystem image for the board from [meta-de10-nano](https://github.com/intel/meta-de10-nano) repository; 
+> an alternative option is to download prebuilt packages from existing Linux distributions, e.g. Debian.
+> For a quick fix, we have concatenated the supplementary binary files [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/rootfs_supplement.tgz), and you can extract the files into the root filesystem.
+
 #### Install Required Python Packages
 
 After accessing bash terminal from the serial port, we need to install required Python packages before building and installing TVM and VTA programs.
-
-
-
 
 #### Build Additional Components to Use VTA Bitstream
 
 To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
 Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
-
-For easier program debugging (e.g. `metal_test` program at `vta/tests/hardware/metal_test`), it is also recommended to install `gdbserver` on you device. For instance, you can start your program on the device by runninng:
-
-``` bash
-gdbserver localhost:4444 ./metal_test
-```
-, and then you can set break points and print values of desired varilables on the host:
-``` bash
-gdb-multiarch --fullname metal_test
-(gdb) target remote <device-ip>:4444
-```
-
-In addition, to enable fully featured VTA for DE10-Nano, you would also need `python3-numpy`, `python3-decorate`, `python3-attrs` to be cross-compiled.
 
 ## VTA FPGA Toolchain Installation
 
