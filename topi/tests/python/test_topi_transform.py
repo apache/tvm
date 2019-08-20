@@ -473,11 +473,11 @@ def verify_where(in_shape):
     for device in get_all_backend():
         check_device(device)
 
-def verify_one_hot(indices_shape, depth, on_value, off_value, axis, out_dtype):
+def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
     indices = tvm.placeholder(shape=indices_shape, name="indices", dtype="int32")
-    on_value_const = tvm.const(on_value, out_dtype)
-    off_value_const = tvm.const(off_value, out_dtype)
-    one_hot_result = topi.transform.one_hot(indices, on_value_const, off_value_const, depth, axis, out_dtype)
+    on_value_const = tvm.const(on_value, dtype)
+    off_value_const = tvm.const(off_value, dtype)
+    one_hot_result = topi.transform.one_hot(indices, on_value_const, off_value_const, depth, axis, dtype)
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -488,7 +488,7 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, out_dtype):
             s = topi.generic.schedule_injective(one_hot_result)
         fn = tvm.build(s, [indices, one_hot_result], device, name="one_hot")
         indices_npy = np.random.randint(0, depth, size=indices_shape).astype(indices.dtype)
-        out_npy = topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, out_dtype)
+        out_npy = topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, dtype)
         indices_nd = tvm.nd.array(indices_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(one_hot_result.dtype), ctx)
         fn(indices_nd, out_nd)
