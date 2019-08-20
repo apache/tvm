@@ -2482,5 +2482,108 @@ Examples::
 .set_attr<FTVMCompute>("FTVMCompute", SequenceMaskCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// one_hot operator
+TVM_REGISTER_NODE_TYPE(OneHotAttrs);
+
+bool OneHotRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& raw_attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4);
+  const auto attrs = raw_attrs.as<OneHotAttrs>();
+  CHECK(attrs != nullptr);
+
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "one_hot: expect input data type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+
+  int depth = static_cast<int>(attrs->depth->value);
+  CHECK_GT(depth, 0)
+      << "Invalid one_hot attributes (depth): " << attrs->depth;
+  const auto* on_value = types[1].as<TensorTypeNode>();
+  const auto* off_value = types[2].as<TensorTypeNode>();
+  if (on_value == nullptr || off_value == nullptr) {
+    return false;
+  }
+
+  CHECK_EQ(on_value->shape.size(), 0) << "on_value should be a scalar";
+  CHECK_EQ(off_value->shape.size(), 0) << "off_value should be a scalar";
+
+  int axis;
+  if (!attrs->axis.defined()) {
+    axis = static_cast<int>(data->shape.size());
+  } else {
+    axis = static_cast<int>(attrs->axis->value);
+    CHECK_GE(axis, -1)
+      << "axis should be greater equal than -1.";
+    CHECK_LT(axis, static_cast<int>(data->shape.size()))
+      << "axis should be within the input dimension range.";
+    if (axis < 0) {
+      axis = static_cast<int>(data->shape.size());
+    }
+  }
+
+  std::vector<IndexExpr> oshape;
+  const auto ndim_data = static_cast<int>(data->shape.size());
+
+  oshape.reserve(ndim_data + 1);
+  for (int i = 0; i < axis; ++i) {
+      oshape.emplace_back(data->shape[i]);
+  }
+  if (axis == ndim_data) {
+    oshape.emplace_back(depth);
+  } else {
+    oshape.emplace_back(depth);
+    for (int i = axis; i < ndim_data; ++i) {
+      oshape.emplace_back(data->shape[i]);
+    }
+  }
+  reporter->Assign(types[3], TensorTypeNode::make(Array<IndexExpr>(oshape),
+                                                    on_value->dtype));
+  return true;
+}
+
+Array<Tensor> OneHotCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const auto* param = attrs.as<OneHotAttrs>();
+  CHECK(param != nullptr);
+  Tensor on_value =  inputs[1];
+  Tensor off_value = inputs[2];
+
+  return Array<Tensor>{ topi::one_hot(inputs[0], param->depth, on_value, off_value, param->axis) };
+}
+
+Expr MakeOneHot(Expr data,
+                Integer depth,
+                Expr on_value,
+                Expr off_value,
+                Integer axis) {
+  auto attrs = make_node<OneHotAttrs>();
+  attrs->depth = std::move(depth);
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("one_hot");
+  return CallNode::make(op, {data, on_value, off_value}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.one_hot")
+.set_body_typed(MakeOneHot);
+
+RELAY_REGISTER_OP("one_hot")
+.describe(R"code(Returns one-hot array within a given interval-depth.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.OneHotAttrs")
+.set_num_inputs(3)
+.set_support_level(3)
+.add_type_rel("OneHot", OneHotRel)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FTVMCompute>("FTVMCompute", OneHotCompute)
+.set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions);
 }  // namespace relay
 }  // namespace tvm

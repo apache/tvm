@@ -894,6 +894,21 @@ def _stridedSlice():
         return _op.reshape(out, newshape=tuple(final_output))
     return _impl
 
+def _one_hot():
+    def _impl(inputs, attr, params):
+        depth = _get_num_param(params, inputs.pop(1))
+        on_value = _get_num_param(params, inputs.pop(1))
+        off_value = _get_num_param(params, inputs.pop(1))
+        inputs.append(tvm.relay.const(on_value, dtype=on_value.dtype))
+        inputs.append(tvm.relay.const(off_value, dtype=off_value.dtype))
+        axis = int(attr["axis"])
+        new_input = inputs[0:3]
+        return AttrCvt(op_name="one_hot",
+                       extras={'depth': tvm.const(depth, 'int32'),
+                               'axis': tvm.const(axis, 'int32')},
+                       ignores=['TI'])(new_input, attr)
+    return _impl
+
 def _pad(name):
     def _impl(inputs, attr, params):
         padlist = _get_param(params, inputs[1])
@@ -1284,6 +1299,7 @@ _convert_map = {
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),

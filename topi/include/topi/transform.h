@@ -661,6 +661,62 @@ inline Tensor take(const Tensor& a,
 
 
 /*!
+* \brief OneHot elements from an flattened input array of depth along an axis.
+*
+* \param a The source array.
+* \param depth The depth of the one hot dimension to expand.
+* \param on_value The value to fill in output when indices[j] = i.
+* \param off_value The value to fill in output when indices[j] != i.
+* \param axis The axis over which to select values. By default,
+* the flattened input array is used.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the take operation
+*/
+inline Tensor one_hot(const Tensor& a,
+                   int depth,
+                   const Tensor& on_value,
+                   const Tensor& off_value,
+                   int axis,
+                   std::string name = "T_one_hot",
+                   std::string tag = kInjective) {
+  int input_shape = static_cast<int>(a->shape.size());
+  CHECK_GE(axis, -1) << "axis out of bounds, must >= -1" << axis;
+  CHECK_LT(axis, static_cast<int>(a->shape.size()))
+    << "axis out of bounds, must < a->shape.size()"
+    << "(" << axis << "," << a->shape.size() << ")";
+
+  Array<Expr> out_shape;
+  for (int i = 0; i < input_shape; ++i) {
+    if (axis == static_cast<int>(i)) {
+      out_shape.push_back(depth);
+      out_shape.push_back(a->shape[i]);
+    } else {
+      out_shape.push_back(a->shape[i]);
+    }
+  }
+  if (axis < 0) {
+    out_shape.push_back(depth);
+    axis = input_shape;
+  }
+
+  return compute(
+      out_shape, [&](const Array<Var>& indices) {
+        Array<Expr> real_indices;
+        for (int j = 0; j < axis; ++j) {
+            real_indices.push_back(indices[j]);
+        }
+        if (axis < input_shape) {
+          for (int j = axis + 1; j < static_cast<int>(indices.size()); ++j) {
+            real_indices.push_back(indices[j]);
+          }
+        }
+        Expr ret = tvm::ir::Select::make(a(real_indices) == indices[axis], on_value(), off_value());
+        return ret;
+      }, name, tag);
+}
+/*!
 * \brief Mask the out-of-boundary elements of each sequence.
 *
 * \param data The source array.

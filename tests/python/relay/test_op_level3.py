@@ -685,6 +685,49 @@ def test_gather_nd():
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
+def test_one_hot_infer_type():
+    def verify_one_hot(dshape, depth, oshape, axis=None):
+        input = relay.var("input", relay.TensorType(dshape, "int32"))
+        on_value = relay.var("on_value", relay.scalar_type("float32"))
+        off_value = relay.var("off_value", relay.scalar_type("float32"))
+        y = relay.one_hot(input, on_value=on_value, off_value=off_value, depth=depth, axis=axis)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType(oshape, "float32")
+
+    d1, d2, d3 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3")
+
+    verify_one_hot((d1,), 2, (d1,2), -1)
+    verify_one_hot((4,), 3, (4, 3))
+    verify_one_hot((3, 3), 4, (3, 3 ,4))
+    verify_one_hot((d1, d2), 5, (d1, d2, 5), -1)
+
+def test_one_hot():
+    def verify_one_hot(src_shape, depth, on_value_data, off_value_data, axis=None):
+        data_dtype = "int32"
+        value_dtype = "float32"
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        input_data = np.arange(shape_size, dtype=data_dtype).reshape((src_shape))
+        input = relay.var("input", relay.TensorType(input_data.shape, data_dtype))
+        on_value = relay.var("on_value", relay.scalar_type(value_dtype))
+        off_value = relay.var("off_value", relay.scalar_type(value_dtype))
+        z = relay.one_hot(input, on_value=on_value, off_value=off_value, depth=depth, axis=axis)
+
+        func = relay.Function([input, on_value, off_value], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                on_value_npy = np.array(on_value_data, dtype=value_dtype)
+                off_value_npy = np.array(off_value_data, dtype=value_dtype)
+                op_res = intrp.evaluate(func)(input_data, on_value_npy, off_value_npy)
+                ref_res = on_value_data * np.eye(depth)[input_data]
+                ref_res[ref_res == 0] = off_value_data
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_one_hot((4,), 4, 1.0, 0.0, -1)
+
 if __name__ == "__main__":
     test_arange()
     test_cast()
@@ -715,3 +758,5 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_one_hot_infer_type()
+    test_one_hot()

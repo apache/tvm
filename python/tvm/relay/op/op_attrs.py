@@ -264,3 +264,8 @@ class MaxPool2DAttrs(Attrs):
 @register_relay_attr_node
 class AvgPool2DAttrs(Attrs):
     """Attributes used in avg_pool2d operators"""
+
+
+@register_relay_attr_node
+class OneHotAttrs(Attrs):
+    """Attributes used in one_hot operators"""

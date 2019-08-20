@@ -518,3 +518,30 @@ def where(condition, x, y):
         A Tensor selected from x or y depending on condition.
     """
     return cpp.where(condition, x, y)
+
+def one_hot(data, depth, on_value, off_value, axis=-1):
+    """Creates a one_hot tensor from an input tensor along the axis.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        n-D input, can be any layout.
+
+    depth : Expr.Constant
+        A scalar defining the depth of the one hot dimension.
+
+    on_value : tvm.Tensor
+        The input data defining the value to fill in output when indices[j] = i.
+
+    off_value : tvm.Tensor
+        The input data defining the value to fill in output when indices[j] != i.
+
+    axis : Expr.Constant, optional
+        The axis along which to add depth shape. The default axis is -1.
+
+    Returns
+    -------
+    result : tvm.Tensor
+        The resulting one-hot tensor.
+    """
+    return cpp.one_hot(data, depth, on_value, off_value, axis)

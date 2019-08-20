@@ -340,6 +340,51 @@ def arange(start, stop=None, step=None, dtype="float32"):
     return _make.arange(start, stop, step, dtype)
 
 
+def one_hot(data, on_value=None, off_value=None, depth=None, axis=None):
+    """Onehot
+
+    This operator takes in a 1-D(n) or more dimension tensor and expand the
+    dimension by the specified depths using the specified value to (n, depth).
+
+    Parameters
+    ----------
+    data: tvm.relay.Expr
+        The input data to the operator
+
+    depth: int
+        A scalar defining the depth of the one hot dimension.
+
+    on_value: tvm.relay.Expr
+        The input data defining the value to fill in output when indices[j] = i.
+
+    off_value: tvm.relay.Expr,
+        The input data defining the value to fill in output when indices[j] != i.
+
+    axis: int, optional
+        The axis along which to add depth shape. The default axis is -1.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The resulting one-hot tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [0, 2, -1, 1]
+        depth = 3
+        relay.one_hot(data, depth,
+                on_value=5.0, off_value=0.0,
+                axis=-1)  # output: [4 x 3]
+        # [[5.0, 0.0, 0.0],  # one_hot(0)
+        #  [0.0, 0.0, 5.0],  # one_hot(2)
+        #  [0.0, 0.0, 0.0],  # one_hot(-1)
+        #  [0.0, 5.0, 0.0]]  # one_hot(1)
+    """
+
+    return _make.one_hot(data, depth, on_value, off_value, axis)
+
 def repeat(data, repeats, axis):
     """Repeats elements of an array.
     By default, repeat flattens the input array into 1-D and then repeats the elements.

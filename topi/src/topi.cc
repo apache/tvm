@@ -157,7 +157,6 @@ TVM_REGISTER_GLOBAL("topi.sin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = sin(args[0]);
   });
-
 TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
@@ -357,6 +356,13 @@ TVM_REGISTER_GLOBAL("topi.take")
     *rv = take(args[0], args[1], axis, mode);
   }
   });
+
+TVM_REGISTER_GLOBAL("topi.one_hot")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  int depth = args[1];
+  int axis = args[4];
+  *rv = one_hot(args[0], depth, args[2], args[3], axis);
+});
 
 TVM_REGISTER_GLOBAL("topi.sequence_mask")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

@@ -312,6 +312,45 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+
+def verify_one_hot(src_shape, depth, on_value_data, off_value_data, axis=-1):
+    src_dtype = "int32"
+    value_dtype = "float32"
+    A = tvm.placeholder(shape=src_shape, dtype=src_dtype, name="indices")
+    on_value = tvm.placeholder(shape=(), dtype=value_dtype, name="on_value")
+    off_value = tvm.placeholder(shape=(), dtype=value_dtype, name="off_value")
+    out_tensor = topi.one_hot(A, depth, on_value, off_value, axis=axis)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+
+        foo = tvm.build(s, [A, on_value, off_value, out_tensor], device, name="one_hot")
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+        on_value_npy = np.array(on_value_data, dtype=value_dtype)
+        off_value_npy = np.array(off_value_data, dtype=value_dtype)
+        out_npys = on_value_data * np.eye(depth)[data_npy]
+        out_npys[out_npys == 0] = off_value_data
+
+        data_nd = tvm.nd.array(data_npy, ctx)
+        on_value_nd = tvm.nd.array(on_value_npy, ctx)
+        off_value_nd = tvm.nd.array(off_value_npy, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=value_dtype)
+        foo(data_nd, on_value_nd, off_value_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
+        check_device(device)
+
+
 def verify_strided_slice(in_shape, begin, end, strides=None):
     A = tvm.placeholder(shape=in_shape, name="A")
     strides = [1,1,1] if strides is None else strides
@@ -596,6 +635,15 @@ def test_take():
     verify_take((3,4), [0, 2], axis=0, mode="fast")
     verify_take((3,4), [0, 2], axis=1, mode="fast")
 
+def test_one_hot():
+    verify_one_hot((3,), 3, 1.0, 0.0, axis=-1)
+    verify_one_hot((4,), 4, 1.0, 0.0, axis=-1)
+    verify_one_hot((4,), 4, 2.0, 1.0, axis=-1)
+    verify_one_hot((4,), 4, 5.0, 2.0, axis=-1)
+    verify_one_hot((2,2), 6, 5.0, 2.0, axis=-1)
+    verify_one_hot((2,2), 6, 5.0, -2.0, axis=-1)
+    verify_one_hot((5,), 10, 5.0, -1.0, axis=-1)
+
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:
         verify_gather_nd((4,), [[1.8]], indices_dtype)
@@ -793,3 +841,4 @@ if __name__ == "__main__":
     test_sequence_mask()
     test_ndarray_size()
     test_where_fusion()
+    test_one_hot()
