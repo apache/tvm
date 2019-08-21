@@ -130,6 +130,7 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_finite_only_on.amdgcn.bc",
         "oclc_isa_version_803.amdgcn.bc",
         "oclc_isa_version_900.amdgcn.bc",
+        "oclc_isa_version_906.amdgcn.bc",
         "oclc_unsafe_math_off.amdgcn.bc",
         "oclc_unsafe_math_on.amdgcn.bc"
     ]
