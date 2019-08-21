@@ -30,6 +30,9 @@ def any_dims(ndim):
         shape.append(relay.Any())
     return tuple(shape)
 
+# TODO(@wweic): because vm doesn't support heterogeneous exec, we can only test
+# shape function on CPU.
+
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     dtype = 'float32'
     x = relay.var('x', shape=x_shape, dtype=dtype)

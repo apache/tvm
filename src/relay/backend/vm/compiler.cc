@@ -186,12 +186,13 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
 
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets)
+  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
       : last_register_(0),
         registers_num_(0),
         engine_(CompileEngine::Global()),
         context_(context),
-        targets_(targets) {}
+        targets_(targets),
+        target_host_(target_host) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
     size_t i = 0;
@@ -397,12 +398,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     // shape_of op has to be run on the host target
     // TODO(@icemelon9): handle heterogeneous target, such as cuda
-    auto key = CCacheKeyNode::make(func, Target::Create("llvm"));
+    auto key = CCacheKeyNode::make(func, target_host_);
     auto cfunc = engine_->Lower(key);
     auto op_index = -1;
     if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->lowered_funcs.size();
-      context_->lowered_funcs.push_back(cfunc->funcs[0]);
+      op_index = context_->cached_funcs.size();
+      context_->cached_funcs.push_back(cfunc);
       context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
@@ -444,12 +445,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     // Lower shape function
-    auto key = CCacheKeyNode::make(func, Target::Create("llvm"));
+    auto key = CCacheKeyNode::make(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
     if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
-      op_index = context_->lowered_funcs.size();
-      context_->lowered_funcs.push_back(cfunc->funcs[0]);
+      op_index = context_->cached_funcs.size();
+      context_->cached_funcs.push_back(cfunc);
       context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
@@ -591,8 +592,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     CHECK_EQ(cfunc->funcs.size(), 1);
     auto op_index = -1;
     if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->lowered_funcs.size();
-      context_->lowered_funcs.push_back(cfunc->funcs[0]);
+      op_index = context_->cached_funcs.size();
+      context_->cached_funcs.push_back(cfunc);
       context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
@@ -751,6 +752,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   VMCompilerContext* context_;
   /*! \brief Target devices. */
   TargetsMap targets_;
+  /*! \brief Host target. */
+  Target target_host_;
 };
 
 
@@ -802,7 +805,7 @@ void VMCompiler::Compile(const Module& mod_ref,
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
     auto func = named_func.second;
-    VMFunctionCompiler func_compiler(&context_, targets_);
+    VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
     auto vm_func = func_compiler.Compile(gvar, func);
 
     size_t func_index = context_.global_map.at(gvar);
@@ -853,27 +856,36 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::LibraryCodegen() {
-  auto const& lowered_funcs = context_.lowered_funcs;
-  if (lowered_funcs.size() == 0) {
+  auto const &cached_funcs = context_.cached_funcs;
+  if (cached_funcs.size() == 0) {
     return;
   }
-  // TODO(@icemelon9): support heterogeneous targets
-  Target target;
-  for (auto kv : targets_) {
-    target = kv.second;
+  std::unordered_map<std::string, Array<LoweredFunc>> tgt_funcs;
+  for (auto &cfunc : cached_funcs) {
+    std::string target_str = cfunc->target->str();
+    if (tgt_funcs.count(target_str) == 0) {
+      tgt_funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+    } else {
+      tgt_funcs[target_str].push_back(cfunc->funcs[0]);
+    }
   }
-  if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-    runtime::Module mod =
-        (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target,
-             target_host_);
+  Map<Target, Array<LoweredFunc>> funcs;
+  for (auto &it : tgt_funcs) {
+    funcs.Set(Target::Create(it.first), it.second);
+  }
+
+  if (const auto *f = runtime::Registry::Get("relay.backend.build")) {
+    // The target is just a dummy arg because funcs already contains corresponding target
+    // therefore target won't be used in the build function
+    runtime::Module mod = (*f)(funcs, Target(), target_host_);
     CHECK(mod.operator->());
     vm_->lib = mod;
   } else {
     LOG(FATAL) << "relay.backend.build is not registered";
   }
   size_t primitive_index = 0;
-  for (auto lfunc : lowered_funcs) {
-    vm_->primitive_map.insert({lfunc->name, primitive_index++});
+  for (auto cfunc : cached_funcs) {
+    vm_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
   }
 }
 

@@ -74,8 +74,8 @@ struct VMCompilerContext {
   GlobalMap global_map;
   // List of constants
   std::vector<NDArray> constants;
-  // List of lowered functions
-  std::vector<LoweredFunc> lowered_funcs;
+  // List of cached functions
+  std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
   std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
 };

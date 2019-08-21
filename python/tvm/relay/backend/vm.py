@@ -177,6 +177,10 @@ class VMCompiler(object):
             The VM runtime.
         """
         target = _update_target(target)
+        target_host = None if target_host == "" else target_host
+        if not target_host:
+            target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
+        target_host = tvm.target.create(target_host)
         self._compile(mod, target, target_host)
         return VirtualMachine(self._get_vm())
 
