@@ -22,6 +22,7 @@
 
 #include "de10nano_driver.h"
 
+#include <string.h>
 #include <vta/driver.h>
 #include <dmlc/logging.h>
 #include <thread>
@@ -44,32 +45,44 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf) + 0x80000000;
 }
 
-void VTAFlushCache(vta_phy_addr_t buf, int size) {
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
+}
+
+void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
+}
+
+void VTAFlushCache(void * offset, vta_phy_addr_t buf, int size) {
   CHECK(false) << "VTAFlushCache not implemented for de10nano";
+  printf("VTAFlushCache not implemented for de10nano");
 }
 
-void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
+void VTAInvalidateCache(void * offset, vta_phy_addr_t buf, int size) {
   CHECK(false) << "VTAInvalidateCache not implemented for de10nano";
+  printf("VTAInvalidateCache not implemented for de10nano");
 }
 
-void *VTAMapRegister(uint32_t addr, size_t length) {
+void *VTAMapRegister(uint32_t addr) {
   // Align the base address with the pages
   uint32_t virt_base = addr & ~(getpagesize() - 1);
   // Calculate base address offset w.r.t the base address
   uint32_t virt_offset = addr - virt_base;
   // Open file and mmap
-  uint32_t mmap_file = open(VTA_DE10NANO_DEV_MEM_PATH, O_RDWR|O_SYNC);
+  uint32_t mmap_file = open("/dev/mem", O_RDWR|O_SYNC);
   return mmap(NULL,
-              (length+virt_offset),
+              (VTA_IP_REG_MAP_RANGE + virt_offset),
               PROT_READ|PROT_WRITE,
               MAP_SHARED,
               mmap_file,
               virt_base);
 }
 
-void VTAUnmapRegister(void *vta, size_t length) {
+void VTAUnmapRegister(void *vta) {
   // Unmap memory
-  int status = munmap(vta, length);
+  int status = munmap(vta, VTA_IP_REG_MAP_RANGE);
   assert(status == 0);
 }
 
@@ -85,12 +98,12 @@ class VTADevice {
  public:
   VTADevice() {
     // VTA stage handles
-    vta_host_handle_ = VTAMapRegister(VTA_HOST_ADDR, VTA_RANGE);
+    vta_host_handle_ = VTAMapRegister(VTA_HOST_ADDR);
   }
 
   ~VTADevice() {
     // Close VTA stage handle
-    VTAUnmapRegister(vta_host_handle_, VTA_RANGE);
+    VTAUnmapRegister(vta_host_handle_);
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,

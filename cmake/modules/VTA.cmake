@@ -86,7 +86,7 @@ elseif(PYTHON)
       # Rules for Pynq v2.4
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
-      file(GLOB FPGA_RUNTIME_SRCS vta/src/de10nano/de10nano_driver.cc)
+      file(GLOB FPGA_RUNTIME_SRCS vta/src/de10nano/*.cc vta/src/*.cc)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})

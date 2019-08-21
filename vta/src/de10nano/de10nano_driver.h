@@ -38,14 +38,11 @@ extern "C" {
 #include <time.h>
 #include <unistd.h>
 
-void *VTAMapRegister(uint32_t addr, size_t length);
-void VTAUnmapRegister(void *vta, size_t length);
+void *VTAMapRegister(uint32_t addr);
+void VTAUnmapRegister(void *vta);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 void VTAProgram(const char* bitstream);
-
-/*! \brief (DE10_Nano only) Path to /dev/mem */
-#define VTA_DE10NANO_DEV_MEM_PATH "/dev/mem"
 
 /*! \brief VTA configuration register address range */
 #define VTA_RANGE 0x400
