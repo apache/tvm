@@ -129,7 +129,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
-    def _get_channels():
+    def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
         if kernel_layout == "HWOI":
             return weight_shape[2] * weight_shape[3]
@@ -139,10 +139,10 @@ def compute_conv2d(attrs, inputs, out_type, target):
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
             dilation, layout, out_dtype)
-    elif layout == "NCHW" and _get_channels() == groups:
+    elif layout == "NCHW" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-    elif layout == "NHWC" and kernel_layout == "HWOI" and _get_channels() == groups:
+    elif layout == "NHWC" and kernel_layout == "HWOI" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nhwc(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout in ['NCHW', 'NCHW4c']:
