@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <topi/tags.h>
+#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <set>
