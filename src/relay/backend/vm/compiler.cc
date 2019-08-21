@@ -30,12 +30,17 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
+#include <memory>
+#include <set>
+#include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
+#include "compiler.h"
 
 namespace tvm {
 namespace relay {
@@ -55,36 +60,6 @@ using namespace relay::transform;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
-
-template <typename T, typename U>
-using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
-using TagMap = NodeMap<tvm::relay::Constructor, Index>;
-using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
-using GlobalMap = NodeMap<GlobalVar, Index>;
-using ConstMap = NodeMap<Constant, Index>;
-using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
-using TargetsMap = Map<tvm::Integer, tvm::Target>;
-
-struct VMCompilerContext {
-  // The module context for the compilation
-  Module module;
-  // Error reporter
-  ErrorReporter err_reporter;
-  // Map from a unique integer to ADT constructor tag
-  TagNameMap tag_index_map;
-  // Map from ADT constructor tag to a unique integer
-  TagMap tag_map;
-  // Map from global var to a unique integer
-  GlobalMap global_map;
-  // Map from Const object to its index in const pool
-  ConstMap const_map;
-  // Map from Const tensor shape to its index in const pool
-  ConstTensorShapeMap const_tensor_shape_map;
-  // List of lowered functions
-  std::vector<LoweredFunc> lowered_funcs;
-  // The functions that have been lowered.
-  std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
-};
 
 // Compute the constant pool, i.e a mapping from Constant node to constant index.
 struct ConstantPool : ExprVisitor {
@@ -664,152 +639,131 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 };
 
 
-class VMCompiler : public runtime::ModuleNode {
- public:
-  PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final {
-    if (name == "compile") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.num_args, 3);
-        this->Compile(args[0], args[1], args[2]);
-      });
-    } else if (name == "get_vm") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = runtime::Module(vm_);
-      });
-    } else {
-      LOG(FATAL) << "Unknown packed function: " << name;
-      return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
-    }
+PackedFunc VMCompiler::GetFunction(const std::string& name,
+                                   const std::shared_ptr<ModuleNode>& sptr_to_self) {
+  if (name == "compile") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 3);
+      this->Compile(args[0], args[1], args[2]);
+    });
+  } else if (name == "get_vm") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = runtime::Module(vm_);
+    });
+  } else {
+    LOG(FATAL) << "Unknown packed function: " << name;
+    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+  }
+}
+
+void VMCompiler::Compile(const Module& mod_ref,
+                         const TargetsMap& targets,
+                         const tvm::Target& target_host) {
+  CHECK_EQ(targets.size(), 1)
+    << "Currently VM compiler doesn't support heterogeneous compilation";
+
+  InitVM();
+  targets_ = targets;
+  target_host_ = target_host;
+
+  // Run some optimizations first, this code should
+  // be moved to pass manager.
+  context_.module = OptimizeModule(mod_ref);
+
+  // Populate the global map.
+  //
+  // This maps global variables to a global index
+  // in the VMFunction table.
+  PopulateGlobalMap();
+
+  // Next we populate constant map.
+  auto constant_analysis_result = LayoutConstantPool(context_.module);
+  context_.const_map = std::get<0>(constant_analysis_result);
+  context_.const_tensor_shape_map = std::get<1>(constant_analysis_result);
+
+  // Next we get ready by allocating space for
+  // the global state.
+  vm_->functions.resize(context_.module->functions.size());
+  vm_->constants.resize(context_.const_map.size() + context_.const_tensor_shape_map.size());
+
+  for (auto pair : context_.const_map) {
+    vm_->constants[pair.second] = Object::Tensor(pair.first->data);
   }
 
-  const char* type_key() const final {
-    return "VMCompiler";
+  for (auto pair : context_.const_tensor_shape_map) {
+    vm_->constants[pair.second.first] = Object::Tensor(pair.second.second);
   }
 
-  std::shared_ptr<VirtualMachine> GetVirtualMachine() const {
-    return vm_;
+  for (auto named_func : context_.module->functions) {
+    auto gvar = named_func.first;
+    auto func = named_func.second;
+    VMFunctionCompiler func_compiler(&context_, targets_);
+    auto vm_func = func_compiler.Compile(gvar, func);
+
+    size_t func_index = context_.global_map.at(gvar);
+    CHECK(func_index < vm_->functions.size());
+    vm_->functions[func_index] = vm_func;
   }
-
-  void Compile(const Module& mod_ref,
-               const TargetsMap& targets,
-               const tvm::Target& target_host) {
-    CHECK_EQ(targets.size(), 1)
-      << "Currently VM compiler doesn't support heterogeneous compilation";
-    targets_ = targets;
-    target_host_ = target_host;
-    vm_ = std::make_shared<VirtualMachine>();
-
-    // Run some optimizations first, this code should
-    // be moved to pass manager.
-    context_.module = OptimizeModule(mod_ref);
-
-    // Populate the global map.
-    //
-    // This maps global variables to a global index
-    // in the VMFunction table.
-    PopulateGlobalMap();
-
-    // Next we populate constant map.
-    auto constant_analysis_result = LayoutConstantPool(context_.module);
-    context_.const_map = std::get<0>(constant_analysis_result);
-    context_.const_tensor_shape_map = std::get<1>(constant_analysis_result);
-
-    // Next we get ready by allocating space for
-    // the global state.
-    vm_->functions.resize(context_.module->functions.size());
-    vm_->constants.resize(context_.const_map.size() + context_.const_tensor_shape_map.size());
-
-    for (auto pair : context_.const_map) {
-      vm_->constants[pair.second] = Object::Tensor(pair.first->data);
-    }
-
-    for (auto pair : context_.const_tensor_shape_map) {
-      vm_->constants[pair.second.first] = Object::Tensor(pair.second.second);
-    }
-
-    for (auto named_func : context_.module->functions) {
-      auto gvar = named_func.first;
-      auto func = named_func.second;
-      VMFunctionCompiler func_compiler(&context_, targets_);
-      auto vm_func = func_compiler.Compile(gvar, func);
-
-      size_t func_index = context_.global_map.at(gvar);
-      CHECK(func_index < vm_->functions.size());
-      vm_->functions[func_index] = vm_func;
-    }
 
 #if USE_RELAY_DEBUG
-    for (auto vm_func : vm_->functions) {
-      DLOG(INFO) << vm_func << "-------------";
-    }
+  for (auto vm_func : vm_->functions) {
+    DLOG(INFO) << vm_func << "-------------";
+  }
 #endif  // USE_RELAY_DEBUG
 
-    LibraryCodegen();
+  LibraryCodegen();
 
-    for (auto gv : context_.global_map) {
-      vm_->global_map.insert({gv.first->name_hint, gv.second});
-    }
+  for (auto gv : context_.global_map) {
+    vm_->global_map.insert({gv.first->name_hint, gv.second});
   }
+}
 
- protected:
-  Module OptimizeModule(const Module& mod) {
-    // TODO(@icemelon9): check number of targets and build config, add more optimization pass
-    transform::Sequential seq({transform::SimplifyInference(),
-                               transform::ToANormalForm(),
-                               transform::InlinePrimitives(),
-                               transform::LambdaLift(),
-                               transform::InlinePrimitives(),
-                               transform::FuseOps()});
-    auto pass_ctx = transform::PassContext::Create();
-    tvm::With<relay::transform::PassContext> ctx(pass_ctx);
-    return seq(mod);
+Module VMCompiler::OptimizeModule(const Module& mod) {
+  // TODO(@icemelon9): check number of targets and build config, add more optimization pass
+  transform::Sequential seq({transform::SimplifyInference(),
+                             transform::ToANormalForm(),
+                             transform::InlinePrimitives(),
+                             transform::LambdaLift(),
+                             transform::InlinePrimitives(),
+                             transform::FuseOps()});
+  auto pass_ctx = transform::PassContext::Create();
+  tvm::With<relay::transform::PassContext> ctx(pass_ctx);
+  return seq(mod);
+}
+
+void VMCompiler::PopulateGlobalMap() {
+  // First we populate global map.
+  size_t global_index = 0;
+  for (auto named_func : context_.module->functions) {
+    auto gvar = named_func.first;
+    context_.global_map.insert({gvar, global_index++});
   }
+}
 
-  void PopulateGlobalMap() {
-    // First we populate global map.
-    size_t global_index = 0;
-    for (auto named_func : context_.module->functions) {
-      auto gvar = named_func.first;
-      context_.global_map.insert({gvar, global_index++});
-    }
+void VMCompiler::LibraryCodegen() {
+  auto const& lowered_funcs = context_.lowered_funcs;
+  if (lowered_funcs.size() == 0) {
+    return;
   }
-
-  void LibraryCodegen() {
-    auto const& lowered_funcs = context_.lowered_funcs;
-    if (lowered_funcs.size() == 0) {
-      return;
-    }
-    // TODO(@icemelon9): support heterogeneous targets
-    Target target;
-    for (auto kv : targets_) {
-      target = kv.second;
-    }
-    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-      runtime::Module mod =
-          (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target,
-               target_host_);
-      CHECK(mod.operator->());
-      vm_->lib = mod;
-    } else {
-      LOG(FATAL) << "relay.backend.build is not registered";
-    }
-    size_t primitive_index = 0;
-    for (auto lfunc : lowered_funcs) {
-      vm_->primitive_map.insert({lfunc->name, primitive_index++});
-    }
+  // TODO(@icemelon9): support heterogeneous targets
+  Target target;
+  for (auto kv : targets_) {
+    target = kv.second;
   }
-
- protected:
-  /*! \brief Target devices. */
-  TargetsMap targets_;
-  /*! \brief Target host device. */
-  tvm::Target target_host_;
-  /*! \brief Global shared meta data */
-  VMCompilerContext context_;
-  /*! \brief Compiled virtual machine. */
-  std::shared_ptr<VirtualMachine> vm_;
-};
+  if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+    runtime::Module mod =
+        (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target,
+             target_host_);
+    CHECK(mod.operator->());
+    vm_->lib = mod;
+  } else {
+    LOG(FATAL) << "relay.backend.build is not registered";
+  }
+  size_t primitive_index = 0;
+  for (auto lfunc : lowered_funcs) {
+    vm_->primitive_map.insert({lfunc->name, primitive_index++});
+  }
+}
 
 runtime::Module CreateVMCompiler() {
   std::shared_ptr<VMCompiler> exec = std::make_shared<VMCompiler>();

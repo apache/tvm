@@ -34,6 +34,7 @@ from . import debug
 from . import param_dict
 from . import feature
 from .backend import vm
+from .backend import profiler_vm
 from .backend import serializer
 from .backend import deserializer
 from .backend import vmobj
