@@ -336,14 +336,14 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__ == "__main__":
-    # test_adaptive_pool2d()
-    # test_collapse_sum_like()
-    # test_broadcast_to_like()
-    # test_slice_like()
-    # test_reverse_reshape()
-    # test_batch_matmul()
-    # test_shape_of()
-    # test_sequence_mask()
-    # test_ndarray_size()
+    test_adaptive_pool2d()
+    test_collapse_sum_like()
+    test_broadcast_to_like()
+    test_slice_like()
+    test_reverse_reshape()
+    test_batch_matmul()
+    test_shape_of()
+    test_sequence_mask()
+    test_ndarray_size()
     test_one_hot()
 
