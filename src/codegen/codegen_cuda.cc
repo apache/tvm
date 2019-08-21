@@ -50,6 +50,8 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
     decl_stream << "#include <cuda_fp16.h>\n";
+    decl_stream << "__device__ half max(const half a, const half b)\n"
+                   "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
   }
 
   if (enable_int8_) {
