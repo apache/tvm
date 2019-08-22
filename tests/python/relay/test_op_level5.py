@@ -39,7 +39,7 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z= relay.image.resize(x, (100, 200), "NCHW", "BILINEAR", False)
+    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", True)
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -52,12 +52,12 @@ def test_resize():
             size = (dshape[2] * scale, dshape[3] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "BILINEAR":
+        if method == "bilinear":
             ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
             ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, False)
+        z = relay.image.resize(x, size, layout, method, True)
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -68,7 +68,7 @@ def test_resize():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    for method in ["BILINEAR", "NEAREST_NEIGHBOR"]:
+    for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 

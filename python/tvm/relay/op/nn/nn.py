@@ -481,7 +481,8 @@ def global_avg_pool2d(data,
 def upsampling(data,
                scale=1,
                layout="NCHW",
-               method="NEAREST_NEIGHBOR"):
+               method="nearest_neighbor",
+               align_corners=False):
     """Upsampling.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
@@ -490,7 +491,7 @@ def upsampling(data,
     out will have a shape (n, c, h*scale, w*scale)
 
     method indicates the algorithm to be used while calculating the out value
-    and method can be one of ("BILINEAR", "NEAREST_NEIGHBOR")
+    and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
 
     Parameters
     ----------
@@ -504,14 +505,17 @@ def upsampling(data,
         Layout of the input.
 
     method : str, optional
-        Scale method to used [NEAREST_NEIGHBOR, BILINEAR].
+        Scale method to used [nearest_neighbor, bilinear, bicubic].
+
+    align_corners : bool, optional
+        Whether to keep corners in proper place.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.upsampling(data, scale, layout, method)
+    return _make.upsampling(data, scale, layout, method, align_corners)
 
 
 def batch_flatten(data):

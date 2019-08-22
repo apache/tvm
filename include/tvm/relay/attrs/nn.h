@@ -381,6 +381,7 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   int scale;
   std::string layout;
   std::string method;
+  bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
     TVM_ATTR_FIELD(scale)
@@ -390,10 +391,13 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Upsampling is applied on the 'H' and"
                   "'W' dimensions.");
-    TVM_ATTR_FIELD(method).set_default("NEAREST_NEIGHBOR")
+    TVM_ATTR_FIELD(method).set_default("nearest_neighbor")
         .describe("Specify the mode to use for scaling."
-                  "NEAREST_NEIGHBOR -  Nearest Neighbor"
-                  "BILINEAR - Bilinear Interpolation");
+                  "nearest_neighbor -  Nearest Neighbor"
+                  "bilinear - Bilinear Interpolation"
+                  "bicubic - Bicubic Interpolation");
+    TVM_ATTR_FIELD(align_corners).set_default(false)
+        .describe("Should be true to preserve the values at the corner pixels");
   }
 };
 
