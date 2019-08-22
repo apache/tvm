@@ -1212,6 +1212,21 @@ def _log1p():
         return get_relay_op('log')(add_out)
     return _impl
 
+def _one_hot():
+    def _impl(inputs, attr, params):
+        depth = int(_get_num_param(params, inputs[1]))
+        dtype = attr['T'].name
+
+        on_value = _get_num_param(params, inputs[2])
+        off_value = _get_num_param(params, inputs[3])
+        new_inputs = [inputs[0], \
+                      tvm.relay.const(on_value, dtype), \
+                      tvm.relay.const(off_value, dtype)]
+        return AttrCvt('one_hot',
+                       ignores=['TI'],
+                       extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1284,6 +1299,7 @@ _convert_map = {
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),

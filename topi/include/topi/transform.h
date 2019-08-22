@@ -1247,5 +1247,55 @@ inline Tensor ndarray_size(const Tensor& src,
   }, name, tag);
 }
 
+/*!
+ * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value, 
+    other locations take value off_value.
+ * \param indices locations to set to on_value.
+ * \param on_value value that locations represented by indices take on.
+ * \param off_value value that other locations take on.
+ * \param depth depth of the one-hot dimension.
+ * \param axis axis to fill.
+ * \param dtype data type of the output tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return one-hot tensor.
+ */
+inline Tensor one_hot(const Tensor& indices,
+                      const Expr on_value,
+                      const Expr off_value,
+                      int depth,
+                      int axis,
+                      const Type& dtype,
+                      const std::string name = "T_one_hot",
+                      const std::string tag = kInjective) {
+  Array<Expr> oshape;
+  int ndim = indices->shape.size() + 1;
+  int indices_index = 0;
+  int true_axis = (axis == -1) ? indices->shape.size() : axis;
+  for (int i = 0; i < ndim; i++) {
+    if (i == true_axis) {
+      oshape.push_back(Integer(depth));
+    } else {
+      oshape.push_back(indices->shape[indices_index++]);
+    }
+  }
+
+  Expr on_value_cast = cast(dtype, on_value);
+  Expr off_value_cast = cast(dtype, off_value);
+  return compute(oshape, [&](const Array<Var>& iter_vars) {
+    Array<Var> indices_indices;
+    for (size_t i = 0; i < iter_vars.size(); i++) {
+      if (static_cast<int>(i) == true_axis) {
+        continue;
+      }
+
+      indices_indices.push_back(iter_vars[i]);
+    }
+
+    auto idx = iter_vars[true_axis];
+    return ir::Select::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
+  }, name, tag);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

@@ -778,6 +778,25 @@ def test_forward_layer_norm():
     verify((2, 5), axis=0)
     verify((2, 5, 6))
 
+def test_forward_one_hot():
+    def verify(indices_shape, depth, on_value, off_value, dtype):
+        x = np.random.randint(0, 5, size=indices_shape)
+        ref_res = mx.nd.one_hot(mx.nd.array(x), depth, on_value, off_value, dtype)
+        mx_sym = mx.sym.one_hot(mx.sym.var("x"), depth, on_value, off_value, dtype)
+        shape_dict = {"x": x.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x.astype("float32"))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((3,), 3, 1, 0, "int32")
+    verify((3,), 3, 1.0, 0.0, "float32")
+    verify((2, 2), 5, 2, -2, "int32")
+    verify((2, 2), 5, 0.5, -0.5, "float32")
+    verify((3, 2, 4, 5), 6, 1, 0, "int32")
+    verify((3, 2, 4, 5), 6, 1.0, 0.0, "float32")
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -825,3 +844,4 @@ if __name__ == '__main__':
     test_forward_contrib_div_sqrt_dim()
     test_forward_batch_norm()
     test_forward_layer_norm()
+    test_forward_one_hot()

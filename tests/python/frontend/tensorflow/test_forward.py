@@ -2158,6 +2158,24 @@ def test_placeholder():
         compare_tf_with_tvm([in_data1, in_data2], ['place1:0', 'in2:0'], 'out2:0',
                             init_global_variables=True)
 
+#######################################################################
+# OneHot
+# ----------------------
+def _test_forward_one_hot(indices_shape, depth, on_value, off_value, axis, out_dtype):
+    inp_array1 = np.random.randint(0, 5, size=indices_shape)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array1.shape, dtype=inp_array1.dtype)
+        out = tf.one_hot(in1, depth, on_value, off_value, axis, dtype=out_dtype)
+        compare_tf_with_tvm(inp_array1, in1.name, out.name)
+
+def test_forward_one_hot():
+    _test_forward_one_hot((3,), 3, 1, 0, -1, "int32")
+    _test_forward_one_hot((3,), 3, 1.0, 0.0, -1, "float32")
+    _test_forward_one_hot((2, 2), 5, 2, -2, 0, "int32")
+    _test_forward_one_hot((2, 2), 5, 0.5, -0.5, 1, "float32")
+    _test_forward_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
+    _test_forward_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
+
 
 #######################################################################
 # Main
@@ -2193,6 +2211,7 @@ if __name__ == '__main__':
     test_forward_right_shift()
     test_forward_left_shift()
     test_forward_truncatemod()
+    test_forward_one_hot()
 
     # Activations
     test_forward_sigmoid()
