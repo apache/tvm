@@ -31,6 +31,7 @@ namespace runtime {
 TclSocket::TclSocket() {
   tcp_socket_.Create();
   tcp_socket_.SetKeepAlive(true);
+  reply_buf_.reserve(kReplyBufSize);
 }
 
 TclSocket::~TclSocket() {
@@ -46,27 +47,25 @@ std::string TclSocket::SendCommand(std::string cmd) {
   cmd_builder << cmd;
   cmd_builder << kCommandTerminateToken;
   std::string full_cmd = cmd_builder.str();
-  CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1) << "failed to send command";
+  CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
+    << "failed to send command";
 
-  // TODO(weberlo): Make this more efficient.
-  // Receive reply.
   std::stringstream reply_builder;
-  static char reply_buf[kReplyBufSize];
+  char last_read = '\0';
+  // Receive from the socket until we reach a command terminator.
   do {
     ssize_t bytes_read;
+    // Recieve from the socket until it's drained.
     do {
       // Leave room at the end of `reply_buf` to tack on a null terminator.
-      bytes_read = tcp_socket_.Recv(reply_buf, kReplyBufSize - 1);
-      reply_buf[bytes_read] = '\0';
-      for (int i = 0; i < bytes_read - 1; i++) {
-        CHECK_NE(reply_buf[i], kCommandTerminateToken)
-          << "command terminator received in middle of reply";
-      }
-      reply_builder << reply_buf;
+      bytes_read = tcp_socket_.Recv(reply_buf_.data(), kReplyBufSize - 1);
+      reply_buf_[bytes_read] = '\0';
+      reply_builder << reply_buf_.data();
+      // Update last read character.
+      last_read = reply_buf_[bytes_read - 1];
     } while (bytes_read == kReplyBufSize - 1);
-    // -1 signals an error from `socket`.
     CHECK(bytes_read != -1) << "failed to read command reply";
-  } while (reply_builder.str()[reply_builder.str().length() - 1] != kCommandTerminateToken);
+  } while (last_read != kCommandTerminateToken);
   std::string reply = reply_builder.str();
 
   CHECK_EQ(reply[reply.length()-1], kCommandTerminateToken) << "missing command terminator";

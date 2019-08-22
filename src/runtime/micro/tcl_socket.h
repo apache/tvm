@@ -63,11 +63,11 @@ class TclSocket {
  private:
   /*! \brief underlying TCP socket being wrapped */
   tvm::common::TCPSocket tcp_socket_;
+  /*! \brief buffer used to receive messages from the socket */
+  std::vector<uint8_t> reply_buf_;
 
   /*! \brief character denoting the end of a Tcl command */
   static const constexpr char kCommandTerminateToken = '\x1a';
-  /*! \brief size of the buffer used to send messages (in bytes) */
-  static const constexpr size_t kSendBufSize = 4096;
   /*! \brief size of the buffer used to receive messages (in bytes) */
   static const constexpr size_t kReplyBufSize = 4096;
 };
