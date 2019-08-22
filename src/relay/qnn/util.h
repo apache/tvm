@@ -28,6 +28,8 @@
 #include <tvm/expr.h>
 #include <tvm/relay/expr.h>
 #include <limits>
+#include <string>
+#include <utility>
 
 namespace tvm {
 namespace relay {
@@ -65,6 +67,23 @@ static inline const int32_t GetQmax(const DataType& dtype) {
     LOG(FATAL) << "Type not supported " << dtype;
     return -1;  // To hide the warning
   }
+}
+
+Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
+                     const Array<IndexExpr>& input_shape, const DataType& out_dtype);
+
+static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
+                              double input_scale, int32_t input_zero_point, double output_scale,
+                              int32_t output_zero_point, const DataType& out_dtype,
+                              const std::string& rounding = "TONEAREST") {
+  auto attrs = make_node<RequantizeAttrs>();
+  attrs->input_scale = std::move(input_scale);
+  attrs->input_zero_point = std::move(input_zero_point);
+  attrs->output_scale = std::move(output_scale);
+  attrs->output_zero_point = std::move(output_zero_point);
+  attrs->rounding = std::move(rounding);
+  attrs->out_dtype = std::move(out_dtype);
+  return RequantizeLower(data, attrs.operator->(), input_shape, out_dtype);
 }
 
 }  // namespace qnn
