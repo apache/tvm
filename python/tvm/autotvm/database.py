@@ -122,7 +122,8 @@ class RedisDatabase(Database):
     def load(self, inp, get_all=False):
         current = self.get(measure_str_key(inp))
         if current is not None:
-            current = str(current)
+            if isinstance(current, bytes):
+                current = current.decode()
             records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
             results = [rec[1] for rec in records]
             if get_all:
@@ -132,6 +133,8 @@ class RedisDatabase(Database):
 
     def save(self, inp, res, extend=False):
         current = self.get(measure_str_key(inp))
+        if isinstance(current, bytes):
+                current = current.decode()
         if not extend or current is None:
             self.set(measure_str_key(inp),
                      RedisDatabase.MAGIC_SPLIT.join([encode(inp, res)]))
@@ -142,29 +145,33 @@ class RedisDatabase(Database):
 
     def filter(self, func):
         """
-        Dump all of the records for a particular target
+        Dump all of the records that match the given rule
 
         Parameters
         ----------
         func: callable
-            The signature of the function is bool (MeasureInput, Array of MeasureResult)
+            The signature of the function is (MeasureInput, [MeasureResult]) -> bool
 
         Returns
         -------
-        list of records (inp, result) matching the target
+        list of records in tuple (MeasureInput, MeasureResult) matching the rule
 
         Examples
         --------
         get records for a target
         >>> db.filter(lambda inp, resulst: "cuda" in inp.target.keys)
+        get records with errors
+        >>> db.filter(lambda inp, results: any(r.error_no != 0 for r in results))
         """
         matched_records = list()
         # may consider filtering in iterator in the future
-        for key in self.db:
+        for key in self.db.keys():
             current = self.get(key)
+            if isinstance(current, bytes):
+                current = current.decode()
             try:
-                records = [decode(x) for x in current.spilt(RedisDatabase.MAGIC_SPLIT)]
-            except TypeError:  # got a badly formatted/old format record
+                records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
+            except TypeError: # got a badly formatted/old format record
                 continue
 
             inps, results = zip(*records)
@@ -189,9 +196,6 @@ class DummyDatabase(RedisDatabase):
 
     def set(self, key, value):
         self.db[key] = value
-
-    def get(self, key):
-        return self.db.get(key)
 
     def flush(self):
         self.db = {}
