@@ -91,7 +91,7 @@ class TVM_DLL Node : public NodeBase {
    */
   virtual void VisitAttrs(AttrVisitor* visitor) {}
   /*! \return the type index of the node */
-  virtual const uint32_t type_index() const = 0;
+  virtual uint32_t type_index() const = 0;
   /*!
    * \brief Whether this node derives from node with type_index=tid.
    *  Implemented by TVM_DECLARE_NODE_TYPE_INFO
@@ -99,7 +99,7 @@ class TVM_DLL Node : public NodeBase {
    * \param tid The type index.
    * \return the check result.
    */
-  virtual const bool _DerivedFrom(uint32_t tid) const;
+  virtual bool _DerivedFrom(uint32_t tid) const;
   /*!
    * \brief get a runtime unique type index given a type key
    * \param type_key Type key of a type.
@@ -228,7 +228,7 @@ inline SubRef Downcast(BaseRef ref);
  * \brief helper macro to declare type information in a base node.
  */
 #define TVM_DECLARE_BASE_NODE_INFO(TypeName, Parent)                    \
-  const bool _DerivedFrom(uint32_t tid) const override {                \
+  bool _DerivedFrom(uint32_t tid) const override {                      \
     static uint32_t tidx = TypeKey2Index(TypeName::_type_key);          \
     if (tidx == tid) return true;                                       \
     return Parent::_DerivedFrom(tid);                                   \
@@ -241,11 +241,11 @@ inline SubRef Downcast(BaseRef ref);
   const char* type_key() const final {                                  \
     return TypeName::_type_key;                                         \
   }                                                                     \
-  const uint32_t type_index() const final {                             \
+  uint32_t type_index() const final {                                   \
     static uint32_t tidx = TypeKey2Index(TypeName::_type_key);          \
     return tidx;                                                        \
   }                                                                     \
-  const bool _DerivedFrom(uint32_t tid) const final {                   \
+  bool _DerivedFrom(uint32_t tid) const final {                         \
     static uint32_t tidx = TypeKey2Index(TypeName::_type_key);          \
     if (tidx == tid) return true;                                       \
     return Parent::_DerivedFrom(tid);                                   \
