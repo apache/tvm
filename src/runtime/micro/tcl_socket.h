@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_MICRO_TCL_SOCKET_H_
 
 #include <string>
+#include <vector>
 
 #include "../../common/socket.h"
 
