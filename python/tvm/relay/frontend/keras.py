@@ -358,29 +358,30 @@ def _convert_pooling(inexpr, keras_layer, etab):
 def _convert_upsample(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
+    params = {'layout': 'NHWC'}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params = {'scale': h}
+        params['scale'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params = {'scale': h}
+        params['scale'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
             if interpolation == 'nearest':
-                params['method'] = 'NEAREST_NEIGHBOR'
+                params['method'] = 'nearest_neighbor'
             else:
-                params['method'] = 'BILINEAR'
+                params['method'] = 'bilinear'
 
     elif upsample_type == 'UpSampling3D':
         h, w, d = keras_layer.size
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params = {'scale': h}
+        params['scale'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))

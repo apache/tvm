@@ -19,7 +19,7 @@
 import math
 import numpy as np
 
-def bilinear_resize_python(image, out_size, layout, align_corners=False):
+def bilinear_resize_python(image, out_size, layout, align_corners=True):
     """ Bilinear scaling using python"""
     (new_h, new_w) = out_size
 

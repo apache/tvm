@@ -312,7 +312,7 @@ def _UpsampleLayerParams(op, inexpr, etab):
     if op.scalingFactor[0] != op.scalingFactor[1]:
         raise tvm.error.OpAttributeUnimplemented(
             'Upsample height and width must be equal.')
-    interpolationMode = 'NEAREST_NEIGHBOR' if op.mode == 0 else 'BILINEAR'
+    interpolationMode = 'nearest_neighbor' if op.mode == 0 else 'bilinear'
     return _op.nn.upsampling(inexpr, scale=op.scalingFactor[0], method=interpolationMode)
 
 

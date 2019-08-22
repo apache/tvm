@@ -262,7 +262,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "BILINEAR":
+        if method == "bilinear":
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -280,11 +280,11 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("BILINEAR", op)
+        return self._convert_resize("bilinear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
-        return self._convert_resize("NEAREST_NEIGHBOR", op)
+        return self._convert_resize("nearest_neighbor", op)
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""

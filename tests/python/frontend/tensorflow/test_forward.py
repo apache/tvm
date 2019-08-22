@@ -1212,7 +1212,7 @@ def test_forward_crop_and_resize():
     _test_forward_crop_and_resize([1, 11, 11, 3], [[0, 0, .9, .9]], [0], [5, 5])
     _test_forward_crop_and_resize([1, 11, 11, 3], [[.1, .2, 1, 1]], [0], [5, 5])
     _test_forward_crop_and_resize([1, 21, 21, 3], [[.2, .3, .7, .9]], [0], [3, 4])
-    _test_forward_crop_and_resize([1, 106, 106, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
+    _test_forward_crop_and_resize([1, 41, 41, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
     _test_forward_crop_and_resize([10, 11, 11, 3],
                                   [[0, 0, 0.9, 0.9], [0.2, 0.2, 0.8, 0.8]],
                                   [0, 1],
