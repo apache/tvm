@@ -65,7 +65,7 @@ namespace tvm {
  */
 #define TVM_DECLARE_ATTRS(ClassName, TypeKey)                   \
   static constexpr const char* _type_key = TypeKey;             \
-  TVM_DECLARE_NODE_TYPE_INFO(ClassName, ::tvm::BaseAttrsNode);  \
+  TVM_DECLARE_NODE_TYPE_INFO(ClassName, ::tvm::BaseAttrsNode)   \
   template<typename FVisit>                                     \
   void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
 
