@@ -92,6 +92,32 @@ def test_any_reshape():
     verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
 
+def verify_any_take(data_shape, indices_shape, axis, data_np_shape, indices_np_shape):
+    mod = relay.Module()
+    data = relay.var('data', shape=data_shape, dtype='float32')
+    indices = relay.var('indices', shape=indices_shape, dtype='int32')
+    y = relay.take(data, indices, axis=axis)
+    mod["main"] = relay.Function([data, indices], y)
+    data_np = np.random.uniform(size=data_np_shape).astype('float32')
+    if axis is None:
+        max_index = data_np.size
+    else:
+        max_index = data_np.shape[axis]
+    indices_np = np.random.randint(max_index, size=indices_np_shape).astype('int32')
+    ref = np.take(data_np, indices_np, axis=axis)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, indices_np)
+        tvm.testing.assert_allclose(result.asnumpy(), ref)
+
+def test_any_take():
+    verify_any_take(any_dims(2), (1,), 0, (4, 5), (1,))
+    verify_any_take(any_dims(2), (), 0, (4, 5), ())
+    verify_any_take(any_dims(2), (), None, (4, 5), ())
+    verify_any_take(any_dims(3), any_dims(2), 1, (3, 4, 5), (2, 3))
+    verify_any_take(any_dims(2), any_dims(3), None, (4, 5), (2, 3, 4))
+    verify_any_take(any_dims(2), any_dims(4), -1, (4, 5), (2, 3, 4, 5))
+
 def test_any_shape_of():
     x = relay.var('x', shape=any_dims(2), dtype='float32')
     y = relay.shape_of(x)
@@ -231,6 +257,7 @@ if __name__ == "__main__":
     test_any_broadcast()
     test_any_concat()
     test_any_reshape()
+    test_any_take()
     test_any_shape_of()
     test_fused_ops()
     test_arange_with_dynamic_shape()

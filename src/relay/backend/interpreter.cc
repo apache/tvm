@@ -331,10 +331,15 @@ class Interpreter :
         CHECK(tv != nullptr) << "expect Tensor argument";
         if (need_shape) {
           int64_t ndim = tv->data.Shape().size();
-          auto shape_arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
-          int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
-          for (auto j = 0; j < ndim; ++j) {
-            data[j] = tv->data.Shape()[j];
+          NDArray shape_arr;
+          if (ndim == 0) {
+            shape_arr = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
+          } else {
+            shape_arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+            int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
+            for (auto j = 0; j < ndim; ++j) {
+              data[j] = tv->data.Shape()[j];
+            }
           }
           inputs[i] = shape_arr;
           setter(i, shape_arr);

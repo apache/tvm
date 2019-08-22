@@ -371,14 +371,19 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
     if (const_shape) {
-      int64_t s = shape.size();
+      int64_t ndim = shape.size();
       DLContext cpu_ctx;
       cpu_ctx.device_type = kDLCPU;
       cpu_ctx.device_id = 0;
-      auto shape_tensor = NDArray::Empty({s}, Type2TVMType(Int(64)), cpu_ctx);
-      int64_t* dims = reinterpret_cast<int64_t*>(shape_tensor->data);
-      for (size_t i = 0; i < shape.size(); ++i) {
-        dims[i] = shape[i];
+      NDArray shape_tensor;
+      if (ndim == 0) {
+        shape_tensor = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
+      } else {
+        shape_tensor = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+        int64_t* dims = reinterpret_cast<int64_t*>(shape_tensor->data);
+        for (size_t i = 0; i < shape.size(); ++i) {
+          dims[i] = shape[i];
+        }
       }
       size_t konst_idx = context_->constants.size();
       context_->constants.push_back(shape_tensor);
@@ -410,8 +415,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
     }
     std::vector<Index> arg_regs{reg};
-    int64_t ndim = std::max(ttype->shape.size(), (size_t)1);
-    Emit(Instruction::AllocTensor({ndim}, Int(64), NewRegister()));
+    int64_t ndim = ttype->shape.size();
+    if (ndim == 0) {
+      Emit(Instruction::AllocTensor({}, Int(64), NewRegister()));
+    } else {
+      Emit(Instruction::AllocTensor({ndim}, Int(64), NewRegister()));
+    }
     Index shape_reg = last_register_;
     arg_regs.push_back(shape_reg);
     Emit(Instruction::InvokePacked(op_index, 2, 1, arg_regs));
@@ -657,7 +666,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);
     }
-    LOG(INFO) << "Function node here";
   }
 
   /*!

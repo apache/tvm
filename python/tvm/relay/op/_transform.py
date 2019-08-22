@@ -94,7 +94,7 @@ def concatenate_shape_func(attrs, inputs, _):
     return [_concatenate_shape_func(inputs, convert(axis))]
 
 @script
-def _reshape_shape_func(x, newshape, ndim):
+def _reshape_shape_func(data_shape, newshape, ndim):
     out = output_tensor((ndim,), "int64")
     src_idx = 0
     dst_idx = 0
@@ -109,7 +109,7 @@ def _reshape_shape_func(x, newshape, ndim):
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == 0:
-            out[dst_idx] = x[src_idx]
+            out[dst_idx] = data_shape[src_idx]
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == -1:
@@ -120,45 +120,82 @@ def _reshape_shape_func(x, newshape, ndim):
         elif newshape[i] == -2:
             copy = True
         elif newshape[i] == -3:
-            assert x.shape[0] - src_idx > 1, \
+            assert data_shape.shape[0] - src_idx > 1, \
                 "Not enough dims in input shape for -3"
-            out[dst_idx] = x[src_idx] * x[src_idx+1]
+            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx+1]
             src_idx += 2
             dst_idx += 1
         elif newshape[i] == -4:
             assert len(newshape) - i > 2, "Not enough dims in new shape for -4"
             if newshape[i+1] == -1:
                 assert newshape[i+2] != -1, "Split dims cannot both be -1."
-                out[dst_idx] = x[src_idx] / int64(newshape[i+2])
+                out[dst_idx] = data_shape[src_idx] / int64(newshape[i+2])
                 out[dst_idx+1] = int64(newshape[i+2])
             else:
                 out[dst_idx] = int64(newshape[i+1])
                 if newshape[i+2] == -1:
-                    out[dst_idx+1] = x[src_idx] / int64(newshape[i+1])
+                    out[dst_idx+1] = data_shape[src_idx] / int64(newshape[i+1])
                 else:
                     out[dst_idx+1] = int64(newshape[i+2])
-            assert x[src_idx] == out[dst_idx] * out[dst_idx+1],\
+            assert data_shape[src_idx] == out[dst_idx] * out[dst_idx+1],\
                 "Product of split dims doesn't match to input dim"
             src_idx += 1
             dst_idx += 2
             skip = 2
         else:
             assert False, "Invalid special values in new shape"
-    if copy:
-        for i in range(src_idx, x.shape[0]):
-            out[dst_idx] = x[i]
-            dst_idx += 1
-    if infer_idx >= 0:
-        old_size = int64(1)
-        for i in const_range(x.shape[0]):
-            old_size *= x[i]
-        new_size = int64(1)
-        for i in const_range(out.shape[0]):
-            new_size *= out[i]
-        out[infer_idx] = old_size / new_size
+    if len(data_shape.shape) > 0:
+        # if data is not constant, we can then handle -1 and -2
+        if copy:
+            for i in range(src_idx, data_shape.shape[0]):
+                out[dst_idx] = data_shape[i]
+                dst_idx += 1
+        if infer_idx >= 0:
+            old_size = int64(1)
+            for i in const_range(data_shape.shape[0]):
+                old_size *= data_shape[i]
+            new_size = int64(1)
+            for i in const_range(out.shape[0]):
+                new_size *= out[i]
+            out[infer_idx] = old_size / new_size
     return out
 
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
     return [_reshape_shape_func(inputs[0], convert(newshape), out_ndims[0])]
+
+@script
+def _take_no_axis_shape_func(indices_shape, out_ndim):
+    out = output_tensor((out_ndim,), "int64")
+    for i in const_range(out_ndim):
+        out[i] = indices_shape[i]
+    return out
+
+@script
+def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
+    out = output_tensor((out_ndim,), "int64")
+    for i in const_range(axis):
+        out[i] = data_shape[i]
+    if len(indices_shape.shape) == 0:
+        # indices is constant
+        for i in const_range(axis+1, len(data_shape)):
+            out[i-1] = data_shape[i]
+    else:
+        for i in const_range(len(indices_shape)):
+            out[axis+i] = indices_shape[i]
+        for i in const_range(axis+1, len(data_shape)):
+            out[len(indices_shape)+i-1] = data_shape[i]
+    return out
+
+@_reg.register_shape_func("take", False)
+def take_shape_func(attrs, inputs, out_ndims):
+    if attrs.axis is None:
+        return [_take_no_axis_shape_func(inputs[1], out_ndims[0])]
+    else:
+        axis = get_const_int(attrs.axis)
+        data_ndim = int(inputs[0].shape[0])
+        if axis < 0:
+            axis += data_ndim
+        assert 0 <= axis < data_ndim
+        return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]

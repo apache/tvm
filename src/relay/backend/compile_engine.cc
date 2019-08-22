@@ -311,22 +311,28 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
   explicit ShapeFuncGetter() {}
 
   std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
-    int i = 0;
     for (auto param : prim_func->params) {
       param_states_[param] = kNoNeed;
       Array<tvm::Tensor> data_inputs;
       Array<tvm::Tensor> shape_inputs;
-      if (const auto *ttype = param->checked_type().as<TensorTypeNode>()) {
+
+      auto add_placeholder = [&data_inputs, &shape_inputs](const TensorTypeNode* ttype) {
+        // Add data placeholder
         Shape shape = GetShape(ttype->shape);
         tvm::Tensor data_tensor = tvm::placeholder(shape, ttype->dtype);
         data_inputs.push_back(data_tensor);
-
+        // Add shape placeholder
         int64_t ndim = shape.size();
-        Shape sshape{tvm::Integer(ndim)};
-        std::ostringstream os;
-        os << "shape_tensor" << i++;
-        tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64), os.str());
+        Shape sshape;
+        if (ndim > 0) {
+          sshape.push_back(tvm::Integer(ndim));
+        }
+        tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64));
         shape_inputs.push_back(shape_tensor);
+      };
+
+      if (const auto *ttype = param->checked_type().as<TensorTypeNode>()) {
+        add_placeholder(ttype);
       } else {
         // flatten tuple of tensor type.
         const auto *tuple_type = param->type_as<TupleTypeNode>();
@@ -334,16 +340,7 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
         for (Type field : tuple_type->fields) {
           const auto *ttype = field.as<TensorTypeNode>();
           CHECK(ttype);
-          Shape shape = GetShape(ttype->shape);
-          tvm::Tensor data_tensor = tvm::placeholder(shape, ttype->dtype);
-          data_inputs.push_back(data_tensor);
-
-          int64_t ndim = shape.size();
-          Shape sshape{tvm::Integer(ndim)};
-          std::ostringstream os;
-          os << "shape_tensor" << i++;
-          tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64), os.str());
-          shape_inputs.push_back(shape_tensor);
+          add_placeholder(ttype);
         }
       }
       param_data_[param] = data_inputs;
