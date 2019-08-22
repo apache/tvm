@@ -190,6 +190,9 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
 
 @_reg.register_shape_func("take", False)
 def take_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape function for take op.
+    """
     if attrs.axis is None:
         return [_take_no_axis_shape_func(inputs[1], out_ndims[0])]
     else:
