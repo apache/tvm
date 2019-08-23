@@ -20,6 +20,7 @@
  * \file tvm/dtype.h
  * \brief Data type used in IR.
  */
+// Acknowledgement: DataType structure design originates from Halide.
 #ifndef TVM_DTYPE_H_
 #define TVM_DTYPE_H_
 
