@@ -35,6 +35,11 @@ echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
 echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
      >> /etc/apt/sources.list.d/llvm.list
 
+echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
 echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
      >> /etc/apt/sources.list.d/llvm.list
 echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
