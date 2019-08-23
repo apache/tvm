@@ -24,6 +24,7 @@
  * \note Most of the operator defined here perform simple constant folding
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
+// Acknowledgement: Most operator APIs originate from Halide.
 #ifndef TVM_EXPR_OPERATOR_H_
 #define TVM_EXPR_OPERATOR_H_
 
