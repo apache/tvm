@@ -78,9 +78,7 @@ prog: SEMVER (defn* | expr) METADATA? EOF ;
 opIdent: CNAME ;
 globalVar: '@' CNAME ;
 localVar: '%' CNAME ;
-// TODO: For some reason, spaces aren't allowed between type params?
-globalTypeVar: CNAME ('[' typeVar (', ' typeVar)* ']')? ;
-typeVar: CNAME ;
+typeIdent: CNAME ;
 graphVar: '%' NAT ;
 
 exprList: (expr (',' expr)*)?;
@@ -120,13 +118,13 @@ expr
   | QUOTED_STRING                             # stringExpr
   ;
 
-func: 'fn'        typeParamList? '(' argList ')' ('->' type_)? body ;
+func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
-  : 'def' globalVar typeParamList? '(' argList ')' ('->' type_)? body  # funcDefn
-  | 'type' globalTypeVar '=' adtVariant+                               # adtDefn
+  : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
+  | 'type' typeIdent typeParamList? '=' adtVariant+                               # adtDefn
   ;
 
-adtVariant: '|' variantName ('(' type_ (', ' type_)* ')')? ;
+adtVariant: '|' variantName ('(' typeExpr (',' typeExpr)* ')')? ;
 variantName: CNAME ;
 
 argList
@@ -135,29 +133,25 @@ argList
   ;
 
 varList: (var (',' var)*)?;
-var: localVar (':' type_)?;
+var: localVar (':' typeExpr)?;
 
 attrSeq: attr (',' attr)*;
 attr: CNAME '=' expr ;
 
-typeParamList
-  : '[' ']'
-  | '[' ident (',' ident)* ']'
-  ;
-
-
-type_
+typeExpr
   : '(' ')'                                                      # tupleType
-  | '(' type_ ',' ')'                                            # tupleType
-  | '(' type_ (',' type_)+ ')'                                   # tupleType
-  // TODO: When we uncomment this we get a grammar construction error
-  // | typeIdent                                                    # typeIdentType
-  | globalTypeVar                                                # globalTypeVarType
-  | 'Tensor' '[' shapeList ',' type_ ']'                         # tensorType
-  | 'fn' typeParamList? '(' (type_ (',' type_)*)? ')' '->' type_ # funcType
+  | '(' typeExpr ',' ')'                                            # tupleType
+  | '(' typeExpr (',' typeExpr)+ ')'                                   # tupleType
+  | typeIdent typeParamList                                     # typeCallType
+  | typeIdent                                                    # typeIdentType
+  | 'Tensor' '[' shapeList ',' typeExpr ']'                         # tensorType
+  | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr # funcType
   | '_'                                                          # incompleteType
   | NAT                                                          # intType
   ;
+
+// TODO: For some reason, spaces aren't allowed between type params?
+typeParamList: '[' typeIdent (',' typeIdent)* ']' ;
 
 shapeList
   : '(' shape (',' shape)+ ')'
@@ -173,7 +167,6 @@ shape
   | NAT                                  # intShape
   ;
 
-typeIdent: CNAME ;
 // int8, int16, int32, int64
 // uint8, uint16, uint32, uint64
 // float16, float32, float64
@@ -191,7 +184,6 @@ ident
   : opIdent
   | globalVar
   | localVar
-  | globalTypeVar
-  | typeVar
+  | typeExpr
   | graphVar
   ;

@@ -313,7 +313,7 @@ class PrettyPrinter :
     if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "t" + name;
     }
-    Doc val = GetUniqueName("%" + name);
+    Doc val = GetUniqueName(name);
     memo_type_[var] = val;
     if (var->kind != kType) {
       val << ": " << Print(var->kind);

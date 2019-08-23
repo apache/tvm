@@ -229,10 +229,10 @@ def test_zeros():
     show(astext(x))
 
 def test_adt_defn():
-    adt_var = GlobalTypeVar("list")
-    a = TypeVar("a")
-    nil_cons = Constructor("nil", [], adt_var)
-    cons_cons = Constructor("cons", [a, adt_var(a)], adt_var)
+    adt_var = GlobalTypeVar("List")
+    a = TypeVar("A")
+    nil_cons = Constructor("Nil", [], adt_var)
+    cons_cons = Constructor("Cons", [a, adt_var(a)], adt_var)
     list_adt = TypeData(adt_var, [a], [nil_cons, cons_cons])
     show(astext(list_adt))
 

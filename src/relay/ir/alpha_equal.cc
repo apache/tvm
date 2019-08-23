@@ -218,7 +218,8 @@ class AlphaEqualHandler:
   bool VisitType_(const TypeVarNode* lhs, const Type& other) final {
     if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
       if (lhs->kind != rhs->kind) return false;
-      return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+      // return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+      return lhs->var->name_hint == rhs->var->name_hint;
     } else {
       return false;
     }

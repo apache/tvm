@@ -246,7 +246,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # (str, ty.Kind) -> ty.GlobalTypeVar
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.GlobalTypeVar(name, kind)
-        self.global_var_scope.append((name, typ))
+        self.global_type_param_scope.append((name, typ))
         return typ
 
     def visitProjection(self, ctx):
@@ -488,37 +488,79 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.module[ident] = self.mk_func(ctx)
 
     def visitAdtDefn(self, ctx):
-        glob_typ_var = ctx.globalTypeVar()
-        defn_name = glob_typ_var.children[0].getText()
-        typ_params = []
+        adt_handle = self.mk_global_typ(ctx.typeIdent().getText(), ty.Kind.AdtHandle)
 
-        if len(glob_typ_var.children) > 1:
-            defn_name = glob_typ_var.children[0].getText()
-            typ_params = list(
-                map(
-                    ty.TypeVar,
-                    filter(
-                        lambda s: not s.startswith(','),
-                        map(lambda x: x.getText(), glob_typ_var.children[2:-1]))))
-        defn = self.mk_global_typ(defn_name, ty.Kind.AdtHandle)
+        self.enter_type_param_scope()
+
+        type_params = ctx.typeParamList()
+        if type_params is None:
+            type_params = []
+        else:
+            type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
+                           for type_ident in type_params.typeIdent()]
+        # defn_name = glob_typ_var.children[0].getText()
+        # type_params = []
+
+        # if len(glob_typ_var.children) > 1:
+        #     defn_name = glob_typ_var.children[0].getText()
+        #     type_params = list(
+        #         map(
+        #             lambda s: self.mk_typ(s, ty.Kind.Type),
+        #             filter(
+        #                 lambda s: not s.startswith(','),
+        #                 map(lambda x: x.getText(), glob_typ_var.children[2:-1]))))
+        #     print('TYPE PARAMS')
+        #     import pdb; pdb.set_trace()
+        #     print(glob_typ_var.children[2:-1])
+        #     print(list(map(lambda x: x.getText(), glob_typ_var.children[2:-1])))
+        #     print(filter(
+        #                 lambda s: not s.startswith(','),
+        #                 map(lambda x: x.getText(), glob_typ_var.children[2:-1])))
+        # defn = self.mk_global_typ(defn_name, ty.Kind.AdtHandle)
 
         constructors = []
         for constructor in ctx.adtVariant():
-            inputs = []
-            for inp in constructor.type_():
-                print(inp)
-                inputs.append(self.visit(inp))
+            inputs = [self.visit(inp) for inp in constructor.typeExpr()]
+            constructors.append(adt.Constructor(constructor.variantName().getText(), inputs, adt_handle))
 
-            # inputs = [self.visit(inp) for inp in constructor.type_()]
-            constructors.append(adt.Constructor(constructor.variantName().getText(), inputs, defn))
+        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, constructors)
 
-        self.module[defn] = adt.TypeData(defn, typ_params, constructors)
+        self.exit_type_param_scope()
 
-    def visitGlobalTypeVarType(self, ctx):
-        print('SHIT WHETHER IT\'S A LOCAL OR GLOBAL TYPE VAR IS AMBIGUOUS, SO WE\'LL NEED TO DO SOME LOOKUPS')
-        print('cloobs')
+    def visitTypeExprType(self, ctx):
         import pdb; pdb.set_trace()
-        return None
+        type_params = ctx.typeParams()
+        print(ctx.getText())
+        if type_params is None:
+            print('ayy')
+        else:
+            print('lmao')
+        print()
+        # TODO: We need to handle arbitrarily nested type calls (e.g., `Maybe[List[Either[Int, Bool]]]`)
+        def _parse_typ_var(name):
+            typ_var = lookup(self.type_param_scopes, name)
+            if typ_var is None:
+                typ_var = lookup(self.global_type_param_scope, name)
+                if typ_var is None:
+                    # TODO: raise parse error?
+                    raise RuntimeError(f'unbound var "{name}"')
+            return typ_var
+
+        name = ctx.getText()
+        type_params = None
+        if '[' in name:
+            param_start_idx = name.find('[')
+            type_params = list(map(lambda s: s.strip(), name[param_start_idx+1:-1].split(',')))
+            name = name[:param_start_idx]
+
+        typ_var = _parse_typ_var(name)
+
+        if type_params:
+            return ty.TypeCall(typ_var, type_params)
+        else:
+            return typ_var
+
+
 
     def visitCallNoAttr(self, ctx):
         return (self.visit_list(ctx.exprList().expr()), None)
@@ -580,21 +622,31 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type (RelayParser.IncompleteTypeContext) -> None:
         return None
 
+    # TODO: convert all this to mypy format
     def visitTypeIdent(self, ctx):
         # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
         """Handle type identifier."""
-        type_ident = ctx.CNAME().getText()
+        type_name = ctx.CNAME().getText()
 
         # Look through all type prefixes for a match
         for type_prefix in TYPE_PREFIXES:
-            if type_ident.startswith(type_prefix):
-                return ty.scalar_type(type_ident)
+            if type_name.startswith(type_prefix):
+                return ty.scalar_type(type_name)
 
-        type_param = lookup(self.type_param_scopes, type_ident)
-        if type_param is not None:
-            return type_param
+        # Next, look it up in the local then global type params
+        type_param = lookup(self.type_param_scopes, type_name)
+        if type_param is None:
+            type_param = lookup([self.global_type_param_scope], type_name)
+            if type_param is None:
+                # TODO: raise parse error?
+                raise RuntimeError(f'unbound var "{type_name}"')
 
-        raise ParseError("Unknown builtin type: {}".format(type_ident))
+        return type_param
+
+    def visitTypeCallType(self, ctx):
+        func = self.visit(ctx.typeIdent())
+        args = [self.visit(arg) for arg in ctx.typeParamList().typeIdent()]
+        return ty.TypeCall(func, args)
 
     # def visitCallType(self, ctx):
     #     # type: (RelayParser.CallTypeContext) -> Union[expr.Expr, ty.TensorType]

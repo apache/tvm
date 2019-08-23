@@ -8,210 +8,198 @@ import sys
 
 def serializedATN():
     with StringIO() as buf:
-        buf.write("\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\61")
-        buf.write("\u01a8\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7")
+        buf.write("\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\60")
+        buf.write("\u0195\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7")
         buf.write("\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t\13\4\f\t\f\4\r\t\r\4\16")
         buf.write("\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22\4\23\t\23")
         buf.write("\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31")
-        buf.write("\t\31\4\32\t\32\4\33\t\33\4\34\t\34\4\35\t\35\3\2\3\2")
-        buf.write("\7\2=\n\2\f\2\16\2@\13\2\3\2\5\2C\n\2\3\2\5\2F\n\2\3\2")
-        buf.write("\3\2\3\3\3\3\3\4\3\4\3\4\3\5\3\5\3\5\3\6\3\6\3\6\3\6\3")
-        buf.write("\6\7\6W\n\6\f\6\16\6Z\13\6\3\6\3\6\5\6^\n\6\3\7\3\7\3")
-        buf.write("\b\3\b\3\b\3\t\3\t\3\t\7\th\n\t\f\t\16\tk\13\t\5\tm\n")
-        buf.write("\t\3\n\3\n\3\n\3\n\7\ns\n\n\f\n\16\nv\13\n\3\n\5\ny\n")
-        buf.write("\n\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3")
-        buf.write("\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13")
-        buf.write("\3\13\3\13\6\13\u0092\n\13\r\13\16\13\u0093\3\13\3\13")
-        buf.write("\3\13\3\13\3\13\3\13\7\13\u009c\n\13\f\13\16\13\u009f")
-        buf.write("\13\13\5\13\u00a1\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3")
-        buf.write("\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13")
-        buf.write("\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\5\13\u00bd")
-        buf.write("\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13")
-        buf.write("\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13")
-        buf.write("\3\13\3\13\7\13\u00d6\n\13\f\13\16\13\u00d9\13\13\3\f")
-        buf.write("\3\f\5\f\u00dd\n\f\3\f\3\f\3\f\3\f\3\f\5\f\u00e4\n\f\3")
-        buf.write("\f\3\f\3\r\3\r\3\r\5\r\u00eb\n\r\3\r\3\r\3\r\3\r\3\r\5")
-        buf.write("\r\u00f2\n\r\3\r\3\r\3\r\3\r\3\r\3\r\6\r\u00fa\n\r\r\r")
-        buf.write("\16\r\u00fb\5\r\u00fe\n\r\3\16\3\16\3\16\3\16\3\16\3\16")
-        buf.write("\7\16\u0106\n\16\f\16\16\16\u0109\13\16\3\16\3\16\5\16")
-        buf.write("\u010d\n\16\3\17\3\17\3\20\3\20\3\20\3\20\7\20\u0115\n")
-        buf.write("\20\f\20\16\20\u0118\13\20\3\20\5\20\u011b\n\20\3\21\3")
-        buf.write("\21\3\21\7\21\u0120\n\21\f\21\16\21\u0123\13\21\5\21\u0125")
-        buf.write("\n\21\3\22\3\22\3\22\5\22\u012a\n\22\3\23\3\23\3\23\7")
-        buf.write("\23\u012f\n\23\f\23\16\23\u0132\13\23\3\24\3\24\3\24\3")
-        buf.write("\24\3\25\3\25\3\25\3\25\3\25\3\25\7\25\u013e\n\25\f\25")
-        buf.write("\16\25\u0141\13\25\3\25\3\25\5\25\u0145\n\25\3\26\3\26")
-        buf.write("\3\26\3\26\3\26\3\26\3\26\3\26\3\26\3\26\3\26\6\26\u0152")
-        buf.write("\n\26\r\26\16\26\u0153\3\26\3\26\3\26\3\26\3\26\3\26\3")
-        buf.write("\26\3\26\3\26\3\26\3\26\3\26\5\26\u0162\n\26\3\26\3\26")
-        buf.write("\3\26\3\26\7\26\u0168\n\26\f\26\16\26\u016b\13\26\5\26")
-        buf.write("\u016d\n\26\3\26\3\26\3\26\3\26\3\26\5\26\u0174\n\26\3")
-        buf.write("\27\3\27\3\27\3\27\6\27\u017a\n\27\r\27\16\27\u017b\3")
-        buf.write("\27\3\27\3\27\3\27\3\27\5\27\u0183\n\27\3\30\3\30\3\30")
-        buf.write("\3\30\3\30\3\30\3\30\3\30\3\31\3\31\3\31\3\31\3\31\3\31")
-        buf.write("\5\31\u0193\n\31\3\32\3\32\3\33\3\33\3\33\3\33\3\34\3")
-        buf.write("\34\3\34\5\34\u019e\n\34\3\35\3\35\3\35\3\35\3\35\3\35")
-        buf.write("\5\35\u01a6\n\35\3\35\2\3\24\36\2\4\6\b\n\f\16\20\22\24")
-        buf.write("\26\30\32\34\36 \"$&(*,.\60\62\64\668\2\6\3\2\"#\3\2$")
-        buf.write("%\3\2&)\3\2*+\2\u01d3\2:\3\2\2\2\4I\3\2\2\2\6K\3\2\2\2")
-        buf.write("\bN\3\2\2\2\nQ\3\2\2\2\f_\3\2\2\2\16a\3\2\2\2\20l\3\2")
-        buf.write("\2\2\22x\3\2\2\2\24\u00bc\3\2\2\2\26\u00da\3\2\2\2\30")
-        buf.write("\u00fd\3\2\2\2\32\u00ff\3\2\2\2\34\u010e\3\2\2\2\36\u011a")
-        buf.write("\3\2\2\2 \u0124\3\2\2\2\"\u0126\3\2\2\2$\u012b\3\2\2\2")
-        buf.write("&\u0133\3\2\2\2(\u0144\3\2\2\2*\u0173\3\2\2\2,\u0182\3")
-        buf.write("\2\2\2.\u0184\3\2\2\2\60\u0192\3\2\2\2\62\u0194\3\2\2")
-        buf.write("\2\64\u0196\3\2\2\2\66\u019d\3\2\2\28\u01a5\3\2\2\2:B")
-        buf.write("\7\35\2\2;=\5\30\r\2<;\3\2\2\2=@\3\2\2\2><\3\2\2\2>?\3")
-        buf.write("\2\2\2?C\3\2\2\2@>\3\2\2\2AC\5\24\13\2B>\3\2\2\2BA\3\2")
-        buf.write("\2\2CE\3\2\2\2DF\7\61\2\2ED\3\2\2\2EF\3\2\2\2FG\3\2\2")
-        buf.write("\2GH\7\2\2\3H\3\3\2\2\2IJ\7-\2\2J\5\3\2\2\2KL\7\3\2\2")
-        buf.write("LM\7-\2\2M\7\3\2\2\2NO\7\4\2\2OP\7-\2\2P\t\3\2\2\2Q]\7")
-        buf.write("-\2\2RS\7\5\2\2SX\5\f\7\2TU\7\6\2\2UW\5\f\7\2VT\3\2\2")
-        buf.write("\2WZ\3\2\2\2XV\3\2\2\2XY\3\2\2\2Y[\3\2\2\2ZX\3\2\2\2[")
-        buf.write("\\\7\7\2\2\\^\3\2\2\2]R\3\2\2\2]^\3\2\2\2^\13\3\2\2\2")
-        buf.write("_`\7-\2\2`\r\3\2\2\2ab\7\4\2\2bc\7\60\2\2c\17\3\2\2\2")
-        buf.write("di\5\24\13\2ef\7\b\2\2fh\5\24\13\2ge\3\2\2\2hk\3\2\2\2")
-        buf.write("ig\3\2\2\2ij\3\2\2\2jm\3\2\2\2ki\3\2\2\2ld\3\2\2\2lm\3")
-        buf.write("\2\2\2m\21\3\2\2\2ny\5\20\t\2op\5\24\13\2pq\7\b\2\2qs")
-        buf.write("\3\2\2\2ro\3\2\2\2sv\3\2\2\2tr\3\2\2\2tu\3\2\2\2uw\3\2")
-        buf.write("\2\2vt\3\2\2\2wy\5$\23\2xn\3\2\2\2xt\3\2\2\2y\23\3\2\2")
-        buf.write("\2z{\b\13\1\2{|\7\t\2\2|}\5\24\13\2}~\7\n\2\2~\u00bd\3")
-        buf.write("\2\2\2\177\u0080\7\13\2\2\u0080\u0081\5\24\13\2\u0081")
-        buf.write("\u0082\7\f\2\2\u0082\u00bd\3\2\2\2\u0083\u0084\7%\2\2")
-        buf.write("\u0084\u00bd\5\24\13\25\u0085\u00bd\5\26\f\2\u0086\u0087")
-        buf.write("\7\t\2\2\u0087\u00bd\7\n\2\2\u0088\u0089\7\t\2\2\u0089")
-        buf.write("\u008a\5\24\13\2\u008a\u008b\7\b\2\2\u008b\u008c\7\n\2")
-        buf.write("\2\u008c\u00bd\3\2\2\2\u008d\u008e\7\t\2\2\u008e\u0091")
-        buf.write("\5\24\13\2\u008f\u0090\7\b\2\2\u0090\u0092\5\24\13\2\u0091")
-        buf.write("\u008f\3\2\2\2\u0092\u0093\3\2\2\2\u0093\u0091\3\2\2\2")
-        buf.write("\u0093\u0094\3\2\2\2\u0094\u0095\3\2\2\2\u0095\u0096\7")
-        buf.write("\n\2\2\u0096\u00bd\3\2\2\2\u0097\u00a0\7\5\2\2\u0098\u009d")
-        buf.write("\5\24\13\2\u0099\u009a\7\b\2\2\u009a\u009c\5\24\13\2\u009b")
-        buf.write("\u0099\3\2\2\2\u009c\u009f\3\2\2\2\u009d\u009b\3\2\2\2")
-        buf.write("\u009d\u009e\3\2\2\2\u009e\u00a1\3\2\2\2\u009f\u009d\3")
-        buf.write("\2\2\2\u00a0\u0098\3\2\2\2\u00a0\u00a1\3\2\2\2\u00a1\u00a2")
-        buf.write("\3\2\2\2\u00a2\u00bd\7\7\2\2\u00a3\u00a4\7\16\2\2\u00a4")
-        buf.write("\u00a5\7\t\2\2\u00a5\u00a6\5\24\13\2\u00a6\u00a7\7\n\2")
-        buf.write("\2\u00a7\u00a8\5\64\33\2\u00a8\u00a9\7\17\2\2\u00a9\u00aa")
-        buf.write("\5\64\33\2\u00aa\u00bd\3\2\2\2\u00ab\u00ac\7\20\2\2\u00ac")
-        buf.write("\u00ad\5\"\22\2\u00ad\u00ae\7\21\2\2\u00ae\u00af\5\24")
-        buf.write("\13\2\u00af\u00b0\7\22\2\2\u00b0\u00b1\5\24\13\t\u00b1")
-        buf.write("\u00bd\3\2\2\2\u00b2\u00b3\5\16\b\2\u00b3\u00b4\7\21\2")
-        buf.write("\2\u00b4\u00b5\5\24\13\2\u00b5\u00b6\7\22\2\2\u00b6\u00b7")
-        buf.write("\5\24\13\7\u00b7\u00bd\3\2\2\2\u00b8\u00bd\58\35\2\u00b9")
-        buf.write("\u00bd\5\66\34\2\u00ba\u00bd\5.\30\2\u00bb\u00bd\7!\2")
-        buf.write("\2\u00bcz\3\2\2\2\u00bc\177\3\2\2\2\u00bc\u0083\3\2\2")
-        buf.write("\2\u00bc\u0085\3\2\2\2\u00bc\u0086\3\2\2\2\u00bc\u0088")
-        buf.write("\3\2\2\2\u00bc\u008d\3\2\2\2\u00bc\u0097\3\2\2\2\u00bc")
-        buf.write("\u00a3\3\2\2\2\u00bc\u00ab\3\2\2\2\u00bc\u00b2\3\2\2\2")
-        buf.write("\u00bc\u00b8\3\2\2\2\u00bc\u00b9\3\2\2\2\u00bc\u00ba\3")
-        buf.write("\2\2\2\u00bc\u00bb\3\2\2\2\u00bd\u00d7\3\2\2\2\u00be\u00bf")
-        buf.write("\f\24\2\2\u00bf\u00c0\t\2\2\2\u00c0\u00d6\5\24\13\25\u00c1")
-        buf.write("\u00c2\f\23\2\2\u00c2\u00c3\t\3\2\2\u00c3\u00d6\5\24\13")
-        buf.write("\24\u00c4\u00c5\f\22\2\2\u00c5\u00c6\t\4\2\2\u00c6\u00d6")
-        buf.write("\5\24\13\23\u00c7\u00c8\f\21\2\2\u00c8\u00c9\t\5\2\2\u00c9")
-        buf.write("\u00d6\5\24\13\22\u00ca\u00cb\f\b\2\2\u00cb\u00cc\7\23")
-        buf.write("\2\2\u00cc\u00d6\5\24\13\t\u00cd\u00ce\f\26\2\2\u00ce")
-        buf.write("\u00cf\7\t\2\2\u00cf\u00d0\5\22\n\2\u00d0\u00d1\7\n\2")
-        buf.write("\2\u00d1\u00d6\3\2\2\2\u00d2\u00d3\f\f\2\2\u00d3\u00d4")
-        buf.write("\7\r\2\2\u00d4\u00d6\7\60\2\2\u00d5\u00be\3\2\2\2\u00d5")
-        buf.write("\u00c1\3\2\2\2\u00d5\u00c4\3\2\2\2\u00d5\u00c7\3\2\2\2")
-        buf.write("\u00d5\u00ca\3\2\2\2\u00d5\u00cd\3\2\2\2\u00d5\u00d2\3")
-        buf.write("\2\2\2\u00d6\u00d9\3\2\2\2\u00d7\u00d5\3\2\2\2\u00d7\u00d8")
-        buf.write("\3\2\2\2\u00d8\25\3\2\2\2\u00d9\u00d7\3\2\2\2\u00da\u00dc")
-        buf.write("\7\24\2\2\u00db\u00dd\5(\25\2\u00dc\u00db\3\2\2\2\u00dc")
-        buf.write("\u00dd\3\2\2\2\u00dd\u00de\3\2\2\2\u00de\u00df\7\t\2\2")
-        buf.write("\u00df\u00e0\5\36\20\2\u00e0\u00e3\7\n\2\2\u00e1\u00e2")
-        buf.write("\7\25\2\2\u00e2\u00e4\5*\26\2\u00e3\u00e1\3\2\2\2\u00e3")
-        buf.write("\u00e4\3\2\2\2\u00e4\u00e5\3\2\2\2\u00e5\u00e6\5\64\33")
-        buf.write("\2\u00e6\27\3\2\2\2\u00e7\u00e8\7\26\2\2\u00e8\u00ea\5")
-        buf.write("\6\4\2\u00e9\u00eb\5(\25\2\u00ea\u00e9\3\2\2\2\u00ea\u00eb")
-        buf.write("\3\2\2\2\u00eb\u00ec\3\2\2\2\u00ec\u00ed\7\t\2\2\u00ed")
-        buf.write("\u00ee\5\36\20\2\u00ee\u00f1\7\n\2\2\u00ef\u00f0\7\25")
-        buf.write("\2\2\u00f0\u00f2\5*\26\2\u00f1\u00ef\3\2\2\2\u00f1\u00f2")
-        buf.write("\3\2\2\2\u00f2\u00f3\3\2\2\2\u00f3\u00f4\5\64\33\2\u00f4")
-        buf.write("\u00fe\3\2\2\2\u00f5\u00f6\7\27\2\2\u00f6\u00f7\5\n\6")
-        buf.write("\2\u00f7\u00f9\7\21\2\2\u00f8\u00fa\5\32\16\2\u00f9\u00f8")
-        buf.write("\3\2\2\2\u00fa\u00fb\3\2\2\2\u00fb\u00f9\3\2\2\2\u00fb")
-        buf.write("\u00fc\3\2\2\2\u00fc\u00fe\3\2\2\2\u00fd\u00e7\3\2\2\2")
-        buf.write("\u00fd\u00f5\3\2\2\2\u00fe\31\3\2\2\2\u00ff\u0100\7\30")
-        buf.write("\2\2\u0100\u010c\5\34\17\2\u0101\u0102\7\t\2\2\u0102\u0107")
-        buf.write("\5*\26\2\u0103\u0104\7\6\2\2\u0104\u0106\5*\26\2\u0105")
-        buf.write("\u0103\3\2\2\2\u0106\u0109\3\2\2\2\u0107\u0105\3\2\2\2")
+        buf.write("\t\31\4\32\t\32\4\33\t\33\3\2\3\2\7\29\n\2\f\2\16\2<\13")
+        buf.write("\2\3\2\5\2?\n\2\3\2\5\2B\n\2\3\2\3\2\3\3\3\3\3\4\3\4\3")
+        buf.write("\4\3\5\3\5\3\5\3\6\3\6\3\7\3\7\3\7\3\b\3\b\3\b\7\bV\n")
+        buf.write("\b\f\b\16\bY\13\b\5\b[\n\b\3\t\3\t\3\t\3\t\7\ta\n\t\f")
+        buf.write("\t\16\td\13\t\3\t\5\tg\n\t\3\n\3\n\3\n\3\n\3\n\3\n\3\n")
+        buf.write("\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3")
+        buf.write("\n\3\n\3\n\6\n\u0080\n\n\r\n\16\n\u0081\3\n\3\n\3\n\3")
+        buf.write("\n\3\n\3\n\7\n\u008a\n\n\f\n\16\n\u008d\13\n\5\n\u008f")
+        buf.write("\n\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3")
+        buf.write("\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n")
+        buf.write("\5\n\u00ab\n\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n")
+        buf.write("\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\7")
+        buf.write("\n\u00c4\n\n\f\n\16\n\u00c7\13\n\3\13\3\13\5\13\u00cb")
+        buf.write("\n\13\3\13\3\13\3\13\3\13\3\13\5\13\u00d2\n\13\3\13\3")
+        buf.write("\13\3\f\3\f\3\f\5\f\u00d9\n\f\3\f\3\f\3\f\3\f\3\f\5\f")
+        buf.write("\u00e0\n\f\3\f\3\f\3\f\3\f\3\f\5\f\u00e7\n\f\3\f\3\f\6")
+        buf.write("\f\u00eb\n\f\r\f\16\f\u00ec\5\f\u00ef\n\f\3\r\3\r\3\r")
+        buf.write("\3\r\3\r\3\r\7\r\u00f7\n\r\f\r\16\r\u00fa\13\r\3\r\3\r")
+        buf.write("\5\r\u00fe\n\r\3\16\3\16\3\17\3\17\3\17\3\17\7\17\u0106")
+        buf.write("\n\17\f\17\16\17\u0109\13\17\3\17\5\17\u010c\n\17\3\20")
+        buf.write("\3\20\3\20\7\20\u0111\n\20\f\20\16\20\u0114\13\20\5\20")
+        buf.write("\u0116\n\20\3\21\3\21\3\21\5\21\u011b\n\21\3\22\3\22\3")
+        buf.write("\22\7\22\u0120\n\22\f\22\16\22\u0123\13\22\3\23\3\23\3")
+        buf.write("\23\3\23\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24")
+        buf.write("\3\24\3\24\6\24\u0134\n\24\r\24\16\24\u0135\3\24\3\24")
+        buf.write("\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24\3\24")
+        buf.write("\3\24\3\24\5\24\u0147\n\24\3\24\3\24\3\24\3\24\7\24\u014d")
+        buf.write("\n\24\f\24\16\24\u0150\13\24\5\24\u0152\n\24\3\24\3\24")
+        buf.write("\3\24\3\24\3\24\5\24\u0159\n\24\3\25\3\25\3\25\3\25\7")
+        buf.write("\25\u015f\n\25\f\25\16\25\u0162\13\25\3\25\3\25\3\26\3")
+        buf.write("\26\3\26\3\26\6\26\u016a\n\26\r\26\16\26\u016b\3\26\3")
+        buf.write("\26\3\26\3\26\3\26\5\26\u0173\n\26\3\27\3\27\3\27\3\27")
+        buf.write("\3\27\3\27\3\27\3\27\3\30\3\30\3\30\3\30\3\30\3\30\5\30")
+        buf.write("\u0183\n\30\3\31\3\31\3\31\3\31\3\32\3\32\3\32\5\32\u018c")
+        buf.write("\n\32\3\33\3\33\3\33\3\33\3\33\5\33\u0193\n\33\3\33\2")
+        buf.write("\3\22\34\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(")
+        buf.write("*,.\60\62\64\2\6\3\2!\"\3\2#$\3\2%(\3\2)*\2\u01c0\2\66")
+        buf.write("\3\2\2\2\4E\3\2\2\2\6G\3\2\2\2\bJ\3\2\2\2\nM\3\2\2\2\f")
+        buf.write("O\3\2\2\2\16Z\3\2\2\2\20f\3\2\2\2\22\u00aa\3\2\2\2\24")
+        buf.write("\u00c8\3\2\2\2\26\u00ee\3\2\2\2\30\u00f0\3\2\2\2\32\u00ff")
+        buf.write("\3\2\2\2\34\u010b\3\2\2\2\36\u0115\3\2\2\2 \u0117\3\2")
+        buf.write("\2\2\"\u011c\3\2\2\2$\u0124\3\2\2\2&\u0158\3\2\2\2(\u015a")
+        buf.write("\3\2\2\2*\u0172\3\2\2\2,\u0174\3\2\2\2.\u0182\3\2\2\2")
+        buf.write("\60\u0184\3\2\2\2\62\u018b\3\2\2\2\64\u0192\3\2\2\2\66")
+        buf.write(">\7\34\2\2\679\5\26\f\28\67\3\2\2\29<\3\2\2\2:8\3\2\2")
+        buf.write("\2:;\3\2\2\2;?\3\2\2\2<:\3\2\2\2=?\5\22\n\2>:\3\2\2\2")
+        buf.write(">=\3\2\2\2?A\3\2\2\2@B\7\60\2\2A@\3\2\2\2AB\3\2\2\2BC")
+        buf.write("\3\2\2\2CD\7\2\2\3D\3\3\2\2\2EF\7,\2\2F\5\3\2\2\2GH\7")
+        buf.write("\3\2\2HI\7,\2\2I\7\3\2\2\2JK\7\4\2\2KL\7,\2\2L\t\3\2\2")
+        buf.write("\2MN\7,\2\2N\13\3\2\2\2OP\7\4\2\2PQ\7/\2\2Q\r\3\2\2\2")
+        buf.write("RW\5\22\n\2ST\7\5\2\2TV\5\22\n\2US\3\2\2\2VY\3\2\2\2W")
+        buf.write("U\3\2\2\2WX\3\2\2\2X[\3\2\2\2YW\3\2\2\2ZR\3\2\2\2Z[\3")
+        buf.write("\2\2\2[\17\3\2\2\2\\g\5\16\b\2]^\5\22\n\2^_\7\5\2\2_a")
+        buf.write("\3\2\2\2`]\3\2\2\2ad\3\2\2\2b`\3\2\2\2bc\3\2\2\2ce\3\2")
+        buf.write("\2\2db\3\2\2\2eg\5\"\22\2f\\\3\2\2\2fb\3\2\2\2g\21\3\2")
+        buf.write("\2\2hi\b\n\1\2ij\7\6\2\2jk\5\22\n\2kl\7\7\2\2l\u00ab\3")
+        buf.write("\2\2\2mn\7\b\2\2no\5\22\n\2op\7\t\2\2p\u00ab\3\2\2\2q")
+        buf.write("r\7$\2\2r\u00ab\5\22\n\25s\u00ab\5\24\13\2tu\7\6\2\2u")
+        buf.write("\u00ab\7\7\2\2vw\7\6\2\2wx\5\22\n\2xy\7\5\2\2yz\7\7\2")
+        buf.write("\2z\u00ab\3\2\2\2{|\7\6\2\2|\177\5\22\n\2}~\7\5\2\2~\u0080")
+        buf.write("\5\22\n\2\177}\3\2\2\2\u0080\u0081\3\2\2\2\u0081\177\3")
+        buf.write("\2\2\2\u0081\u0082\3\2\2\2\u0082\u0083\3\2\2\2\u0083\u0084")
+        buf.write("\7\7\2\2\u0084\u00ab\3\2\2\2\u0085\u008e\7\13\2\2\u0086")
+        buf.write("\u008b\5\22\n\2\u0087\u0088\7\5\2\2\u0088\u008a\5\22\n")
+        buf.write("\2\u0089\u0087\3\2\2\2\u008a\u008d\3\2\2\2\u008b\u0089")
+        buf.write("\3\2\2\2\u008b\u008c\3\2\2\2\u008c\u008f\3\2\2\2\u008d")
+        buf.write("\u008b\3\2\2\2\u008e\u0086\3\2\2\2\u008e\u008f\3\2\2\2")
+        buf.write("\u008f\u0090\3\2\2\2\u0090\u00ab\7\f\2\2\u0091\u0092\7")
+        buf.write("\r\2\2\u0092\u0093\7\6\2\2\u0093\u0094\5\22\n\2\u0094")
+        buf.write("\u0095\7\7\2\2\u0095\u0096\5\60\31\2\u0096\u0097\7\16")
+        buf.write("\2\2\u0097\u0098\5\60\31\2\u0098\u00ab\3\2\2\2\u0099\u009a")
+        buf.write("\7\17\2\2\u009a\u009b\5 \21\2\u009b\u009c\7\20\2\2\u009c")
+        buf.write("\u009d\5\22\n\2\u009d\u009e\7\21\2\2\u009e\u009f\5\22")
+        buf.write("\n\t\u009f\u00ab\3\2\2\2\u00a0\u00a1\5\f\7\2\u00a1\u00a2")
+        buf.write("\7\20\2\2\u00a2\u00a3\5\22\n\2\u00a3\u00a4\7\21\2\2\u00a4")
+        buf.write("\u00a5\5\22\n\7\u00a5\u00ab\3\2\2\2\u00a6\u00ab\5\64\33")
+        buf.write("\2\u00a7\u00ab\5\62\32\2\u00a8\u00ab\5,\27\2\u00a9\u00ab")
+        buf.write("\7 \2\2\u00aah\3\2\2\2\u00aam\3\2\2\2\u00aaq\3\2\2\2\u00aa")
+        buf.write("s\3\2\2\2\u00aat\3\2\2\2\u00aav\3\2\2\2\u00aa{\3\2\2\2")
+        buf.write("\u00aa\u0085\3\2\2\2\u00aa\u0091\3\2\2\2\u00aa\u0099\3")
+        buf.write("\2\2\2\u00aa\u00a0\3\2\2\2\u00aa\u00a6\3\2\2\2\u00aa\u00a7")
+        buf.write("\3\2\2\2\u00aa\u00a8\3\2\2\2\u00aa\u00a9\3\2\2\2\u00ab")
+        buf.write("\u00c5\3\2\2\2\u00ac\u00ad\f\24\2\2\u00ad\u00ae\t\2\2")
+        buf.write("\2\u00ae\u00c4\5\22\n\25\u00af\u00b0\f\23\2\2\u00b0\u00b1")
+        buf.write("\t\3\2\2\u00b1\u00c4\5\22\n\24\u00b2\u00b3\f\22\2\2\u00b3")
+        buf.write("\u00b4\t\4\2\2\u00b4\u00c4\5\22\n\23\u00b5\u00b6\f\21")
+        buf.write("\2\2\u00b6\u00b7\t\5\2\2\u00b7\u00c4\5\22\n\22\u00b8\u00b9")
+        buf.write("\f\b\2\2\u00b9\u00ba\7\22\2\2\u00ba\u00c4\5\22\n\t\u00bb")
+        buf.write("\u00bc\f\26\2\2\u00bc\u00bd\7\6\2\2\u00bd\u00be\5\20\t")
+        buf.write("\2\u00be\u00bf\7\7\2\2\u00bf\u00c4\3\2\2\2\u00c0\u00c1")
+        buf.write("\f\f\2\2\u00c1\u00c2\7\n\2\2\u00c2\u00c4\7/\2\2\u00c3")
+        buf.write("\u00ac\3\2\2\2\u00c3\u00af\3\2\2\2\u00c3\u00b2\3\2\2\2")
+        buf.write("\u00c3\u00b5\3\2\2\2\u00c3\u00b8\3\2\2\2\u00c3\u00bb\3")
+        buf.write("\2\2\2\u00c3\u00c0\3\2\2\2\u00c4\u00c7\3\2\2\2\u00c5\u00c3")
+        buf.write("\3\2\2\2\u00c5\u00c6\3\2\2\2\u00c6\23\3\2\2\2\u00c7\u00c5")
+        buf.write("\3\2\2\2\u00c8\u00ca\7\23\2\2\u00c9\u00cb\5(\25\2\u00ca")
+        buf.write("\u00c9\3\2\2\2\u00ca\u00cb\3\2\2\2\u00cb\u00cc\3\2\2\2")
+        buf.write("\u00cc\u00cd\7\6\2\2\u00cd\u00ce\5\34\17\2\u00ce\u00d1")
+        buf.write("\7\7\2\2\u00cf\u00d0\7\24\2\2\u00d0\u00d2\5&\24\2\u00d1")
+        buf.write("\u00cf\3\2\2\2\u00d1\u00d2\3\2\2\2\u00d2\u00d3\3\2\2\2")
+        buf.write("\u00d3\u00d4\5\60\31\2\u00d4\25\3\2\2\2\u00d5\u00d6\7")
+        buf.write("\25\2\2\u00d6\u00d8\5\6\4\2\u00d7\u00d9\5(\25\2\u00d8")
+        buf.write("\u00d7\3\2\2\2\u00d8\u00d9\3\2\2\2\u00d9\u00da\3\2\2\2")
+        buf.write("\u00da\u00db\7\6\2\2\u00db\u00dc\5\34\17\2\u00dc\u00df")
+        buf.write("\7\7\2\2\u00dd\u00de\7\24\2\2\u00de\u00e0\5&\24\2\u00df")
+        buf.write("\u00dd\3\2\2\2\u00df\u00e0\3\2\2\2\u00e0\u00e1\3\2\2\2")
+        buf.write("\u00e1\u00e2\5\60\31\2\u00e2\u00ef\3\2\2\2\u00e3\u00e4")
+        buf.write("\7\26\2\2\u00e4\u00e6\5\n\6\2\u00e5\u00e7\5(\25\2\u00e6")
+        buf.write("\u00e5\3\2\2\2\u00e6\u00e7\3\2\2\2\u00e7\u00e8\3\2\2\2")
+        buf.write("\u00e8\u00ea\7\20\2\2\u00e9\u00eb\5\30\r\2\u00ea\u00e9")
+        buf.write("\3\2\2\2\u00eb\u00ec\3\2\2\2\u00ec\u00ea\3\2\2\2\u00ec")
+        buf.write("\u00ed\3\2\2\2\u00ed\u00ef\3\2\2\2\u00ee\u00d5\3\2\2\2")
+        buf.write("\u00ee\u00e3\3\2\2\2\u00ef\27\3\2\2\2\u00f0\u00f1\7\27")
+        buf.write("\2\2\u00f1\u00fd\5\32\16\2\u00f2\u00f3\7\6\2\2\u00f3\u00f8")
+        buf.write("\5&\24\2\u00f4\u00f5\7\5\2\2\u00f5\u00f7\5&\24\2\u00f6")
+        buf.write("\u00f4\3\2\2\2\u00f7\u00fa\3\2\2\2\u00f8\u00f6\3\2\2\2")
+        buf.write("\u00f8\u00f9\3\2\2\2\u00f9\u00fb\3\2\2\2\u00fa\u00f8\3")
+        buf.write("\2\2\2\u00fb\u00fc\7\7\2\2\u00fc\u00fe\3\2\2\2\u00fd\u00f2")
+        buf.write("\3\2\2\2\u00fd\u00fe\3\2\2\2\u00fe\31\3\2\2\2\u00ff\u0100")
+        buf.write("\7,\2\2\u0100\33\3\2\2\2\u0101\u010c\5\36\20\2\u0102\u0103")
+        buf.write("\5 \21\2\u0103\u0104\7\5\2\2\u0104\u0106\3\2\2\2\u0105")
+        buf.write("\u0102\3\2\2\2\u0106\u0109\3\2\2\2\u0107\u0105\3\2\2\2")
         buf.write("\u0107\u0108\3\2\2\2\u0108\u010a\3\2\2\2\u0109\u0107\3")
-        buf.write("\2\2\2\u010a\u010b\7\n\2\2\u010b\u010d\3\2\2\2\u010c\u0101")
-        buf.write("\3\2\2\2\u010c\u010d\3\2\2\2\u010d\33\3\2\2\2\u010e\u010f")
-        buf.write("\7-\2\2\u010f\35\3\2\2\2\u0110\u011b\5 \21\2\u0111\u0112")
-        buf.write("\5\"\22\2\u0112\u0113\7\b\2\2\u0113\u0115\3\2\2\2\u0114")
-        buf.write("\u0111\3\2\2\2\u0115\u0118\3\2\2\2\u0116\u0114\3\2\2\2")
-        buf.write("\u0116\u0117\3\2\2\2\u0117\u0119\3\2\2\2\u0118\u0116\3")
-        buf.write("\2\2\2\u0119\u011b\5$\23\2\u011a\u0110\3\2\2\2\u011a\u0116")
-        buf.write("\3\2\2\2\u011b\37\3\2\2\2\u011c\u0121\5\"\22\2\u011d\u011e")
-        buf.write("\7\b\2\2\u011e\u0120\5\"\22\2\u011f\u011d\3\2\2\2\u0120")
-        buf.write("\u0123\3\2\2\2\u0121\u011f\3\2\2\2\u0121\u0122\3\2\2\2")
-        buf.write("\u0122\u0125\3\2\2\2\u0123\u0121\3\2\2\2\u0124\u011c\3")
-        buf.write("\2\2\2\u0124\u0125\3\2\2\2\u0125!\3\2\2\2\u0126\u0129")
-        buf.write("\5\b\5\2\u0127\u0128\7\31\2\2\u0128\u012a\5*\26\2\u0129")
-        buf.write("\u0127\3\2\2\2\u0129\u012a\3\2\2\2\u012a#\3\2\2\2\u012b")
-        buf.write("\u0130\5&\24\2\u012c\u012d\7\b\2\2\u012d\u012f\5&\24\2")
-        buf.write("\u012e\u012c\3\2\2\2\u012f\u0132\3\2\2\2\u0130\u012e\3")
-        buf.write("\2\2\2\u0130\u0131\3\2\2\2\u0131%\3\2\2\2\u0132\u0130")
-        buf.write("\3\2\2\2\u0133\u0134\7-\2\2\u0134\u0135\7\21\2\2\u0135")
-        buf.write("\u0136\5\24\13\2\u0136\'\3\2\2\2\u0137\u0138\7\5\2\2\u0138")
-        buf.write("\u0145\7\7\2\2\u0139\u013a\7\5\2\2\u013a\u013f\58\35\2")
-        buf.write("\u013b\u013c\7\b\2\2\u013c\u013e\58\35\2\u013d\u013b\3")
-        buf.write("\2\2\2\u013e\u0141\3\2\2\2\u013f\u013d\3\2\2\2\u013f\u0140")
-        buf.write("\3\2\2\2\u0140\u0142\3\2\2\2\u0141\u013f\3\2\2\2\u0142")
-        buf.write("\u0143\7\7\2\2\u0143\u0145\3\2\2\2\u0144\u0137\3\2\2\2")
-        buf.write("\u0144\u0139\3\2\2\2\u0145)\3\2\2\2\u0146\u0147\7\t\2")
-        buf.write("\2\u0147\u0174\7\n\2\2\u0148\u0149\7\t\2\2\u0149\u014a")
-        buf.write("\5*\26\2\u014a\u014b\7\b\2\2\u014b\u014c\7\n\2\2\u014c")
-        buf.write("\u0174\3\2\2\2\u014d\u014e\7\t\2\2\u014e\u0151\5*\26\2")
-        buf.write("\u014f\u0150\7\b\2\2\u0150\u0152\5*\26\2\u0151\u014f\3")
-        buf.write("\2\2\2\u0152\u0153\3\2\2\2\u0153\u0151\3\2\2\2\u0153\u0154")
-        buf.write("\3\2\2\2\u0154\u0155\3\2\2\2\u0155\u0156\7\n\2\2\u0156")
-        buf.write("\u0174\3\2\2\2\u0157\u0174\5\n\6\2\u0158\u0159\7\32\2")
-        buf.write("\2\u0159\u015a\7\5\2\2\u015a\u015b\5,\27\2\u015b\u015c")
-        buf.write("\7\b\2\2\u015c\u015d\5*\26\2\u015d\u015e\7\7\2\2\u015e")
-        buf.write("\u0174\3\2\2\2\u015f\u0161\7\24\2\2\u0160\u0162\5(\25")
-        buf.write("\2\u0161\u0160\3\2\2\2\u0161\u0162\3\2\2\2\u0162\u0163")
-        buf.write("\3\2\2\2\u0163\u016c\7\t\2\2\u0164\u0169\5*\26\2\u0165")
-        buf.write("\u0166\7\b\2\2\u0166\u0168\5*\26\2\u0167\u0165\3\2\2\2")
-        buf.write("\u0168\u016b\3\2\2\2\u0169\u0167\3\2\2\2\u0169\u016a\3")
-        buf.write("\2\2\2\u016a\u016d\3\2\2\2\u016b\u0169\3\2\2\2\u016c\u0164")
-        buf.write("\3\2\2\2\u016c\u016d\3\2\2\2\u016d\u016e\3\2\2\2\u016e")
-        buf.write("\u016f\7\n\2\2\u016f\u0170\7\25\2\2\u0170\u0174\5*\26")
-        buf.write("\2\u0171\u0174\7\33\2\2\u0172\u0174\7\60\2\2\u0173\u0146")
-        buf.write("\3\2\2\2\u0173\u0148\3\2\2\2\u0173\u014d\3\2\2\2\u0173")
-        buf.write("\u0157\3\2\2\2\u0173\u0158\3\2\2\2\u0173\u015f\3\2\2\2")
-        buf.write("\u0173\u0171\3\2\2\2\u0173\u0172\3\2\2\2\u0174+\3\2\2")
-        buf.write("\2\u0175\u0176\7\t\2\2\u0176\u0179\5\60\31\2\u0177\u0178")
-        buf.write("\7\b\2\2\u0178\u017a\5\60\31\2\u0179\u0177\3\2\2\2\u017a")
-        buf.write("\u017b\3\2\2\2\u017b\u0179\3\2\2\2\u017b\u017c\3\2\2\2")
-        buf.write("\u017c\u017d\3\2\2\2\u017d\u017e\7\n\2\2\u017e\u0183\3")
-        buf.write("\2\2\2\u017f\u0180\7\t\2\2\u0180\u0183\7\n\2\2\u0181\u0183")
-        buf.write("\5\60\31\2\u0182\u0175\3\2\2\2\u0182\u017f\3\2\2\2\u0182")
-        buf.write("\u0181\3\2\2\2\u0183-\3\2\2\2\u0184\u0185\7\34\2\2\u0185")
-        buf.write("\u0186\7\5\2\2\u0186\u0187\7-\2\2\u0187\u0188\7\7\2\2")
-        buf.write("\u0188\u0189\7\5\2\2\u0189\u018a\7\60\2\2\u018a\u018b")
-        buf.write("\7\7\2\2\u018b/\3\2\2\2\u018c\u0193\5.\30\2\u018d\u018e")
-        buf.write("\7\t\2\2\u018e\u018f\5\60\31\2\u018f\u0190\7\n\2\2\u0190")
-        buf.write("\u0193\3\2\2\2\u0191\u0193\7\60\2\2\u0192\u018c\3\2\2")
-        buf.write("\2\u0192\u018d\3\2\2\2\u0192\u0191\3\2\2\2\u0193\61\3")
-        buf.write("\2\2\2\u0194\u0195\7-\2\2\u0195\63\3\2\2\2\u0196\u0197")
-        buf.write("\7\13\2\2\u0197\u0198\5\24\13\2\u0198\u0199\7\f\2\2\u0199")
-        buf.write("\65\3\2\2\2\u019a\u019e\7/\2\2\u019b\u019e\7\60\2\2\u019c")
-        buf.write("\u019e\7,\2\2\u019d\u019a\3\2\2\2\u019d\u019b\3\2\2\2")
-        buf.write("\u019d\u019c\3\2\2\2\u019e\67\3\2\2\2\u019f\u01a6\5\4")
-        buf.write("\3\2\u01a0\u01a6\5\6\4\2\u01a1\u01a6\5\b\5\2\u01a2\u01a6")
-        buf.write("\5\n\6\2\u01a3\u01a6\5\f\7\2\u01a4\u01a6\5\16\b\2\u01a5")
-        buf.write("\u019f\3\2\2\2\u01a5\u01a0\3\2\2\2\u01a5\u01a1\3\2\2\2")
-        buf.write("\u01a5\u01a2\3\2\2\2\u01a5\u01a3\3\2\2\2\u01a5\u01a4\3")
-        buf.write("\2\2\2\u01a69\3\2\2\2+>BEX]iltx\u0093\u009d\u00a0\u00bc")
-        buf.write("\u00d5\u00d7\u00dc\u00e3\u00ea\u00f1\u00fb\u00fd\u0107")
-        buf.write("\u010c\u0116\u011a\u0121\u0124\u0129\u0130\u013f\u0144")
-        buf.write("\u0153\u0161\u0169\u016c\u0173\u017b\u0182\u0192\u019d")
-        buf.write("\u01a5")
+        buf.write("\2\2\2\u010a\u010c\5\"\22\2\u010b\u0101\3\2\2\2\u010b")
+        buf.write("\u0107\3\2\2\2\u010c\35\3\2\2\2\u010d\u0112\5 \21\2\u010e")
+        buf.write("\u010f\7\5\2\2\u010f\u0111\5 \21\2\u0110\u010e\3\2\2\2")
+        buf.write("\u0111\u0114\3\2\2\2\u0112\u0110\3\2\2\2\u0112\u0113\3")
+        buf.write("\2\2\2\u0113\u0116\3\2\2\2\u0114\u0112\3\2\2\2\u0115\u010d")
+        buf.write("\3\2\2\2\u0115\u0116\3\2\2\2\u0116\37\3\2\2\2\u0117\u011a")
+        buf.write("\5\b\5\2\u0118\u0119\7\30\2\2\u0119\u011b\5&\24\2\u011a")
+        buf.write("\u0118\3\2\2\2\u011a\u011b\3\2\2\2\u011b!\3\2\2\2\u011c")
+        buf.write("\u0121\5$\23\2\u011d\u011e\7\5\2\2\u011e\u0120\5$\23\2")
+        buf.write("\u011f\u011d\3\2\2\2\u0120\u0123\3\2\2\2\u0121\u011f\3")
+        buf.write("\2\2\2\u0121\u0122\3\2\2\2\u0122#\3\2\2\2\u0123\u0121")
+        buf.write("\3\2\2\2\u0124\u0125\7,\2\2\u0125\u0126\7\20\2\2\u0126")
+        buf.write("\u0127\5\22\n\2\u0127%\3\2\2\2\u0128\u0129\7\6\2\2\u0129")
+        buf.write("\u0159\7\7\2\2\u012a\u012b\7\6\2\2\u012b\u012c\5&\24\2")
+        buf.write("\u012c\u012d\7\5\2\2\u012d\u012e\7\7\2\2\u012e\u0159\3")
+        buf.write("\2\2\2\u012f\u0130\7\6\2\2\u0130\u0133\5&\24\2\u0131\u0132")
+        buf.write("\7\5\2\2\u0132\u0134\5&\24\2\u0133\u0131\3\2\2\2\u0134")
+        buf.write("\u0135\3\2\2\2\u0135\u0133\3\2\2\2\u0135\u0136\3\2\2\2")
+        buf.write("\u0136\u0137\3\2\2\2\u0137\u0138\7\7\2\2\u0138\u0159\3")
+        buf.write("\2\2\2\u0139\u013a\5\n\6\2\u013a\u013b\5(\25\2\u013b\u0159")
+        buf.write("\3\2\2\2\u013c\u0159\5\n\6\2\u013d\u013e\7\31\2\2\u013e")
+        buf.write("\u013f\7\13\2\2\u013f\u0140\5*\26\2\u0140\u0141\7\5\2")
+        buf.write("\2\u0141\u0142\5&\24\2\u0142\u0143\7\f\2\2\u0143\u0159")
+        buf.write("\3\2\2\2\u0144\u0146\7\23\2\2\u0145\u0147\5(\25\2\u0146")
+        buf.write("\u0145\3\2\2\2\u0146\u0147\3\2\2\2\u0147\u0148\3\2\2\2")
+        buf.write("\u0148\u0151\7\6\2\2\u0149\u014e\5&\24\2\u014a\u014b\7")
+        buf.write("\5\2\2\u014b\u014d\5&\24\2\u014c\u014a\3\2\2\2\u014d\u0150")
+        buf.write("\3\2\2\2\u014e\u014c\3\2\2\2\u014e\u014f\3\2\2\2\u014f")
+        buf.write("\u0152\3\2\2\2\u0150\u014e\3\2\2\2\u0151\u0149\3\2\2\2")
+        buf.write("\u0151\u0152\3\2\2\2\u0152\u0153\3\2\2\2\u0153\u0154\7")
+        buf.write("\7\2\2\u0154\u0155\7\24\2\2\u0155\u0159\5&\24\2\u0156")
+        buf.write("\u0159\7\32\2\2\u0157\u0159\7/\2\2\u0158\u0128\3\2\2\2")
+        buf.write("\u0158\u012a\3\2\2\2\u0158\u012f\3\2\2\2\u0158\u0139\3")
+        buf.write("\2\2\2\u0158\u013c\3\2\2\2\u0158\u013d\3\2\2\2\u0158\u0144")
+        buf.write("\3\2\2\2\u0158\u0156\3\2\2\2\u0158\u0157\3\2\2\2\u0159")
+        buf.write("\'\3\2\2\2\u015a\u015b\7\13\2\2\u015b\u0160\5\n\6\2\u015c")
+        buf.write("\u015d\7\5\2\2\u015d\u015f\5\n\6\2\u015e\u015c\3\2\2\2")
+        buf.write("\u015f\u0162\3\2\2\2\u0160\u015e\3\2\2\2\u0160\u0161\3")
+        buf.write("\2\2\2\u0161\u0163\3\2\2\2\u0162\u0160\3\2\2\2\u0163\u0164")
+        buf.write("\7\f\2\2\u0164)\3\2\2\2\u0165\u0166\7\6\2\2\u0166\u0169")
+        buf.write("\5.\30\2\u0167\u0168\7\5\2\2\u0168\u016a\5.\30\2\u0169")
+        buf.write("\u0167\3\2\2\2\u016a\u016b\3\2\2\2\u016b\u0169\3\2\2\2")
+        buf.write("\u016b\u016c\3\2\2\2\u016c\u016d\3\2\2\2\u016d\u016e\7")
+        buf.write("\7\2\2\u016e\u0173\3\2\2\2\u016f\u0170\7\6\2\2\u0170\u0173")
+        buf.write("\7\7\2\2\u0171\u0173\5.\30\2\u0172\u0165\3\2\2\2\u0172")
+        buf.write("\u016f\3\2\2\2\u0172\u0171\3\2\2\2\u0173+\3\2\2\2\u0174")
+        buf.write("\u0175\7\33\2\2\u0175\u0176\7\13\2\2\u0176\u0177\7,\2")
+        buf.write("\2\u0177\u0178\7\f\2\2\u0178\u0179\7\13\2\2\u0179\u017a")
+        buf.write("\7/\2\2\u017a\u017b\7\f\2\2\u017b-\3\2\2\2\u017c\u0183")
+        buf.write("\5,\27\2\u017d\u017e\7\6\2\2\u017e\u017f\5.\30\2\u017f")
+        buf.write("\u0180\7\7\2\2\u0180\u0183\3\2\2\2\u0181\u0183\7/\2\2")
+        buf.write("\u0182\u017c\3\2\2\2\u0182\u017d\3\2\2\2\u0182\u0181\3")
+        buf.write("\2\2\2\u0183/\3\2\2\2\u0184\u0185\7\b\2\2\u0185\u0186")
+        buf.write("\5\22\n\2\u0186\u0187\7\t\2\2\u0187\61\3\2\2\2\u0188\u018c")
+        buf.write("\7.\2\2\u0189\u018c\7/\2\2\u018a\u018c\7+\2\2\u018b\u0188")
+        buf.write("\3\2\2\2\u018b\u0189\3\2\2\2\u018b\u018a\3\2\2\2\u018c")
+        buf.write("\63\3\2\2\2\u018d\u0193\5\4\3\2\u018e\u0193\5\6\4\2\u018f")
+        buf.write("\u0193\5\b\5\2\u0190\u0193\5&\24\2\u0191\u0193\5\f\7\2")
+        buf.write("\u0192\u018d\3\2\2\2\u0192\u018e\3\2\2\2\u0192\u018f\3")
+        buf.write("\2\2\2\u0192\u0190\3\2\2\2\u0192\u0191\3\2\2\2\u0193\65")
+        buf.write("\3\2\2\2):>AWZbf\u0081\u008b\u008e\u00aa\u00c3\u00c5\u00ca")
+        buf.write("\u00d1\u00d8\u00df\u00e6\u00ec\u00ee\u00f8\u00fd\u0107")
+        buf.write("\u010b\u0112\u0115\u011a\u0121\u0135\u0146\u014e\u0151")
+        buf.write("\u0158\u0160\u016b\u0172\u0182\u018b\u0192")
         return buf.getvalue()
 
 
@@ -225,14 +213,13 @@ class RelayParser ( Parser ):
 
     sharedContextCache = PredictionContextCache()
 
-    literalNames = [ "<INVALID>", "'@'", "'%'", "'['", "', '", "']'", "','", 
-                     "'('", "')'", "'{'", "'}'", "'.'", "'if'", "'else'", 
-                     "'let'", "'='", "';'", "';;'", "'fn'", "'->'", "'def'", 
-                     "'type'", "'|'", "':'", "'Tensor'", "'_'", "'meta'", 
-                     "'v0.0.3'", "<INVALID>", "<INVALID>", "<INVALID>", 
-                     "<INVALID>", "'*'", "'/'", "'+'", "'-'", "'<'", "'>'", 
-                     "'<='", "'>='", "'=='", "'!='", "<INVALID>", "<INVALID>", 
-                     "'int64'" ]
+    literalNames = [ "<INVALID>", "'@'", "'%'", "','", "'('", "')'", "'{'", 
+                     "'}'", "'.'", "'['", "']'", "'if'", "'else'", "'let'", 
+                     "'='", "';'", "';;'", "'fn'", "'->'", "'def'", "'type'", 
+                     "'|'", "':'", "'Tensor'", "'_'", "'meta'", "'v0.0.3'", 
+                     "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
+                     "'*'", "'/'", "'+'", "'-'", "'<'", "'>'", "'<='", "'>='", 
+                     "'=='", "'!='", "<INVALID>", "<INVALID>", "'int64'" ]
 
     symbolicNames = [ "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
                       "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
@@ -240,46 +227,43 @@ class RelayParser ( Parser ):
                       "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
                       "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
                       "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
-                      "<INVALID>", "<INVALID>", "<INVALID>", "SEMVER", "COMMENT", 
-                      "WS", "LINE_COMMENT", "QUOTED_STRING", "MUL", "DIV", 
-                      "ADD", "SUB", "LT", "GT", "LE", "GE", "EQ", "NE", 
-                      "BOOL_LIT", "CNAME", "DATATYPE", "FLOAT", "NAT", "METADATA" ]
+                      "<INVALID>", "<INVALID>", "SEMVER", "COMMENT", "WS", 
+                      "LINE_COMMENT", "QUOTED_STRING", "MUL", "DIV", "ADD", 
+                      "SUB", "LT", "GT", "LE", "GE", "EQ", "NE", "BOOL_LIT", 
+                      "CNAME", "DATATYPE", "FLOAT", "NAT", "METADATA" ]
 
     RULE_prog = 0
     RULE_opIdent = 1
     RULE_globalVar = 2
     RULE_localVar = 3
-    RULE_globalTypeVar = 4
-    RULE_typeVar = 5
-    RULE_graphVar = 6
-    RULE_exprList = 7
-    RULE_callList = 8
-    RULE_expr = 9
-    RULE_func = 10
-    RULE_defn = 11
-    RULE_adtVariant = 12
-    RULE_variantName = 13
-    RULE_argList = 14
-    RULE_varList = 15
-    RULE_var = 16
-    RULE_attrSeq = 17
-    RULE_attr = 18
+    RULE_typeIdent = 4
+    RULE_graphVar = 5
+    RULE_exprList = 6
+    RULE_callList = 7
+    RULE_expr = 8
+    RULE_func = 9
+    RULE_defn = 10
+    RULE_adtVariant = 11
+    RULE_variantName = 12
+    RULE_argList = 13
+    RULE_varList = 14
+    RULE_var = 15
+    RULE_attrSeq = 16
+    RULE_attr = 17
+    RULE_typeExpr = 18
     RULE_typeParamList = 19
-    RULE_type_ = 20
-    RULE_shapeList = 21
-    RULE_meta = 22
-    RULE_shape = 23
-    RULE_typeIdent = 24
-    RULE_body = 25
-    RULE_scalar = 26
-    RULE_ident = 27
+    RULE_shapeList = 20
+    RULE_meta = 21
+    RULE_shape = 22
+    RULE_body = 23
+    RULE_scalar = 24
+    RULE_ident = 25
 
-    ruleNames =  [ "prog", "opIdent", "globalVar", "localVar", "globalTypeVar", 
-                   "typeVar", "graphVar", "exprList", "callList", "expr", 
-                   "func", "defn", "adtVariant", "variantName", "argList", 
-                   "varList", "var", "attrSeq", "attr", "typeParamList", 
-                   "type_", "shapeList", "meta", "shape", "typeIdent", "body", 
-                   "scalar", "ident" ]
+    ruleNames =  [ "prog", "opIdent", "globalVar", "localVar", "typeIdent", 
+                   "graphVar", "exprList", "callList", "expr", "func", "defn", 
+                   "adtVariant", "variantName", "argList", "varList", "var", 
+                   "attrSeq", "attr", "typeExpr", "typeParamList", "shapeList", 
+                   "meta", "shape", "body", "scalar", "ident" ]
 
     EOF = Token.EOF
     T__0=1
@@ -307,28 +291,27 @@ class RelayParser ( Parser ):
     T__22=23
     T__23=24
     T__24=25
-    T__25=26
-    SEMVER=27
-    COMMENT=28
-    WS=29
-    LINE_COMMENT=30
-    QUOTED_STRING=31
-    MUL=32
-    DIV=33
-    ADD=34
-    SUB=35
-    LT=36
-    GT=37
-    LE=38
-    GE=39
-    EQ=40
-    NE=41
-    BOOL_LIT=42
-    CNAME=43
-    DATATYPE=44
-    FLOAT=45
-    NAT=46
-    METADATA=47
+    SEMVER=26
+    COMMENT=27
+    WS=28
+    LINE_COMMENT=29
+    QUOTED_STRING=30
+    MUL=31
+    DIV=32
+    ADD=33
+    SUB=34
+    LT=35
+    GT=36
+    LE=37
+    GE=38
+    EQ=39
+    NE=40
+    BOOL_LIT=41
+    CNAME=42
+    DATATYPE=43
+    FLOAT=44
+    NAT=45
+    METADATA=46
 
     def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
         super().__init__(input, output)
@@ -384,39 +367,39 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 56
+            self.state = 52
             self.match(RelayParser.SEMVER)
-            self.state = 64
+            self.state = 60
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [RelayParser.EOF, RelayParser.T__19, RelayParser.T__20, RelayParser.METADATA]:
-                self.state = 60
+            if token in [RelayParser.EOF, RelayParser.T__18, RelayParser.T__19, RelayParser.METADATA]:
+                self.state = 56
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while _la==RelayParser.T__19 or _la==RelayParser.T__20:
-                    self.state = 57
+                while _la==RelayParser.T__18 or _la==RelayParser.T__19:
+                    self.state = 53
                     self.defn()
-                    self.state = 62
+                    self.state = 58
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
                 pass
-            elif token in [RelayParser.T__0, RelayParser.T__1, RelayParser.T__2, RelayParser.T__6, RelayParser.T__8, RelayParser.T__11, RelayParser.T__13, RelayParser.T__17, RelayParser.T__25, RelayParser.QUOTED_STRING, RelayParser.SUB, RelayParser.BOOL_LIT, RelayParser.CNAME, RelayParser.FLOAT, RelayParser.NAT]:
-                self.state = 63
+            elif token in [RelayParser.T__0, RelayParser.T__1, RelayParser.T__3, RelayParser.T__5, RelayParser.T__8, RelayParser.T__10, RelayParser.T__12, RelayParser.T__16, RelayParser.T__22, RelayParser.T__23, RelayParser.T__24, RelayParser.QUOTED_STRING, RelayParser.SUB, RelayParser.BOOL_LIT, RelayParser.CNAME, RelayParser.FLOAT, RelayParser.NAT]:
+                self.state = 59
                 self.expr(0)
                 pass
             else:
                 raise NoViableAltException(self)
 
-            self.state = 67
+            self.state = 63
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.METADATA:
-                self.state = 66
+                self.state = 62
                 self.match(RelayParser.METADATA)
 
 
-            self.state = 69
+            self.state = 65
             self.match(RelayParser.EOF)
         except RecognitionException as re:
             localctx.exception = re
@@ -454,7 +437,7 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 2, self.RULE_opIdent)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 71
+            self.state = 67
             self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
@@ -492,9 +475,9 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 4, self.RULE_globalVar)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 73
+            self.state = 69
             self.match(RelayParser.T__0)
-            self.state = 74
+            self.state = 70
             self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
@@ -532,9 +515,9 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 6, self.RULE_localVar)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 76
+            self.state = 72
             self.match(RelayParser.T__1)
-            self.state = 77
+            self.state = 73
             self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
@@ -545,77 +528,7 @@ class RelayParser ( Parser ):
         return localctx
 
 
-    class GlobalTypeVarContext(ParserRuleContext):
-
-        def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
-            super().__init__(parent, invokingState)
-            self.parser = parser
-
-        def CNAME(self):
-            return self.getToken(RelayParser.CNAME, 0)
-
-        def typeVar(self, i:int=None):
-            if i is None:
-                return self.getTypedRuleContexts(RelayParser.TypeVarContext)
-            else:
-                return self.getTypedRuleContext(RelayParser.TypeVarContext,i)
-
-
-        def getRuleIndex(self):
-            return RelayParser.RULE_globalTypeVar
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitGlobalTypeVar" ):
-                return visitor.visitGlobalTypeVar(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-
-
-    def globalTypeVar(self):
-
-        localctx = RelayParser.GlobalTypeVarContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 8, self.RULE_globalTypeVar)
-        self._la = 0 # Token type
-        try:
-            self.enterOuterAlt(localctx, 1)
-            self.state = 79
-            self.match(RelayParser.CNAME)
-            self.state = 91
-            self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,4,self._ctx)
-            if la_ == 1:
-                self.state = 80
-                self.match(RelayParser.T__2)
-                self.state = 81
-                self.typeVar()
-                self.state = 86
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                while _la==RelayParser.T__3:
-                    self.state = 82
-                    self.match(RelayParser.T__3)
-                    self.state = 83
-                    self.typeVar()
-                    self.state = 88
-                    self._errHandler.sync(self)
-                    _la = self._input.LA(1)
-
-                self.state = 89
-                self.match(RelayParser.T__4)
-
-
-        except RecognitionException as re:
-            localctx.exception = re
-            self._errHandler.reportError(self, re)
-            self._errHandler.recover(self, re)
-        finally:
-            self.exitRule()
-        return localctx
-
-
-    class TypeVarContext(ParserRuleContext):
+    class TypeIdentContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
             super().__init__(parent, invokingState)
@@ -625,24 +538,24 @@ class RelayParser ( Parser ):
             return self.getToken(RelayParser.CNAME, 0)
 
         def getRuleIndex(self):
-            return RelayParser.RULE_typeVar
+            return RelayParser.RULE_typeIdent
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTypeVar" ):
-                return visitor.visitTypeVar(self)
+            if hasattr( visitor, "visitTypeIdent" ):
+                return visitor.visitTypeIdent(self)
             else:
                 return visitor.visitChildren(self)
 
 
 
 
-    def typeVar(self):
+    def typeIdent(self):
 
-        localctx = RelayParser.TypeVarContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 10, self.RULE_typeVar)
+        localctx = RelayParser.TypeIdentContext(self, self._ctx, self.state)
+        self.enterRule(localctx, 8, self.RULE_typeIdent)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 93
+            self.state = 75
             self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
@@ -677,12 +590,12 @@ class RelayParser ( Parser ):
     def graphVar(self):
 
         localctx = RelayParser.GraphVarContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 12, self.RULE_graphVar)
+        self.enterRule(localctx, 10, self.RULE_graphVar)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 95
+            self.state = 77
             self.match(RelayParser.T__1)
-            self.state = 96
+            self.state = 78
             self.match(RelayParser.NAT)
         except RecognitionException as re:
             localctx.exception = re
@@ -721,25 +634,25 @@ class RelayParser ( Parser ):
     def exprList(self):
 
         localctx = RelayParser.ExprListContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 14, self.RULE_exprList)
+        self.enterRule(localctx, 12, self.RULE_exprList)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 106
+            self.state = 88
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__0) | (1 << RelayParser.T__1) | (1 << RelayParser.T__2) | (1 << RelayParser.T__6) | (1 << RelayParser.T__8) | (1 << RelayParser.T__11) | (1 << RelayParser.T__13) | (1 << RelayParser.T__17) | (1 << RelayParser.T__25) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
-                self.state = 98
+            if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__0) | (1 << RelayParser.T__1) | (1 << RelayParser.T__3) | (1 << RelayParser.T__5) | (1 << RelayParser.T__8) | (1 << RelayParser.T__10) | (1 << RelayParser.T__12) | (1 << RelayParser.T__16) | (1 << RelayParser.T__22) | (1 << RelayParser.T__23) | (1 << RelayParser.T__24) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
+                self.state = 80
                 self.expr(0)
-                self.state = 103
+                self.state = 85
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while _la==RelayParser.T__5:
-                    self.state = 99
-                    self.match(RelayParser.T__5)
-                    self.state = 100
+                while _la==RelayParser.T__2:
+                    self.state = 81
+                    self.match(RelayParser.T__2)
+                    self.state = 82
                     self.expr(0)
-                    self.state = 105
+                    self.state = 87
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
@@ -814,35 +727,35 @@ class RelayParser ( Parser ):
     def callList(self):
 
         localctx = RelayParser.CallListContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 16, self.RULE_callList)
+        self.enterRule(localctx, 14, self.RULE_callList)
         try:
-            self.state = 118
+            self.state = 100
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,8,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,6,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.CallNoAttrContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 108
+                self.state = 90
                 self.exprList()
                 pass
 
             elif la_ == 2:
                 localctx = RelayParser.CallWithAttrContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 114
+                self.state = 96
                 self._errHandler.sync(self)
-                _alt = self._interp.adaptivePredict(self._input,7,self._ctx)
+                _alt = self._interp.adaptivePredict(self._input,5,self._ctx)
                 while _alt!=2 and _alt!=ATN.INVALID_ALT_NUMBER:
                     if _alt==1:
-                        self.state = 109
+                        self.state = 91
                         self.expr(0)
-                        self.state = 110
-                        self.match(RelayParser.T__5) 
-                    self.state = 116
+                        self.state = 92
+                        self.match(RelayParser.T__2) 
+                    self.state = 98
                     self._errHandler.sync(self)
-                    _alt = self._interp.adaptivePredict(self._input,7,self._ctx)
+                    _alt = self._interp.adaptivePredict(self._input,5,self._ctx)
 
-                self.state = 117
+                self.state = 99
                 self.attrSeq()
                 pass
 
@@ -1186,46 +1099,46 @@ class RelayParser ( Parser ):
         _parentState = self.state
         localctx = RelayParser.ExprContext(self, self._ctx, _parentState)
         _prevctx = localctx
-        _startState = 18
-        self.enterRecursionRule(localctx, 18, self.RULE_expr, _p)
+        _startState = 16
+        self.enterRecursionRule(localctx, 16, self.RULE_expr, _p)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 186
+            self.state = 168
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,12,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,10,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.ParenContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
 
-                self.state = 121
-                self.match(RelayParser.T__6)
-                self.state = 122
+                self.state = 103
+                self.match(RelayParser.T__3)
+                self.state = 104
                 self.expr(0)
-                self.state = 123
-                self.match(RelayParser.T__7)
+                self.state = 105
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 2:
                 localctx = RelayParser.ParenContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 125
-                self.match(RelayParser.T__8)
-                self.state = 126
+                self.state = 107
+                self.match(RelayParser.T__5)
+                self.state = 108
                 self.expr(0)
-                self.state = 127
-                self.match(RelayParser.T__9)
+                self.state = 109
+                self.match(RelayParser.T__6)
                 pass
 
             elif la_ == 3:
                 localctx = RelayParser.NegContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 129
+                self.state = 111
                 self.match(RelayParser.SUB)
-                self.state = 130
+                self.state = 112
                 self.expr(19)
                 pass
 
@@ -1233,7 +1146,7 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.FuncExprContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 131
+                self.state = 113
                 self.func()
                 pass
 
@@ -1241,99 +1154,99 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.TupleContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 132
-                self.match(RelayParser.T__6)
-                self.state = 133
-                self.match(RelayParser.T__7)
+                self.state = 114
+                self.match(RelayParser.T__3)
+                self.state = 115
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 6:
                 localctx = RelayParser.TupleContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 134
-                self.match(RelayParser.T__6)
-                self.state = 135
+                self.state = 116
+                self.match(RelayParser.T__3)
+                self.state = 117
                 self.expr(0)
-                self.state = 136
-                self.match(RelayParser.T__5)
-                self.state = 137
-                self.match(RelayParser.T__7)
+                self.state = 118
+                self.match(RelayParser.T__2)
+                self.state = 119
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 7:
                 localctx = RelayParser.TupleContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 139
-                self.match(RelayParser.T__6)
-                self.state = 140
+                self.state = 121
+                self.match(RelayParser.T__3)
+                self.state = 122
                 self.expr(0)
-                self.state = 143 
+                self.state = 125 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while True:
-                    self.state = 141
-                    self.match(RelayParser.T__5)
-                    self.state = 142
+                    self.state = 123
+                    self.match(RelayParser.T__2)
+                    self.state = 124
                     self.expr(0)
-                    self.state = 145 
+                    self.state = 127 
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
-                    if not (_la==RelayParser.T__5):
+                    if not (_la==RelayParser.T__2):
                         break
 
-                self.state = 147
-                self.match(RelayParser.T__7)
+                self.state = 129
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 8:
                 localctx = RelayParser.TensorContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 149
-                self.match(RelayParser.T__2)
-                self.state = 158
+                self.state = 131
+                self.match(RelayParser.T__8)
+                self.state = 140
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__0) | (1 << RelayParser.T__1) | (1 << RelayParser.T__2) | (1 << RelayParser.T__6) | (1 << RelayParser.T__8) | (1 << RelayParser.T__11) | (1 << RelayParser.T__13) | (1 << RelayParser.T__17) | (1 << RelayParser.T__25) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
-                    self.state = 150
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__0) | (1 << RelayParser.T__1) | (1 << RelayParser.T__3) | (1 << RelayParser.T__5) | (1 << RelayParser.T__8) | (1 << RelayParser.T__10) | (1 << RelayParser.T__12) | (1 << RelayParser.T__16) | (1 << RelayParser.T__22) | (1 << RelayParser.T__23) | (1 << RelayParser.T__24) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
+                    self.state = 132
                     self.expr(0)
-                    self.state = 155
+                    self.state = 137
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
-                    while _la==RelayParser.T__5:
-                        self.state = 151
-                        self.match(RelayParser.T__5)
-                        self.state = 152
+                    while _la==RelayParser.T__2:
+                        self.state = 133
+                        self.match(RelayParser.T__2)
+                        self.state = 134
                         self.expr(0)
-                        self.state = 157
+                        self.state = 139
                         self._errHandler.sync(self)
                         _la = self._input.LA(1)
 
 
 
-                self.state = 160
-                self.match(RelayParser.T__4)
+                self.state = 142
+                self.match(RelayParser.T__9)
                 pass
 
             elif la_ == 9:
                 localctx = RelayParser.IfElseContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 161
-                self.match(RelayParser.T__11)
-                self.state = 162
-                self.match(RelayParser.T__6)
-                self.state = 163
+                self.state = 143
+                self.match(RelayParser.T__10)
+                self.state = 144
+                self.match(RelayParser.T__3)
+                self.state = 145
                 self.expr(0)
-                self.state = 164
-                self.match(RelayParser.T__7)
-                self.state = 165
+                self.state = 146
+                self.match(RelayParser.T__4)
+                self.state = 147
                 self.body()
-                self.state = 166
-                self.match(RelayParser.T__12)
-                self.state = 167
+                self.state = 148
+                self.match(RelayParser.T__11)
+                self.state = 149
                 self.body()
                 pass
 
@@ -1341,17 +1254,17 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.LetContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 169
-                self.match(RelayParser.T__13)
-                self.state = 170
+                self.state = 151
+                self.match(RelayParser.T__12)
+                self.state = 152
                 self.var()
-                self.state = 171
-                self.match(RelayParser.T__14)
-                self.state = 172
+                self.state = 153
+                self.match(RelayParser.T__13)
+                self.state = 154
                 self.expr(0)
-                self.state = 173
-                self.match(RelayParser.T__15)
-                self.state = 174
+                self.state = 155
+                self.match(RelayParser.T__14)
+                self.state = 156
                 self.expr(7)
                 pass
 
@@ -1359,15 +1272,15 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.GraphContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 176
+                self.state = 158
                 self.graphVar()
-                self.state = 177
-                self.match(RelayParser.T__14)
-                self.state = 178
+                self.state = 159
+                self.match(RelayParser.T__13)
+                self.state = 160
                 self.expr(0)
-                self.state = 179
-                self.match(RelayParser.T__15)
-                self.state = 180
+                self.state = 161
+                self.match(RelayParser.T__14)
+                self.state = 162
                 self.expr(5)
                 pass
 
@@ -1375,7 +1288,7 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.IdentExprContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 182
+                self.state = 164
                 self.ident()
                 pass
 
@@ -1383,7 +1296,7 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.ScalarExprContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 183
+                self.state = 165
                 self.scalar()
                 pass
 
@@ -1391,7 +1304,7 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.MetaExprContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 184
+                self.state = 166
                 self.meta()
                 pass
 
@@ -1399,31 +1312,31 @@ class RelayParser ( Parser ):
                 localctx = RelayParser.StringExprContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
-                self.state = 185
+                self.state = 167
                 self.match(RelayParser.QUOTED_STRING)
                 pass
 
 
             self._ctx.stop = self._input.LT(-1)
-            self.state = 213
+            self.state = 195
             self._errHandler.sync(self)
-            _alt = self._interp.adaptivePredict(self._input,14,self._ctx)
+            _alt = self._interp.adaptivePredict(self._input,12,self._ctx)
             while _alt!=2 and _alt!=ATN.INVALID_ALT_NUMBER:
                 if _alt==1:
                     if self._parseListeners is not None:
                         self.triggerExitRuleEvent()
                     _prevctx = localctx
-                    self.state = 211
+                    self.state = 193
                     self._errHandler.sync(self)
-                    la_ = self._interp.adaptivePredict(self._input,13,self._ctx)
+                    la_ = self._interp.adaptivePredict(self._input,11,self._ctx)
                     if la_ == 1:
                         localctx = RelayParser.BinOpContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 188
+                        self.state = 170
                         if not self.precpred(self._ctx, 18):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 18)")
-                        self.state = 189
+                        self.state = 171
                         localctx.op = self._input.LT(1)
                         _la = self._input.LA(1)
                         if not(_la==RelayParser.MUL or _la==RelayParser.DIV):
@@ -1431,18 +1344,18 @@ class RelayParser ( Parser ):
                         else:
                             self._errHandler.reportMatch(self)
                             self.consume()
-                        self.state = 190
+                        self.state = 172
                         self.expr(19)
                         pass
 
                     elif la_ == 2:
                         localctx = RelayParser.BinOpContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 191
+                        self.state = 173
                         if not self.precpred(self._ctx, 17):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 17)")
-                        self.state = 192
+                        self.state = 174
                         localctx.op = self._input.LT(1)
                         _la = self._input.LA(1)
                         if not(_la==RelayParser.ADD or _la==RelayParser.SUB):
@@ -1450,18 +1363,18 @@ class RelayParser ( Parser ):
                         else:
                             self._errHandler.reportMatch(self)
                             self.consume()
-                        self.state = 193
+                        self.state = 175
                         self.expr(18)
                         pass
 
                     elif la_ == 3:
                         localctx = RelayParser.BinOpContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 194
+                        self.state = 176
                         if not self.precpred(self._ctx, 16):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 16)")
-                        self.state = 195
+                        self.state = 177
                         localctx.op = self._input.LT(1)
                         _la = self._input.LA(1)
                         if not((((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.LT) | (1 << RelayParser.GT) | (1 << RelayParser.LE) | (1 << RelayParser.GE))) != 0)):
@@ -1469,18 +1382,18 @@ class RelayParser ( Parser ):
                         else:
                             self._errHandler.reportMatch(self)
                             self.consume()
-                        self.state = 196
+                        self.state = 178
                         self.expr(17)
                         pass
 
                     elif la_ == 4:
                         localctx = RelayParser.BinOpContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 197
+                        self.state = 179
                         if not self.precpred(self._ctx, 15):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 15)")
-                        self.state = 198
+                        self.state = 180
                         localctx.op = self._input.LT(1)
                         _la = self._input.LA(1)
                         if not(_la==RelayParser.EQ or _la==RelayParser.NE):
@@ -1488,55 +1401,55 @@ class RelayParser ( Parser ):
                         else:
                             self._errHandler.reportMatch(self)
                             self.consume()
-                        self.state = 199
+                        self.state = 181
                         self.expr(16)
                         pass
 
                     elif la_ == 5:
                         localctx = RelayParser.LetContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 200
+                        self.state = 182
                         if not self.precpred(self._ctx, 6):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 6)")
-                        self.state = 201
-                        self.match(RelayParser.T__16)
-                        self.state = 202
+                        self.state = 183
+                        self.match(RelayParser.T__15)
+                        self.state = 184
                         self.expr(7)
                         pass
 
                     elif la_ == 6:
                         localctx = RelayParser.CallContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 203
+                        self.state = 185
                         if not self.precpred(self._ctx, 20):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 20)")
-                        self.state = 204
-                        self.match(RelayParser.T__6)
-                        self.state = 205
+                        self.state = 186
+                        self.match(RelayParser.T__3)
+                        self.state = 187
                         self.callList()
-                        self.state = 206
-                        self.match(RelayParser.T__7)
+                        self.state = 188
+                        self.match(RelayParser.T__4)
                         pass
 
                     elif la_ == 7:
                         localctx = RelayParser.ProjectionContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
                         self.pushNewRecursionContext(localctx, _startState, self.RULE_expr)
-                        self.state = 208
+                        self.state = 190
                         if not self.precpred(self._ctx, 10):
                             from antlr4.error.Errors import FailedPredicateException
                             raise FailedPredicateException(self, "self.precpred(self._ctx, 10)")
-                        self.state = 209
-                        self.match(RelayParser.T__10)
-                        self.state = 210
+                        self.state = 191
+                        self.match(RelayParser.T__7)
+                        self.state = 192
                         self.match(RelayParser.NAT)
                         pass
 
              
-                self.state = 215
+                self.state = 197
                 self._errHandler.sync(self)
-                _alt = self._interp.adaptivePredict(self._input,14,self._ctx)
+                _alt = self._interp.adaptivePredict(self._input,12,self._ctx)
 
         except RecognitionException as re:
             localctx.exception = re
@@ -1565,8 +1478,8 @@ class RelayParser ( Parser ):
             return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
 
 
-        def type_(self):
-            return self.getTypedRuleContext(RelayParser.Type_Context,0)
+        def typeExpr(self):
+            return self.getTypedRuleContext(RelayParser.TypeExprContext,0)
 
 
         def getRuleIndex(self):
@@ -1584,37 +1497,37 @@ class RelayParser ( Parser ):
     def func(self):
 
         localctx = RelayParser.FuncContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 20, self.RULE_func)
+        self.enterRule(localctx, 18, self.RULE_func)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 216
-            self.match(RelayParser.T__17)
-            self.state = 218
+            self.state = 198
+            self.match(RelayParser.T__16)
+            self.state = 200
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if _la==RelayParser.T__2:
-                self.state = 217
+            if _la==RelayParser.T__8:
+                self.state = 199
                 self.typeParamList()
 
 
-            self.state = 220
-            self.match(RelayParser.T__6)
-            self.state = 221
+            self.state = 202
+            self.match(RelayParser.T__3)
+            self.state = 203
             self.argList()
-            self.state = 222
-            self.match(RelayParser.T__7)
-            self.state = 225
+            self.state = 204
+            self.match(RelayParser.T__4)
+            self.state = 207
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if _la==RelayParser.T__18:
-                self.state = 223
-                self.match(RelayParser.T__18)
-                self.state = 224
-                self.type_()
+            if _la==RelayParser.T__17:
+                self.state = 205
+                self.match(RelayParser.T__17)
+                self.state = 206
+                self.typeExpr()
 
 
-            self.state = 227
+            self.state = 209
             self.body()
         except RecognitionException as re:
             localctx.exception = re
@@ -1659,8 +1572,8 @@ class RelayParser ( Parser ):
         def typeParamList(self):
             return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
 
-        def type_(self):
-            return self.getTypedRuleContext(RelayParser.Type_Context,0)
+        def typeExpr(self):
+            return self.getTypedRuleContext(RelayParser.TypeExprContext,0)
 
 
         def accept(self, visitor:ParseTreeVisitor):
@@ -1676,8 +1589,11 @@ class RelayParser ( Parser ):
             super().__init__(parser)
             self.copyFrom(ctx)
 
-        def globalTypeVar(self):
-            return self.getTypedRuleContext(RelayParser.GlobalTypeVarContext,0)
+        def typeIdent(self):
+            return self.getTypedRuleContext(RelayParser.TypeIdentContext,0)
+
+        def typeParamList(self):
+            return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
 
         def adtVariant(self, i:int=None):
             if i is None:
@@ -1697,65 +1613,73 @@ class RelayParser ( Parser ):
     def defn(self):
 
         localctx = RelayParser.DefnContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 22, self.RULE_defn)
+        self.enterRule(localctx, 20, self.RULE_defn)
         self._la = 0 # Token type
         try:
-            self.state = 251
+            self.state = 236
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [RelayParser.T__19]:
+            if token in [RelayParser.T__18]:
                 localctx = RelayParser.FuncDefnContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 229
-                self.match(RelayParser.T__19)
-                self.state = 230
+                self.state = 211
+                self.match(RelayParser.T__18)
+                self.state = 212
                 self.globalVar()
-                self.state = 232
+                self.state = 214
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if _la==RelayParser.T__2:
-                    self.state = 231
+                if _la==RelayParser.T__8:
+                    self.state = 213
                     self.typeParamList()
 
 
-                self.state = 234
-                self.match(RelayParser.T__6)
-                self.state = 235
+                self.state = 216
+                self.match(RelayParser.T__3)
+                self.state = 217
                 self.argList()
-                self.state = 236
-                self.match(RelayParser.T__7)
-                self.state = 239
+                self.state = 218
+                self.match(RelayParser.T__4)
+                self.state = 221
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if _la==RelayParser.T__18:
-                    self.state = 237
-                    self.match(RelayParser.T__18)
-                    self.state = 238
-                    self.type_()
+                if _la==RelayParser.T__17:
+                    self.state = 219
+                    self.match(RelayParser.T__17)
+                    self.state = 220
+                    self.typeExpr()
 
 
-                self.state = 241
+                self.state = 223
                 self.body()
                 pass
-            elif token in [RelayParser.T__20]:
+            elif token in [RelayParser.T__19]:
                 localctx = RelayParser.AdtDefnContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 243
-                self.match(RelayParser.T__20)
-                self.state = 244
-                self.globalTypeVar()
-                self.state = 245
-                self.match(RelayParser.T__14)
-                self.state = 247 
+                self.state = 225
+                self.match(RelayParser.T__19)
+                self.state = 226
+                self.typeIdent()
+                self.state = 228
+                self._errHandler.sync(self)
+                _la = self._input.LA(1)
+                if _la==RelayParser.T__8:
+                    self.state = 227
+                    self.typeParamList()
+
+
+                self.state = 230
+                self.match(RelayParser.T__13)
+                self.state = 232 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while True:
-                    self.state = 246
+                    self.state = 231
                     self.adtVariant()
-                    self.state = 249 
+                    self.state = 234 
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
-                    if not (_la==RelayParser.T__21):
+                    if not (_la==RelayParser.T__20):
                         break
 
                 pass
@@ -1781,11 +1705,11 @@ class RelayParser ( Parser ):
             return self.getTypedRuleContext(RelayParser.VariantNameContext,0)
 
 
-        def type_(self, i:int=None):
+        def typeExpr(self, i:int=None):
             if i is None:
-                return self.getTypedRuleContexts(RelayParser.Type_Context)
+                return self.getTypedRuleContexts(RelayParser.TypeExprContext)
             else:
-                return self.getTypedRuleContext(RelayParser.Type_Context,i)
+                return self.getTypedRuleContext(RelayParser.TypeExprContext,i)
 
 
         def getRuleIndex(self):
@@ -1803,36 +1727,36 @@ class RelayParser ( Parser ):
     def adtVariant(self):
 
         localctx = RelayParser.AdtVariantContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 24, self.RULE_adtVariant)
+        self.enterRule(localctx, 22, self.RULE_adtVariant)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 253
-            self.match(RelayParser.T__21)
-            self.state = 254
+            self.state = 238
+            self.match(RelayParser.T__20)
+            self.state = 239
             self.variantName()
-            self.state = 266
+            self.state = 251
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if _la==RelayParser.T__6:
-                self.state = 255
-                self.match(RelayParser.T__6)
-                self.state = 256
-                self.type_()
-                self.state = 261
+            if _la==RelayParser.T__3:
+                self.state = 240
+                self.match(RelayParser.T__3)
+                self.state = 241
+                self.typeExpr()
+                self.state = 246
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while _la==RelayParser.T__3:
-                    self.state = 257
-                    self.match(RelayParser.T__3)
-                    self.state = 258
-                    self.type_()
-                    self.state = 263
+                while _la==RelayParser.T__2:
+                    self.state = 242
+                    self.match(RelayParser.T__2)
+                    self.state = 243
+                    self.typeExpr()
+                    self.state = 248
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
-                self.state = 264
-                self.match(RelayParser.T__7)
+                self.state = 249
+                self.match(RelayParser.T__4)
 
 
         except RecognitionException as re:
@@ -1868,10 +1792,10 @@ class RelayParser ( Parser ):
     def variantName(self):
 
         localctx = RelayParser.VariantNameContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 26, self.RULE_variantName)
+        self.enterRule(localctx, 24, self.RULE_variantName)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 268
+            self.state = 253
             self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
@@ -1942,35 +1866,35 @@ class RelayParser ( Parser ):
     def argList(self):
 
         localctx = RelayParser.ArgListContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 28, self.RULE_argList)
+        self.enterRule(localctx, 26, self.RULE_argList)
         self._la = 0 # Token type
         try:
-            self.state = 280
+            self.state = 265
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,24,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,23,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.ArgNoAttrContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 270
+                self.state = 255
                 self.varList()
                 pass
 
             elif la_ == 2:
                 localctx = RelayParser.ArgWithAttrContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 276
+                self.state = 261
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while _la==RelayParser.T__1:
-                    self.state = 271
+                    self.state = 256
                     self.var()
-                    self.state = 272
-                    self.match(RelayParser.T__5)
-                    self.state = 278
+                    self.state = 257
+                    self.match(RelayParser.T__2)
+                    self.state = 263
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
-                self.state = 279
+                self.state = 264
                 self.attrSeq()
                 pass
 
@@ -2012,25 +1936,25 @@ class RelayParser ( Parser ):
     def varList(self):
 
         localctx = RelayParser.VarListContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 30, self.RULE_varList)
+        self.enterRule(localctx, 28, self.RULE_varList)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 290
+            self.state = 275
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__1:
-                self.state = 282
+                self.state = 267
                 self.var()
-                self.state = 287
+                self.state = 272
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                while _la==RelayParser.T__5:
-                    self.state = 283
-                    self.match(RelayParser.T__5)
-                    self.state = 284
+                while _la==RelayParser.T__2:
+                    self.state = 268
+                    self.match(RelayParser.T__2)
+                    self.state = 269
                     self.var()
-                    self.state = 289
+                    self.state = 274
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
@@ -2055,8 +1979,8 @@ class RelayParser ( Parser ):
             return self.getTypedRuleContext(RelayParser.LocalVarContext,0)
 
 
-        def type_(self):
-            return self.getTypedRuleContext(RelayParser.Type_Context,0)
+        def typeExpr(self):
+            return self.getTypedRuleContext(RelayParser.TypeExprContext,0)
 
 
         def getRuleIndex(self):
@@ -2074,20 +1998,20 @@ class RelayParser ( Parser ):
     def var(self):
 
         localctx = RelayParser.VarContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 32, self.RULE_var)
+        self.enterRule(localctx, 30, self.RULE_var)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 292
+            self.state = 277
             self.localVar()
-            self.state = 295
+            self.state = 280
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            if _la==RelayParser.T__22:
-                self.state = 293
-                self.match(RelayParser.T__22)
-                self.state = 294
-                self.type_()
+            if _la==RelayParser.T__21:
+                self.state = 278
+                self.match(RelayParser.T__21)
+                self.state = 279
+                self.typeExpr()
 
 
         except RecognitionException as re:
@@ -2127,21 +2051,21 @@ class RelayParser ( Parser ):
     def attrSeq(self):
 
         localctx = RelayParser.AttrSeqContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 34, self.RULE_attrSeq)
+        self.enterRule(localctx, 32, self.RULE_attrSeq)
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 297
+            self.state = 282
             self.attr()
-            self.state = 302
+            self.state = 287
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            while _la==RelayParser.T__5:
-                self.state = 298
-                self.match(RelayParser.T__5)
-                self.state = 299
+            while _la==RelayParser.T__2:
+                self.state = 283
+                self.match(RelayParser.T__2)
+                self.state = 284
                 self.attr()
-                self.state = 304
+                self.state = 289
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
 
@@ -2182,15 +2106,318 @@ class RelayParser ( Parser ):
     def attr(self):
 
         localctx = RelayParser.AttrContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 36, self.RULE_attr)
+        self.enterRule(localctx, 34, self.RULE_attr)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 305
+            self.state = 290
             self.match(RelayParser.CNAME)
-            self.state = 306
-            self.match(RelayParser.T__14)
-            self.state = 307
+            self.state = 291
+            self.match(RelayParser.T__13)
+            self.state = 292
             self.expr(0)
+        except RecognitionException as re:
+            localctx.exception = re
+            self._errHandler.reportError(self, re)
+            self._errHandler.recover(self, re)
+        finally:
+            self.exitRule()
+        return localctx
+
+
+    class TypeExprContext(ParserRuleContext):
+
+        def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
+            super().__init__(parent, invokingState)
+            self.parser = parser
+
+
+        def getRuleIndex(self):
+            return RelayParser.RULE_typeExpr
+
+     
+        def copyFrom(self, ctx:ParserRuleContext):
+            super().copyFrom(ctx)
+
+
+
+    class IntTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def NAT(self):
+            return self.getToken(RelayParser.NAT, 0)
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitIntType" ):
+                return visitor.visitIntType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class TupleTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def typeExpr(self, i:int=None):
+            if i is None:
+                return self.getTypedRuleContexts(RelayParser.TypeExprContext)
+            else:
+                return self.getTypedRuleContext(RelayParser.TypeExprContext,i)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitTupleType" ):
+                return visitor.visitTupleType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class TypeCallTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def typeIdent(self):
+            return self.getTypedRuleContext(RelayParser.TypeIdentContext,0)
+
+        def typeParamList(self):
+            return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitTypeCallType" ):
+                return visitor.visitTypeCallType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class TypeIdentTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def typeIdent(self):
+            return self.getTypedRuleContext(RelayParser.TypeIdentContext,0)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitTypeIdentType" ):
+                return visitor.visitTypeIdentType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class IncompleteTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitIncompleteType" ):
+                return visitor.visitIncompleteType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class TensorTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def shapeList(self):
+            return self.getTypedRuleContext(RelayParser.ShapeListContext,0)
+
+        def typeExpr(self):
+            return self.getTypedRuleContext(RelayParser.TypeExprContext,0)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitTensorType" ):
+                return visitor.visitTensorType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class FuncTypeContext(TypeExprContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.TypeExprContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def typeExpr(self, i:int=None):
+            if i is None:
+                return self.getTypedRuleContexts(RelayParser.TypeExprContext)
+            else:
+                return self.getTypedRuleContext(RelayParser.TypeExprContext,i)
+
+        def typeParamList(self):
+            return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
+
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitFuncType" ):
+                return visitor.visitFuncType(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+
+    def typeExpr(self):
+
+        localctx = RelayParser.TypeExprContext(self, self._ctx, self.state)
+        self.enterRule(localctx, 36, self.RULE_typeExpr)
+        self._la = 0 # Token type
+        try:
+            self.state = 342
+            self._errHandler.sync(self)
+            la_ = self._interp.adaptivePredict(self._input,32,self._ctx)
+            if la_ == 1:
+                localctx = RelayParser.TupleTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 1)
+                self.state = 294
+                self.match(RelayParser.T__3)
+                self.state = 295
+                self.match(RelayParser.T__4)
+                pass
+
+            elif la_ == 2:
+                localctx = RelayParser.TupleTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 2)
+                self.state = 296
+                self.match(RelayParser.T__3)
+                self.state = 297
+                self.typeExpr()
+                self.state = 298
+                self.match(RelayParser.T__2)
+                self.state = 299
+                self.match(RelayParser.T__4)
+                pass
+
+            elif la_ == 3:
+                localctx = RelayParser.TupleTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 3)
+                self.state = 301
+                self.match(RelayParser.T__3)
+                self.state = 302
+                self.typeExpr()
+                self.state = 305 
+                self._errHandler.sync(self)
+                _la = self._input.LA(1)
+                while True:
+                    self.state = 303
+                    self.match(RelayParser.T__2)
+                    self.state = 304
+                    self.typeExpr()
+                    self.state = 307 
+                    self._errHandler.sync(self)
+                    _la = self._input.LA(1)
+                    if not (_la==RelayParser.T__2):
+                        break
+
+                self.state = 309
+                self.match(RelayParser.T__4)
+                pass
+
+            elif la_ == 4:
+                localctx = RelayParser.TypeCallTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 4)
+                self.state = 311
+                self.typeIdent()
+                self.state = 312
+                self.typeParamList()
+                pass
+
+            elif la_ == 5:
+                localctx = RelayParser.TypeIdentTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 5)
+                self.state = 314
+                self.typeIdent()
+                pass
+
+            elif la_ == 6:
+                localctx = RelayParser.TensorTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 6)
+                self.state = 315
+                self.match(RelayParser.T__22)
+                self.state = 316
+                self.match(RelayParser.T__8)
+                self.state = 317
+                self.shapeList()
+                self.state = 318
+                self.match(RelayParser.T__2)
+                self.state = 319
+                self.typeExpr()
+                self.state = 320
+                self.match(RelayParser.T__9)
+                pass
+
+            elif la_ == 7:
+                localctx = RelayParser.FuncTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 7)
+                self.state = 322
+                self.match(RelayParser.T__16)
+                self.state = 324
+                self._errHandler.sync(self)
+                _la = self._input.LA(1)
+                if _la==RelayParser.T__8:
+                    self.state = 323
+                    self.typeParamList()
+
+
+                self.state = 326
+                self.match(RelayParser.T__3)
+                self.state = 335
+                self._errHandler.sync(self)
+                _la = self._input.LA(1)
+                if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__3) | (1 << RelayParser.T__16) | (1 << RelayParser.T__22) | (1 << RelayParser.T__23) | (1 << RelayParser.CNAME) | (1 << RelayParser.NAT))) != 0):
+                    self.state = 327
+                    self.typeExpr()
+                    self.state = 332
+                    self._errHandler.sync(self)
+                    _la = self._input.LA(1)
+                    while _la==RelayParser.T__2:
+                        self.state = 328
+                        self.match(RelayParser.T__2)
+                        self.state = 329
+                        self.typeExpr()
+                        self.state = 334
+                        self._errHandler.sync(self)
+                        _la = self._input.LA(1)
+
+
+
+                self.state = 337
+                self.match(RelayParser.T__4)
+                self.state = 338
+                self.match(RelayParser.T__17)
+                self.state = 339
+                self.typeExpr()
+                pass
+
+            elif la_ == 8:
+                localctx = RelayParser.IncompleteTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 8)
+                self.state = 340
+                self.match(RelayParser.T__23)
+                pass
+
+            elif la_ == 9:
+                localctx = RelayParser.IntTypeContext(self, localctx)
+                self.enterOuterAlt(localctx, 9)
+                self.state = 341
+                self.match(RelayParser.NAT)
+                pass
+
+
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -2206,11 +2433,11 @@ class RelayParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def ident(self, i:int=None):
+        def typeIdent(self, i:int=None):
             if i is None:
-                return self.getTypedRuleContexts(RelayParser.IdentContext)
+                return self.getTypedRuleContexts(RelayParser.TypeIdentContext)
             else:
-                return self.getTypedRuleContext(RelayParser.IdentContext,i)
+                return self.getTypedRuleContext(RelayParser.TypeIdentContext,i)
 
 
         def getRuleIndex(self):
@@ -2231,314 +2458,25 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 38, self.RULE_typeParamList)
         self._la = 0 # Token type
         try:
-            self.state = 322
+            self.enterOuterAlt(localctx, 1)
+            self.state = 344
+            self.match(RelayParser.T__8)
+            self.state = 345
+            self.typeIdent()
+            self.state = 350
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,30,self._ctx)
-            if la_ == 1:
-                self.enterOuterAlt(localctx, 1)
-                self.state = 309
-                self.match(RelayParser.T__2)
-                self.state = 310
-                self.match(RelayParser.T__4)
-                pass
-
-            elif la_ == 2:
-                self.enterOuterAlt(localctx, 2)
-                self.state = 311
-                self.match(RelayParser.T__2)
-                self.state = 312
-                self.ident()
-                self.state = 317
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                while _la==RelayParser.T__5:
-                    self.state = 313
-                    self.match(RelayParser.T__5)
-                    self.state = 314
-                    self.ident()
-                    self.state = 319
-                    self._errHandler.sync(self)
-                    _la = self._input.LA(1)
-
-                self.state = 320
-                self.match(RelayParser.T__4)
-                pass
-
-
-        except RecognitionException as re:
-            localctx.exception = re
-            self._errHandler.reportError(self, re)
-            self._errHandler.recover(self, re)
-        finally:
-            self.exitRule()
-        return localctx
-
-
-    class Type_Context(ParserRuleContext):
-
-        def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
-            super().__init__(parent, invokingState)
-            self.parser = parser
-
-
-        def getRuleIndex(self):
-            return RelayParser.RULE_type_
-
-     
-        def copyFrom(self, ctx:ParserRuleContext):
-            super().copyFrom(ctx)
-
-
-
-    class IntTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def NAT(self):
-            return self.getToken(RelayParser.NAT, 0)
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitIntType" ):
-                return visitor.visitIntType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-    class TupleTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def type_(self, i:int=None):
-            if i is None:
-                return self.getTypedRuleContexts(RelayParser.Type_Context)
-            else:
-                return self.getTypedRuleContext(RelayParser.Type_Context,i)
-
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTupleType" ):
-                return visitor.visitTupleType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-    class GlobalTypeVarTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def globalTypeVar(self):
-            return self.getTypedRuleContext(RelayParser.GlobalTypeVarContext,0)
-
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitGlobalTypeVarType" ):
-                return visitor.visitGlobalTypeVarType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-    class IncompleteTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitIncompleteType" ):
-                return visitor.visitIncompleteType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-    class TensorTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def shapeList(self):
-            return self.getTypedRuleContext(RelayParser.ShapeListContext,0)
-
-        def type_(self):
-            return self.getTypedRuleContext(RelayParser.Type_Context,0)
-
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTensorType" ):
-                return visitor.visitTensorType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-    class FuncTypeContext(Type_Context):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a RelayParser.Type_Context
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def type_(self, i:int=None):
-            if i is None:
-                return self.getTypedRuleContexts(RelayParser.Type_Context)
-            else:
-                return self.getTypedRuleContext(RelayParser.Type_Context,i)
-
-        def typeParamList(self):
-            return self.getTypedRuleContext(RelayParser.TypeParamListContext,0)
-
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitFuncType" ):
-                return visitor.visitFuncType(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-
-    def type_(self):
-
-        localctx = RelayParser.Type_Context(self, self._ctx, self.state)
-        self.enterRule(localctx, 40, self.RULE_type_)
-        self._la = 0 # Token type
-        try:
-            self.state = 369
-            self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,35,self._ctx)
-            if la_ == 1:
-                localctx = RelayParser.TupleTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 1)
-                self.state = 324
-                self.match(RelayParser.T__6)
-                self.state = 325
-                self.match(RelayParser.T__7)
-                pass
-
-            elif la_ == 2:
-                localctx = RelayParser.TupleTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 2)
-                self.state = 326
-                self.match(RelayParser.T__6)
-                self.state = 327
-                self.type_()
-                self.state = 328
-                self.match(RelayParser.T__5)
-                self.state = 329
-                self.match(RelayParser.T__7)
-                pass
-
-            elif la_ == 3:
-                localctx = RelayParser.TupleTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 3)
-                self.state = 331
-                self.match(RelayParser.T__6)
-                self.state = 332
-                self.type_()
-                self.state = 335 
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                while True:
-                    self.state = 333
-                    self.match(RelayParser.T__5)
-                    self.state = 334
-                    self.type_()
-                    self.state = 337 
-                    self._errHandler.sync(self)
-                    _la = self._input.LA(1)
-                    if not (_la==RelayParser.T__5):
-                        break
-
-                self.state = 339
-                self.match(RelayParser.T__7)
-                pass
-
-            elif la_ == 4:
-                localctx = RelayParser.GlobalTypeVarTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 4)
-                self.state = 341
-                self.globalTypeVar()
-                pass
-
-            elif la_ == 5:
-                localctx = RelayParser.TensorTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 5)
-                self.state = 342
-                self.match(RelayParser.T__23)
-                self.state = 343
-                self.match(RelayParser.T__2)
-                self.state = 344
-                self.shapeList()
-                self.state = 345
-                self.match(RelayParser.T__5)
+            _la = self._input.LA(1)
+            while _la==RelayParser.T__2:
                 self.state = 346
-                self.type_()
+                self.match(RelayParser.T__2)
                 self.state = 347
-                self.match(RelayParser.T__4)
-                pass
-
-            elif la_ == 6:
-                localctx = RelayParser.FuncTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 6)
-                self.state = 349
-                self.match(RelayParser.T__17)
-                self.state = 351
+                self.typeIdent()
+                self.state = 352
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
-                if _la==RelayParser.T__2:
-                    self.state = 350
-                    self.typeParamList()
 
-
-                self.state = 353
-                self.match(RelayParser.T__6)
-                self.state = 362
-                self._errHandler.sync(self)
-                _la = self._input.LA(1)
-                if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__6) | (1 << RelayParser.T__17) | (1 << RelayParser.T__23) | (1 << RelayParser.T__24) | (1 << RelayParser.CNAME) | (1 << RelayParser.NAT))) != 0):
-                    self.state = 354
-                    self.type_()
-                    self.state = 359
-                    self._errHandler.sync(self)
-                    _la = self._input.LA(1)
-                    while _la==RelayParser.T__5:
-                        self.state = 355
-                        self.match(RelayParser.T__5)
-                        self.state = 356
-                        self.type_()
-                        self.state = 361
-                        self._errHandler.sync(self)
-                        _la = self._input.LA(1)
-
-
-
-                self.state = 364
-                self.match(RelayParser.T__7)
-                self.state = 365
-                self.match(RelayParser.T__18)
-                self.state = 366
-                self.type_()
-                pass
-
-            elif la_ == 7:
-                localctx = RelayParser.IncompleteTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 7)
-                self.state = 367
-                self.match(RelayParser.T__24)
-                pass
-
-            elif la_ == 8:
-                localctx = RelayParser.IntTypeContext(self, localctx)
-                self.enterOuterAlt(localctx, 8)
-                self.state = 368
-                self.match(RelayParser.NAT)
-                pass
-
-
+            self.state = 353
+            self.match(RelayParser.T__9)
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -2576,47 +2514,47 @@ class RelayParser ( Parser ):
     def shapeList(self):
 
         localctx = RelayParser.ShapeListContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 42, self.RULE_shapeList)
+        self.enterRule(localctx, 40, self.RULE_shapeList)
         self._la = 0 # Token type
         try:
-            self.state = 384
+            self.state = 368
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,37,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,35,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 371
-                self.match(RelayParser.T__6)
-                self.state = 372
+                self.state = 355
+                self.match(RelayParser.T__3)
+                self.state = 356
                 self.shape()
-                self.state = 375 
+                self.state = 359 
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while True:
-                    self.state = 373
-                    self.match(RelayParser.T__5)
-                    self.state = 374
+                    self.state = 357
+                    self.match(RelayParser.T__2)
+                    self.state = 358
                     self.shape()
-                    self.state = 377 
+                    self.state = 361 
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
-                    if not (_la==RelayParser.T__5):
+                    if not (_la==RelayParser.T__2):
                         break
 
-                self.state = 379
-                self.match(RelayParser.T__7)
+                self.state = 363
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 2:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 381
-                self.match(RelayParser.T__6)
-                self.state = 382
-                self.match(RelayParser.T__7)
+                self.state = 365
+                self.match(RelayParser.T__3)
+                self.state = 366
+                self.match(RelayParser.T__4)
                 pass
 
             elif la_ == 3:
                 self.enterOuterAlt(localctx, 3)
-                self.state = 383
+                self.state = 367
                 self.shape()
                 pass
 
@@ -2657,23 +2595,23 @@ class RelayParser ( Parser ):
     def meta(self):
 
         localctx = RelayParser.MetaContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 44, self.RULE_meta)
+        self.enterRule(localctx, 42, self.RULE_meta)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 386
-            self.match(RelayParser.T__25)
-            self.state = 387
-            self.match(RelayParser.T__2)
-            self.state = 388
+            self.state = 370
+            self.match(RelayParser.T__24)
+            self.state = 371
+            self.match(RelayParser.T__8)
+            self.state = 372
             self.match(RelayParser.CNAME)
-            self.state = 389
-            self.match(RelayParser.T__4)
-            self.state = 390
-            self.match(RelayParser.T__2)
-            self.state = 391
+            self.state = 373
+            self.match(RelayParser.T__9)
+            self.state = 374
+            self.match(RelayParser.T__8)
+            self.state = 375
             self.match(RelayParser.NAT)
-            self.state = 392
-            self.match(RelayParser.T__4)
+            self.state = 376
+            self.match(RelayParser.T__9)
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -2753,74 +2691,36 @@ class RelayParser ( Parser ):
     def shape(self):
 
         localctx = RelayParser.ShapeContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 46, self.RULE_shape)
+        self.enterRule(localctx, 44, self.RULE_shape)
         try:
-            self.state = 400
+            self.state = 384
             self._errHandler.sync(self)
             token = self._input.LA(1)
-            if token in [RelayParser.T__25]:
+            if token in [RelayParser.T__24]:
                 localctx = RelayParser.MetaShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 394
+                self.state = 378
                 self.meta()
                 pass
-            elif token in [RelayParser.T__6]:
+            elif token in [RelayParser.T__3]:
                 localctx = RelayParser.ParensShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 395
-                self.match(RelayParser.T__6)
-                self.state = 396
+                self.state = 379
+                self.match(RelayParser.T__3)
+                self.state = 380
                 self.shape()
-                self.state = 397
-                self.match(RelayParser.T__7)
+                self.state = 381
+                self.match(RelayParser.T__4)
                 pass
             elif token in [RelayParser.NAT]:
                 localctx = RelayParser.IntShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
-                self.state = 399
+                self.state = 383
                 self.match(RelayParser.NAT)
                 pass
             else:
                 raise NoViableAltException(self)
 
-        except RecognitionException as re:
-            localctx.exception = re
-            self._errHandler.reportError(self, re)
-            self._errHandler.recover(self, re)
-        finally:
-            self.exitRule()
-        return localctx
-
-
-    class TypeIdentContext(ParserRuleContext):
-
-        def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
-            super().__init__(parent, invokingState)
-            self.parser = parser
-
-        def CNAME(self):
-            return self.getToken(RelayParser.CNAME, 0)
-
-        def getRuleIndex(self):
-            return RelayParser.RULE_typeIdent
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTypeIdent" ):
-                return visitor.visitTypeIdent(self)
-            else:
-                return visitor.visitChildren(self)
-
-
-
-
-    def typeIdent(self):
-
-        localctx = RelayParser.TypeIdentContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 48, self.RULE_typeIdent)
-        try:
-            self.enterOuterAlt(localctx, 1)
-            self.state = 402
-            self.match(RelayParser.CNAME)
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -2855,15 +2755,15 @@ class RelayParser ( Parser ):
     def body(self):
 
         localctx = RelayParser.BodyContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 50, self.RULE_body)
+        self.enterRule(localctx, 46, self.RULE_body)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 404
-            self.match(RelayParser.T__8)
-            self.state = 405
+            self.state = 386
+            self.match(RelayParser.T__5)
+            self.state = 387
             self.expr(0)
-            self.state = 406
-            self.match(RelayParser.T__9)
+            self.state = 388
+            self.match(RelayParser.T__6)
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -2941,27 +2841,27 @@ class RelayParser ( Parser ):
     def scalar(self):
 
         localctx = RelayParser.ScalarContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 52, self.RULE_scalar)
+        self.enterRule(localctx, 48, self.RULE_scalar)
         try:
-            self.state = 411
+            self.state = 393
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.FLOAT]:
                 localctx = RelayParser.ScalarFloatContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 408
+                self.state = 390
                 self.match(RelayParser.FLOAT)
                 pass
             elif token in [RelayParser.NAT]:
                 localctx = RelayParser.ScalarIntContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 409
+                self.state = 391
                 self.match(RelayParser.NAT)
                 pass
             elif token in [RelayParser.BOOL_LIT]:
                 localctx = RelayParser.ScalarBoolContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
-                self.state = 410
+                self.state = 392
                 self.match(RelayParser.BOOL_LIT)
                 pass
             else:
@@ -2994,12 +2894,8 @@ class RelayParser ( Parser ):
             return self.getTypedRuleContext(RelayParser.LocalVarContext,0)
 
 
-        def globalTypeVar(self):
-            return self.getTypedRuleContext(RelayParser.GlobalTypeVarContext,0)
-
-
-        def typeVar(self):
-            return self.getTypedRuleContext(RelayParser.TypeVarContext,0)
+        def typeExpr(self):
+            return self.getTypedRuleContext(RelayParser.TypeExprContext,0)
 
 
         def graphVar(self):
@@ -3021,44 +2917,38 @@ class RelayParser ( Parser ):
     def ident(self):
 
         localctx = RelayParser.IdentContext(self, self._ctx, self.state)
-        self.enterRule(localctx, 54, self.RULE_ident)
+        self.enterRule(localctx, 50, self.RULE_ident)
         try:
-            self.state = 419
+            self.state = 400
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,40,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,38,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 413
+                self.state = 395
                 self.opIdent()
                 pass
 
             elif la_ == 2:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 414
+                self.state = 396
                 self.globalVar()
                 pass
 
             elif la_ == 3:
                 self.enterOuterAlt(localctx, 3)
-                self.state = 415
+                self.state = 397
                 self.localVar()
                 pass
 
             elif la_ == 4:
                 self.enterOuterAlt(localctx, 4)
-                self.state = 416
-                self.globalTypeVar()
+                self.state = 398
+                self.typeExpr()
                 pass
 
             elif la_ == 5:
                 self.enterOuterAlt(localctx, 5)
-                self.state = 417
-                self.typeVar()
-                pass
-
-            elif la_ == 6:
-                self.enterOuterAlt(localctx, 6)
-                self.state = 418
+                self.state = 399
                 self.graphVar()
                 pass
 
@@ -3076,7 +2966,7 @@ class RelayParser ( Parser ):
     def sempred(self, localctx:RuleContext, ruleIndex:int, predIndex:int):
         if self._predicates == None:
             self._predicates = dict()
-        self._predicates[9] = self.expr_sempred
+        self._predicates[8] = self.expr_sempred
         pred = self._predicates.get(ruleIndex, None)
         if pred is None:
             raise Exception("No predicate with index:" + str(ruleIndex))

@@ -66,11 +66,7 @@ def roundtrip(expr):
 
 
 def parse_text(code):
-    print('original is:')
-    print(SEMVER + "\n" + code)
     expr = relay.fromtext(SEMVER + "\n" + code)
-    print('pretty printed is:')
-    print(str(expr))
     roundtrip(expr)
     return expr
 
@@ -78,9 +74,7 @@ def parse_text(code):
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
-    print('biz')
     result = alpha_equal(parsed, expr)
-    print('fiz')
     return result
 
 def get_scalar(x):
@@ -681,7 +675,7 @@ def test_multiple_variants():
 
 
 def test_multiple_type_params():
-    glob_typ_var = relay.GlobalTypeVar("list")
+    glob_typ_var = relay.GlobalTypeVar("Either")
     typ_var_a = relay.TypeVar("A")
     typ_var_b = relay.TypeVar("B")
     prog = relay.TypeData(
@@ -726,6 +720,6 @@ if __name__ == "__main__":
     # test_tensor_type()
     # test_function_type()
     # test_tuple_type()
-    # test_adt_defn()
-    # test_multiple_variants()
+    test_adt_defn()
+    test_multiple_variants()
     test_multiple_type_params()
