@@ -17,7 +17,11 @@
  * under the License.
  */
 
-// list = *, seq = ?
+// TODO: We need some way of indicating to users that you need to enable
+// USE_ANTLR in config.cmake.
+/*
+ * NOTE: All upper-case rules are *lexer* rules and all lower-case rules are *parser* rules.
+ */
 
 grammar Relay;
 
@@ -49,11 +53,7 @@ BOOL_LIT
   | 'False'
   ;
 
-CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)*;
-opIdent: CNAME ;
-GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' CNAME;
-GRAPH_VAR: '%' NAT;
+CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
 
 DATATYPE : 'int64';
 // non-negative floats
@@ -72,9 +72,16 @@ METADATA: 'METADATA:' .*;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
+// prog: SEMVER (defn+ | expr) METADATA? EOF ;
 prog: SEMVER (defn* | expr) METADATA? EOF ;
 
-// option: 'set' ident BOOL_LIT ;
+opIdent: CNAME ;
+globalVar: '@' CNAME ;
+localVar: '%' CNAME ;
+// TODO: For some reason, spaces aren't allowed between type params?
+globalTypeVar: CNAME ('[' typeVar (', ' typeVar)* ']')? ;
+typeVar: CNAME ;
+graphVar: '%' NAT ;
 
 exprList: (expr (',' expr)*)?;
 callList
@@ -106,7 +113,7 @@ expr
   | 'let' var '=' expr ';' expr               # let
   // sugar for let %_ = expr; expr
   | expr ';;' expr                            # let
-  | GRAPH_VAR '=' expr ';' expr               # graph
+  | graphVar '=' expr ';' expr                # graph
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
   | meta                                      # metaExpr
@@ -114,7 +121,13 @@ expr
   ;
 
 func: 'fn'        typeParamList? '(' argList ')' ('->' type_)? body ;
-defn: 'def' ident typeParamList? '(' argList ')' ('->' type_)? body ;
+defn
+  : 'def' globalVar typeParamList? '(' argList ')' ('->' type_)? body  # funcDefn
+  | 'type' globalTypeVar '=' adtVariant+                               # adtDefn
+  ;
+
+adtVariant: '|' variantName ('(' type_ (', ' type_)* ')')? ;
+variantName: CNAME ;
 
 argList
   : varList              # argNoAttr
@@ -122,7 +135,7 @@ argList
   ;
 
 varList: (var (',' var)*)?;
-var: LOCAL_VAR (':' type_)?;
+var: localVar (':' type_)?;
 
 attrSeq: attr (',' attr)*;
 attr: CNAME '=' expr ;
@@ -132,11 +145,14 @@ typeParamList
   | '[' ident (',' ident)* ']'
   ;
 
+
 type_
   : '(' ')'                                                      # tupleType
   | '(' type_ ',' ')'                                            # tupleType
   | '(' type_ (',' type_)+ ')'                                   # tupleType
-  | typeIdent                                                    # typeIdentType
+  // TODO: When we uncomment this we get a grammar construction error
+  // | typeIdent                                                    # typeIdentType
+  | globalTypeVar                                                # globalTypeVarType
   | 'Tensor' '[' shapeList ',' type_ ']'                         # tensorType
   | 'fn' typeParamList? '(' (type_ (',' type_)*)? ')' '->' type_ # funcType
   | '_'                                                          # incompleteType
@@ -157,7 +173,7 @@ shape
   | NAT                                  # intShape
   ;
 
-typeIdent : CNAME;
+typeIdent: CNAME ;
 // int8, int16, int32, int64
 // uint8, uint16, uint32, uint64
 // float16, float32, float64
@@ -173,7 +189,9 @@ scalar
 
 ident
   : opIdent
-  | GLOBAL_VAR
-  | LOCAL_VAR
-  | GRAPH_VAR
+  | globalVar
+  | localVar
+  | globalTypeVar
+  | typeVar
+  | graphVar
   ;

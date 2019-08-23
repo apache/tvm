@@ -28,6 +28,7 @@ import tvm
 
 from . import module
 from .base import Span, SourceName
+from . import adt
 from . import expr
 from . import ty
 from . import op
@@ -191,10 +192,11 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.module = module.Module({})   # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
-        self.var_scopes = deque([deque()])          # type: Scopes[expr.Var]
-        self.global_var_scope = deque()             # type: Scope[expr.GlobalVar]
-        self.type_param_scopes = deque([deque()])   # type: Scopes[ty.TypeVar]
-        self.graph_expr = []                        # type: List[expr.Expr]
+        self.var_scopes = deque([deque()])                # type: Scopes[expr.Var]
+        self.global_var_scope = deque()                   # type: Scope[expr.GlobalVar]
+        self.type_param_scopes = deque([deque()])         # type: Scopes[ty.TypeVar]
+        self.global_type_param_scope = deque()            # type: Scope[expr.GlobalVar]
+        self.graph_expr = []                              # type: List[expr.Expr]
 
         super(ParseTreeToRelayIR, self).__init__()
 
@@ -202,19 +204,16 @@ class ParseTreeToRelayIR(RelayVisitor):
     def enter_var_scope(self):
         # type: () -> None
         """Enter a new Var scope so it can be popped off later."""
-
         self.var_scopes.appendleft(deque())
 
     def exit_var_scope(self):
         # type: () -> Scope[expr.Var]
         """Pop off the current Var scope and return it."""
-
         return self.var_scopes.popleft()
 
     def mk_var(self, name, type_):
         # type: (str, ty.Type) -> expr.Var
         """Create a new Var and add it to the Var scope."""
-
         var = expr.Var(name, type_)
         self.var_scopes[0].appendleft((name, var))
         return var
@@ -222,7 +221,6 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_global_var(self, name):
         # type: (str) -> expr.GlobalVar
         """Create a new GlobalVar and add it to the GlobalVar scope."""
-
         var = expr.GlobalVar(name)
         self.global_var_scope.append((name, var))
         return var
@@ -230,21 +228,25 @@ class ParseTreeToRelayIR(RelayVisitor):
     def enter_type_param_scope(self):
         # type: () -> None
         """Enter a new TypeVar scope so it can be popped off later."""
-
         self.type_param_scopes.appendleft(deque())
 
     def exit_type_param_scope(self):
         # type: () -> Scope[ty.TypeVar]
         """Pop off the current TypeVar scope and return it."""
-
         return self.type_param_scopes.popleft()
 
     def mk_typ(self, name, kind):
         # (str, ty.Kind) -> ty.TypeVar
         """Create a new TypeVar and add it to the TypeVar scope."""
-
         typ = ty.TypeVar(name, kind)
         self.type_param_scopes[0].appendleft((name, typ))
+        return typ
+
+    def mk_global_typ(self, name, kind):
+        # (str, ty.Kind) -> ty.GlobalTypeVar
+        """Create a new TypeVar and add it to the TypeVar scope."""
+        typ = ty.GlobalTypeVar(name, kind)
+        self.global_var_scope.append((name, typ))
         return typ
 
     def visitProjection(self, ctx):
@@ -253,13 +255,12 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitTerminal(self, node):
         # type: (TerminalNode) -> Union[expr.Expr, int, float]
         """Visit lexer tokens that aren't ignored or visited by other functions."""
-
         node_type = node.getSymbol().type
         node_text = node.getText()
         name = node_text[1:]
 
         # variables
-        if node_type == RelayLexer.GLOBAL_VAR:
+        if node_type == RelayLexer.globalVar:
             return lookup(deque([self.global_var_scope]), node_text[1:])
         if node_type == RelayLexer.LOCAL_VAR:
             # Remove the leading '%' and lookup the name.
@@ -299,7 +300,6 @@ class ParseTreeToRelayIR(RelayVisitor):
     def getType_(self, ctx):
         # type: (Optional[RelayParser.Type_Context]) -> Optional[ty.Type]
         """Return a (possibly None) Relay type."""
-
         if ctx is None:
             return None
 
@@ -444,7 +444,6 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_func(self, ctx):
         # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> expr.Function
         """Construct a function from either a Func or Defn."""
-
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
         # Capture type params in params.
@@ -482,14 +481,44 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     # TODO: how to set spans for definitions?
     # @spanify
-    def visitDefn(self, ctx):
+    def visitFuncDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
-        ident = ctx.ident().GLOBAL_VAR()
-        if ident is None:
-            raise ParseError("Only global ids may be used in `def`s.")
-        ident_name = ident.getText()[1:]
+        ident_name = ctx.globalVar().getText()[1:]
         ident = self.mk_global_var(ident_name)
         self.module[ident] = self.mk_func(ctx)
+
+    def visitAdtDefn(self, ctx):
+        glob_typ_var = ctx.globalTypeVar()
+        defn_name = glob_typ_var.children[0].getText()
+        typ_params = []
+
+        if len(glob_typ_var.children) > 1:
+            defn_name = glob_typ_var.children[0].getText()
+            typ_params = list(
+                map(
+                    ty.TypeVar,
+                    filter(
+                        lambda s: not s.startswith(','),
+                        map(lambda x: x.getText(), glob_typ_var.children[2:-1]))))
+        defn = self.mk_global_typ(defn_name, ty.Kind.AdtHandle)
+
+        constructors = []
+        for constructor in ctx.adtVariant():
+            inputs = []
+            for inp in constructor.type_():
+                print(inp)
+                inputs.append(self.visit(inp))
+
+            # inputs = [self.visit(inp) for inp in constructor.type_()]
+            constructors.append(adt.Constructor(constructor.variantName().getText(), inputs, defn))
+
+        self.module[defn] = adt.TypeData(defn, typ_params, constructors)
+
+    def visitGlobalTypeVarType(self, ctx):
+        print('SHIT WHETHER IT\'S A LOCAL OR GLOBAL TYPE VAR IS AMBIGUOUS, SO WE\'LL NEED TO DO SOME LOOKUPS')
+        print('cloobs')
+        import pdb; pdb.set_trace()
+        return None
 
     def visitCallNoAttr(self, ctx):
         return (self.visit_list(ctx.exprList().expr()), None)
@@ -553,9 +582,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitTypeIdent(self, ctx):
         # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
-        '''
-        Handle type identifier.
-        '''
+        """Handle type identifier."""
         type_ident = ctx.CNAME().getText()
 
         # Look through all type prefixes for a match

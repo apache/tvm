@@ -21,19 +21,29 @@ import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equal, free_vars
 
+from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
+from tvm.relay.expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
+from tvm.relay.op.tensor import add, subtract, equal
+from tvm.relay.adt import Constructor, TypeData, Clause, Match
+from tvm.relay.adt import PatternConstructor, PatternVar, PatternWildcard
+
 do_print = [False]
 
 SEMVER = "v0.0.3\n"
 
-def astext(p, graph_equal=False):
+def astext(p, unify_free_vars=False):
     txt = p.astext()
     if isinstance(p, Expr) and free_vars(p):
         return txt
+    print('BEFORE PARSE')
     x = relay.fromtext(txt)
-    if graph_equal:
+    print('AFTER PARSE')
+    if unify_free_vars:
         assert_graph_equal(x, p)
     else:
         assert_alpha_equal(x, p)
+    # TODO: Unify two assert methods into the one below
+    # assert_alpha_equal(x, p, unify_free_vars)
     return txt
 
 def show(text):
@@ -78,7 +88,7 @@ def test_meta_data():
                         padding=(1, 1),
                         channels=2)
     f = relay.Function([x, w], z)
-    text = astext(f, graph_equal=True)
+    text = astext(f, unify_free_vars=True)
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
@@ -216,7 +226,18 @@ def test_let_inlining():
 
 def test_zeros():
     x = relay.op.zeros([], "float32")
-    astext(x)
+    show(astext(x))
+
+def test_adt_defn():
+    adt_var = GlobalTypeVar("list")
+    a = TypeVar("a")
+    nil_cons = Constructor("nil", [], adt_var)
+    cons_cons = Constructor("cons", [a, adt_var(a)], adt_var)
+    list_adt = TypeData(adt_var, [a], [nil_cons, cons_cons])
+    show(astext(list_adt))
+
+def test_match():
+    pass
 
 
 def test_cast():
@@ -247,4 +268,6 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
+    test_adt_defn()
+    test_match()
     test_cast()

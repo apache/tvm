@@ -107,6 +107,7 @@ class Kind(IntEnum):
     Shape = 3
     Constraint = 4
     AdtHandle = 5
+    # TODO: This is never used.  Remove it?
     TypeData = 6
 
 @register_relay_node

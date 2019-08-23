@@ -66,14 +66,22 @@ def roundtrip(expr):
 
 
 def parse_text(code):
-    x = relay.fromtext(SEMVER + "\n" + code)
-    roundtrip(x)
-    return x
+    print('original is:')
+    print(SEMVER + "\n" + code)
+    expr = relay.fromtext(SEMVER + "\n" + code)
+    print('pretty printed is:')
+    print(str(expr))
+    roundtrip(expr)
+    return expr
 
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
-    return alpha_equal(parse_text(code), expr)
+    parsed = parse_text(code)
+    print('biz')
+    result = alpha_equal(parsed, expr)
+    print('fiz')
+    return result
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
@@ -632,26 +640,92 @@ def test_tuple_type():
         )
     )
 
+
+def test_adt_defn():
+    glob_typ_var = relay.GlobalTypeVar("Ayy")
+    prog = relay.TypeData(
+            glob_typ_var,
+            [],
+            [relay.Constructor("Nil", [], glob_typ_var)])
+    mod = relay.Module()
+    mod[glob_typ_var] = prog
+    assert parses_as(
+        """
+        type Ayy =
+          | Nil
+        """,
+        mod
+    )
+
+
+def test_multiple_variants():
+    glob_typ_var = relay.GlobalTypeVar("List")
+    typ_var = relay.TypeVar("A")
+    prog = relay.TypeData(
+            glob_typ_var,
+            [typ_var],
+            [
+                relay.Constructor("Cons", [typ_var, glob_typ_var(typ_var)], glob_typ_var),
+                relay.Constructor("Nil", [], glob_typ_var),
+            ])
+    mod = relay.Module()
+    mod[glob_typ_var] = prog
+    assert parses_as(
+        """
+        type List[A] =
+        | Cons(A, List[A])
+        | Nil
+        """,
+        mod
+    )
+
+
+def test_multiple_type_params():
+    glob_typ_var = relay.GlobalTypeVar("list")
+    typ_var_a = relay.TypeVar("A")
+    typ_var_b = relay.TypeVar("B")
+    prog = relay.TypeData(
+            glob_typ_var,
+            [typ_var_a, typ_var_b],
+            [
+                relay.Constructor("Left", [typ_var_a], glob_typ_var),
+                relay.Constructor("Right", [typ_var_b], glob_typ_var),
+            ])
+    mod = relay.Module()
+    mod[glob_typ_var] = prog
+    assert parses_as(
+        """
+        type Either[A, B] =
+        | Left(A)
+        | Right(B)
+        """,
+        mod
+    )
+
+
 if __name__ == "__main__":
-    test_comments()
-    test_int_literal()
-    test_float_literal()
-    test_bool_literal()
-    test_negative()
-    test_bin_op()
-    test_parens()
-    test_op_assoc()
-    test_let()
-    test_seq()
-    test_graph()
-    test_tuple()
-    test_func()
-    test_defn()
-    test_recursive_call()
-    test_ifelse()
-    test_call()
-    test_incomplete_type()
-    test_builtin_types()
-    test_tensor_type()
-    test_function_type()
-    test_tuple_type()
+    # test_comments()
+    # test_int_literal()
+    # test_float_literal()
+    # test_bool_literal()
+    # test_negative()
+    # test_bin_op()
+    # test_parens()
+    # test_op_assoc()
+    # test_let()
+    # test_seq()
+    # test_graph()
+    # test_tuple()
+    # test_func()
+    # test_defn()
+    # test_recursive_call()
+    # test_ifelse()
+    # test_call()
+    # test_incomplete_type()
+    # test_builtin_types()
+    # test_tensor_type()
+    # test_function_type()
+    # test_tuple_type()
+    # test_adt_defn()
+    # test_multiple_variants()
+    test_multiple_type_params()

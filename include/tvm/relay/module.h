@@ -165,6 +165,13 @@ class ModuleNode : public RelayNode {
   TVM_DLL TypeData LookupDef(const std::string& var) const;
 
   /*!
+   * \brief TODO
+   * \param TODO
+   * \return TODO
+   */
+  TVM_DLL bool HasDef(const std::string& var) const;
+
+  /*!
    * \brief Look up a constructor by its tag.
    * \param tag The tag for the constructor.
    * \return The constructor object.

@@ -70,7 +70,10 @@ class AlphaEqualHandler:
       }
       if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
       for (const auto& p : lhsm->type_definitions) {
-        if (!Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) return false;
+        if (!rhsm->HasDef(p.first->var->name_hint) ||
+            !Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) {
+          return false;
+        }
       }
       return true;
     }
@@ -288,7 +291,11 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const GlobalTypeVarNode* lhs, const Type& other) final {
-    return GetRef<Type>(lhs) == other;
+    if (const GlobalTypeVarNode* rhs = other.as<GlobalTypeVarNode>()) {
+      // use name equality for global var for now.
+      return lhs->var->name_hint == rhs->var->name_hint;
+    }
+    return false;
   }
 
   bool VisitType_(const TypeCallNode* lhs, const Type& other) final {
@@ -301,6 +308,28 @@ class AlphaEqualHandler:
 
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       if (!TypeEqual(lhs->args[i], rhs->args[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitType_(const TypeDataNode* lhs, const Type& other) final {
+    const TypeDataNode* rhs = other.as<TypeDataNode>();
+    bool result = true;
+    result |= rhs == nullptr;
+    result |= lhs->type_vars.size() != rhs->type_vars.size();
+    result |= !TypeEqual(lhs->header, rhs->header);
+    if (!result) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs->type_vars.size(); ++i) {
+      if (!TypeEqual(lhs->type_vars[i], rhs->type_vars[i])) {
+        return false;
+      }
+    }
+    for (size_t i = 0; i < lhs->constructors.size(); ++i) {
+      if (!ExprEqual(lhs->constructors[i], rhs->constructors[i])) {
         return false;
       }
     }
@@ -485,7 +514,10 @@ class AlphaEqualHandler:
   }
 
   bool VisitExpr_(const ConstructorNode* lhs, const Expr& other) final {
-    return GetRef<Expr>(lhs) == other;
+    if (const ConstructorNode* rhs = other.as<ConstructorNode>()) {
+      return lhs->name_hint == rhs->name_hint;
+    }
+    return false;
   }
 
   bool ClauseEqual(const Clause& lhs, const Clause& rhs) {

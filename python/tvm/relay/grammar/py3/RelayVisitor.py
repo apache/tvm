@@ -1,4 +1,4 @@
-# Generated from /workspace/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.1
+# Generated from /Users/doobs/Code/repo/sampl/tvm/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.2
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .RelayParser import RelayParser
@@ -9,13 +9,38 @@ else:
 
 class RelayVisitor(ParseTreeVisitor):
 
+    # Visit a parse tree produced by RelayParser#prog.
+    def visitProg(self, ctx:RelayParser.ProgContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#opIdent.
     def visitOpIdent(self, ctx:RelayParser.OpIdentContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#prog.
-    def visitProg(self, ctx:RelayParser.ProgContext):
+    # Visit a parse tree produced by RelayParser#globalVar.
+    def visitGlobalVar(self, ctx:RelayParser.GlobalVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#localVar.
+    def visitLocalVar(self, ctx:RelayParser.LocalVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#globalTypeVar.
+    def visitGlobalTypeVar(self, ctx:RelayParser.GlobalTypeVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#typeVar.
+    def visitTypeVar(self, ctx:RelayParser.TypeVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#graphVar.
+    def visitGraphVar(self, ctx:RelayParser.GraphVarContext):
         return self.visitChildren(ctx)
 
 
@@ -114,8 +139,23 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#defn.
-    def visitDefn(self, ctx:RelayParser.DefnContext):
+    # Visit a parse tree produced by RelayParser#funcDefn.
+    def visitFuncDefn(self, ctx:RelayParser.FuncDefnContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#adtDefn.
+    def visitAdtDefn(self, ctx:RelayParser.AdtDefnContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#adtVariant.
+    def visitAdtVariant(self, ctx:RelayParser.AdtVariantContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#variantName.
+    def visitVariantName(self, ctx:RelayParser.VariantNameContext):
         return self.visitChildren(ctx)
 
 
@@ -159,8 +199,8 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#typeIdentType.
-    def visitTypeIdentType(self, ctx:RelayParser.TypeIdentTypeContext):
+    # Visit a parse tree produced by RelayParser#globalTypeVarType.
+    def visitGlobalTypeVarType(self, ctx:RelayParser.GlobalTypeVarTypeContext):
         return self.visitChildren(ctx)
 
 

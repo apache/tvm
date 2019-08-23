@@ -347,13 +347,18 @@ class PrettyPrinter :
   }
 
   bool IsUnique(const Expr& expr) {
-    return !(dg_.expr_node.at(expr)->parents.head &&
-             dg_.expr_node.at(expr)->parents.head->next);
+    auto it = dg_.expr_node.find(expr);
+    if (it == dg_.expr_node.end()) {
+      return true;
+    } else {
+      return !(it->second->parents.head && it->second->parents.head->next);
+    }
   }
 
+  // TODO(weberlo): Consolidate this method and `IsAtomic` in `pass_util.h`?
   bool AlwaysInline(const Expr& expr) {
     return expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<OpNode>() || expr.as<VarNode>();
+           expr.as<OpNode>() || expr.as<VarNode>() || expr.as<ConstructorNode>();
   }
 
   //------------------------------------
@@ -510,6 +515,15 @@ class PrettyPrinter :
   Doc PrintMod(const Module& mod) {
     Doc doc;
     int counter = 0;
+    // type definitions
+    for (const auto& kv : mod->type_definitions) {
+      if (counter++ != 0) {
+        doc << PrintNewLine();
+      }
+      doc << Print(kv.second);
+      doc << PrintNewLine();
+    }
+    // functions
     for (const auto& kv : mod->functions) {
       dg_ = DependencyGraph::Create(&arena_, kv.second);
 
@@ -598,7 +612,17 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const ConstructorNode* n) final {
-    return Doc(n->name_hint);
+    Doc doc;
+    doc << n->name_hint;
+    if (n->inputs.size() != 0) {
+      doc << "(";
+      std::vector<Doc> inputs;
+      for (Type input : n->inputs) {
+        inputs.push_back(Print(input));
+      }
+      doc << PrintSep(inputs) << ")";
+    }
+    return doc;
   }
 
   //------------------------------------
@@ -694,6 +718,30 @@ class PrettyPrinter :
     Doc doc;
     return doc << "ref(" << Print(node->value) << ")";
   }
+
+  Doc VisitType_(const TypeDataNode* node) final {
+    Doc doc;
+    doc << "type " << Print(node->header);
+
+    // type args
+    if (node->type_vars.size() != 0) {
+      doc << "[";
+      std::vector<Doc> type_vars;
+      for (Type type_var : node->type_vars) {
+        type_vars.push_back(Print(type_var));
+      }
+      doc << PrintSep(type_vars) << "]";
+    }
+    doc << " =";
+
+    // ADT variants
+    for (Constructor variant : node->constructors) {
+      doc << PrintNewLine() << "  | " << Print(variant, /* meta */ false, /* try_inline */ true);
+    }
+
+    return doc;
+  }
+
 
   //------------------------------------
   // Overload of Attr printing functions
