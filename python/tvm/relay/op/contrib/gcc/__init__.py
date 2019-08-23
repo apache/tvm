@@ -17,6 +17,4 @@
 # pylint: disable=wildcard-import
 """Neural network related operators."""
 from __future__ import absolute_import as _abs
-from .contrib import *
 from .extern_op import *
-from . import _contrib
