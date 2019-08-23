@@ -124,8 +124,9 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_input=" << op->nbit_input << ", ";
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
-  p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
+  p->stream << "calibrate_mode=" << op->calibrate_mode << ", ";
+  p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "do_simulation==" << op->do_simulation << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;

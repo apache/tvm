@@ -66,7 +66,7 @@ class StatsCollector : private ExprMutator {
 
       // add non-const expressions to profile data
       if (attrs->kind != QAnnotateKind::kQWeight) {
-        CHECK(!quantize_input.as<ConstantNode>());
+        // CHECK(!quantize_input.as<ConstantNode>());
         profile_data_.push_back(identity_quantize);
       }
       return identity_quantize;
@@ -87,12 +87,12 @@ class StatsCollector : private ExprMutator {
  * \param expr The simulation graph after annotation.
  * \return The profile graph.
  */
-Expr CollectStats(const Expr& expr) {
+Expr CreateStatsCollector(const Expr& expr) {
   return StatsCollector().Collect(expr);
 }
 
-TVM_REGISTER_API("relay._quantize.CollectStats")
-.set_body_typed(CollectStats);
+TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
+.set_body_typed(CreateStatsCollector);
 
 }  // namespace quantize
 }  // namespace relay

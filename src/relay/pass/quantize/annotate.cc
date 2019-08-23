@@ -76,23 +76,9 @@ TVM_REGISTER_API("relay._quantize.make_annotate_expr")
 
 
 Pass QuantizeAnnotate() {
-  // TODO(tvm-teams): since partition has added cast_hint in different
-  // branches, try to remove this in the future.
-  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
-    if (e->derived_from<TempExprNode>()) {
-      const auto* n = e.as<QAnnotateExprNode>();
-      CHECK(n);
-      const PackedFunc* f =
-          runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-      Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
-      return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
-    }
-    return e;
-  };
-
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
+      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, nullptr));
       auto new_params = func->params;
       for (const auto& x : FreeVars(func)) {
         new_params.push_back(x);

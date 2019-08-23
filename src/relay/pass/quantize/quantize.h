@@ -59,7 +59,6 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   }
 };
 
-
 class QConfig;
 /*!
 * \brief Container for build configuration options
@@ -72,8 +71,9 @@ class QConfigNode : public Node {
   DataType dtype_input = Int(8);
   DataType dtype_weight = Int(8);
   DataType dtype_activation = Int(32);
-  double global_scale = 8.0;
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
+  std::string calibrate_mode = "global_scale";
+  double global_scale = 8.0;
   bool do_simulation = false;
   bool round_for_shift = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
@@ -85,8 +85,9 @@ class QConfigNode : public Node {
     v->Visit("dtype_input", &dtype_input);
     v->Visit("dtype_weight", &dtype_weight);
     v->Visit("dtype_activation", &dtype_activation);
-    v->Visit("global_scale", &global_scale);
     v->Visit("skip_conv_layers", &skip_conv_layers);
+    v->Visit("calibrate_mode", &calibrate_mode);
+    v->Visit("global_scale", &global_scale);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);

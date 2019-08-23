@@ -93,11 +93,18 @@ Expr CastHint(Expr data, DataType dtype) {
   return CallNode::make(op, {data}, Attrs{attrs}, {});
 }
 
+TVM_REGISTER_API("relay.op.annotation._make.cast_hint")
+.set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
+  return CastHint(data, dtype);
+});
+
+
 RELAY_REGISTER_OP("annotation.cast_hint")
 .describe(R"code(Annotate an expression to be cast into specific data type.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input data.")
+.set_attrs_type_key("relay.attrs.CastHintAttrs")
 .add_type_rel("Identity", IdentityRel)
 .set_support_level(10)
 .set_attr<TOpPattern>("TOpPattern", kOpaque)

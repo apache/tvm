@@ -24,6 +24,7 @@ from .op import schedule_injective, OpPattern
 schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
 
+register_schedule("annotation.cast_hint", schedule_broadcast)
 register_schedule("log", schedule_broadcast)
 register_schedule("log1p", schedule_broadcast)
 register_schedule("cos", schedule_broadcast)

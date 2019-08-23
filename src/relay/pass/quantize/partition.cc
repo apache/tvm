@@ -79,6 +79,8 @@ Pass QuantizePartition() {
     [=](Function f, Module m, PassContext pc) {
       auto ret = Downcast<Function>(
           ForwardRewrite(f, "FQPartitionRewrite", nullptr, nullptr));
+      LOG(INFO) << "after partition";
+      LOG(INFO) << AsText(ret, false);
       return ret;
   };
   return CreateFunctionPass(pass_func, 1, "QuantizePartition", {});

@@ -61,3 +61,19 @@ def stop_fusion(data):
         The annotated expression.
     """
     return _make.stop_fusion(data)
+
+
+def cast_hint(data, dtype):
+    """Annotate an expression to prevent it being fused with previous expressions.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.cast_hint(data, dtype)
