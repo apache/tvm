@@ -29,6 +29,7 @@
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -122,7 +123,7 @@ using FTVMSchedule = runtime::TypedPackedFunc<
  *  operator with other expressions. This function will be invoked
  *  in AlterOpLayout pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
+ * \param args The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
@@ -136,8 +137,8 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
- * \param tinfos An array of placeholders, use for getting the inferred shape
+ * \param args The input symbols of the original node.
+ * \param arg_types An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
@@ -145,6 +146,22 @@ using FTVMLegalize = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
        const Array<tvm::relay::Type>& arg_types)>;
+
+/*!
+ * \brief Annotates an expression to indicate which external codegen tool an op
+ * should be scheduled to. It is a hardware dependent pass.
+ *
+ * \param attrs The attribute of the original expr.
+ * \param args The arguments of the original expr.
+ * \param compiler The external compiler that is used for external ops.
+ *
+ * \return true if this op should be registered with external codegen tool,
+ * otherwise, false.
+ */
+using FTVMExternOp = runtime::TypedPackedFunc<
+bool(const Attrs& attrs,
+     const Array<Expr>& args,
+     const std::string& compiler)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

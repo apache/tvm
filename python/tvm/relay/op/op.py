@@ -219,6 +219,7 @@ def register_pattern(op_name, pattern, level=10):
     """
     return register(op_name, "TOpPattern", pattern, level)
 
+
 def register_gradient(op_name, fgradient=None, level=10):
     """Register operator pattern for an op.
 
@@ -255,6 +256,25 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     """
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
+
+def register_extern_op(op_name, fextern=None, level=10):
+    """Register the external codegen tool for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator.
+
+    fextern: function (attrs: Attrs, args: List[Expr], compiler: str) ->
+    new_expr: Expr
+        The function for wrapping a call expr with subgraph_start and
+        subgraph_end.
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMExternOp", fextern, level)
+
 
 _init_api("relay.op", __name__)
 

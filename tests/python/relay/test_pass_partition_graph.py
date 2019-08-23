@@ -57,7 +57,23 @@ def test_subgraph():
     ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
     res = ex.evaluate()(x_data, y_data)
     tvm.testing.assert_allclose(res.asnumpy(), y_data - (x_data + x_data))
-    # import pdb; pdb.set_trace()
+
+def test_extern():
+    x = relay.var('x', shape=(10, 10))
+    y = relay.var('y', shape=(10, 10))
+    z = x + x
+    f = relay.Function([x, y], y - z)
+    x_data = np.random.rand(10, 10).astype('float32')
+    y_data = np.random.rand(10, 10).astype('float32')
+    mod = relay.Module()
+    mod["main"] = f
+    mod = relay.transform.Sequential([relay.transform.ExternOp("gcc"),
+                                      relay.transform.PartitionGraph()])(mod)
+    print(mod['main'])
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(x_data, y_data)
+    tvm.testing.assert_allclose(res.asnumpy(), y_data - (x_data + x_data))
 
 if __name__ == "__main__":
     test_subgraph()
+    test_extern()
