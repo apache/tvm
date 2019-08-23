@@ -256,6 +256,38 @@ def test_rfactor_predicates():
 
     fcuda = tvm.build(s, [A, B], "cuda")
 
+def test_cuda_vector_max():
+    num_thread = 8
+    target = 'cuda'
+    def check_vector_max(ctx, n, dtype):
+        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("skip because gpu does not support fp16")
+            return
+        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        B = tvm.placeholder((n,), name='B', dtype=dtype)
+        C = tvm.compute((n,), lambda i: tvm.max(A[i], B[i]), name='C')
+        s = tvm.create_schedule(C.op)
+        bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
+        s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A,B,C], "cuda", name="vector_max")
+
+        np_a = np.random.uniform(size=n).astype(dtype)
+        np_b = np.random.uniform(size=n).astype(dtype)
+        np_c = np.maximum(np_a, np_b)
+        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
+        b = tvm.nd.empty((n,), B.dtype, ctx).copyfrom(np_b)
+        c = tvm.nd.empty((n,), C.dtype, ctx)
+        fun(a, b, c)
+        np.testing.assert_equal(c.asnumpy(), np_c)
+
+    ctx = tvm.context(target, 0)
+    check_vector_max(ctx, 10, "float32")
+    check_vector_max(ctx, 10, "float16")
+
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
@@ -266,3 +298,4 @@ if __name__ == "__main__":
     test_cuda_shuffle()
     test_cuda_reducition_binding()
     test_rfactor_predicates()
+    test_cuda_vector_max()
