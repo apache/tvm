@@ -42,11 +42,17 @@ Expr Legalizer(const Call& ref_call, const Array<Expr>& new_args, const NodeRef&
   Expr new_e;
   bool modified = false;
   if (fop_legalize.count(op)) {
-    tvm::Array<tvm::relay::Type> arg_types;
+    // Collect input and output dtypes to pass on to Legalize API.
+    tvm::Array<tvm::relay::Type> types;
     for (auto& expr : ref_call->args) {
-      arg_types.push_back(expr->checked_type());
+      types.push_back(expr->checked_type());
     }
-    Expr legalized_value = fop_legalize[op](ref_call->attrs, new_args, arg_types);
+    types.push_back(ref_call->checked_type());
+
+    // Transform the op by calling the registered legalize function.
+    Expr legalized_value = fop_legalize[op](ref_call->attrs, new_args, types);
+
+    // Check if the transformation succeeded. If not, revert back to the original ref_call->op.
     if (legalized_value.defined()) {
       new_e = legalized_value;
       modified = true;

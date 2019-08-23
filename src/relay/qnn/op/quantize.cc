@@ -85,13 +85,13 @@ Expr QuantizeLower(const Expr& input_tensor,
 
 Expr QuantizeLegalize(const Attrs& attrs,
                       const Array<Expr>& new_args,
-                      const Array<tvm::relay::Type>& arg_types) {
+                      const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   CHECK(quantize_attrs != nullptr);
 
-  CHECK_EQ(arg_types.size(), 1);
+  CHECK_EQ(types.size(), 2);
   return QuantizeLower(data, quantize_attrs);
 }
 

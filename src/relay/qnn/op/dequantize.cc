@@ -74,12 +74,12 @@ Expr DequantizeLower(const Expr& input_tensor,
 
 Expr DequantizeLegalize(const Attrs& attrs,
                         const Array<Expr>& new_args,
-                        const Array<tvm::relay::Type>& arg_types) {
+                        const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
   CHECK(dequantize_attrs != nullptr);
-  CHECK_EQ(arg_types.size(), 1);
+  CHECK_EQ(types.size(), 2);
   return DequantizeLower(data, dequantize_attrs);
 }
 
