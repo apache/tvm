@@ -419,7 +419,7 @@ def power(x, y):
     z : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "pow", x, y)
+    return _make._OpPow(x, y)
 
 
 def popcount(x):
