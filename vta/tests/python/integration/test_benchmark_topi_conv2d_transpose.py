@@ -108,7 +108,7 @@ def run_conv2d_transpose(env, remote, wl, target,
     with target:
         res = topi.nn.conv2d_transpose_nchw(
             data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), env.acc_dtype)
-        res = topi.right_shift(res, 8)
+        res = topi.right_shift(res, env.WGT_WIDTH)
         res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
@@ -209,7 +209,7 @@ def run_conv2d_transpose(env, remote, wl, target,
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
             bias_np = bias_np.transpose(
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
-        res_ref = res_ref >> 8
+        res_ref = res_ref >> env.WGT_WIDTH
         res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)
@@ -242,5 +242,5 @@ def test_conv2d_transpose(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    # test_conv2d_transpose(device="arm_cpu")
+    test_conv2d_transpose(device="arm_cpu")
     test_conv2d_transpose(device="vta")

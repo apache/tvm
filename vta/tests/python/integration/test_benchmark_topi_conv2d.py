@@ -204,7 +204,7 @@ def run_conv2d(env, remote, wl, target,
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
             bias_np = bias_np.transpose(
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
-        res_ref = res_ref >> 8
+        res_ref = res_ref >> env.WGT_WIDTH
         res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)

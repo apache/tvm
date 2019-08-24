@@ -35,7 +35,7 @@ Workload = namedtuple("Conv2DTransposeWorkload",
                       ['batch', 'height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
-resnet_wkls = [
+dcgan_wkls = [
     # dcgan
     ('DCGAN.CT1', Workload(env.BATCH,  4,  4, 1024, 512, 4, 4, 1, 1, 2, 2)),
     ('DCGAN.CT2', Workload(env.BATCH,  8,  8,  512, 256, 4, 4, 1, 1, 2, 2)),
@@ -51,12 +51,14 @@ def my_clip(x, a_min, a_max):
     x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
-def conv2d_transpose(N, H, W, CI, CO, KH, KW, padding, strides, in_dtype, out_dtype):
+def conv2d_transpose(N, CI, H, W, CO, KH, KW, strides, padding):
     data_shape = (N//env.BATCH, CI//env.BLOCK_IN, H, W, env.BATCH, env.BLOCK_IN)
     kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, KH, KW, env.BLOCK_OUT, env.BLOCK_IN)
+    bias_shape = (N//env.BATCH, CO//env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT)
 
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
 
     with tvm.target.vta():
         res = topi.nn.conv2d_transpose_nchw(
@@ -64,10 +66,11 @@ def conv2d_transpose(N, H, W, CI, CO, KH, KW, padding, strides, in_dtype, out_dt
             Filter=kernel,
             strides=strides,
             padding=padding,
-            out_dtype='int32')
-        res = topi.right_shift(res, 8)
-        res = my_clip(res, 0, 127)
-        res = topi.cast(res, "int8")
+            out_dtype=env.acc_dtype)
+        res = topi.right_shift(res, env.WGT_WIDTH)
+        res = topi.add(res, bias)
+        res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
+        res = topi.cast(res, env.out_dtype)
 
     if tvm.target.current_target().device_name == 'vta':
         s = topi.generic.schedule_conv2d_transpose_nchw([res])
@@ -96,11 +99,10 @@ if __name__ == '__main__':
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
-    for idx, (wl_name, wl) in enumerate(resnet_wkls):
+    for idx, (wl_name, wl) in enumerate(dcgan_wkls):
+        prefix = "[Task %2d/%2d] " % (idx, len(dcgan_wkls))
 
-        prefix = "[Task %2d/%2d] " % (idx, len(resnet_wkls))
-
-        # Workload parameters
+        # Read in workload parameters
         N = wl.batch
         H = wl.height
         W = wl.width
@@ -108,14 +110,13 @@ if __name__ == '__main__':
         CO = wl.out_filter
         KH = wl.hkernel
         KW = wl.wkernel
-        padding = (wl.hpad, wl.wpad)
         strides = (wl.hstride, wl.wstride)
-        in_dtype = 'int8'
-        out_dtype = 'int32'
+        padding = (wl.hpad, wl.wpad)
 
+        # Create task
         task = autotvm.task.create(
                 conv2d_transpose,
-                args=(N, H, W, CI, CO, KH, KW, padding, strides, in_dtype, out_dtype),
+                args=(N, CI, H, W, CO, KH, KW, strides, padding),
                 target=tvm.target.vta(),
                 target_host=env.target_host,
                 template_key='direct')
