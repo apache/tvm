@@ -482,12 +482,7 @@ def if_then_else(cond, t, f):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    t = convert(t)
-    f = convert(f)
-    cond = convert(cond)
-    if cond.dtype != "bool":
-        raise TypeError("The condition's data type has to be bool")
-    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+    return _make._OpIfThenElse(cond, t, f)
 
 
 # Intrinsic rule related code
