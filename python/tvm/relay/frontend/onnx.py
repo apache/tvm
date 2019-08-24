@@ -222,6 +222,8 @@ class ConvTranspose(OnnxOpConverter):
 
 
 class Div(Elemwise):
+    """ Operator converter for Divide.
+    """
     name = 'divide'
 
 
@@ -307,6 +309,8 @@ class MaxPool(Pool):
             custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
+    """ Operator converter for Multiply.
+    """
     name = 'multiply'
 
 
@@ -495,6 +499,8 @@ class Softsign(OnnxOpConverter):
 
 
 class Sub(Elemwise):
+    """ Operator converter for Subtract.
+    """
     name = 'subtract'
 
 
@@ -768,27 +774,27 @@ class Reduce(OnnxOpConverter):
         return AttrCvt(cls.name)(inputs, attr)
 
 class ReduceMax(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMax.
     """
     name = 'max'
 
 class ReduceMin(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMin.
     """
     name = 'min'
 
 class ReduceSum(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceSum.
     """
     name = 'sum'
 
 class ReduceMean(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMean.
     """
     name = 'mean'
 
 class ReduceProd(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceProd.
     """
     name = 'prod'
 
