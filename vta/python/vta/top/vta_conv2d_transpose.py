@@ -35,16 +35,16 @@ def _declatation_conv2d_transpose(cfg,
                                   out_dtype):
     env = get_env()
 
-    N, CI, IH, IW, T_N, T_CI = get_const_tuple(data.shape)
-    CO, _, K_H, K_W, T_CO, T_CI = get_const_tuple(kernel.shape)
+    b, c_i, i_h, i_w, t_b, t_ci = get_const_tuple(data.shape)
+    c_o, _, k_h, k_w, t_co, t_ci = get_const_tuple(kernel.shape)
     stride_h, stride_w = strides
 
     # derive padding parameters
-    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (K_H, K_W))
-    bpad_top = K_H - 1 - fpad_top
-    bpad_bottom = K_H - 1 - fpad_bottom
-    bpad_left = K_W - 1 - fpad_left
-    bpad_right = K_W - 1 - fpad_right
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (k_h, k_w))
+    bpad_top = k_h - 1 - fpad_top
+    bpad_bottom = k_h - 1 - fpad_bottom
+    bpad_left = k_w - 1 - fpad_left
+    bpad_right = k_w - 1 - fpad_right
 
     # padding stage
     dilated_input = topi.nn.dilate(data, [1, 1, stride_h, stride_w, 1, 1])
@@ -53,23 +53,23 @@ def _declatation_conv2d_transpose(cfg,
                            [0, 0, bpad_bottom, bpad_right, 0, 0])
 
     # convolution transpose stage
-    out_h = (IH - 1) * stride_h - fpad_top - fpad_bottom + K_H
-    out_w = (IW - 1) * stride_w - fpad_left - fpad_right + K_W
-    dc = tvm.reduce_axis((0, CI), name='dc')
-    dh = tvm.reduce_axis((0, K_H), name='dh')
-    dw = tvm.reduce_axis((0, K_W), name='dw')
-    dci = tvm.reduce_axis((0, T_CI), name='dci')
+    out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
+    out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
+    dc = tvm.reduce_axis((0, c_i), name='dc')
+    dh = tvm.reduce_axis((0, k_h), name='dh')
+    dw = tvm.reduce_axis((0, k_w), name='dw')
+    dci = tvm.reduce_axis((0, t_ci), name='dci')
 
     out = tvm.compute(
-        (N, CO, out_h, out_w, T_N, T_CO),
+        (b, c_o, out_h, out_w, t_b, t_co),
         lambda b, c, h, w, b_n, b_co: tvm.sum(
             data_pad(b, dc, h + dh, w + dw, b_n, dci).astype(out_dtype) *
             kernel[c, dc, dh, dw, b_co, dci].astype(out_dtype),
             axis=[dc, dh, dw, dci]),
         tag="packed_conv2d_transpose",
         name='res',
-        attrs={"workload": (N * env.BATCH, IH, IW, CI * env.BLOCK_IN, CO * env.BLOCK_OUT,
-                            K_H, K_W, padding[0], padding[1], stride_h, stride_w)})
+        attrs={"workload": (b * env.BATCH, i_h, i_w, c_i * env.BLOCK_IN, c_o * env.BLOCK_OUT,
+                            k_h, k_w, padding[0], padding[1], stride_h, stride_w)})
 
     return out
 
