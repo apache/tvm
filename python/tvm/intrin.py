@@ -419,7 +419,7 @@ def power(x, y):
     z : Expr
         The result.
     """
-    return _make._OpPow(x, y)
+    return _make._OpPow(convert(x), convert(y))
 
 
 def popcount(x):
@@ -482,7 +482,7 @@ def if_then_else(cond, t, f):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    return _make._OpIfThenElse(cond, t, f)
+    return _make._OpIfThenElse(convert(cond), convert(t), convert(f))
 
 
 # Intrinsic rule related code
