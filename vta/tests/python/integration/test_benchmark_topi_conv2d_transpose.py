@@ -88,34 +88,28 @@ def run_conv2d_transpose(env, remote, wl, target,
 
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
     w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
-    b_shape = (wl.batch, wl.out_filter, 1, 1)
     if data_pack:
         data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
                       wl.height, wl.width, env.BATCH, env.BLOCK_IN)
         kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
                         wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
-        bias_shape = (wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
-                      1, 1, env.BATCH, env.BLOCK_OUT)
     else:
         data_shape = a_shape
         kernel_shape = w_shape
-        bias_shape = b_shape
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
-    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
 
     # Define base computation schedule
     with target:
         res = topi.nn.conv2d_transpose_nchw(
             data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), env.acc_dtype)
         res = topi.right_shift(res, env.WGT_WIDTH)
-        res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
         s = topi.generic.schedule_conv2d_transpose_nchw([res])
         if print_ir:
-            print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
+            print(vta.lower(s, [data, kernel, res], simple_mode=True))
 
     # Derive number of ops
     fout_height = (wl.height - 1) * wl.hstride - 2 * wl.hpad + wl.hkernel
@@ -124,19 +118,17 @@ def run_conv2d_transpose(env, remote, wl, target,
 
     # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
     def get_ref_data():
-        # derive min max for act, wgt, and bias types (max non inclusive)
+        # derive min max for act and wgt types (max non inclusive)
         a_min, a_max = 0 - (1 << (env.INP_WIDTH - 1)), (1 << (env.INP_WIDTH - 1))
         w_min, w_max = 0 - (1 << (env.WGT_WIDTH - 1)), (1 << (env.WGT_WIDTH - 1))
-        b_min, b_max = 0 - 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2), 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2)
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=(wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)).astype(kernel.dtype)
-        b_np = np.random.randint(b_min, b_max, size=b_shape).astype(env.acc_dtype)
         r_np = topi.testing.conv2d_transpose_nchw_python(
             a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad).astype(env.acc_dtype)
-        return a_np, w_np, b_np, r_np
+        return a_np, w_np, r_np
 
     # Data in original format
-    data_np, kernel_np, bias_np, res_ref = get_ref_data()
+    data_np, kernel_np, res_ref = get_ref_data()
     if data_pack:
         data_np = data_np.reshape(
             wl.batch//env.BATCH, env.BATCH,
@@ -148,18 +140,15 @@ def run_conv2d_transpose(env, remote, wl, target,
             wl.hkernel, wl.wkernel).transpose((2, 0, 4, 5, 3, 1))
         kernel_np = np.flip(kernel_np, 2)
         kernel_np = np.flip(kernel_np, 3)
-        bias_np = bias_np.reshape(
-            wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
-            1, 1, env.BATCH, env.BLOCK_OUT)
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(s, [data, kernel, bias, res],
+        mod = vta.build(s, [data, kernel, res],
                         target=target,
                         target_host=env.target_host,
                         name="conv2d_transpose")
     else:
-        mod = tvm.build(s, [data, kernel, bias, res],
+        mod = tvm.build(s, [data, kernel, res],
                         target=target,
                         target_host=env.target_host,
                         name="conv2d_transpose")
@@ -172,7 +161,6 @@ def run_conv2d_transpose(env, remote, wl, target,
     res_np = np.zeros(topi.util.get_const_tuple(res.shape)).astype(res.dtype)
     data_arr = tvm.nd.array(data_np, ctx)
     kernel_arr = tvm.nd.array(kernel_np, ctx)
-    bias_arr = tvm.nd.array(bias_np, ctx)
     res_arr = tvm.nd.array(res_np, ctx)
     time_f = f.time_evaluator("conv2d_transpose", ctx, number=samples)
 
@@ -188,17 +176,17 @@ def run_conv2d_transpose(env, remote, wl, target,
                 remote.get_function("vta.simulator.profiler_clear")()
             else:
                 remote.get_function("vta.tsim.profiler_clear")()
-            cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
+            cost = time_f(data_arr, kernel_arr, res_arr)
             if env.TARGET == "sim":
                 stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
             else:
                 stats = json.loads(remote.get_function("vta.tsim.profiler_status")())
         else:
             simulator.clear_stats()
-            cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
+            cost = time_f(data_arr, kernel_arr, res_arr)
             stats = simulator.stats()
     else:
-        cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
+        cost = time_f(data_arr, kernel_arr, res_arr)
 
     # Check correctness
     correct = False
@@ -207,10 +195,7 @@ def run_conv2d_transpose(env, remote, wl, target,
         if data_pack:
             res_orig = res_orig.transpose(
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
-            bias_np = bias_np.transpose(
-                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
         res_ref = res_ref >> env.WGT_WIDTH
-        res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)
         correct = np.allclose(res_orig, res_ref)

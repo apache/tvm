@@ -54,11 +54,9 @@ def my_clip(x, a_min, a_max):
 def conv2d_transpose(N, CI, H, W, CO, KH, KW, strides, padding):
     data_shape = (N//env.BATCH, CI//env.BLOCK_IN, H, W, env.BATCH, env.BLOCK_IN)
     kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, KH, KW, env.BLOCK_OUT, env.BLOCK_IN)
-    bias_shape = (N//env.BATCH, CO//env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT)
 
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
-    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
 
     with tvm.target.vta():
         res = topi.nn.conv2d_transpose_nchw(
@@ -68,7 +66,6 @@ def conv2d_transpose(N, CI, H, W, CO, KH, KW, strides, padding):
             padding=padding,
             out_dtype=env.acc_dtype)
         res = topi.right_shift(res, env.WGT_WIDTH)
-        res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
 
