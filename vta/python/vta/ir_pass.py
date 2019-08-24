@@ -620,6 +620,18 @@ def _get_gemm_intrin_buffer():
 
 
 def inject_conv2d_transpose_skip(stmt_in):
+    """Pass to skip 0-weights in conv2d transpose with stride > 1.
+
+    Parameters
+    ----------
+    stmt_in : Stmt
+        Input statement
+
+    Returns
+    -------
+    stmt_out : Stmt
+        Transformed statement
+    """
     env = get_env()
     dwgt, dinp, dout = _get_gemm_intrin_buffer()
 
@@ -658,8 +670,9 @@ def inject_conv2d_transpose_skip(stmt_in):
                 return inner
             else:
                 conv_call, data_call, kernel_call = calls[-3:]
-                pad_data_tensor, kernel_tensor, res_tensor = (data_call.func.output(0),
-                    kernel_call.func.output(0), conv_call.func.output(0))
+                pad_data_tensor = data_call.func.output(0)
+                kernel_tensor = kernel_call.func.output(0)
+                res_tensor = conv_call.func.output(0)
 
                 if selects:
                     condition = selects[0].condition
@@ -684,7 +697,7 @@ def inject_conv2d_transpose_skip(stmt_in):
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, 16)
                 inner = tvm.make.AttrStmt(
                     [dout, res_tensor], 'buffer_bind_scope',
-                     tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
+                    tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
                 args = kernel_call.args
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 16, 0, 16)
                 inner = tvm.make.AttrStmt(
