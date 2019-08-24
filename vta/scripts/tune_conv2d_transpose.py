@@ -51,7 +51,7 @@ def my_clip(x, a_min, a_max):
     x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
-def conv2d_transpose(N, H, W, CI, CO, KH, KW, padding, strides, dilation, in_dtype, out_dtype):
+def conv2d_transpose(N, H, W, CI, CO, KH, KW, padding, strides, in_dtype, out_dtype):
     data_shape = (N//env.BATCH, CI//env.BLOCK_IN, H, W, env.BATCH, env.BLOCK_IN)
     kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, KH, KW, env.BLOCK_OUT, env.BLOCK_IN)
 
@@ -62,8 +62,8 @@ def conv2d_transpose(N, H, W, CI, CO, KH, KW, padding, strides, dilation, in_dty
         res = topi.nn.conv2d_transpose_nchw(
             Input=data,
             Filter=kernel,
-            strides=(wl.hstride, wl.wstride),
-            padding=(wl.hpad, wl.wpad),
+            strides=strides,
+            padding=padding,
             out_dtype='int32')
         res = topi.right_shift(res, 8)
         res = my_clip(res, 0, 127)
@@ -110,13 +110,12 @@ if __name__ == '__main__':
         KW = wl.wkernel
         padding = (wl.hpad, wl.wpad)
         strides = (wl.hstride, wl.wstride)
-        dilation = (1, 1)
         in_dtype = 'int8'
         out_dtype = 'int32'
 
         task = autotvm.task.create(
                 conv2d_transpose,
-                args=(N, H, W, CI, CO, KH, KW, padding, strides, dilation, in_dtype, out_dtype),
+                args=(N, H, W, CI, CO, KH, KW, padding, strides, in_dtype, out_dtype),
                 target=tvm.target.vta(),
                 target_host=env.target_host,
                 template_key='direct')
