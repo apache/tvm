@@ -227,5 +227,5 @@ def test_conv2d_transpose(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    test_conv2d_transpose(device="arm_cpu")
+    # test_conv2d_transpose(device="arm_cpu")
     test_conv2d_transpose(device="vta")
