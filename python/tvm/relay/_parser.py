@@ -197,6 +197,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.type_param_scopes = deque([deque()])         # type: Scopes[ty.TypeVar]
         self.global_type_param_scope = deque()            # type: Scope[expr.GlobalVar]
         self.graph_expr = []                              # type: List[expr.Expr]
+        self.adts = {}
 
         super(ParseTreeToRelayIR, self).__init__()
 
@@ -211,10 +212,10 @@ class ParseTreeToRelayIR(RelayVisitor):
         """Pop off the current Var scope and return it."""
         return self.var_scopes.popleft()
 
-    def mk_var(self, name, type_):
+    def mk_var(self, name, typ=None):
         # type: (str, ty.Type) -> expr.Var
         """Create a new Var and add it to the Var scope."""
-        var = expr.Var(name, type_)
+        var = expr.Var(name, typ)
         self.var_scopes[0].appendleft((name, var))
         return var
 
@@ -259,21 +260,6 @@ class ParseTreeToRelayIR(RelayVisitor):
         node_text = node.getText()
         name = node_text[1:]
 
-        # variables
-        if node_type == RelayLexer.globalVar:
-            return lookup(deque([self.global_var_scope]), node_text[1:])
-        if node_type == RelayLexer.LOCAL_VAR:
-            # Remove the leading '%' and lookup the name.
-            var = lookup(self.var_scopes, name)
-            if var is None:
-                raise ParseError("Couldn't resolve `{}`.".format(name))
-            return var
-        if node_type == RelayLexer.GRAPH_VAR:
-            try:
-                return self.graph_expr[int(name)]
-            except IndexError:
-                raise ParseError("Couldn't resolve `{}`".format(name))
-
         # data types
         if node_type == RelayLexer.NAT:
             return int(node_text)
@@ -290,6 +276,20 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         raise ParseError("todo: `{}`".format(node_text))
 
+    def visitGlobalVar(self, ctx):
+        var_name = ctx.CNAME().getText()
+        global_var = lookup([self.global_var_scope], var_name)
+        if global_var is None:
+            raise ParseError(f'unbound global var "{var_name}""')
+        return global_var
+
+    def visitLocalVar(self, ctx):
+        var_name = ctx.CNAME().getText()
+        local_var = lookup(self.var_scopes, var_name)
+        if local_var is None:
+            raise ParseError(f'unbound local var "{var_name}""')
+        return local_var
+
     def visit_list(self, ctx_list):
         # type: (List[ParserRuleContext]) -> List[Any]
         """"Visit a list of contexts."""
@@ -297,7 +297,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return [self.visit(ctx) for ctx in ctx_list]
 
-    def getType_(self, ctx):
+    def getTypeExpr(self, ctx):
         # type: (Optional[RelayParser.Type_Context]) -> Optional[ty.Type]
         """Return a (possibly None) Relay type."""
         if ctx is None:
@@ -372,8 +372,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         if ctx.var() is None:
             # anonymous identity
             ident = "_"
-            type_ = None
-            var = self.mk_var(ident, type_)
+            typ = None
+            var = self.mk_var(ident, typ)
         else:
             var = self.visitVar(ctx.var())
 
@@ -400,14 +400,14 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitVar(self, ctx):
         # type: (RelayParser.VarContext) -> expr.Var
         """Visit a single variable."""
-        ident = ctx.LOCAL_VAR()
+        ident = ctx.localVar()
 
         if ident is None:
             raise ParseError("Only local ids may be used in vars.")
 
-        type_ = self.getType_(ctx.type_())
+        typeExpr = self.getTypeExpr(ctx.typeExpr())
 
-        return self.mk_var(ident.getText()[1:], type_)
+        return self.mk_var(ident.getText()[1:], typeExpr)
 
     def visitVarList(self, ctx):
         # type: (RelayParser.VarListContext) -> List[expr.Var]
@@ -451,7 +451,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         type_params = ctx.typeParamList()
 
         if type_params is not None:
-            type_params = type_params.ident()
+            type_params = type_params.typeIdent()
             assert type_params
             for ty_param in type_params:
                 name = ty_param.getText()
@@ -460,7 +460,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         var_list, attr_list = self.visit(ctx.argList())
         if var_list is None:
             var_list = []
-        ret_type = self.getType_(ctx.type_())
+        ret_type = self.getTypeExpr(ctx.typeExpr())
 
         body = self.visit(ctx.body())
         # NB(@jroesch): you must stay in the type parameter scope until
@@ -488,44 +488,81 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.module[ident] = self.mk_func(ctx)
 
     def visitAdtDefn(self, ctx):
-        adt_handle = self.mk_global_typ(ctx.typeIdent().getText(), ty.Kind.AdtHandle)
-
+        adt_name = ctx.typeIdent().getText()
+        adt_handle = self.mk_global_typ(adt_name, ty.Kind.AdtHandle)
         self.enter_type_param_scope()
 
+        # parse type params
         type_params = ctx.typeParamList()
         if type_params is None:
             type_params = []
         else:
             type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
                            for type_ident in type_params.typeIdent()]
-        # defn_name = glob_typ_var.children[0].getText()
-        # type_params = []
 
-        # if len(glob_typ_var.children) > 1:
-        #     defn_name = glob_typ_var.children[0].getText()
-        #     type_params = list(
-        #         map(
-        #             lambda s: self.mk_typ(s, ty.Kind.Type),
-        #             filter(
-        #                 lambda s: not s.startswith(','),
-        #                 map(lambda x: x.getText(), glob_typ_var.children[2:-1]))))
-        #     print('TYPE PARAMS')
-        #     import pdb; pdb.set_trace()
-        #     print(glob_typ_var.children[2:-1])
-        #     print(list(map(lambda x: x.getText(), glob_typ_var.children[2:-1])))
-        #     print(filter(
-        #                 lambda s: not s.startswith(','),
-        #                 map(lambda x: x.getText(), glob_typ_var.children[2:-1])))
-        # defn = self.mk_global_typ(defn_name, ty.Kind.AdtHandle)
-
-        constructors = []
-        for constructor in ctx.adtVariant():
+        # parse constructors
+        name_to_cons = {}
+        for constructor in ctx.adtConstructor():
             inputs = [self.visit(inp) for inp in constructor.typeExpr()]
-            constructors.append(adt.Constructor(constructor.variantName().getText(), inputs, adt_handle))
+            constructor_name = constructor.constructorName().getText()
+            constructor = adt.Constructor(constructor_name, inputs, adt_handle)
 
-        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, constructors)
+            name_to_cons[constructor_name] = constructor
+
+        # update internal bookkeeping
+        if adt_name in self.adts:
+            raise ParseError(f'duplicate ADT definition "{adt_name}"')
+        self.adts[adt_name] = name_to_cons
+        # update module being built
+        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, list(name_to_cons.values()))
 
         self.exit_type_param_scope()
+
+    def visitMatch(self, ctx):
+        match_type = ctx.matchType().getText()
+        if match_type == 'match':
+            complete_match = True
+        elif match_type == 'match?':
+            complete_match = False
+        else:
+            raise RuntimeError(f"unknown match type {match_type}")
+
+        # TODO: Will need some kind of type checking to know which ADT is being
+        # matched on.
+        match_data = self.visit(ctx.expr())
+        # For now, we'll assume it's an annotated var and just grab its type.
+        constructors = self.adts[match_data.type_annotation.func.var.name]
+        clauses = []
+        for clause in ctx.matchClause():
+            constructor_name = clause.constructorName().getText()
+            constructor = constructors[constructor_name]
+            self.enter_var_scope()
+            patternList = clause.patternList()
+            if patternList is None:
+                patterns = []
+            else:
+                patterns = [self.visit(pattern) for pattern in patternList.pattern()]
+            clause_body = self.visit(clause.expr())
+            self.exit_var_scope()
+            # TODO: Do we need to pass `None` if it's a 0-arity cons, or is an empty list fine?
+            clauses.append(adt.Clause(
+                adt.PatternConstructor(
+                    constructor,
+                    patterns
+                ),
+                clause_body
+            ))
+        return adt.Match(match_data, clauses, complete=complete_match)
+
+    def visitPattern(self, ctx):
+        text = ctx.getText()
+        if text == '_':
+            return adt.PatternWildcard()
+        elif text.startswith('%'):
+            var = self.mk_var(text[1:])
+            return adt.PatternVar(var)
+        else:
+            raise ParseError(f'invalid pattern syntax "{text}"')
 
     def visitTypeExprType(self, ctx):
         import pdb; pdb.set_trace()

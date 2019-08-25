@@ -64,6 +64,11 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RelayParser#match.
+    def visitMatch(self, ctx:RelayParser.MatchContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#tensor.
     def visitTensor(self, ctx:RelayParser.TensorContext):
         return self.visitChildren(ctx)
@@ -144,13 +149,33 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#adtVariant.
-    def visitAdtVariant(self, ctx:RelayParser.AdtVariantContext):
+    # Visit a parse tree produced by RelayParser#adtConstructor.
+    def visitAdtConstructor(self, ctx:RelayParser.AdtConstructorContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#variantName.
-    def visitVariantName(self, ctx:RelayParser.VariantNameContext):
+    # Visit a parse tree produced by RelayParser#matchClause.
+    def visitMatchClause(self, ctx:RelayParser.MatchClauseContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#matchType.
+    def visitMatchType(self, ctx:RelayParser.MatchTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#patternList.
+    def visitPatternList(self, ctx:RelayParser.PatternListContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#pattern.
+    def visitPattern(self, ctx:RelayParser.PatternContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#constructorName.
+    def visitConstructorName(self, ctx:RelayParser.ConstructorNameContext):
         return self.visitChildren(ctx)
 
 
@@ -211,11 +236,6 @@ class RelayVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RelayParser#incompleteType.
     def visitIncompleteType(self, ctx:RelayParser.IncompleteTypeContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RelayParser#intType.
-    def visitIntType(self, ctx:RelayParser.IntTypeContext):
         return self.visitChildren(ctx)
 
 

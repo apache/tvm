@@ -73,7 +73,11 @@ def parse_text(code):
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
+    print('[ORIGINAL]')
+    print(code)
     parsed = parse_text(code)
+    print('[PRINTED]')
+    print(str(parsed))
     result = alpha_equal(parsed, expr)
     return result
 
@@ -636,12 +640,13 @@ def test_tuple_type():
 
 
 def test_adt_defn():
+    mod = relay.Module()
+
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(
             glob_typ_var,
             [],
             [relay.Constructor("Nil", [], glob_typ_var)])
-    mod = relay.Module()
     mod[glob_typ_var] = prog
     assert parses_as(
         """
@@ -653,6 +658,8 @@ def test_adt_defn():
 
 
 def test_multiple_variants():
+    mod = relay.Module()
+
     glob_typ_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
     prog = relay.TypeData(
@@ -662,13 +669,12 @@ def test_multiple_variants():
                 relay.Constructor("Cons", [typ_var, glob_typ_var(typ_var)], glob_typ_var),
                 relay.Constructor("Nil", [], glob_typ_var),
             ])
-    mod = relay.Module()
     mod[glob_typ_var] = prog
     assert parses_as(
         """
         type List[A] =
-        | Cons(A, List[A])
-        | Nil
+          | Cons(A, List[A])
+          | Nil
         """,
         mod
     )
@@ -690,8 +696,64 @@ def test_multiple_type_params():
     assert parses_as(
         """
         type Either[A, B] =
-        | Left(A)
-        | Right(B)
+          | Left(A)
+          | Right(B)
+        """,
+        mod
+    )
+
+
+def test_match():
+    mod = relay.Module()
+
+    list_var = relay.GlobalTypeVar("List")
+    typ_var = relay.TypeVar("A")
+    cons_constructor = relay.Constructor(
+        "Cons", [typ_var, list_var(typ_var)], list_var)
+    nil_constructor = relay.Constructor("Nil", [], list_var)
+    list_def = relay.TypeData(
+        list_var,
+        [typ_var],
+        [cons_constructor, nil_constructor])
+    mod[list_var] = list_def
+
+    length_var = relay.GlobalVar("length")
+    typ_var = relay.TypeVar("A")
+    input_type = list_var(typ_var)
+    input_var = relay.Var("xs", input_type)
+    rest_var = relay.Var("rest")
+    body = relay.Match(input_var,
+        [relay.Clause(
+            relay.PatternConstructor(
+                cons_constructor,
+                [relay.PatternWildcard(), relay.PatternVar(rest_var)]),
+            relay.add(relay.const(1), relay.Call(length_var, [rest_var]))
+            ),
+         relay.Clause(
+             relay.PatternConstructor(nil_constructor, []),
+             relay.const(0))]
+    )
+    length_func = relay.Function(
+        [input_var],
+        body,
+        int32,
+        [typ_var]
+    )
+    mod[length_var] = length_func
+
+    print('WEEEE')
+    assert parses_as(
+        """
+        type List[A] =
+          | Cons(A, List[A])
+          | Nil
+
+        def @length[A](%xs: List[A]) -> int32 {
+          match (%xs) {
+            | Cons(_, %rest) => 1 + @length(%rest)
+            | Nil => 0
+          }
+        }
         """,
         mod
     )
@@ -720,6 +782,7 @@ if __name__ == "__main__":
     # test_tensor_type()
     # test_function_type()
     # test_tuple_type()
-    test_adt_defn()
-    test_multiple_variants()
-    test_multiple_type_params()
+    # test_adt_defn()
+    # test_multiple_variants()
+    # test_multiple_type_params()
+    test_match()

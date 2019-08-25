@@ -104,9 +104,10 @@ expr
   | '(' ')'                                   # tuple
   | '(' expr ',' ')'                          # tuple
   | '(' expr (',' expr)+ ')'                  # tuple
-  | expr '.' NAT                              # projection
   | '[' (expr (',' expr)*)? ']'               # tensor
   | 'if' '(' expr ')' body 'else' body        # ifElse
+  | matchType '(' expr ')' '{' matchClause+ '}'    # match
+  | expr '.' NAT                              # projection
   // sequencing
   | 'let' var '=' expr ';' expr               # let
   // sugar for let %_ = expr; expr
@@ -121,11 +122,21 @@ expr
 func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-  | 'type' typeIdent typeParamList? '=' adtVariant+                               # adtDefn
+  | 'type' typeIdent typeParamList? '=' adtConstructor+                               # adtDefn
   ;
 
-adtVariant: '|' variantName ('(' typeExpr (',' typeExpr)* ')')? ;
-variantName: CNAME ;
+adtConstructor: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
+matchClause: '|' constructorName patternList? '=>' expr ;
+matchType : 'match' | 'match?' ;
+
+// TODO: Will need to make this recursive
+patternList: '(' pattern (',' pattern)* ')';
+pattern
+  : '_'
+  | localVar
+  ;
+
+constructorName: CNAME ;
 
 argList
   : varList              # argNoAttr
@@ -147,7 +158,8 @@ typeExpr
   | 'Tensor' '[' shapeList ',' typeExpr ']'                         # tensorType
   | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr # funcType
   | '_'                                                          # incompleteType
-  | NAT                                                          # intType
+  // TODO: Why the fuck does this rule exist?
+  // | NAT                                                          # intType
   ;
 
 // TODO: For some reason, spaces aren't allowed between type params?
