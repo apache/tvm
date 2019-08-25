@@ -20,11 +20,12 @@
 /*!
  * Copyright (c) 2019 by Contributors
  * \file src/relay/pass/extern_op.cc
- * \brief Wraps a call with subgraph_begin and subgraph_end to indicate that the op of this call
- * node will use external compiler.
+ * \brief Wraps a call with subgraph_begin and subgraph_end to indicate that
+ * the op of this call node will use external compiler.
  */
 
 #include <tvm/operation.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
@@ -71,8 +72,62 @@ class ExternOpWrapper : public ExprMutator {
   std::string compiler_;
 };
 
+/*!
+ * \brief Eleminates the back-to-back subgraph_begin and end annotations if they
+ * are using the same external compiler. For example, the following graph
+ *
+ *  subgraph_begin
+ *       |
+ *      op1
+ *       |
+ *  subgraph_end
+ *       |
+ *  subgraph_begin
+ *       |
+ *      op2
+ *       |
+ *  subgraph_end
+ *
+ * will be updated to if op1 and op2 require codegen from the same external
+ * compiler.
+ *
+ *  subgraph_begin
+ *       |
+ *      op1
+ *       |
+ *      op2
+ *       |
+ *  subgraph_end
+ */
+struct EliminateAnnotation : public ExprMutator {
+  Expr VisitExpr_(const CallNode* cn) {
+    Expr new_e = ExprMutator::VisitExpr_(cn);
+    const auto* op_node = cn->op.as<OpNode>();
+    if (op_node && GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
+      Expr input = cn->args[0];
+      if (input.as<CallNode>() == nullptr) return new_e;
+      Call input_call = Downcast<Call>(input);
+      if (input_call.defined()) {
+        const auto* call_op = input_call->op.as<OpNode>();
+        if (call_op &&
+            GetRef<Op>(call_op) == Op::Get("annotation.subgraph_end")) {
+          auto end_attrs = cn->attrs.as<SubgraphAttrs>();
+          auto begin_attrs = input_call->attrs.as<SubgraphAttrs>();
+          if (end_attrs && begin_attrs &&
+              end_attrs->compiler == begin_attrs->compiler) {
+            // Eliminate end and begin
+            return input_call->args[0];
+          }
+        }
+      }
+    }
+    return new_e;
+  }
+};
+
 Expr ExternOp(const Expr& expr, const std::string& compiler) {
-  return ExternOpWrapper(compiler).Mutate(expr);
+  Expr annotated = ExternOpWrapper(compiler).Mutate(expr);
+  return EliminateAnnotation().Mutate(annotated);
 }
 
 }  // namespace extern_op
