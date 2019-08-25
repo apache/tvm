@@ -33,10 +33,10 @@ def _declatation_conv2d_transpose(cfg,
                                   strides,
                                   padding,
                                   out_dtype):
-    env = get_env()
-
-    b, c_i, i_h, i_w, t_b, t_ci = get_const_tuple(data.shape)
-    c_o, _, k_h, k_w, t_co, t_ci = get_const_tuple(kernel.shape)
+    ishape = get_const_tuple(data.shape)
+    kshape = get_const_tuple(kernel.shape)
+    b, c_i, i_h, i_w, t_b, t_ci = ishape
+    c_o, _, k_h, k_w, t_co, t_ci = kshape
     stride_h, stride_w = strides
 
     # derive padding parameters
@@ -55,21 +55,23 @@ def _declatation_conv2d_transpose(cfg,
     # convolution transpose stage
     out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
     out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
+    oshape = (b, c_o, out_h, out_w, t_b, t_co)
     d_c = tvm.reduce_axis((0, c_i), name='d_c')
     d_h = tvm.reduce_axis((0, k_h), name='d_h')
     d_w = tvm.reduce_axis((0, k_w), name='d_w')
     d_ci = tvm.reduce_axis((0, t_ci), name='d_ci')
 
     out = tvm.compute(
-        (b, c_o, out_h, out_w, t_b, t_co),
+        oshape,
         lambda b, c, h, w, b_n, b_co: tvm.sum(
             data_pad(b, d_c, h + d_h, w + d_w, b_n, d_ci).astype(out_dtype) *
             kernel[c, d_c, d_h, d_w, b_co, d_ci].astype(out_dtype),
             axis=[d_c, d_h, d_w, d_ci]),
         tag="packed_conv2d_transpose",
-        name='res',
-        attrs={"workload": (b * env.BATCH, i_h, i_w, c_i * env.BLOCK_IN, c_o * env.BLOCK_OUT,
-                            k_h, k_w, padding[0], padding[1], stride_h, stride_w)})
+        name='res')
+
+    cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
+                 kshape[2] * kshape[3] * ishape[1] * ishape[-1])
 
     return out
 
@@ -102,13 +104,13 @@ def _schedule_conv2d_transpose(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, co, h, w, _, ci = s[conv2d_stage].op.axis
-    ci, _, _, _ = s[conv2d_stage].op.reduce_axis
+    b, c_o, h, w, _, c_i = s[conv2d_stage].op.axis
+    c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
     cfg.define_split('tile_h', h, num_outputs=2)
     cfg.define_split('tile_w', w, num_outputs=2)
-    cfg.define_split('tile_ci', ci, num_outputs=2)
-    cfg.define_split('tile_co', co, num_outputs=2)
+    cfg.define_split('tile_ci', c_i, num_outputs=2)
+    cfg.define_split('tile_co', c_o, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
     cfg.define_knob('h_nthread', [1, 2])
     ###### space definition end ######
