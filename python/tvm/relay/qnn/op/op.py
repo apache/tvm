@@ -14,8 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""QNN dialect related operators."""
-from __future__ import absolute_import as _abs
-from .qnn import *
-from .op import register_qnn_legalize
+#pylint: disable=unused-argument
+"""The register functions for the QNN dialect."""
+from tvm.relay.op.op import register as register
+
+def register_qnn_legalize(op_name, legal_op=None, level=10):
+    """Register legal transformation function for a QNN op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    legal_op: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
+        The function for transforming an expr to another expr.
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMQnnLegalize", legal_op, level)
