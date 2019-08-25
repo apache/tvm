@@ -55,17 +55,17 @@ def _declatation_conv2d_transpose(cfg,
     # convolution transpose stage
     out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
     out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
-    dc = tvm.reduce_axis((0, c_i), name='dc')
-    dh = tvm.reduce_axis((0, k_h), name='dh')
-    dw = tvm.reduce_axis((0, k_w), name='dw')
-    dci = tvm.reduce_axis((0, t_ci), name='dci')
+    d_c = tvm.reduce_axis((0, c_i), name='d_c')
+    d_h = tvm.reduce_axis((0, k_h), name='d_h')
+    d_w = tvm.reduce_axis((0, k_w), name='d_w')
+    d_ci = tvm.reduce_axis((0, t_ci), name='d_ci')
 
     out = tvm.compute(
         (b, c_o, out_h, out_w, t_b, t_co),
         lambda b, c, h, w, b_n, b_co: tvm.sum(
-            data_pad(b, dc, h + dh, w + dw, b_n, dci).astype(out_dtype) *
-            kernel[c, dc, dh, dw, b_co, dci].astype(out_dtype),
-            axis=[dc, dh, dw, dci]),
+            data_pad(b, d_c, h + d_h, w + d_w, b_n, d_ci).astype(out_dtype) *
+            kernel[c, d_c, d_h, d_w, b_co, d_ci].astype(out_dtype),
+            axis=[d_c, d_h, d_w, d_ci]),
         tag="packed_conv2d_transpose",
         name='res',
         attrs={"workload": (b * env.BATCH, i_h, i_w, c_i * env.BLOCK_IN, c_o * env.BLOCK_OUT,
