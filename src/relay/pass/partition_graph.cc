@@ -83,8 +83,6 @@ class Partitioner : public ExprMutator {
       return std::move(var);
     } else {
       CHECK(GetRef<Op>(op_node) == Op::Get("annotation.subgraph_end"));
-      CHECK(!found_end_) << "Nested subgraph is not allowed." << "\n";
-      found_end_ = true;
 
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
       CHECK(subgraph_attrs);
@@ -106,7 +104,6 @@ class Partitioner : public ExprMutator {
                                       tvm::ir::StringImm::make(subgraph_attrs->compiler));
       subgraph_args_.clear();
       var_count_ = 0;
-      found_end_ = false;
       return CallNode::make(subgraph_func, args);
     }
   }
@@ -137,7 +134,6 @@ class Partitioner : public ExprMutator {
 
  private:
   int var_count_{0};
-  bool found_end_{false};
   std::vector<std::pair<Var, Expr> > subgraph_args_;
 };
 
