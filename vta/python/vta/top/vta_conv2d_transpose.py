@@ -63,9 +63,9 @@ def _declatation_conv2d_transpose(cfg,
 
     out = tvm.compute(
         oshape,
-        lambda b, c, h, w, b_n, b_co: tvm.sum(
-            data_pad(b, d_c, h + d_h, w + d_w, b_n, d_ci).astype(out_dtype) *
-            kernel[c, d_c, d_h, d_w, b_co, d_ci].astype(out_dtype),
+        lambda i_n, i_c, i_h, i_w, j_n, j_c: tvm.sum(
+            data_pad(i_n, d_c, i_h + d_h, i_w + d_w, j_n, d_ci).astype(out_dtype) *
+            kernel[i_c, d_c, d_h, d_w, j_c, d_ci].astype(out_dtype),
             axis=[d_c, d_h, d_w, d_ci]),
         tag="packed_conv2d_transpose",
         name='res')
@@ -104,11 +104,11 @@ def _schedule_conv2d_transpose(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, c_o, h, w, _, c_i = s[conv2d_stage].op.axis
+    b, c_o, x_i, x_j, _, c_i = s[conv2d_stage].op.axis
     c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_h', h, num_outputs=2)
-    cfg.define_split('tile_w', w, num_outputs=2)
+    cfg.define_split('tile_h', x_i, num_outputs=2)
+    cfg.define_split('tile_w', x_j, num_outputs=2)
     cfg.define_split('tile_ci', c_i, num_outputs=2)
     cfg.define_split('tile_co', c_o, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
