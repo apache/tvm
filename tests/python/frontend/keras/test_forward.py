@@ -96,12 +96,14 @@ def test_forward_merge_dot():
     data2 = keras.layers.Input(shape=(2, 2))
     merge_funcs = [keras.layers.Dot(axes=[1, 2]),
                    keras.layers.Dot(axes=[2, 1]),
+                   keras.layers.Dot(axes=[1, 1]),
+                   keras.layers.Dot(axes=[2, 2]),
                    keras.layers.Dot(axes=1),
                    keras.layers.Dot(axes=2)]
     for merge_func in merge_funcs:
         out = merge_func([data1, data2])
         keras_model = keras.models.Model([data1, data2], out)
-        verify_keras_frontend(keras_model, need_transpose=False)
+        verify_keras_frontend(keras_model)
 
 def test_forward_activations():
     data = keras.layers.Input(shape=(32, 32, 3))
@@ -287,7 +289,6 @@ def test_forward_mobilenet():
 
 
 if __name__ == '__main__':
-
     test_forward_merge()
     test_forward_merge_dot()
     test_forward_activations()
