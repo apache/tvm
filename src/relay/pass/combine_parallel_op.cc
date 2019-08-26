@@ -1,0 +1,136 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * Copyright (c) 2019 by Contributors
+ *
+ * \file combine_parallel_op.cc
+ * \brief Abstract class to combine parallel ops and their successive element-wise ops.
+ */
+
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
+#include <unordered_map>
+#include <unordered_set>
+#include "./expr_subst.h"
+#include "./pattern_util.h"
+#include "./combine_parallel_op.h"
+
+
+namespace tvm {
+namespace relay {
+
+BranchGroupFinder::BranchGroupFinder(const std::string& op_name,
+                                     FIsSupportedOp fis_supported_op,
+                                     FAreCompatibleOps fare_compatible_ops) 
+  : op_name_(op_name),
+    fis_supported_op_(fis_supported_op),
+    fare_compatible_ops_(fare_compatible_ops) {
+}
+
+std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
+  static const Op& op = Op::Get(op_name_);
+
+  this->VisitExpr(expr);
+
+  std::vector<Group> groups;
+  for (const auto& root : op_roots_) {
+    const auto& children = children_map_.at(root);
+    size_t ngroups = groups.size();
+    for (const CallNode* child : children) {
+      if (!child->op.same_as(op)) continue;
+
+      auto&& branch = CreateBranch(child);
+      // add the branch to a group, or create a new group
+      auto it = std::find_if(groups.begin() + ngroups, groups.end(), [&](const Group& group) {
+        CHECK(!group.empty() && !group[0].empty());
+        return fare_compatible_ops_(child, group[0][0]);
+      });
+      if (it != groups.end()) {
+        it->push_back(branch);
+      } else {
+        groups.emplace_back();
+        // each group has at least one branch
+        groups.back().push_back(branch);
+      }
+    }
+  }
+  return groups;
+}
+
+// Create a branch starting from op.
+Branch BranchGroupFinder::CreateBranch(const CallNode* op) {
+  static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+  // each branch has at least one element, the first element is always op
+  Branch branch{op};
+  auto it = children_map_.find(GetRef<Expr>(branch.back()));
+  while (it != children_map_.end() && it->second.size() == 1) {
+    const CallNode* call = it->second[0];
+    auto pattern = fpattern[Downcast<Op>(call->op)];
+    if (pattern <= kBroadcast) {
+      branch.push_back(call);
+      it = children_map_.find(GetRef<Expr>(branch.back()));
+    } else {
+      break;
+    }
+  }
+  return branch;
+}
+
+void BranchGroupFinder::VisitExpr_(const CallNode* n) {
+  static const Op& op = Op::Get(op_name_);
+  ExprVisitor::VisitExpr_(n);
+  if (n->op.same_as(op) && fis_supported_op_(n)) {
+    op_roots_.insert(n->args[0]);
+    children_map_[n->args[0]].push_back(n);
+  } else {
+    for (size_t i = 0; i < n->args.size(); i++) {
+      children_map_[n->args[i]].push_back(n);
+    }
+  }
+}
+
+ParallelOpCombiner::ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches) 
+  : op_name_(op_name),
+    min_num_branches_(min_num_branches) {
+}
+
+Expr ParallelOpCombiner::Combine(const Expr& expr) {
+  auto groups = BranchGroupFinder(op_name_,
+                                  [&](const CallNode* n) { 
+                                    return IsSupportedOp(n); 
+                                  },
+                                  [&](const CallNode* a, const CallNode* b) { 
+                                    return AreCompatibleOps(a, b); 
+                                  }).Find(expr);
+  for (const Group& group : groups) {
+    if (group.size() < min_num_branches_) {
+      continue;
+    }
+    CombineBranches(group, subst_map_);
+  }
+  return ExprSubst(expr, std::move(subst_map_));
+}
+
+}  // namespace relay
+}  // namespace tvm
