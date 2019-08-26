@@ -238,7 +238,7 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
   using ir::IntImm;
   using ir::UIntImm;
   CHECK(cond.type() == Bool(1))
-      << "if_then_else only accept a single condition";
+      << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value);
   if (const UIntImm* op = cond.as<UIntImm>()) {
     if (op->value != 0) {
