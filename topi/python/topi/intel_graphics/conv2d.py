@@ -21,18 +21,16 @@ from __future__ import absolute_import as _abs
 
 import tvm
 
-from .. import generic
 from .. import util
 from .. import tag
 from ..nn import pad
-from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, conv2d_infer_layout
 from ..nn.util import get_pad_tuple
 from ..util import simplify, get_const_tuple
 from ..nn.depthwise_conv2d import depthwise_conv2d_nchw
 from tvm import autotvm
-from tvm.autotvm.task import get_config
-from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from .. import generic
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
@@ -155,35 +153,6 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     s[tensor].bind(xi, thread_x)
     return xi, thread_z, thread_y, thread_x
 
-@autotvm.task.register("topi_intel_graphics_conv2d_NCHWc")
-def topi_nn_conv2d_NCHWc(*args, **kwargs):
-    assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, dilation, layout, dtype = deserialize_args(args)
-    raw_data_shape = get_const_tuple(data.shape)
-    raw_kernel_shape = get_const_tuple(kernel.shape)
-
-    # get config here
-    cfg = get_config()
-    _create_schedule_template(cfg, data, kernel, strides, padding, dilation, layout)
-    cfg.add_flop(1)
-
-    # change shape with the value in config
-    ic_bn = cfg["tile_ic"].val if hasattr(cfg["tile_ic"], "val") else cfg["tile_ic"].size[-1]
-    oc_bn = cfg["tile_oc"].val if hasattr(cfg["tile_oc"], "val") else cfg["tile_oc"].size[-1]
-
-    new_data_shape = (raw_data_shape[0], raw_data_shape[1] // ic_bn,
-                      raw_data_shape[2], raw_data_shape[3], ic_bn)
-    new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
-                        raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
-    new_data = tvm.placeholder(new_data_shape, data.dtype)
-    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
-
-    C = _decl_cl_spatialpack_NCHWc(cfg, new_data, new_kernel, strides, padding, dilation, dtype)
-    s = _schedule_conv2d_NCHWc(cfg, [C])
-
-    return s, [new_data, new_kernel, C]
-
-
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     import nnvm.symbol as sym
@@ -294,6 +263,21 @@ def _decl_conv2d(cfg, data, kernel, strides, padding, dilation,
                             strides, padding, out_dtype)
 
     return _decl_cl_spatialpack_NCHWc(cfg, data, kernel, strides, padding, dilation, out_dtype)
+
+
+@conv2d_infer_layout.register("intel_graphics")
+def _conv2d_infer_layout(workload, cfg):
+    _, data, kernel, strides, padding, dilation, layout, dtype = workload
+    batch_size, in_channel, in_height, in_width = data[:-1]
+    out_channel, _, k_height, k_width = kernel[:-1]
+    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
+    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
+    in_layout = "NCHW%dc" % tile_ic
+    out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
+    out_layout = "NCHW%dc" % tile_oc
+    return ((in_shape, in_layout),), ((out_shape, out_layout),)
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc, 'intel_graphics', ['direct'])
