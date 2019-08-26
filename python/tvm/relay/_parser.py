@@ -290,6 +290,9 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError(f'unbound local var "{var_name}""')
         return local_var
 
+    def visitGraphVar(self, ctx):
+        return self.graph_expr[int(ctx.NAT().getText())]
+
     def visit_list(self, ctx_list):
         # type: (List[ParserRuleContext]) -> List[Any]
         """"Visit a list of contexts."""
@@ -416,7 +419,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # TODO: support a larger class of values than just Relay exprs
     def visitAttr(self, ctx):
         # type: (RelayParser.AttrContext) -> Tuple[str, expr.Expr]
-        return (ctx.CNAME().getText(), self.visit(ctx.expr()))
+        return (ctx.START_LOWER_CNAME().getText(), self.visit(ctx.expr()))
 
     def visitArgNoAttr(self, ctx):
         return (self.visit_list(ctx.varList().var()), None)
@@ -638,7 +641,6 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitGraph(self, ctx):
         # type: (RelayParser.GraphContext) -> expr.Expr
         """Visit a graph variable assignment."""
-        import pdb; pdb.set_trace()
         graph_nid = int(ctx.graphVar().getText()[1:])
 
         self.enter_var_scope()
@@ -719,7 +721,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         """Create a simple tensor type. No generics."""
 
         shape = self.visit(ctx.shapeList())
-        dtype = self.visit(ctx.type_())
+        dtype = self.visit(ctx.typeExpr())
 
         if not isinstance(dtype, ty.TensorType):
             raise ParseError("Expected dtype to be a Relay base type.")
@@ -730,11 +732,11 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitTupleType(self, ctx):
         # type: (RelayParser.TupleTypeContext) -> ty.TupleType
-        return ty.TupleType(self.visit_list(ctx.type_()))
+        return ty.TupleType(self.visit_list(ctx.typeExpr()))
 
     def visitFuncType(self, ctx):
         # type: (RelayParser.FuncTypeContext) -> ty.FuncType
-        types = self.visit_list(ctx.type_())
+        types = self.visit_list(ctx.typeExpr())
 
         arg_types = types[:-1]
         ret_type = types[-1]

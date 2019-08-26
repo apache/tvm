@@ -257,13 +257,13 @@ def test_seq():
 
 
 def test_graph():
+    code = "%0 = (); %1 = 1; (%0, %0, %1)"
     assert parses_as(
-        "%0 = (); %1 = 1; (%0, %0, %1)",
+        code,
         relay.Tuple([UNIT, UNIT, relay.const(1)])
     )
-
     assert not parses_as(
-        "%0 = (); %1 = 1; (%0, %0, %1)",
+        code,
         relay.Tuple([relay.Tuple([]), relay.Tuple([]), relay.const(1)])
     )
 
@@ -659,7 +659,7 @@ def test_adt_defn():
     )
 
 
-def test_multiple_variants():
+def test_multiple_cons_defn():
     mod = relay.Module()
 
     list_var = relay.GlobalTypeVar("List")
@@ -682,7 +682,7 @@ def test_multiple_variants():
     )
 
 
-def test_multiple_type_params():
+def test_multiple_type_param_defn():
     glob_typ_var = relay.GlobalTypeVar("Either")
     typ_var_a = relay.TypeVar("A")
     typ_var_b = relay.TypeVar("B")
@@ -724,7 +724,6 @@ def test_match():
     input_type = list_var(typ_var)
     input_var = relay.Var("xs", input_type)
     rest_var = relay.Var("rest")
-    # TODO: THIS IS WHAT'S NOT EQUAL
     body = relay.Match(input_var,
         [relay.Clause(
             relay.PatternConstructor(
@@ -762,30 +761,70 @@ def test_match():
     )
 
 
+def test_adt_cons_expr():
+    mod = relay.Module()
+
+    list_var = relay.GlobalTypeVar("List")
+    typ_var = relay.TypeVar("A")
+    cons_constructor = relay.Constructor(
+        "Cons", [typ_var, list_var(typ_var)], list_var)
+    nil_constructor = relay.Constructor("Nil", [], list_var)
+    list_def = relay.TypeData(
+        list_var,
+        [typ_var],
+        [cons_constructor, nil_constructor])
+    mod[list_var] = list_def
+
+    make_singleton_var = relay.GlobalVar("make_singleton")
+    input_var = relay.Var("x", int32)
+    rest_var = relay.Var("rest")
+    length_func = relay.Function(
+        [input_var],
+        cons_constructor([input_var, nil_constructor()]),
+        list_var(int32),
+        [typ_var]
+    )
+    mod[make_singleton_var] = length_func
+
+    assert parses_as(
+        """
+        type List[A] =
+          | Cons(A, List[A])
+          | Nil
+
+        def @make_singleton(%x: int32) -> List[int32] {
+          Cons(%x, Nil)
+        }
+        """,
+        mod
+    )
+
+
 if __name__ == "__main__":
-    # test_comments()
-    # test_int_literal()
-    # test_float_literal()
-    # test_bool_literal()
-    # test_negative()
-    # test_bin_op()
-    # test_parens()
-    # test_op_assoc()
-    # test_let()
-    # test_seq()
-    # test_graph()
-    # test_tuple()
-    # test_func()
-    # test_defn()
-    # test_recursive_call()
-    # test_ifelse()
-    # test_call()
-    # test_incomplete_type()
-    # test_builtin_types()
-    # test_tensor_type()
-    # test_function_type()
-    # test_tuple_type()
-    # test_adt_defn()
-    test_multiple_variants()
-    # test_multiple_type_params()
+    test_comments()
+    test_int_literal()
+    test_float_literal()
+    test_bool_literal()
+    test_negative()
+    test_bin_op()
+    test_parens()
+    test_op_assoc()
+    test_let()
+    test_seq()
+    test_graph()
+    test_tuple()
+    test_func()
+    test_defn()
+    test_recursive_call()
+    test_ifelse()
+    test_call()
+    test_incomplete_type()
+    test_builtin_types()
+    test_tensor_type()
+    test_function_type()
+    test_tuple_type()
+    test_adt_defn()
+    test_multiple_cons_defn()
+    test_multiple_type_param_defn()
     test_match()
+    # test_adt_cons_expr()

@@ -62,8 +62,13 @@ fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
 
 FLOAT : PREFLOAT 'f';
 
-// BASE_TYPE : ('int'|'uint'|'float'|'bool') DIGIT*;
-baseType : 'int32' ;
+baseType
+  : 'int8' | 'int16' | 'int32' | 'int64'
+  | 'uint8' | 'uint16' | 'uint32' | 'uint64'
+  | 'float16' | 'float32' | 'float64'
+  | 'bool'
+  | 'int8x4' | 'uint1x4' | 'float16x4'
+  ;
 
 // non-negative ints
 NAT: DIGIT+ ;
@@ -83,7 +88,7 @@ prog: SEMVER (defn* | expr) METADATA? EOF ;
 
 opIdent: START_LOWER_CNAME ('.' START_LOWER_CNAME)*;
 globalVar: '@' START_LOWER_CNAME ;
-localVar: '%' START_LOWER_CNAME ;
+localVar: '%' ('_' | START_LOWER_CNAME) ;
 // TODO(weberlo): why does 'int32` generate a parse error when it's literally a
 // lexer token?
 // typeIdent: BASE_TYPE | START_UPPER_NAME ;
@@ -168,7 +173,7 @@ typeExpr
   | typeIdent                                                    # typeIdentType
   | 'Tensor' '[' shapeList ',' typeExpr ']'                         # tensorType
   | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr # funcType
-  // | '_'                                                          # incompleteType
+  | '_'                                                          # incompleteType
   // TODO: Why the fuck does this rule exist?
   // | NAT                                                          # intType
   ;
@@ -177,8 +182,8 @@ typeExpr
 typeParamList: '[' typeIdent (',' typeIdent)* ']' ;
 
 shapeList
-  : '(' shape (',' shape)+ ')'
-  | '(' ')'
+  : '(' ')'
+  | '(' shape (',' shape)+ ')'
   | shape
   ;
 
@@ -208,6 +213,6 @@ ident
   : opIdent
   | globalVar
   | localVar
-  | typeExpr
+  // | typeExpr
   | graphVar
   ;
