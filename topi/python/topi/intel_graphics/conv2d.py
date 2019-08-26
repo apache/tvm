@@ -22,13 +22,13 @@ from __future__ import absolute_import as _abs
 import tvm
 
 from tvm import autotvm
-from .. import tag
 from ..nn import pad
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, conv2d_infer_layout
 from ..nn.util import get_pad_tuple
 from ..util import simplify, get_const_tuple
 from ..nn.depthwise_conv2d import depthwise_conv2d_nchw
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from .. import tag
 from .. import generic
 from .. import util
 
@@ -92,14 +92,14 @@ def _create_schedule_template(cfg, data, kernel, strides, padding, dilation, lay
     for i in range(1, ic + 1):
         if ic % i == 0 and i <= ic_bn_upper:
             ic_bn_candidates.append(i)
-    if len(ic_bn_candidates) == 0:
+    if not ic_bn_candidates:
         ic_bn_candidates.append(1)
         ic_bn_candidates.append(ic)
 
     for i in range(1, oc + 1):
         if oc % i == 0 and oc_bn_lower <= i <= oc_bn_upper:
             oc_bn_candidates.append(i)
-    if len(oc_bn_candidates) == 0:
+    if not oc_bn_candidates:
         oc_bn_candidates.append(1)
         oc_bn_candidates.append(oc)
 
