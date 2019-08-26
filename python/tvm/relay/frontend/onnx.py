@@ -868,6 +868,15 @@ class Equal(Elemwise):
     """
     name = 'equal'
 
+
+class Not(Elemwise):
+    """ Operator converter for Not.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.logical_not(inputs[0])
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -983,7 +992,8 @@ def _get_convert_map(opset):
         'Pad': Pad.get_converter(opset),
         'Shape': Shape.get_converter(opset),
         'Sign': Sign.get_converter(opset),
-        'Equal': Equal.get_converter(opset)
+        'Equal': Equal.get_converter(opset),
+        'Not': Not.get_converter(opset)
     }
 
 

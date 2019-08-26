@@ -1130,6 +1130,34 @@ def test_sign():
                               'Sign',
                               {})
 
+
+def verify_not(indata, dtype):
+    x = indata.astype(dtype)
+    outdata = np.logical_not(x)
+
+    node = helper.make_node('Not', inputs=['in'], outputs=['out'],)
+
+    graph = helper.make_graph([node],
+                              'not_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.BOOL, list(x.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='not_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_not():
+    # 2d
+    verify_not(indata=(np.random.randn(3, 4) > 0), dtype=bool)
+    # 3d
+    verify_not(indata=(np.random.randn(3, 4, 5) > 0), dtype=bool)
+    # 4d
+    verify_not(indata=(np.random.randn(3, 4, 5, 6) > 0), dtype=bool)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1173,3 +1201,4 @@ if __name__ == '__main__':
     test_inception()
     test_densenet()
     test_sign()
+    test_not()
