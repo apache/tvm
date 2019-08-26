@@ -18,9 +18,10 @@
 """Testing topi conv2d operator for VTA"""
 
 import json
-from collections import namedtuple
+import os
 
 import numpy as np
+from collections import namedtuple
 
 import tvm
 from tvm import autotvm
@@ -32,6 +33,7 @@ import vta
 from vta import program_fpga, reconfig_runtime
 import vta.testing
 from vta.testing import simulator
+
 
 Workload = namedtuple("Conv2DWorkload",
                       ['batch', 'height', 'width', 'in_filter', 'out_filter',
