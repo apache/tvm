@@ -53,9 +53,9 @@ BOOL_LIT
   | 'False'
   ;
 
-// START_UPPER_CNAME: UPPER_LETTER ('_'|LETTER|DIGIT)*;
-// START_LOWER_CNAME: LOWER_LETTER ('_'|LETTER|DIGIT)*;
-CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
+START_UPPER_CNAME: UPPER_LETTER ('_'|LETTER|DIGIT)*;
+START_LOWER_CNAME: LOWER_LETTER ('_'|LETTER|DIGIT)*;
+// CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
 
 // non-negative floats
 fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
@@ -63,7 +63,7 @@ fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
 FLOAT : PREFLOAT 'f';
 
 // BASE_TYPE : ('int'|'uint'|'float'|'bool') DIGIT*;
-BASE_TYPE : 'int32' ;
+baseType : 'int32' ;
 
 // non-negative ints
 NAT: DIGIT+ ;
@@ -81,13 +81,13 @@ METADATA: 'METADATA:' .*;
 // prog: SEMVER (defn+ | expr) METADATA? EOF ;
 prog: SEMVER (defn* | expr) METADATA? EOF ;
 
-opIdent: CNAME ;
-globalVar: '@' CNAME ;
-localVar: '%' CNAME ;
+opIdent: START_LOWER_CNAME ('.' START_LOWER_CNAME)*;
+globalVar: '@' START_LOWER_CNAME ;
+localVar: '%' START_LOWER_CNAME ;
 // TODO(weberlo): why does 'int32` generate a parse error when it's literally a
 // lexer token?
 // typeIdent: BASE_TYPE | START_UPPER_NAME ;
-typeIdent: CNAME ;
+typeIdent: (baseType | START_UPPER_CNAME) ;
 graphVar: '%' NAT ;
 
 exprList: (expr (',' expr)*)?;
@@ -142,11 +142,11 @@ matchType : 'match' | 'match?' ;
 patternList: '(' pattern (',' pattern)* ')';
 pattern
   : '_'
-  | localVar
+  | localVar (':' typeExpr)?
   ;
 
 // constructorName: typeIdent ;
-constructorName: CNAME ;
+constructorName: START_UPPER_CNAME ;
 
 argList
   : varList              # argNoAttr
@@ -158,7 +158,7 @@ var: localVar (':' typeExpr)?;
 
 attrSeq: attr (',' attr)*;
 // attr: LOWER_NAME '=' expr ;
-attr: CNAME '=' expr ;
+attr: START_LOWER_CNAME '=' expr ;
 
 typeExpr
   : '(' ')'                                                      # tupleType
@@ -183,7 +183,7 @@ shapeList
   ;
 
 // meta : 'meta' '[' LOWER_NAME ']' '[' NAT ']';
-meta : 'meta' '[' CNAME ']' '[' NAT ']';
+meta : 'meta' '[' START_LOWER_CNAME ']' '[' NAT ']';
 
 shape
   : meta # metaShape

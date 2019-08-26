@@ -563,14 +563,20 @@ class AlphaEqualHandler:
         || !ExprEqual(lhs->data, rhs->data)
         || lhs->clauses.size() != rhs->clauses.size()
         || lhs->complete != rhs->complete) {
+      std::cout << "AYY" << std::endl;
+      std::cout << ExprEqual(lhs->data, rhs->data) << std::endl;
+      std::cout << lhs->clauses.size() << "," << rhs->clauses.size() << std::endl;
+      std::cout << lhs->complete << "," << rhs->complete << std::endl;
       return false;
     }
 
     for (size_t i = 0; i < lhs->clauses.size(); ++i) {
       if (!ClauseEqual(lhs->clauses[i], rhs->clauses[i])) {
+        std::cout << "LMAO" << std::endl;
         return false;
       }
     }
+    std::cout << "WAZ" << std::endl;
     return true;
   }
 

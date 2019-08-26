@@ -67,6 +67,8 @@ def roundtrip(expr):
 
 def parse_text(code):
     expr = relay.fromtext(SEMVER + "\n" + code)
+    print('[PRETTY-PRINTED]')
+    print(expr)
     roundtrip(expr)
     return expr
 
@@ -76,9 +78,9 @@ def parses_as(code, expr):
     print('[ORIGINAL]')
     print(code)
     parsed = parse_text(code)
-    print('[PRINTED]')
-    print(str(parsed))
+    print('[CHECKING EQULALALAALLALTYI]')
     result = alpha_equal(parsed, expr)
+    print('[FINISEHEHSHSHSED CHEKCIGN EEQUALTY]')
     return result
 
 def get_scalar(x):
@@ -660,16 +662,16 @@ def test_adt_defn():
 def test_multiple_variants():
     mod = relay.Module()
 
-    glob_typ_var = relay.GlobalTypeVar("List")
+    list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
     prog = relay.TypeData(
-            glob_typ_var,
+            list_var,
             [typ_var],
             [
-                relay.Constructor("Cons", [typ_var, glob_typ_var(typ_var)], glob_typ_var),
-                relay.Constructor("Nil", [], glob_typ_var),
+                relay.Constructor("Cons", [typ_var, list_var(typ_var)], list_var),
+                relay.Constructor("Nil", [], list_var),
             ])
-    mod[glob_typ_var] = prog
+    mod[list_var] = prog
     assert parses_as(
         """
         type List[A] =
@@ -722,6 +724,7 @@ def test_match():
     input_type = list_var(typ_var)
     input_var = relay.Var("xs", input_type)
     rest_var = relay.Var("rest")
+    # TODO: THIS IS WHAT'S NOT EQUAL
     body = relay.Match(input_var,
         [relay.Clause(
             relay.PatternConstructor(
@@ -731,7 +734,8 @@ def test_match():
             ),
          relay.Clause(
              relay.PatternConstructor(nil_constructor, []),
-             relay.const(0))]
+             relay.const(0))],
+        complete=False
     )
     length_func = relay.Function(
         [input_var],
@@ -741,7 +745,6 @@ def test_match():
     )
     mod[length_var] = length_func
 
-    # TODO: Put these back in
     assert parses_as(
         """
         type List[A] =
@@ -783,6 +786,6 @@ if __name__ == "__main__":
     # test_function_type()
     # test_tuple_type()
     # test_adt_defn()
-    # test_multiple_variants()
+    test_multiple_variants()
     # test_multiple_type_params()
     test_match()

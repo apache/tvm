@@ -277,14 +277,14 @@ class ParseTreeToRelayIR(RelayVisitor):
         raise ParseError("todo: `{}`".format(node_text))
 
     def visitGlobalVar(self, ctx):
-        var_name = ctx.CNAME().getText()
+        var_name = ctx.START_LOWER_CNAME().getText()
         global_var = lookup([self.global_var_scope], var_name)
         if global_var is None:
             raise ParseError(f'unbound global var "{var_name}""')
         return global_var
 
     def visitLocalVar(self, ctx):
-        var_name = ctx.CNAME().getText()
+        var_name = ctx.START_LOWER_CNAME().getText()
         local_var = lookup(self.var_scopes, var_name)
         if local_var is None:
             raise ParseError(f'unbound local var "{var_name}""')
@@ -324,7 +324,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Exprs
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> op.Op
-        op_name = ctx.CNAME().getText()
+        op_name = '.'.join([name.getText() for name in ctx.START_LOWER_CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])
         return ExprOp(op.get(op_name))
@@ -559,13 +559,16 @@ class ParseTreeToRelayIR(RelayVisitor):
         if text == '_':
             return adt.PatternWildcard()
         elif text.startswith('%'):
-            var = self.mk_var(text[1:])
+            text = ctx.localVar().getText()
+            typ = ctx.typeExpr()
+            if typ is not None:
+                typ = self.visit(typ)
+            var = self.mk_var(text[1:], typ=typ)
             return adt.PatternVar(var)
         else:
             raise ParseError(f'invalid pattern syntax "{text}"')
 
     def visitTypeExprType(self, ctx):
-        import pdb; pdb.set_trace()
         type_params = ctx.typeParams()
         print(ctx.getText())
         if type_params is None:
@@ -596,8 +599,6 @@ class ParseTreeToRelayIR(RelayVisitor):
             return ty.TypeCall(typ_var, type_params)
         else:
             return typ_var
-
-
 
     def visitCallNoAttr(self, ctx):
         return (self.visit_list(ctx.exprList().expr()), None)
@@ -637,7 +638,8 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitGraph(self, ctx):
         # type: (RelayParser.GraphContext) -> expr.Expr
         """Visit a graph variable assignment."""
-        graph_nid = int(ctx.GRAPH_VAR().getText()[1:])
+        import pdb; pdb.set_trace()
+        graph_nid = int(ctx.graphVar().getText()[1:])
 
         self.enter_var_scope()
         value = self.visit(ctx.expr(0))
@@ -663,7 +665,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitTypeIdent(self, ctx):
         # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
         """Handle type identifier."""
-        type_name = ctx.CNAME().getText()
+        type_name = ctx.getText()
 
         # Look through all type prefixes for a match
         for type_prefix in TYPE_PREFIXES:
@@ -676,7 +678,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             type_param = lookup([self.global_type_param_scope], type_name)
             if type_param is None:
                 # TODO: raise parse error?
-                raise RuntimeError(f'unbound var "{type_name}"')
+                raise ParseError(f'unbound var "{type_name}"')
 
         return type_param
 

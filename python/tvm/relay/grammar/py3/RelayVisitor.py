@@ -9,6 +9,11 @@ else:
 
 class RelayVisitor(ParseTreeVisitor):
 
+    # Visit a parse tree produced by RelayParser#baseType.
+    def visitBaseType(self, ctx:RelayParser.BaseTypeContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#prog.
     def visitProg(self, ctx:RelayParser.ProgContext):
         return self.visitChildren(ctx)

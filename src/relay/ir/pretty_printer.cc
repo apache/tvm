@@ -255,6 +255,7 @@ class PrettyPrinter :
   }
 
   Doc AllocTemp() {
+    std::cout << "HWERE WITH " << std::endl;
     return TempVar(temp_var_counter_++);
   }
 
@@ -372,11 +373,17 @@ class PrettyPrinter :
     // for it. Every subsequent time we can just use its assigned variable.
     // This works since hashing uses pointer equality.
 
+    // TODO: we need to somehow carry the `try_inline` preference through the
+    // recursion.
+    // bool old_try_inline = try_inline_;
+    // try_inline_ = try_inline;
+
     // determine whether to inline
-    bool inline_expr = AlwaysInline(expr);
-    if (try_inline) {
-      inline_expr |= IsUnique(expr);
-    }
+    bool inline_expr = true;
+    // bool inline_expr = AlwaysInline(expr);
+    // if (try_inline) {
+    //   inline_expr |= IsUnique(expr);
+    // }
 
     auto it = memo_.find(expr);
     if (it != memo_.end()) return it->second;
@@ -594,7 +601,7 @@ class PrettyPrinter :
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
       Doc clause_doc;
-      clause_doc << "| " << Print(clause->lhs) << " => " << Print(clause->rhs);
+      clause_doc << "| " << Print(clause->lhs) << " => " << Print(clause->rhs, false, true);
       clauses.push_back(clause_doc);
     }
     doc << Indent(2, body << PrintNewLine() << PrintSep(clauses, PrintNewLine())) << PrintNewLine();
