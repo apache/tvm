@@ -210,12 +210,13 @@ TVM_REGISTER_GLOBAL("vta.tsim.profiler_status")
 }  // namespace vta
 
 void* VTAMemAlloc(size_t size, int cached) {
-  void *p = vmalloc(size);
-  return p;
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->Alloc(size);
+  return reinterpret_cast<void*>(vta::vmem::VirtualMemoryManager::Global()->GetPhyAddr(addr));
 }
 
 void VTAMemFree(void* buf) {
-  vfree(buf);
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(reinterpret_cast<uint64_t>(buf));
+  vta::vmem::VirtualMemoryManager::Global()->Free(addr);
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
@@ -223,11 +224,11 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
-  vmemcpy(dst, src, size, kVirtualMemCopyFromHost);
+  vta::vmem::VirtualMemoryManager::Global()->MemCopyFromHost(dst, src, size);
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
-  vmemcpy(dst, src, size, kVirtualMemCopyToHost);
+  vta::vmem::VirtualMemoryManager::Global()->MemCopyToHost(dst, src, size);
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {

@@ -138,27 +138,3 @@ VirtualMemoryManager* VirtualMemoryManager::Global() {
 
 }  // namespace vmem
 }  // namespace vta
-
-
-void * vmalloc(uint64_t size) {
-  void * addr = vta::vmem::VirtualMemoryManager::Global()->Alloc(size);
-  return reinterpret_cast<void*>(vta::vmem::VirtualMemoryManager::Global()->GetPhyAddr(addr));
-}
-
-void vfree(void * ptr) {
-  void * addr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(reinterpret_cast<uint64_t>(ptr));
-  vta::vmem::VirtualMemoryManager::Global()->Free(addr);
-}
-
-void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir) {
-  auto * mgr = vta::vmem::VirtualMemoryManager::Global();
-  if (kVirtualMemCopyFromHost == dir) {
-    mgr->MemCopyFromHost(dst, src, size);
-  } else {
-    mgr->MemCopyToHost(dst, src, size);
-  }
-}
-
-void * vmem_get_addr(uint64_t vaddr) {
-  return vta::vmem::VirtualMemoryManager::Global()->GetAddr(vaddr);
-}

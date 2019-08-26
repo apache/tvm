@@ -127,24 +127,4 @@ class VirtualMemoryManager {
 }  // namespace vmem
 }  // namespace vta
 
-/*!
- * \brief virtual memory based memory allocation
- */
-void * vmalloc(uint64_t size);
-
-/*!
- * \brief virtual memory based memory release
- */
-void vfree(void * ptr);
-
-/*!
- * \brief memory copy between virtual and logical
- */
-void vmemcpy(void * dst, const void * src, uint64_t size, VMemCopyType dir);
-
-/*!
- * \brief map virtual address to logical address
- */
-void * vmem_get_addr(uint64_t vaddr);
-
 #endif  // VTA_VMEM_VIRTUAL_MEMORY_H_
