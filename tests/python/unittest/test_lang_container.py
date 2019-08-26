@@ -27,7 +27,7 @@ def test_array_save_load_json():
     a = tvm.convert([1,2,3])
     json_str = tvm.save_json(a)
     a_loaded = tvm.load_json(json_str)
-    assert(a[1].value == 2)
+    assert(a_loaded[1].value == 2)
 
 
 def test_map():
