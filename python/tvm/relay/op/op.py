@@ -48,6 +48,22 @@ class Op(Expr):
         """
         return _OpGetAttr(self, attr_name)
 
+    def set_attr(self, attr_name, value, plevel=10):
+        """Set attribute about the operator.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name
+
+        value : object
+            The attribute value
+
+        plevel : int
+            The priority level
+        """
+        _OpSetAttr(self, attr_name, value, plevel)
+
 
 def get(op_name):
     """Get the Op for a given name
@@ -237,7 +253,7 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     level : int
         The priority level
     """
-    register(op_name, "shape_data_dependant", data_dependant)
+    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
 
 _init_api("relay.op", __name__)

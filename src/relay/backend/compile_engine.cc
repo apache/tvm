@@ -305,10 +305,10 @@ class ScheduleGetter :
   Array<Operation> scalars_;
 };
 
-// The getter to get shape function from functor.
-class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
+// Creates shape function from functor.
+class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
  public:
-  explicit ShapeFuncGetter() {}
+  MakeShapeFunc() {}
 
   std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
     for (auto param : prim_func->params) {
@@ -462,6 +462,8 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
 
   Array<Tensor> VisitExpr_(const CallNode* call_node) final {
     static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
+    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
+        "TShapeDataDependant");
     CHECK(call_node->op.as<OpNode>())
       << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
@@ -470,7 +472,10 @@ class ShapeFuncGetter : public ExprFunctor<Array<Tensor>(const Expr&)> {
       << "data-dependant shape func";
     CHECK_GT(fshape_func.count(op), 0)
       << "Internal error, cannot find ShapeFunc for " << op->name;
-    data_dependants_.push_back(op->shape_data_dependant);
+    CHECK_GT(tshape_data_dependant.count(op), 0)
+      << "Internal error, cannot find TShapeDataDependant for " << op->name;
+
+    data_dependants_.push_back(tshape_data_dependant[op]);
     // Visit all inputs
     Array<Tensor> inputs;
     int count_tuple = 0;
@@ -666,7 +671,7 @@ class CompileEngineImpl : public CompileEngineNode {
     With<Target> target_scope(key->target);
 
     CHECK(!value->cached_func.defined());
-    auto spair = ShapeFuncGetter().Create(key->source_func);
+    auto spair = MakeShapeFunc().Create(key->source_func);
     auto cache_node = make_node<CachedFuncNode>(
             *(spair.second.operator->()));
     cache_node->func_name = GetUniqueName(cache_node->func_name);

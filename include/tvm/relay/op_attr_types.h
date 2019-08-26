@@ -75,6 +75,11 @@ using TOpIsStateful = bool;
 using TNonComputational = bool;
 
 /*!
+ * \brief Mark the operator whether output shape is data dependant.
+ */
+using TShapeDataDependant = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention
