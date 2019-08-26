@@ -239,6 +239,8 @@ class PrettyPrinter :
       return PrintExpr(Downcast<Expr>(node), meta, try_inline);
     } else if (node.as_derived<TypeNode>()) {
       return PrintType(Downcast<Type>(node), meta);
+    } else if (node.as_derived<PatternNode>()) {
+      return PrintPattern(Downcast<Pattern>(node), meta);
     } else if (node.as_derived<ModuleNode>()) {
       return PrintMod(Downcast<Module>(node));
     } else {
@@ -488,13 +490,13 @@ class PrettyPrinter :
     Doc doc;
     doc << prefix;
     if (fn->type_params.size() > 0) {
-      doc << "<";
+      doc << "[";
       std::vector<Doc> type_params;
       for (const TypeVar& tv : fn->type_params) {
-        type_params.push_back(AllocTypeVar(tv));
+        type_params.push_back(Doc(tv->var->name_hint));
       }
       doc << PrintSep(type_params);
-      doc << ">";
+      doc << "]";
     }
     doc << "(";
     std::vector<Doc> params;
@@ -584,27 +586,54 @@ class PrettyPrinter :
     // TODO(jmp): Lots of code duplication here because PrintBody and PrintScope don't accept Docs.
     Doc doc;
     Doc body;
-    doc << "match " << Print(op->data) << " ";
-    doc << "{";
+    doc << "match";
+    if (!op->complete) {
+      doc << "?";
+    }
+    doc << " (" << Print(op->data) << ") {";
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
       Doc clause_doc;
-      clauses.push_back(clause_doc << Print(clause->lhs) << " -> "
-                                   << Print(clause->rhs));
+      clause_doc << "| " << Print(clause->lhs) << " => " << Print(clause->rhs);
+      clauses.push_back(clause_doc);
     }
     doc << Indent(2, body << PrintNewLine() << PrintSep(clauses, PrintNewLine())) << PrintNewLine();
     doc << "}";
     return doc;
   }
 
+  Doc PrintPattern(const Pattern& pattern, bool meta) {
+    // auto it = memo_type_.find(type);
+    // if (it != memo_type_.end()) return it->second;
+    // Doc printed_type;
+    // if (meta) {
+    //   printed_type = meta_.GetMetaNode(GetRef<NodeRef>(type.get()));
+    // } else {
+    //   printed_type = VisitType(type);
+    // }
+    // memo_type_[type] = printed_type;
+    // return printed_type;
+
+    // TODO(weberlo): memoize?
+    return VisitPattern(pattern);
+  }
+
   Doc VisitPattern_(const PatternConstructorNode* p) final {
     Doc doc;
-    doc << p->constructor->name_hint << "(";
-    std::vector<Doc> pats;
-    for (const auto& pat : p->patterns) {
-      pats.push_back(Print(pat));
+    doc << p->constructor->name_hint;
+    if (!p->patterns.empty()) {
+      doc << "(";
+      std::vector<Doc> pats;
+      for (const auto& pat : p->patterns) {
+        pats.push_back(Print(pat));
+      }
+      doc << PrintSep(pats) << ")";
     }
-    return doc << PrintSep(pats) << ")";
+    return doc;
+  }
+
+  Doc VisitPattern_(const PatternWildcardNode* pw) final {
+    return Doc("_");
   }
 
   Doc VisitPattern_(const PatternVarNode* pv) final {
@@ -647,7 +676,8 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const TypeVarNode* node) final {
-    return AllocTypeVar(GetRef<TypeVar>(node));
+    // return AllocTypeVar(GetRef<TypeVar>(node));
+    return Doc(node->var->name_hint);
   }
 
   Doc VisitType_(const GlobalTypeVarNode* node) final {
@@ -699,13 +729,13 @@ class PrettyPrinter :
     Doc doc;
     doc << "fn ";
     if (node->type_params.size() != 0) {
-      doc << "<";
+      doc << "[";
       std::vector<Doc> type_params;
       for (Type type_param : node->type_params) {
         type_params.push_back(Print(type_param));
       }
       doc << PrintSep(type_params);
-      doc << ">";
+      doc << "]";
     }
     std::vector<Doc> arg_types;
     for (Type arg_type : node->arg_types) {
@@ -741,7 +771,6 @@ class PrettyPrinter :
 
     return doc;
   }
-
 
   //------------------------------------
   // Overload of Attr printing functions

@@ -234,11 +234,6 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#incompleteType.
-    def visitIncompleteType(self, ctx:RelayParser.IncompleteTypeContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by RelayParser#typeParamList.
     def visitTypeParamList(self, ctx:RelayParser.TypeParamListContext):
         return self.visitChildren(ctx)

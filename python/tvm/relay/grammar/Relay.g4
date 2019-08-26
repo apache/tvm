@@ -53,18 +53,24 @@ BOOL_LIT
   | 'False'
   ;
 
+// START_UPPER_CNAME: UPPER_LETTER ('_'|LETTER|DIGIT)*;
+// START_LOWER_CNAME: LOWER_LETTER ('_'|LETTER|DIGIT)*;
 CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
 
-DATATYPE : 'int64';
 // non-negative floats
 fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
 
 FLOAT : PREFLOAT 'f';
 
+// BASE_TYPE : ('int'|'uint'|'float'|'bool') DIGIT*;
+BASE_TYPE : 'int32' ;
+
 // non-negative ints
 NAT: DIGIT+ ;
 fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
 
+fragment LOWER_LETTER: [a-z];
+fragment UPPER_LETTER: [A-Z];
 fragment LETTER: [a-zA-Z];
 fragment DIGIT: [0-9];
 
@@ -78,6 +84,9 @@ prog: SEMVER (defn* | expr) METADATA? EOF ;
 opIdent: CNAME ;
 globalVar: '@' CNAME ;
 localVar: '%' CNAME ;
+// TODO(weberlo): why does 'int32` generate a parse error when it's literally a
+// lexer token?
+// typeIdent: BASE_TYPE | START_UPPER_NAME ;
 typeIdent: CNAME ;
 graphVar: '%' NAT ;
 
@@ -122,7 +131,7 @@ expr
 func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-  | 'type' typeIdent typeParamList? '=' adtConstructor+                               # adtDefn
+  | 'type' typeIdent typeParamList? '=' adtConstructor+                   # adtDefn
   ;
 
 adtConstructor: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
@@ -136,6 +145,7 @@ pattern
   | localVar
   ;
 
+// constructorName: typeIdent ;
 constructorName: CNAME ;
 
 argList
@@ -147,6 +157,7 @@ varList: (var (',' var)*)?;
 var: localVar (':' typeExpr)?;
 
 attrSeq: attr (',' attr)*;
+// attr: LOWER_NAME '=' expr ;
 attr: CNAME '=' expr ;
 
 typeExpr
@@ -157,7 +168,7 @@ typeExpr
   | typeIdent                                                    # typeIdentType
   | 'Tensor' '[' shapeList ',' typeExpr ']'                         # tensorType
   | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr # funcType
-  | '_'                                                          # incompleteType
+  // | '_'                                                          # incompleteType
   // TODO: Why the fuck does this rule exist?
   // | NAT                                                          # intType
   ;
@@ -171,6 +182,7 @@ shapeList
   | shape
   ;
 
+// meta : 'meta' '[' LOWER_NAME ']' '[' NAT ']';
 meta : 'meta' '[' CNAME ']' '[' NAT ']';
 
 shape

@@ -741,7 +741,7 @@ def test_match():
     )
     mod[length_var] = length_func
 
-    print('WEEEE')
+    # TODO: Put these back in
     assert parses_as(
         """
         type List[A] =
@@ -749,7 +749,7 @@ def test_match():
           | Nil
 
         def @length[A](%xs: List[A]) -> int32 {
-          match (%xs) {
+          match? (%xs) {
             | Cons(_, %rest) => 1 + @length(%rest)
             | Nil => 0
           }
