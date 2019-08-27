@@ -66,6 +66,7 @@ def roundtrip(expr):
 
 
 def parse_text(code):
+    print('[BEFORE PARSE]')
     expr = relay.fromtext(SEMVER + "\n" + code)
     print('[PRETTY-PRINTED]')
     print(expr)
@@ -777,14 +778,12 @@ def test_adt_cons_expr():
 
     make_singleton_var = relay.GlobalVar("make_singleton")
     input_var = relay.Var("x", int32)
-    rest_var = relay.Var("rest")
-    length_func = relay.Function(
+    make_singleton_func = relay.Function(
         [input_var],
-        cons_constructor([input_var, nil_constructor()]),
-        list_var(int32),
-        [typ_var]
+        cons_constructor(input_var, nil_constructor()),
+        list_var(int32)
     )
-    mod[make_singleton_var] = length_func
+    mod[make_singleton_var] = make_singleton_func
 
     assert parses_as(
         """
@@ -793,7 +792,7 @@ def test_adt_cons_expr():
           | Nil
 
         def @make_singleton(%x: int32) -> List[int32] {
-          Cons(%x, Nil)
+          Cons(%x, Nil())
         }
         """,
         mod
@@ -801,30 +800,30 @@ def test_adt_cons_expr():
 
 
 if __name__ == "__main__":
-    test_comments()
-    test_int_literal()
-    test_float_literal()
-    test_bool_literal()
-    test_negative()
-    test_bin_op()
-    test_parens()
-    test_op_assoc()
-    test_let()
-    test_seq()
-    test_graph()
-    test_tuple()
-    test_func()
-    test_defn()
-    test_recursive_call()
-    test_ifelse()
-    test_call()
-    test_incomplete_type()
-    test_builtin_types()
-    test_tensor_type()
-    test_function_type()
-    test_tuple_type()
-    test_adt_defn()
-    test_multiple_cons_defn()
-    test_multiple_type_param_defn()
-    test_match()
-    # test_adt_cons_expr()
+    # test_comments()
+    # test_int_literal()
+    # test_float_literal()
+    # test_bool_literal()
+    # test_negative()
+    # test_bin_op()
+    # test_parens()
+    # test_op_assoc()
+    # test_let()
+    # test_seq()
+    # test_graph()
+    # test_tuple()
+    # test_func()
+    # test_defn()
+    # test_recursive_call()
+    # test_ifelse()
+    # test_call()
+    # test_incomplete_type()
+    # test_builtin_types()
+    # test_tensor_type()
+    # test_function_type()
+    # test_tuple_type()
+    # test_adt_defn()
+    # test_multiple_cons_defn()
+    # test_multiple_type_param_defn()
+    # test_match()
+    test_adt_cons_expr()

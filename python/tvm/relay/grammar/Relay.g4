@@ -83,15 +83,11 @@ METADATA: 'METADATA:' .*;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
-// prog: SEMVER (defn+ | expr) METADATA? EOF ;
 prog: SEMVER (defn* | expr) METADATA? EOF ;
 
 opIdent: START_LOWER_CNAME ('.' START_LOWER_CNAME)*;
 globalVar: '@' START_LOWER_CNAME ;
 localVar: '%' ('_' | START_LOWER_CNAME) ;
-// TODO(weberlo): why does 'int32` generate a parse error when it's literally a
-// lexer token?
-// typeIdent: BASE_TYPE | START_UPPER_NAME ;
 typeIdent: (baseType | START_UPPER_CNAME) ;
 graphVar: '%' NAT ;
 
@@ -103,43 +99,47 @@ callList
 
 expr
   // operators
-  : '(' expr ')'                              # paren
-  | '{' expr '}'                              # paren
+  : '(' expr ')'                                 # paren
+  | '{' expr '}'                                 # paren
+  // | adtCons                                      # adtConsExpr
   // function application
-  | expr '(' callList ')'                     # call
-  | '-' expr                                  # neg
-  | expr op=('*'|'/') expr                    # binOp
-  | expr op=('+'|'-') expr                    # binOp
-  | expr op=('<'|'>'|'<='|'>=') expr          # binOp
-  | expr op=('=='|'!=') expr                  # binOp
+  // TODO: Just make the adt constructor part of the func app case. disambiguate during parsing.
+  | expr '(' callList ')'                        # call
+  | '-' expr                                     # neg
+  | expr op=('*'|'/') expr                       # binOp
+  | expr op=('+'|'-') expr                       # binOp
+  | expr op=('<'|'>'|'<='|'>=') expr             # binOp
+  | expr op=('=='|'!=') expr                     # binOp
   // function definition
-  | func                                      # funcExpr
+  | func                                         # funcExpr
   // tuples and tensors
-  | '(' ')'                                   # tuple
-  | '(' expr ',' ')'                          # tuple
-  | '(' expr (',' expr)+ ')'                  # tuple
-  | '[' (expr (',' expr)*)? ']'               # tensor
-  | 'if' '(' expr ')' body 'else' body        # ifElse
-  | matchType '(' expr ')' '{' matchClause+ '}'    # match
-  | expr '.' NAT                              # projection
+  | '(' ')'                                      # tuple
+  | '(' expr ',' ')'                             # tuple
+  | '(' expr (',' expr)+ ')'                     # tuple
+  | '[' (expr (',' expr)*)? ']'                  # tensor
+  | 'if' '(' expr ')' body 'else' body           # ifElse
+  | matchType '(' expr ')' '{' matchClause+ '}'  # match
+  | expr '.' NAT                                 # projection
   // sequencing
-  | 'let' var '=' expr ';' expr               # let
+  | 'let' var '=' expr ';' expr                  # let
   // sugar for let %_ = expr; expr
-  | expr ';;' expr                            # let
-  | graphVar '=' expr ';' expr                # graph
-  | ident                                     # identExpr
-  | scalar                                    # scalarExpr
-  | meta                                      # metaExpr
-  | QUOTED_STRING                             # stringExpr
+  | expr ';;' expr                               # let
+  | graphVar '=' expr ';' expr                   # graph
+  | ident                                        # identExpr
+  | scalar                                       # scalarExpr
+  | meta                                         # metaExpr
+  | QUOTED_STRING                                # stringExpr
   ;
 
 func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-  | 'type' typeIdent typeParamList? '=' adtConstructor+                   # adtDefn
+  | 'type' typeIdent typeParamList? '=' adtConsDefn+                      # adtDefn
   ;
 
-adtConstructor: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
+constructorName: START_UPPER_CNAME ;
+
+adtConsDefn: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
 matchClause: '|' constructorName patternList? '=>' expr ;
 matchType : 'match' | 'match?' ;
 
@@ -150,8 +150,10 @@ pattern
   | localVar (':' typeExpr)?
   ;
 
-// constructorName: typeIdent ;
-constructorName: START_UPPER_CNAME ;
+// TODO: Making the param list optional makes the grammar ambiguous.
+adtCons: constructorName adtConsParamList? ;
+adtConsParamList: '(' adtConsParam (',' adtConsParam)* ')' ;
+adtConsParam: localVar | constructorName ;
 
 argList
   : varList              # argNoAttr
@@ -196,11 +198,6 @@ shape
   | NAT                                  # intShape
   ;
 
-// int8, int16, int32, int64
-// uint8, uint16, uint32, uint64
-// float16, float32, float64
-// bool
-
 body: '{' expr '}' ;
 
 scalar
@@ -213,6 +210,6 @@ ident
   : opIdent
   | globalVar
   | localVar
-  // | typeExpr
+  | typeIdent
   | graphVar
   ;

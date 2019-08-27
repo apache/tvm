@@ -189,15 +189,14 @@ class ParseTreeToRelayIR(RelayVisitor):
     def __init__(self, source_name):
         # type: (str) -> None
         self.source_name = source_name
-        self.module = module.Module({})   # type: module.Module
+        self.module = module.Module({})  # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
-        self.var_scopes = deque([deque()])                # type: Scopes[expr.Var]
-        self.global_var_scope = deque()                   # type: Scope[expr.GlobalVar]
-        self.type_param_scopes = deque([deque()])         # type: Scopes[ty.TypeVar]
-        self.global_type_param_scope = deque()            # type: Scope[expr.GlobalVar]
-        self.graph_expr = []                              # type: List[expr.Expr]
-        self.adts = {}
+        self.var_scopes = deque([deque()])       # type: Scopes[expr.Var]
+        self.global_var_scope = deque()          # type: Scope[expr.GlobalVar]
+        self.type_var_scopes = deque([deque()])  # type: Scopes[ty.TypeVar]
+        self.global_type_var_scope = deque()     # type: Scope[expr.GlobalVar]
+        self.graph_expr = []                     # type: List[expr.Expr]
 
         super(ParseTreeToRelayIR, self).__init__()
 
@@ -229,26 +228,34 @@ class ParseTreeToRelayIR(RelayVisitor):
     def enter_type_param_scope(self):
         # type: () -> None
         """Enter a new TypeVar scope so it can be popped off later."""
-        self.type_param_scopes.appendleft(deque())
+        self.type_var_scopes.appendleft(deque())
 
     def exit_type_param_scope(self):
         # type: () -> Scope[ty.TypeVar]
         """Pop off the current TypeVar scope and return it."""
-        return self.type_param_scopes.popleft()
+        return self.type_var_scopes.popleft()
 
     def mk_typ(self, name, kind):
         # (str, ty.Kind) -> ty.TypeVar
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.TypeVar(name, kind)
-        self.type_param_scopes[0].appendleft((name, typ))
+        self.type_var_scopes[0].appendleft((name, typ))
         return typ
 
-    def mk_global_typ(self, name, kind):
+    def mk_global_typ_var(self, name, kind):
         # (str, ty.Kind) -> ty.GlobalTypeVar
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.GlobalTypeVar(name, kind)
-        self.global_type_param_scope.append((name, typ))
+        self.global_type_var_scope.append((name, typ))
         return typ
+
+    # TODO: rethink whether we should have type constructors mixed with type vars.
+    def mk_global_typ_cons(self, name, cons):
+        if name in self.global_type_var_scope:
+            existing_cons = lookup([self.global_type_var_scope], name)
+            raise ParseError(
+                f'duplicate ADT definition "{name}" found in "{cons.belong_to.name}" and "{existing_cons.belong_to.name}"')
+        self.global_type_var_scope.append((name, cons))
 
     def visitProjection(self, ctx):
         return expr.TupleGetItem(self.visit(ctx.expr()), self.visit(ctx.NAT()))
@@ -492,7 +499,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitAdtDefn(self, ctx):
         adt_name = ctx.typeIdent().getText()
-        adt_handle = self.mk_global_typ(adt_name, ty.Kind.AdtHandle)
+        adt_handle = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
         self.enter_type_param_scope()
 
         # parse type params
@@ -504,20 +511,16 @@ class ParseTreeToRelayIR(RelayVisitor):
                            for type_ident in type_params.typeIdent()]
 
         # parse constructors
-        name_to_cons = {}
-        for constructor in ctx.adtConstructor():
-            inputs = [self.visit(inp) for inp in constructor.typeExpr()]
-            constructor_name = constructor.constructorName().getText()
-            constructor = adt.Constructor(constructor_name, inputs, adt_handle)
+        constructors = []
+        for cons_defn in ctx.adtConsDefn():
+            inputs = [self.visit(inp) for inp in cons_defn.typeExpr()]
+            cons_defn_name = cons_defn.constructorName().getText()
+            cons_defn = adt.Constructor(cons_defn_name, inputs, adt_handle)
+            self.mk_global_typ_cons(cons_defn_name, cons_defn)
+            constructors.append(cons_defn)
 
-            name_to_cons[constructor_name] = constructor
-
-        # update internal bookkeeping
-        if adt_name in self.adts:
-            raise ParseError(f'duplicate ADT definition "{adt_name}"')
-        self.adts[adt_name] = name_to_cons
         # update module being built
-        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, list(name_to_cons.values()))
+        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, constructors)
 
         self.exit_type_param_scope()
 
@@ -533,12 +536,10 @@ class ParseTreeToRelayIR(RelayVisitor):
         # TODO: Will need some kind of type checking to know which ADT is being
         # matched on.
         match_data = self.visit(ctx.expr())
-        # For now, we'll assume it's an annotated var and just grab its type.
-        constructors = self.adts[match_data.type_annotation.func.var.name]
         clauses = []
         for clause in ctx.matchClause():
             constructor_name = clause.constructorName().getText()
-            constructor = constructors[constructor_name]
+            constructor = lookup([self.global_type_var_scope], constructor_name)
             self.enter_var_scope()
             patternList = clause.patternList()
             if patternList is None:
@@ -571,6 +572,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             raise ParseError(f'invalid pattern syntax "{text}"')
 
+    def visitAdtCons(self, ctx):
+        import pdb; pdb.set_trace()
+
     def visitTypeExprType(self, ctx):
         type_params = ctx.typeParams()
         print(ctx.getText())
@@ -581,9 +585,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         print()
         # TODO: We need to handle arbitrarily nested type calls (e.g., `Maybe[List[Either[Int, Bool]]]`)
         def _parse_typ_var(name):
-            typ_var = lookup(self.type_param_scopes, name)
+            typ_var = lookup(self.type_var_scopes, name)
             if typ_var is None:
-                typ_var = lookup(self.global_type_param_scope, name)
+                typ_var = lookup(self.global_type_var_scope, name)
                 if typ_var is None:
                     # TODO: raise parse error?
                     raise RuntimeError(f'unbound var "{name}"')
@@ -612,14 +616,19 @@ class ParseTreeToRelayIR(RelayVisitor):
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
             return func(args, attrs, type_args)
-        return expr.Call(func, args, attrs, type_args)
+        elif isinstance(func, adt.Constructor):
+            return func(*args)
+        else:
+            return expr.Call(func, args, attrs, type_args)
 
     @spanify
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> expr.Call
         func = self.visit(ctx.expr())
         args, attrs = self.visit(ctx.callList())
-        return self.call(func, args, attrs, [])
+        res = self.call(func, args, attrs, [])
+        import pdb; pdb.set_trace()
+        return res
 
     @spanify
     def visitIfElse(self, ctx):
@@ -675,11 +684,10 @@ class ParseTreeToRelayIR(RelayVisitor):
                 return ty.scalar_type(type_name)
 
         # Next, look it up in the local then global type params
-        type_param = lookup(self.type_param_scopes, type_name)
+        type_param = lookup(self.type_var_scopes, type_name)
         if type_param is None:
-            type_param = lookup([self.global_type_param_scope], type_name)
+            type_param = lookup([self.global_type_var_scope], type_name)
             if type_param is None:
-                # TODO: raise parse error?
                 raise ParseError(f'unbound var "{type_name}"')
 
         return type_param

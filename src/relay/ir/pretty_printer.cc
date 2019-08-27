@@ -570,7 +570,12 @@ class PrettyPrinter :
     for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
       args.push_back(d);
     }
-    doc << Print(op->op);
+    const auto* cons_node = op->op.as<ConstructorNode>();
+    if (cons_node) {
+      doc << cons_node->name_hint;
+    } else {
+      doc << Print(op->op);
+    }
     return doc << "(" << PrintSep(args) << ")";
   }
 

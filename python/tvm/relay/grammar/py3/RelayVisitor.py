@@ -154,8 +154,13 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#adtConstructor.
-    def visitAdtConstructor(self, ctx:RelayParser.AdtConstructorContext):
+    # Visit a parse tree produced by RelayParser#constructorName.
+    def visitConstructorName(self, ctx:RelayParser.ConstructorNameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#adtConsDefn.
+    def visitAdtConsDefn(self, ctx:RelayParser.AdtConsDefnContext):
         return self.visitChildren(ctx)
 
 
@@ -179,8 +184,18 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#constructorName.
-    def visitConstructorName(self, ctx:RelayParser.ConstructorNameContext):
+    # Visit a parse tree produced by RelayParser#adtCons.
+    def visitAdtCons(self, ctx:RelayParser.AdtConsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#adtConsParamList.
+    def visitAdtConsParamList(self, ctx:RelayParser.AdtConsParamListContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#adtConsParam.
+    def visitAdtConsParam(self, ctx:RelayParser.AdtConsParamContext):
         return self.visitChildren(ctx)
 
 

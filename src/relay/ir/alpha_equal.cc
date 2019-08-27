@@ -563,10 +563,6 @@ class AlphaEqualHandler:
         || !ExprEqual(lhs->data, rhs->data)
         || lhs->clauses.size() != rhs->clauses.size()
         || lhs->complete != rhs->complete) {
-      std::cout << "AYY" << std::endl;
-      std::cout << ExprEqual(lhs->data, rhs->data) << std::endl;
-      std::cout << lhs->clauses.size() << "," << rhs->clauses.size() << std::endl;
-      std::cout << lhs->complete << "," << rhs->complete << std::endl;
       return false;
     }
 
