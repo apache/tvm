@@ -81,7 +81,8 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
-            'SPLIT': self.convert_split
+            'SPLIT': self.convert_split,
+            'TRANSPOSE': self.convert_transpose
         }
 
     def check_unsupported_ops(self):
@@ -261,7 +262,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "BILINEAR":
+        if method == "bilinear":
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -279,11 +280,11 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("BILINEAR", op)
+        return self._convert_resize("bilinear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
-        return self._convert_resize("NEAREST_NEIGHBOR", op)
+        return self._convert_resize("nearest_neighbor", op)
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
@@ -740,6 +741,31 @@ class OperatorConverter(object):
         if isinstance(out, _expr.TupleWrapper):
             if out.size == 1:
                 out = out[0]
+
+        return out
+
+    def convert_transpose(self, op):
+        """transpose implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # axis
+        in_axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        if not in_axis:
+            out = _op.transpose(in_expr)
+        else:
+            out = _op.transpose(in_expr, in_axis)
 
         return out
 

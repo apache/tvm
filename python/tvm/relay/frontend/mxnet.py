@@ -896,6 +896,14 @@ def _mx_rnn_layer(inputs, attrs):
             ret.append(_op.stack(inputs, axis=0))
     return ret
 
+def _mx_one_hot(inputs, attrs):
+    indices = inputs[0].astype('int32')
+    depth = attrs.get_int('depth', 0)
+    dtype = attrs.get_str('dtype', 'int32')
+    on_value = tvm.relay.const(attrs.get_float('on_value', 1.0), dtype)
+    off_value = tvm.relay.const(attrs.get_float('off_value', 0.0), dtype)
+    return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
+
 
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
@@ -1041,6 +1049,7 @@ _convert_map = {
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "one_hot"           : _mx_one_hot,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,

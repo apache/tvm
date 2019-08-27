@@ -20,5 +20,7 @@ def get_cat_image():
     dst = 'cat.png'
     real_dst = download_testdata(url, dst, module='data')
     img = Image.open(real_dst).resize((224, 224))
-    img = np.transpose(img, (2, 0, 1))[np.newaxis, :]
+    # CoreML's standard model image format is BGR
+    img_bgr = np.array(img)[:, :, ::-1]
+    img = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
     return np.asarray(img)

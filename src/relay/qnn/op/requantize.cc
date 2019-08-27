@@ -109,7 +109,7 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplie
  *       7) Cast to the out_dtype.
  */
 Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
-                     const Array<IndexExpr>& input_shape) {
+                     const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
   double double_multiplier = param->input_scale / param->output_scale;
 
   // Choose high precision datatype to be int64. This is for avoiding overflow
@@ -173,10 +173,10 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
   auto shifted_int64_t = Add(output_zp, scaled_int64_t);
 
   // 7) Clip to the out_dtype min/max.
-  auto q_min = GetQmin(param->out_dtype);
-  auto q_max = GetQmax(param->out_dtype);
+  auto q_min = GetQmin(out_dtype);
+  auto q_max = GetQmax(out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
-  return Cast(clipped_t, param->out_dtype);
+  return Cast(clipped_t, out_dtype);
 }
 
 /*
@@ -193,25 +193,32 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
  * Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
  */
 Expr RequantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
-                        const Array<tvm::relay::Type>& arg_types) {
+                        const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& quantized_data = new_args[0];
   const auto* param = attrs.as<RequantizeAttrs>();
   CHECK(param != nullptr);
 
   // Find input shape.
-  CHECK_EQ(arg_types.size(), 1);
-  auto input_dtype = arg_types[0];
-  auto input_tensor_type = input_dtype.as<TensorTypeNode>();
-  CHECK(input_tensor_type != nullptr) << "Type information missing."
-                                      << " Please run infer_type pass.";
-  Array<IndexExpr> input_shape = input_tensor_type->shape;
+  CHECK_EQ(types.size(), 2);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  CHECK(in_tensor_type != nullptr) << "Type information missing."
+                                   << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
+
+  // Find the output dtype.
+  auto out_type = types[1];
+  auto out_tensor_type = out_type.as<TensorTypeNode>();
+  CHECK(out_tensor_type != nullptr) << "Type information missing."
+                                    << " Please run infer_type pass.";
+  auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
   CHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
       << "TONEAREST";
-  return RequantizeLower(quantized_data, param, input_shape);
+  return RequantizeLower(quantized_data, param, input_shape, out_dtype);
 }
 
 /*
@@ -261,7 +268,7 @@ The requantize operator converts one quantized tensor to another quantized
 tensor. For the output tensor, we are provided with output scale and zero
 point. The computation looks like this
 
-Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.RequantizeAttrs")

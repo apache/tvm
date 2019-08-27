@@ -61,6 +61,8 @@ The minimal building requirements are
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
+- If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version,
+make sure you purge the older version and reboot after installation.
 - It is possible to build TVM without the LLVM dependency if you only want to use CUDA/OpenCL
 - If you want to use the NNVM compiler, then LLVM is required
 

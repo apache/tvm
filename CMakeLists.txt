@@ -131,10 +131,33 @@ file(GLOB COMPILER_SRCS
     src/schedule/*.cc
     )
 
-file(GLOB_RECURSE RELAY_SRCS
-    src/relay/*.cc
+file(GLOB_RECURSE RELAY_OP_SRCS
+    src/relay/op/*.cc
     )
-list(APPEND COMPILER_SRCS ${RELAY_SRCS})
+file(GLOB_RECURSE RELAY_PASS_SRCS
+    src/relay/pass/*.cc
+    )
+file(GLOB RELAY_BACKEND_SRCS
+    src/relay/backend/*.cc
+    src/relay/backend/vm/*.cc
+    )
+file(GLOB_RECURSE RELAY_IR_SRCS
+    src/relay/ir/*.cc
+    )
+file(GLOB_RECURSE RELAY_QNN_SRCS
+    src/relay/qnn/*.cc
+)
+list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
+
+if(USE_VM_PROFILER)
+  message(STATUS "Build compiler with Relay VM profiler support...")
+  file(GLOB BACKEND_VM_PROFILER_SRCS src/relay/backend/vm/profiler/*.cc)
+  list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
+endif(USE_VM_PROFILER)
 
 file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
@@ -197,6 +220,12 @@ if(USE_GRAPH_RUNTIME)
       PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
   endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
+
+if(USE_VM_PROFILER)
+  message(STATUS "Build with Relay VM profiler support...")
+  file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
+endif(USE_VM_PROFILER)
 
 # Module rules
 include(cmake/modules/VTA.cmake)

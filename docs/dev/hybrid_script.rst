@@ -23,23 +23,23 @@ If you are a developer:
 1. who is trying writing some preliminary patterns that have not been supported by TVM yet,
 maybe :ref:`hybrid-langref-label` is a better place for you.
 
-2. who wants to know the implementing details of this module, you are right here!
+2. who wants to know the implementation details of this module, you are right here!
 
 Features
 --------
 
-Software emulation
+Software Emulation
 ~~~~~~~~~~~~~~~~~~
 
-In software emulation, the most intresting thing is the decorator ``tvm.hybrid.script``.
+In software emulation, the most interesting thing is the decorator ``tvm.hybrid.script``.
 This decorator helps 2 things:
 
 1. Importing runtime variables
 
-2. Overload the function according to the arguments passed
+2. Overloading the function according to the arguments passed
 
 Correct me if I am wrong: I believe that how 1. is implemented is dangerous, but I have no
-choice. What I did is add those names into python dict ``func.__global__`` and after
+choice. What I did is to add those names into python dict ``func.__global__`` and after
 the call to ``func`` is done, those names will be cleaned up. 
 
 Overload is simple: the decorator checks the arguments' types and determines which function
@@ -86,7 +86,7 @@ Variables
 Because there is no variables in ``HalideIR``, all the mutatable variables will be lowered to an array with size 1.
 It takes the first store of a variable as its declaration.
 
-Math intrinsics
+Math Intrinsics
 ~~~~~~~~~~~~~~~
 So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``, ``tanh``, ``power``, and ``popcount``, are supported.
 Math intrinsics will be imported by the decorator. Most of the intrinsics are borrowed by library implementation

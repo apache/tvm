@@ -73,7 +73,8 @@ reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 @reg.register_compute("nn.batch_matmul")
 def compute_batch_matmul(attrs, inputs, out_type, target):
     """Compute definition of batch_matmul"""
-    return [topi.nn.batch_matmul(inputs[0], inputs[1])]
+    with target:
+        return [topi.nn.batch_matmul(inputs[0], inputs[1])]
 
 
 @reg.register_schedule("nn.batch_matmul")
@@ -205,10 +206,24 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
 @reg.register_legalize("nn.conv2d")
-def legalize_conv2d(attrs, inputs, arg_dtypes):
-    """Legalize conv2d"""
-    from ... import op
-    return topi.nn.conv2d_legalize(attrs, inputs, arg_dtypes, op)
+def legalize_conv2d(attrs, inputs, types):
+    """Legalize conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -375,6 +390,13 @@ def schedule_upsampling(_, outs, target):
     with target:
         return topi.generic.schedule_injective(outs)
 
+@reg.register_compute("nn.upsampling")
+def compute_upsampling(attrs, inputs, out_dtype, target):
+    scale = attrs.scale
+    layout = attrs.layout
+    method = attrs.method
+    align_corners = attrs.align_corners
+    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)

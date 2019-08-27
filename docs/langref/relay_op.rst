@@ -200,6 +200,7 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.nn.batch_matmul
    tvm.relay.contrib.adaptive_max_pool2d
    tvm.relay.contrib.adaptive_avg_pool2d
+   tvm.relay.one_hot
 
 
 **Level 11: Dialect Operators**
@@ -350,6 +351,7 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.nn.batch_matmul
 .. autofunction:: tvm.relay.contrib.adaptive_max_pool2d
 .. autofunction:: tvm.relay.contrib.adaptive_avg_pool2d
+.. autofunction:: tvm.relay.one_hot
 
 
 Level 11 Definitions

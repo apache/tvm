@@ -21,6 +21,7 @@
  * \file tvm/schedule.h
  * \brief Define a schedule.
  */
+// Acknowledgement: Many schedule primitives originate from Halide and Loopy.
 #ifndef TVM_SCHEDULE_H_
 #define TVM_SCHEDULE_H_
 

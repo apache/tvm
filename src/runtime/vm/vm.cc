@@ -721,8 +721,9 @@ Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>
   return Invoke(this->functions[func_index], args);
 }
 
-void InvokePacked(const PackedFunc& func, Index arg_count, Index output_size,
-                  const std::vector<Object>& args) {
+void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
+                                  Index arg_count, Index output_size,
+                                  const std::vector<Object>& args) {
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (args[i].ptr_->tag == ObjectTag::kDatatype) {
@@ -846,7 +847,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < arity; ++i) {
           args.push_back(ReadRegister(instr.packed_args[i]));
         }
-        InvokePacked(func, arity, instr.output_size, args);
+        InvokePacked(instr.packed_index, func, arity, instr.output_size, args);
         for (Index i = 0; i < instr.output_size; ++i) {
           WriteRegister(instr.packed_args[instr.arity - instr.output_size + i],
                         args[instr.arity - instr.output_size + i]);
