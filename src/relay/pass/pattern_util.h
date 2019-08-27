@@ -419,6 +419,10 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
+Expr MakeStack(Expr data);
+
+Expr MakeSplit(Expr data, int indices_or_sections, int axis);
+
 Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);
