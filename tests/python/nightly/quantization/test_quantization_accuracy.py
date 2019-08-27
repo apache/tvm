@@ -164,18 +164,18 @@ if __name__ == "__main__":
         Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.751),
 
         # resnet18_v2 best configuration
-        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.611),
-        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.612),
-        # Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.726),
-        # Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.752),
-        # Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.765),
+        Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.611),
+        Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.612),
+        Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.726),
+        Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.752),
+        Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.765),
 
         # resnet18_v1 history
-        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=2.0, expected_acc=0.000),
-        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.401),
-        Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.259),
-        Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.738),
-        Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.751),
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=2.0, expected_acc=0.000),
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.401),
+        # Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.259),
+        # Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.738),
+        # Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.751),
 
         # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.367),
         # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.672),
