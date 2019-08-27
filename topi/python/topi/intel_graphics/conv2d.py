@@ -22,12 +22,12 @@ from __future__ import absolute_import as _abs
 import tvm
 
 from tvm import autotvm
-from ..nn import pad
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, conv2d_infer_layout
 from ..nn.util import get_pad_tuple
 from ..util import simplify, get_const_tuple
 from ..nn.depthwise_conv2d import depthwise_conv2d_nchw
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+from ..nn import pad
 from .. import tag
 from .. import generic
 from .. import util
