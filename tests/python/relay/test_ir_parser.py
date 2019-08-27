@@ -66,22 +66,15 @@ def roundtrip(expr):
 
 
 def parse_text(code):
-    print('[BEFORE PARSE]')
     expr = relay.fromtext(SEMVER + "\n" + code)
-    print('[PRETTY-PRINTED]')
-    print(expr)
     roundtrip(expr)
     return expr
 
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
-    print('[ORIGINAL]')
-    print(code)
     parsed = parse_text(code)
-    print('[CHECKING EQULALALAALLALTYI]')
     result = alpha_equal(parsed, expr)
-    print('[FINISEHEHSHSHSED CHEKCIGN EEQUALTY]')
     return result
 
 def get_scalar(x):
@@ -798,32 +791,86 @@ def test_adt_cons_expr():
         mod
     )
 
+@raises_parse_error
+def test_duplicate_adt_defn():
+    parse_text(
+        """
+        type List[A] =
+          | Cons(A, List[A])
+          | Nil
+
+        type List[A] =
+          | Cons(A, List[A])
+          | Nil
+        """
+    )
+
+
+@raises_parse_error
+def test_duplicate_adt_cons():
+    parse_text(
+        """
+        type Ayy =
+          | Lmao
+
+        type Haha =
+          | Lmao
+        """
+    )
+
+
+@raises_parse_error
+def test_duplicate_adt_cons_defn():
+    parse_text(
+        """
+        type Ayy =
+          | Lmao
+
+        type Lmao =
+          | Ayy
+        """
+    )
+
+
+@raises_parse_error
+def test_duplicate_global_var():
+    parse_text(
+        """
+        def @id[A](%x: A) -> A { x }
+        def @id[A](%x: A) -> A { x }
+        """
+    )
+
 
 if __name__ == "__main__":
-    # test_comments()
-    # test_int_literal()
-    # test_float_literal()
-    # test_bool_literal()
-    # test_negative()
-    # test_bin_op()
-    # test_parens()
-    # test_op_assoc()
-    # test_let()
-    # test_seq()
-    # test_graph()
-    # test_tuple()
-    # test_func()
-    # test_defn()
-    # test_recursive_call()
-    # test_ifelse()
-    # test_call()
-    # test_incomplete_type()
-    # test_builtin_types()
-    # test_tensor_type()
-    # test_function_type()
-    # test_tuple_type()
-    # test_adt_defn()
-    # test_multiple_cons_defn()
-    # test_multiple_type_param_defn()
-    # test_match()
+    test_comments()
+    test_int_literal()
+    test_float_literal()
+    test_bool_literal()
+    test_negative()
+    test_bin_op()
+    test_parens()
+    test_op_assoc()
+    test_let()
+    test_seq()
+    test_graph()
+    test_tuple()
+    test_func()
+    test_defn()
+    test_recursive_call()
+    test_ifelse()
+    test_call()
+    test_incomplete_type()
+    test_builtin_types()
+    test_tensor_type()
+    test_function_type()
+    test_tuple_type()
+    test_adt_defn()
+    test_multiple_cons_defn()
+    test_multiple_type_param_defn()
+    test_match()
     test_adt_cons_expr()
+    test_duplicate_adt_defn()
+    test_duplicate_adt_cons()
+    test_duplicate_adt_cons_defn()
+    test_duplicate_global_var()
