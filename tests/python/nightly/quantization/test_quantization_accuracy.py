@@ -19,11 +19,12 @@ import tvm
 from tvm import relay
 from tvm.relay import quantize as qtz
 import mxnet as mx
+import numpy as np
 from mxnet import gluon
 import logging
 import os
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 Config = namedtuple('Config', ['model', 'nbit_input',  'dtype_input', 'nbit_output', 'dtype_output', 'global_scale', 'expected_acc'])
 
@@ -58,32 +59,39 @@ def get_val_data(model_name,
     return val_data, batch_fn
 
 
-def get_model(model_name, batch_size, qconfig, target=None, original=False, simulated=False):
+def get_model(model_name, batch_size, qconfig, target=None, original=False, simulated=False, calib_set=None):
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
     img_size = 299 if model_name == 'inceptionv3' else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
-    net = mod['main']
 
-    with relay.build_config(opt_level=3):
-        qfunc = relay.quantize.prerequisite_optimize(net, params=params)
+    qmod = relay.quantize.prerequisite_optimize(mod, params=params)
     logging.debug('original')
-    logging.debug(qfunc.astext(show_meta_data=False))
+    logging.debug(qmod['main'].astext(show_meta_data=False))
+
+    def visit(e):
+        if isinstance(e, tvm.relay.Call):
+            print(e.op.name)
+            for var in e.args:
+                if isinstance(var, tvm.relay.Constant):
+                    print(np.max(var.data.asnumpy()))
+    relay.analysis.post_order_visit(qmod['main'], visit)
+
     if original:
-        return qfunc
+        return qmod
 
     with qconfig:
         logging.debug('current quantize config')
         logging.debug(qtz.current_qconfig())
-        qfunc = qtz.quantize(qfunc)
+        qmod = qtz.quantize(qmod, dataset=calib_set)
         logging.debug('after quantize')
-        logging.debug(qfunc.astext(show_meta_data=False))
-    return qfunc
+        logging.debug(qmod['main'].astext(show_meta_data=False))
+    return qmod
 
 
-def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
+def eval_acc(mod, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(model, target)
+        graph, lib, params = relay.build(mod, target)
     # create runtime module
     m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
     m.set_input(**params)
@@ -111,20 +119,33 @@ def eval_acc(model, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), 
     logging.info('[final] validation: acc-top1=%f acc-top5=%f', top1, top5)
     return top1
 
+
+def get_calibration_dataset(dataset, batch_fn, num_samples=100):
+    dataset.reset()
+    for i, batch in enumerate(dataset):
+        if i * dataset.batch_size > num_samples:
+            break
+        data, label = batch_fn(batch, [mx.cpu(0)])
+        yield {'data': data[0].asnumpy()}
+
+
 def test_quantize_acc(cfg, rec_val):
     qconfig = qtz.qconfig(skip_conv_layers=[0],
                           nbit_input=cfg.nbit_input,
                           nbit_weight=cfg.nbit_input,
-                          global_scale=cfg.global_scale,
                           dtype_input=cfg.dtype_input,
                           dtype_weight=cfg.dtype_input,
                           dtype_activation=cfg.dtype_output,
+                          global_scale=cfg.global_scale,
+                          do_simulation=False,
                           debug_enabled_ops=None)
 
-    model = get_model(cfg.model, 32, qconfig, tvm.target.cuda())
     val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
+    calib_set = get_calibration_dataset(val_data, batch_fn)
 
-    acc = eval_acc(model, val_data, batch_fn)
+    mod = get_model(cfg.model, 32, qconfig, tvm.target.cuda(), calib_set=calib_set)
+
+    acc = eval_acc(mod, val_data, batch_fn)
     assert acc > cfg.expected_acc
     return acc
 
@@ -135,19 +156,63 @@ if __name__ == "__main__":
 
     results = []
     configs = [
-        Config('mobilenetv2_1.0', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.666),
+        # resnet18_v1 best configuration
+        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=8.0, expected_acc=0.675),
+        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.674),
+        Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.714),
+        Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.743),
+        Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.751),
 
-        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=8.0, expected_acc=0.692),
-        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.692),
-        Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.733),
-        Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.747),
-        Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.756),
-        # TODO: need to fix accuracy
-        # Config('mobilenetv2_1.0', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0),
+        # resnet18_v2 best configuration
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.611),
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.612),
+        # Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.726),
+        # Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.752),
+        # Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.765),
+
+        # resnet18_v1 history
+        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=2.0, expected_acc=0.000),
+        Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.401),
+        Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.259),
+        Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.738),
+        Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.751),
+
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.367),
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.672),
+        # Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.699),
+        # Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.743),
+        # Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.759),
+
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=8.0, expected_acc=0.675),
+        # Config('resnet18_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.674),
+        # Config('resnet34_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.714),
+        # Config('resnet50_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.696),
+        # Config('resnet101_v1', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.713),
+
+        # resnet18_v2 history
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=2.0, expected_acc=0.250)
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.454),
+        # Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.459),
+        # Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.752),
+        # Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=2.0, expected_acc=0.765),
+
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0, expected_acc=0.611),
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.612),
+        # Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.726),
+        # Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.750),
+        # Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=4.0, expected_acc=0.752),
+
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=8.0, expected_acc=0.500),
+        # Config('resnet18_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.500),
+        # Config('resnet34_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.705),
+        # Config('resnet50_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.661),
+        # Config('resnet101_v2', nbit_input=8, dtype_input='int8', nbit_output=32, dtype_output='int32', global_scale=8.0, expected_acc=0.526),
     ]
 
+    # global scales
     for config in configs:
         acc = test_quantize_acc(config, rec_val)
         results.append((config, acc))
     for res in results:
         print(res)
+
