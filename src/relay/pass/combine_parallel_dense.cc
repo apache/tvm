@@ -96,21 +96,6 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
   }
 
  private:
-  std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
-    int64_t num_filters = 0;  // number of filters of the transformed weight
-    Array<Expr> weights;
-    for (const auto& branch : branches) {
-      auto conv2d = branch[0];
-      weights.push_back(conv2d->args[1]);
-      auto channels = GetConv2DSuperChannelsDim(conv2d);
-      num_filters += channels;
-    }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
-    CHECK_NE(index, std::string::npos);
-    return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
-                           MakeConstScalar(Int(32), num_filters));
-  }
-
   // Combine dense into batch matmul.
   Call MakeCombinedDense(const Group& branches) {
     static const Op& batch_matmul = Op::Get("nn.batch_matmul");
@@ -218,7 +203,7 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
   }
 };
 
-/*! \brief Combine parallel conv2d if number of branches >= min_num_branches */
+/*! \brief Combine parallel dense if number of branches >= min_num_branches */
 Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches) {
   return ParallelDenseCombiner(min_num_branches).Combine(expr);
 }

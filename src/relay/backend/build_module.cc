@@ -299,6 +299,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
+    pass_seqs.push_back(transform::CombineParallelDense(3));
     pass_seqs.push_back(transform::FoldConstant());
     pass_seqs.push_back(transform::FoldScaleAxis());
     pass_seqs.push_back(transform::CanonicalizeCast());
