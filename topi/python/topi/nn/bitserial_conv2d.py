@@ -414,3 +414,24 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     return tvm.compute(oshape, lambda n, h, w, co:
                        conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
                        name='output_unpack', tag='spatial_bitserial_conv_nhwc')
+
+@tvm.target.generic_func
+def bitserial_conv2d_legalize(attrs, inputs, types):
+    """Legalizes Bitserial Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    return None

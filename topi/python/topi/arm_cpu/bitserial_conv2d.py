@@ -21,7 +21,7 @@ import tvm
 from tvm import autotvm
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc
+from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_legalize
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
@@ -350,3 +350,42 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
 
     traverse(outs[0].op)
     return s
+
+@bitserial_conv2d_legalize.register("arm_cpu")
+def _bitserial_conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Bitserial Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    if attrs['data_layout'] == 'NHWC':
+        data, kernel = inputs
+        if attrs['kernel_layout'] == 'HWIO':
+            # HWIO layout is expected for NHWC input.
+            return None
+        elif attrs['kernel_layout'] == 'HWOI':
+            # Handle HWOI layout. This is common in TF depthwise conv2d graph.
+            kernel = relay.transpose(kernel, axes=(0, 1, 3, 2))
+        elif attrs['kernel_layout'] == 'OIHW':
+            kernel = relay.transpose(kernel, axes=(2, 3, 1, 0))
+
+        ## Set new attrs for the tranposed conv.
+        new_attrs = {k: attrs[k] for k in attrs.keys()}
+        new_attrs['data_layout'] = 'NHWC'
+        new_attrs['kernel_layout'] = 'HWIO'
+
+        conv = relay.nn.bitserial_conv2d(data, kernel, **new_attrs)
+        return conv
+    return None

@@ -88,4 +88,25 @@ def binary_op_multiplier(pack_dtype):
     pack_dtype: string
         pack type for the operator (must be a uint)"""
     return int(pack_dtype[4:])
-    
+
+
+@tvm.target.generic_func
+def bitpack_legalize(attrs, inputs, types):
+    """Legalizes Bitpack op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    return None
