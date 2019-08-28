@@ -122,8 +122,8 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
                 kernel = kernel_vec
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
-           
-           # TODO: move to schedule_nhwc later
+
+        # TODO: move to schedule_nhwc later
             if 'nhwc' in op.tag:
                 _schedule_spatial_pack_nhwc(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
             else:
@@ -251,12 +251,14 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
                          name='output_unpack', tag='spatial_conv2d_output')
     return output
 
-def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, num_tile):
+
+def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation,
+                            layout, out_dtype, num_tile):
     assert layout == "NHWC", "Only support NHWC"
     # create workload according to raw arguments
     out_dtype = out_dtype or data.dtype
     N, IH, IW, CI = get_const_tuple(data.shape)
-   
+
     # TODO? Dilation
 
     if len(kernel.shape) == 4:
@@ -267,7 +269,7 @@ def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, layou
         CO, _, KH, KW, VC = get_const_tuple(kernel.shape)
         CO = CO * VC
 
-    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple( padding, (KH, KW))
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     OH = (IH + pad_top + pad_bottom - KH) // HSTR + 1
     OW = (IW + pad_left + pad_right - KW) // WSTR + 1
@@ -313,13 +315,15 @@ def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, layou
 
     # undilate input data
     dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
-    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
-                               name='data_vec')
+    data_vec = tvm.compute(
+        dvshape,
+        lambda n, h, w, ci, vh, vw: data_pad[n][ci][h * VH * HSTR + vh][w * VW * WSTR + vw],
+        name='data_vec')
 
-    kernel_vec = tvm.compute(kvshape, lambda co, ci, kh, kw, vc:
-                                kernel[co*VC+vc][ci][kh][kw],
-                                name='kernel_vec')
+    kernel_vec = tvm.compute(
+        kvshape,
+        lambda co, ci, kh, kw, vc: kernel[co * VC + vc][ci][kh][kw],
+        name='kernel_vec')
 
     ci = tvm.reduce_axis((0, CI), name='ci')
     kh = tvm.reduce_axis((0, KH), name='kh')
@@ -395,8 +399,8 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     return s
 
 
-def _schedule_spatial_pack_nhwc(cfg, s, data_vec, kernel_vec,
-                           conv, output, last):
+def _schedule_spatial_pack_nhwc(cfg, s, data_vec, kernel_vec, conv, output,
+                                last):
     """schedule implementation"""
     n, oh, ow, co, vh, vw, vc = s[conv].op.axis
     ci, kh, kw = s[conv].op.reduce_axis
