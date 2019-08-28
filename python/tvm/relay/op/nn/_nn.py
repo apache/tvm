@@ -663,6 +663,26 @@ def schedule_bitserial_conv2d(attrs, outs, target):
     else:
         raise ValueError("Data layout not supported.")
 
+@reg.register_legalize("nn.bitserial_conv2d")
+def legalize_bitserial_conv2d(attrs, inputs, types):
+    """Legalize bitserial_conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.bitserial_conv2d_legalize(attrs, inputs, types)
+
 
 reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 

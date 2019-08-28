@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
+from tvm import relay
 from .. import tag
 from ..nn.pad import pad
 from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_legalize
@@ -370,22 +371,20 @@ def _bitserial_conv2d_legalize(attrs, inputs, arg_types):
         The legalized expr
     """
 
+    # Fix different kernel layouts where possible.
     if attrs['data_layout'] == 'NHWC':
         data, kernel = inputs
-        if attrs['kernel_layout'] == 'HWIO':
+        if len(kernel.data.shape) == 4:
             # HWIO layout is expected for NHWC input.
-            return None
-        elif attrs['kernel_layout'] == 'HWOI':
-            # Handle HWOI layout. This is common in TF depthwise conv2d graph.
-            kernel = relay.transpose(kernel, axes=(0, 1, 3, 2))
-        elif attrs['kernel_layout'] == 'OIHW':
-            kernel = relay.transpose(kernel, axes=(2, 3, 1, 0))
+            if attrs['kernel_layout'] == 'HWOI':
+                # Handle HWOI layout. This is common in TF depthwise conv2d graph.
+                kernel = relay.transpose(kernel, axes=(0, 1, 3, 2))
+            elif attrs['kernel_layout'] == 'OIHW':
+                kernel = relay.transpose(kernel, axes=(2, 3, 1, 0))
+            ## Set new attrs for the tranposed conv.
+            new_attrs = {k: attrs[k] for k in attrs.keys()}
+            new_attrs['kernel_layout'] = 'HWIO'
 
-        ## Set new attrs for the tranposed conv.
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs['data_layout'] = 'NHWC'
-        new_attrs['kernel_layout'] = 'HWIO'
-
-        conv = relay.nn.bitserial_conv2d(data, kernel, **new_attrs)
-        return conv
+            conv = relay.nn.bitserial_conv2d(data, kernel, **new_attrs)
+            return conv
     return None

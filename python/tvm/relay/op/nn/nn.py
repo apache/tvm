@@ -1506,6 +1506,7 @@ def bitserial_conv2d(data,
                      activation_bits=1,
                      weight_bits=1,
                      data_layout='NCHW',
+                     kernel_layout='OIHW',
                      pack_dtype='uint32',
                      out_dtype='int16',
                      unipolar=True):
@@ -1540,6 +1541,9 @@ def bitserial_conv2d(data,
     data_layout : str, optional
         Layout of the input.
 
+    kernel_layout : str, optional
+        Layout of the kernel
+
     pack_dtype: str, optional
         Datatype to pack bits into.
 
@@ -1554,7 +1558,8 @@ def bitserial_conv2d(data,
 
     return _make.bitserial_conv2d(data, weight, strides, padding, channels,
                                   kernel_size, activation_bits, weight_bits,
-                                  data_layout, pack_dtype, out_dtype, unipolar)
+                                  data_layout, kernel_layout, pack_dtype,
+                                  out_dtype, unipolar)
 
 
 def bitserial_dense(data,
