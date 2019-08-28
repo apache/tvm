@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
+# pylint: disable=unused-argument, redefined-builtin
 """Bitserial Conv2D operators"""
 from __future__ import absolute_import as _abs
 import tvm
