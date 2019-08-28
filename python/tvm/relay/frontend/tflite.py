@@ -935,7 +935,8 @@ class OperatorConverter(object):
         reshaped = _op.reshape(in_expr, newshape=shape1)
 
         # Permute dimensions of reshaped to produce permuted of shape
-        axes = [M] + [axis for i in range(M) for axis in [M + i + 1, i]] + list(range(2 * M + 1, len(shape1)))
+        axes = [M] + [axis for i in range(M) for axis in [M + i + 1, i]] + \
+            list(range(2 * M + 1, len(shape1)))
         permuted = _op.transpose(reshaped, axes=axes)
 
         # Reshape permuted to produce reshaped_permuted of shape
