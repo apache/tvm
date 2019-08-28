@@ -337,6 +337,34 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_bitserial_dense():
+    m, k = tvm.var("m"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((m, k), "int16"))
+    w = relay.var("w", relay.TensorType((k, 32), "int16"))
+    y = relay.nn.bitserial_dense(x, w, units=32)
+    "units=8" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((m, 32), "int16")
+
+    x = relay.var("x", shape=(32, 32), dtype="int16")
+    w = relay.var("w", shape=(32, 32), dtype="int16")
+    z = relay.nn.dense(x, w)
+
+    # Check result.
+    func = relay.Function([x, w], z)
+    x_data = np.random.randint(0, 10, size=(32, 32)).astype("int16")
+    w_data = np.random.randint(0, 10, size=(32, 32)).astype("int16")
+    ref_res = np.dot(x_data, w_data.T)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_bias_add()
@@ -349,3 +377,4 @@ if __name__ == "__main__":
     test_dropout()
     test_batch_norm()
     test_dense()
+    test_bitserial_dense()
