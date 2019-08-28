@@ -112,6 +112,7 @@ class ScheduleGetter :
         const auto* tuple_type = param->type_as<TupleTypeNode>();
         for (Type field : tuple_type->fields) {
           const auto* ttype = field.as<TensorTypeNode>();
+          // TODO(@icemelon): Allow recursive tuple
           CHECK(ttype != nullptr);
           tvm::Tensor tensor = tvm::placeholder(
               GetShape(ttype->shape), ttype->dtype);
@@ -336,6 +337,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       } else {
         // flatten tuple of tensor type.
         const auto *tuple_type = param->type_as<TupleTypeNode>();
+        // TODO(@icemelon): Support recursive tuple
         CHECK(tuple_type);
         for (Type field : tuple_type->fields) {
           const auto *ttype = field.as<TensorTypeNode>();
@@ -498,6 +500,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
     } else {
       auto rtype = ret_type.as<TupleTypeNode>();
+      // TODO(@icemelon): Allow recursive tuple
       CHECK(rtype);
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         auto ttype = rtype->fields[i].as<TensorTypeNode>();

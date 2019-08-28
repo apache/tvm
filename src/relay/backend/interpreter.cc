@@ -381,6 +381,7 @@ class Interpreter :
       << "Shape function input sizes mismatch";
 
     auto fset_shape_output = [&](size_t i, Type val_type) {
+        // TODO(@icemelon): allow recursive tuple
         const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
         CHECK(rtype != nullptr);
         int64_t ndim = rtype->shape.size();
