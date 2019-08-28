@@ -117,7 +117,16 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
     act_type = type(keras_layer).__name__
 
     if act_type == 'Softmax':
-        return _op.nn.softmax(inexpr, axis=1)
+        axis = keras_layer.axis
+        dims = len(keras_layer.input_shape)
+        if isinstance(axis, list):
+            raise tvm.error.OpAttributeUnImplemented(
+                'Softmax with axes {} is not supported.'.format(axis))
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims - 1 else 1
+        return _op.nn.softmax(inexpr, axis=axis)
     if act_type == 'ReLU':
         if keras_layer.max_value:
             return _op.clip(inexpr, a_min=0., a_max=float(keras_layer.max_value))
@@ -344,7 +353,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
         params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Padding with {} is not supported in operator Pooling.'.format(keras_layer.padding))
     if pool_type == 'MaxPooling2D':
         return _op.nn.max_pool2d(inexpr, **params)

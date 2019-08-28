@@ -95,6 +95,11 @@ def test_forward_merge():
 def test_forward_activations():
     data = keras.layers.Input(shape=(32, 32, 3))
     act_funcs = [keras.layers.Activation('softmax'),
+                 keras.layers.Softmax(),
+                 keras.layers.Softmax(axis=-1),
+                 keras.layers.Softmax(axis=1),
+                 keras.layers.Softmax(axis=2),
+                 keras.layers.Softmax(axis=3),
                  keras.layers.Activation('softplus'),
                  keras.layers.Activation('relu'),
                  keras.layers.Activation('softsign'),
@@ -103,7 +108,6 @@ def test_forward_activations():
                  keras.layers.Activation('tanh'),
                  keras.layers.Activation('linear'),
                  keras.layers.Activation('selu'),
-                 keras.layers.Softmax(),
                  keras.layers.ReLU(),
                  keras.layers.ReLU(max_value=6.),
                  keras.layers.LeakyReLU(alpha=0.3),
