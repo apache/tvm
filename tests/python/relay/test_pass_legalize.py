@@ -220,7 +220,7 @@ def test_legalize_arm_layout_functional():
 
     a = before()
     b = run_opt_pass(a, transform.Legalize())
-    assert b.astext().count('transpose') == 3
+    assert b.astext().count('transpose') == 1
 
     wdata = np.random.rand(32, 16, 3, 3) * 10
     wref = wdata.transpose([2, 3, 1, 0])
