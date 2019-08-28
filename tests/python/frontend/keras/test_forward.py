@@ -84,13 +84,26 @@ def test_forward_merge():
                    keras.layers.Average(),
                    keras.layers.Concatenate()]
     for merge_func in merge_funcs:
-        if isinstance(merge_func, keras.layers.merge.Subtract):
+        if isinstance(merge_func, (keras.layers.merge.Subtract, keras.layers.merge.Dot)):
             out = merge_func([x, y])
         else:
             out = merge_func([x, y, z])
         keras_model = keras.models.Model(data, out)
         verify_keras_frontend(keras_model)
 
+def test_forward_merge_dot():
+    data1 = keras.layers.Input(shape=(2, 2))
+    data2 = keras.layers.Input(shape=(2, 2))
+    merge_funcs = [keras.layers.Dot(axes=[1, 2]),
+                   keras.layers.Dot(axes=[2, 1]),
+                   keras.layers.Dot(axes=[1, 1]),
+                   keras.layers.Dot(axes=[2, 2]),
+                   keras.layers.Dot(axes=1),
+                   keras.layers.Dot(axes=2)]
+    for merge_func in merge_funcs:
+        out = merge_func([data1, data2])
+        keras_model = keras.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model)
 
 def test_forward_activations():
     data = keras.layers.Input(shape=(32, 32, 3))
@@ -281,6 +294,7 @@ def test_forward_mobilenet():
 
 if __name__ == '__main__':
     test_forward_merge()
+    test_forward_merge_dot()
     test_forward_activations()
     test_forward_dense()
     test_forward_permute()
