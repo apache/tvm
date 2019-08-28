@@ -18,20 +18,41 @@
  */
 #pragma once
 
-#include <string>
-#include <unordered_map>
 
-#include "../meta_data.h"
-#include "vulkan_shader.h"
+#include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/packed_func.h>
+
+#include <vector>
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
-Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
-                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
+
+struct VulkanShader {
+  /*! \brief header flag */
+  uint32_t flag{0};
+  /*! \brief Data segment */
+  std::vector<uint32_t> data;
+
+  void Save(dmlc::Stream* writer) const {
+    writer->Write(flag);
+    writer->Write(data);
+  }
+  bool Load(dmlc::Stream* reader) {
+    if (!reader->Read(&flag)) return false;
+    if (!reader->Read(&data)) return false;
+    return true;
+  }
+};
 
 }  // namespace vulkan
 
-using vulkan::VulkanModuleCreate;
+using vulkan::VulkanShader;
 }  // namespace runtime
 }  // namespace tvm
+
+namespace dmlc {
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::VulkanShader, true);
+}  // namespace dmlc

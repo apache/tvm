@@ -62,8 +62,7 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
-#include "../src/runtime/vulkan/vulkan_device_api.cc"
-#include "../src/runtime/vulkan/vulkan_module.cc"
+#include "../src/runtime/vulkan/vulkan.cc"
 #endif
 
 #ifdef USE_SORT
