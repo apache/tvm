@@ -263,11 +263,13 @@ def conv2d_grad(orig, grad):
 
 @register_gradient("nn.softmax")
 def softmax_grad(orig, grad):
+    """Gradient of softmax"""
     return [(grad - _sum(grad * orig, orig.attrs.axis, True)) * orig]
 
 
 @register_gradient("nn.bias_add")
 def bias_grad(orig, grad):
+    """Returns grad"""
     data, bias = orig.args
     return [collapse_sum_like(grad, data),
             collapse_sum_like(grad, bias)]
@@ -275,6 +277,7 @@ def bias_grad(orig, grad):
 
 @register_gradient("nn.dense")
 def dense_grad(orig, grad):
+    """Returns [grad' @ weight, data @ grad']"""
     data, weight = orig.args
     return [collapse_sum_like(transpose(grad) * weight, data),
             collapse_sum_like(data * transpose(grad), weight)]
@@ -282,12 +285,14 @@ def dense_grad(orig, grad):
 
 @register_gradient("nn.batch_flatten")
 def batch_flatten_grad(orig, grad):
+    """Returns grad reshaped to data dims"""
     data = orig.args[0]
     return [reshape_like(grad, data)]
 
 
 @register_gradient("transpose")
 def transpose_grad(orig, grad):
+    """Returns grad transposed over the complement of original transpose axes"""
     orig_axes = orig.attrs.axes
     if orig_axes:
         dims = len(orig_axes)
@@ -301,10 +306,12 @@ def transpose_grad(orig, grad):
 
 @register_gradient("negative")
 def negative_grad(orig, grad):
+    """Returns -grad"""
     return [-grad]
 
 
 @register_gradient("sum")
 def sum_grad(orig, grad):
+    """Returns grad broadcasted to data dims"""
     data = orig.args[0]
     return [broadcast_to_like(grad, data)]
