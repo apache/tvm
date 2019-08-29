@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_int, get_const_tuple
+from topi.util import get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
 
@@ -144,19 +144,20 @@ def compute_conv2d(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
+    def _get_out_depth():
+        weight_shape = get_const_tuple(inputs[1].shape)
+        if kernel_layout == "HWOI":
+            return weight_shape[2] * weight_shape[3]
+        return weight_shape[0] * weight_shape[1]
+
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
             dilation, layout, out_dtype)
-    elif layout == "NCHW" and \
-            get_const_int(inputs[1].shape[0]) == groups and \
-            get_const_int(inputs[1].shape[1]) == 1:
+    elif layout == "NCHW" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-    elif layout == "NHWC" and \
-            kernel_layout == "HWOI" and\
-            get_const_int(inputs[1].shape[2]) == groups and \
-            get_const_int(inputs[1].shape[3]) == 1:
+    elif layout == "NHWC" and kernel_layout == "HWOI" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nhwc(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout in ['NCHW', 'NCHW4c']:
