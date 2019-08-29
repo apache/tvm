@@ -84,7 +84,7 @@ elseif(PYTHON)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      file(GLOB FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
+      list(APPEND FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
