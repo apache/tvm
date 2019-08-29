@@ -320,6 +320,7 @@ Expr MakeConv2DTranspose(Expr data,
                          Array<IndexExpr> kernel_size,
                          std::string data_layout,
                          std::string kernel_layout,
+                         std::string out_layout,
                          Array<IndexExpr> output_padding,
                          DataType out_dtype) {
   auto attrs = make_node<Conv2DTransposeAttrs>();
@@ -332,6 +333,7 @@ Expr MakeConv2DTranspose(Expr data,
   attrs->groups = groups;
   attrs->data_layout = std::move(data_layout);
   attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("nn.conv2d_transpose");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
