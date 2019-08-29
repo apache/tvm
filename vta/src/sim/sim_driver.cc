@@ -276,9 +276,7 @@ class Device {
   Device() {
     prof_ = Profiler::ThreadLocal();
     dram_ = DRAM::Global();
-#ifdef USE_FSIM_TLPP
     ptlpp = TlppVerify::Global();
-#endif
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,
@@ -290,9 +288,7 @@ class Device {
     for (uint32_t i = 0; i < insn_count; ++i) {
       this->Run(insn + i);
     }
-#ifdef USE_FSIM_TLPP
     this->TlppSynchronization();
-#endif
     return 0;
   }
 
@@ -316,18 +312,12 @@ class Device {
 
  private:
   void Run(const VTAGenericInsn* insn) {
-#ifdef USE_FSIM_TLPP
     ptlpp->TlppPushInsn(insn);
-#else
-    Run_Insn(insn, this);
-#endif
   }
-#ifdef USE_FSIM_TLPP
+
   void TlppSynchronization(void) {
     ptlpp->TlppSynchronization(Run_Insn, reinterpret_cast<void *> (this));
   }
-#endif
-
 
   void RunLoad(const VTAMemInsn* op) {
     if (op->x_size == 0) return;

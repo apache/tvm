@@ -147,8 +147,5 @@ set(USE_VTA_FSIM ON)
 # Whether to build cycle-accurate VTA simulator driver
 set(USE_VTA_TSIM ON)
 
-# Whether to build fast VTA simulator with tlpp logic
-set(USE_VTA_FSIM_TLPP ON)
-
 # Whether to build VTA FPGA driver (device side only)
 set(USE_VTA_FPGA OFF)

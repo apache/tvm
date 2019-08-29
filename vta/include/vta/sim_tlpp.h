@@ -33,6 +33,7 @@
 #include <ctime>
 #include <cassert>
 #include <queue>
+
 #define SCOREGEMM "gemm"
 #define SCORELOAD "load"
 #define SCORESTORE "store"
