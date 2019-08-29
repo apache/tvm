@@ -343,6 +343,27 @@ def test_llvm_bool():
     check_llvm(64)
 
 
+def test_llvm_arith_size():
+    print("test_llvm_arith_size")
+    def check_llvm(N, n):
+        if not tvm.module.enabled("llvm"):
+            return
+        A = tvm.placeholder((N, ), name='A')
+        C = tvm.compute((N,), lambda i: A[i], name='C')
+        s = tvm.create_schedule(C.op)
+        # build and invoke the kernel.
+        f = tvm.build(s, [A, C], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        c = tvm.nd.empty((n,), A.dtype, ctx)
+        f(a, c)
+        c_np = a.asnumpy()
+        tvm.testing.assert_allclose(c.asnumpy(), c_np)
+    check_llvm(8 * tvm.var('N'), 8)
+    check_llvm(32 * tvm.var('N'), 64)
+
+
 def test_rank_zero():
     def check_llvm(n):
         if not tvm.module.enabled("llvm"):
@@ -587,6 +608,7 @@ if __name__ == "__main__":
     test_llvm_bool()
     test_llvm_persist_parallel()
     test_llvm_condition()
+    test_llvm_arith_size()
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()

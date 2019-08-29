@@ -46,25 +46,41 @@ void BinderAddAssert(Expr cond,
   }
 }
 
+// Deal with things like arg = 8 * M
+// TODO(Yizhi Liu): make it more general
+std::pair<Expr, Expr> TryExtractVariable(const Expr& arg, const Expr& value) {
+  Expr var, factor;
+  if (const Mul* op = arg.as<Mul>()) {
+    var = op->a.as<Variable>() ? op->a : op->b;
+    factor = op->a.as<Variable>() ? op->b : op->a;
+    if (var.as<Variable>() && factor.as<IntImm>()) {
+      return std::make_pair(var, value / factor);
+    }
+  }
+  return std::make_pair(arg, value);
+}
+
 bool ArgBinder::Bind_(const Expr& arg,
                       const Expr& value,
                       const std::string& arg_name,
                       bool with_lets) {
   CHECK_EQ(arg.type(), value.type());
-  if (const Variable* v = arg.as<Variable>()) {
+  Expr new_arg, new_value;
+  std::tie(new_arg, new_value) = TryExtractVariable(Simplify(arg), value);
+  if (const Variable* v = new_arg.as<Variable>()) {
     auto it = def_map_->find(v);
     if (it == def_map_->end()) {
-      Var v_arg(arg.node_);
+      Var v_arg(new_arg.node_);
       defs_.emplace_back(v_arg);
       if (with_lets) {
-        (*def_map_)[v] = arg;
-        init_nest_.emplace_back(LetStmt::make(v_arg, value, Evaluate::make(0)));
+        (*def_map_)[v] = new_arg;
+        init_nest_.emplace_back(LetStmt::make(v_arg, new_value, Evaluate::make(0)));
       } else {
-        (*def_map_)[v] = value;
+        (*def_map_)[v] = new_value;
       }
       return true;
     } else {
-      BinderAddAssert(it->second == value, arg_name, &asserts_);
+      BinderAddAssert(it->second == new_value, arg_name, &asserts_);
     }
   } else {
     BinderAddAssert(arg == value, arg_name, &asserts_);
