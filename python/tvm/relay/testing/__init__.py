@@ -56,72 +56,71 @@ def run_infer_type(expr):
     return run_opt_pass(expr, transform.InferType())
 
 
-def rand_from_type(t):
-    return relay.Constant(rand(t.dtype, *[int(d) for d in t.shape]))
+def _np_randn_from_type(t, scale=1):
+    return (scale * np.random.randn(*(int(d) for d in t.shape))).astype(t.dtype)
 
 
-CHECK_GRAD_COUNTER = 0
-def check_grad(func, mod=None):
+def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3):
+    """Perform numerical gradient checking given a relay function.
+
+    Compare analytical gradients to numerical gradients derived from two-sided approximation. Note
+    that this test may fail if your function input types are not of high enough precision.
+
+    Parameters
+    ----------
+    func : tvm.relay.Function
+        The relay function to test.
+
+    inputs: List[np.array]
+        Optional user-provided input parameters to use. If not given, will generate random normal
+        inputs scaled to be close to the chosen epsilon value to avoid numerical precision loss.
+
+    eps: float
+        The epsilon value to use for computing numerical gradient approximation.
+
+    atol: float
+        The absolute tolerance on difference between numerical and analytical gradients. Note that
+        this needs to be scaled appropriately relative to the chosen eps and inputs.
+
+    rtol: float
+        The relative tolerance on difference between numerical and analytical gradients. Note that
+        this needs to be scaled appropriately relative to the chosen eps.
+
     """
-    Test that directional gradient calculated by reverse mode
-    is close to the one calculated by finite difference.
-    """
-    global CHECK_GRAD_COUNTER
-    if mod is None:
-        mod = relay.Module()
-    def make(name):
-        return GlobalVar(name + str(CHECK_GRAD_COUNTER))
-    func_name = make("func_")
-    back_func_name = make("back_func_")
-    finite_difference_func_name = make("finite_difference_")
-    reverse_mode_func_name = make("reverse_mode_")
-    check_func_name = make("check_func_")
-    CHECK_GRAD_COUNTER = CHECK_GRAD_COUNTER + 1
-    epsilon = relay.const(0.01)
-    mod[func_name] = func
-    mod[back_func_name] = gradient(mod[func_name], mod=mod)
-    params = mod[func_name].params
-    directions = [rand_from_type(x.checked_type) for x in params]
-    ft = TensorType(())
-    sb = ScopeBuilder()
-    def get_reverse_mode_result(e, d, t):
-        assert isinstance(t, TensorType)
-        return op.cast(e * d, 'float32')
-    bf = sb.let("bf", TupleGetItem(back_func_name(*params), 1))
-    reverse_mode_results = [get_reverse_mode_result(TupleGetItem(bf, i),
-                                                    directions[i],
-                                                    x.checked_type)
-                            for i, x in enumerate(params)]
-    reverse_mode_result = relay.const(0.0)
-    for x in reverse_mode_results:
-        reverse_mode_result = reverse_mode_result + op.reduce.sum(x)
-    sb.ret(reverse_mode_result)
-    reverse_mode_result = sb.get()
-    mod[reverse_mode_func_name] = Function(params,
-                                           reverse_mode_result,
-                                           ft,
-                                           mod[func_name].type_params,
-                                           mod[func_name].attrs)
-    finite_difference_result = op.reduce.sum((func_name(*[x + epsilon * y for x, y in
-                                                          zip(params, directions)]) -
-                                              func_name(*params)) /
-                                             epsilon)
 
-    mod[finite_difference_func_name] = Function(params,
-                                                finite_difference_result,
-                                                ft,
-                                                mod[func_name].type_params,
-                                                mod[func_name].attrs)
-    check_func_result = op.abs(reverse_mode_func_name(*params) -
-                               finite_difference_func_name(*params))
-    mod[check_func_name] = Function(params,
-                                    check_func_result,
-                                    ft,
-                                    mod[func_name].type_params,
-                                    mod[func_name].attrs)
-    ex = create_executor(mod=mod)
-    res = ex.evaluate(check_func_name(*[rand_from_type(x.checked_type) for x in params]))
-    assert res.data.asnumpy() < 0.001
+    fwd_func = run_infer_type(func)
+    bwd_func = run_infer_type(gradient(fwd_func))
+
+    if inputs is None:
+        params = fwd_func.params
+        # Generate random inputs on the same scale as epsilon to avoid numerical precision loss.
+        inputs = [_np_randn_from_type(x.checked_type, scale=(10 * eps)) for x in params]
+
+    for target, ctx in ctx_list():
+        intrp = relay.create_executor(ctx=ctx, target=target)
+
+        # Get analytic gradients.
+        _, grads = intrp.evaluate(bwd_func)(*inputs)
+        grads = [grad.asnumpy().astype("float64") for grad in grads]
+
+        # Get numeric gradients for each dimension of each param, using two-sided approximation.
+        approx_grads = []
+        for x in inputs:
+            approx_grad = np.zeros(x.shape)
+            for i in np.ndindex(*x.shape):
+                x_i = x[i]
+                x[i] = x_i + eps
+                fwd_plus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                x[i] = x_i - eps
+                fwd_minus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                x[i] = x_i
+                approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
+            approx_grads.append(approx_grad)
+
+        # Compare gradients by checking that relative difference is below tolerance.
+        for grad, approx_grad in zip(grads, approx_grads):
+            np.testing.assert_allclose(grad, approx_grad, atol=atol, rtol=rtol)
+
 
 def rand(dtype, *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
