@@ -255,7 +255,6 @@ class PrettyPrinter :
   }
 
   Doc AllocTemp() {
-    std::cout << "HWERE WITH " << std::endl;
     return TempVar(temp_var_counter_++);
   }
 
@@ -615,19 +614,16 @@ class PrettyPrinter :
   }
 
   Doc PrintPattern(const Pattern& pattern, bool meta) {
-    // auto it = memo_type_.find(type);
-    // if (it != memo_type_.end()) return it->second;
-    // Doc printed_type;
-    // if (meta) {
-    //   printed_type = meta_.GetMetaNode(GetRef<NodeRef>(type.get()));
-    // } else {
-    //   printed_type = VisitType(type);
-    // }
-    // memo_type_[type] = printed_type;
-    // return printed_type;
-
-    // TODO(weberlo): memoize?
-    return VisitPattern(pattern);
+    auto it = memo_pattern_.find(pattern);
+    if (it != memo_pattern_.end()) return it->second;
+    Doc printed_pattern;
+    if (meta) {
+      printed_pattern = meta_.GetMetaNode(GetRef<NodeRef>(pattern.get()));
+    } else {
+      printed_pattern = VisitPattern(pattern);
+    }
+    memo_pattern_[pattern] = printed_pattern;
+    return printed_pattern;
   }
 
   Doc VisitPattern_(const PatternConstructorNode* p) final {
@@ -847,6 +843,8 @@ class PrettyPrinter :
   std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
   /*! \brief Map from Type to Doc */
   std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
+  /*! \brief Map from Type to Doc */
+  std::unordered_map<Pattern, Doc, NodeHash, NodeEqual> memo_pattern_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief meta data context */

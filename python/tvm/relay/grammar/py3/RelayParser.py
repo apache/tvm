@@ -228,7 +228,7 @@ def serializedATN():
         buf.write("\u01c5\7\30\2\2\u01c5\u01c8\3\2\2\2\u01c6\u01c8\5> \2")
         buf.write("\u01c7\u01ba\3\2\2\2\u01c7\u01bc\3\2\2\2\u01c7\u01c6\3")
         buf.write("\2\2\2\u01c8;\3\2\2\2\u01c9\u01ca\7-\2\2\u01ca\u01cb\7")
-        buf.write("\33\2\2\u01cb\u01cc\7?\2\2\u01cc\u01cd\7\34\2\2\u01cd")
+        buf.write("\33\2\2\u01cb\u01cc\7>\2\2\u01cc\u01cd\7\34\2\2\u01cd")
         buf.write("\u01ce\7\33\2\2\u01ce\u01cf\7A\2\2\u01cf\u01d0\7\34\2")
         buf.write("\2\u01d0=\3\2\2\2\u01d1\u01d8\5<\37\2\u01d2\u01d3\7\27")
         buf.write("\2\2\u01d3\u01d4\5> \2\u01d4\u01d5\7\30\2\2\u01d5\u01d8")
@@ -3167,8 +3167,8 @@ class RelayParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def START_LOWER_CNAME(self):
-            return self.getToken(RelayParser.START_LOWER_CNAME, 0)
+        def START_UPPER_CNAME(self):
+            return self.getToken(RelayParser.START_UPPER_CNAME, 0)
 
         def NAT(self):
             return self.getToken(RelayParser.NAT, 0)
@@ -3196,7 +3196,7 @@ class RelayParser ( Parser ):
             self.state = 456
             self.match(RelayParser.T__24)
             self.state = 457
-            self.match(RelayParser.START_LOWER_CNAME)
+            self.match(RelayParser.START_UPPER_CNAME)
             self.state = 458
             self.match(RelayParser.T__25)
             self.state = 459

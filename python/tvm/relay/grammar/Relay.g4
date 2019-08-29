@@ -189,7 +189,7 @@ shapeList
   ;
 
 // meta : 'meta' '[' LOWER_NAME ']' '[' NAT ']';
-meta : 'meta' '[' START_LOWER_CNAME ']' '[' NAT ']';
+meta : 'meta' '[' START_UPPER_CNAME ']' '[' NAT ']';
 
 shape
   : meta # metaShape

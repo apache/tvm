@@ -461,7 +461,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return (var_list, attr_list)
 
     def visitMeta(self, ctx):
-        type_key = str(ctx.CNAME())
+        type_key = str(ctx.START_UPPER_CNAME())
         index = int(self.visit(ctx.NAT()))
         return self.meta[type_key][index]
 
