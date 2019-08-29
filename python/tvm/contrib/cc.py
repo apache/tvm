@@ -55,6 +55,29 @@ def create_shared(output,
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
 
+
+def build_create_shared_func(options=None, compile_cmd="g++"):
+    """Build create_shared function with particular default options and compile_cmd.
+
+    Parameters
+    ----------
+    options : List[str]
+        The list of additional options string.
+
+    compile_cmd : Optional[str]
+        The compiler command.
+
+    Returns
+    -------
+    create_shared_wrapper : Callable[[str, str, Optional[str]], None]
+        A compilation function that can be passed to export_library or to autotvm.LocalBuilder.
+    """
+    def create_shared_wrapper(output, objects, options=options, compile_cmd=compile_cmd):
+        create_shared(output, objects, options, compile_cmd)
+    create_shared_wrapper.output_format = create_shared.output_format
+    return create_shared_wrapper
+
+
 def cross_compiler(compile_func, base_options=None, output_format="so"):
     """Create a cross compiler function.
 
@@ -63,7 +86,7 @@ def cross_compiler(compile_func, base_options=None, output_format="so"):
     compile_func : Callable[[str, str, Optional[str]], None]
         Function that performs the actual compilation
 
-    options : Optional[List[str]]
+    base_options : Optional[List[str]]
         List of additional optional string.
 
     output_format : Optional[str]
