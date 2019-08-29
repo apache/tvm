@@ -601,9 +601,11 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   void RewriteForceSerial() {
     int insn_count = count();
     VTAMemInsn* mem_ptr = reinterpret_cast<VTAMemInsn*>(data());
+    VTAMemInsn* mem_last_store_ptr = nullptr;
+    VTAMemInsn* mem_last_ptr = nullptr;
     for (int i = 1; i < insn_count; ++i) {
-      PipelineStage prev = GetPipelineStage(mem_ptr + i - 1);
-      PipelineStage now = GetPipelineStage(mem_ptr + i);
+      PipelineStage prev = GetPipelineStageAll(mem_ptr + i - 1);
+      PipelineStage now = GetPipelineStageAll(mem_ptr + i);
       if (prev == kLoadStage && now == kComputeStage) {
         mem_ptr[i - 1].push_prev_dep = false;
         mem_ptr[i - 1].push_next_dep = true;
@@ -630,7 +632,30 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         mem_ptr[i].pop_prev_dep = false;
         mem_ptr[i].pop_next_dep = false;
       }
+      if (now == kStoreStage) {
+        mem_last_store_ptr = &mem_ptr[i];
+      }
+      mem_last_ptr = &mem_ptr[i];
     }
+    // set dependency to make sure all core instruction get excuted
+    // before last FINISH instruction
+    if (mem_last_store_ptr && mem_last_ptr == mem_last_store_ptr) {
+      mem_last_store_ptr->push_prev_dep = true;
+      if (!pending_pop_next_[kComputeStage]) {
+        DepPop(kStoreStage, kComputeStage);
+      }
+      CommitPendingPop(kComputeStage);
+    } else {
+        pending_pop_next_[kComputeStage] = 0;
+    }
+    DepPush(kComputeStage, kLoadStage);
+    DepPop(kLoadStage, kComputeStage);
+    if (!pending_pop_next_[kLoadStage]) {
+      DepPop(kComputeStage, kLoadStage);
+    }
+    CommitPendingPop(kLoadStage);
+    DepPush(kLoadStage, kComputeStage);
+    CommitPendingPop(kComputeStage);
   }
   // Helper function: Get Opcode string
   const char* getOpcodeString(int opcode, bool use_imm) {
@@ -912,6 +937,14 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     LOG(FATAL) << "not reached";
     return kNoneStage;
   }
+
+  // Get stage of memory and computation
+  static PipelineStage GetPipelineStageAll(VTAMemInsn* insn) {
+      PipelineStage stage = GetPipelineStage(insn);
+      if (stage != kNoneStage) return stage;
+      return GetMemPipelineStage(insn->memory_type);
+  }
+
   // Push no-op
   void PushNoop(int stage,
                 bool push_prev_dep, bool push_next_dep,
@@ -1069,13 +1102,14 @@ class CommandQueue {
     // Insert dependences to force serialization
     if (debug_flag_ & VTA_DEBUG_FORCE_SERIAL) {
       insn_queue_.RewriteForceSerial();
+    } else {
+      // This will issue finish after last store finishes
+      insn_queue_.DepPush(kStoreStage, kComputeStage);
+      insn_queue_.DepPush(kLoadStage, kComputeStage);
+      insn_queue_.DepPop(kStoreStage, kComputeStage);
+      insn_queue_.DepPop(kLoadStage, kComputeStage);
+      insn_queue_.CommitPendingPop(kComputeStage);
     }
-    // This will issue finish after last store finishes
-    insn_queue_.DepPush(kStoreStage, kComputeStage);
-    insn_queue_.DepPush(kLoadStage, kComputeStage);
-    insn_queue_.DepPop(kStoreStage, kComputeStage);
-    insn_queue_.DepPop(kLoadStage, kComputeStage);
-    insn_queue_.CommitPendingPop(kComputeStage);
     // NOTE: FINISH cannot contain pop
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
     insn->opcode = VTA_OPCODE_FINISH;
