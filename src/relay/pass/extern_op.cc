@@ -57,11 +57,11 @@ class ExternOpWrapper : public ExprMutator {
           Expr begin = (*begin_op)(it, compiler_);
           subgraph_begins.push_back(begin);
         }
-        Expr begin_call = CallNode::make(call->op, subgraph_begins, call->attrs);
+        Expr update_call = CallNode::make(call->op, subgraph_begins, call->attrs);
         const auto* end_op =
           runtime::Registry::Get("relay.op.annotation._make.subgraph_end");
         CHECK(end_op);
-        Expr end = (*end_op)(begin_call, compiler_);
+        Expr end = (*end_op)(update_call, compiler_);
         return end;
       }
     }
@@ -73,31 +73,71 @@ class ExternOpWrapper : public ExprMutator {
 };
 
 /*!
- * \brief Eleminates the back-to-back subgraph_begin and end annotations if they
- * are using the same external compiler. For example, the following graph
+ * \brief Eleminates the back-to-back subgraph_begin(s) and end(e) annotations
+ * if they are using the same external compiler. For example, the following
+ * Relay program
  *
- *  subgraph_begin
+ *       b
  *       |
  *      op1
  *       |
- *  subgraph_end
+ *       e
  *       |
- *  subgraph_begin
+ *       b
  *       |
  *      op2
  *       |
- *  subgraph_end
+ *       e
  *
  * will be updated to if op1 and op2 require codegen from the same external
  * compiler.
  *
- *  subgraph_begin
+ *       b
  *       |
  *      op1
  *       |
  *      op2
  *       |
- *  subgraph_end
+ *       e
+ *
+ * However, in the following case (op1-6 and op8 use external compiler and op7
+ * uses tvm codegen), we cannot simply cancel all back-to-back `start` and
+ * `end` annotations even if they use the same external compiler.
+ *
+ * For example, op1-6 and op8 would be grouped into the same subgraph if we
+ * cancel the back-to-back start and end annotations, leaving op7 alone in a
+ * separate subgraph. Unfortunately, it creates a cycle where one output of
+ * the former subgraph flows into the latter, and meanwhile it requires the
+ * the computed results of op7 from the latter subgraph.
+ *
+ * Hence, we should prevent op1-6 and op8 falling into the same subgraph all
+ * together in such a case.
+ *
+ *       |
+ *       b
+ *       |
+ *      op1
+ *    /  |  \
+ *   e   e   e
+ *   |   |   |
+ *   b   b   b
+ *   |   |   |
+ *  op2 op3 op4
+ *   |   |   |
+ *   e   e   e
+ *   |   |   |
+ *   b   b   |
+ *   |   |   |
+ *  op5 op6 op7
+ *   |   |   |
+ *   e   e   |
+ *   |   |   |
+ *   b   b   b
+ *    \  |  /
+ *      op8
+ *       |
+ *       e
+ *       |
  */
 struct EliminateAnnotation : public ExprMutator {
   Expr VisitExpr_(const CallNode* cn) {
