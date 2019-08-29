@@ -37,6 +37,7 @@
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
+#include "transform.h"
 
 namespace tvm {
 namespace relay {
@@ -210,86 +211,6 @@ RELAY_REGISTER_OP("expand_dims")
 // relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
-bool ConcatenateRel(const Array<Type>& types,
-                    int num_inputs,
-                    const Attrs& attrs,
-                    const TypeReporter& reporter) {
-  // types: [data, result]
-  CHECK_EQ(types.size(), 2);
-  /* If we receive a tuple we can continue, if we receive
-   * anything but an incomplete type we should signal an
-   * error.
-  */
-  const auto* tensor_tuple = types[0].as<TupleTypeNode>();
-  if (tensor_tuple == nullptr) {
-    throw relay::Error(
-        RELAY_ERROR(
-          "concatenate requires a tuple of tensors as the first argument, found "
-        << PrettyPrint(types[0])));
-  } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
-    return false;
-  }
-
-  const auto* param = attrs.as<ConcatenateAttrs>();
-  if (tensor_tuple->fields[0].as<IncompleteTypeNode>()) {
-    return false;
-  }
-  const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
-  // Sanity check: ndim and dtype.
-  const int ndim = static_cast<int>(first->shape.size());
-  const DataType dtype = first->dtype;
-
-  for (const Type& ele : tensor_tuple->fields) {
-    if (ele.as<IncompleteTypeNode>()) {
-      return false;
-    }
-
-    const auto& e = Downcast<TensorType>(ele);
-
-    int e_ndim = static_cast<int>(e->shape.size());
-    const DataType& e_dtype = e->dtype;
-    if (e_ndim != ndim) {
-      throw relay::Error("relay.concatenate requires all tensors have the same ndim");
-    }
-    if (e_dtype != dtype) {
-      throw relay::Error("relay.concatenate requires all tensors have the same dtype");
-    }
-  }
-  // Sanity check: axis
-  int axis = param->axis;
-  if (!(-ndim <= axis && axis < ndim)) {
-    throw relay::Error(RELAY_ERROR(
-      "concatenate only accepts `axis` in [-ndim, ndim)" <<
-      ", but got axis = " << axis <<
-      ", and ndim = " << ndim));
-  }
-  axis = axis < 0 ? ndim + axis : axis;
-  // Calculate shape
-  std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  IndexExpr &concat_dim = oshape[axis];
-  bool has_any = false;
-  if (concat_dim.as<Any>()) {
-    has_any = true;
-  } else {
-    for (int i = 1; i < static_cast<int>(tensor_tuple->fields.size()); ++i) {
-      const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
-      if (e->shape[axis].as<Any>()) {
-        has_any = true;
-        break;
-      }
-      concat_dim += e->shape[axis];
-    }
-  }
-
-  if (has_any) {
-    concat_dim = Any::make();
-  }
-
-  auto rtype = TensorTypeNode::make(oshape, dtype);
-  reporter->Assign(types[1], rtype);
-  return true;
-}
-
 Array<Tensor> ConcatenateCompute(const Attrs& attrs,
                           const Array<Tensor>& inputs,
                           const Type& out_type,
@@ -358,7 +279,7 @@ RELAY_REGISTER_OP("concatenate")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
-.add_type_rel("Concatenate", ConcatenateRel)
+.add_type_rel("Concatenate", ConcatenateRel<ConcatenateAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout)
 .set_attr<FTVMCompute>("FTVMCompute", ConcatenateCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);

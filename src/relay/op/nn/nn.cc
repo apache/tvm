@@ -35,6 +35,7 @@
 #include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
+#include "nn.h"
 
 namespace tvm {
 namespace relay {
@@ -102,45 +103,6 @@ RELAY_REGISTER_OP("nn.bias_add")
 // relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
-
-bool DenseRel(const Array<Type>& types,
-              int num_inputs,
-              const Attrs& attrs,
-              const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
-  const auto* data = types[0].as<TensorTypeNode>();
-  const auto* weight = types[1].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-
-  const DenseAttrs* param = attrs.as<DenseAttrs>();
-  CHECK(param != nullptr);
-
-  CHECK(static_cast<int>(data->shape.size()) != 0);
-
-  Array<tvm::Expr> oshape = data->shape;
-  if (param->units.defined()) {
-    Array<tvm::Expr> dshape = data->shape;
-    // validate the weight shape is proper if defined
-    // Assign weight type
-    Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
-    oshape.Set((oshape.size() - 1), param->units);
-  } else {
-    if (weight == nullptr) return false;
-    Array<tvm::Expr> wshape = weight->shape;
-    oshape.Set((oshape.size() - 1), wshape[0]);
-  }
-
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
-  }
-  // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
-  return true;
-}
-
-
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
@@ -171,7 +133,7 @@ RELAY_REGISTER_OP("nn.dense")
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight", "2D Tensor", "Weight matrix.")
 .set_support_level(1)
-.add_type_rel("Dense", DenseRel);
+.add_type_rel("Dense", DenseRel<DenseAttrs>);
 
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
