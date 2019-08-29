@@ -35,9 +35,7 @@ def astext(p, unify_free_vars=False):
     txt = p.astext()
     if isinstance(p, Expr) and free_vars(p):
         return txt
-    print('BEFORE PARSE')
     x = relay.fromtext(txt)
-    print('AFTER PARSE')
     if unify_free_vars:
         assert_graph_equal(x, p)
     else:
@@ -228,25 +226,6 @@ def test_zeros():
     x = relay.op.zeros([], "float32")
     show(astext(x))
 
-def test_adt_defn():
-    adt_var = GlobalTypeVar("List")
-    a = TypeVar("A")
-    nil_cons = Constructor("Nil", [], adt_var)
-    cons_cons = Constructor("Cons", [a, adt_var(a)], adt_var)
-    list_adt = TypeData(adt_var, [a], [nil_cons, cons_cons])
-    show(astext(list_adt))
-
-def test_match():
-    pass
-
-
-def test_cast():
-    data = relay.var('data', dtype='float32')
-    fp16_cast = relay.cast(data, dtype='float16')
-    cast_func = relay.Function(relay.analysis.free_vars(fp16_cast), fp16_cast)
-    astext(cast_func)
-
-
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -268,6 +247,3 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
-    test_adt_defn()
-    test_match()
-    test_cast()

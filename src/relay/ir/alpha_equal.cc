@@ -600,7 +600,7 @@ TVM_REGISTER_API("relay._make._alpha_equal")
 TVM_REGISTER_API("relay._make._assert_alpha_equal")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
-  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not alpha equal";
+  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
 TVM_REGISTER_API("relay._make._graph_equal")
@@ -611,7 +611,7 @@ TVM_REGISTER_API("relay._make._graph_equal")
 TVM_REGISTER_API("relay._make._assert_graph_equal")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
-  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not graph equal";
+  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
 });
 
 }  // namespace relay

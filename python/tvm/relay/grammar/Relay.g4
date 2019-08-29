@@ -17,7 +17,7 @@
  * under the License.
  */
 
-// TODO: We need some way of indicating to users that you need to enable
+// TODO(weberlo): We need some way of indicating to users that you need to enable
 // USE_ANTLR in config.cmake.
 /*
  * NOTE: All upper-case rules are *lexer* rules and all lower-case rules are *parser* rules.
@@ -164,7 +164,6 @@ varList: (var (',' var)*)?;
 var: localVar (':' typeExpr)?;
 
 attrSeq: attr (',' attr)*;
-// attr: LOWER_NAME '=' expr ;
 attr: START_LOWER_CNAME '=' expr ;
 
 typeExpr
