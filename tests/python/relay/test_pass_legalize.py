@@ -183,7 +183,7 @@ def test_legalize_arm_layout_functional():
         out = m.get_output(0, tvm.nd.empty((1, 224, 224, 32), 'float32')).asnumpy()
         return out
 
-    def ref():
+    def before():
         n, ic, ih, iw, oc, kh, kw = 1, 16, 224, 224, 32, 3, 3
         data = relay.var("data", relay.TensorType((n, ih, iw, ic), 'float32'))
         kernel = relay.var("kernel", relay.TensorType((kh, kw, ic, oc), 'float32'))
@@ -198,21 +198,6 @@ def test_legalize_arm_layout_functional():
         func = relay.Function([data, kernel], y)
         return func
 
-    def before():
-        n, ic, ih, iw, oc, kh, kw = 1, 16, 224, 224, 32, 3, 3
-        data = relay.var("data", relay.TensorType((n, ih, iw, ic), 'float32'))
-        kernel = relay.var("kernel", relay.TensorType((oc, ic, kh, kw), 'float32'))
-        y = relay.nn.conv2d(data, kernel,
-                            kernel_size=(kh, kw),
-                            channels=oc,
-                            padding=(1, 1),
-                            dilation=(1, 1),
-                            data_layout='NHWC',
-                            kernel_layout='OIHW',
-                            out_dtype='float32')
-        func = relay.Function([data, kernel], y)
-        return func
-
     @register_legalize("nn.conv2d", level=105)
     def legalize_conv2d(attrs, inputs, types):
         from topi.arm_cpu.conv2d import _conv2d_legalize
@@ -220,14 +205,12 @@ def test_legalize_arm_layout_functional():
 
     a = before()
     b = run_opt_pass(a, transform.Legalize())
-    assert b.astext().count('transpose') == 1
+    assert b.astext().count('transpose') == 3
 
-    wdata = np.random.rand(32, 16, 3, 3) * 10
-    wref = wdata.transpose([2, 3, 1, 0])
+    wdata = np.random.rand(3, 3, 16, 32) * 10
     parameters = {"kernel": tvm.nd.array(wdata.astype('float32'))}
-    ref_parameters = {"kernel": tvm.nd.array(wref.astype('float32'))}
     data_val = np.random.rand(1, 224, 224, 16).astype('float32')
-    ref_out = get_output(ref(), data_val, ref_parameters)
+    ref_out = get_output(a, data_val, parameters)
     legalized_out = get_output(b, data_val, parameters)
     np.testing.assert_allclose(ref_out, legalized_out, rtol=0.01)
 

@@ -88,3 +88,4 @@ def binary_op_multiplier(pack_dtype):
     pack_dtype: string
         pack type for the operator (must be a uint)"""
     return int(pack_dtype[4:])
+    
