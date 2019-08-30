@@ -32,6 +32,8 @@
 #include <tvm/relay/transform.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
+#include <string>
 #include "./expr_subst.h"
 #include "./pattern_util.h"
 
@@ -88,7 +90,7 @@ class ParallelOpCombiner {
   explicit ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches);
 
   Expr Combine(const Expr& expr);
- 
+
  protected:
   // Returns true if the op represented by CallNode n is supported to be the
   // root of a branch to be combined. Otherwise, returns false.
@@ -96,7 +98,7 @@ class ParallelOpCombiner {
 
   // Returns true if ops represented by CallNodes a and b can be combined.
   // Otherwise, returns false.
-  virtual bool AreCompatibleOps(const CallNode* a, const CallNode* b) = 0;
+  virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) = 0;
 
   // Create Call that consists of the combined ops. This usually involves concatenating
   // or stacking inputs, then creating a new call.
@@ -105,12 +107,19 @@ class ParallelOpCombiner {
   // Returns true if arguments of a and b at index index can be combined.
   virtual bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) = 0;
 
-  // Create combined call of other ops in depth-th level. This usually involves concatenating
-  // or stacking inputs, then creating a new call.
-  virtual Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) = 0;
+  // Create combined call of ops that follow initial combined op in depth-th level. 
+  // This usually involves concatenating or stacking inputs, then creating a new call.
+  // Only called if IsArgCompatible returns true for each arg.
+  virtual Call MakeCombinedCallFromFollowingOps(const Expr& data,
+                                                const Group& branches,
+                                                size_t depth,
+                                                size_t parent_index) = 0;
 
   // Replace output of each branch with slices of the combined output.
-  virtual void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) = 0;
+  virtual void UpdateGroupOutput(const Expr& data,
+                                 const Group& branches,
+                                 size_t depth,
+                                 ExprSubstMap& subst_map) = 0;
 
  private:
   std::string op_name_;

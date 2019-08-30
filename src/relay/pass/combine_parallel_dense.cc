@@ -49,7 +49,8 @@ namespace relay {
 
 class ParallelDenseCombiner : public ParallelOpCombiner {
  public:
-  ParallelDenseCombiner(uint64_t min_num_branches) : ParallelOpCombiner("nn.dense", min_num_branches) {
+  explicit ParallelDenseCombiner(uint64_t min_num_branches) 
+    : ParallelOpCombiner("nn.dense", min_num_branches) {
   }
 
  protected:
@@ -58,7 +59,7 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     return !attrs->units.defined();
   }
 
-  bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
+  bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
     const auto* attrs_b = b->attrs.as<DenseAttrs>();
@@ -105,7 +106,10 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     return true;
   }
 
-  Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) {
+  Call MakeCombinedCallFromFollowingOps(const Expr& data,
+                                        const Group& branches,
+                                        size_t depth,
+                                        size_t parent_index) {
     Array<Expr> new_args;
     const CallNode* call = branches[0][depth];
 
@@ -135,11 +139,13 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     return CallNode::make(call->op, new_args, call->attrs, {});
   }
 
-  void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) {
+  void UpdateGroupOutput(const Expr& data,
+                         const Group& branches,
+                         size_t depth,
+                         ExprSubstMap& subst_map) {
     int index = 0;
     auto split = MakeSplit(data, Integer(branches.size()), 0);
     for (const auto& branch : branches) {
-      const CallNode* dense = branch[0];
       auto split_data = TupleGetItemNode::make(split, index++);
       auto squeezed_data = MakeSqueeze(split_data, {0});
       subst_map[GetRef<Expr>(branch[depth])] = squeezed_data;

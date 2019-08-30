@@ -42,7 +42,7 @@ namespace relay {
 
 BranchGroupFinder::BranchGroupFinder(const std::string& op_name,
                                      FIsSupportedOp fis_supported_op,
-                                     FAreCompatibleOps fare_compatible_ops) 
+                                     FAreCompatibleOps fare_compatible_ops)
   : op_name_(op_name),
     fis_supported_op_(fis_supported_op),
     fare_compatible_ops_(fare_compatible_ops) {
@@ -110,18 +110,18 @@ void BranchGroupFinder::VisitExpr_(const CallNode* n) {
   }
 }
 
-ParallelOpCombiner::ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches) 
+ParallelOpCombiner::ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches)
   : op_name_(op_name),
     min_num_branches_(min_num_branches) {
 }
 
 Expr ParallelOpCombiner::Combine(const Expr& expr) {
   auto groups = BranchGroupFinder(op_name_,
-                                  [&](const CallNode* n) { 
-                                    return IsSupportedOp(n); 
+                                  [&](const CallNode* n) {
+                                    return IsSupportedOp(n);
                                   },
-                                  [&](const CallNode* a, const CallNode* b) { 
-                                    return AreCompatibleOps(a, b); 
+                                  [&](const CallNode* a, const CallNode* b) {
+                                    return CanOpsBeCombined(a, b);
                                   }).Find(expr);
   for (const Group& group : groups) {
     if (group.size() < min_num_branches_) {
@@ -149,9 +149,9 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
     }
     CHECK_NE(parent_index, branches[0][i]->args.size());
     if (!CheckLevel(branches, i, parent_index)) break;
-    combined = MakeCombinedCall(combined, branches, i, parent_index);
+    combined = MakeCombinedCallFromFollowingOps(combined, branches, i, parent_index);
   }
-  UpdateGroupOutput(combined, branches, i - 1, subst_map_);
+  UpdateGroupOutput(combined, branches, i - 1, std::move(subst_map_));
 }
 
 bool ParallelOpCombiner::CheckLevel(const Group& branches, size_t depth, size_t parent_index) {

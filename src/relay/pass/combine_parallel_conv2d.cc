@@ -50,7 +50,8 @@ namespace relay {
 
 class ParallelConv2DCombiner : public ParallelOpCombiner {
  public:
-  ParallelConv2DCombiner(uint64_t min_num_branches) : ParallelOpCombiner("nn.conv2d", min_num_branches) {
+  explicit ParallelConv2DCombiner(uint64_t min_num_branches)
+    : ParallelOpCombiner("nn.conv2d", min_num_branches) {
   }
 
  protected:
@@ -58,7 +59,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     return n->attrs.as<Conv2DAttrs>()->groups == 1;
   }
 
-  bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
+  bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     static const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
@@ -138,7 +139,10 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     return true;
   }
 
-  Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) {
+  Call MakeCombinedCallFromFollowingOps(const Expr& data,
+                                        const Group& branches,
+                                        size_t depth,
+                                        size_t parent_index) {
     Array<Expr> new_args;
     const CallNode* call = branches[0][depth];
     size_t ndim = call->type_as<TensorTypeNode>()->shape.size();
@@ -148,19 +152,25 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
         new_args.push_back(data);
         continue;
       }
+
       size_t arg_ndim = call->args[i]->type_as<TensorTypeNode>()->shape.size();
       size_t arg_channel_pos = channel_pos - ndim + arg_ndim;
       Array<Expr> tuple;
       for (const auto& branch : branches) {
         tuple.push_back(branch[depth]->args[i]);
       }
+
       auto concat = MakeConcatenate(TupleNode::make(tuple), arg_channel_pos);
       new_args.push_back(std::move(concat));
     }
+
     return CallNode::make(call->op, new_args, call->attrs, {});
   }
 
-  void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) {
+  void UpdateGroupOutput(const Expr& data,
+                         const Group& branches,
+                         size_t depth,
+                         ExprSubstMap& subst_map) {
     int64_t index = 0;
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
