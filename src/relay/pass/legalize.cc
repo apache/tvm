@@ -25,6 +25,7 @@
  */
 
 #include <tvm/operation.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 
@@ -35,48 +36,64 @@ namespace legalize {
 
 // Call registered FTVMLegalize of an op
 // Returns the legalized expression
-Expr Legalizer(const Call& ref_call, const Array<Expr>& new_args, const NodeRef& ctx) {
-  static auto fop_legalize = Op::GetAttr<FTVMLegalize>("FTVMLegalize");
-  Op op = Downcast<Op>(ref_call->op);
+class Legalizer : public ExprMutator {
+ public:
+  explicit Legalizer(const std::string& legalize_map_attr_name)
+      : legalize_map_attr_name_{legalize_map_attr_name} {}
 
-  Expr new_e;
-  bool modified = false;
-  if (fop_legalize.count(op)) {
-    // Collect input and output dtypes to pass on to Legalize API.
-    tvm::Array<tvm::relay::Type> types;
-    for (auto& expr : ref_call->args) {
-      types.push_back(expr->checked_type());
+  Expr VisitExpr_(const CallNode* call_node) {
+    // Get the new_call node without any changes to current call node.
+    Expr new_e = ExprMutator::VisitExpr_(call_node);
+    Call new_call = Downcast<Call>(new_e);
+
+    // Collect the registered legalize function.
+    auto fop_legalize = Op::GetAttr<FTVMLegalize>(legalize_map_attr_name_);
+    Op op = Downcast<Op>(call_node->op);
+
+    if (fop_legalize.count(op)) {
+      // Collect the new_args.
+      tvm::Array<Expr> call_args = new_call->args;
+
+      // Collect input and output dtypes to pass on to Legalize API.
+      tvm::Array<tvm::relay::Type> types;
+      for (auto arg : call_node->args) {
+        types.push_back(arg->checked_type());
+      }
+      types.push_back(call_node->checked_type());
+
+      // Transform the op by calling the registered legalize function.
+      Expr legalized_value = fop_legalize[op](call_node->attrs, call_args, types);
+
+      // Reassign new_e if the transformation succeeded.
+      if (legalized_value.defined()) {
+        // Check that the returned Expr from legalize is CallNode.
+        const CallNode* legalized_call_node = legalized_value.as<CallNode>();
+        CHECK(legalized_call_node)
+            << "Can only replace the original operator with another call node";
+
+        new_e = legalized_value;
+      }
     }
-    types.push_back(ref_call->checked_type());
 
-    // Transform the op by calling the registered legalize function.
-    Expr legalized_value = fop_legalize[op](ref_call->attrs, new_args, types);
-
-    // Check if the transformation succeeded. If not, revert back to the original ref_call->op.
-    if (legalized_value.defined()) {
-      new_e = legalized_value;
-      modified = true;
-    }
-  }
-  if (!modified) {
-    new_e = CallNode::make(ref_call->op, new_args, ref_call->attrs);
+    return new_e;
   }
 
-  const CallNode* new_call = new_e.as<CallNode>();
-  CHECK(new_call) << "Can only replace the original operator with another call node";
-  return GetRef<Call>(new_call);
+ private:
+  std::string legalize_map_attr_name_;
+};
+
+Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name) {
+  return Legalizer(legalize_map_attr_name).Mutate(expr);
 }
-
-Expr Legalize(const Expr& expr) { return ForwardRewrite(expr, Legalizer, nullptr); }
 
 }  // namespace legalize
 
 namespace transform {
 
-Pass Legalize() {
+Pass Legalize(const std::string& legalize_map_attr_name) {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
       [=](Function f, Module m, PassContext pc) {
-        return Downcast<Function>(relay::legalize::Legalize(f));
+        return Downcast<Function>(relay::legalize::Legalize(f, legalize_map_attr_name));
       };
   return CreateFunctionPass(pass_func, 3, "Legalize", {ir::StringImm::make("InferType")});
 }
