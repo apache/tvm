@@ -151,7 +151,7 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
     if (!CheckLevel(branches, i, parent_index)) break;
     combined = MakeCombinedCallFromFollowingOps(combined, branches, i, parent_index);
   }
-  UpdateGroupOutput(combined, branches, i - 1, std::move(subst_map_));
+  UpdateGroupOutput(combined, branches, i - 1, &subst_map_);
 }
 
 bool ParallelOpCombiner::CheckLevel(const Group& branches, size_t depth, size_t parent_index) {

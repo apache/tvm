@@ -23,6 +23,8 @@
  * \file combine_parallel_op.h
  * \brief Abstract class to combine parallel ops and their successive element-wise ops.
  */
+#ifndef TVM_RELAY_PASS_COMBINE_PARALLEL_OP_H_
+#define TVM_RELAY_PASS_COMBINE_PARALLEL_OP_H_
 
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
@@ -107,7 +109,7 @@ class ParallelOpCombiner {
   // Returns true if arguments of a and b at index index can be combined.
   virtual bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) = 0;
 
-  // Create combined call of ops that follow initial combined op in depth-th level. 
+  // Create combined call of ops that follow initial combined op in depth-th level.
   // This usually involves concatenating or stacking inputs, then creating a new call.
   // Only called if IsArgCompatible returns true for each arg.
   virtual Call MakeCombinedCallFromFollowingOps(const Expr& data,
@@ -119,7 +121,7 @@ class ParallelOpCombiner {
   virtual void UpdateGroupOutput(const Expr& data,
                                  const Group& branches,
                                  size_t depth,
-                                 ExprSubstMap& subst_map) = 0;
+                                 ExprSubstMap* subst_map) = 0;
 
  private:
   std::string op_name_;
@@ -133,3 +135,4 @@ class ParallelOpCombiner {
 
 }  // namespace relay
 }  // namespace tvm
+#endif  // TVM_RELAY_PASS_COMBINE_PARALLEL_OP_H_

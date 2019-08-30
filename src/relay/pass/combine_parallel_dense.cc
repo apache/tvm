@@ -49,7 +49,7 @@ namespace relay {
 
 class ParallelDenseCombiner : public ParallelOpCombiner {
  public:
-  explicit ParallelDenseCombiner(uint64_t min_num_branches) 
+  explicit ParallelDenseCombiner(uint64_t min_num_branches)
     : ParallelOpCombiner("nn.dense", min_num_branches) {
   }
 
@@ -142,13 +142,13 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
   void UpdateGroupOutput(const Expr& data,
                          const Group& branches,
                          size_t depth,
-                         ExprSubstMap& subst_map) {
+                         ExprSubstMap* subst_map) {
     int index = 0;
     auto split = MakeSplit(data, Integer(branches.size()), 0);
     for (const auto& branch : branches) {
       auto split_data = TupleGetItemNode::make(split, index++);
       auto squeezed_data = MakeSqueeze(split_data, {0});
-      subst_map[GetRef<Expr>(branch[depth])] = squeezed_data;
+      subst_map->insert({GetRef<Expr>(branch[depth]), squeezed_data});
     }
   }
 };
