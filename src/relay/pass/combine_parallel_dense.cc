@@ -109,8 +109,8 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
       weights.push_back(weight);
     }
 
-    Expr new_data = MakeStack(TupleNode::make(datas));
-    Expr new_weight = MakeStack(TupleNode::make(weights));
+    Expr new_data = MakeStack(TupleNode::make(datas), 0);
+    Expr new_weight = MakeStack(TupleNode::make(weights), 0);
     return CallNode::make(batch_matmul, {new_data, new_weight}, Attrs(), {});
   }
 
@@ -177,14 +177,14 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
         Expr arg = branch[depth]->args[i];
         const TensorTypeNode* arg_tensor = arg->type_as<TensorTypeNode>();
         if (arg_tensor->shape.size() == 1) {
-          Expr expanded_arg = ExpandBiasToMatchAxis(arg, 2, {0});
+          Expr expanded_arg = MakeExpandDims(arg, 0, 1);
           tuple.push_back(expanded_arg);
         } else {
           tuple.push_back(arg);
         }
       }
 
-      auto stack = MakeStack(TupleNode::make(tuple));
+      auto stack = MakeStack(TupleNode::make(tuple), 0);
       new_args.push_back(std::move(stack));
     }
 
@@ -194,11 +194,12 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
   // Replace output of each branch with slices of the combined output
   void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) {
     int index = 0;
-    auto split = MakeSplit(data, branches.size(), 0);
+    auto split = MakeSplit(data, Integer(branches.size()), 0);
     for (const auto& branch : branches) {
       const CallNode* dense = branch[0];
-      auto split_data = TupleGetItemNode::make(split, index);
-      subst_map[GetRef<Expr>(branch[depth])] = split_data;
+      auto split_data = TupleGetItemNode::make(split, index++);
+      auto squeezed_data = MakeSqueeze(split_data, {0});
+      subst_map[GetRef<Expr>(branch[depth])] = squeezed_data;
     }
   }
 };

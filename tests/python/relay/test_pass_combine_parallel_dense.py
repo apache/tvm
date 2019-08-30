@@ -31,170 +31,178 @@ def run_opt_pass(expr, opt_pass):
 
 
 def test_combine_parallel_dense():
-    """Simple testcase."""
-    def before(x, w1, w2, w3, w4):
+    """Simple testcase. Three can be combined, either because of mismatched shapes or units"""
+    def before(x, w1, w2, w3, w4, units):
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.dense(x, w1)
         y2 = relay.nn.dense(x, w2)
+
         # y3 cannot be combined
-        y3 = relay.nn.dense(x, w3)
+        if units == -1:
+            y3 = relay.nn.dense(x, w3)
+        else:
+            y3 = relay.nn.dense(x, w3, units=units)
+
         y4 = relay.nn.dense(x, w4)
         y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
-    def expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4):
+    def expected(x, w1, w2, w3, w4, units):
         # use a fixed order of args so alpha equal check can pass
         args = [x, w1, w2, w3, w4]
-        w = relay.concatenate((w1, w2, w4), axis=0)
-        y = relay.nn.conv2d(x, w, channels=channels1 + channels2 + channels4)
-        y1 = relay.strided_slice(y, [0, 0], [None, channels1])
-        y2 = relay.strided_slice(y, [0, channels1], [None, channels1 + channels2])
-        y3 = relay.nn.conv2d(x, w3)
-        y4 = relay.strided_slice(y, [0, channels1 + channels2],
-                                 [None, channels1 + channels2 + channels4])
-        y5 = relay.nn.max_pool2d(x)
-        y = relay.Tuple((y1, y2, y3, y4, y5))
+        x_stacked = relay.stack((x, x, x), axis=0)
+        w = relay.stack((w1, w2, w4), axis=0)
+        y = relay.nn.batch_matmul(x_stacked, w)
+        (y1, y2, y4) = relay.split(y, 3)
+        y1 = relay.squeeze(y1, [0])
+        y2 = relay.squeeze(y2, [0])
+        y4 = relay.squeeze(y4, [0])
+
+        if units == -1:
+            y3 = relay.nn.dense(x, w3)
+        else:
+            y3 = relay.nn.dense(x, w3, units=units)
+
+        y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
-    def check(x_shape, channels1, channels2, channels3, channels4):
-        x =  relay.var("x", shape=x_shape)
-        in_c = x_shape[1]
-        w1 = relay.var("w1", shape=(channels1, in_c, 1, 1))
-        w2 = relay.var("w2", shape=(channels2, in_c, 1, 1))
-        w3 = relay.var("w3", shape=(channels3, in_c, 3, 3))
-        w4 = relay.var("w4", shape=(channels4, in_c, 1, 1))
+    def check(i, j, k, use_units):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(j, k))
 
-        y_before = before(x, w1, w2, w3, w4)
+        if use_units:
+            units = j
+            w3 = relay.var("w3", shape=(j, k))
+        else:
+            units = -1
+            w3 = relay.var("w3", shape=(j + 1, k))
+
+        w4 = relay.var("w4", shape=(j, k))
+
+        y_before = before(x, w1, w2, w3, w4, units)
         y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
-        y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
+                         transform.CombineParallelDense(min_num_branches=2))
+        y_expected = expected(x, w1, w2, w3, w4, units)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert relay.analysis.alpha_equal(y, y_expected)
 
-    check((1, 4, 16, 16), 4, 4, 4, 4)
-    check((1, 4, 16, 16), 4, 8, 4, 7)
+    check(3, 5, 4, False)
+    check(100, 200, 300, False)
+    check(3, 5, 4, True)
+    check(100, 200, 300, True)
 
 
-def test_combine_parallel_conv2d_scale_relu():
-    """Testcase of combining conv2d + scale + relu"""
-    def before(x, w1, w2, scale1, scale2, bias):
-        args = [x, w1, w2, scale1, scale2, bias]
-        y1 = relay.nn.conv2d(x, w1)
-        y1 = relay.multiply(y1, scale1)
-        y1 = relay.nn.relu(y1)
-        y2 = relay.nn.conv2d(x, w2)
-        y2 = relay.multiply(y2, scale2)
-        y2 = relay.nn.relu(y2)
-        y2 = relay.add(y2, bias)
+def test_combine_parallel_dense_biasadd():
+    """Testcase of combining dense + 1d biasadd"""
+    def before(x, w1, w2, b1, b2):
+        args = [x, w1, w2, b1, b2]
+        y1 = relay.nn.dense(x, w1)
+        y2 = relay.nn.dense(x, w2)
+        y1 = relay.add(y1, b1)
+        y2 = relay.add(y2, b2)
         y = relay.Tuple((y1, y2))
         return relay.Function(args, y)
 
-    def expected(x, w1, w2, scale1, scale2, bias, channels1, channels2):
-        args = [x, w1, w2, scale1, scale2, bias]
-        w = relay.concatenate((w1, w2), axis=0)
-        scale = relay.concatenate((scale1, scale2), axis=0)
-        y = relay.nn.conv2d(x, w, channels=channels1 + channels2)
+    def expected(x, w1, w2, b1, b2, is_2d_bias):
+        args = [x, w1, w2, b1, b2]
+        x_stacked = relay.stack((x, x), axis=0)
+        w = relay.stack((w1, w2), axis=0)
+        y = relay.nn.batch_matmul(x_stacked, w)
+
+        if not is_2d_bias:
+            b1 = relay.expand_dims(b1, 0)
+            b2 = relay.expand_dims(b2, 0)
+
+        b = relay.stack((b1, b2), axis=0)
+        y = relay.add(y, b)
+        (y1, y2) = relay.split(y, 2)
+        y1 = relay.squeeze(y1, [0])
+        y2 = relay.squeeze(y2, [0])
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def check(i, j, k, is_2d_bias):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(j, k))
+
+        if is_2d_bias:
+            b1 = relay.var("b1", shape=(i, j))
+            b2 = relay.var("b2", shape=(i, j))
+        else:
+            b1 = relay.var("b1", shape=(j,))
+            b2 = relay.var("b2", shape=(j,))
+
+        y_before = before(x, w1, w2, b1, b2)
+        y = run_opt_pass(y_before,
+                         transform.CombineParallelDense(min_num_branches=2))
+        y_expected = expected(x, w1, w2, b1, b2, is_2d_bias)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        assert relay.analysis.alpha_equal(y, y_expected)
+
+    check(3, 5, 4, False)
+    check(100, 200, 300, False)
+    check(3, 5, 4, True)
+    check(100, 200, 300, True)
+
+def test_combine_parallel_dense_biasadd_scale_reshape():
+    """Testcase of combining dense + 1d biasadd"""
+    def before(x, w1, w2, b1, b2, scale1, scale2, newshape):
+        args = [x, w1, w2, b1, b2, scale1, scale2]
+        y1 = relay.nn.dense(x, w1)
+        y2 = relay.nn.dense(x, w2)
+        y1 = relay.add(y1, b1)
+        y2 = relay.add(y2, b2)
+        y1 = relay.multiply(y1, scale1)
+        y2 = relay.multiply(y2, scale2)
+        y1 = relay.reshape(y1, newshape=newshape)
+        y2 = relay.reshape(y2, newshape=newshape)
+        y = relay.Tuple((y1, y2))
+        return relay.Function(args, y)
+
+    def expected(x, w1, w2, b1, b2, scale1, scale2, newshape):
+        args = [x, w1, w2, b1, b2, scale1, scale2]
+        x_stacked = relay.stack((x, x), axis=0)
+        w = relay.stack((w1, w2), axis=0)
+        y = relay.nn.batch_matmul(x_stacked, w)
+        b1 = relay.expand_dims(b1, 0)
+        b2 = relay.expand_dims(b2, 0)
+        b = relay.stack((b1, b2), axis=0)
+        y = relay.add(y, b)
+        scale1 = relay.expand_dims(scale1, 0)
+        scale2 = relay.expand_dims(scale2, 0)
+        scale = relay.stack((scale1, scale2), axis=0)
         y = relay.multiply(y, scale)
-        y = relay.nn.relu(y)
-        y1 = relay.strided_slice(y, [0, 0], [None, channels1])
-        y2 = relay.strided_slice(y, [0, channels1], [None, channels1 + channels2])
-        y2 = relay.add(y2, bias)
+        (y1, y2) = relay.split(y, 2)
+        y1 = relay.squeeze(y1, [0])
+        y2 = relay.squeeze(y2, [0])
+        y1 = relay.reshape(y1, newshape=newshape)
+        y2 = relay.reshape(y2, newshape=newshape)
         y = relay.Tuple((y1, y2))
         return relay.Function(args, y)
 
-    def check(x_shape, channels1, channels2):
-        x = relay.var("x", shape=x_shape)
-        in_c = x_shape[1]
-        w1 = relay.var("w1", shape=(channels1, in_c, 1, 1))
-        w2 = relay.var("w2", shape=(channels2, in_c, 1, 1))
-        scale1 = relay.var("scale1", shape=(channels1, 1, 1))
-        scale2 = relay.var("scale2", shape=(channels2, 1, 1))
-        bias = relay.var("bias", shape=(channels2, 1, 1))
-        y_before = before(x, w1, w2, scale1, scale2, bias)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
-        y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
-        y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
-
-    check((1, 4, 16, 16), 4, 8)
-
-
-def test_combine_parallel_conv2d_scale():
-    """Testcase of un-combinable scale"""
-    def before(x, w1, w2, scale1, scale2):
-        args = [x, w1, w2, scale1, scale2]
-        y1 = relay.nn.conv2d(x, w1)
-        y1 = relay.multiply(y1, scale1)
-        y2 = relay.nn.conv2d(x, w2)
-        y2 = relay.multiply(y2, scale2)
-        y = relay.Tuple((y1, y2))
-        return relay.Function(args, y)
-
-    def expected(x, w1, w2, scale1, scale2, channels1, channels2):
-        args = [x, w1, w2, scale1, scale2]
-        w = relay.concatenate((w1, w2), axis=0)
-        y = relay.nn.conv2d(x, w, channels=channels1 + channels2)
-        y1 = relay.strided_slice(y, [0, 0], [None, channels1])
-        y2 = relay.strided_slice(y, [0, channels1], [None, channels1 + channels2])
-        y1 = relay.multiply(y1, scale1)
-        y2 = relay.multiply(y2, scale2)
-        y = relay.Tuple((y1, y2))
-        return relay.Function(args, y)
-
-    def check(x_shape, channels1, channels2):
-        x = relay.var("x", shape=x_shape)
-        in_c = x_shape[1]
-        w1 = relay.var("w1", shape=(channels1, in_c, 1, 1))
-        w2 = relay.var("w2", shape=(channels2, in_c, 1, 1))
+    def check(i, j, k, scale1, scale2, newshape):
+        x =  relay.var("x", shape=(i, k))
+        w1 = relay.var("w1", shape=(j, k))
+        w2 = relay.var("w2", shape=(j, k))
+        b1 = relay.var("b1", shape=(j,))
+        b2 = relay.var("b2", shape=(j,))
         scale1 = relay.var("scale1", shape=(1,))
         scale2 = relay.var("scale2", shape=(1,))
-        y_before = before(x, w1, w2, scale1, scale2)
+
+        y_before = before(x, w1, w2, b1, b2, scale1, scale2, newshape)
         y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
-        y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
+                         transform.CombineParallelDense(min_num_branches=2))
+        y_expected = expected(x, w1, w2, b1, b2, scale1, scale2, newshape)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert relay.analysis.alpha_equal(y, y_expected)
 
-    check((1, 4, 16, 16), 4, 8)
-
-
-def test_combine_parallel_conv2d_multiple_blocks():
-    def before(x, w, repeat):
-        args = [x, w]
-        y = x
-        for i in range(repeat):
-            y1 = relay.nn.conv2d(y, w)
-            y2 = relay.nn.conv2d(y, w)
-            y = relay.concatenate((y1, y2), axis=1)
-        return relay.Function(args, y)
-
-    def expected(x, w, channels, repeat):
-        args = [x, w]
-        y = x
-        for i in range(repeat):
-            w_concat = relay.concatenate((w, w), axis=0)
-            y = relay.nn.conv2d(y, w_concat, channels=channels*2)
-            y1 = relay.strided_slice(y, [0, 0], [None, channels])
-            y2 = relay.strided_slice(y, [0, channels], [None, channels * 2])
-            y = relay.concatenate((y1, y2), axis=1)
-        return relay.Function(args, y)
-
-    def check(x_shape, repeat):
-        x = relay.var("x", shape=x_shape)
-        in_c = x_shape[1]
-        out_c = in_c // 2
-        w = relay.var("w", shape=(out_c, in_c, 1, 1))
-        y_before = before(x, w, repeat)
-        y = run_opt_pass(y_before,
-                         transform.CombineParallelConv2D(min_num_branches=2))
-        y_expected = expected(x, w, out_c, repeat)
-        y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
-
-    check((1, 4, 16, 16), 4)
+    check(3, 5, 4, 0.5, 0.25, (1, 1, 15))
+    check(100, 200, 300, 0.5, 0.25, (1, 1, 200))
 
 
 if __name__ == "__main__":
     test_combine_parallel_dense()
-    #test_combine_parallel_dense_biasadd()
+    test_combine_parallel_dense_biasadd()
+    test_combine_parallel_dense_biasadd_scale_reshape()
