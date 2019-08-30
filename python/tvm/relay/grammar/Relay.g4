@@ -20,7 +20,7 @@
 // TODO(weberlo): We need some way of indicating to users that you need to enable
 // USE_ANTLR in config.cmake.
 /*
- * NOTE: All upper-case rules are *lexer* rules and all lower-case rules are *parser* rules.
+ * NOTE: All upper-case rules are *lexer* rules and all camel-case rules are *parser* rules.
  */
 
 grammar Relay;
@@ -129,14 +129,12 @@ adtConsDefn: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
 matchClause: '|' constructorName patternList? '=>' expr ;
 matchType : 'match' | 'match?' ;
 
-// TODO: Will need to make this recursive
 patternList: '(' pattern (',' pattern)* ')';
 pattern
   : '_'
   | localVar (':' typeExpr)?
   ;
 
-// TODO: Making the param list optional makes the grammar ambiguous.
 adtCons: constructorName adtConsParamList? ;
 adtConsParamList: '(' adtConsParam (',' adtConsParam)* ')' ;
 adtConsParam: localVar | constructorName ;
@@ -163,7 +161,6 @@ typeExpr
   | '_'                                                                    # incompleteType
   ;
 
-// TODO: For some reason, spaces aren't allowed between type params?
 typeParamList: '[' generalIdent (',' generalIdent)* ']' ;
 
 shapeList

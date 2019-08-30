@@ -682,7 +682,6 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const TypeVarNode* node) final {
-    // return AllocTypeVar(GetRef<TypeVar>(node));
     return Doc(node->var->name_hint);
   }
 
@@ -770,9 +769,8 @@ class PrettyPrinter :
     }
     doc << " =";
 
-    // ADT variants
-    for (Constructor variant : node->constructors) {
-      doc << PrintNewLine() << "  | " << Print(variant, /* meta */ false, /* try_inline */ true);
+    for (Constructor constructor : node->constructors) {
+      doc << PrintNewLine() << "  | " << Print(constructor, /* meta */ false, /* try_inline */ true);
     }
 
     return doc;

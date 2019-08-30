@@ -40,8 +40,6 @@ def astext(p, unify_free_vars=False):
         assert_graph_equal(x, p)
     else:
         assert_alpha_equal(x, p)
-    # TODO: Unify two assert methods into the one below
-    # assert_alpha_equal(x, p, unify_free_vars)
     return txt
 
 def show(text):
