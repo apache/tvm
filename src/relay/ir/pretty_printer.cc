@@ -359,8 +359,8 @@ class PrettyPrinter :
 
   // TODO(weberlo): Consolidate this method and `IsAtomic` in `pass_util.h`?
   bool AlwaysInline(const Expr& expr) {
-    return expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<OpNode>() || expr.as<VarNode>() || expr.as<ConstructorNode>();
+    return expr.as<GlobalVarNode>() || expr.as<ConstantNode>() || expr.as<OpNode>() ||
+           expr.as<VarNode>() || expr.as<ConstructorNode>() || expr.as<MatchNode>();
   }
 
   //------------------------------------
@@ -372,12 +372,9 @@ class PrettyPrinter :
     // for it. Every subsequent time we can just use its assigned variable.
     // This works since hashing uses pointer equality.
 
-    // TODO: we need to somehow carry the `try_inline` preference through the
-    // recursion.
-    // bool old_try_inline = try_inline_;
-    // try_inline_ = try_inline;
-
     // determine whether to inline
+    // TODO(weberlo): Graph vars created when not inlining exprs cause issues
+    // with scoping in clauses of match exprs.
     bool inline_expr = true;
     // bool inline_expr = AlwaysInline(expr);
     // if (try_inline) {
@@ -605,7 +602,8 @@ class PrettyPrinter :
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
       Doc clause_doc;
-      clause_doc << "| " << Print(clause->lhs) << " => " << Print(clause->rhs, false, true);
+      clause_doc << "| " << PrintPattern(clause->lhs, false) << " => "
+                 << PrintExpr(clause->rhs, false, true);
       clauses.push_back(clause_doc);
     }
     doc << Indent(2, body << PrintNewLine() << PrintSep(clauses, PrintNewLine())) << PrintNewLine();

@@ -297,15 +297,33 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         raise ParseError("todo: `{}`".format(node_text))
 
+    def visitGeneralIdent(self, ctx):
+        name = ctx.getText()
+        # Look through all type prefixes for a match.
+        for type_prefix in TYPE_PREFIXES:
+            if name.startswith(type_prefix):
+                return ty.scalar_type(name)
+        # Next, look it up in the local then global type params.
+        type_param = lookup(self.type_var_scopes, name)
+        if type_param is None:
+            type_param = self.global_type_vars.get(name, None)
+        if type_param is not None:
+            return type_param
+        # Check if it's an operator.
+        op_name = '.'.join([name.getText() for name in ctx.CNAME()])
+        if op_name in FUNC_OPS:
+            return FuncOp(FUNC_OPS[op_name])
+        return ExprOp(op.get(op_name))
+
     def visitGlobalVar(self, ctx):
-        var_name = ctx.START_LOWER_CNAME().getText()
+        var_name = ctx.CNAME().getText()
         global_var = self.global_vars.get(var_name, None)
         if global_var is None:
             raise ParseError(f'unbound global var `{var_name}`')
         return global_var
 
     def visitLocalVar(self, ctx):
-        var_name = ctx.START_LOWER_CNAME().getText()
+        var_name = ctx.CNAME().getText()
         local_var = lookup(self.var_scopes, var_name)
         if local_var is None:
             raise ParseError(f'unbound local var `{var_name}`')
@@ -348,7 +366,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Exprs
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> op.Op
-        op_name = '.'.join([name.getText() for name in ctx.START_LOWER_CNAME()])
+        op_name = '.'.join([name.getText() for name in ctx.CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])
         return ExprOp(op.get(op_name))
@@ -440,7 +458,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # TODO: support a larger class of values than just Relay exprs
     def visitAttr(self, ctx):
         # type: (RelayParser.AttrContext) -> Tuple[str, expr.Expr]
-        return (ctx.START_LOWER_CNAME().getText(), self.visit(ctx.expr()))
+        return (ctx.CNAME().getText(), self.visit(ctx.expr()))
 
     def visitArgNoAttr(self, ctx):
         return (self.visit_list(ctx.varList().var()), None)
@@ -461,7 +479,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return (var_list, attr_list)
 
     def visitMeta(self, ctx):
-        type_key = str(ctx.START_UPPER_CNAME())
+        type_key = str(ctx.CNAME())
         index = int(self.visit(ctx.NAT()))
         return self.meta[type_key][index]
 
@@ -475,7 +493,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         type_params = ctx.typeParamList()
 
         if type_params is not None:
-            type_params = type_params.typeIdent()
+            type_params = type_params.generalIdent()
             assert type_params
             for ty_param in type_params:
                 name = ty_param.getText()
@@ -512,7 +530,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.module[ident] = self.mk_func(ctx)
 
     def visitAdtDefn(self, ctx):
-        adt_name = ctx.typeIdent().getText()
+        adt_name = ctx.generalIdent().getText()
         adt_handle = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
         self.enter_type_param_scope()
 
@@ -522,7 +540,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             type_params = []
         else:
             type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
-                           for type_ident in type_params.typeIdent()]
+                           for type_ident in type_params.generalIdent()]
 
         # parse constructors
         constructors = []
@@ -671,8 +689,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         return type_param
 
     def visitTypeCallType(self, ctx):
-        func = self.visit(ctx.typeIdent())
-        args = [self.visit(arg) for arg in ctx.typeParamList().typeIdent()]
+        func = self.visit(ctx.generalIdent())
+        args = [self.visit(arg) for arg in ctx.typeParamList().generalIdent()]
         return ty.TypeCall(func, args)
 
     # def visitCallType(self, ctx):

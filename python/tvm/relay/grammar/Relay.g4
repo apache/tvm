@@ -53,29 +53,17 @@ BOOL_LIT
   | 'False'
   ;
 
-START_UPPER_CNAME: UPPER_LETTER ('_'|LETTER|DIGIT)*;
-START_LOWER_CNAME: LOWER_LETTER ('_'|LETTER|DIGIT)*;
-// CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
+CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
 
 // non-negative floats
 fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
 
 FLOAT : PREFLOAT 'f';
 
-baseType
-  : 'int8' | 'int16' | 'int32' | 'int64'
-  | 'uint8' | 'uint16' | 'uint32' | 'uint64'
-  | 'float16' | 'float32' | 'float64'
-  | 'bool'
-  | 'int8x4' | 'uint1x4' | 'float16x4'
-  ;
-
 // non-negative ints
 NAT: DIGIT+ ;
 fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
 
-fragment LOWER_LETTER: [a-z];
-fragment UPPER_LETTER: [A-Z];
 fragment LETTER: [a-zA-Z];
 fragment DIGIT: [0-9];
 
@@ -85,25 +73,23 @@ METADATA: 'METADATA:' .*;
 // A Relay program is a list of global definitions or an expression.
 prog: SEMVER (defn* | expr) METADATA? EOF ;
 
-opIdent: START_LOWER_CNAME ('.' START_LOWER_CNAME)*;
-globalVar: '@' START_LOWER_CNAME ;
-localVar: '%' ('_' | START_LOWER_CNAME) ;
-typeIdent: (baseType | START_UPPER_CNAME) ;
+// Covers both operator and type idents
+generalIdent: CNAME ('.' CNAME)*;
+globalVar: '@' CNAME ;
+localVar: '%' ('_' | CNAME) ;
 graphVar: '%' NAT ;
 
 exprList: (expr (',' expr)*)?;
 callList
-  : exprList            # callNoAttr
-  | (expr ',')* attrSeq # callWithAttr
+  : exprList             # callNoAttr
+  | (expr ',')* attrSeq  # callWithAttr
   ;
 
 expr
   // operators
   : '(' expr ')'                                 # paren
   | '{' expr '}'                                 # paren
-  // | adtCons                                      # adtConsExpr
   // function application
-  // TODO: Just make the adt constructor part of the func app case. disambiguate during parsing.
   | expr '(' callList ')'                        # call
   | '-' expr                                     # neg
   | expr op=('*'|'/') expr                       # binOp
@@ -134,10 +120,10 @@ expr
 func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-  | 'type' typeIdent typeParamList? '=' adtConsDefn+                      # adtDefn
+  | 'type' generalIdent typeParamList? '=' adtConsDefn+                      # adtDefn
   ;
 
-constructorName: START_UPPER_CNAME ;
+constructorName: CNAME ;
 
 adtConsDefn: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
 matchClause: '|' constructorName patternList? '=>' expr ;
@@ -156,31 +142,29 @@ adtConsParamList: '(' adtConsParam (',' adtConsParam)* ')' ;
 adtConsParam: localVar | constructorName ;
 
 argList
-  : varList              # argNoAttr
-  | (var ',')* attrSeq   # argWithAttr
+  : varList             # argNoAttr
+  | (var ',')* attrSeq  # argWithAttr
   ;
 
-varList: (var (',' var)*)?;
-var: localVar (':' typeExpr)?;
+varList: (var (',' var)*)? ;
+var: localVar (':' typeExpr)? ;
 
-attrSeq: attr (',' attr)*;
-attr: START_LOWER_CNAME '=' expr ;
+attrSeq: attr (',' attr)* ;
+attr: CNAME '=' expr ;
 
 typeExpr
-  : '(' ')'                                                      # tupleType
-  | '(' typeExpr ',' ')'                                            # tupleType
-  | '(' typeExpr (',' typeExpr)+ ')'                                   # tupleType
-  | typeIdent typeParamList                                     # typeCallType
-  | typeIdent                                                    # typeIdentType
-  | 'Tensor' '[' shapeList ',' typeExpr ']'                         # tensorType
-  | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr # funcType
-  | '_'                                                          # incompleteType
-  // TODO: Why the fuck does this rule exist?
-  // | NAT                                                          # intType
+  : '(' ')'                                                                # tupleType
+  | '(' typeExpr ',' ')'                                                   # tupleType
+  | '(' typeExpr (',' typeExpr)+ ')'                                       # tupleType
+  | generalIdent typeParamList                                             # typeCallType
+  | generalIdent                                                           # typeIdentType
+  | 'Tensor' '[' shapeList ',' typeExpr ']'                                # tensorType
+  | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr  # funcType
+  | '_'                                                                    # incompleteType
   ;
 
 // TODO: For some reason, spaces aren't allowed between type params?
-typeParamList: '[' typeIdent (',' typeIdent)* ']' ;
+typeParamList: '[' generalIdent (',' generalIdent)* ']' ;
 
 shapeList
   : '(' ')'
@@ -188,27 +172,25 @@ shapeList
   | shape
   ;
 
-// meta : 'meta' '[' LOWER_NAME ']' '[' NAT ']';
-meta : 'meta' '[' START_UPPER_CNAME ']' '[' NAT ']';
+meta : 'meta' '[' CNAME ']' '[' NAT ']';
 
 shape
-  : meta # metaShape
-  | '(' shape ')'                        # parensShape
-  | NAT                                  # intShape
+  : meta           # metaShape
+  | '(' shape ')'  # parensShape
+  | NAT            # intShape
   ;
 
 body: '{' expr '}' ;
 
 scalar
-  : FLOAT    # scalarFloat
-  | NAT      # scalarInt
-  | BOOL_LIT # scalarBool
+  : FLOAT     # scalarFloat
+  | NAT       # scalarInt
+  | BOOL_LIT  # scalarBool
   ;
 
 ident
-  : opIdent
+  : generalIdent
   | globalVar
   | localVar
-  | typeIdent
   | graphVar
   ;

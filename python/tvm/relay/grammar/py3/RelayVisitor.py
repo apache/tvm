@@ -9,18 +9,13 @@ else:
 
 class RelayVisitor(ParseTreeVisitor):
 
-    # Visit a parse tree produced by RelayParser#baseType.
-    def visitBaseType(self, ctx:RelayParser.BaseTypeContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by RelayParser#prog.
     def visitProg(self, ctx:RelayParser.ProgContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#opIdent.
-    def visitOpIdent(self, ctx:RelayParser.OpIdentContext):
+    # Visit a parse tree produced by RelayParser#generalIdent.
+    def visitGeneralIdent(self, ctx:RelayParser.GeneralIdentContext):
         return self.visitChildren(ctx)
 
 
@@ -31,11 +26,6 @@ class RelayVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RelayParser#localVar.
     def visitLocalVar(self, ctx:RelayParser.LocalVarContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RelayParser#typeIdent.
-    def visitTypeIdent(self, ctx:RelayParser.TypeIdentContext):
         return self.visitChildren(ctx)
 
 
