@@ -244,3 +244,72 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
         s[O].parallel(parallel_axis)
 
     return s
+
+
+def _schedule_conv_nhwc(s, cfg, data, data_pad, kernel_vec, conv_out, last):
+    # fetch schedule
+    ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                                      cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
+
+    # no stride and padding info here
+    padding = infer_pad(data, data_pad)
+    HPAD, WPAD = padding
+    DOPAD = (HPAD != 0 or WPAD != 0)
+
+    A, W = data, kernel_vec
+    A0 = data_pad
+
+    # schedule data
+    if DOPAD:
+        s[A0].compute_inline()
+
+    # schedule kernel pack
+    oh, ow, oc_chunk, ic_chunk, ic_block, oc_block = s[W].op.axis
+    s[W].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
+    if oc_bn > 1:
+        s[W].vectorize(oc_block)
+    parallel_axis = s[W].fuse(oc_chunk, oh)
+    s[W].parallel(parallel_axis)
+
+    # schedule conv
+    C, O = conv_out, last
+    CC = s.cache_write(C, 'global')
+
+    _, oh, ow, oc = s[C].op.axis
+    oc_chunk, oc_block = s[C].split(oc, factor=oc_bn)
+    ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
+    s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+    s[C].fuse(oc_chunk, oh)
+    s[C].vectorize(oc_block)
+
+    s[CC].compute_at(s[C], ow_chunk)
+    _, oh, ow, oc = s[CC].op.axis
+    kh, kw, ic = s[CC].op.reduce_axis
+
+    oc_chunk, oc_block = s[CC].split(oc, factor=oc_bn)
+    ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
+    ic_chunk, ic_block = s[CC].split(ic, factor=ic_bn)
+
+    if unroll_kw:
+        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_chunk, kh, ic_block, kw, ow_block, oc_block)
+        s[CC].unroll(kw)
+    else:
+        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_chunk, kh, kw, ic_block, ow_block, oc_block)
+
+    s[CC].fuse(oc_chunk, oh)
+    s[CC].vectorize(oc_block)
+    s[CC].unroll(ow_block)
+
+    if C != O:
+        batch, oh, ow, oc = s[O].op.axis
+        ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
+        oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
+        s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+
+        parallel_axis = s[O].fuse(oc_chunk, oh)
+        s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+
+        s[O].parallel(parallel_axis)
+
+    return s

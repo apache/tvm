@@ -132,8 +132,8 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
-        return _declaration_conv_impl(cfg, data, kernel, strides,
-                                      padding, dilation, layout, out_dtype)
+        return _declaration_conv_impl_NCHW(cfg, data, kernel, strides,
+                                           padding, dilation, layout, out_dtype)
 
     # HWOI kernel layout is for NHWC and HWCN
     kh, kw, _, _ = get_const_tuple(kernel.shape)
@@ -146,11 +146,15 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
                                                           padding, dilation, out_dtype)
     elif layout == 'NHWC':
-        return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
+        _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
+        if cfg.is_fallback:
+            _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
+        return _declaration_conv_impl_NHWC(cfg, data, kernel, strides,
+                                           padding, dilation, layout, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
 
-def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+def _declaration_conv_impl_NCHW(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
 
@@ -218,6 +222,70 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
                          name='output_unpack',
                          tag='conv2d_nchw')
     return unpack
+
+
+def _declaration_conv_impl_NHWC(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+    out_dtype = data.dtype if out_dtype is None else out_dtype
+    assert layout == 'NHWC', "only support NHWC convolution for AVX"
+
+    assert isinstance(dilation, int) or len(dilation) == 2
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    HPAD, WPAD = padding
+    HSTR, WSTR = strides
+
+    batch_size, in_height, in_width, in_channel = get_const_tuple(data.shape)
+    kernel_height, kernel_width, out_channel, _  = get_const_tuple(kernel.shape)
+
+    pad_height = in_height + 2 * HPAD
+    pad_width = in_width + 2 * WPAD
+
+    dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
+    out_height = (in_height + 2 * HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (in_width + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+
+    # pack data
+    DOPAD = (HPAD != 0 or WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (HPAD, WPAD, 0, 0), name="data_pad")
+    else:
+        data_pad = data
+
+    # fetch schedule
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+
+    # pack kernel
+    shape = (kernel_height, kernel_width,
+             out_channel//oc_bn, in_channel//ic_bn,
+             oc_bn, ic_bn)
+    kernel_vec = tvm.compute(shape,
+                             lambda h, w, CO, CI, co, ci:
+                             kernel[h, w, CO * oc_bn + co, CI * ic_bn + ci],
+                             name='kernel_vec')
+
+    # convolution
+    oshape = (batch_size, out_height, out_width, out_channel)
+
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+
+    conv = tvm.compute(oshape, lambda n, oh, ow, oc:
+                       tvm.sum(data[n,
+                                    oh*HSTR+kh*dilation_h,
+                                    ow*WSTR+kw*dilation_w,
+                                    ic].astype(out_dtype) *
+                               kernel_vec[kh, kw,
+                                          oc//oc_bn, ic//ic_bn,
+                                          oc%oc_bn, ic%ic_bn].astype(out_dtype),
+                               axis=[kh, kw, ic]), name='conv',
+                               tag='conv2d_nhwc')
+
+    return conv
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, 'cpu', ['direct'])
@@ -315,8 +383,8 @@ def schedule_conv2d_nhwc_pack(cfg, outs):
     return s
 
 
-@generic.schedule_conv2d_nhwc.register("cpu")
-def schedule_conv2d_nhwc(outs):
+@autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc, 'cpu', ['direct'])
+def schedule_conv2d_nhwc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
@@ -340,29 +408,23 @@ def schedule_conv2d_nhwc(outs):
 
         if 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
-            kernel = op.input_tensors[1]
+            kernel_vec = op.input_tensors[1]
+            kernel = kernel_vec.op.input_tensors[0]
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
-            data = op.input_tensors[0]
+            data = conv.op.input_tensors[0]
             data_pad = None
             if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            n_pad, h_pad, w_pad, c_pad = data_pad.op.axis
-            pad_fused = s[data_pad].fuse(n_pad, h_pad)
-            s[data_pad].parallel(pad_fused)
-            C = conv
-            n, h, w, c = C.op.axis
-            ry, rx, rc = C.op.reduce_axis
-            n_out, h_out, w_out, c_out = output_op.axis
-            s[C].vectorize(c)
-            if op != output_op: # fuse bias + bn + relu into conv
-                s[C].compute_at(s[output_op], c_out)
+            args = [s, cfg, data, data_pad, kernel_vec, conv, outs[0]]
+            kh, kw, _, _ = get_const_tuple(kernel.shape)
+            if kh == 1 and kw == 1:
+                conv2d_avx_1x1._schedule_conv_nhwc(*args)
             else:
-                fused = s[C].fuse(n, h, w)
-                s[C].parallel(fused)
+                conv2d_avx_common._schedule_conv_nhwc(*args)
 
         scheduled_ops.append(op)
 
