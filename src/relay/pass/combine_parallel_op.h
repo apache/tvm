@@ -98,17 +98,28 @@ class ParallelOpCombiner {
   // Otherwise, returns false.
   virtual bool AreCompatibleOps(const CallNode* a, const CallNode* b) = 0;
 
-  // Combine branches in a group. Ops in different branches in the same group are safe to
-  // combine. Subsequent ops may or may not be combined. Start from op and try to
-  // combine ops from all branches in the same depth.
-  // Ops should be updated by updating subst_map,
-  // which maps original Expr to Expr to substitute it with.
-  virtual void CombineBranches(const Group& branches, ExprSubstMap& subst_map) = 0;
+  // Create Call that consists of the combined ops. This usually involves concatenating
+  // or stacking inputs, then creating a new call.
+  virtual Call MakeCombinedOp(const Group& branches) = 0;
+
+  // Returns true if arguments of a and b at index index can be combined.
+  virtual bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) = 0;
+
+  // Create combined call of other ops in depth-th level. This usually involves concatenating
+  // or stacking inputs, then creating a new call.
+  virtual Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) = 0;
+
+  // Replace output of each branch with slices of the combined output.
+  virtual void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) = 0;
 
  private:
   std::string op_name_;
   uint64_t min_num_branches_;
   ExprSubstMap subst_map_;
+
+  void CombineBranches(const Group& branches);
+
+  bool CheckLevel(const Group& branches, size_t depth, size_t parent_index);
 };
 
 }  // namespace relay

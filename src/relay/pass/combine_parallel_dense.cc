@@ -53,12 +53,12 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
   }
 
  protected:
-  virtual bool IsSupportedOp(const CallNode* n) {
+  bool IsSupportedOp(const CallNode* n) {
     const auto* attrs = n->attrs.as<DenseAttrs>();
     return !attrs->units.defined();
   }
 
-  virtual bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
+  bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
     const auto* attrs_b = b->attrs.as<DenseAttrs>();
@@ -73,31 +73,7 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
            eq(attrs_a->units.defined(), attrs_b->units.defined());
   }
 
-  virtual void CombineBranches(const Group& branches, ExprSubstMap& subst_map) {
-    Call combined = MakeCombinedDense(branches);
-    auto it = std::min_element(branches.begin(), branches.end(),
-                               [](const Branch& branch_a,
-                                  const Branch& branch_b) {
-                                    return branch_a.size() < branch_b.size();
-                                  });
-    size_t depth = it->size();
-    size_t i;
-    // starting from 1 to skip the dense
-    for (i = 1; i < depth; i++) {
-      size_t parent_index;
-      for (parent_index = 0; parent_index < branches[0][i]->args.size(); parent_index++) {
-        if (branches[0][i]->args[parent_index].get() == branches[0][i - 1]) break;
-      }
-      CHECK_NE(parent_index, branches[0][i]->args.size());
-      if (!CheckLevel(branches, i, parent_index)) break;
-      combined = MakeCombinedCall(combined, branches, i, parent_index);
-    }
-    UpdateGroupOutput(combined, branches, i - 1, subst_map);
-  }
-
- private:
-  // Combine dense into batch matmul.
-  Call MakeCombinedDense(const Group& branches) {
+  Call MakeCombinedOp(const Group& branches) {
     static const Op& batch_matmul = Op::Get("nn.batch_matmul");
     Array<Expr> datas;
     Array<Expr> weights;
@@ -118,8 +94,6 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     AttrsEqual eq;
     auto ta = a->args[index]->type_as<TensorTypeNode>();
     auto tb = b->args[index]->type_as<TensorTypeNode>();
-    auto toutput_a = a->type_as<TensorTypeNode>();
-    auto toutput_b = b->type_as<TensorTypeNode>();
 
     if (!eq(ta->dtype, tb->dtype) || ta->shape.size() != tb->shape.size())
       return false;
@@ -131,36 +105,6 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     return true;
   }
 
-  // Check if ops in depth-th level can be combined
-  bool CheckLevel(const Group& branches, size_t depth, size_t parent_index) {
-    const CallNode* call = branches[0][depth];
-    AttrsEqual attrs_equal;
-    // check if all branches in current depth can be combined
-    for (auto it = branches.begin() + 1; it != branches.end(); it++) {
-      const Branch& branch = *it;
-      if (!branch[depth]->op.same_as(call->op) ||
-          !attrs_equal(branch[depth]->attrs, call->attrs) ||
-          branch[depth]->args.size() != call->args.size()) {
-        return false;
-      }
-
-      if (branch[depth]->args[parent_index].get() != branch[depth - 1])
-        return false;
-
-      // Check args
-      for (size_t i = 0; i < call->args.size(); i++) {
-        if (i == parent_index) continue;
-
-        if (!IsArgCompatible(call, branch[depth], i) ||
-            !attrs_equal(call->attrs, branch[depth]->attrs)) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  // Combine args and make the combined CallNode
   Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) {
     Array<Expr> new_args;
     const CallNode* call = branches[0][depth];
@@ -191,7 +135,6 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
     return CallNode::make(call->op, new_args, call->attrs, {});
   }
 
-  // Replace output of each branch with slices of the combined output
   void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) {
     int index = 0;
     auto split = MakeSplit(data, Integer(branches.size()), 0);

@@ -54,11 +54,11 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
  protected:
-  virtual bool IsSupportedOp(const CallNode* n) {
+  bool IsSupportedOp(const CallNode* n) {
     return n->attrs.as<Conv2DAttrs>()->groups == 1;
   }
 
-  virtual bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
+  bool AreCompatibleOps(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     static const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
@@ -81,50 +81,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
            eq(shape_a[3], shape_b[3]);
   }
 
-  virtual void CombineBranches(const Group& branches, ExprSubstMap& subst_map) {
-    Call combined = MakeCombinedConv2D(branches);
-    auto conv_param = combined->attrs.as<Conv2DAttrs>();
-    const std::string& layout =
-        conv_param->out_layout == "" ? conv_param->data_layout : conv_param->out_layout;
-    size_t channel_pos = layout.find('C');
-    CHECK_NE(channel_pos, std::string::npos);
-    auto it = std::min_element(branches.begin(), branches.end(),
-                               [](const Branch& branch_a,
-                                  const Branch& branch_b) {
-                                    return branch_a.size() < branch_b.size();
-                                  });
-    size_t depth = it->size();
-    size_t i;
-    // starting from 1 to skip the conv2d
-    for (i = 1; i < depth; i++) {
-      size_t parent_index;
-      for (parent_index = 0; parent_index < branches[0][i]->args.size(); parent_index++) {
-        if (branches[0][i]->args[parent_index].get() == branches[0][i - 1]) break;
-      }
-      CHECK_NE(parent_index, branches[0][i]->args.size());
-      if (!CheckLevel(branches, i, channel_pos, parent_index)) break;
-      combined = MakeCombinedCall(combined, branches, i, channel_pos, parent_index);
-    }
-    UpdateGroupOutput(combined, branches, i - 1, channel_pos, subst_map);
-  }
-
- private:
-  std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
-    int64_t num_filters = 0;  // number of filters of the transformed weight
-    Array<Expr> weights;
-    for (const auto& branch : branches) {
-      auto conv2d = branch[0];
-      weights.push_back(conv2d->args[1]);
-      auto channels = GetConv2DSuperChannelsDim(conv2d);
-      num_filters += channels;
-    }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
-    CHECK_NE(index, std::string::npos);
-    return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
-                           MakeConstScalar(Int(32), num_filters));
-  }
-
-  Call MakeCombinedConv2D(const Group& branches) {
+  Call MakeCombinedOp(const Group& branches) {
     static const Op& conv2d = Op::Get("nn.conv2d");
     Expr data = branches[0][0]->args[0];
     Expr new_weight;
@@ -146,10 +103,15 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     new_attrs->out_dtype = attrs->out_dtype;
     new_attrs->channels = new_channels;
 
+    const std::string& layout =
+        new_attrs->out_layout == "" ? new_attrs->data_layout : new_attrs->out_layout;
+    channel_pos = layout.find('C');
+    CHECK_NE(channel_pos, std::string::npos);
+
     return CallNode::make(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
   }
 
-  bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index, size_t channel_pos) {
+  bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
     AttrsEqual eq;
     auto ta = a->args[index]->type_as<TensorTypeNode>();
     auto tb = b->args[index]->type_as<TensorTypeNode>();
@@ -176,38 +138,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     return true;
   }
 
-  // Check if ops in depth-th level can be combined
-  bool CheckLevel(const Group& branches, size_t depth, size_t channel_pos, size_t parent_index) {
-    const CallNode* call = branches[0][depth];
-    AttrsEqual attrs_equal;
-    // check if all branches in current depth can be combined
-    for (auto it = branches.begin() + 1; it != branches.end(); it++) {
-      const Branch& branch = *it;
-      if (!branch[depth]->op.same_as(call->op) ||
-          !attrs_equal(branch[depth]->attrs, call->attrs) ||
-          branch[depth]->args.size() != call->args.size()) {
-        return false;
-      }
-
-      if (branch[depth]->args[parent_index].get() != branch[depth - 1])
-        return false;
-
-      // Check args
-      for (size_t i = 0; i < call->args.size(); i++) {
-        if (i == parent_index) continue;
-
-        if (!IsArgCompatible(call, branch[depth], i, channel_pos) ||
-            !attrs_equal(call->attrs, branch[depth]->attrs)) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  // Combine args and make the combined CallNode
-  Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t channel_pos,
-                        size_t parent_index) {
+  Call MakeCombinedCall(const Expr& data, const Group& branches, size_t depth, size_t parent_index) {
     Array<Expr> new_args;
     const CallNode* call = branches[0][depth];
     size_t ndim = call->type_as<TensorTypeNode>()->shape.size();
@@ -229,9 +160,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     return CallNode::make(call->op, new_args, call->attrs, {});
   }
 
-  // Replace output of each branch with slices of the combined output
-  void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth,
-                         size_t channel_pos, ExprSubstMap& subst_map) {
+  void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth, ExprSubstMap& subst_map) {
     int64_t index = 0;
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
@@ -248,6 +177,24 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
       subst_map[GetRef<Expr>(branch[depth])] = slice;
     }
+  }
+
+ private:
+  size_t channel_pos;
+
+  std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
+    int64_t num_filters = 0;  // number of filters of the transformed weight
+    Array<Expr> weights;
+    for (const auto& branch : branches) {
+      auto conv2d = branch[0];
+      weights.push_back(conv2d->args[1]);
+      auto channels = GetConv2DSuperChannelsDim(conv2d);
+      num_filters += channels;
+    }
+    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
+    CHECK_NE(index, std::string::npos);
+    return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
+                           MakeConstScalar(Int(32), num_filters));
   }
 };
 

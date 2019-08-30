@@ -127,10 +127,60 @@ Expr ParallelOpCombiner::Combine(const Expr& expr) {
     if (group.size() < min_num_branches_) {
       continue;
     }
-    CombineBranches(group, subst_map_);
+    CombineBranches(group);
   }
   return ExprSubst(expr, std::move(subst_map_));
 }
+
+void ParallelOpCombiner::CombineBranches(const Group& branches) {
+  Call combined = MakeCombinedOp(branches);
+  auto it = std::min_element(branches.begin(), branches.end(),
+                              [](const Branch& branch_a,
+                                const Branch& branch_b) {
+                                  return branch_a.size() < branch_b.size();
+                                });
+  size_t depth = it->size();
+  size_t i;
+  // starting from 1 to skip the dense
+  for (i = 1; i < depth; i++) {
+    size_t parent_index;
+    for (parent_index = 0; parent_index < branches[0][i]->args.size(); parent_index++) {
+      if (branches[0][i]->args[parent_index].get() == branches[0][i - 1]) break;
+    }
+    CHECK_NE(parent_index, branches[0][i]->args.size());
+    if (!CheckLevel(branches, i, parent_index)) break;
+    combined = MakeCombinedCall(combined, branches, i, parent_index);
+  }
+  UpdateGroupOutput(combined, branches, i - 1, subst_map_);
+}
+
+bool ParallelOpCombiner::CheckLevel(const Group& branches, size_t depth, size_t parent_index) {
+    const CallNode* call = branches[0][depth];
+    AttrsEqual attrs_equal;
+    // check if all branches in current depth can be combined
+    for (auto it = branches.begin() + 1; it != branches.end(); it++) {
+      const Branch& branch = *it;
+      if (!branch[depth]->op.same_as(call->op) ||
+          !attrs_equal(branch[depth]->attrs, call->attrs) ||
+          branch[depth]->args.size() != call->args.size()) {
+        return false;
+      }
+
+      if (branch[depth]->args[parent_index].get() != branch[depth - 1])
+        return false;
+
+      // Check args
+      for (size_t i = 0; i < call->args.size(); i++) {
+        if (i == parent_index) continue;
+
+        if (!IsArgCompatible(call, branch[depth], i) ||
+            !attrs_equal(call->attrs, branch[depth]->attrs)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
 
 }  // namespace relay
 }  // namespace tvm
