@@ -32,7 +32,9 @@ def _set_class_node_base(cls):
 
 
 def _scalar_type_inference(value):
-    if isinstance(value, bool):
+    if hasattr(value, 'dtype'):
+        dtype = str(value.dtype)
+    elif isinstance(value, bool):
         dtype = 'bool'
     elif isinstance(value, float):
         # We intentionally convert the float to float32 since it's more common in DL.
@@ -40,8 +42,6 @@ def _scalar_type_inference(value):
     elif isinstance(value, int):
         # We intentionally convert the python int to int32 since it's more common in DL.
         dtype = 'int32'
-    elif hasattr(value, 'dtype'):
-        dtype = str(value.dtype)
     else:
         raise NotImplementedError('Cannot automatically inference the type.'
                                   ' value={}'.format(value))
