@@ -25,9 +25,25 @@ from .base import string_types
 # Node base class
 _CLASS_NODE_BASE = None
 
+
 def _set_class_node_base(cls):
     global _CLASS_NODE_BASE
     _CLASS_NODE_BASE = cls
+
+
+def _scalar_value_type_inference(value):
+    if isinstance(value, bool):
+        dtype = 'bool'
+    elif isinstance(value, float):
+        dtype = 'float64'
+    elif isinstance(value, int):
+        dtype = 'int64'
+    elif hasattr(value, 'dtype'):
+        dtype = str(value.dtype)
+    else:
+        raise NotImplementedError('Cannot automatically inference the type.'
+                                  ' value={}'.format(value))
+    return dtype
 
 
 class NodeGeneric(object):
@@ -86,7 +102,7 @@ def const(value, dtype=None):
     value : int or float
         The input value
 
-    dtype : str
+    dtype : str or None, optional
         The data type.
 
     Returns
@@ -95,8 +111,5 @@ def const(value, dtype=None):
         Constant expression corresponds to the value.
     """
     if dtype is None:
-        if isinstance(value, Integral):
-            dtype = 'int32'
-        else:
-            dtype = 'float32'
+        dtype = _scalar_value_type_inference(value)
     return _api_internal._const(value, dtype)
