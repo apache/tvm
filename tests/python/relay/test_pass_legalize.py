@@ -92,6 +92,51 @@ def test_legalize_none():
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
+def test_legalize_multiple_ops():
+    """Test directly replacing an operator with a new one"""
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var('weight', shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    @register_legalize("nn.conv2d", level=102)
+    def legalize_conv2d(attrs, inputs, types):
+        data, weight = inputs
+        weight = relay.multiply(weight, relay.const(2.0, "float32"))
+        return relay.nn.conv2d(data, weight, **attrs)
+
+    @register_legalize("nn.relu", level=103)
+    def legalize_conv2d(attrs, inputs, types):
+        data = inputs[0]
+        add = relay.add(tvm.relay.const(0, "float32"), data)
+        return relay.nn.relu(add)
+
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var('weight', shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, relay.multiply(weight, relay.const(2.0, "float32")),
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        y = relay.add(tvm.relay.const(0, "float32"), y)
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.Legalize())
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_legalize_multi_input():
     """Test directly replacing an operator with a new one"""
     def before():
@@ -102,7 +147,7 @@ def test_legalize_multi_input():
         func = relay.Function([x, y, z], func)
         return func
 
-    @register_legalize("concatenate", level=100)
+    @register_legalize("concatenate", level=104)
     def legalize_concatenate(attrs, inputs, types):
         # Check that the correct multi-input case is handled.
         assert len(inputs) == 1
@@ -153,7 +198,7 @@ def test_legalize_arm_layout_functional():
         func = relay.Function([data, kernel], y)
         return func
 
-    @register_legalize("nn.conv2d", level=101)
+    @register_legalize("nn.conv2d", level=105)
     def legalize_conv2d(attrs, inputs, types):
         from topi.arm_cpu.conv2d import _conv2d_legalize
         return _conv2d_legalize(attrs, inputs, types)
@@ -173,5 +218,6 @@ def test_legalize_arm_layout_functional():
 if __name__ == "__main__":
     test_legalize()
     test_legalize_none()
+    test_legalize_multiple_ops()
     test_legalize_multi_input()
     test_legalize_arm_layout_functional()
