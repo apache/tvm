@@ -160,5 +160,6 @@ REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
+REGISTER_PASS(LiftIfThenElse);
 }  // namespace ir
 }  // namespace tvm
