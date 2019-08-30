@@ -117,7 +117,7 @@ expr
   | QUOTED_STRING                                # stringExpr
   ;
 
-func: 'fn'        typeParamList? '(' argList ')' ('->' typeExpr)? body ;
+func: 'fn' typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
   | 'type' generalIdent typeParamList? '=' adtConsDefn+                      # adtDefn
