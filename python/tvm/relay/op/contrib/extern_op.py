@@ -32,7 +32,7 @@ from .. import op as reg
 
 @reg.register_extern_op("nn.conv2d")
 def external_conv2d(attrs, args, compiler):
-    """Check if the external compiler should be used for conv2d.
+    """Check if the external compiler should be used.
     """
     if compiler == "gcc":
         return gcc.extern_op.conv2d(attrs, args)
@@ -42,9 +42,29 @@ def external_conv2d(attrs, args, compiler):
 
 @reg.register_extern_op("subtract")
 def external_subtract(attrs, args, compiler):
-    """Check if the external compiler should be used for conv2d.
+    """Check if the external compiler should be used.
     """
     if compiler == "gcc":
         return gcc.extern_op.subtract(attrs, args)
 
     raise RuntimeError("subtract in {} is not registered" % (compiler))
+
+
+@reg.register_extern_op("add")
+def external_add(attrs, args, compiler):
+    """Check if the external compiler should be used.
+    """
+    if compiler == "gcc":
+        return gcc.extern_op.add(attrs, args)
+
+    raise RuntimeError("add in {} is not registered" % (compiler))
+
+
+@reg.register_extern_op("multiply")
+def external_multiply(attrs, args, compiler):
+    """Check if the external compiler should be used.
+    """
+    if compiler == "gcc":
+        return gcc.extern_op.multiply(attrs, args)
+
+    raise RuntimeError("multiply in {} is not registered" % (compiler))

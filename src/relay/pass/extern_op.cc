@@ -167,7 +167,7 @@ struct EliminateAnnotation : public ExprMutator {
 
 Expr ExternOp(const Expr& expr, const std::string& compiler) {
   Expr annotated = ExternOpWrapper(compiler).Mutate(expr);
-  return EliminateAnnotation().Mutate(annotated);
+  return annotated; //EliminateAnnotation().Mutate(annotated);
 }
 
 }  // namespace extern_op

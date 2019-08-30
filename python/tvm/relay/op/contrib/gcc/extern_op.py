@@ -19,11 +19,21 @@
 from __future__ import absolute_import
 
 def conv2d(attrs, args):
-    """Check if the external codegen should be used for conv2d.
+    """Check if the external codegen should be used.
     """
     return False
 
 def subtract(attrs, args):
-    """Check if the external codegen should be used for conv2d.
+    """Check if the external codegen should be used.
+    """
+    return True
+
+def add(attrs, args):
+    """Check if the external codegen should be used.
+    """
+    return True
+
+def multiply(attrs, args):
+    """Check if the external codegen should be used.
     """
     return True

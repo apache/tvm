@@ -30,14 +30,14 @@
  */
 
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -46,14 +46,52 @@ namespace relay {
 namespace graph_partitioning {
 
 /*!
+ * \brief The subgraph properties for partition.
+ */
+struct Subgraph {
+  /*! \brief The subgraph ID. */
+  int id;
+
+  /*! \brief The input arguments of this subgraph. */
+  std::vector<std::pair<Var, Expr>> args;
+
+  /*! \brief Nodes in this subgraph. */
+  std::unordered_set<Expr, ExprHash, ExprEqual> nodes;
+};
+
+/*!
  * \brief The checker that verifies if a Relay program is annotated correctly
  * for graph partitioning.
  */
 class AnnotationChecker : public ExprVisitor {
  public:
-  bool Check(const Expr& expr) {
+  bool Check() {
+    if (!this->found_start && !this->found_end) {
+      LOG(WARNING) << "No subgraph annotation found";
+    } else if (!this->found_start) {
+      LOG(ERROR) << "Subgraph start annotation is missing";
+      return false;
+    } else if (!this->found_end) {
+      LOG(ERROR) << "Subgraph end annotation is missing";
+      return false;
+    }
     return true;
   }
+
+  void VisitExpr_(const CallNode* call) final {
+    auto op_node = call->op.as<OpNode>();
+    if (op_node == nullptr || call->attrs.as<SubgraphAttrs>() == nullptr) {
+      return;
+    } else if (GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
+      this->found_start = true;
+    } else if (GetRef<Op>(op_node) == Op::Get("annotation.subgraph_end")) {
+      this->found_end = true;
+    }
+  }
+
+ private:
+  bool found_start = false;
+  bool found_end = false;
 };
 
 /*! \brief This class partitions the graph labeled with begin and end annoations
@@ -65,76 +103,125 @@ class AnnotationChecker : public ExprVisitor {
  */
 class Partitioner : public ExprMutator {
  public:
+  Subgraph* GetSubgraph(const Expr node) {
+    for (auto candidate : this->subgraphs_) {
+      if (candidate->nodes.find(node) != candidate->nodes.end()) {
+        return candidate;
+      }
+    }
+    return nullptr;
+  }
+
+  void MergeSubgraph(Subgraph* subgraph1, Subgraph* subgraph2) {
+    // Merge subgraph 2 to subgraph 1 and erase subgraph 2.
+    subgraph1->nodes.insert(subgraph2->nodes.begin(), subgraph2->nodes.end());
+    for (auto arg : subgraph2->args) {
+      subgraph1->args.push_back(arg);
+    }
+    this->subgraphs_.erase(subgraph2);
+  }
+
+  void AddToSubgraph(Subgraph* subgraph, const Expr expr) {
+      auto subgraph2 = GetSubgraph(expr);
+      if (subgraph2) {
+        MergeSubgraph(subgraph, subgraph2);
+      } else {
+        subgraph->nodes.insert(expr);
+      }
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
 
-    // Use the default visitor to traverse the nodes that are not subgraph
-    // nodes.
     if (op_node == nullptr || call->attrs.as<SubgraphAttrs>() == nullptr) {
+      // Propogate subgraph to arguments
+      auto subgraph = GetSubgraph(GetRef<Call>(call));
+      if (subgraph) {
+        for (auto arg : call->args) {
+          AddToSubgraph(subgraph, arg);
+        }
+      }
       return ExprMutator::VisitExpr_(call);
-    }
+    } else if (GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
+      // The annotation node is inserted on edge so it must have only one argument.
+      CHECK(call->args.size() == 1);
 
-    if (GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
+      // Traverse the rest graph.
       auto input_expr = VisitExpr(call->args[0]);
+
+      // Replace the begin annotation with an external call input variable.
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
-      auto var = VarNode::make(subgraph_attrs->compiler + "_input" + std::to_string(var_count_++),
-                               call->args[0]->checked_type());
-      subgraph_args_.push_back({var, input_expr});
+      auto var = VarNode::make(subgraph_attrs->compiler + "_input" + std::to_string(var_id_++),
+                               input_expr->checked_type());
+
+      // Find the corresponding subgraph and add the argument.
+      auto subgraph = GetSubgraph(GetRef<Call>(call));
+      if (!subgraph) {
+        throw Error(RELAY_ERROR("Cannot find the corresponding subgraph for end annotation:\n"
+                                << AsText(GetRef<Call>(call), false)));
+      }
+      subgraph->args.push_back({var, input_expr});
+      //LOG(ERROR) << "Add an argument to subgraph " << subgraph->id << ":\n" << AsText(var, false);
       return std::move(var);
     } else {
       CHECK(GetRef<Op>(op_node) == Op::Get("annotation.subgraph_end"));
+      // The annotation node is inserted on edge so it must have only one argument.
+      CHECK(call->args.size() == 1);
 
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
-      CHECK(subgraph_attrs);
+
+      // Check if the argument is already belonged to an exist subgraph
+      auto subgraph = GetSubgraph(call->args[0]);
+      if (!subgraph) {
+        auto ret = this->subgraphs_.emplace(new Subgraph());
+        subgraph = *ret.first;
+        subgraph->nodes.insert(call->args[0]);
+        subgraph->id = this->subgraph_id_++;
+      }
+      subgraph->nodes.insert(GetRef<Call>(call));
+
+      // Traverse towarding to subgraph inputs.
       auto input = VisitExpr(call->args[0]);
       Array<Var> params;
       Array<Expr> args;
 
-      for (auto pair : subgraph_args_) {
+      // The subgraph may be merged so we need to update it again.
+      subgraph = GetSubgraph(GetRef<Call>(call));
+      for (auto pair : subgraph->args) {
         params.push_back(pair.first);
         args.push_back(pair.second);
       }
 
       auto subgraph_func = FunctionNode::make(params, input, Type(), {}, Attrs());
-
+      
+      // FIXME: How to determine the function name?
       subgraph_func =
           FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make("Subtract"));
       subgraph_func = FunctionSetAttr(subgraph_func, "Primitive", tvm::Integer(1));
       subgraph_func = FunctionSetAttr(subgraph_func, "External",
                                       tvm::ir::StringImm::make(subgraph_attrs->compiler));
-      subgraph_args_.clear();
-      var_count_ = 0;
       return CallNode::make(subgraph_func, args);
     }
   }
 
-  /*
-   * \brief For cases like the following:
-   *
-   *       op1
-   *        |
-   *       end
-   *        |
-   *       op2
-   *      /   \
-   *     x     y
-   *
-   * where x and y could be inputs, e.g. vars and/or constants. Here, we should
-   * group all nodes/expressions that are dominated by op2 in the same subgraph.
-   */
-  Expr VisitExpr_(const VarNode* vn) final {
-    Expr var = GetRef<Var>(vn);
-    return var;
-  }
-
-  Expr VisitExpr_(const ConstantNode* cn) final {
-    Expr constant = GetRef<Constant>(cn);
-    return constant;
+  Expr VisitExpr_(const TupleNode* op) {
+    Expr ref = GetRef<Tuple>(op);
+    auto subgraph = GetSubgraph(ref);
+    if (subgraph) {
+      for (auto field : op->fields) {
+        AddToSubgraph(subgraph, field);
+      }
+    }
+    for (auto field : op->fields) {
+      VisitExpr(field);
+    }
+    return ref;
   }
 
  private:
-  int var_count_{0};
-  std::vector<std::pair<Var, Expr> > subgraph_args_;
+  int var_id_{0};
+  int subgraph_id_{0};
+  std::unordered_set<Subgraph*> subgraphs_;
 };
 
 /*!
@@ -174,9 +261,7 @@ class ParallelSubgraphCombiner : public ExprMutator {
       return groups_;
     }
 
-    void VisitExpr_(const CallNode* call) final {
-      ExprVisitor::VisitExpr_(call);
-    }
+    void VisitExpr_(const CallNode* call) final { ExprVisitor::VisitExpr_(call); }
 
    private:
     ParallelGroup groups_;
@@ -193,16 +278,15 @@ Expr PartitionGraph(const Expr& expr) {
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(graph_partitioning::PartitionGraph(f));
-  };
-  auto partitioned = CreateFunctionPass(pass_func, 1, "PartitionGraph", {});
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> part_func =
+      [=](Function f, Module m, PassContext pc) {
+        return Downcast<Function>(graph_partitioning::PartitionGraph(f));
+      };
+  auto partitioned = CreateFunctionPass(part_func, 1, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
 }
 
-TVM_REGISTER_API("relay._transform.PartitionGraph")
-.set_body_typed(transform::PartitionGraph);
+TVM_REGISTER_API("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
 
 }  // namespace transform
 

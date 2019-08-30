@@ -93,7 +93,7 @@ class ExternalModuleNode : public runtime:: ModuleNode {
         *rv = c;
       });
     } else {
-      LOG(FATAL) << "Unknow function found when invoking extern library: " << name;
+      LOG(FATAL) << "Unknown function found when invoking extern library: " << name;
       return PackedFunc();
     }
   }
