@@ -31,13 +31,15 @@ def _set_class_node_base(cls):
     _CLASS_NODE_BASE = cls
 
 
-def _scalar_value_type_inference(value):
+def _scalar_type_inference(value):
     if isinstance(value, bool):
         dtype = 'bool'
     elif isinstance(value, float):
-        dtype = 'float64'
+        # We intentionally convert the float to float32 since it's more common in DL.
+        dtype = 'float32'
     elif isinstance(value, int):
-        dtype = 'int64'
+        # We intentionally convert the python int to int32 since it's more common in DL.
+        dtype = 'int32'
     elif hasattr(value, 'dtype'):
         dtype = str(value.dtype)
     else:
@@ -111,5 +113,5 @@ def const(value, dtype=None):
         Constant expression corresponds to the value.
     """
     if dtype is None:
-        dtype = _scalar_value_type_inference(value)
+        dtype = _scalar_type_inference(value)
     return _api_internal._const(value, dtype)

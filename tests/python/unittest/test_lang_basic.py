@@ -25,17 +25,19 @@ def test_const():
 
 
 def test_scalar_dtype_inference():
-    for data in [1, 1.0, True,
-                 np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
+    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
                  np.int8(1), np.int16(1), np.int32(1), np.int64(1),
                  np.float16(1), np.float32(1), np.float64(1)]:
         assert tvm.const(data).dtype == str(np.array(data).dtype)
+    assert tvm.const(1).dtype == 'int32'
+    assert tvm.const(1.0).dtype == 'float32'
 
-    for data in [1, 1.0, True,
-                 np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
+    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
                  np.int8(1), np.int16(1), np.int32(1), np.int64(1),
                  np.float16(1), np.float32(1), np.float64(1)]:
         assert tvm.convert(data).dtype == str(np.array(data).dtype)
+    assert tvm.convert(1).dtype == 'int32'
+    assert tvm.convert(1.0).dtype == 'float32'
 
 def test_make():
     x = tvm.const(1, "int32")
