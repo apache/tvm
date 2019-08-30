@@ -22,7 +22,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.pad import pad
 from ..nn.util import infer_pad, get_pad_tuple
-from ..util import get_const_tuple, simplify
+from ..util import get_const_tuple, get_const_int, simplify
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .util import get_fp32_len
 
@@ -342,68 +342,5 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
         oc_chunk, oc_block = s[O].split(ochannel, 16)
         # not saw perf improvement to split oh/ow here
         s[O].vectorize(oc_block)
-
-    return s
-
-
-def _schedule_conv_nhwc(s, cfg, data, data_pad, kernel_vec, conv_out, last):
-    # fetch schedule
-    ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
-                                          cfg["tile_oh"].val, cfg["tile_ow"].size[-1])
-
-    # no stride and padding info here
-    padding = infer_pad(data, data_pad)
-    HPAD, WPAD = padding
-    DOPAD = (HPAD != 0 or WPAD != 0)
-
-    A, W = data, kernel_vec
-    A0 = data_pad
-    # schedule data
-    if DOPAD:
-        s[A0].compute_inline()
-
-    # schedule kernel pack
-    oh, ow, oc_chunk, ic_chunk, ic_block, oc_block = s[W].op.axis
-    s[W].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
-    if oc_bn > 1:
-        s[W].vectorize(oc_block)
-    parallel_axis = s[W].fuse(oc_chunk, oh)
-    s[W].parallel(parallel_axis)
-
-    C, O = conv_out, last
-    CC = s.cache_write(C, 'global')
-
-    batch, oh, ow, oc = s[C].op.axis
-    oc_chunk, oc_block = s[C].split(oc, factor=oc_bn)
-    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
-    s[C].vectorize(oc_block)
-
-    s[CC].compute_at(s[C], oh_outer)
-    _, oh, ow, oc = s[CC].op.axis
-    _, _, ic = s[CC].op.reduce_axis
-
-    oc_chunk, oc_block = s[CC].split(oc, factor=oc_bn)
-    ic_chunk, ic_block = s[CC].split(ic, factor=ic_bn)
-    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
-
-    s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_chunk, ic_block, oh_inner, ow_inner, oc_block)
-    s[CC].vectorize(oc_block)
-
-    s[CC].unroll(ow_inner)
-    s[CC].unroll(oh_inner)
-
-    if C != O:
-        batch, oc, oh, ow = s[O].op.axis
-        oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
-        oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
-        ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-        parallel_axis = s[O].fuse(oc_chunk, oh_outer)
-        s[C].compute_at(s[O], parallel_axis)
-        s[O].vectorize(oc_block)
-
-        s[O].parallel(parallel_axis)
 
     return s

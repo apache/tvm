@@ -26,7 +26,7 @@ from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
-from ..util import get_const_tuple, get_shape
+from ..util import get_const_tuple, get_shape, traverse_inline
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
     conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
@@ -34,6 +34,10 @@ from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
+from .conv2d_spatial_pack import conv2d_spatial_pack_nchw, \
+                                 conv2d_spatial_pack_nhwc, \
+                                 schedule_conv2d_spatial_pack_nchw, \
+                                 schedule_conv2d_spatial_pack_nhwc
 
 logger = logging.getLogger('topi')
 
@@ -132,8 +136,8 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
-        return _declaration_conv_impl_NCHW(cfg, data, kernel, strides,
-                                           padding, dilation, layout, out_dtype)
+        return _declaration_conv_impl(cfg, data, kernel, strides,
+                                      padding, dilation, layout, out_dtype)
 
     # HWOI kernel layout is for NHWC and HWCN
     kh, kw, _, _ = get_const_tuple(kernel.shape)
@@ -146,15 +150,12 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
                                                           padding, dilation, out_dtype)
     elif layout == 'NHWC':
-        _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
-        if cfg.is_fallback:
-            _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
-        return _declaration_conv_impl_NHWC(cfg, data, kernel, strides,
-                                           padding, dilation, layout, out_dtype)
+        return conv2d_spatial_pack_nhwc(cfg, data, kernel, strides,
+                                        padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
 
-def _declaration_conv_impl_NCHW(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
 
@@ -222,70 +223,6 @@ def _declaration_conv_impl_NCHW(cfg, data, kernel, strides, padding, dilation, l
                          name='output_unpack',
                          tag='conv2d_nchw')
     return unpack
-
-
-def _declaration_conv_impl_NHWC(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
-    out_dtype = data.dtype if out_dtype is None else out_dtype
-    assert layout == 'NHWC', "only support NHWC convolution for AVX"
-
-    assert isinstance(dilation, int) or len(dilation) == 2
-    if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
-    else:
-        dilation_h, dilation_w = dilation
-
-    HPAD, WPAD = padding
-    HSTR, WSTR = strides
-
-    batch_size, in_height, in_width, in_channel = get_const_tuple(data.shape)
-    kernel_height, kernel_width, out_channel, _  = get_const_tuple(kernel.shape)
-
-    pad_height = in_height + 2 * HPAD
-    pad_width = in_width + 2 * WPAD
-
-    dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
-    out_height = (in_height + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    out_width = (in_width + 2 * WPAD - dilated_kernel_w) // WSTR + 1
-
-    # pack data
-    DOPAD = (HPAD != 0 or WPAD != 0)
-    if DOPAD:
-        data_pad = pad(data, (HPAD, WPAD, 0, 0), name="data_pad")
-    else:
-        data_pad = data
-
-    # fetch schedule
-    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-
-    # pack kernel
-    shape = (kernel_height, kernel_width,
-             out_channel//oc_bn, in_channel//ic_bn,
-             oc_bn, ic_bn)
-    kernel_vec = tvm.compute(shape,
-                             lambda h, w, CO, CI, co, ci:
-                             kernel[h, w, CO * oc_bn + co, CI * ic_bn + ci],
-                             name='kernel_vec')
-
-    # convolution
-    oshape = (batch_size, out_height, out_width, out_channel)
-
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-
-    conv = tvm.compute(oshape, lambda n, oh, ow, oc:
-                       tvm.sum(data[n,
-                                    oh*HSTR+kh*dilation_h,
-                                    ow*WSTR+kw*dilation_w,
-                                    ic].astype(out_dtype) *
-                               kernel_vec[kh, kw,
-                                          oc//oc_bn, ic//ic_bn,
-                                          oc%oc_bn, ic%ic_bn].astype(out_dtype),
-                               axis=[kh, kw, ic]), name='conv',
-                               tag='conv2d_nhwc')
-
-    return conv
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, 'cpu', ['direct'])
@@ -387,48 +324,28 @@ def schedule_conv2d_nhwc_pack(cfg, outs):
 def schedule_conv2d_nhwc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
-    output_op = outs[0].op
-    scheduled_ops = []
 
-    def traverse(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            else: # inject custom schedule
-                if len(op.axis) == 4: # schedule bias + bn + relu
-                    n, h, w, c = op.axis
-                    fused = s[op].fuse(n, h, w)
-                    s[op].parallel(fused)
-                    s[op].vectorize(c)
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
+    def _callback(op):
+        if 'spatial_conv_output_NHWC' in op.tag:
+            output = op.output(0)
+            conv = op.input_tensors[0]
 
-        if 'conv2d_nhwc' in op.tag:
-            conv = op.output(0)
-            kernel_vec = op.input_tensors[1]
-            kernel = kernel_vec.op.input_tensors[0]
+            data_vec = conv.op.input_tensors[0]
+            data_pad = data_vec.op.input_tensors[0]
+            s[data_pad].compute_inline()
+
+            kernel_vec = conv.op.input_tensors[1]
+            if kernel_vec.op.name == 'kernel_vec':
+                kernel = kernel_vec.op.input_tensors[0]
+            else:
+                kernel = kernel_vec
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
-            data = conv.op.input_tensors[0]
-            data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
-                data_pad = data
-                data = data_pad.op.input_tensors[0]
+            schedule_conv2d_spatial_pack_nhwc(cfg, s, data_vec, kernel_vec,
+                                              conv, output, outs[0])
 
-            args = [s, cfg, data, data_pad, kernel_vec, conv, outs[0]]
-            kh, kw, _, _ = get_const_tuple(kernel.shape)
-            if kh == 1 and kw == 1:
-                conv2d_avx_1x1._schedule_conv_nhwc(*args)
-            else:
-                conv2d_avx_common._schedule_conv_nhwc(*args)
-
-        scheduled_ops.append(op)
-
-    traverse(output_op)
+    traverse_inline(s, outs[0].op, _callback)
     return s
 
 
