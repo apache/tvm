@@ -1468,6 +1468,16 @@ def bitpack(data,
             pack_type="uint32",
             name="BitPack"):
     r"""Tensor packing for bitserial operations.
+    The values along the input tensor's pack_axis are quantized
+    and packed together into the specified pack_type in a new
+    bit axis.
+
+    For example, consider bitpacking with data to be a tensor with shape [1, 64, 128, 128],
+    pack_axis=1, bit_axis=4, pack_type=uint8, and bits=2. The output in this case will
+    be of shape [1, 8, 128, 128, 2]. The dimension of axis 1 has been reduced by a factor
+    of 8 since each value is packed into an 8-bit uint8. Axis 4 is now two bitplanes
+    representing the quantized value of the incoming data. The output tensor is now
+    ready to be used in a bitserial operation.
 
     Parameters
     ----------
@@ -1571,7 +1581,8 @@ def bitserial_dense(data,
                     out_dtype='int16',
                     unipolar=True):
     """Bitserial Dense operator.
-    Applies a linear transformation
+    Applies matrix multiplication of two quantized matrices
+    using a fast bitserial algorithm.
 
     .. math::
 

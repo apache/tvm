@@ -259,7 +259,8 @@ def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation,
     out_dtype = out_dtype or data.dtype
     N, IH, IW, CI = get_const_tuple(data.shape)
 
-    # TODO? Dilation
+    # TODO dilation not currently supported
+    assert dilation == 1 or tuple(dilation) == (1, 1), "Does not support dilation"
 
     if len(kernel.shape) == 4:
         pre_packed = False
@@ -300,10 +301,10 @@ def _decl_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation,
     cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
 
     # fallback support
-    # if cfg.is_fallback:
-    #     if num_tile == 2:     # arm cpu
-    #         ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'conv2d', 'direct')
-    #         cfg.fallback_with_reference_log(ref_log)
+    if cfg.is_fallback:
+        if num_tile == 2:     # arm cpu
+            ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'conv2d', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
 
     VC = cfg["tile_co"].size[-1]
     VH = cfg["tile_oh"].size[-1]
