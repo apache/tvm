@@ -49,7 +49,7 @@ BranchGroupFinder::BranchGroupFinder(const std::string& op_name,
 }
 
 std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
-  static const Op& op = Op::Get(op_name_);
+  const Op& op = Op::Get(op_name_);
 
   this->VisitExpr(expr);
 
@@ -80,7 +80,7 @@ std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
 
 // Create a branch starting from op.
 Branch BranchGroupFinder::CreateBranch(const CallNode* op) {
-  static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+  auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
   // each branch has at least one element, the first element is always op
   Branch branch{op};
   auto it = children_map_.find(GetRef<Expr>(branch.back()));
@@ -98,7 +98,7 @@ Branch BranchGroupFinder::CreateBranch(const CallNode* op) {
 }
 
 void BranchGroupFinder::VisitExpr_(const CallNode* n) {
-  static const Op& op = Op::Get(op_name_);
+  const Op& op = Op::Get(op_name_);
   ExprVisitor::VisitExpr_(n);
   if (n->op.same_as(op) && fis_supported_op_(n)) {
     op_roots_.insert(n->args[0]);

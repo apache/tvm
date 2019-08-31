@@ -31,7 +31,7 @@ def run_opt_pass(expr, opt_pass):
 
 
 def test_combine_parallel_dense():
-    """Simple testcase. Three can be combined, either because of mismatched shapes or units"""
+    """Simple testcase. One dense cannot be combined because of mismatched shapes or units"""
     def before(x, w1, w2, w3, w4, units):
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.dense(x, w1)
@@ -147,7 +147,7 @@ def test_combine_parallel_dense_biasadd():
     check(100, 200, 300, True)
 
 def test_combine_parallel_dense_biasadd_scale_reshape():
-    """Testcase of combining dense + 1d biasadd"""
+    """Testcase of combining dense + 1d biasadd + multiply with non-fused reshape"""
     def before(x, w1, w2, b1, b2, scale1, scale2, newshape):
         args = [x, w1, w2, b1, b2, scale1, scale2]
         y1 = relay.nn.dense(x, w1)
