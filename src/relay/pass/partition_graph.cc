@@ -132,7 +132,6 @@ class Partitioner : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
-    LOG(ERROR) << op_node->name;
 
     if (op_node == nullptr || call->attrs.as<SubgraphAttrs>() == nullptr) {
       // Propogate subgraph to arguments
@@ -151,8 +150,8 @@ class Partitioner : public ExprMutator {
       auto input_expr = VisitExpr(call->args[0]);
 
       // Replace the begin annotation with an external call input variable.
+      // TODO: Confirm if it is safe to use checked_type_ instead of checked_type()
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
-      LOG(ERROR) << "Checking var type";
       auto var = VarNode::make(subgraph_attrs->compiler + "_input" + std::to_string(var_id_++),
                                input_expr->checked_type_);
 
@@ -207,17 +206,19 @@ class Partitioner : public ExprMutator {
   }
 
   Expr VisitExpr_(const TupleNode* op) {
-    Expr ref = GetRef<Tuple>(op);
-    auto subgraph = GetSubgraph(ref);
-    if (subgraph) {
+    auto subgraph = GetSubgraph(GetRef<Tuple>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
       for (auto field : op->fields) {
         AddToSubgraph(subgraph, field);
       }
+      Array<Expr> fields;
+      for (auto field : op->fields) {
+        fields.push_back(VisitExpr(field));
+      }
+      return TupleNode::make(fields);
     }
-    for (auto field : op->fields) {
-      VisitExpr(field);
-    }
-    return ref;
   }
 
  private:
