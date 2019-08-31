@@ -490,11 +490,26 @@ def _convert_concat(inexpr, keras_layer, _):
 
 def _convert_reshape(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
-    ch = keras_layer.input_shape[-1]
-    assert ch == keras_layer.target_shape[-1], \
-        "Only supports last dimension in target shape being equal to " \
-        "the channel number of input tensor."
-    shape = (-1, ch) + keras_layer.target_shape[:-1]
+    inshape = keras_layer.input_shape # includes batch
+    tshape = keras_layer.target_shape # no batch
+    if len(inshape) == 3 and len(tshape) == 1:
+        # (?, a, b) -> (-1, ab)
+        shape = (-1, tshape[0])
+    elif len(inshape) in [2, 3] and len(tshape) == 2:
+        # (?, cc) -> (-1, c, c)
+        # (?, a, b) -> (-1, c, c)
+        assert tshape[0] == tshape[1], \
+            "Only supports square target shapes, but got {}".format(tshape)
+        shape = (-1, ) + tshape
+    else:
+        # (?, h, w, c) -> (-1, c, H, W)
+        # (?, h, w, c) -> (-1, c, hw)
+        # (?, hw, c) -> (-1, c, h, w)
+        ch = inshape[-1]
+        assert ch == tshape[-1], \
+            "Only supports last dimension in target shape being equal to " \
+            "the channel number of input tensor."
+        shape = (-1, ch) + tshape[:-1]
     return _op.reshape(inexpr, newshape=shape)
 
 
