@@ -17,9 +17,9 @@
  * under the License.
  */
 
-// TODO(weberlo): We need some way of indicating to users that you need to enable
-// USE_ANTLR in config.cmake.
 /*
+ * NOTE: The `USE_ANTLR` option in `config.cmake` must be enabled in order for
+ * changes in this file to be reflected by the parser.
  * NOTE: All upper-case rules are *lexer* rules and all camel-case rules are *parser* rules.
  */
 
