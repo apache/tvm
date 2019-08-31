@@ -141,7 +141,7 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
                                 });
   size_t depth = it->size();
   size_t i;
-  // starting from 1 to skip the dense
+  // starting from 1 to skip the op
   for (i = 1; i < depth; i++) {
     size_t parent_index;
     for (parent_index = 0; parent_index < branches[0][i]->args.size(); parent_index++) {
