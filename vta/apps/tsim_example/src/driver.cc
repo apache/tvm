@@ -112,9 +112,9 @@ class Device {
     dpi_->WriteReg(0x08, c);
     dpi_->WriteReg(0x0c, len);
     dpi_->WriteReg(0x10, this->MemGetPhyAddr(a_));
-    dpi_->WriteReg(0x14, this->MemGetPhyAddr(a_) >> 32);
+    dpi_->WriteReg(0x14, 0);
     dpi_->WriteReg(0x18, this->MemGetPhyAddr(b_));
-    dpi_->WriteReg(0x1c, this->MemGetPhyAddr(b_) >> 32);
+    dpi_->WriteReg(0x1c, 0);
     dpi_->WriteReg(0x00, 0x1); // launch
   }
 
