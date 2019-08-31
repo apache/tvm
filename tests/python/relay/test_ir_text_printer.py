@@ -21,12 +21,6 @@ import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equal, free_vars
 
-from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
-from tvm.relay.expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
-from tvm.relay.op.tensor import add, subtract, equal
-from tvm.relay.adt import Constructor, TypeData, Clause, Match
-from tvm.relay.adt import PatternConstructor, PatternVar, PatternWildcard
-
 do_print = [False]
 
 SEMVER = "v0.0.3\n"
