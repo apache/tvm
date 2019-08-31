@@ -27,10 +27,14 @@ def get_ext():
 def load_dll(dll):
     """Load shared library
 
-     Parameters
-     ------------
-     dll : str
+    Parameters
+    ------------
+    dll : str
         Path for shared library
+
+    Returns
+    ------------
+    The shared library
     """
     try:
         return [ctypes.CDLL(dll, ctypes.RTLD_GLOBAL)]
@@ -47,9 +51,9 @@ def load_sw():
 def init(hw_backend):
     """Init hardware and software shared library for accelerator
 
-     Parameters
-     ------------
-     hw_backend : str
+    Parameters
+    ------------
+    hw_backend : str
         Hardware backend can be verilog or chisel
 
     """
