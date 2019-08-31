@@ -124,7 +124,7 @@ def test_nested_for():
     with ib.for_range(0, 5, "i") as i:
         with ib.for_range(0, 10, "j") as j:
             with ib.if_scope(i >= 3):
-                data[i * 3 + j] = data[i *3 + j]  + 0.5
+                data[i * 3 + j] = data[i * 3 + j] + 0.5
                 with ib.for_range(0, 15, "k") as k:
                     with ib.for_range(0, 20, "l") as l:
                         with ib.if_scope(tvm.any(i < 4, j >= 8)):
@@ -139,9 +139,45 @@ def test_nested_for():
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
+def test_block():
+    ib = tvm.ir_builder.create()
+    data = ib.pointer("float32", name="data")
+
+    n = tvm.var("n")
+
+
+    with ib.for_range(0, 5, "i") as i:
+        with ib.for_range(0, 10, "j") as j:
+            with ib.if_scope(i >= 3):
+                data[i * 3 + j] = data[i * 3 + j] + 0.5
+                with ib.for_range(0, 15, "k") as k:
+                    with ib.for_range(0, 20, "l") as l:
+                        with ib.if_scope(tvm.any(i < 4, j >= 8)):
+                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 2
+                        with ib.else_scope():
+                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
+                        with ib.if_scope(j <5):
+                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] - 1
+
+
+    with ib.for_range(0, 5, "i") as i:
+        with ib.for_range(0, 10, "j") as j:
+                with ib.for_range(0, 15, "k") as k:
+                    with ib.if_scope(n >= 3):
+                        data[i * 3 + j + k] = data[i * 3 + j + k] + 0.6
+
+    stmt = ib.get()
+    new_stmt = tvm.ir_pass.LiftIfThenElse(stmt)
+    expected_struct = {('IfThenElse', ('i', 'j')): (None, None), ('IfThenElse', ('j',)): (None, None),
+                       ('For', 'l'): (None,), ('For', 'k'): (None,), ('For', 'j'): (('For', 'j'),),
+                       ('IfThenElse', ('i',)): (('For', 'j'), None), ('For', 'i'): (('IfThenElse', ('i',)),),
+                       ('IfThenElse', ('n',)): (('For', 'j'), None)}
+    verify_structure(new_stmt, expected_struct)
+
 
 if __name__ == "__main__":
     test_basic()
     test_no_else()
     test_attr_stmt()
     test_nested_for()
+    test_block()
