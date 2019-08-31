@@ -25,7 +25,6 @@ from .base import string_types
 # Node base class
 _CLASS_NODE_BASE = None
 
-
 def _set_class_node_base(cls):
     global _CLASS_NODE_BASE
     _CLASS_NODE_BASE = cls
