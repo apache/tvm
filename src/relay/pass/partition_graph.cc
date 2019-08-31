@@ -122,16 +122,17 @@ class Partitioner : public ExprMutator {
   }
 
   void AddToSubgraph(Subgraph* subgraph, const Expr expr) {
-      auto subgraph2 = GetSubgraph(expr);
-      if (subgraph2) {
-        MergeSubgraph(subgraph, subgraph2);
-      } else {
-        subgraph->nodes.insert(expr);
-      }
+    auto subgraph2 = GetSubgraph(expr);
+    if (subgraph2) {
+      MergeSubgraph(subgraph, subgraph2);
+    } else {
+      subgraph->nodes.insert(expr);
+    }
   }
 
   Expr VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
+    LOG(ERROR) << op_node->name;
 
     if (op_node == nullptr || call->attrs.as<SubgraphAttrs>() == nullptr) {
       // Propogate subgraph to arguments
@@ -151,8 +152,9 @@ class Partitioner : public ExprMutator {
 
       // Replace the begin annotation with an external call input variable.
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
+      LOG(ERROR) << "Checking var type";
       auto var = VarNode::make(subgraph_attrs->compiler + "_input" + std::to_string(var_id_++),
-                               input_expr->checked_type());
+                               input_expr->checked_type_);
 
       // Find the corresponding subgraph and add the argument.
       auto subgraph = GetSubgraph(GetRef<Call>(call));
@@ -161,7 +163,6 @@ class Partitioner : public ExprMutator {
                                 << AsText(GetRef<Call>(call), false)));
       }
       subgraph->args.push_back({var, input_expr});
-      //LOG(ERROR) << "Add an argument to subgraph " << subgraph->id << ":\n" << AsText(var, false);
       return std::move(var);
     } else {
       CHECK(GetRef<Op>(op_node) == Op::Get("annotation.subgraph_end"));
@@ -192,8 +193,9 @@ class Partitioner : public ExprMutator {
         args.push_back(pair.second);
       }
 
-      auto subgraph_func = FunctionNode::make(params, input, Type(), {}, Attrs());
-      
+      auto subgraph_func =
+          FunctionNode::make(params, input, call->args[0]->checked_type_, {}, Attrs());
+
       // FIXME: How to determine the function name?
       subgraph_func =
           FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make("Subtract"));
