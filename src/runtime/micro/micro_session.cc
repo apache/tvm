@@ -302,7 +302,7 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
   void* runtime_impl_addr = runtime_symbol_map()[func_name].cast_to<void*>();
-  std::stringstream func_name_underscore;
+  std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
 }
@@ -312,7 +312,7 @@ void MicroSession::SetRuntimeBinaryPath(std::string path) {
 }
 
 std::string MicroSession::ReadString(DevBaseOffset str_offset) {
-  std::stringstream result;
+  std::ostringstream result;
   const size_t buf_size = 256;
   std::vector<char> buf(buf_size, 0);
   size_t i = buf_size;

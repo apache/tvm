@@ -61,10 +61,11 @@ class Session:
           micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     """
 
-    def __init__(self, device_type, toolchain_prefix, base_addr=0, server_addr="", port=0):
+    def __init__(self, device_type, toolchain_prefix, **kwargs):
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
         self._check_system()
+        self._check_args(device_type, kwargs)
 
         # First, find and compile runtime library.
         runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
@@ -73,6 +74,9 @@ class Session:
         create_micro_lib(
             runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
+        base_addr = kwargs.get("base_addr", 0)
+        server_addr = kwargs.get("server_addr", "")
+        port = kwargs.get("port", 0)
         self.module = _CreateSession(
             device_type, runtime_obj_path, toolchain_prefix, base_addr, server_addr, port)
         self._enter = self.module["enter"]
@@ -89,6 +93,15 @@ class Session:
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
             raise RuntimeError("microTVM is currently only supported on 64-bit platforms")
+
+    def _check_args(self, device_type, args):
+        """Check if the given configuration is valid."""
+        if device_type == "host":
+            pass
+        elif device_type == "openocd":
+            assert "base_addr" in args
+            assert "server_addr" in args
+            assert "port" in args
 
     def __enter__(self):
         self._enter()
@@ -188,7 +201,7 @@ def create_micro_lib(
     options = ["-I" + path for path in find_include_path()]
     options += ["-I{}".format(_get_micro_device_dir())]
     options += ["-fno-stack-protector"]
-    # TODO: Don't rely on the toolchain prefix to identify if this is the host
+    # TODO(weberlo): Don't rely on the toolchain prefix to identify if this is the host
     # device.
     if toolchain_prefix == "" and sys.maxsize > 2**32 and sys.platform.startswith("linux"):
         # Only add this option if the host is a 64-bit Linux.

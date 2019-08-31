@@ -42,15 +42,14 @@ void TclSocket::Connect(tvm::common::SockAddr addr) {
   CHECK(tcp_socket_.Connect(addr)) << "failed to connect";
 }
 
-std::string TclSocket::SendCommand(std::string cmd) {
-  std::stringstream cmd_builder;
-  cmd_builder << cmd;
-  cmd_builder << kCommandTerminateToken;
-  std::string full_cmd = cmd_builder.str();
+void TclSocket::SendCommand() {
+  cmd_builder_ << kCommandTerminateToken;
+  std::string full_cmd = cmd_builder_.str();
   CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
     << "failed to send command";
+  cmd_builder_.str(std::string());
 
-  std::stringstream reply_builder;
+  reply_builder_.str(std::string());
   char last_read = '\0';
   // Receive from the socket until we reach a command terminator.
   do {
@@ -60,17 +59,14 @@ std::string TclSocket::SendCommand(std::string cmd) {
       // Leave room at the end of `reply_buf` to tack on a null terminator.
       bytes_read = tcp_socket_.Recv(reply_buf_.data(), kReplyBufSize - 1);
       reply_buf_[bytes_read] = '\0';
-      reply_builder << reply_buf_.data();
+      reply_builder_ << reply_buf_.data();
       // Update last read character.
       last_read = reply_buf_[bytes_read - 1];
     } while (bytes_read == kReplyBufSize - 1);
     CHECK(bytes_read != -1) << "failed to read command reply";
   } while (last_read != kCommandTerminateToken);
-  std::string reply = reply_builder.str();
-
-  CHECK_EQ(reply[reply.length()-1], kCommandTerminateToken) << "missing command terminator";
-
-  return reply;
+  last_reply_ = reply_builder_.str();
+  CHECK_EQ(last_reply_[last_reply_.length()-1], kCommandTerminateToken) << "missing command terminator";
 }
 
 }  // namespace runtime

@@ -46,7 +46,8 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
                                  const std::string& server_addr,
                                  int port) : socket_() {
       socket_.Connect(tvm::common::SockAddr(server_addr.c_str(), port));
-      socket_.SendCommand("reset halt");
+      socket_.cmd_builder() << "reset halt";
+      socket_.SendCommand();
       base_addr_ = base_addr;
       CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
   }
@@ -76,22 +77,26 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
       return;
     }
     {
-      socket_.SendCommand("array unset output");
+      socket_.cmd_builder() << "array unset output";
+      socket_.SendCommand();
+
       DevPtr addr = DevPtr(base_addr_ + offset.value());
-      std::stringstream read_cmd;
-      read_cmd << "mem2array output";
-      read_cmd << " " << std::dec << kWordSize;
-      read_cmd << " " << addr.cast_to<void*>();
-      // Round up any request sizes under a byte, since OpenOCD doesn't support
-      // sub-byte-sized transfers.
-      read_cmd << " " << std::dec << (num_bytes < 8 ? 8 : num_bytes);
-      socket_.SendCommand(read_cmd.str());
+      socket_.cmd_builder()
+        << "mem2array output"
+        << " " << std::dec << kWordSize
+        << " " << addr.cast_to<void*>()
+        // Round up any request sizes under a byte, since OpenOCD doesn't support
+        // sub-byte-sized transfers.
+        << " " << std::dec << (num_bytes < 8 ? 8 : num_bytes);
+      socket_.SendCommand();
     }
 
     {
-      std::string reply = socket_.SendCommand("ocd_echo $output");
+      socket_.cmd_builder() << "ocd_echo $output";
+      socket_.SendCommand();
+      const std::string& reply = socket_.last_reply();
 
-      std::stringstream values(reply);
+      std::istringstream values(reply);
       char* char_buf = reinterpret_cast<char*>(buf);
       ssize_t req_bytes_remaining = num_bytes;
       uint32_t index;
@@ -143,62 +148,61 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
 
     // Clear `input` array.
-    socket_.SendCommand("array unset input");
+    socket_.cmd_builder() << "array unset input";
+    socket_.SendCommand();
     // Build a command to set the value of `input`.
     {
-      std::stringstream input_set_cmd;
-      input_set_cmd << "array set input { ";
+      std::ostringstream& cmd_builder = socket_.cmd_builder();
+      cmd_builder << "array set input {";
       const char* char_buf = reinterpret_cast<const char*>(buf);
       for (size_t i = 0; i < num_bytes; i++) {
         // In a Tcl `array set` commmand, we need to pair the array indices with
         // their values.
-        input_set_cmd << i << " ";
+        cmd_builder << i << " ";
         // Need to cast to uint, so the number representation of `buf[i]` is
         // printed, and not the ASCII representation.
-        input_set_cmd << static_cast<uint32_t>(char_buf[i]) << " ";
+        cmd_builder << static_cast<uint32_t>(char_buf[i]) << " ";
       }
-      input_set_cmd << "}";
-      socket_.SendCommand(input_set_cmd.str());
+      cmd_builder << "}";
+      socket_.SendCommand();
     }
     {
       DevPtr addr = DevPtr(base_addr_ + offset.value());
-      std::stringstream write_cmd;
-      write_cmd << "array2mem input";
-      write_cmd << " " << std::dec << kWordSize;
-      write_cmd << " " << addr.cast_to<void*>();
-      write_cmd << " " << std::dec << num_bytes;
-      socket_.SendCommand(write_cmd.str());
+      socket_.cmd_builder()
+        << "array2mem input"
+        << " " << std::dec << kWordSize
+        << " " << addr.cast_to<void*>()
+        << " " << std::dec << num_bytes;
+      socket_.SendCommand();
     }
   }
 
   void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) {
-    socket_.SendCommand("halt 0");
+    socket_.cmd_builder() << "halt 0";
+    socket_.SendCommand();
 
     // Set up the stack pointer.
     DevPtr stack_end = stack_top() - 8;
-    std::stringstream sp_set_cmd;
-    sp_set_cmd << "reg sp " << stack_end.cast_to<void*>();
-    socket_.SendCommand(sp_set_cmd.str());
+    socket_.cmd_builder() << "reg sp " << stack_end.cast_to<void*>();
+    socket_.SendCommand();
 
     // Set a breakpoint at the beginning of `UTVMDone`.
-    std::stringstream bp_set_cmd;
-    bp_set_cmd << "bp " << ToDevPtr(breakpoint).cast_to<void*>() << " 2";
-    socket_.SendCommand(bp_set_cmd.str());
+    socket_.cmd_builder() << "bp " << ToDevPtr(breakpoint).cast_to<void*>() << " 2";
+    socket_.SendCommand();
 
     DevPtr func_addr = DevPtr(base_addr_ + func_offset.value());
-    std::stringstream resume_cmd;
-    resume_cmd << "resume " << func_addr.cast_to<void*>();
-    socket_.SendCommand(resume_cmd.str());
+    socket_.cmd_builder() << "resume " << func_addr.cast_to<void*>();
+    socket_.SendCommand();
 
-    std::stringstream wait_halt_cmd;
-    wait_halt_cmd << "wait_halt " << kWaitTime;
-    socket_.SendCommand(wait_halt_cmd.str());
-    socket_.SendCommand("halt 0");
+    socket_.cmd_builder() << "wait_halt " << kWaitTime;
+    socket_.SendCommand();
+
+    socket_.cmd_builder() << "halt 0";
+    socket_.SendCommand();
 
     // Remove the breakpoint.
-    std::stringstream bp_rm_cmd;
-    bp_rm_cmd << "rbp " << ToDevPtr(breakpoint).cast_to<void*>();
-    socket_.SendCommand(bp_rm_cmd.str());
+    socket_.cmd_builder() << "rbp " << ToDevPtr(breakpoint).cast_to<void*>();
+    socket_.SendCommand();
   }
 
   void SetStackTop(DevBaseOffset stack_top) {

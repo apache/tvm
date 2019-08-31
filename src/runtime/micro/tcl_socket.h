@@ -35,6 +35,10 @@ namespace runtime {
 
 /*!
  * \brief TCP socket wrapper for communicating using Tcl commands
+ *
+ * Usage generally involves building a command using the `cmd_builder` stream
+ * interface, then sending the command with `SendCommand`, and if necessary,
+ * reading the reply.
  */
 class TclSocket {
  public:
@@ -55,17 +59,33 @@ class TclSocket {
   void Connect(tvm::common::SockAddr addr);
 
   /*
-   * \brief send command to the server and await a reply
+   * \brief send the built command to the server and await a reply
    *
    * \return the reply
    */
-  std::string SendCommand(std::string cmd);
+  void SendCommand();
+
+  /*
+   * \return string stream for current command being built
+  */
+  std::ostringstream& cmd_builder() { return cmd_builder_; }
+
+  /*
+   * \return reply from most recently sent command
+  */
+  const std::string& last_reply() { return last_reply_; }
 
  private:
   /*! \brief underlying TCP socket being wrapped */
   tvm::common::TCPSocket tcp_socket_;
   /*! \brief buffer used to receive messages from the socket */
   std::vector<uint8_t> reply_buf_;
+  /*! \brief string stream used to build current command */
+  std::ostringstream cmd_builder_;
+  /*! \brief string stream used to receive replies from sent commands */
+  std::ostringstream reply_builder_;
+  /*! \brief reply from most recently sent command */
+  std::string last_reply_;
 
   /*! \brief character denoting the end of a Tcl command */
   static const constexpr char kCommandTerminateToken = '\x1a';
