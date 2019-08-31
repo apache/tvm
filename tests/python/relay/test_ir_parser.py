@@ -700,59 +700,62 @@ def test_multiple_type_param_defn():
 
 
 def test_match():
-    mod = relay.Module()
+    # pair each match keyword with whether it specifies a complete match or not
+    match_keywords = [("match", True), ("match?", False)]
+    for (match_keyword, is_complete) in match_keywords:
+        mod = relay.Module()
 
-    list_var = relay.GlobalTypeVar("List")
-    typ_var = relay.TypeVar("A")
-    cons_constructor = relay.Constructor(
-        "Cons", [typ_var, list_var(typ_var)], list_var)
-    nil_constructor = relay.Constructor("Nil", [], list_var)
-    list_def = relay.TypeData(
-        list_var,
-        [typ_var],
-        [cons_constructor, nil_constructor])
-    mod[list_var] = list_def
+        list_var = relay.GlobalTypeVar("List")
+        typ_var = relay.TypeVar("A")
+        cons_constructor = relay.Constructor(
+            "Cons", [typ_var, list_var(typ_var)], list_var)
+        nil_constructor = relay.Constructor("Nil", [], list_var)
+        list_def = relay.TypeData(
+            list_var,
+            [typ_var],
+            [cons_constructor, nil_constructor])
+        mod[list_var] = list_def
 
-    length_var = relay.GlobalVar("length")
-    typ_var = relay.TypeVar("A")
-    input_type = list_var(typ_var)
-    input_var = relay.Var("xs", input_type)
-    rest_var = relay.Var("rest")
-    body = relay.Match(input_var,
-        [relay.Clause(
-            relay.PatternConstructor(
-                cons_constructor,
-                [relay.PatternWildcard(), relay.PatternVar(rest_var)]),
-            relay.add(relay.const(1), relay.Call(length_var, [rest_var]))
-            ),
-         relay.Clause(
-             relay.PatternConstructor(nil_constructor, []),
-             relay.const(0))],
-        complete=False
-    )
-    length_func = relay.Function(
-        [input_var],
-        body,
-        int32,
-        [typ_var]
-    )
-    mod[length_var] = length_func
+        length_var = relay.GlobalVar("length")
+        typ_var = relay.TypeVar("A")
+        input_type = list_var(typ_var)
+        input_var = relay.Var("xs", input_type)
+        rest_var = relay.Var("rest")
+        body = relay.Match(input_var,
+            [relay.Clause(
+                relay.PatternConstructor(
+                    cons_constructor,
+                    [relay.PatternWildcard(), relay.PatternVar(rest_var)]),
+                relay.add(relay.const(1), relay.Call(length_var, [rest_var]))
+                ),
+            relay.Clause(
+                relay.PatternConstructor(nil_constructor, []),
+                relay.const(0))],
+            complete=is_complete
+        )
+        length_func = relay.Function(
+            [input_var],
+            body,
+            int32,
+            [typ_var]
+        )
+        mod[length_var] = length_func
 
-    assert parses_as(
-        """
-        type List[A] =
-          | Cons(A, List[A])
-          | Nil
+        assert parses_as(
+            """
+            type List[A] =
+            | Cons(A, List[A])
+            | Nil
 
-        def @length[A](%xs: List[A]) -> int32 {
-          match? (%xs) {
-            | Cons(_, %rest) => 1 + @length(%rest)
-            | Nil => 0
-          }
-        }
-        """,
-        mod
-    )
+            def @length[A](%%xs: List[A]) -> int32 {
+            %s (%%xs) {
+                | Cons(_, %%rest) => 1 + @length(%%rest)
+                | Nil => 0
+            }
+            }
+            """ % match_keyword,
+            mod
+        )
 
 
 def test_adt_cons_expr():

@@ -127,6 +127,7 @@ constructorName: CNAME ;
 
 adtConsDefn: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
 matchClause: '|' constructorName patternList? '=>' expr ;
+// complete or incomplete match, respectively
 matchType : 'match' | 'match?' ;
 
 patternList: '(' pattern (',' pattern)* ')';
