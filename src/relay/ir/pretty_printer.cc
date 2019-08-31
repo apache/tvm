@@ -770,7 +770,8 @@ class PrettyPrinter :
     doc << " =";
 
     for (Constructor constructor : node->constructors) {
-      doc << PrintNewLine() << "  | " << Print(constructor, /* meta */ false, /* try_inline */ true);
+      doc << PrintNewLine() << "  | "
+          << Print(constructor, /* meta */ false, /* try_inline */ true);
     }
 
     return doc;
