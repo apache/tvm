@@ -82,7 +82,25 @@ Operation HybridOpNode::make(std::string name,
 }
 
 Array<Tensor> HybridOpNode::InputTensors() const {
-  return inputs;
+  // Because input tensors could be potentially inlined into hybrid scripts,
+  // we need to check if all input tensors are used in the body.
+  std::unordered_set<Tensor> orig_inputs;
+  for (auto t : inputs) {
+    orig_inputs.insert(t);
+  }
+  std::unordered_set<Tensor> visited;
+  Array<Tensor> curr_inputs;
+  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const NodeRef& n) {
+      const ir::Call *call = n.as<ir::Call>();
+      if (call != nullptr && call->func.defined()) {
+        Tensor t = Operation(call->func.node_).output(call->value_index);
+        if (orig_inputs.count(t) && !visited.count(t)) {
+          curr_inputs.push_back(t);
+          visited.insert(t);
+        }
+      }
+  });
+  return curr_inputs;
 }
 
 Operation HybridOpNode::ReplaceInputs(
@@ -111,7 +129,8 @@ void HybridOpNode::PropBoundToInputs(
     arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet> &dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-  for (Tensor t : this->inputs) {
+  auto curr_inputs = InputTensors();
+  for (Tensor t : curr_inputs) {
     auto it = out_dom_map->find(t);
     if (it == out_dom_map->end()) continue;
     TensorDom &dom = it->second;
@@ -180,11 +199,10 @@ Stmt HybridOpNode::BuildProvide(
       outputs[i]->dtype);
     f_push_bind(buffer, stage->op.output(i));
   }
-  for (int i = static_cast<int>(inputs.size()) - 1; i >= 0; --i) {
-    Buffer buffer = decl_buffer(
-      inputs[i]->shape,
-      inputs[i]->dtype);
-    f_push_bind(buffer, inputs[i]);
+  auto curr_inputs = InputTensors();
+  for (int i = static_cast<int>(curr_inputs.size()) - 1; i >= 0; --i) {
+    Buffer buffer = decl_buffer(curr_inputs[i]->shape, curr_inputs[i]->dtype);
+    f_push_bind(buffer, curr_inputs[i]);
   }
 
   std::unordered_map<Tensor, Tensor> rmap;
@@ -203,7 +221,7 @@ Stmt HybridOpNode::BuildProvide(
    *      tensors have the same names as the operation produces them.
    *   2. Once OpNode is wrapped up by an Operation node, it is finalized.
    *      Later access will be from a const OpNode*.
-   * This is a chiken-egg paradox. It is impossible to put the output
+   * This is a chicken-egg paradox. It is impossible to put the output
    * tensors into the function body without forming the op node. The
    * function body is immutable after the node is formed.
    *

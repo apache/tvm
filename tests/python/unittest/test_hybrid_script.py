@@ -122,11 +122,13 @@ def test_outer_product():
     assert ibody.min.value == 0
     assert ibody.extent.name == 'm'
     #Check loop body
-    jbody = ibody.body
+    jblock = ibody.body
+    assert isinstance(jblock, tvm.stmt.Block)
+    jbody = jblock.first
     assert isinstance(jbody, tvm.stmt.AssertStmt)
     assert isinstance(jbody.message, tvm.expr.StringImm)
     assert jbody.message.value == "index out of range!"
-    jbody = jbody.body
+    jbody = jblock.rest
     assert isinstance(jbody, tvm.stmt.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2

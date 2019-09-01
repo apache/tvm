@@ -48,6 +48,22 @@ class Op(Expr):
         """
         return _OpGetAttr(self, attr_name)
 
+    def set_attr(self, attr_name, value, plevel=10):
+        """Set attribute about the operator.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name
+
+        value : object
+            The attribute value
+
+        plevel : int
+            The priority level
+        """
+        _OpSetAttr(self, attr_name, value, plevel)
+
 
 def get(op_name):
     """Get the Op for a given name
@@ -219,6 +235,26 @@ def register_gradient(op_name, fgradient=None, level=10):
     """
     return register(op_name, "FPrimalGradient", fgradient, level)
 
+def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
+    """Register operator shape function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    data_dependant : bool
+        Whether the shape function depends on input data.
+
+    shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
+                 -> shape_tensors: List<Tensor>
+        The function for computing the dynamic output shapes
+
+    level : int
+        The priority level
+    """
+    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
+    return register(op_name, "FShapeFunc", shape_func, level)
 
 _init_api("relay.op", __name__)
 
