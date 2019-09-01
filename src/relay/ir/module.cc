@@ -33,11 +33,22 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace runtime;
 
+void ModuleNode::RegisterBuiltins() {
+  std::cout << "IN BUILTINS" << std::endl;
+  // Add storage type.
+  auto storage = GlobalTypeVarNode::make("Storage", Kind::kAdtHandle);
+  auto type_data = TypeDataNode::make(storage, {}, {});
+  this->AddDef(storage, type_data);
+}
+
 Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
                         tvm::Map<GlobalTypeVar, TypeData> global_type_defs) {
   auto n = make_node<ModuleNode>();
   n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
+  n->global_type_var_map_ = {};
+  n->global_var_map_ = {};
+  n->constructor_tag_map_ = {};
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -85,7 +96,9 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
 }
 
 GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
+  CHECK(global_type_var_map_.defined());
   auto it = global_type_var_map_.find(name);
+  std::cout << "pass here";
   CHECK(it != global_type_var_map_.end())
     << "Cannot find global type var " << name << " in the Module";
   return (*it).second;
@@ -160,8 +173,8 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
 void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
   this->type_definitions.Set(var, type);
   // set global type var map
-  CHECK(!global_type_var_map_.count(var->var->name_hint))
-    << "Duplicate global type definition name " << var->var->name_hint;
+  // CHECK(!global_type_var_map_.count(var->var->name_hint))
+  //  << "Duplicate global type definition name " << var->var->name_hint;
   global_type_var_map_.Set(var->var->name_hint, var);
   RegisterConstructors(var, type);
 
