@@ -18,7 +18,7 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
+ * Copyright (c) 2019 by Contributors
  *
  * \file src/tvm/relay/pass/fuse_ops.cc
  *
@@ -247,11 +247,11 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     node->pattern = op_pattern;
     this->Update(call->op, nullptr, kOpaque);
     const auto* rtype = call->checked_type().as<TensorTypeNode>();
-    // pass the message back to all the children it references.
+    // pass the analysis back to all the children it references.
     for (size_t i = 0; i < call->args.size(); ++i) {
       const auto* arg_type =
           call->args[i]->checked_type().as<TensorTypeNode>();
-      // specifically check if result type
+      // specifically check if result type is the same as arguments type
       OpPatternKind edge_pattern = op_pattern;
       if (edge_pattern == kBroadcast &&
           arg_type != nullptr &&
@@ -408,7 +408,7 @@ class DominatorTree {
    * \param rhs The right node.
    * \param edge_pattern
    *        The combined edge pattern across all the parents.
-   * \return The least common ancestor of thw two.
+   * \return The least common ancestor of the two.
    */
   static Node* LeastCommonAncestor(
       Node* lhs,
@@ -456,15 +456,17 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
       // find the LCAs of all outputs.
       OpPatternKind pattern = kElemWise;
       Node* parent = nullptr;
+      bool init = true;
       for (auto link = gnode->outputs.head; link != nullptr; link= link->next) {
         size_t oindex = link->value.node->index;
         CHECK_LT(oindex, tree.nodes.size());
         Node* onode = tree.nodes[oindex];
         CHECK(onode != nullptr);
-        if (parent != nullptr) {
-          parent = LeastCommonAncestor(parent, onode, &pattern);
-        } else {
+        if (init) {
           parent = onode;
+          init = false;
+        } else {
+          parent = LeastCommonAncestor(parent, onode, &pattern);
         }
         pattern = CombinePattern(pattern, link->value.pattern);
       }
@@ -614,7 +616,7 @@ class GraphPartitioner {
     // merge the current group to the parent if possible.
     MergeFromTo(gnode, target);
     for (auto link = src->outputs.head; link != nullptr; link = link->next) {
-      CommitFuse_(link->value.node, sink, target);;
+      CommitFuse_(link->value.node, sink, target);
     }
   }
   /*!
@@ -863,7 +865,7 @@ class FuseMutator : private ExprMutator {
     auto* ret_group = gmap_.at(tuple_get)->FindRoot();
     auto new_tuple = GetNewArguments({tuple_get->tuple}, ret_group)[0];
     auto new_node = TupleGetItemNode::make(new_tuple, tuple_get->index);
-    if (ret_group == gmap_.at(tuple_get)) {
+    if (ret_group->root_ref == tuple_get) {
       if (gmap_.at(tuple_get->tuple.get())->FindRoot() != ret_group) {
         // Isolated. This case occurs when tuple is created by an Opaque op
         // e.g. multibox_transform_loc
@@ -922,45 +924,8 @@ class FuseMutator : private ExprMutator {
   }
 };
 
-// Temporary solution, should be handled by implementing a "FunctionPass"
-// which applies fusion to each function.
-struct GlobalVarLiveness : ExprVisitor {
-  Module module;
-  std::set<GlobalVar> visited;
-
-  explicit GlobalVarLiveness(const Module& mod) : module(mod), visited() {}
-
-  void VisitExpr_(const GlobalVarNode* gvar_node) {
-    auto gvar = GetRef<GlobalVar>(gvar_node);
-    if (visited.find(gvar) == visited.end()) {
-      visited.insert(gvar);
-      this->VisitExpr(this->module->Lookup(gvar));
-    }
-  }
-};
-
-std::set<GlobalVar> LiveGlobals(const Module& mod, const Expr& expr) {
-  auto gvl = GlobalVarLiveness(mod);
-  gvl.VisitExpr(expr);
-  return gvl.visited;
-}
-
 Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
-  // First we convert all chains of fusable ops into
-  // abstracted functions which we mark as primtive
-  // then we convert these primtive functions into
-  // new operators.
-  if (!module.defined()) {
-    return FuseMutator().Transform(expr, fuse_opt_level);
-  } else {
-    auto lgvs = LiveGlobals(module, expr);
-    for (auto lv : lgvs) {
-      auto body = module->Lookup(lv);
-      auto e = FuseMutator().Transform(body, fuse_opt_level);
-      module->Add(lv, Downcast<Function>(e), true);
-    }
-    return FuseMutator().Transform(expr, fuse_opt_level);
-  }
+  return FuseMutator().Transform(expr, fuse_opt_level);
 }
 
 namespace transform {
