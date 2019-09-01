@@ -105,8 +105,8 @@ def test_conv2d_run():
                         except_targets=None,
                         **attrs):
         if except_targets is None:
-          except_targets = []
-          
+            except_targets = []
+
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
@@ -599,12 +599,35 @@ def test_conv2d_int8_intrinsics():
     assert "vpmulld" in asm and "vpadd" in asm
 
 
+def test_bitserial_conv2d_infer_type():
+    # Basic shape test with ambiguous batch.
+    n, c, h, w = tvm.var("n"), 32, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, h, w), "int16"))
+    w = relay.var("w", relay.ty.TensorType((32, 32, 3, 3), "int16"))
+    y = relay.nn.bitserial_conv2d(
+        x, w, kernel_size=(3, 3), padding=(0, 0), channels=32)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 32, 222, 222), "int16")
+
+
+def test_bitpack_infer_type():
+    # Test axis packing shape inference.
+    o, i, h, w = 32, 32, 128, 128
+    x = relay.var("x", relay.ty.TensorType((o, i, h, w), "int16"))
+    y = relay.nn.bitpack(x, bit_axis=4, pack_axis=1, pack_type='uint16', bits=1)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (32, 2, 128, 128, 1), "uint16")
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
+    test_bitpack_infer_type()
     test_upsampling_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
@@ -612,6 +635,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
+    test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
     test_conv2d_int8_intrinsics()

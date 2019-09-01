@@ -600,3 +600,120 @@ def schedule_deformable_conv2d(attrs, outs, target):
 
 
 reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("nn.bitpack")
+def compute_bitpack(attrs, inputs, out_dtype, target):
+    """Compute definition for bitpack"""
+    bits = attrs.bits
+    pack_axis = attrs.pack_axis
+    bit_axis = attrs.bit_axis
+    pack_type = attrs.pack_type
+    name = attrs.name
+    with target:
+        out = topi.nn.bitpack(inputs[0], bits, pack_axis, bit_axis, pack_type,
+                              name)
+    return [out]
+
+@reg.register_schedule("nn.bitpack")
+def schedule_bitpack(attrs, outs, target):
+    with target:
+        return topi.generic.schedule_bitpack(outs)
+
+reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.bitserial_conv2d")
+def compute_bitserial_conv2d(attrs, inputs, out_dtype, target):
+    """Compute definition for bitserial conv2d."""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    activation_bits = attrs.activation_bits
+    weight_bits = attrs.weight_bits
+    layout = attrs.data_layout
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    unipolar = attrs.unipolar
+    if layout == 'NCHW':
+        with target:
+            out = topi.nn.bitserial_conv2d_nchw(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    elif layout == 'NHWC':
+        with target:
+            out = topi.nn.bitserial_conv2d_nhwc(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    else:
+        raise ValueError("Data layout not supported.")
+
+    return [out]
+
+
+@reg.register_schedule("nn.bitserial_conv2d")
+def schedule_bitserial_conv2d(attrs, outs, target):
+    """Schedule definition for bitserial conv2d."""
+    layout = attrs.data_layout
+    if layout == 'NCHW':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nchw(outs)
+    elif layout == 'NHWC':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nhwc(outs)
+    else:
+        raise ValueError("Data layout not supported.")
+
+@reg.register_legalize("nn.bitserial_conv2d")
+def legalize_bitserial_conv2d(attrs, inputs, types):
+    """Legalize bitserial_conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.bitserial_conv2d_legalize(attrs, inputs, types)
+
+
+reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# bitserial_dense
+@reg.register_compute("nn.bitserial_dense")
+def compute_bitserial_dense(attrs, inputs, out_type, target):
+    """Compute definition of bitserial_dense"""
+    data_bits = attrs.data_bits
+    weight_bits = attrs.weight_bits
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    unipolar = attrs.unipolar
+    return [
+        topi.nn.bitserial_dense(
+            inputs[0],
+            inputs[1],
+            data_bits,
+            weight_bits,
+            pack_dtype,
+            out_dtype,
+            unipolar)
+    ]
+
+
+@reg.register_schedule("nn.bitserial_dense")
+def schedule_bitserial_dense(attrs, outputs, target):
+    """Schedule definition of bitserial_dense"""
+    with target:
+        return topi.generic.schedule_bitserial_dense(outputs)
+
+
+reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)

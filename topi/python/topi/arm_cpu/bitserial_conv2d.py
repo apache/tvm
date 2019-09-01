@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,invalid-name
+# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
 """Bitserial conv2d schedule on arm cpu"""
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
+from tvm import relay
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc
+from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_legalize
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
@@ -350,3 +351,40 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
 
     traverse(outs[0].op)
     return s
+
+@bitserial_conv2d_legalize.register("arm_cpu")
+def _bitserial_conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Bitserial Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    # Fix different kernel layouts where possible.
+    if attrs['data_layout'] == 'NHWC':
+        data, kernel = inputs
+        if len(kernel.data.shape) == 4:
+            # HWIO layout is expected for NHWC input.
+            if attrs['kernel_layout'] == 'HWOI':
+                # Handle HWOI layout. This is common in TF depthwise conv2d graph.
+                kernel = relay.transpose(kernel, axes=(0, 1, 3, 2))
+            elif attrs['kernel_layout'] == 'OIHW':
+                kernel = relay.transpose(kernel, axes=(2, 3, 1, 0))
+            ## Set new attrs for the tranposed conv.
+            new_attrs = {k: attrs[k] for k in attrs.keys()}
+            new_attrs['kernel_layout'] = 'HWIO'
+
+            conv = relay.nn.bitserial_conv2d(data, kernel, **new_attrs)
+            return conv
+    return None
