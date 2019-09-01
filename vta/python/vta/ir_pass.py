@@ -663,7 +663,7 @@ def inject_conv2d_transpose_skip(stmt_in):
                 inner = irb.get()
                 args = op.body.body.args
                 res_tensor = op.body.body.func.output(0)
-                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, 16)
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                 inner = tvm.make.AttrStmt(
                     [dout, res_tensor], 'buffer_bind_scope',
                     tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
@@ -694,17 +694,17 @@ def inject_conv2d_transpose_skip(stmt_in):
                 inner = irb.get()
 
                 args = conv_call.args
-                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, 16)
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                 inner = tvm.make.AttrStmt(
                     [dout, res_tensor], 'buffer_bind_scope',
                     tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
                 args = kernel_call.args
-                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 16, 0, 16)
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, env.BLOCK_OUT, 0, env.BLOCK_IN)
                 inner = tvm.make.AttrStmt(
                     [dwgt, kernel_tensor], 'buffer_bind_scope',
                     tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
                 args = data_call.args
-                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, 16)
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_IN)
                 inner = tvm.make.AttrStmt(
                     [dinp, pad_data_tensor], 'buffer_bind_scope',
                     tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
