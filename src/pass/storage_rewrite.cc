@@ -41,7 +41,7 @@ namespace ir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-// Find a linear pattern of storage acess
+// Find a linear pattern of storage access
 // Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
 // before_scope -> scope_body -> after_scope
@@ -190,6 +190,10 @@ class LinearAccessPatternFinder final : public IRVisitor {
   }
 
   void Visit_(const For* op) final {
+    VisitNewScope(op);
+  }
+
+  void Visit_(const AssertStmt* op) final {
     VisitNewScope(op);
   }
 

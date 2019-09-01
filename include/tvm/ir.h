@@ -704,6 +704,10 @@ class Reduce : public ExprNode {
 class Any : public ExprNode {
  public:
   void VisitAttrs(AttrVisitor* v) final {}
+  /*! \brief Convert to var. */
+  Var ToVar() const {
+    return Variable::make(Int(32), "any_dim");
+  }
 
   TVM_DLL static Expr make();
 
