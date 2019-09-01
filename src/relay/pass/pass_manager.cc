@@ -120,7 +120,7 @@ class ModulePassNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo Info() const { return pass_info; }
+  PassInfo Info() const override { return pass_info; }
 
   TVM_DLL static ModulePass make(
       runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
@@ -174,7 +174,7 @@ class FunctionPassNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo Info() const { return pass_info; }
+  PassInfo Info() const override { return pass_info; }
 
   TVM_DLL static FunctionPass make(
       runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
@@ -220,7 +220,7 @@ class SequentialNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo Info() const { return pass_info; }
+  PassInfo Info() const override { return pass_info; }
 
   /*!
    * \brief Check if a pass is enabled.

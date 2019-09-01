@@ -121,14 +121,25 @@ TVM_REGISTER_API("relay.op._ListOpNames")
 TVM_REGISTER_API("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
 
 TVM_REGISTER_API("relay.op._OpGetAttr")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      Op op = args[0];
-      std::string attr_name = args[1];
-      auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        *rv = op_map[op];
-      }
-    });
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
+    if (op_map.count(op)) {
+      *rv = op_map[op];
+    }
+  });
+
+TVM_REGISTER_API("relay.op._OpSetAttr")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    runtime::TVMArgValue value = args[2];
+    int plevel = args[3];
+    auto& reg =
+        OpRegistry::Registry()->__REGISTER_OR_GET__(op->name).set_name();
+    reg.set_attr(attr_name, value, plevel);
+  });
 
 TVM_REGISTER_API("relay.op._Register")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
