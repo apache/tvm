@@ -249,6 +249,41 @@ def test_forward_tile():
     _test_forward_tile((2, ), (3, ), "int32")
     _test_forward_tile((2, 2), (2, 3), "float32")
 
+######################################################################
+# BatchToSpaceND
+# --------------
+
+
+def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype=dtype)
+
+        out = array_ops.batch_to_space_nd(in_data, block_shape, crops)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_batch_to_space_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 3],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 2, 2, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
 
 #######################################################################
 # Pooling
@@ -870,39 +905,42 @@ def test_forward_ssd_mobilenet_v1():
 # Main
 # ----
 if __name__ == '__main__':
+    # BatchToSpaceND
+    test_forward_batch_to_space_nd()
+
     # Split
-    test_forward_split()
+    #test_forward_split()
 
     # Transpose
-    test_forward_transpose()
+    #test_forward_transpose()
 
     # Tile
     test_forward_tile()
 
     # Transforms
-    test_forward_concatenation()
-    test_forward_pad()
-    test_forward_pack()
-    test_forward_reshape()
-    test_all_resize()
-    test_forward_squeeze()
+    #test_forward_concatenation()
+    #test_forward_pad()
+    #test_forward_pack()
+    #test_forward_reshape()
+    #test_all_resize()
+    #test_forward_squeeze()
 
     # NN
-    test_forward_convolution()
-    test_forward_logistic()
-    test_forward_pooling()
-    test_forward_softmax()
-    test_forward_fully_connected()
+    #test_forward_convolution()
+    #test_forward_logistic()
+    #test_forward_pooling()
+    #test_forward_softmax()
+    #test_forward_fully_connected()
 
     # Elemwise
-    test_all_elemwise()
+    #test_all_elemwise()
 
     # Reduce
-    test_all_reduce()
+    #test_all_reduce()
 
     # End to End
-    test_forward_mobilenet_v1()
-    test_forward_mobilenet_v2()
-    test_forward_inception_v3_net()
-    test_forward_inception_v4_net()
-    test_forward_ssd_mobilenet_v1()
+    #test_forward_mobilenet_v1()
+    #test_forward_mobilenet_v2()
+    #test_forward_inception_v3_net()
+    #test_forward_inception_v4_net()
+    #test_forward_ssd_mobilenet_v1()
