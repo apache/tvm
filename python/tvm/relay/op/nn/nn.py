@@ -1459,3 +1459,165 @@ def deformable_conv2d(data,
     return _make.deformable_conv2d(data, offset, weight, strides, padding, dilation,
                                    deformable_groups, groups, channels, kernel_size, data_layout,
                                    kernel_layout, out_layout, out_dtype)
+
+
+def bitpack(data,
+            bits=1,
+            pack_axis=1,
+            bit_axis=2,
+            pack_type="uint32",
+            name="BitPack"):
+    r"""Tensor packing for bitserial operations.
+    The values along the input tensor's pack_axis are quantized
+    and packed together into the specified pack_type in a new
+    bit axis.
+
+    For example, consider bitpacking with data to be a tensor with shape [1, 64, 128, 128],
+    pack_axis=1, bit_axis=4, pack_type=uint8, and bits=2. The output in this case will
+    be of shape [1, 8, 128, 128, 2]. The dimension of axis 1 has been reduced by a factor
+    of 8 since each value is packed into an 8-bit uint8. Axis 4 is now two bitplanes
+    representing the quantized value of the incoming data. The output tensor is now
+    ready to be used in a bitserial operation.
+
+    Parameters
+    ----------
+    data : tvm.relay.expr
+        The incoming tensor to be packed.
+
+    bits : int
+        Number of bits that should be packed.
+
+    pack_axis : int
+        Axis that should be decomposed and packed.
+
+    bit_axis : int
+        New axis containing bitplane.
+
+    pack_type : str
+        Datatype to pack bits into.
+
+    name : str, optional
+        Name of the operation.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The packed tensor.
+    """
+    return _make.bitpack(data, bits, pack_axis, bit_axis, pack_type, name)
+
+
+def bitserial_conv2d(data,
+                     weight,
+                     strides=(1, 1),
+                     padding=(0, 0),
+                     channels=None,
+                     kernel_size=(3, 3),
+                     activation_bits=1,
+                     weight_bits=1,
+                     data_layout='NCHW',
+                     kernel_layout='OIHW',
+                     pack_dtype='uint32',
+                     out_dtype='int16',
+                     unipolar=True):
+    r"""2D convolution using bitserial computation.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    activation_bits : int
+        Number of bits to pack for activations.
+
+    weight_bits : int
+        Number of bits to pack for weights.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the kernel
+
+    pack_dtype: str, optional
+        Datatype to pack bits into.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.bitserial_conv2d(data, weight, strides, padding, channels,
+                                  kernel_size, activation_bits, weight_bits,
+                                  data_layout, kernel_layout, pack_dtype,
+                                  out_dtype, unipolar)
+
+
+def bitserial_dense(data,
+                    weight,
+                    units=None,
+                    data_bits=1,
+                    weight_bits=1,
+                    pack_dtype='uint32',
+                    out_dtype='int16',
+                    unipolar=True):
+    """Bitserial Dense operator.
+    Applies matrix multiplication of two quantized matrices
+    using a fast bitserial algorithm.
+
+    .. math::
+
+    `Y = X * W`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    data_bits : int
+        Number of bits incoming tensor should be packed with.
+
+    weight_bits : int
+        Number of bits weight tensor should be packed with.
+
+    pack_dtype : str, optional
+        Datatype to pack individual bits into before computation.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense.
+
+    unipolar : bool, optional
+        Whether to use unipolar or bipolar quantization for inputs.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.bitserial_dense(data, weight, units, data_bits, weight_bits,
+                                 pack_dtype, out_dtype, unipolar)
