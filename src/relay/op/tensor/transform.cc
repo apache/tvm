@@ -528,7 +528,11 @@ bool ReshapeRel(const Array<Type>& types,
       used_input_dims.insert(src_idx);
       IndexExpr d2 = data_shape[src_idx++];
       used_output_dims.insert(oshape.size());
-      oshape.push_back(d1 * d2);
+      if (d1.as<Any>() || d2.as<Any>()) {
+        oshape.push_back(Any::make());
+      } else {
+        oshape.push_back(d1 * d2);
+      }
     } else if (svalue == -4) {
       // split the source dim s into two dims
       // read the left dim and then the right dim (either can be -1)
@@ -563,6 +567,8 @@ bool ReshapeRel(const Array<Type>& types,
           oshape.push_back(d2);
         }
       }
+    } else {
+      CHECK(false) << "Unsupported special value: " << svalue;
     }
   }
 
@@ -608,7 +614,15 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
                              const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   CHECK(out_ttype != nullptr);
-  return { topi::reshape(inputs[0], out_ttype->shape) };
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    if (val->is_type<ir::Any>()) {
+      newshape.push_back(val.as<ir::Any>()->ToVar());
+    } else {
+      newshape.push_back(val);
+    }
+  }
+  return { topi::reshape(inputs[0], newshape) };
 }
 
 Expr MakeReshape(Expr data,
@@ -1108,7 +1122,8 @@ RELAY_REGISTER_OP("arange")
 .set_support_level(3)
 .add_type_rel("Arange", ArangeRel)
 .set_attr<FTVMCompute>("FTVMCompute", ArangeCompute)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
+// TODO(@icemelon): Change arange to kOpaque because FuseOps doesn't consider dynamic shape
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
 .set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions);
 
 // repeat operator

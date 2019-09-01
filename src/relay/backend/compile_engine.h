@@ -36,6 +36,14 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Indicate whether the data or shape or both of a parameter is used in the shape func. */
+enum ShapeFuncParamState {
+  kNoNeed = 0,
+  kNeedInputData = 1,
+  kNeedInputShape = 2,
+  kNeedBoth = 3,
+};
+
 /*! \brief Node container to represent a cached function. */
 struct CachedFuncNode : public Node {
   /* \brief compiled target */
@@ -48,6 +56,8 @@ struct CachedFuncNode : public Node {
   tvm::Array<Tensor> outputs;
   /*! \brief The lowered functions to support the function. */
   tvm::Array<tvm::LoweredFunc> funcs;
+  /*! \brief Parameter usage states in the shape function. */
+  tvm::Array<Integer> shape_func_param_states;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("target", &target);
@@ -55,6 +65,7 @@ struct CachedFuncNode : public Node {
     v->Visit("inputs", &inputs);
     v->Visit("outputs", &outputs);
     v->Visit("funcs", &funcs);
+    v->Visit("shape_func_param_states", &shape_func_param_states);
   }
 
   static constexpr const char* _type_key = "relay.CachedFunc";
@@ -170,6 +181,12 @@ class CompileEngineNode : public Node {
    * \return The result.
    */
   virtual PackedFunc JIT(const CCacheKey& key) = 0;
+  /*!
+   * \brief Lower the shape function.
+   * \param key The key to the cached function.
+   * \return The result.
+   */
+  virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
 
@@ -180,7 +197,7 @@ class CompileEngineNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);
 };
 
-/*! \brier cache entry used in compile engine */
+/*! \brief cache entry used in compile engine */
 class CompileEngine : public NodeRef {
  public:
   CompileEngine() {}
@@ -192,6 +209,13 @@ class CompileEngine : public NodeRef {
   /*! \brief The global compile engine. */
   TVM_DLL static const CompileEngine& Global();
 };
+
+/*!
+ * \brief Check if the type is dynamic.
+ * \param ty The type to be checked.
+ * \return The result.
+ */
+bool IsDynamic(const Type& ty);
 
 // implementations
 inline size_t CCacheKeyNode::Hash() const {

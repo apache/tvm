@@ -295,7 +295,9 @@ RELAY_REGISTER_OP("shape_of")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("ShapeOf", ShapeOfRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
+// Use kOpaque for shape_of op for now since it won't be performance critic,
+// and it makes things easier for dynamic shape func
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_support_level(10)
