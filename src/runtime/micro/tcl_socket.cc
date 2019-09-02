@@ -66,7 +66,8 @@ void TclSocket::SendCommand() {
     CHECK(bytes_read != -1) << "failed to read command reply";
   } while (last_read != kCommandTerminateToken);
   last_reply_ = reply_builder_.str();
-  CHECK_EQ(last_reply_[last_reply_.length()-1], kCommandTerminateToken) << "missing command terminator";
+  CHECK_EQ(last_reply_[last_reply_.length()-1], kCommandTerminateToken)
+    << "missing command terminator";
 }
 
 }  // namespace runtime
