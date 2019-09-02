@@ -77,7 +77,8 @@ class ExprOp(OpWrapper):
         try:
             return expr.Call(self.operator, args, attrs, type_args)
         except Exception:
-            raise Exception("Operator {} is not registered. It's attributes are {}".format(self.operator, attrs))
+            raise Exception("Operator {} is not registered. It's attributes are {}"
+                            .format(self.operator, attrs))
 
 class FuncOp(OpWrapper):
     """Convert the attrs, call the python function with the attrs passed in as keyword arguments.
