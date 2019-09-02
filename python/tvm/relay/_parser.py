@@ -455,8 +455,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.meta[type_key][index]
 
     def mk_func(
-        self,
-        ctx: Union[RelayParser.FuncContext, RelayParser.DefnContext]) \
+            self,
+            ctx: Union[RelayParser.FuncContext, RelayParser.DefnContext]) \
             -> expr.Function:
         """Construct a function from either a Func or Defn."""
         # Enter var scope early to put params in scope.
