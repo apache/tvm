@@ -88,6 +88,9 @@ set(USE_GRAPH_RUNTIME ON)
 # Whether enable additional graph debug functions
 set(USE_GRAPH_RUNTIME_DEBUG OFF)
 
+# Whether enable Relay VM
+set(USE_RELAY_VM ON)
+
 # Whether enable additional vm profiler functions
 set(USE_VM_PROFILER OFF)
 
@@ -140,6 +143,9 @@ set(USE_ANTLR OFF)
 
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
+
+# Whether use bfloat16
+set(USE_BFLOAT OFF)
 
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM ON)

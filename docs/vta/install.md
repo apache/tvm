@@ -117,6 +117,8 @@ ssh xilinx@192.168.2.99
 cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
+
+echo 'set(USE_RELAY_VM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_FSIM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_TSIM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_FPGA ON)' >> build/config.cmake
