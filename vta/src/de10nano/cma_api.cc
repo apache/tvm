@@ -153,6 +153,7 @@ int cma_free(void *mem) {
 
 unsigned cma_get_phy_addr(void *mem) {
   unsigned data;
+  __DEBUG("Releasing contigous memory from 0x%x\n", (unsigned)mem);
 
   /* save user space pointer value */
   data = (unsigned)mem;
@@ -171,7 +172,7 @@ unsigned cma_get_phy_addr(void *mem) {
 void *cma_alloc(size_t size, unsigned ioctl_cmd) {
   unsigned data;
   void   *mem;
-  __DEBUG("Allocating 0x%x bytes of uncached contigous memory\n", size);
+  __DEBUG("Allocating 0x%x bytes of contigous memory\n", size);
 
   /* Page align size */
   size = ROUND_UP(size, getpagesize());

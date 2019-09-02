@@ -144,7 +144,7 @@ struct cma_entry *cma_entry_get_by_phy_addr(unsigned int phy_addr) {
 
   /* search for physical address */
   while (walk != NULL) {
-    if ( (walk->pid == current->pid) && (walk->phy_addr == phy_addr))
+    if (walk->phy_addr == phy_addr)
       goto leave;
 
     walk = walk->next;
@@ -161,16 +161,23 @@ struct cma_entry *cma_entry_get_by_v_usr_addr(unsigned v_usr_addr) {
 
   __DEBUG("cma_entry_get_by_v_usr_addr()\n");
 
-  if (mutex_lock_interruptible(&mutex_cma_list_modify))
+  if (mutex_lock_interruptible(&mutex_cma_list_modify)) {
+    __DEBUG("cma_entry_get_by_v_usr_addr: failed to call mutex_lock_interruptible().\n");
     return NULL;
+  }
 
   /* search for user virtual address */
   while (walk != NULL) {
-    if ( (walk->pid == current->pid) && (walk->v_usr_addr == v_usr_addr))
+    if (walk->v_usr_addr == v_usr_addr) {
+      __DEBUG("found user virtual address with pid (0x%x) and v_usr_addr (0x%x).\n",
+              current->pid, v_usr_addr);
       goto leave;
+    }
 
     walk = walk->next;
   }
+  __DEBUG("failed to search for user virtual address with pid (0x%x) and v_usr_addr (0x%x).\n",
+          current->pid, v_usr_addr);
 
 leave:
   mutex_unlock(&mutex_cma_list_modify);
@@ -340,10 +347,14 @@ static int cma_ioctl_alloc(struct file *filp, unsigned int cmd, unsigned int arg
   struct cma_entry *entry;
   __DEBUG("cma_ioctl_alloc_cached() called!\n");
 
-  if (!access_ok(VERIFY_READ, (void __user*) arg, _IOC_SIZE(cmd)))
+  if (!access_ok(VERIFY_READ, (void __user*) arg, _IOC_SIZE(cmd))) {
+    __DEBUG("fail to get read access to %d bytes of memory.\n", entry->size);
     return -EFAULT;
-  if (!access_ok(VERIFY_WRITE, (void __user*) arg, _IOC_SIZE(cmd)))
+  }
+  if (!access_ok(VERIFY_WRITE, (void __user*) arg, _IOC_SIZE(cmd))) {
+    __DEBUG("fail to get write access to %d bytes of memory.\n", entry->size);
     return -EFAULT;
+  }
 
   /* create new cma entry  */
   entry = kmalloc(sizeof(struct cma_entry), GFP_KERNEL);
@@ -357,6 +368,7 @@ static int cma_ioctl_alloc(struct file *filp, unsigned int cmd, unsigned int arg
   entry->v_ptr = dma_alloc_coherent(NULL, entry->size, &entry->phy_addr, GFP_KERNEL);
   if ( entry->v_ptr == NULL ) {
     err = -ENOMEM;
+    __DEBUG("==== FAILED TO ALLOCATE 0x%X BYTES OF COHERENT MEMORY ====\n", entry->size);
     goto error_dma_alloc_coherent;
   }
 
@@ -367,6 +379,7 @@ static int cma_ioctl_alloc(struct file *filp, unsigned int cmd, unsigned int arg
   /* put physical address to user space */
   __put_user(entry->phy_addr, (typeof(&entry->phy_addr))arg);
 
+  __DEBUG("allocated 0x%x bytes of coherent memory at phy_addr=0x%x\n", entry->size, entry->phy_addr);
   return entry->phy_addr;
 
 
@@ -399,10 +412,14 @@ static struct cma_entry *cma_ioctl_get_entry_from_v_usr_addr(unsigned int cmd, u
   __DEBUG("cma_ioctl_get_entry_from_v_usr_addr() called!\n");
 
   /* routine check */
-  if (!access_ok(VERIFY_READ, (void __user*) arg, _IOC_SIZE(cmd)))
+  if (!access_ok(VERIFY_READ, (void __user*) arg, _IOC_SIZE(cmd))) {
+    __DEBUG("failed to get read access to virtual user address: 0x%x\n", arg);
     return NULL;
-  if (!access_ok(VERIFY_WRITE, (void __user*) arg, _IOC_SIZE(cmd)))
+  }
+  if (!access_ok(VERIFY_WRITE, (void __user*) arg, _IOC_SIZE(cmd))) {
+    __DEBUG("failed to get write access to virtual user address: 0x%x\n", arg);
     return NULL;
+  }
 
   /* get process user address */
   __get_user(v_usr_addr, (typeof(&v_usr_addr))arg);
@@ -419,8 +436,10 @@ static int cma_ioctl_get_phy_addr(struct file *filp, unsigned int cmd, unsigned 
 
   /* get entry */
   entry = cma_ioctl_get_entry_from_v_usr_addr(cmd, arg);
-  if (entry == NULL)
+  if (entry == NULL) {
+    __DEBUG("cma entry has not been found.\n");
     return -EFAULT;
+  }
 
   /* put physical address into user space */
   __put_user(entry->phy_addr, (typeof(&entry->phy_addr))arg);
@@ -436,8 +455,10 @@ static int cma_ioctl_get_size(struct file *filp, unsigned int cmd, unsigned int 
 
   /* get entry */
   entry = cma_ioctl_get_entry_from_v_usr_addr(cmd, arg);
-  if (entry == NULL)
+  if (entry == NULL) {
+    __DEBUG("cma_ioctl_get_size: failed to get_entry_from_v_usr_addr.\n");
     return -EFAULT;
+  }
 
   /* put size into user space */
   __put_user(entry->size, (typeof(&entry->size))arg);
