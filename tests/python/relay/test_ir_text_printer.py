@@ -169,18 +169,22 @@ def test_inception_v3():
     net, params = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
     astext(net)
 
+
 def test_squeezenet():
     for version in ['1.0', '1.1']:
         net, params = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
         astext(net)
 
+
 def test_vgg():
     net, params = tvm.relay.testing.vgg.get_workload(batch_size=1)
     astext(net)
 
+
 def test_densenet():
     net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
     astext(net)
+
 
 def test_call_node_order():
     x = relay.var("x")
@@ -196,6 +200,7 @@ def test_call_node_order():
          "};\n"
          "%2(%1)")
 
+
 def test_let_inlining():
     tup = relay.Tuple([relay.const(0), relay.const(0)])
     x = relay.var("x")
@@ -208,9 +213,18 @@ def test_let_inlining():
         ("let %x = (0, 0);\n"
          "%x")
 
+
 def test_zeros():
     x = relay.op.zeros([], "float32")
     astext(x)
+
+
+def test_cast():
+    data = relay.var('data', dtype='float32')
+    fp16_cast = relay.cast(data, dtype='float16')
+    cast_func = relay.Function(relay.analysis.free_vars(fp16_cast), fp16_cast)
+    astext(cast_func)
+
 
 if __name__ == "__main__":
     do_print[0] = True
@@ -233,3 +247,4 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
+    test_cast()
