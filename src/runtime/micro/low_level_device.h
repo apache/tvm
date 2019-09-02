@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_
 
 #include <memory>
+#include <string>
 
 #include "micro_common.h"
 
@@ -66,9 +67,21 @@ class LowLevelDevice {
    */
   virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
 
+  // TODO(weberlo): Should we just give the device the *entire* memory layout
+  // decided by the session?
+
+  /*!
+   * \brief sets the offset of the top of the stack section
+   * \param stack_top offset of the stack top
+   */
+  virtual void SetStackTop(DevBaseOffset stack_top) {
+    LOG(FATAL) << "unimplemented";
+  }
+
   /*!
    * \brief convert from base offset to absolute address
    * \param offset base offset
+   * \return absolute address
    */
   DevPtr ToDevPtr(DevBaseOffset offset) {
     return DevPtr(base_addr() + offset.value());
@@ -77,6 +90,7 @@ class LowLevelDevice {
   /*!
    * \brief convert from absolute address to base offset
    * \param ptr absolute address
+   * \return base offset
    */
   DevBaseOffset ToDevOffset(DevPtr ptr) {
     return DevBaseOffset(ptr.value() - base_addr());
@@ -101,6 +115,14 @@ class LowLevelDevice {
  * \param num_bytes size of the memory region
  */
 const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes);
+
+/*!
+ * \brief connect to OpenOCD and create an OpenOCD low-level device
+ * \param port port of the OpenOCD server to connect to
+ */
+const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(std::uintptr_t base_addr,
+                                                                  const std::string& addr,
+                                                                  int port);
 
 }  // namespace runtime
 }  // namespace tvm
