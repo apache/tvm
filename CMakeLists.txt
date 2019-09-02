@@ -175,27 +175,26 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
     nnvm/src/top/*.cc
     )
 
-file(GLOB TOPI_SRCS
-    topi/src/*.cc
-)
+file(GLOB TOPI_SRCS topi/src/*.cc)
 
-file(GLOB RUNTIME_SRCS
-  src/runtime/*.cc
-  src/runtime/vm/*.cc
-)
+file(GLOB RUNTIME_SRCS src/runtime/*.cc)
 
 # Package runtime rules
 if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
 endif()
 
-list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
-
 if(USE_RPC)
-  message(STATUS "Build with RPC support...")
+  message(STATUS "Build with RPC support in runtime...")
   file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
+
+file(GLOB VM_RUNTIME_SRCS src/runtime/vm/*.cc)
+if(USE_RELAY_VM)
+  message(STATUS "Build with Relay VM support in runtime...")
+  list(APPEND RUNTIME_SRCS ${VM_RUNTIME_SRCS})
+endif(USE_RELAY_VM)
 
 file(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
 file(GLOB STACKVM_CODEGEN_SRCS src/codegen/stackvm/*.cc)
@@ -226,6 +225,11 @@ if(USE_VM_PROFILER)
   file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
+
+if(USE_BFLOAT)
+  list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
+endif
+
 
 # Module rules
 include(cmake/modules/VTA.cmake)
