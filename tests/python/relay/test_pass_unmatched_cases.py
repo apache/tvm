@@ -265,3 +265,11 @@ def test_mixed_adt_constructors():
         relay.Clause(relay.PatternConstructor(p.nil, []), v)
     ])
     assert len(unmatched_cases(list_of_boxes_comp, mod)) == 0
+
+
+def test_tuple_match():
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+    assert len(unmatched_cases(x)) == 0
