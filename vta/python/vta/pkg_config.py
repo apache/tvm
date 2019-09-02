@@ -139,8 +139,7 @@ class PkgConfig(object):
             self.load_base_addr = "0xA0001000"
             self.compute_base_addr = "0xA0002000"
             self.store_base_addr = "0xA0003000"
-        else:
-            # By default, we use the pynq parameters
+        elif self.TARGET == "pynq":
             self.fpga_device = "xc7z020clg484-1"
             self.fpga_family = "zynq-7000"
             self.fpga_freq = 100
@@ -153,6 +152,8 @@ class PkgConfig(object):
             self.load_base_addr = "0x43C01000"
             self.compute_base_addr = "0x43C02000"
             self.store_base_addr = "0x43C03000"
+        else:
+            raise RuntimeError("TARGET (" + self.TARGET + ") is not supported.")
         # Set coherence settings
         coherent = True
         if coherent:
