@@ -176,7 +176,6 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
     )
 
 file(GLOB TOPI_SRCS topi/src/*.cc)
-
 file(GLOB RUNTIME_SRCS src/runtime/*.cc)
 
 # Package runtime rules
@@ -228,7 +227,7 @@ endif(USE_VM_PROFILER)
 
 if(USE_BFLOAT)
   list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
-endif
+endif(USE_BFLOAT)
 
 
 # Module rules
