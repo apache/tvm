@@ -82,7 +82,6 @@ cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 ld_flags = -fPIC -shared
 
 cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
-## cxx_objs += $(patsubst %.cpp,%.o,$(wildcard $(verilator_build_dir)/*.cpp))
 
 ifneq ($(USE_TRACE), 0)
   verilator_opt += --trace
