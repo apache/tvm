@@ -71,8 +71,6 @@ elseif(PYTHON)
       target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
     endforeach()
     include_directories("vta/include")
-    # Set USE_TSIM macro
-    target_compile_definitions(vta_tsim PUBLIC USE_TSIM)
     if(APPLE)
       set_target_properties(vta_tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
     endif(APPLE)
