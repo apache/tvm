@@ -77,18 +77,12 @@ target = env.target if device == "vta" else env.target_vta_cpu
 
 # Dictionary lookup for when to start/end bit packing
 pack_dict = {
-    "alexnet": ["nn.max_pool2d", "nn.batch_flatten"],
     "resnet18_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
     "resnet34_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
     "resnet18_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
     "resnet34_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
     "resnet50_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
     "resnet101_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
-    "resnet152_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
-    "vgg11": ["nn.max_pool2d", "nn.batch_flatten"],
-    "vgg13": ["nn.max_pool2d", "nn.batch_flatten"],
-    "vgg16": ["nn.max_pool2d", "nn.batch_flatten"],
-    "vgg19": ["nn.max_pool2d", "nn.batch_flatten"],
 }
 
 # Name of Gluon model to compile
