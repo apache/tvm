@@ -62,8 +62,10 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
 }
 
 /** Pipelined DotProduct based on MAC and PipeAdder */
-class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module {
-  val errorMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
+class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16)
+    extends Module {
+  val errorMsg =
+    s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 2 && isPow2(size), errorMsg)
   val b = aBits + bBits
   val outBits = b + log2Ceil(size) + 1
@@ -72,12 +74,15 @@ class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module 
     val b = Input(Vec(size, SInt(bBits.W)))
     val y = Output(SInt(outBits.W))
   })
-  val s = Seq.tabulate(log2Ceil(size + 1))(i => pow(2, log2Ceil(size) - i).toInt) // # of total layers
+  val s = Seq.tabulate(log2Ceil(size + 1))(i =>
+    pow(2, log2Ceil(size) - i).toInt) // # of total layers
   val p = log2Ceil(size / 2) + 1 // # of adder layers
   val m = Seq.fill(s(0))(Module(new MAC(aBits, bBits, cBits = 1))) // # of total vector pairs
-  val a = Seq.tabulate(p)(i =>
-    Seq.fill(s(i + 1))(Module(new PipeAdder(aBits = (b + i + 1), bBits = (b + i + 1))))
-  ) // # adders within each layer
+  val a = Seq.tabulate(p)(
+    i =>
+      Seq.fill(s(i + 1))(Module(new PipeAdder(
+        aBits = (b + i + 1),
+        bBits = (b + i + 1))))) // # adders within each layer
 
   // Vector MACs
   for (i <- 0 until s(0)) {
@@ -111,7 +116,7 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   val inpBits = p(CoreKey).inpBits
   val wgtBits = p(CoreKey).wgtBits
   val outBits = p(CoreKey).outBits
-  val io = IO(new Bundle{
+  val io = IO(new Bundle {
     val reset = Input(Bool()) // FIXME: reset should be replaced by a load-acc instr
     val inp = new TensorMasterData(tensorType = "inp")
     val wgt = new TensorMasterData(tensorType = "wgt")
@@ -119,8 +124,10 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
     val acc_o = new TensorClientData(tensorType = "acc")
     val out = new TensorClientData(tensorType = "out")
   })
-  val dot = Seq.fill(size)(Module(new DotProduct(aBits = inpBits, bBits = wgtBits, size)))
-  val acc = Seq.fill(size)(Module(new Pipe(UInt(accBits.W), latency = log2Ceil(size) + 1)))
+  val dot = Seq.fill(size)(
+    Module(new DotProduct(aBits = inpBits, bBits = wgtBits, size)))
+  val acc = Seq.fill(size)(
+    Module(new Pipe(UInt(accBits.W), latency = log2Ceil(size) + 1)))
   val add = Seq.fill(size)(Wire(SInt(accBits.W)))
   val vld = Wire(Vec(size, Bool()))
 
@@ -149,7 +156,8 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   * Also, the TensorGemm uses the reset field in the Gemm instruction to
   * clear or zero-out the acc-scratchpad locations based on the micro-ops.
   */
-class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
@@ -160,7 +168,8 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
     val acc = new TensorMaster(tensorType = "acc")
     val out = new TensorMaster(tensorType = "out")
   })
-  val sIdle :: sReadUop :: sComputeIdx :: sReadTensor :: sExe :: sWait :: Nil = Enum(6)
+  val sIdle :: sReadUop :: sComputeIdx :: sReadTensor :: sExe :: sWait :: Nil =
+    Enum(6)
   val state = RegInit(sIdle)
   val mvc = Module(new MatrixVectorMultiplication)
   val dec = io.inst.asTypeOf(new GemmDecode)
@@ -181,99 +190,103 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   val inflight = Reg(UInt(pBits.W))
   val wrpipe = Module(new Pipe(chiselTypeOf(dec.uop_end), latency = pBits))
   val done = inflight === 0.U &
-             ((state === sExe &
-              cnt_o === dec.lp_0 - 1.U &
-              cnt_i === dec.lp_1 - 1.U &
-              uop_idx === uop_end - 1.U &
-              inflight === 0.U) |
-             state === sWait)
+    ((state === sExe &
+      cnt_o === dec.lp_0 - 1.U &
+      cnt_i === dec.lp_1 - 1.U &
+      uop_idx === uop_end - 1.U &
+      inflight === 0.U) |
+      state === sWait)
 
-  switch (state) {
-    is (sIdle) {
-      when (io.start) {
+  switch(state) {
+    is(sIdle) {
+      when(io.start) {
         state := sReadUop
       }
     }
-    is (sReadUop) {
+    is(sReadUop) {
       state := sComputeIdx
     }
-    is (sComputeIdx) {
+    is(sComputeIdx) {
       state := sReadTensor
     }
-    is (sReadTensor) {
+    is(sReadTensor) {
       state := sExe
     }
-    is (sExe) {
-      when ((cnt_o === dec.lp_0 - 1.U) &&
-            (cnt_i === dec.lp_1 - 1.U) &&
-            (uop_idx === uop_end - 1.U)) {
-        when (inflight =/= 0.U) {
+    is(sExe) {
+      when(
+        (cnt_o === dec.lp_0 - 1.U) &&
+          (cnt_i === dec.lp_1 - 1.U) &&
+          (uop_idx === uop_end - 1.U)) {
+        when(inflight =/= 0.U) {
           state := sWait
-        } .otherwise {
+        }.otherwise {
           state := sIdle
         }
-      } .otherwise {
+      }.otherwise {
         state := sReadUop
       }
     }
-    is (sWait) {
-      when (inflight === 0.U) {
+    is(sWait) {
+      when(inflight === 0.U) {
         state := sIdle
       }
     }
   }
 
-  when (state === sIdle) {
+  when(state === sIdle) {
     inflight := 0.U
-  } .elsewhen (!dec.reset) {
-    when (state === sReadTensor) { // issue a tensor
+  }.elsewhen(!dec.reset) {
+    when(state === sReadTensor) { // issue a tensor
       inflight := inflight + 1.U
-    } .elsewhen (mvc.io.acc_o.data.valid) { // commit a tensor
+    }.elsewhen(mvc.io.acc_o.data.valid) { // commit a tensor
       inflight := inflight - 1.U
     }
   }
 
-  when (state === sIdle ||
-         (state === sExe &&
-          uop_idx === uop_end - 1.U)) {
+  when(
+    state === sIdle ||
+      (state === sExe &&
+        uop_idx === uop_end - 1.U)) {
     uop_idx := dec.uop_begin
-  } .elsewhen (state === sExe) {
+  }.elsewhen(state === sExe) {
     uop_idx := uop_idx + 1.U
   }
 
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt_o := 0.U
     acc_o := 0.U
     inp_o := 0.U
     wgt_o := 0.U
-  } .elsewhen (state === sExe &&
-               uop_idx === uop_end - 1.U &&
-               cnt_i === dec.lp_1 - 1.U) {
+  }.elsewhen(
+    state === sExe &&
+      uop_idx === uop_end - 1.U &&
+      cnt_i === dec.lp_1 - 1.U) {
     cnt_o := cnt_o + 1.U
     acc_o := acc_o + dec.acc_0
     inp_o := inp_o + dec.inp_0
     wgt_o := wgt_o + dec.wgt_0
   }
 
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt_i := 0.U
     acc_i := 0.U
     inp_i := 0.U
     wgt_i := 0.U
-  } .elsewhen (state === sReadUop && cnt_i === dec.lp_1) {
-    cnt_i := 0.U
-    acc_i := acc_o
-    inp_i := inp_o
-    wgt_i := wgt_o
-  } .elsewhen (state === sExe &&
-               uop_idx === uop_end - 1.U) {
-    cnt_i := cnt_i + 1.U
-    acc_i := acc_i + dec.acc_1
-    inp_i := inp_i + dec.inp_1
-    wgt_i := wgt_i + dec.wgt_1
-  }
+  }.elsewhen(state === sReadUop && cnt_i === dec.lp_1) {
+      cnt_i := 0.U
+      acc_i := acc_o
+      inp_i := inp_o
+      wgt_i := wgt_o
+    }
+    .elsewhen(state === sExe &&
+      uop_idx === uop_end - 1.U) {
+      cnt_i := cnt_i + 1.U
+      acc_i := acc_i + dec.acc_1
+      inp_i := inp_i + dec.inp_1
+      wgt_i := wgt_i + dec.wgt_1
+    }
 
-  when (state === sComputeIdx && io.uop.data.valid) {
+  when(state === sComputeIdx && io.uop.data.valid) {
     uop_acc := io.uop.data.bits.u0 + acc_i
     uop_inp := io.uop.data.bits.u1 + inp_i
     uop_wgt := io.uop.data.bits.u2 + wgt_i
@@ -307,7 +320,9 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   mvc.io.acc_i.data <> io.acc.rd.data
 
   // acc_o
-  io.acc.wr.valid := mvc.io.acc_o.data.valid & Mux(dec.reset, true.B, wrpipe.io.deq.valid)
+  io.acc.wr.valid := mvc.io.acc_o.data.valid & Mux(dec.reset,
+                                                   true.B,
+                                                   wrpipe.io.deq.valid)
   io.acc.wr.bits.idx := Mux(dec.reset, uop_acc, wrpipe.io.deq.bits)
   io.acc.wr.bits.data <> mvc.io.acc_o.data.bits
 
@@ -320,47 +335,55 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   io.done := done
 
   if (debug) {
-    when (state === sReadUop && ~dec.reset) {
+    when(state === sReadUop && ~dec.reset) {
       printf("[TensorGemm] [uop] idx:%x\n", uop_idx)
     }
 
-    when (state === sReadTensor && ~dec.reset) {
-      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n", uop_acc, uop_inp, uop_wgt)
+    when(state === sReadTensor && ~dec.reset) {
+      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n",
+             uop_acc,
+             uop_inp,
+             uop_wgt)
     }
 
-    io.inp.rd.data.bits.zipWithIndex.foreach { case(r, i) =>
-      when (io.inp.rd.data.valid && ~dec.reset) {
-        printf("[TensorGemm] [inp] i:%x val:%x\n", i.U, r.asUInt)
-      }
+    io.inp.rd.data.bits.zipWithIndex.foreach {
+      case (r, i) =>
+        when(io.inp.rd.data.valid && ~dec.reset) {
+          printf("[TensorGemm] [inp] i:%x val:%x\n", i.U, r.asUInt)
+        }
     }
 
-    io.wgt.rd.data.bits.zipWithIndex.foreach { case(r, i) =>
-      when (io.wgt.rd.data.valid && ~dec.reset) {
-        printf("[TensorGemm] [wgt] i:%x val:%x\n", i.U, r.asUInt)
-      }
+    io.wgt.rd.data.bits.zipWithIndex.foreach {
+      case (r, i) =>
+        when(io.wgt.rd.data.valid && ~dec.reset) {
+          printf("[TensorGemm] [wgt] i:%x val:%x\n", i.U, r.asUInt)
+        }
     }
 
     io.acc.rd.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (io.acc.rd.data.valid && ~dec.reset) {
-          printf("[TensorGemm] [acc_i] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(io.acc.rd.data.valid && ~dec.reset) {
+            printf("[TensorGemm] [acc_i] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
 
     mvc.io.acc_o.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (mvc.io.acc_o.data.valid && ~dec.reset) {
-          printf("[TensorGemm] [acc_o] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(mvc.io.acc_o.data.valid && ~dec.reset) {
+            printf("[TensorGemm] [acc_o] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
 
     mvc.io.out.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (mvc.io.out.data.valid && ~dec.reset) {
-          printf("[TensorGemm] [out] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(mvc.io.out.data.valid && ~dec.reset) {
+            printf("[TensorGemm] [out] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
   }

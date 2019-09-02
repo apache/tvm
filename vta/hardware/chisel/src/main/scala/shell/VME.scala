@@ -32,13 +32,16 @@ import vta.interface.axi._
 case class VMEParams() {
   val nReadClients: Int = 5
   val nWriteClients: Int = 1
-  require (nReadClients > 0, s"\n\n[VTA] [VMEParams] nReadClients must be larger than 0\n\n")
-  require (nWriteClients == 1, s"\n\n[VTA] [VMEParams] nWriteClients must be 1, only one-write-client support atm\n\n")
+  require(nReadClients > 0,
+          s"\n\n[VTA] [VMEParams] nReadClients must be larger than 0\n\n")
+  require(
+    nWriteClients == 1,
+    s"\n\n[VTA] [VMEParams] nWriteClients must be 1, only one-write-client support atm\n\n")
 }
 
 /** VMEBase. Parametrize base class. */
 abstract class VMEBase(implicit p: Parameters)
-  extends GenericParameterizedBundle(p)
+    extends GenericParameterizedBundle(p)
 
 /** VMECmd.
   *
@@ -149,19 +152,19 @@ class VME(implicit p: Parameters) extends Module {
   val sReadIdle :: sReadAddr :: sReadData :: Nil = Enum(3)
   val rstate = RegInit(sReadIdle)
 
-  switch (rstate) {
-    is (sReadIdle) {
-      when (rd_arb.io.out.valid) {
+  switch(rstate) {
+    is(sReadIdle) {
+      when(rd_arb.io.out.valid) {
         rstate := sReadAddr
       }
     }
-    is (sReadAddr) {
-      when (io.mem.ar.ready) {
+    is(sReadAddr) {
+      when(io.mem.ar.ready) {
         rstate := sReadData
       }
     }
-    is (sReadData) {
-      when (io.mem.r.fire() && io.mem.r.bits.last) {
+    is(sReadData) {
+      when(io.mem.r.fire() && io.mem.r.bits.last) {
         rstate := sReadIdle
       }
     }
@@ -173,30 +176,34 @@ class VME(implicit p: Parameters) extends Module {
   val lenBits = p(ShellKey).memParams.lenBits
   val wr_cnt = RegInit(0.U(lenBits.W))
 
-  when (wstate === sWriteIdle) {
+  when(wstate === sWriteIdle) {
     wr_cnt := 0.U
-  } .elsewhen (io.mem.w.fire()) {
+  }.elsewhen(io.mem.w.fire()) {
     wr_cnt := wr_cnt + 1.U
   }
 
-  switch (wstate) {
-    is (sWriteIdle) {
-      when (io.vme.wr(0).cmd.valid) {
+  switch(wstate) {
+    is(sWriteIdle) {
+      when(io.vme.wr(0).cmd.valid) {
         wstate := sWriteAddr
       }
     }
-    is (sWriteAddr) {
-      when (io.mem.aw.ready) {
+    is(sWriteAddr) {
+      when(io.mem.aw.ready) {
         wstate := sWriteData
       }
     }
-    is (sWriteData) {
-      when (io.vme.wr(0).data.valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
+    is(sWriteData) {
+      when(
+        io.vme
+          .wr(0)
+          .data
+          .valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
         wstate := sWriteResp
       }
     }
-    is (sWriteResp) {
-      when (io.mem.b.valid) {
+    is(sWriteResp) {
+      when(io.mem.b.valid) {
         wstate := sWriteIdle
       }
     }
@@ -209,12 +216,12 @@ class VME(implicit p: Parameters) extends Module {
   val rd_addr = RegInit(0.U(addrBits.W))
   val wr_addr = RegInit(0.U(addrBits.W))
 
-  when (rd_arb.io.out.fire()) {
+  when(rd_arb.io.out.fire()) {
     rd_len := rd_arb.io.out.bits.len
     rd_addr := rd_arb.io.out.bits.addr
   }
 
-  when (io.vme.wr(0).cmd.fire()) {
+  when(io.vme.wr(0).cmd.fire()) {
     wr_len := io.vme.wr(0).cmd.bits.len
     wr_addr := io.vme.wr(0).cmd.bits.addr
   }
@@ -230,7 +237,7 @@ class VME(implicit p: Parameters) extends Module {
 
   io.vme.wr(0).cmd.ready := wstate === sWriteIdle
   io.vme.wr(0).ack := io.mem.b.fire()
-  io.vme.wr(0).data.ready := wstate === sWriteData &  io.mem.w.ready
+  io.vme.wr(0).data.ready := wstate === sWriteData & io.mem.w.ready
 
   // mem
   io.mem.aw.valid := wstate === sWriteAddr
