@@ -64,6 +64,7 @@ def test_requantize():
                           input_scale=0.5,
                           output_scale=0.5,
                           rounding=rounding)
+            assert 'right_shift' not in mod.astext()
             verify(mod, (golden_data, golden_output))
 
     def downscale_test():
