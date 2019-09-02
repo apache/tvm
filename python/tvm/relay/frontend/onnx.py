@@ -877,6 +877,14 @@ class Not(Elemwise):
         return _op.logical_not(inputs[0])
 
 
+class And(Elemwise):
+    """ Operator converter for And.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.logical_and(inputs[0], inputs[1])
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -993,7 +1001,8 @@ def _get_convert_map(opset):
         'Shape': Shape.get_converter(opset),
         'Sign': Sign.get_converter(opset),
         'Equal': Equal.get_converter(opset),
-        'Not': Not.get_converter(opset)
+        'Not': Not.get_converter(opset),
+        'And': And.get_converter(opset)
     }
 
 
