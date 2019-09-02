@@ -54,9 +54,9 @@ class ExternalModuleNode : public runtime:: ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (name == "Subtract") {
+    if (name == "Subtract" || "Add" || "Multiply") {
       CHECK(handle_) << "You need to build the external module first";
-      func_s_ = reinterpret_cast<sub>(dlsym(handle_,"Subtract"));
+      func_s_ = reinterpret_cast<sub>(dlsym(handle_, name.c_str()));
       char* error = dlerror();
       if (error != NULL) {
         LOG(FATAL) << error;

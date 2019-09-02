@@ -196,8 +196,21 @@ class Partitioner : public ExprMutator {
           FunctionNode::make(params, input, call->args[0]->checked_type_, {}, Attrs());
 
       // FIXME: How to determine the function name?
+      // This is a hack for multiple subgraph test where each subgraph only has
+      // one call node.
+      // We can probably only pass "external" to indicate that this is an
+      // external funciton and leave the processing of the function to codegen.
+      // Otherwise, it's hard to deal with multiple-node subgraphs.
+      Expr arg0 = call->args[0];
+      std::string name = "Subgraph";
+      if (const auto* arg_call = arg0.as<CallNode>()) {
+        if (const auto* op_node = arg_call->op.as<OpNode>()) {
+          name = op_node->name;
+          name[0] = name[0] - 32;
+        }
+      }
       subgraph_func =
-          FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make("Subtract"));
+          FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, "Primitive", tvm::Integer(1));
       subgraph_func = FunctionSetAttr(subgraph_func, "External",
                                       tvm::ir::StringImm::make(subgraph_attrs->compiler));

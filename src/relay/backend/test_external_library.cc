@@ -21,34 +21,73 @@
 #include <cstdint>
 #include <iostream>
 
-extern "C" void Subtract(ExternalTensor a, ExternalTensor b, ExternalTensor* out) {
-  if (a.ndim > 2 || a.ndim != b.ndim || a.ndim  != out->ndim) {
-    std::cerr << "Array sizes are not consistent, a.ndim = " << a.ndim
-              << ", b.ndim = " << b.ndim
-              << ", out ndim = " << out->ndim << std::endl;
+#define GCC_BINARY_OP(OP, SYMB)                                            \
+  extern "C" void OP(ExternalTensor a, ExternalTensor b,                   \
+                     ExternalTensor* out) {                                \
+    if (a.ndim > 2 || a.ndim != b.ndim || a.ndim != out->ndim) {           \
+      std::cerr << "Array sizes are not consistent, a.ndim = " << a.ndim   \
+                << ", b.ndim = " << b.ndim << ", out ndim = " << out->ndim \
+                << std::endl;                                              \
+    }                                                                      \
+    for (int i = 0; i < a.ndim; i++) {                                     \
+      if (a.shape[i] != b.shape[i]) {                                      \
+        std::cerr << "shape[" << i << "]: a = " << a.shape[i]              \
+                  << ", b = " << b.shape[i] << std::endl;                  \
+      }                                                                    \
+    }                                                                      \
+    std::cout << "dim: " << a.ndim << " shape: " << std::endl;             \
+    for (int i = 0; i < a.ndim; i++) {                                     \
+      std::cout << a.shape[i] << " " << b.shape[i] << std::endl;           \
+    }                                                                      \
+    float* a_ptr = static_cast<float*>(a.data);                            \
+    float* b_ptr = static_cast<float*>(b.data);                            \
+    float* out_ptr = static_cast<float*>(out->data);                       \
+    if (a.ndim == 1) {                                                     \
+      for (int64_t i = 0; i < a.shape[0]; i++) {                           \
+        out_ptr[i] = a_ptr[i] SYMB b_ptr[i];                               \
+      }                                                                    \
+    } else {                                                               \
+      for (int64_t i = 0; i < a.shape[0]; i++) {                           \
+        for (int64_t j = 0; j < a.shape[1]; j++) {                         \
+          int64_t k = i * a.shape[1] + j;                                  \
+          out_ptr[k] = a_ptr[k] SYMB b_ptr[k];                             \
+        }                                                                  \
+      }                                                                    \
+    }                                                                      \
   }
-  for (int i = 0; i < a.ndim; i++) {
-    if (a.shape[i] != b.shape[i]) {
-      std::cerr << "shape[" << i << "]: a = " << a.shape[i] << ", b = " << b.shape[i] << std::endl;
-    }
-  }
-  std::cout << "dim: " << a.ndim << " shape: " << std::endl;
-  for (int i = 0; i < a.ndim; i++) {
-    std::cout << a.shape[i] << " " << b.shape[i] << std::endl;
-  }
-  float* a_ptr = static_cast<float*>(a.data);
-  float* b_ptr = static_cast<float*>(b.data);
-  float* out_ptr = static_cast<float*>(out->data);
-  if (a.ndim == 1) {
-    for (int64_t i = 0; i < a.shape[0]; i++) {
-      out_ptr[i] = a_ptr[i] - b_ptr[i];
-    }
-  } else {
-    for (int64_t i = 0; i < a.shape[0]; i++) {
-      for (int64_t j = 0; j < a.shape[1]; j++) {
-        int64_t k = i * a.shape[1] + j;
-        out_ptr[k] = a_ptr[k] - b_ptr[k];
-      }
-    }
-  }
-}
+
+GCC_BINARY_OP(Subtract, -);
+GCC_BINARY_OP(Add, +);
+GCC_BINARY_OP(Multiply, *);
+
+// extern "C" void Subtract(ExternalTensor a, ExternalTensor b, ExternalTensor* out) {
+//   if (a.ndim > 2 || a.ndim != b.ndim || a.ndim  != out->ndim) {
+//     std::cerr << "Array sizes are not consistent, a.ndim = " << a.ndim
+//               << ", b.ndim = " << b.ndim
+//               << ", out ndim = " << out->ndim << std::endl;
+//   }
+//   for (int i = 0; i < a.ndim; i++) {
+//     if (a.shape[i] != b.shape[i]) {
+//       std::cerr << "shape[" << i << "]: a = " << a.shape[i] << ", b = " << b.shape[i] << std::endl;
+//     }
+//   }
+//   std::cout << "dim: " << a.ndim << " shape: " << std::endl;
+//   for (int i = 0; i < a.ndim; i++) {
+//     std::cout << a.shape[i] << " " << b.shape[i] << std::endl;
+//   }
+//   float* a_ptr = static_cast<float*>(a.data);
+//   float* b_ptr = static_cast<float*>(b.data);
+//   float* out_ptr = static_cast<float*>(out->data);
+//   if (a.ndim == 1) {
+//     for (int64_t i = 0; i < a.shape[0]; i++) {
+//       out_ptr[i] = a_ptr[i] - b_ptr[i];
+//     }
+//   } else {
+//     for (int64_t i = 0; i < a.shape[0]; i++) {
+//       for (int64_t j = 0; j < a.shape[1]; j++) {
+//         int64_t k = i * a.shape[1] + j;
+//         out_ptr[k] = a_ptr[k] - b_ptr[k];
+//       }
+//     }
+//   }
+// }
