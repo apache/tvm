@@ -61,7 +61,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
-    static const Layout kOIHW("OIHW");
+    const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
     const auto* attrs_b = b->attrs.as<Conv2DAttrs>();
     CHECK(attrs_a);
@@ -83,7 +83,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
   Call MakeCombinedOp(const Group& branches) {
-    static const Op& conv2d = Op::Get("nn.conv2d");
+    const Op& conv2d = Op::Get("nn.conv2d");
     Expr data = branches[0][0]->args[0];
     Expr new_weight;
     IndexExpr new_channels;
