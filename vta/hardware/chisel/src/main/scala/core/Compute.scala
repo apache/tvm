@@ -49,8 +49,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val s = Seq.tabulate(2)(_ =>
-    Module(new Semaphore(counterBits = 8, counterInitValue = 0)))
+  val s = Seq.tabulate(2)(_ => Module(new Semaphore(counterBits = 8, counterInitValue = 0)))
 
   val loadUop = Module(new LoadUop)
   val tensorAcc = Module(new TensorLoad(tensorType = "acc"))
@@ -63,11 +62,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val dec = Module(new ComputeDecode)
   dec.io.inst := inst_q.io.deq.bits
 
-  val inst_type = Cat(dec.io.isFinish,
-                      dec.io.isAlu,
-                      dec.io.isGemm,
-                      dec.io.isLoadAcc,
-                      dec.io.isLoadUop).asUInt
+  val inst_type =
+    Cat(dec.io.isFinish, dec.io.isAlu, dec.io.isGemm, dec.io.isLoadAcc, dec.io.isLoadUop).asUInt
 
   val sprev = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s(0).io.sready, true.B)
   val snext = inst_q.io.deq.valid & Mux(dec.io.pop_next, s(1).io.sready, true.B)
@@ -115,9 +111,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   loadUop.io.inst := inst_q.io.deq.bits
   loadUop.io.baddr := io.uop_baddr
   io.vme_rd(0) <> loadUop.io.vme_rd
-  loadUop.io.uop.idx <> Mux(dec.io.isGemm,
-                            tensorGemm.io.uop.idx,
-                            tensorAlu.io.uop.idx)
+  loadUop.io.uop.idx <> Mux(dec.io.isGemm, tensorGemm.io.uop.idx, tensorAlu.io.uop.idx)
 
   // acc
   tensorAcc.io.start := state === sIdle & start & dec.io.isLoadAcc
@@ -126,9 +120,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorAcc.io.tensor.rd.idx <> Mux(dec.io.isGemm,
                                     tensorGemm.io.acc.rd.idx,
                                     tensorAlu.io.acc.rd.idx)
-  tensorAcc.io.tensor.wr <> Mux(dec.io.isGemm,
-                                tensorGemm.io.acc.wr,
-                                tensorAlu.io.acc.wr)
+  tensorAcc.io.tensor.wr <> Mux(dec.io.isGemm, tensorGemm.io.acc.wr, tensorAlu.io.acc.wr)
   io.vme_rd(1) <> tensorAcc.io.vme_rd
 
   // gemm
@@ -154,9 +146,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorAlu.io.out.rd.data.bits <> io.out.rd.data.bits
 
   // out
-  io.out.rd.idx <> Mux(dec.io.isGemm,
-                       tensorGemm.io.out.rd.idx,
-                       tensorAlu.io.out.rd.idx)
+  io.out.rd.idx <> Mux(dec.io.isGemm, tensorGemm.io.out.rd.idx, tensorAlu.io.out.rd.idx)
   io.out.wr <> Mux(dec.io.isGemm, tensorGemm.io.out.wr, tensorAlu.io.out.wr)
 
   // semaphore

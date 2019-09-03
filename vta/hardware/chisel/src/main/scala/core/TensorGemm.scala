@@ -62,8 +62,7 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
 }
 
 /** Pipelined DotProduct based on MAC and PipeAdder */
-class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16)
-    extends Module {
+class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module {
   val errorMsg =
     s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 2 && isPow2(size), errorMsg)
@@ -74,15 +73,11 @@ class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16)
     val b = Input(Vec(size, SInt(bBits.W)))
     val y = Output(SInt(outBits.W))
   })
-  val s = Seq.tabulate(log2Ceil(size + 1))(i =>
-    pow(2, log2Ceil(size) - i).toInt) // # of total layers
+  val s = Seq.tabulate(log2Ceil(size + 1))(i => pow(2, log2Ceil(size) - i).toInt) // # of total layers
   val p = log2Ceil(size / 2) + 1 // # of adder layers
   val m = Seq.fill(s(0))(Module(new MAC(aBits, bBits, cBits = 1))) // # of total vector pairs
-  val a = Seq.tabulate(p)(
-    i =>
-      Seq.fill(s(i + 1))(Module(new PipeAdder(
-        aBits = (b + i + 1),
-        bBits = (b + i + 1))))) // # adders within each layer
+  val a = Seq.tabulate(p)(i =>
+    Seq.fill(s(i + 1))(Module(new PipeAdder(aBits = (b + i + 1), bBits = (b + i + 1))))) // # adders within each layer
 
   // Vector MACs
   for (i <- 0 until s(0)) {
@@ -124,10 +119,8 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
     val acc_o = new TensorClientData(tensorType = "acc")
     val out = new TensorClientData(tensorType = "out")
   })
-  val dot = Seq.fill(size)(
-    Module(new DotProduct(aBits = inpBits, bBits = wgtBits, size)))
-  val acc = Seq.fill(size)(
-    Module(new Pipe(UInt(accBits.W), latency = log2Ceil(size) + 1)))
+  val dot = Seq.fill(size)(Module(new DotProduct(aBits = inpBits, bBits = wgtBits, size)))
+  val acc = Seq.fill(size)(Module(new Pipe(UInt(accBits.W), latency = log2Ceil(size) + 1)))
   val add = Seq.fill(size)(Wire(SInt(accBits.W)))
   val vld = Wire(Vec(size, Bool()))
 
@@ -156,8 +149,7 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   * Also, the TensorGemm uses the reset field in the Gemm instruction to
   * clear or zero-out the acc-scratchpad locations based on the micro-ops.
   */
-class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
+class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
@@ -320,9 +312,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
   mvc.io.acc_i.data <> io.acc.rd.data
 
   // acc_o
-  io.acc.wr.valid := mvc.io.acc_o.data.valid & Mux(dec.reset,
-                                                   true.B,
-                                                   wrpipe.io.deq.valid)
+  io.acc.wr.valid := mvc.io.acc_o.data.valid & Mux(dec.reset, true.B, wrpipe.io.deq.valid)
   io.acc.wr.bits.idx := Mux(dec.reset, uop_acc, wrpipe.io.deq.bits)
   io.acc.wr.bits.data <> mvc.io.acc_o.data.bits
 
@@ -340,10 +330,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
     }
 
     when(state === sReadTensor && ~dec.reset) {
-      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n",
-             uop_acc,
-             uop_inp,
-             uop_wgt)
+      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n", uop_acc, uop_inp, uop_wgt)
     }
 
     io.inp.rd.data.bits.zipWithIndex.foreach {

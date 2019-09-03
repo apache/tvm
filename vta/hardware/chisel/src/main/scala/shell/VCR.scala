@@ -38,8 +38,7 @@ case class VCRParams() {
 }
 
 /** VCRBase. Parametrize base class. */
-abstract class VCRBase(implicit p: Parameters)
-    extends GenericParameterizedBundle(p)
+abstract class VCRBase(implicit p: Parameters) extends GenericParameterizedBundle(p)
 
 /** VCRMaster.
   *

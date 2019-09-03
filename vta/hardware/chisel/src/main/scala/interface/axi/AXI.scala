@@ -54,8 +54,7 @@ case class AXIParams(
   val regionConst = 0
 }
 
-abstract class AXIBase(params: AXIParams)
-    extends GenericParameterizedBundle(params)
+abstract class AXIBase(params: AXIParams) extends GenericParameterizedBundle(params)
 
 // AXILite
 

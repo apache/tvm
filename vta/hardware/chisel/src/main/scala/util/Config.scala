@@ -45,8 +45,7 @@ abstract class Parameters extends View {
   final def ++(x: Parameters): Parameters =
     new ChainParameters(this, x)
 
-  final def alter(
-      f: (View, View, View) => PartialFunction[Any, Any]): Parameters =
+  final def alter(f: (View, View, View) => PartialFunction[Any, Any]): Parameters =
     Parameters(f) ++ this
 
   final def alterPartial(f: PartialFunction[Any, Any]): Parameters =
@@ -55,9 +54,7 @@ abstract class Parameters extends View {
   final def alterMap(m: Map[Any, Any]): Parameters =
     new MapParameters(m) ++ this
 
-  protected[config] def chain[T](site: View,
-                                 tail: View,
-                                 pname: Field[T]): Option[T]
+  protected[config] def chain[T](site: View, tail: View, pname: Field[T]): Option[T]
   protected[config] def find[T](pname: Field[T], site: View) =
     chain(site, new TerminalView, pname)
 }
@@ -97,8 +94,7 @@ private class EmptyParameters extends Parameters {
   def chain[T](site: View, tail: View, pname: Field[T]) = tail.find(pname, site)
 }
 
-private class PartialParameters(
-    f: (View, View, View) => PartialFunction[Any, Any])
+private class PartialParameters(f: (View, View, View) => PartialFunction[Any, Any])
     extends Parameters {
   protected[config] def chain[T](site: View, tail: View, pname: Field[T]) = {
     val g = f(site, this, tail)

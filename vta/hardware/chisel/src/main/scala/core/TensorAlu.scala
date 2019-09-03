@@ -244,9 +244,7 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   alu.io.acc_b.data.valid := Mux(dec.alu_use_imm,
                                  tensorImm.data.valid,
                                  io.acc.rd.data.valid & state === sExe)
-  alu.io.acc_b.data.bits <> Mux(dec.alu_use_imm,
-                                tensorImm.data.bits,
-                                io.acc.rd.data.bits)
+  alu.io.acc_b.data.bits <> Mux(dec.alu_use_imm, tensorImm.data.bits, io.acc.rd.data.bits)
 
   // acc_o
   io.acc.wr.valid := alu.io.acc_y.data.valid
