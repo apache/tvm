@@ -27,9 +27,10 @@ from tvm.relay.annotation import subgraph_begin, subgraph_end
 class MyAnnotator(ExprMutator):
     def visit_call(self, call):
         #print(call.op.name)
-        if call.op.name == "log": # Annotate begin at args
-            inp = subgraph_begin(call.args[0], "gcc")
-            op = relay.log(inp)
+        if call.op.name == "add": # Annotate begin at args
+            lhs = subgraph_begin(call.args[0], "gcc")
+            rhs = subgraph_begin(call.args[1], "gcc")
+            op = relay.add(lhs, rhs)
             return op
         elif call.op.name == "concatenate": # Annotate end at output
             op = super().visit_call(call)
@@ -45,13 +46,12 @@ def annotate(expr):
 
 def test_partition_graph():
     x = relay.var('x', shape=(10, 10))
-    #y = relay.var('y', shape=(10, 10))
-    z0 = relay.log(x)
-    z1 = relay.log(x)
-    z2 = relay.exp(x)
-    p0 = relay.sin(z0)
-    p1 = relay.sin(z1)
-    p2 = relay.log(z2)
+    z0 = relay.add(x, relay.const(0, dtype='float32'))
+    z1 = relay.add(x, relay.const(5, dtype='float32'))
+    z2 = relay.multiply(x, relay.const(2, dtype='float32'))
+    p0 = relay.subtract(z0, relay.const(3, dtype='float32'))
+    p1 = relay.subtract(z1, relay.const(4, dtype='float32'))
+    p2 = relay.add(z2, relay.const(7, dtype='float32'))
     q = relay.concatenate((p0, p1, p2), axis=0)
     f = relay.Function([x], q)
     mod = relay.Module()
