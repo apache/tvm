@@ -99,8 +99,6 @@ class NDArray {
   bool defined() const {
     return data_ != nullptr;
   }
-  /*! \return If NDArray is allocated*/
-  inline bool allocated() const;
   /*! \return If both NDArray reference the same container */
   bool same_as(const NDArray& other) const {
     return data_ == other.data_;
@@ -166,13 +164,11 @@ class NDArray {
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
    * \param ctx The context of the Array.
-   * \param allocate Allocate memory if true.
    * \return The created Array
    */
   TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
                                DLDataType dtype,
-                               DLContext ctx,
-                               bool allocate = true);
+                               DLContext ctx);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -356,10 +352,6 @@ inline void NDArray::reset() {
     data_->DecRef();
     data_ = nullptr;
   }
-}
-
-inline bool NDArray::allocated() const {
-  return defined() && data_->dl_tensor.data != nullptr;
 }
 
 /*! \brief return the size of data the DLTensor hold, in term of number of bytes

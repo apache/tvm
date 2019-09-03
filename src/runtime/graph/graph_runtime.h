@@ -188,8 +188,7 @@ class GraphRuntime : public ModuleNode {
   struct PoolEntry {
     size_t size;
     int device_type;
-    bool lazy_init;
-    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type), lazy_init(false) {}
+    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
   };
   // Node entry
   struct NodeEntry {
@@ -278,7 +277,6 @@ class GraphRuntime : public ModuleNode {
     std::vector<int> device_index;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t> > shape;
-    std::vector<std::string> lazy_init_input;
     // The graph attribute fields.
     void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
@@ -319,14 +317,6 @@ class GraphRuntime : public ModuleNode {
           CHECK_EQ(type, "list_int");
           CHECK(reader->NextArrayItem());
           reader->Read(&device_index);
-          CHECK(!reader->NextArrayItem());
-        } else if (key == "lazy_init_input") {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          CHECK_EQ(type, "list_str");
-          CHECK(reader->NextArrayItem());
-          reader->Read(&lazy_init_input);
           CHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
