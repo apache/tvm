@@ -44,6 +44,8 @@
 namespace tvm {
 namespace relay {
 
+static const char* kSemVer = "v0.0.4";
+
 Doc Brace(const Doc& d,
           const std::string& open = "{",
           const std::string& close = "}",
@@ -599,15 +601,20 @@ class PrettyPrinter :
       doc << "?";
     }
     doc << " (" << Print(op->data) << ") {";
-    std::vector<Doc> clauses;
+    std::vector<Doc> clause_docs;
     for (const auto& clause : op->clauses) {
       Doc clause_doc;
-      clause_doc << "| " << PrintPattern(clause->lhs, false) << " => "
-                 << PrintExpr(clause->rhs, false, true);
-      clauses.push_back(clause_doc);
+      clause_doc << PrintPattern(clause->lhs, false) << " => ";
+      Doc rhs_doc = PrintExpr(clause->rhs, false, true);
+      if (clause->rhs.as<LetNode>()) {
+        // only add braces if there are multiple lines on the rhs
+        rhs_doc = Brace(rhs_doc);
+      }
+      clause_doc << rhs_doc << ",";
+      clause_docs.push_back(clause_doc);
     }
-    doc << Indent(2, body << PrintNewLine() << PrintSep(clauses, PrintNewLine())) << PrintNewLine();
-    doc << "}";
+    doc << Indent(2, body << PrintNewLine() << PrintSep(clause_docs, PrintNewLine()))
+        << PrintNewLine() << "}";
     return doc;
   }
 
@@ -758,7 +765,7 @@ class PrettyPrinter :
     Doc doc;
     doc << "type " << Print(node->header);
 
-    // type args
+    // type vars
     if (node->type_vars.size() != 0) {
       doc << "[";
       std::vector<Doc> type_vars;
@@ -767,12 +774,15 @@ class PrettyPrinter :
       }
       doc << PrintSep(type_vars) << "]";
     }
-    doc << " =";
+    doc << " ";
 
+    std::vector<Doc> constructor_docs;
     for (Constructor constructor : node->constructors) {
-      doc << PrintNewLine() << "  | "
-          << Print(constructor, /* meta */ false, /* try_inline */ true);
+      constructor_docs.push_back(Print(constructor, /* meta */ false, /* try_inline */ true));
     }
+    Doc separator;
+    separator << "," << PrintNewLine();
+    doc << Brace(PrintSep(constructor_docs, separator) << ",");
 
     return doc;
   }
@@ -945,7 +955,7 @@ std::string PrettyPrint_(const NodeRef& node,
                          bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   Doc doc;
-  doc << "v0.0.3" << PrintNewLine()
+  doc << kSemVer << PrintNewLine()
       << PrettyPrinter(show_meta_data, annotate).PrintFinal(node);
   return doc.str();
 }

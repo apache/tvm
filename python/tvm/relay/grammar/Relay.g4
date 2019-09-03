@@ -25,7 +25,7 @@
 
 grammar Relay;
 
-SEMVER: 'v0.0.3' ;
+SEMVER: 'v0.0.4' ;
 
 // Lexing
 // comments
@@ -87,46 +87,47 @@ callList
 
 expr
   // operators
-  : '(' expr ')'                                 # paren
-  | '{' expr '}'                                 # paren
+  : '(' expr ')'                                     # paren
   // function application
-  | expr '(' callList ')'                        # call
-  | '-' expr                                     # neg
-  | expr op=('*'|'/') expr                       # binOp
-  | expr op=('+'|'-') expr                       # binOp
-  | expr op=('<'|'>'|'<='|'>=') expr             # binOp
-  | expr op=('=='|'!=') expr                     # binOp
+  | expr '(' callList ')'                            # call
+  | '-' expr                                         # neg
+  | expr op=('*'|'/') expr                           # binOp
+  | expr op=('+'|'-') expr                           # binOp
+  | expr op=('<'|'>'|'<='|'>=') expr                 # binOp
+  | expr op=('=='|'!=') expr                         # binOp
   // function definition
-  | func                                         # funcExpr
+  | func                                             # funcExpr
   // tuples and tensors
-  | '(' ')'                                      # tuple
-  | '(' expr ',' ')'                             # tuple
-  | '(' expr (',' expr)+ ')'                     # tuple
-  | '[' (expr (',' expr)*)? ']'                  # tensor
-  | 'if' '(' expr ')' body 'else' body           # ifElse
-  | matchType '(' expr ')' '{' matchClause+ '}'  # match
-  | expr '.' NAT                                 # projection
+  | '(' ')'                                          # tuple
+  | '(' expr ',' ')'                                 # tuple
+  | '(' expr (',' expr)+ ')'                         # tuple
+  | '[' (expr (',' expr)*)? ']'                      # tensor
+  | 'if' '(' expr ')' body 'else' body               # ifElse
+  | matchType '(' expr ')' '{' matchClauseList? '}'  # match
+  | expr '.' NAT                                     # projection
   // sequencing
-  | 'let' var '=' expr ';' expr                  # let
+  | 'let' var '=' expr ';' expr                      # let
   // sugar for let %_ = expr; expr
-  | expr ';;' expr                               # let
-  | graphVar '=' expr ';' expr                   # graph
-  | ident                                        # identExpr
-  | scalar                                       # scalarExpr
-  | meta                                         # metaExpr
-  | QUOTED_STRING                                # stringExpr
+  | expr ';;' expr                                   # let
+  | graphVar '=' expr ';' expr                       # graph
+  | ident                                            # identExpr
+  | scalar                                           # scalarExpr
+  | meta                                             # metaExpr
+  | QUOTED_STRING                                    # stringExpr
   ;
 
 func: 'fn' typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-  | 'type' generalIdent typeParamList? '=' adtConsDefn+                      # adtDefn
+  | 'type' generalIdent typeParamList? '{' adtConsDefnList? '}'           # adtDefn
   ;
 
 constructorName: CNAME ;
 
-adtConsDefn: '|' constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
-matchClause: '|' constructorName patternList? '=>' expr ;
+adtConsDefnList: adtConsDefn (',' adtConsDefn)* ','? ;
+adtConsDefn: constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
+matchClauseList: matchClause (',' matchClause)* ','? ;
+matchClause: constructorName patternList? '=>' ('{' expr '}' | expr) ;
 // complete or incomplete match, respectively
 matchType : 'match' | 'match?' ;
 

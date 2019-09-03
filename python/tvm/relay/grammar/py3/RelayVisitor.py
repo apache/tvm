@@ -149,8 +149,18 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RelayParser#adtConsDefnList.
+    def visitAdtConsDefnList(self, ctx:RelayParser.AdtConsDefnListContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#adtConsDefn.
     def visitAdtConsDefn(self, ctx:RelayParser.AdtConsDefnContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#matchClauseList.
+    def visitMatchClauseList(self, ctx:RelayParser.MatchClauseListContext):
         return self.visitChildren(ctx)
 
 

@@ -254,7 +254,7 @@ def assert_alpha_equal(lhs, rhs):
     _make._assert_alpha_equal(lhs, rhs)
 
 
-def graph_equal(lhs, rhs):
+def is_unifiable(lhs, rhs):
     """Compare two Relay expr for data-flow equivalence.
     The difference between this and alpha-equality is that
     variables are not expected to match between lhs and rhs;
@@ -273,10 +273,10 @@ def graph_equal(lhs, rhs):
     result : bool
       True iff lhs is data-flow equivalent to rhs.
     """
-    return bool(_make._graph_equal(lhs, rhs))
+    return bool(_make._is_unifiable(lhs, rhs))
 
 
-def assert_graph_equal(lhs, rhs):
+def assert_is_unifiable(lhs, rhs):
     """Compare two Relay expr for data-flow equivalence.
     The difference between this and alpha-equality is that
     variables are not expected to match between lhs and rhs;
@@ -290,7 +290,7 @@ def assert_graph_equal(lhs, rhs):
     rhs : tvm.relay.Expr
       One of the input Expression.
     """
-    _make._assert_graph_equal(lhs, rhs)
+    _make._assert_is_unifiable(lhs, rhs)
 
 
 def collect_device_info(expr):

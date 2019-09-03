@@ -218,7 +218,7 @@ class AlphaEqualHandler:
   bool VisitType_(const TypeVarNode* lhs, const Type& other) final {
     if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
       if (lhs->kind != rhs->kind) return false;
-      return lhs->var->name_hint == rhs->var->name_hint;
+      return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
     } else {
       return false;
     }
@@ -291,11 +291,7 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const GlobalTypeVarNode* lhs, const Type& other) final {
-    if (const GlobalTypeVarNode* rhs = other.as<GlobalTypeVarNode>()) {
-      // use name equality for global var for now.
-      return lhs->var->name_hint == rhs->var->name_hint;
-    }
-    return false;
+    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
   }
 
   bool VisitType_(const TypeCallNode* lhs, const Type& other) final {
@@ -316,7 +312,8 @@ class AlphaEqualHandler:
 
   bool VisitType_(const TypeDataNode* lhs, const Type& other) final {
     const TypeDataNode* rhs = other.as<TypeDataNode>();
-    if (rhs == nullptr || lhs->type_vars.size() != rhs->type_vars.size()
+    if (rhs == nullptr
+        || lhs->type_vars.size() != rhs->type_vars.size()
         || !TypeEqual(lhs->header, rhs->header)) {
       return false;
     }
@@ -599,15 +596,15 @@ TVM_REGISTER_API("relay._make._assert_alpha_equal")
   CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
-TVM_REGISTER_API("relay._make._graph_equal")
+TVM_REGISTER_API("relay._make._is_unifiable")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   return AlphaEqualHandler(true, false).Equal(a, b);
 });
 
-TVM_REGISTER_API("relay._make._assert_graph_equal")
+TVM_REGISTER_API("relay._make._assert_is_unifiable")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-  bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
-  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
+  bool is_unifiable = AlphaEqualHandler(true, true).Equal(a, b);
+  CHECK(is_unifiable) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
 });
 
 }  // namespace relay

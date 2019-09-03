@@ -514,16 +514,21 @@ class ParseTreeToRelayIR(RelayVisitor):
                            for type_ident in type_params.generalIdent()]
 
         # parse constructors
-        constructors = []
-        for cons_defn in ctx.adtConsDefn():
+        adt_cons_defns = ctx.adtConsDefnList()
+        if adt_cons_defns is None:
+            adt_cons_defns = []
+        else:
+            adt_cons_defns = adt_cons_defns.adtConsDefn()
+        parsed_constructors = []
+        for cons_defn in adt_cons_defns:
             inputs = [self.visit(inp) for inp in cons_defn.typeExpr()]
             cons_defn_name = cons_defn.constructorName().getText()
             cons_defn = adt.Constructor(cons_defn_name, inputs, adt_handle)
             self.mk_global_typ_cons(cons_defn_name, cons_defn)
-            constructors.append(cons_defn)
+            parsed_constructors.append(cons_defn)
 
         # update module being built
-        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, constructors)
+        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, parsed_constructors)
 
         self.exit_type_param_scope()
 
@@ -539,8 +544,13 @@ class ParseTreeToRelayIR(RelayVisitor):
         # TODO: Will need some kind of type checking to know which ADT is being
         # matched on.
         match_data = self.visit(ctx.expr())
-        clauses = []
-        for clause in ctx.matchClause():
+        match_clauses = ctx.matchClauseList()
+        if match_clauses is None:
+            match_clauses = []
+        else:
+            match_clauses = match_clauses.matchClause()
+        parsed_clauses = []
+        for clause in match_clauses:
             constructor_name = clause.constructorName().getText()
             constructor = self.global_type_vars[constructor_name]
             self.enter_var_scope()
@@ -552,14 +562,14 @@ class ParseTreeToRelayIR(RelayVisitor):
             clause_body = self.visit(clause.expr())
             self.exit_var_scope()
             # TODO: Do we need to pass `None` if it's a 0-arity cons, or is an empty list fine?
-            clauses.append(adt.Clause(
+            parsed_clauses.append(adt.Clause(
                 adt.PatternConstructor(
                     constructor,
                     patterns
                 ),
                 clause_body
             ))
-        return adt.Match(match_data, clauses, complete=complete_match)
+        return adt.Match(match_data, parsed_clauses, complete=complete_match)
 
     def visitPattern(self, ctx: RelayParser.PatternContext):
         text = ctx.getText()

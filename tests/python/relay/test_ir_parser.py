@@ -16,14 +16,14 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal
+from tvm.relay.analysis import is_unifiable, assert_is_unifiable
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union
 from functools import wraps
 raises_parse_error = raises(tvm._ffi.base.TVMError)
 
-SEMVER = "v0.0.3"
+SEMVER = "v0.0.4"
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -60,9 +60,16 @@ TYPES = {
     "float16x4",
 }
 
+LIST_DEFN = """
+type List[A] {
+    Cons(A, List[A]),
+    Nil,
+}
+"""
+
 def roundtrip(expr):
     x = relay.fromtext(str(expr))
-    assert_alpha_equal(x, expr)
+    assert_is_unifiable(x, expr)
 
 
 def parse_text(code):
@@ -74,7 +81,7 @@ def parse_text(code):
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
-    result = alpha_equal(parsed, expr)
+    result = is_unifiable(parsed, expr)
     return result
 
 def get_scalar(x):
@@ -170,13 +177,13 @@ def test_bin_op():
 
 
 def test_parens():
-    assert alpha_equal(parse_text("1 * 1 + 1"), parse_text("(1 * 1) + 1"))
-    assert not alpha_equal(parse_text("1 * 1 + 1"), parse_text("1 * (1 + 1)"))
+    assert is_unifiable(parse_text("1 * 1 + 1"), parse_text("(1 * 1) + 1"))
+    assert not is_unifiable(parse_text("1 * 1 + 1"), parse_text("1 * (1 + 1)"))
 
 
 def test_op_assoc():
-    assert alpha_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
-    assert alpha_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
+    assert is_unifiable(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
+    assert is_unifiable(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
 @nottest
@@ -241,7 +248,7 @@ def test_seq():
     )
 
     assert parses_as(
-        "let %_ = { 1 }; ()",
+        "let %_ = 1; ()",
         relay.Let(
             X,
             relay.const(1),
@@ -646,8 +653,7 @@ def test_adt_defn():
     mod[glob_typ_var] = prog
     assert parses_as(
         """
-        type Ayy =
-          | Nil
+        type Ayy { Nil }
         """,
         mod
     )
@@ -666,14 +672,7 @@ def test_multiple_cons_defn():
                 relay.Constructor("Nil", [], list_var),
             ])
     mod[list_var] = prog
-    assert parses_as(
-        """
-        type List[A] =
-          | Cons(A, List[A])
-          | Nil
-        """,
-        mod
-    )
+    assert parses_as(LIST_DEFN, mod)
 
 
 def test_multiple_type_param_defn():
@@ -691,9 +690,10 @@ def test_multiple_type_param_defn():
     mod[glob_typ_var] = prog
     assert parses_as(
         """
-        type Either[A, B] =
-          | Left(A)
-          | Right(B)
+        type Either[A, B] {
+          Left(A),
+          Right(B),
+        }
         """,
         mod
     )
@@ -721,13 +721,16 @@ def test_match():
         input_type = list_var(typ_var)
         input_var = relay.Var("xs", input_type)
         rest_var = relay.Var("rest")
+        cons_case = relay.Let(
+            _,
+            UNIT,
+            relay.add(relay.const(1), relay.Call(length_var, [rest_var])))
         body = relay.Match(input_var,
             [relay.Clause(
                 relay.PatternConstructor(
                     cons_constructor,
                     [relay.PatternWildcard(), relay.PatternVar(rest_var)]),
-                relay.add(relay.const(1), relay.Call(length_var, [rest_var]))
-                ),
+                cons_case),
             relay.Clause(
                 relay.PatternConstructor(nil_constructor, []),
                 relay.const(0))],
@@ -743,17 +746,18 @@ def test_match():
 
         assert parses_as(
             """
-            type List[A] =
-            | Cons(A, List[A])
-            | Nil
+            %s
 
             def @length[A](%%xs: List[A]) -> int32 {
-            %s (%%xs) {
-                | Cons(_, %%rest) => 1 + @length(%%rest)
-                | Nil => 0
+              %s (%%xs) {
+                Cons(_, %%rest) => {
+                  ();;
+                  1 + @length(%%rest)
+                },
+                Nil => 0,
+              }
             }
-            }
-            """ % match_keyword,
+            """ % (LIST_DEFN, match_keyword),
             mod
         )
 
@@ -783,14 +787,12 @@ def test_adt_cons_expr():
 
     assert parses_as(
         """
-        type List[A] =
-          | Cons(A, List[A])
-          | Nil
+        %s
 
-        def @make_singleton(%x: int32) -> List[int32] {
-          Cons(%x, Nil())
+        def @make_singleton(%%x: int32) -> List[int32] {
+          Cons(%%x, Nil())
         }
-        """,
+        """ % LIST_DEFN,
         mod
     )
 
@@ -798,14 +800,13 @@ def test_adt_cons_expr():
 def test_duplicate_adt_defn():
     parse_text(
         """
-        type List[A] =
-          | Cons(A, List[A])
-          | Nil
+        %s
 
-        type List[A] =
-          | Cons(A, List[A])
-          | Nil
-        """
+        type List[A] {
+          Cons(A, List[A]),
+          Nil,
+        }
+        """ % LIST_DEFN
     )
 
 
@@ -813,11 +814,8 @@ def test_duplicate_adt_defn():
 def test_duplicate_adt_cons():
     parse_text(
         """
-        type Ayy =
-          | Lmao
-
-        type Haha =
-          | Lmao
+        type Ayy { Lmao }
+        type Haha { Lmao }
         """
     )
 
@@ -826,11 +824,8 @@ def test_duplicate_adt_cons():
 def test_duplicate_adt_cons_defn():
     parse_text(
         """
-        type Ayy =
-          | Lmao
-
-        type Lmao =
-          | Ayy
+        type Ayy { Lmao }
+        type Lmao { Ayy }
         """
     )
 
