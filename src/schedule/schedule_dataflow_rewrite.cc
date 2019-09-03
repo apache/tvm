@@ -29,6 +29,7 @@
 #include "message_passing.h"
 #include "../pass/ir_util.h"
 #include "../arithmetic/compute_expr.h"
+#include <tvm/ir.h>
 
 namespace tvm {
 
@@ -41,6 +42,55 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
   }
   return array_node->data.size();
 }
+
+class RFactorStageMutator : public ir::IRMutator {
+ public:
+  static bool DoesReduceOpNeedFixing(const Expr& e) {
+    return (e.as<tvm::ir::Add>() ||
+            e.as<tvm::ir::Sub>() ||
+            e.as<tvm::ir::Mul>() ||
+            e.as<tvm::ir::Div>()
+            );
+  }
+#define RFACTOR_BIOP_EXPR_MUTATE_(OP)                     \
+  Expr Mutate_(const OP* op, const Expr& e) {             \
+    const auto* a_ptr = FindVar(op->a);                   \
+    const auto* b_ptr = FindVar(op->b);                   \
+    Var a = Downcast<Var>(*a_ptr);                        \
+    Var b = Downcast<Var>(*b_ptr);                        \
+    return OP::make(a, b);                                \
+  }
+RFACTOR_BIOP_EXPR_MUTATE_(ir::Add)
+RFACTOR_BIOP_EXPR_MUTATE_(ir::Sub)
+RFACTOR_BIOP_EXPR_MUTATE_(ir::Mul)
+RFACTOR_BIOP_EXPR_MUTATE_(ir::Div)
+#undef RFACTOR_BIOP_EXPR_MUTATE_
+
+ private:
+#define FINDVAR_HELPER(OP_TYPE)                             \
+      if (e.as<OP_TYPE>()) {                                \
+        if (auto* ret_val = FindVar(e.as<OP_TYPE>()->a)) {  \
+          return ret_val;                                   \
+        }                                                   \
+        if (auto* ret_val = FindVar(e.as<OP_TYPE>()->b)) {  \
+          return ret_val;                                   \
+        }                                                   \
+        return nullptr;                                     \
+      }
+
+  const Expr* FindVar(const Expr& e) {
+    FINDVAR_HELPER(ir::Add)
+    FINDVAR_HELPER(ir::Sub)
+    FINDVAR_HELPER(ir::Mul)
+    FINDVAR_HELPER(ir::Div)
+
+    if (e.as<tvm::ir::Variable>()) {
+      return &e;
+    }
+    return nullptr;
+  }
+#undef FINDVAR_HELPER
+};
 
 // The replacer of cache.
 class VarReplacer : public ir::IRMutator {
@@ -791,7 +841,6 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     [&replacer] (const Expr& e) { return replacer.Mutate(e); });
 
   Expr new_pred = replacer.Mutate(predicate);
-
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
@@ -801,6 +850,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
                                    idx));
   }
   n->body = Array<Expr>(body);
+
   // refresh relations, keep the un-touched relations.
   Array<IterVarRelation> rels;
   for (IterVarRelation rel : reduce_stage->relations) {
@@ -862,8 +912,17 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       Array<Expr> reductions;
       Array<IterVar> axis = {repl_red_axis};
       Expr cond = const_true();
+      RFactorStageMutator reduce_result_mutator;
+      Array<Expr> new_combiner_result = ir::UpdateArray(reduce->combiner->result,
+        [&reduce_result_mutator] (const Expr& e) {
+        if (RFactorStageMutator::DoesReduceOpNeedFixing(e)) {
+          return reduce_result_mutator.Mutate(e);
+        }
+        return e; });
+      auto new_combiner = ir::CommReducerNode::make(reduce->combiner->lhs,
+          reduce->combiner->rhs, new_combiner_result, reduce->combiner->identity_element);
       for (int idx = 0; idx < size; ++idx) {
-        reductions.push_back(Reduce::make(reduce->combiner,
+        reductions.push_back(Reduce::make(new_combiner,
           factor_exprs, axis, cond, idx));
       }
       return reductions;
