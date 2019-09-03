@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file lift_if_then_else.cc
+ * \file hoist_if_then_else.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
@@ -36,11 +36,11 @@
 namespace tvm {
 namespace ir {
 
-using LifterMap = std::unordered_map<const Node*, std::vector<Stmt>>;
+using HoistMap = std::unordered_map<const Node*, std::vector<Stmt>>;
 using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
 
 /*
- * This pass tries to lift IfThenElse stmt out of For loop if condition is loop invariant.
+ * This pass tries to hoist IfThenElse stmt out of For loop if condition is loop invariant.
  * For example, given the following block:
  * for (i = 0; i < 3; i++)
  *    for (j = 0; j < 4; j++)
@@ -49,7 +49,7 @@ using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
  *                A[3*i+2j+k] = B[7*i+3j+k]
  *
  * We first detect all IfThenElse stmt and find the corresponding loop invariant For stmt.
- * Then we lift IfThenElse stmt by one For stmt each step:
+ * Then we hoist IfThenElse stmt by one For stmt each step:
  *
  * Step 1:
  * for (i = 0; i < 3; i++)
@@ -65,7 +65,7 @@ using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
  *             for (k = 0; k < 5; k++)
  *                 A[3*i+2j+k] = B[7*i+3j+k]
  *
- * In this pass, we only continue detecting possible lifting chance when visiting For,
+ * In this pass, we only continue detecting possible hoisting chance when visiting For,
  * IfThenElse or AttrStmt Node. For example, for the following block:
  * for (i = 0; i < 3; i++)
  *    for (j = 0; j < 4; j++)
@@ -82,7 +82,7 @@ using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
  *            for (k = 0; k < 5; k++)
  *                A[3*i+2j+k] = B[7*i+3j+k]
  *
- * This pass doesn't do lifting for consecutive IfThenElse stmt. The following
+ * This pass doesn't do hoisting for consecutive IfThenElse stmt. The following
  * block won't be optimized:
  * for (i = 0; i < 3; i++)
  *    for (j = 0; j < 4; j++)
@@ -93,23 +93,25 @@ using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
  *                A[i+j+k] = B[i+j+k]
  *
  */
-class IfThenElseLifter {
+class IfThenElseLHoist {
  public:
   Stmt VisitAndMutate(const Stmt& stmt) {
-    GenerateInternalData(stmt);
+    SelectCandidates(stmt);
+    LocateTopFor();
     return PostOrderMutate(stmt);
   }
 
  private:
-  void GenerateInternalData(const Stmt& stmt);
+  void SelectCandidates(const Stmt& stmt);
+  void LocateTopFor();
   Stmt PostOrderMutate(const Stmt& stmt);
   size_t GetUpdatedFor(const Stmt& for_stmt, const Stmt& if_stmt);
-  Stmt LiftIf(const Stmt& if_stmt);
+  Stmt HoistIf(const Stmt& if_stmt);
 
-  LifterMap if2for_map_;
-  LifterMap top_for_var_map_;
-  LifterMap for_tracking_map_;
-  LifterMap for2if_map_;
+  HoistMap if2for_map_;
+  HoistMap top_for_var_map_;
+  HoistMap for_tracking_map_;
+  HoistMap for2if_map_;
   VarMap cond_var_map_;
   std::vector<Stmt> ordered_for_list_;
 };
@@ -117,32 +119,38 @@ class IfThenElseLifter {
 // Check whether a given IfThenElse stmt is the first one appearing
 // in a For stmt.
 bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
-  std::vector<size_t> if_hash_list;
+  std::vector<const Node*> if_node_list;
+  const For* for_node = for_stmt.as<For>();
+  CHECK(for_node);
+  CHECK(if_stmt.as<IfThenElse>());
 
-  PostOrderVisit(for_stmt.as<For>()->body, [&](const NodeRef& node) {
+  PostOrderVisit(for_node->body, [&](const NodeRef& node) {
     if (node.as<IfThenElse>()) {
-      if_hash_list.push_back(node.hash());
+      if_node_list.push_back(node.get());
     }
   });
-  return if_hash_list.empty() ? false : if_stmt.hash() == if_hash_list.back();
+  return if_node_list.empty() ? false : if_stmt.get() == if_node_list.back();
 }
 
 // Update upper level For node when current For node is modified.
 // With this function we only need to visit and mutate top level For node
 // in the main VisitAndMutate function.
 Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
-  std::vector<size_t> for_hash_list;
+  std::vector<const Node*> for_node_list;
+  const For* parent_for_node = parent_for_stmt.as<For>();
+  CHECK(parent_for_node);
+  CHECK(new_if_stmt.as<IfThenElse>());
 
-  PostOrderVisit(parent_for_stmt.as<For>()->body, [&](const NodeRef& node) {
+  PostOrderVisit(parent_for_node->body, [&](const NodeRef& node) {
     if (node.as<For>()) {
-      for_hash_list.push_back(node.hash());
+      for_node_list.push_back(node.get());
     }
   });
 
   PackedFunc replace_target_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
       const NodeRef& current_for = args[0];
-      if (current_for.hash() == for_hash_list.back()) {
+      if (current_for.get() == for_node_list.back()) {
         *ret = new_if_stmt;
       }
     });
@@ -156,6 +164,7 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
 std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
   Stmt then_for;
   Stmt else_for;
+  CHECK(if_stmt.as<IfThenElse>());
 
   PackedFunc replace_then_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
@@ -183,12 +192,8 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
   return std::make_pair(then_for, else_for);
 }
 
-// Generate internal data structures for lifter.
-void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
-  std::unordered_map<const Node*, Stmt> if_position_map;
-  std::unordered_set<const Node*> top_for_var_set;
-
-  // Locate all For nodes and capture child IfThenElse nodes.
+// Locate all For nodes and capture child IfThenElse nodes.
+void IfThenElseLHoist::SelectCandidates(const Stmt& stmt) {
   PostOrderVisit(stmt, [&](const NodeRef& node){
     const For* for_node = node.as<For>();
     if (for_node) {
@@ -231,12 +236,20 @@ void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
       ordered_for_list_.emplace_back(Downcast<Stmt, NodeRef>(node));
     }
   });
+}
 
+// For each IfThenElse node, find the highest For node which
+// meets loop invariant condition.
+void IfThenElseLHoist::LocateTopFor() {
+  std::unordered_map<const Node*, Stmt> if_position_map;
+  std::unordered_set<const Node*> top_for_var_set;
 
-  // Create candidate For nodes to be lifted for each IfThenElse node.
+  // Create IfThenElse -> For map.
   for (const Stmt& for_stmt : ordered_for_list_) {
     std::vector<Stmt> if_list = for2if_map_[for_stmt.get()];
-    top_for_var_map_.insert({for_stmt.as<For>()->loop_var.get(), if_list});
+    const For* for_node = for_stmt.as<For>();
+    CHECK(for_node);
+    top_for_var_map_.insert({for_node->loop_var.get(), if_list});
     for (const Stmt& if_stmt : if_list) {
       const Node* if_node = if_stmt.get();
       if (!if2for_map_.count(if_node)) {
@@ -247,16 +260,19 @@ void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
     }
   }
 
+  // Locate the highest For node which is loop invariant.
   for (const auto& item : if2for_map_) {
     Stmt top_for;
     const Node* if_stmt = item.first;
     std::vector<Stmt> for_list = item.second;
     for (size_t i = 0; i < for_list.size(); ++i) {
       const Stmt& for_stmt = for_list.at(i);
+      const For* for_node = for_stmt.as<For>();
+      CHECK(for_node);
       std::vector<Stmt> new_for_list{for_stmt};
       for_tracking_map_.insert({for_stmt.get(), new_for_list});
       if (cond_var_map_[if_stmt]
-        .count(for_stmt.as<For>()->loop_var.get())) {
+        .count(for_node->loop_var.get())) {
         std::vector<Stmt> updated_for_list(for_list.begin(),
                                            for_list.begin() + i);
         if2for_map_[if_stmt] = updated_for_list;
@@ -266,7 +282,7 @@ void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
       }
     }
     if (top_for.as<For>()) {
-        if_position_map.insert({if_stmt, top_for});
+      if_position_map.insert({if_stmt, top_for});
     }
   }
 
@@ -274,8 +290,6 @@ void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
     top_for_var_set.insert(item.second.as<For>()->loop_var.get());
   }
 
-  // For each IfThenElse node, find the highest For node which
-  // is loop invariant.
   std::vector<const Node*> removed_for_var_list;
   for (const auto& item : top_for_var_map_) {
     const Node* top_for_var = item.first;
@@ -299,11 +313,11 @@ void IfThenElseLifter::GenerateInternalData(const Stmt& stmt) {
 
 // When we try to mutate a For node, some child For nodes can have already
 // been mutated. This function is to get the updated For node and further
-// lifting can be done based on this new node.
+// hoisting can be done based on this new node.
 // We keep all For nodes tracing in for_tracking_map_. When we get a
-// lifted IfThenElse, we matching it with tracing For nodes to pick
+// hoisted IfThenElse, we matching it with tracing For nodes to pick
 // the updated one.
-size_t IfThenElseLifter::GetUpdatedFor(const Stmt& for_stmt,
+size_t IfThenElseLHoist::GetUpdatedFor(const Stmt& for_stmt,
                                        const Stmt& if_stmt) {
   std::vector<Stmt> tracked_for_list = for_tracking_map_[for_stmt.get()];
   size_t updated_for_idx = 0;
@@ -318,11 +332,11 @@ size_t IfThenElseLifter::GetUpdatedFor(const Stmt& for_stmt,
   return updated_for_idx;
 }
 
-// Lift a IfThenElse node as high as possible.
+// Hoist an IfThenElse node as high as possible.
 // This function iterates on all candidate For nodes. For each For node,
 // it first removes IfThenElse nodes. Then it generates a new IfThenElse
 // node using mutated For nodes.
-Stmt IfThenElseLifter::LiftIf(const Stmt& if_stmt) {
+Stmt IfThenElseLHoist::HoistIf(const Stmt& if_stmt) {
   Stmt new_if = if_stmt;
 
   for (size_t i = 0; i < if2for_map_[if_stmt.get()].size(); ++i) {
@@ -338,8 +352,10 @@ Stmt IfThenElseLifter::LiftIf(const Stmt& if_stmt) {
     if (else_for.get()) {
       for_tracking_map_[for_stmt.get()].push_back(else_for);
     }
-    new_if = IfThenElse::make(new_if.as<IfThenElse>()->condition,
-                              then_for, else_for);
+
+    const IfThenElse* new_if_node = new_if.as<IfThenElse>();
+    CHECK(new_if_node);
+    new_if = IfThenElse::make(new_if_node->condition, then_for, else_for);
     if (i < if2for_map_[if_stmt.get()].size() - 1) {
       const Stmt& original_next_for = if2for_map_[if_stmt.get()].at(i + 1);
       const Stmt& actual_next_for =
@@ -354,17 +370,17 @@ Stmt IfThenElseLifter::LiftIf(const Stmt& if_stmt) {
 }
 
 // Mutate For nodes in post order DFS manner.
-Stmt IfThenElseLifter::PostOrderMutate(const Stmt& stmt) {
+Stmt IfThenElseLHoist::PostOrderMutate(const Stmt& stmt) {
   PackedFunc replace_top_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
       const NodeRef& current_for = args[0];
-      if (current_for.as<For>()) {
-        const For* for_node = current_for.as<For>();
+      const For* for_node = current_for.as<For>();
+      if (for_node) {
         if (top_for_var_map_.count(for_node->loop_var.get())) {
           std::vector<Stmt> new_if_list;
           for (const Stmt& if_stmt :
             top_for_var_map_[for_node->loop_var.get()]) {
-            new_if_list.emplace_back(LiftIf(if_stmt));
+            new_if_list.emplace_back(HoistIf(if_stmt));
           }
 
           const IfThenElse* next_if_node;
@@ -372,11 +388,13 @@ Stmt IfThenElseLifter::PostOrderMutate(const Stmt& stmt) {
             new_if_list.back().as<IfThenElse>();
           Stmt new_for = Stmt();
           for (size_t i = new_if_list.size() - 1; i > 0; --i) {
+            CHECK(current_if_node);
             const Stmt current_if_stmt =
               IfThenElse::make(current_if_node->condition,
                                current_if_node->then_case,
                                current_if_node->else_case);
             next_if_node = new_if_list[i - 1].as<IfThenElse>();
+            CHECK(next_if_node);
             new_for = IfThenElse::make(next_if_node->condition, current_if_stmt,
                                        next_if_node->else_case);
             current_if_node = new_for.as<IfThenElse>();
@@ -384,6 +402,7 @@ Stmt IfThenElseLifter::PostOrderMutate(const Stmt& stmt) {
 
           if (!new_for.get()) {
             const IfThenElse* first_if_node = new_if_list[0].as<IfThenElse>();
+            CHECK(first_if_node);
             new_for = IfThenElse::make(first_if_node->condition,
                                        first_if_node->then_case,
                                        first_if_node->else_case);
@@ -395,8 +414,8 @@ Stmt IfThenElseLifter::PostOrderMutate(const Stmt& stmt) {
   return IRTransform(stmt, nullptr, replace_top_for, {Expr("For")});
 }
 
-Stmt LiftIfThenElse(Stmt stmt) {
-  return IfThenElseLifter().VisitAndMutate(stmt);
+Stmt HoistIfThenElse(Stmt stmt) {
+  return IfThenElseLHoist().VisitAndMutate(stmt);
 }
 
 }  // namespace ir
