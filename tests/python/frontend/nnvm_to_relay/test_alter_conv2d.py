@@ -69,7 +69,7 @@ def test_alter_layout_conv2d():
     targets=['cuda',
              'opencl -device=mali',
              'opencl -device=intel_graphics',
-             'llvm',
+
              'llvm -device=arm_cpu',
              'llvm -device=core-avx-ii']
 

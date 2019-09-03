@@ -89,7 +89,6 @@ def context(target, extra_files=None):
                 device = _alias(opt[8:])
                 possible_names.append(device)
         possible_names.append(tgt.target_name)
-        input(possible_names)
 
         all_packages = list(PACKAGE_VERSION.keys())
         for name in possible_names:
@@ -99,7 +98,6 @@ def context(target, extra_files=None):
                     continue
 
                 filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
-                input(filename)
                 best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
                 break   # only load one file to avoid some fallback template mismatch problem
 
