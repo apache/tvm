@@ -37,8 +37,7 @@ def split_env_var(env_var, split):
     """
     if os.environ.get(env_var, None):
         return [p.strip() for p in os.environ[env_var].split(split)]
-    else:
-        return []
+    return []
 
 def find_lib_path(name=None, search_path=None, optional=False):
     """Find dynamic library files.
