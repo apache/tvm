@@ -234,6 +234,100 @@ class Partitioner : public ExprMutator {
     }
   }
 
+  Expr VisitExpr_(const TupleGetItemNode* g) {
+    auto subgraph = GetSubgraph(GetRef<TupleGetItem>(g));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(g);
+    } else {
+      AddToSubgraph(subgraph, g->tuple);
+      auto t = VisitExpr(g->tuple);
+      return TupleGetItemNode::make(t, g->index);
+    }
+  }
+
+  Expr VisitExpr_(const FunctionNode* op) {
+    auto subgraph = GetSubgraph(GetRef<Function>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      Array<Var> params;
+      for (auto param : op->params) {
+        AddToSubgraph(subgraph, param);
+      }
+      for (auto param : op->params) {
+        Var new_param = Downcast<Var>(VisitExpr(param));
+        params.push_back(new_param);
+      }
+      auto body = VisitExpr(op->body);
+      return FunctionNode::make(params, body, op->ret_type, op->type_params, op->attrs);
+    }
+  }
+
+  Expr VisitExpr_(const LetNode* op) {
+    auto subgraph = GetSubgraph(GetRef<Let>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      AddToSubgraph(subgraph, op->var);
+      AddToSubgraph(subgraph, op->value);
+      AddToSubgraph(subgraph, op->body);
+      Var var = Downcast<Var>(VisitExpr(op->var));
+      auto value = VisitExpr(op->value);
+      auto body = VisitExpr(op->body);
+
+      return LetNode::make(var, value, body);
+    }
+  }
+
+  Expr VisitExpr_(const IfNode* op) {
+    auto subgraph = GetSubgraph(GetRef<If>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      AddToSubgraph(subgraph, op->cond);
+      AddToSubgraph(subgraph, op->true_branch);
+      AddToSubgraph(subgraph, op->false_branch);
+      auto guard = VisitExpr(op->cond);
+      auto true_b = VisitExpr(op->true_branch);
+      auto false_b = VisitExpr(op->false_branch);
+      return IfNode::make(guard, true_b, false_b);
+    }
+  }
+
+  Expr VisitExpr_(const RefCreateNode* op) {
+    auto subgraph = GetSubgraph(GetRef<RefCreate>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      AddToSubgraph(subgraph, op->value);
+      Expr value = VisitExpr(op->value);
+      return RefCreateNode::make(value);
+    }
+  }
+
+  Expr VisitExpr_(const RefReadNode* op) {
+    auto subgraph = GetSubgraph(GetRef<RefRead>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      AddToSubgraph(subgraph, op->ref);
+      Expr ref = VisitExpr(op->ref);
+      return RefReadNode::make(ref);
+    }
+  }
+
+  Expr VisitExpr_(const RefWriteNode* op) {
+    auto subgraph = GetSubgraph(GetRef<RefWrite>(op));
+    if (!subgraph) {
+      return ExprMutator::VisitExpr_(op);
+    } else {
+      AddToSubgraph(subgraph, op->ref);
+      Expr ref = VisitExpr(op->ref);
+      Expr value = VisitExpr(op->value);
+      return RefWriteNode::make(ref, value);
+    }
+  }
+
  private:
   int var_id_{0};
   int subgraph_id_{0};
