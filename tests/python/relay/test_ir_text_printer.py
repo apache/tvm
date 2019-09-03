@@ -216,7 +216,7 @@ def test_let_inlining():
 
 def test_zeros():
     x = relay.op.zeros([], "float32")
-    show(astext(x))
+    astext(x)
 
 if __name__ == "__main__":
     do_print[0] = True
