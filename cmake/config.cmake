@@ -144,8 +144,8 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
-# Whether use bfloat16
-set(USE_BFLOAT OFF)
+# Whether to enable bfloat16
+set(USE_BFLOAT ON)
 
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM ON)
