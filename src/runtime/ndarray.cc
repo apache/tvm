@@ -142,14 +142,17 @@ DLManagedTensor* NDArray::ToDLPack() const {
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
                        DLDataType dtype,
-                       DLContext ctx) {
+                       DLContext ctx,
+                       bool allocate) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
-  // setup memory content
-  size_t size = GetDataSize(ret.data_->dl_tensor);
-  size_t alignment = GetDataAlignment(ret.data_->dl_tensor);
-  ret.data_->dl_tensor.data =
-      DeviceAPI::Get(ret->ctx)->AllocDataSpace(
-          ret->ctx, size, alignment, ret->dtype);
+  if (allocate) {
+    // setup memory content
+    size_t size = GetDataSize(ret.data_->dl_tensor);
+    size_t alignment = GetDataAlignment(ret.data_->dl_tensor);
+    ret.data_->dl_tensor.data =
+        DeviceAPI::Get(ret->ctx)->AllocDataSpace(
+            ret->ctx, size, alignment, ret->dtype);
+  }
   return ret;
 }
 
