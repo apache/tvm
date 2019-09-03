@@ -49,7 +49,7 @@ def test_requantize():
 
         mod = relay.Function(relay.analysis.free_vars(mod), mod)
         mod = relay.Module.from_expr(mod)
-        mod = relay.transform.Legalize()(mod)
+        mod = relay.qnn.transform.CanonicalizeOps()(mod)
         return mod
 
     def same_scale_test():
@@ -64,6 +64,7 @@ def test_requantize():
                           input_scale=0.5,
                           output_scale=0.5,
                           rounding=rounding)
+            assert 'right_shift' not in mod.astext()
             verify(mod, (golden_data, golden_output))
 
     def downscale_test():

@@ -52,7 +52,7 @@ Verilator version check
 verilator --version
 ```
 
-the supported version of Verilator should be at least 4.012, 
+the supported version of Verilator should be at least 4.012,
 if homebrew (OSX) or package-manager (Linux) does not support that version,
 please install Verilator 4.012 or later from binary or source base on following
 instruction of Verilator wiki.  
@@ -63,13 +63,12 @@ https://www.veripool.org/projects/verilator/wiki/Installing
 
 1. Install `verilator` and `sbt` as described above
 2. Get tvm `git clone https://github.com/dmlc/tvm.git`
-3. Change VTA target in `tvm/vta/config/vta_config.json` from `sim` to `tsim`
-4. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
+3. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
 
 ## How to run VTA TSIM examples
 
 There are two sample VTA accelerators, add-a-constant, designed in Chisel3 and Verilog to show how *TSIM* works.
-The default `TARGET` language for these two implementations is Verilog. The following instructions show
+The default target language for these two implementations is Verilog. The following instructions show
 how to run both of them:
 
 * Test Verilog backend

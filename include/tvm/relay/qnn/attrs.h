@@ -88,7 +88,7 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
   int32_t input_zero_point;
   double input_scale;
 
-  TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
+  TVM_DECLARE_ATTRS(DequantizeAttrs, "relay.attrs.DequantizeAttrs") {
     TVM_ATTR_FIELD(input_zero_point)
       .describe("The zero_point for the input tensor of this op.");
 
@@ -96,6 +96,34 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
       .describe("The scale for the input tensor of this op.");
   }
 };
+
+/*! \brief Attributes used in QNN concatenate operator */
+struct QnnConcatenateAttrs : public tvm::AttrsNode<QnnConcatenateAttrs> {
+  Array<tvm::Expr> input_scales;
+  Array<tvm::Expr> input_zero_points;
+  double output_scale;
+  int32_t output_zero_point;
+  int axis;
+
+  TVM_DECLARE_ATTRS(QnnConcatenateAttrs, "relay.attrs.QnnConcatenateAttrs") {
+    TVM_ATTR_FIELD(input_scales)
+        .describe("The list of scales of input quantized tensors.");
+
+    TVM_ATTR_FIELD(input_zero_points)
+        .describe("The list of zero points of input quantized tensors.");
+
+    TVM_ATTR_FIELD(output_zero_point)
+      .describe("The zero_point for the output tensor.");
+
+    TVM_ATTR_FIELD(output_scale)
+      .describe("The scale for the output tensor.");
+
+    TVM_ATTR_FIELD(axis)
+        .describe("The axis at which the input arrays are concatenated."
+                  "Should lie in range `[-ndim, ndim)`.")
+        .set_default(0);
+  }
+};  // struct QnnConcatenateAttrs
 
 }  // namespace qnn
 }  // namespace relay

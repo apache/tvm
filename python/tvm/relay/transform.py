@@ -414,19 +414,24 @@ def AlterOpLayout():
     return _transform.AlterOpLayout()
 
 
-def Legalize():
+def Legalize(legalize_map_attr_name="FTVMLegalize"):
     """Legalizes an expression with another expression.
     This pass can be used to replace an expr with another expr for target
     dependent optimizations. For example, one expr, though semnatically
     equivalent to the other, can have better performance on a target. This pass
     can be used to legalize the expr in a target-dependent manner.
 
+    Parameters
+    ----------
+    legalize_map_attr_name : str
+        The Op's attr name which corresponds to the legalize rule function.
+
     Returns
     -------
     ret : tvm.relay.Pass
         The registered pass that rewrites an expr.
     """
-    return _transform.Legalize()
+    return _transform.Legalize(legalize_map_attr_name)
 
 
 def RewriteAnnotatedOps(fallback_device):

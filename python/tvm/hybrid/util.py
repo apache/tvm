@@ -101,9 +101,3 @@ def _is_tvm_arg_types(args):
         _internal_assert(isinstance(elem, np_arg_types), \
                          "Expect a numpy type but %s get!" % str(type(elem)))
     return False
-
-def _apply_indices(value, indices):
-    """Apply multidimensional index"""
-    if indices:
-        return _apply_indices(value[indices[0]], indices[1:])
-    return value

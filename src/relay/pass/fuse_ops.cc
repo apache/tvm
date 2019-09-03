@@ -915,7 +915,7 @@ class FuseMutator : private ExprMutator {
         if (it == gmap_.end()) return "";
         std::ostringstream os;
         auto *group = it->second->FindRoot();
-        os << "group=" << group;
+        os << " /* group=" << group << " */";
         return os.str();
       });
     LOG(INFO) << "Dump of group info:\n" << text;

@@ -104,9 +104,6 @@ def test_serializer():
     vm = create_vm(mod)
     ser = serializer.Serializer(vm)
 
-    stats = ser.stats
-    assert "scalar" in stats
-
     glbs = ser.globals
     assert len(glbs) == 3
     assert "f1" in glbs
@@ -120,8 +117,8 @@ def test_serializer():
 
     code = ser.bytecode
     assert "main 5 2 5" in code
-    assert "f1 3 1 4" in code
-    assert "f2 3 1 4" in code
+    assert "f1 2 1 3" in code
+    assert "f2 2 1 3" in code
 
     code, lib = ser.serialize()
     assert isinstance(code, bytearray)

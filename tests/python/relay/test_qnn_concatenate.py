@@ -39,9 +39,8 @@ def test_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    assert func.astext().count('requantize') == 0
     mod = relay.Module.from_expr(func)
-    mod = relay.transform.Legalize()(mod)
+    mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
     golden_output = np.concatenate((x_data, y_data), axis=axis)
@@ -68,9 +67,8 @@ def test_different_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    assert func.astext().count('requantize') == 2
     mod = relay.Module.from_expr(func)
-    mod = relay.transform.Legalize()(mod)
+    mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
     golden_output = np.concatenate((x_data - 2, y_data - 3), axis=axis)
@@ -97,9 +95,8 @@ def test_few_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    assert func.astext().count('requantize') == 1
     mod = relay.Module.from_expr(func)
-    mod = relay.transform.Legalize()(mod)
+    mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
     golden_output = np.concatenate((x_data + 1, y_data), axis=axis)
@@ -126,9 +123,8 @@ def test_same_i_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    assert func.astext().count('requantize') == 1
     mod = relay.Module.from_expr(func)
-    mod = relay.transform.Legalize()(mod)
+    mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
     golden_output = np.concatenate((x_data + 1, y_data + 1), axis=axis)
@@ -136,7 +132,6 @@ def test_same_i_qnn_params():
     intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
-
 
 if __name__ == '__main__':
     test_same_io_qnn_params()

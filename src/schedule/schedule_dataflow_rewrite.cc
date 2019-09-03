@@ -546,6 +546,8 @@ void InjectInline(ScheduleNode* sch) {
 
   std::vector<Array<Expr> > new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
+  std::vector<Stmt> new_hybrid_body(sch->stages.size());
+  std::vector<bool> hybrid_changed(sch->stages.size(), false);
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
@@ -568,6 +570,7 @@ void InjectInline(ScheduleNode* sch) {
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
+        const HybridOpNode* hybrid = s->op.as<HybridOpNode>();
         if (compute) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
@@ -606,6 +609,15 @@ void InjectInline(ScheduleNode* sch) {
               }
             }
           }
+        } else if (hybrid) {
+          if (!new_hybrid_body[j].defined()) {
+            new_hybrid_body[j] = hybrid->body;
+          }
+          Stmt new_stmt = ir::Inline(new_hybrid_body[j], stage->op, args, body);
+          if (!new_stmt.same_as(new_hybrid_body[j])) {
+            new_hybrid_body[j] = new_stmt;
+            hybrid_changed[j] = true;
+          }
         }
       }
     }
@@ -632,6 +644,17 @@ void InjectInline(ScheduleNode* sch) {
         }
         s->op = op;
       }
+    } else if (hybrid_changed[i]) {
+      const HybridOpNode* hybrid = sch->stages[i]->op.as<HybridOpNode>();
+      CHECK(hybrid);
+      Operation op = HybridOpNode::make(
+              hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
+              hybrid->outputs, new_hybrid_body[i]);
+      op = op->ReplaceInputs(op, repl);
+      for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
+        repl[s->op.output(idx)] = op.output(idx);
+      }
+      s->op = op;
     } else {
       Operation op = s->op->ReplaceInputs(s->op, repl);
       if (!op.same_as(s->op)) {
