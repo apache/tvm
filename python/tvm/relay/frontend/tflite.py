@@ -85,7 +85,8 @@ class OperatorConverter(object):
             'SPLIT': self.convert_split,
             'TRANSPOSE': self.convert_transpose,
             'TILE': self.convert_tile,
-            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd
+            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd
         }
 
     def check_unsupported_ops(self):
@@ -958,6 +959,55 @@ class OperatorConverter(object):
                 cropped = _op.take(cropped, indices=indices, axis=axis)
 
         return cropped
+
+    def convert_space_to_batch_nd(self, op):
+        """space_to_batch_nd implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        input_shape = list(input_tensor.tensor.ShapeAsNumpy())
+        batch = input_shape[0]
+        N = len(input_shape)
+
+        block_shape = list(self.get_tensor_value(input_tensors[1]))
+        M = len(block_shape)
+
+        paddings = list(self.get_tensor_value(input_tensors[2]))
+
+        remaining_shape_length = N - M - 1
+        paddings = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
+
+        # From https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd:
+        # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
+        # to produce padded of shape padded_shape.
+        padded = _op.nn.pad(in_expr, pad_width=paddings)
+
+        # Reshape padded to reshaped_padded of shape:
+        shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
+        reshaped_padded = _op.reshape(padded, newshape=shape1)
+
+        # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
+        axes = [2 * i + 2 for i in range(M)] + [0] + [2 * i + 1 for i in range(M)] + \
+            list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
+        permuted_reshaped_padded = _op.transpose(reshaped_padded, axes=axes)
+        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
+
+        # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
+        # producing an output tensor of shape:
+        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1:]
+        reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
+
+        return reshaped_permuted_reshaped_padded
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
