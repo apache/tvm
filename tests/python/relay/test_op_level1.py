@@ -337,6 +337,16 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_bitserial_dense():
+    m, k = tvm.var("m"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((m, k), "int16"))
+    w = relay.var("w", relay.TensorType((k, 32), "int16"))
+    y = relay.nn.bitserial_dense(x, w, units=32)
+    "units=8" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((m, 32), "int16")
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_bias_add()
@@ -349,3 +359,4 @@ if __name__ == "__main__":
     test_dropout()
     test_batch_norm()
     test_dense()
+    test_bitserial_dense()

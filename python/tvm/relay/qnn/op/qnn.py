@@ -18,7 +18,8 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm import relay
+from tvm.expr import FloatImm, IntImm
+from tvm.relay.expr import Tuple
 from . import _make
 
 def requantize(data,
@@ -134,6 +135,8 @@ def dequantize(data,
     return _make.dequantize(data,
                             input_scale,
                             input_zero_point)
+
+
 def concatenate(data,
                 input_scales,
                 input_zero_points,
@@ -169,42 +172,14 @@ def concatenate(data,
     """
 
     data = list(data)
-    requantized_exprs = list(data)
+    if not data:
+        raise ValueError("relay.concatenate requires data to be non-empty.")
+    if not isinstance(axis, int):
+        raise ValueError("For now, we only support integer axis")
 
-    # Find the dtype of the input expr. This is required for the requantize op. Since, this is
-    # concatenate op, the dtype of the input is same as dtype of the output.
-    mod = relay.Module.from_expr(data[0])
-    mod = relay.transform.InferType()(mod)
-    entry = mod["main"]
-    data0 = entry if isinstance(data[0], relay.Function) else entry.body
-    in_dtype = data0.checked_type.dtype
-
-    # First check if all the input qnn params match. If yes, we can call concatenate first, followed
-    # by a requantize.
-    if all(scale == input_scales[0] for scale in input_scales)\
-            and all(zero_point == input_zero_points[0] for zero_point in input_zero_points):
-        out = relay.concatenate(tuple(data), axis)
-        input_scale = input_scales[0]
-        input_zero_point = input_zero_points[0]
-        if input_scale != output_scale or input_zero_point != output_zero_point:
-            out = requantize(data=out,
-                             input_scale=input_scales[0],
-                             input_zero_point=input_zero_points[0],
-                             output_scale=output_scale,
-                             output_zero_point=output_zero_point,
-                             out_dtype=in_dtype)
-        return out
-
-    # If the output qnn params do not match the input qnn params, we can call requantize on the
-    # input expr first, followed by a concatenate on the requantized input exprs.
-    for idx, quantized_expr in enumerate(data):
-        input_scale = input_scales[idx]
-        input_zero_point = input_zero_points[idx]
-        if input_scale != output_scale or input_zero_point != output_zero_point:
-            requantized_exprs[idx] = requantize(data=quantized_expr,
-                                                input_scale=input_scale,
-                                                input_zero_point=input_zero_point,
-                                                output_scale=output_scale,
-                                                output_zero_point=output_zero_point,
-                                                out_dtype=in_dtype)
-    return relay.concatenate(tuple(requantized_exprs), axis)
+    return _make.concatenate(Tuple(data),
+                             [FloatImm("float64", x) for x in input_scales],
+                             [IntImm("int32", x) for x in input_zero_points],
+                             output_scale,
+                             output_zero_point,
+                             axis)

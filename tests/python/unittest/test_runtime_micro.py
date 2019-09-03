@@ -47,7 +47,9 @@ def create_micro_mod(c_mod, toolchain_prefix):
     """
     temp_dir = util.tempdir()
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
-    c_mod.export_library(lib_obj_path, fcompile=tvm.micro.cross_compiler(toolchain_prefix=""))
+    c_mod.export_library(
+            lib_obj_path,
+            fcompile=tvm.micro.cross_compiler(toolchain_prefix=toolchain_prefix))
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     return micro_mod
 
@@ -78,6 +80,8 @@ def relay_micro_build(func, toolchain_prefix, params=None):
 
 
 # TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
+# TODO(weberlo): How can we test the OpenOCD device?  The CI would need to have OpenOCD
+# and Spike installed.
 
 def test_alloc():
     """Test tensor allocation on the device."""
@@ -206,6 +210,7 @@ def test_multiple_modules():
                 add_result, x_in + 1.0)
         tvm.testing.assert_allclose(
                 sub_result, x_in - 1.0)
+
 
 def test_interleave_sessions():
     """Test closing and reopening sessions."""

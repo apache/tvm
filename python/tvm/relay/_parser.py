@@ -77,7 +77,8 @@ class ExprOp(OpWrapper):
         try:
             return expr.Call(self.operator, args, attrs, type_args)
         except Exception:
-            raise Exception(str(self.operator) + " " + str(attrs))
+            raise Exception("Operator {} is not registered. It's attributes are {}"
+                            .format(self.operator, attrs))
 
 class FuncOp(OpWrapper):
     """Convert the attrs, call the python function with the attrs passed in as keyword arguments.
@@ -132,6 +133,7 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
+    "cast": op.cast
 }
 
 TYPE_PREFIXES = [

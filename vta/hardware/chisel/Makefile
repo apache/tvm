@@ -32,7 +32,7 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-CONFIG = DefaultF1Config
+CONFIG = DefaultPynqConfig
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build

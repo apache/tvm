@@ -72,12 +72,10 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
-  // Map from Const object to its index in const pool
-  ConstMap const_map;
-  // Map from Const tensor shape to its index in const pool
-  ConstTensorShapeMap const_tensor_shape_map;
-  // List of lowered functions
-  std::vector<LoweredFunc> lowered_funcs;
+  // List of constants
+  std::vector<NDArray> constants;
+  // List of cached functions
+  std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
   std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
 };
