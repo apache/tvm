@@ -52,6 +52,12 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
  * \brief Run all the operations one by one.
  */
 void GraphRuntime::Run() {
+  // check if there is any uninitialized lazy_init_input
+  for (auto eid : lazy_init_entries_) {
+    for (auto t : input_dltensors_[eid]) {
+      CHECK(t->data != nullptr) << "Un-initialized input!";
+    }
+  }
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
     if (op_execs_[i]) op_execs_[i]();
@@ -75,15 +81,16 @@ void GraphRuntime::Init(const std::string& graph_json,
 #endif
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
-  module_ = module;
-  ctxs_ = ctxs;
-  this->SetupStorage();
-  this->SetupOpExecs();
+  // Setup the mapping of input name to its index after loading the module
   for (size_t i = 0; i < input_nodes_.size(); i++) {
     const uint32_t nid = input_nodes_[i];
     std::string& name = nodes_[nid].name;
     input_map_[name] = i;
   }
+  module_ = module;
+  ctxs_ = ctxs;
+  this->SetupStorage();
+  this->SetupOpExecs();
 }
 /*!
  * \brief Get the input index given the name of input.
@@ -106,6 +113,8 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
 void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
+  CHECK(data_entry_[eid].allocated())
+      << "Invoke 'set_input_zero_copy' for 'lazy_init_input' entry!";
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
@@ -255,7 +264,13 @@ void GraphRuntime::SetupStorage() {
   for (const std::string& s_type : attrs_.dltype) {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
-
+  // get the entry id(s) of lazy initialized inputs
+  for (auto const& name : attrs_.lazy_init_input) {
+    int in_idx = GetInputIndex(name);
+    CHECK_GE(in_idx, 0) << "input \"" << name << "\" does not exist!";
+    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
+    lazy_init_entries_.push_back(eid);
+  }
   // Size and device type of each storage pool entry.
   std::vector<PoolEntry> pool_entry;
   // Find the maximum space size.
@@ -286,6 +301,8 @@ void GraphRuntime::SetupStorage() {
     }
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
+    pool_entry[sid].lazy_init = (std::find(lazy_init_entries_.begin(),
+        lazy_init_entries_.end(), i) != lazy_init_entries_.end());
   }
 
   // Allocate the space.
@@ -300,7 +317,7 @@ void GraphRuntime::SetupStorage() {
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
     shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
     storage_pool_.push_back(
-        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx, !pit.lazy_init));
   }
 
   // Assign the pooled entries. A unified memory pool is used to simplifiy
