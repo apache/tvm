@@ -99,6 +99,38 @@ def test_rfactor():
 
     check_target()
 
+def test_rfactor_with_commreducer():
+    n = tvm.convert(1027)
+    A = tvm.placeholder((n,), name='A')
+    k = tvm.reduce_axis((0, n))
+    product = tvm.comm_reducer(lambda x, y: x+y*y, \
+    lambda t: tvm.const(0, dtype=A.dtype), name="product")
+    B = tvm.compute((1,), lambda i: product(A[k], axis=k), name='B')
+    # schedule
+    s = tvm.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    BF = s.rfactor(B, kf)
+    s[BF].parallel(BF.op.axis[0])
+    # one line to build the function.
+    def check_target(target="llvm"):
+        if not tvm.module.enabled(target):
+            return
+        ctx = tvm.cpu(0)
+        fapi = tvm.lower(s, args=[A, B])
+        fsum = tvm.build(fapi,
+                         target=target,
+                         name="mysum")
+        # launch the kernel.
+        n = 1027
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
+        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        fsum(a, b)
+        res = np.sum(np.multiply(a.asnumpy(), a.asnumpy()), axis=0)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), res, rtol=1e-4)
+
+    check_target()
+
 def test_rfactor_factor_axis():
     n = tvm.convert(1027)
     A = tvm.placeholder((n,), name='A')
@@ -277,6 +309,55 @@ def test_argmax():
     check_target()
 
 
+def test_rfactor_argmax_cpu():
+    def fcombine(x, y):
+        lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
+        return lhs, rhs
+
+    def fidentity(t0, t1):
+        return tvm.const(-1, t0), tvm.min_value(t1)
+
+    argmax = tvm.comm_reducer(fcombine,
+                              fidentity,
+                              name='argmax')
+    m = tvm.var('m')
+    n = tvm.var('n')
+    idx = tvm.placeholder((m, n), name='idx', dtype='int32')
+    val = tvm.placeholder((m, n), name='val', dtype='float32')
+    k = tvm.reduce_axis((0, n), 'k')
+    T0, T1 = tvm.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
+    s = tvm.create_schedule(T0.op)
+    kf, ki = s[T0].split(k, nparts=4)
+    TF = s.rfactor(T0, kf)
+
+    def check_target():
+        device = 'cpu'
+        if not tvm.module.enabled(device):
+            print("skip because %s is not enabled.." % device)
+            return
+        ctx = tvm.context(device, 0)
+        fapi = tvm.lower(s, args=[idx, val, T0, T1])
+        fargmax = tvm.build(fapi,
+                            target='llvm',
+                            name="argmax")
+
+        mm = 12
+        nn = 16
+        np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
+        np_val = np.random.uniform(size=(mm, nn)).astype('float32')
+        np_res = np.argmax(np_val, axis=1)
+
+        nd_idx  = tvm.nd.array(np_idx, ctx)
+        nd_val  = tvm.nd.array(np_val, ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
+        fargmax(nd_idx, nd_val, nd_res0, nd_res1)
+        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
+
+    check_target()
+
+
 def test_rfactor_argmax():
     def fcombine(x, y):
         lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
@@ -345,3 +426,5 @@ if __name__ == "__main__":
     test_reduce_prims()
     test_argmax()
     test_rfactor_argmax()
+    test_rfactor_argmax_cpu()
+    test_rfactor_with_commreducer()
