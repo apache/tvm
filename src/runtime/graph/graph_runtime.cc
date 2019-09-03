@@ -54,15 +54,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 void GraphRuntime::Run() {
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) {
-      auto& op_arg = op_args_[i];
-      if (op_arg) {
-        for (auto& arg : op_arg->args) {
-          CHECK(arg.data != nullptr) << "Un-initialized input!";
-        }
-      }
-      op_execs_[i]();
-    }
+    if (op_execs_[i]) op_execs_[i]();
   }
 }
 /*!
@@ -114,8 +106,6 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
 void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  CHECK(data_entry_[eid].allocated())
-      << "Invoke 'set_input_zero_copy' for 'lazy_init_input' entry!";
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
@@ -265,14 +255,7 @@ void GraphRuntime::SetupStorage() {
   for (const std::string& s_type : attrs_.dltype) {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
-  // get the entry id(s) of lazy initialized inputs
-  std::vector<uint32_t> lazy_init_entries;
-  for (auto const& name : attrs_.lazy_init_input) {
-    int in_idx = GetInputIndex(name);
-    CHECK_GE(in_idx, 0) << "input \"" << name << "\" does not exist!";
-    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    lazy_init_entries.push_back(eid);
-  }
+
   // Size and device type of each storage pool entry.
   std::vector<PoolEntry> pool_entry;
   // Find the maximum space size.
@@ -303,8 +286,6 @@ void GraphRuntime::SetupStorage() {
     }
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
-    pool_entry[sid].lazy_init = (std::find(lazy_init_entries.begin(),
-        lazy_init_entries.end(), i) != lazy_init_entries.end());
   }
 
   // Allocate the space.
@@ -319,7 +300,7 @@ void GraphRuntime::SetupStorage() {
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
     shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
     storage_pool_.push_back(
-        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx, !pit.lazy_init));
+        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
   }
 
   // Assign the pooled entries. A unified memory pool is used to simplifiy
