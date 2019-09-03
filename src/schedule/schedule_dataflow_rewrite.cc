@@ -45,6 +45,7 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 
 class RFactorStageMutator : public ir::IRMutator {
  public:
+  explicit RFactorStageMutator(Array<Var> lhs) : lhs_(lhs) {}
   static bool DoesReduceOpNeedFixing(const Expr& e) {
     return (e.as<tvm::ir::Add>() ||
             e.as<tvm::ir::Sub>() ||
@@ -52,6 +53,32 @@ class RFactorStageMutator : public ir::IRMutator {
             e.as<tvm::ir::Div>()
             );
   }
+
+  /*
+   * Helps sanitize the input expression of reduce.
+   * In order for reduce factor to work appropriately, it must not have
+   * lhs appearing more than once in the Expr.
+   * Such as. a * a + b
+   * Example input: [2, 3, 4] with identity 1. Reduction.
+   * Result without refactoring: 148
+   * With existing refactoring, say axis is split in 3 parts such that
+   * each element is reduced and combined separately.
+   * Result: 405
+   * Sanitizer will just check for such instances where lhs is used
+   * more than once and throw error.
+   */
+  bool SanitizeExpr(const Expr& e) {
+    std::unordered_map<const tvm::ir::Variable*, int> var_map;
+    SanitizeExprHelper(e, var_map);
+    for (const auto& v : lhs_) {
+      const Variable* var_ptr = v.operator->();
+      if (var_map.count(var_ptr)) {
+        CHECK(var_map[var_ptr] == 1);
+      }
+    }
+    return true;
+  }
+
 #define RFACTOR_BIOP_EXPR_MUTATE_(OP)                     \
   Expr Mutate_(const OP* op, const Expr& e) {             \
     const auto* a_ptr = FindVar(op->a);                   \
@@ -90,6 +117,31 @@ RFACTOR_BIOP_EXPR_MUTATE_(ir::Div)
     return nullptr;
   }
 #undef FINDVAR_HELPER
+
+#define SANITIZE_HELPER(OP_TYPE)                            \
+      if (e.as<OP_TYPE>()) {                                \
+        SanitizeExprHelper(e.as<OP_TYPE>()->a, var_map);    \
+        SanitizeExprHelper(e.as<OP_TYPE>()->b, var_map);    \
+      }
+
+  void SanitizeExprHelper(const Expr& e,
+      std::unordered_map<const tvm::ir::Variable*, int>& var_map) {
+    SANITIZE_HELPER(ir::Add)
+    SANITIZE_HELPER(ir::Sub)
+    SANITIZE_HELPER(ir::Mul)
+    SANITIZE_HELPER(ir::Div)
+
+    if (auto* var = e.as<tvm::ir::Variable>()) {
+      if (var_map.count(var)) {
+        var_map[var]++;
+      }
+      else {
+        var_map[var] = 1;
+      }
+    }
+  }
+#undef SANITIZE_HELPER
+  Array<Var> lhs_;
 };
 
 // The replacer of cache.
@@ -912,10 +964,11 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       Array<Expr> reductions;
       Array<IterVar> axis = {repl_red_axis};
       Expr cond = const_true();
-      RFactorStageMutator reduce_result_mutator;
+      RFactorStageMutator reduce_result_mutator(reduce->combiner->lhs);
       Array<Expr> new_combiner_result = ir::UpdateArray(reduce->combiner->result,
         [&reduce_result_mutator] (const Expr& e) {
-        if (RFactorStageMutator::DoesReduceOpNeedFixing(e)) {
+        if (RFactorStageMutator::DoesReduceOpNeedFixing(e) &&
+            reduce_result_mutator.SanitizeExpr(e)) {
           return reduce_result_mutator.Mutate(e);
         }
         return e; });

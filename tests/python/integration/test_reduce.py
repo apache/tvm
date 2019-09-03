@@ -131,6 +131,23 @@ def test_rfactor_with_commreducer():
 
     check_target()
 
+def test_rfactor_with_illegal_commreducer():
+    n = tvm.convert(1027)
+    A = tvm.placeholder((n,), name='A')
+    k = tvm.reduce_axis((0, n))
+    product = tvm.comm_reducer(lambda x, y: x*x+y, \
+    lambda t: tvm.const(0, dtype=A.dtype), name="product")
+    B = tvm.compute((1,), lambda i: product(A[k], axis=k), name='B')
+    # schedule
+    s = tvm.create_schedule(B.op)
+    kf, ki = s[B].split(k, nparts=4)
+    exception_raised = False
+    try:
+        BF = s.rfactor(B, kf)
+    except Exception as e:
+        exception_raised = True
+    assert exception_raised
+
 def test_rfactor_factor_axis():
     n = tvm.convert(1027)
     A = tvm.placeholder((n,), name='A')
@@ -428,3 +445,4 @@ if __name__ == "__main__":
     test_rfactor_argmax()
     test_rfactor_argmax_cpu()
     test_rfactor_with_commreducer()
+    test_rfactor_with_illegal_commreducer()
