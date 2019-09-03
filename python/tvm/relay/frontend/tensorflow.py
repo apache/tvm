@@ -84,10 +84,12 @@ def _dimension_constraint():
     return _dim_check, "Only 2d kernel supported."
 
 def _get_param(params, input_node):
+    if isinstance(input_node, _expr.Constant):
+        return np.atleast_1d(input_node.data.asnumpy())
     return params.pop(input_node.name_hint).asnumpy()
 
 def _get_num_param(params, input_node):
-    return _get_param(params, input_node)[0]
+    return _get_param(params, input_node).item()
 
 def _get_list_param(params, input_node):
     return _get_param(params, input_node).tolist()
@@ -752,7 +754,7 @@ def _sum():
 
 def _reduce(op):
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()
+        axis = _get_list_param(params, inputs[1])
         axis = tuple(axis)
         return AttrCvt(
             op_name=op,
@@ -965,10 +967,11 @@ def _rank():
 
 def _range():
     def _impl(inputs, attr, params):
-        start = params.pop(inputs[0].name_hint).asnumpy()[0]
-        limit = params.pop(inputs[1].name_hint).asnumpy()[0] \
-            if hasattr(inputs[1], "name_hint") else params.pop('Rank').asnumpy()[0]
-        delta = params.pop(inputs[2].name_hint).asnumpy()[0]
+        start = _get_param(params, inputs[0])[0]
+        limit = _get_param(params, inputs[1])[0] \
+            if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
+            else params.pop('Rank').asnumpy()[0]
+        delta = _get_param(params, inputs[2])[0]
         dtype = attr['dtype'].name if 'dtype' in attr else "int32"
         return AttrCvt(
             op_name="arange",
@@ -1084,7 +1087,7 @@ def _softplus():
 
 def _topk():
     def _impl(inputs, attr, params):
-        k = int(params.pop(inputs.pop(1).name_hint).asnumpy())
+        k = int(_get_num_param(params, inputs.pop(1)))
         if k < 1:
             raise tvm.error.OpAttributeInvalid(
                 'Attribute k must be positive in operator TopKV2')
@@ -1196,7 +1199,7 @@ def _batch_to_space_nd():
 
 def _prod():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        axis = _get_num_param(params, inputs[1])
         keepdims = attr['keep_dims']
         return _op.prod(inputs[0], int(axis), keepdims=keepdims)
     return _impl
@@ -2104,13 +2107,12 @@ class GraphProto(object):
             if array_ndim == 0:
                 new_array = np.empty([1], dtype=np_array.dtype)
                 new_array[0] = np_array
-                self._params[name] = tvm.nd.array(new_array)
+                self._nodes[name] = [tvm.relay.const(new_array)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
-
-            self._nodes[name] = [_expr.var(name,
-                                           shape=self._params[name].shape,
-                                           dtype=self._params[name].dtype)]
+                self._nodes[name] = [_expr.var(name,
+                                               shape=self._params[name].shape,
+                                               dtype=self._params[name].dtype)]
         else:
             if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
