@@ -114,8 +114,8 @@ $(verilator_build_dir)/tsim_device.o: tsim_device.cc
 
 $(lib_path): $(verilator_build_dir)/V$(TOP_TEST).cpp $(cxx_objs)
 	for f in $(shell find $(verilator_build_dir)/*.cpp); do \
-    $(CXX) -fPIC $(cxx_flags) -c $${f} -o $${f}.o ; \
-  done
+		$(CXX) -fPIC $(cxx_flags) -c $${f} -o $${f}.o ; \
+	done
 	$(CXX) $(ld_flags) $(cxx_flags) $(cxx_objs) $(patsubst %.cpp,%.cpp.o,$(shell find $(verilator_build_dir)/*.cpp)) -o $@
 
 verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp
