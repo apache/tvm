@@ -29,7 +29,8 @@ import chisel3.util._
   * depending on the push and pop fields on instructions to prevent RAW and WAR
   * hazards.
   */
-class Semaphore(counterBits: Int = 1, counterInitValue: Int = 1) extends Module {
+class Semaphore(counterBits: Int = 1, counterInitValue: Int = 1)
+    extends Module {
   val io = IO(new Bundle {
     val spost = Input(Bool())
     val swait = Input(Bool())

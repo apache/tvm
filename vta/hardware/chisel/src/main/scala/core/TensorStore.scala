@@ -28,7 +28,8 @@ import vta.shell._
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
-class TensorStore(tensorType: String = "none", debug: Boolean = false)(implicit p: Parameters)
+class TensorStore(tensorType: String = "none", debug: Boolean = false)(
+    implicit p: Parameters)
     extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
@@ -162,7 +163,8 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(implicit 
     tag := tag + 1.U
   }
 
-  when(state === sWriteCmd || (set === (tensorLength - 1).U && tag === (numMemBlock - 1).U)) {
+  when(
+    state === sWriteCmd || (set === (tensorLength - 1).U && tag === (numMemBlock - 1).U)) {
     set := 0.U
   }.elsewhen(io.vme_wr.data.fire() && tag === (numMemBlock - 1).U) {
     set := set + 1.U
@@ -192,14 +194,18 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(implicit 
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   val elemBytes = (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).outBits) / 8
   when(state === sIdle) {
-    waddr_cur := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
-    waddr_nxt := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    waddr_cur := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
+      elemBytes)))
+    waddr_nxt := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
+      elemBytes)))
   }.elsewhen(state === sWriteAck && io.vme_wr.ack && xrem =/= 0.U) {
       waddr_cur := waddr_cur + xmax_bytes
     }
     .elsewhen(stride) {
-      waddr_cur := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
-      waddr_nxt := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
+      waddr_cur := waddr_nxt + (dec.xstride << log2Ceil(
+        tensorLength * tensorWidth))
+      waddr_nxt := waddr_nxt + (dec.xstride << log2Ceil(
+        tensorLength * tensorWidth))
     }
 
   io.vme_wr.cmd.valid := state === sWriteCmd

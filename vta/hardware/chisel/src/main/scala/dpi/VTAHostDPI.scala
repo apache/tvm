@@ -78,7 +78,8 @@ class VTAHostDPI extends BlackBox with HasBlackBoxResource {
   *
   * Convert Host DPI to AXI for VTAShell
   */
-class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAHostDPIClient
     val axi = new AXILiteMaster(p(ShellKey).hostParams)

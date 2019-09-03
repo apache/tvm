@@ -30,7 +30,8 @@ import vta.shell._
   * weights (wgt), biases (acc), and outputs (out). This is used to avoid
   * doing the same boring calculations over and over again.
   */
-class TensorParams(tensorType: String = "none")(implicit p: Parameters) extends Bundle {
+class TensorParams(tensorType: String = "none")(implicit p: Parameters)
+    extends Bundle {
   val errorMsg =
     s"\n\n[VTA] [TensorParams] only inp, wgt, acc, and out supported\n\n"
 
@@ -75,7 +76,8 @@ class TensorMaster(tensorType: String = "none")(implicit p: Parameters)
     extends TensorParams(tensorType) {
   val rd = new Bundle {
     val idx = ValidIO(UInt(memAddrBits.W))
-    val data = Flipped(ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
+    val data = Flipped(
+      ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
   }
   val wr = ValidIO(new Bundle {
     val idx = UInt(memAddrBits.W)
@@ -108,7 +110,8 @@ class TensorClient(tensorType: String = "none")(implicit p: Parameters)
     extends TensorParams(tensorType) {
   val rd = new Bundle {
     val idx = Flipped(ValidIO(UInt(memAddrBits.W)))
-    val data = ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
+    val data = ValidIO(
+      Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
   }
   val wr = Flipped(ValidIO(new Bundle {
     val idx = UInt(memAddrBits.W)
@@ -134,7 +137,8 @@ class TensorClient(tensorType: String = "none")(implicit p: Parameters)
   */
 class TensorMasterData(tensorType: String = "none")(implicit p: Parameters)
     extends TensorParams(tensorType) {
-  val data = Flipped(ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
+  val data = Flipped(
+    ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
   override def cloneType =
     new TensorMasterData(tensorType).asInstanceOf[this.type]
 }
@@ -147,13 +151,15 @@ class TensorMasterData(tensorType: String = "none")(implicit p: Parameters)
   */
 class TensorClientData(tensorType: String = "none")(implicit p: Parameters)
     extends TensorParams(tensorType) {
-  val data = ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
+  val data = ValidIO(
+    Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
   override def cloneType =
     new TensorClientData(tensorType).asInstanceOf[this.type]
 }
 
 /** TensorPadCtrl. Zero-padding controller for TensorLoad. */
-class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Module {
+class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1)
+    extends Module {
   val errorMsg =
     s"\n\n\n[VTA-ERROR] only YPad0, YPad1, XPad0, or XPad1 supported\n\n\n"
   require(padType == "YPad0" || padType == "YPad1"
@@ -226,8 +232,9 @@ class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Modul
 }
 
 /** TensorDataCtrl. Data controller for TensorLoad. */
-class TensorDataCtrl(tensorType: String = "none", sizeFactor: Int = 1, strideFactor: Int = 1)(
-    implicit p: Parameters)
+class TensorDataCtrl(tensorType: String = "none",
+                     sizeFactor: Int = 1,
+                     strideFactor: Int = 1)(implicit p: Parameters)
     extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
