@@ -28,7 +28,7 @@
 #define VTA_DE10_NANO_KERNEL_MODULE_CMA_H_
 
 
-/* Should be defined in Settings.mak file */
+/* Should be defined in settings.mk file */
 #ifndef CMA_IOCTL_MAGIC
 #define CMA_IOCTL_MAGIC  0xf2
 #endif

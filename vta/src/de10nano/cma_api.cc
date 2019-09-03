@@ -127,6 +127,7 @@ void *cma_alloc_noncached(size_t size) {
 }
 
 int cma_free(void *mem) {
+  __DEBUG("Releasing contigous memory from 0x%x\n", (unsigned)mem);
   unsigned data, v_addr;
 
   /* save user space pointer value */
@@ -153,7 +154,7 @@ int cma_free(void *mem) {
 
 unsigned cma_get_phy_addr(void *mem) {
   unsigned data;
-  __DEBUG("Releasing contigous memory from 0x%x\n", (unsigned)mem);
+  __DEBUG("Getting physical address from 0x%x\n", (unsigned)mem);
 
   /* save user space pointer value */
   data = (unsigned)mem;

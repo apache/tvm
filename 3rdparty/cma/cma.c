@@ -144,9 +144,9 @@ struct cma_entry *cma_entry_get_by_phy_addr(unsigned int phy_addr) {
 
   /* search for physical address */
   while (walk != NULL) {
-    if (walk->phy_addr == phy_addr)
+    if (walk->phy_addr == phy_addr) {
       goto leave;
-
+    }
     walk = walk->next;
   }
 
@@ -169,15 +169,14 @@ struct cma_entry *cma_entry_get_by_v_usr_addr(unsigned v_usr_addr) {
   /* search for user virtual address */
   while (walk != NULL) {
     if (walk->v_usr_addr == v_usr_addr) {
-      __DEBUG("found user virtual address with pid (0x%x) and v_usr_addr (0x%x).\n",
-              current->pid, v_usr_addr);
+      __DEBUG("found an entry with v_usr_addr (0x%x).\n", v_usr_addr);
       goto leave;
     }
-
+    __DEBUG("> walk->v_usr_addr=(0x%x), expected v_usr_addr=(0x%x).\n",
+            walk->v_usr_addr, v_usr_addr);
     walk = walk->next;
   }
-  __DEBUG("failed to search for user virtual address with pid (0x%x) and v_usr_addr (0x%x).\n",
-          current->pid, v_usr_addr);
+  __DEBUG("failed to find an entry with v_usr_addr (0x%x).\n", v_usr_addr);
 
 leave:
   mutex_unlock(&mutex_cma_list_modify);
@@ -186,6 +185,7 @@ leave:
 
 
 static int cma_entry_add(struct cma_entry *entry) {
+  struct cma_entry *walk;
   __DEBUG("cma_entry_add() - phy_addr 0x%x; pid 0x%x\n", entry->phy_addr, entry->pid);
 
   if (mutex_lock_interruptible(&mutex_cma_list_modify))
@@ -194,6 +194,13 @@ static int cma_entry_add(struct cma_entry *entry) {
   /* add entry in start - this is more effective */
   entry->next = cma_start;
   cma_start = entry;
+
+  /* print entry list for debugging */
+  walk = cma_start;
+  while (walk != NULL) {
+    __DEBUG("> walk->phy_addr=(0x%x).\n", walk->phy_addr);
+    walk = walk->next;
+  }
 
   mutex_unlock(&mutex_cma_list_modify);
 
@@ -205,6 +212,8 @@ static int cma_entry_release(unsigned v_usr_addr) {
   int err;
   struct cma_entry *walk_prev, *walk_curr;
 
+  /* print entry list for debugging */
+  struct cma_entry *walk;
   __DEBUG("cma_entry_release() - v_usr_addr 0x%x; pid 0x%x\n", v_usr_addr, current->pid);
 
   if (mutex_lock_interruptible(&mutex_cma_list_modify))
@@ -214,31 +223,48 @@ static int cma_entry_release(unsigned v_usr_addr) {
   walk_curr = cma_start;
 
   while (walk_curr != NULL) {
-    if ( (walk_curr->pid == current->pid) && (walk_curr->v_usr_addr == v_usr_addr) ) {
-      /* Check if mapped */
+    if (walk_curr->v_usr_addr == v_usr_addr) {
+      /* check if mapped */
       if (walk_curr->flags & CMA_ENTRY_MAPPED) {
+        __DEBUG("failed to find a valid entry with v_usr_addr(0x%x), entry mapped.\n", v_usr_addr);
         err = -1;
         goto leave;
       }
 
-      /* Check if not the first entry */
+      /* check if not the first entry */
       if (walk_prev != NULL)
         walk_prev->next = walk_curr->next;
+      else
+        cma_start = walk_curr->next;
+      if ((walk_curr->next == NULL) && (cma_start == walk_curr))
+        cma_start = NULL;
 
+      __DEBUG("found an entry with v_usr_addr=0x%x, phy_addr=0x%x, next=0x%x\n",
+              v_usr_addr, walk_curr->phy_addr, (int)walk_curr->next);
       dma_free_coherent(NULL, walk_curr->size, walk_curr->v_ptr, walk_curr->phy_addr);
       kfree(walk_curr);
       err = 0;
       goto leave;
     }
+    __DEBUG("skip entry with v_usr_addr (0x%x).\n", walk_curr->v_usr_addr);
 
-    /* Prepare next walk */
+    /* prepare next walk */
     walk_prev = walk_curr;
     walk_curr = walk_curr->next;
   }
 
+  __DEBUG("failed to find an entry with v_usr_addr (0x%x).\n", v_usr_addr);
   err = -1;
 
 leave:
+
+  /* print entry list for debugging */
+  walk = cma_start;
+  while (walk != NULL) {
+    __DEBUG("> walk->v_usr_addr=(0x%x), walk->next=0x%x\n", walk->v_usr_addr, (int)walk->next);
+    walk = walk->next;
+  }
+
   mutex_unlock(&mutex_cma_list_modify);
   return err;
 }
@@ -345,7 +371,7 @@ static int cma_ioctl(struct file *filp, unsigned int cmd, unsigned int arg) {
 static int cma_ioctl_alloc(struct file *filp, unsigned int cmd, unsigned int arg, int cached_flag) {
   int err;
   struct cma_entry *entry;
-  __DEBUG("cma_ioctl_alloc_cached() called!\n");
+  __DEBUG("cma_ioctl_alloc() called!\n");
 
   if (!access_ok(VERIFY_READ, (void __user*) arg, _IOC_SIZE(cmd))) {
     __DEBUG("fail to get read access to %d bytes of memory.\n", entry->size);
