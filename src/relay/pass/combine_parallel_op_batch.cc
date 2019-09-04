@@ -144,7 +144,6 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
     Array<Expr> tuple;
     for (const auto& branch : branches) {
       Expr arg = branch[depth]->args[i];
-      const TensorTypeNode* arg_tensor = arg->type_as<TensorTypeNode>();
 
       // special case for bias_add: 1D data needs to be expanded to (1,size)
       // for proper broadcasting.

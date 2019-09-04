@@ -106,8 +106,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
 
     const std::string& layout =
         new_attrs->out_layout == "" ? new_attrs->data_layout : new_attrs->out_layout;
-    channel_pos = layout.find('C');
-    CHECK_NE(channel_pos, std::string::npos);
+    channel_pos_ = layout.find('C');
+    CHECK_NE(channel_pos_, std::string::npos);
 
     return CallNode::make(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
   }
@@ -123,12 +123,12 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       return false;
 
     // Position of the 'C' dimension in the argument
-    size_t arg_channel_pos = channel_pos - toutput_a->shape.size() + ta->shape.size();
+    size_t arg_channel_pos = channel_pos_ - toutput_a->shape.size() + ta->shape.size();
 
     // Channel super-dimension shoule be present and not broadcasted
-    if ((arg_channel_pos > channel_pos) ||  // size_t overflow
-        !eq(ta->shape[arg_channel_pos], toutput_a->shape[channel_pos]) ||
-        !eq(tb->shape[arg_channel_pos], toutput_b->shape[channel_pos]))
+    if ((arg_channel_pos > channel_pos_) ||  // size_t overflow
+        !eq(ta->shape[arg_channel_pos], toutput_a->shape[channel_pos_]) ||
+        !eq(tb->shape[arg_channel_pos], toutput_b->shape[channel_pos_]))
       return false;
 
     for (size_t i = 0; i < ta->shape.size(); i++) {
@@ -154,7 +154,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       }
 
       size_t arg_ndim = call->args[i]->type_as<TensorTypeNode>()->shape.size();
-      size_t arg_channel_pos = channel_pos - ndim + arg_ndim;
+      size_t arg_channel_pos = channel_pos_ - ndim + arg_ndim;
       Array<Expr> tuple;
       for (const auto& branch : branches) {
         tuple.push_back(branch[depth]->args[i]);
@@ -177,7 +177,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       int64_t channels = GetConv2DSuperChannelsDim(conv2d);
       Array<Integer> begin;
       Array<Integer> end;
-      for (size_t i = 0; i < channel_pos; i++) {
+      for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
         end.push_back(NullValue<Integer>());
       }
@@ -190,7 +190,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
  private:
-  size_t channel_pos;
+  size_t channel_pos_;
 
   std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
     int64_t num_filters = 0;  // number of filters of the transformed weight
