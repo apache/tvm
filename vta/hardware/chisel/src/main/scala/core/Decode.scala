@@ -133,8 +133,9 @@ class FetchDecode extends Module {
     val isStore = Output(Bool())
   })
   val csignals =
-    ListLookup(io.inst,
-        List(N, OP_X),
+    ListLookup(
+      io.inst,
+      List(N, OP_X),
       Array(
         LUOP -> List(Y, OP_G),
         LWGT -> List(Y, OP_L),

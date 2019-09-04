@@ -67,69 +67,70 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val xrem = Reg(chiselTypeOf(io.ins_count))
   val xsize = (io.ins_count << 1.U) - 1.U
   val xmax = (1 << mp.lenBits).U
-  val xmax_bytes = ((1 << mp.lenBits)*mp.dataBits/8).U
+  val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
 
   val sIdle :: sReadCmd :: sReadLSB :: sReadMSB :: sDrain :: Nil = Enum(5)
   val state = RegInit(sIdle)
 
   // control
-  switch (state) {
-    is (sIdle) {
-      when (pulse) {
+  switch(state) {
+    is(sIdle) {
+      when(pulse) {
         state := sReadCmd
-        when (xsize < xmax) {
+        when(xsize < xmax) {
           rlen := xsize
           ilen := xsize >> 1.U
           xrem := 0.U
-        } .otherwise {
+        }.otherwise {
           rlen := xmax - 1.U
           ilen := (xmax >> 1.U) - 1.U
           xrem := xsize - xmax
         }
       }
     }
-    is (sReadCmd) {
-      when (io.vme_rd.cmd.ready) {
+    is(sReadCmd) {
+      when(io.vme_rd.cmd.ready) {
         state := sReadLSB
       }
     }
-    is (sReadLSB) {
-      when (io.vme_rd.data.valid) {
+    is(sReadLSB) {
+      when(io.vme_rd.data.valid) {
         state := sReadMSB
       }
     }
-    is (sReadMSB) {
-      when (io.vme_rd.data.valid) {
-        when (inst_q.io.count === ilen) {
+    is(sReadMSB) {
+      when(io.vme_rd.data.valid) {
+        when(inst_q.io.count === ilen) {
           state := sDrain
-        } .otherwise {
+        }.otherwise {
           state := sReadLSB
         }
       }
     }
-    is (sDrain) {
-      when (inst_q.io.count === 0.U) {
-        when (xrem === 0.U) {
+    is(sDrain) {
+      when(inst_q.io.count === 0.U) {
+        when(xrem === 0.U) {
           state := sIdle
-        } .elsewhen (xrem < xmax) {
-          state := sReadCmd
-          rlen := xrem
-          ilen := xrem >> 1.U
-          xrem := 0.U
-        } .otherwise {
-          state := sReadCmd
-          rlen := xmax - 1.U
-          ilen := (xmax >> 1.U) - 1.U
-          xrem := xrem - xmax
-        }
+        }.elsewhen(xrem < xmax) {
+            state := sReadCmd
+            rlen := xrem
+            ilen := xrem >> 1.U
+            xrem := 0.U
+          }
+          .otherwise {
+            state := sReadCmd
+            rlen := xmax - 1.U
+            ilen := (xmax >> 1.U) - 1.U
+            xrem := xrem - xmax
+          }
       }
     }
   }
 
   // read instructions from dram
-  when (state === sIdle) {
+  when(state === sIdle) {
     raddr := io.ins_baddr
-  } .elsewhen (state === sDrain && inst_q.io.count === 0.U && xrem =/= 0.U) {
+  }.elsewhen(state === sDrain && inst_q.io.count === 0.U && xrem =/= 0.U) {
     raddr := raddr + xmax_bytes
   }
 
@@ -143,7 +144,7 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val msb = io.vme_rd.data.bits
   val inst = Cat(msb, lsb)
 
-  when (state === sReadLSB) { lsb := io.vme_rd.data.bits }
+  when(state === sReadLSB) { lsb := io.vme_rd.data.bits }
 
   inst_q.io.enq.valid := io.vme_rd.data.valid & state === sReadMSB
   inst_q.io.enq.bits := inst
@@ -164,32 +165,30 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val deq_sel = Cat(dec.io.isCompute, dec.io.isStore, dec.io.isLoad).asUInt
   val deq_ready =
     MuxLookup(deq_sel,
-               false.B, // default
-      Array(
-        "h_01".U -> io.inst.ld.ready,
-        "h_02".U -> io.inst.st.ready,
-        "h_04".U -> io.inst.co.ready
-      )
-    )
+              false.B, // default
+              Array(
+                "h_01".U -> io.inst.ld.ready,
+                "h_02".U -> io.inst.st.ready,
+                "h_04".U -> io.inst.co.ready
+              ))
 
   // dequeue instruction
   inst_q.io.deq.ready := deq_ready & inst_q.io.deq.valid & state === sDrain
 
-
   // debug
   if (debug) {
-    when (state === sIdle && pulse) {
+    when(state === sIdle && pulse) {
       printf("[Fetch] Launch\n")
     }
     // instruction
-    when (inst_q.io.deq.fire()) {
-      when (dec.io.isLoad) {
+    when(inst_q.io.deq.fire()) {
+      when(dec.io.isLoad) {
         printf("[Fetch] [instruction decode] [L] %x\n", inst_q.io.deq.bits)
       }
-      when (dec.io.isCompute) {
+      when(dec.io.isCompute) {
         printf("[Fetch] [instruction decode] [C] %x\n", inst_q.io.deq.bits)
       }
-      when (dec.io.isStore) {
+      when(dec.io.isStore) {
         printf("[Fetch] [instruction decode] [S] %x\n", inst_q.io.deq.bits)
       }
     }

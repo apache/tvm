@@ -102,7 +102,10 @@ else
   lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
-default: lib
+default: lint lib
+
+lint:
+	sbt scalafmt
 
 lib: $(lib_path)
 

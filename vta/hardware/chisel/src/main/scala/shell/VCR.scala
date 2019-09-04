@@ -29,8 +29,7 @@ import vta.interface.axi._
   *
   * These parameters are used on VCR interfaces and modules.
   */
-case class VCRParams()
-{
+case class VCRParams() {
   val nCtrl = 1
   val nECnt = 1
   val nVals = 1
@@ -40,7 +39,7 @@ case class VCRParams()
 
 /** VCRBase. Parametrize base class. */
 abstract class VCRBase(implicit p: Parameters)
-  extends GenericParameterizedBundle(p)
+    extends GenericParameterizedBundle(p)
 
 /** VCRMaster.
   *
@@ -80,7 +79,7 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   * registers that could be used as event counters by the Core unit.
   */
 class VCR(implicit p: Parameters) extends Module {
-  val io = IO(new Bundle{
+  val io = IO(new Bundle {
     val host = new AXILiteClient(p(ShellKey).hostParams)
     val vcr = new VCRMaster
   })
@@ -101,50 +100,49 @@ class VCR(implicit p: Parameters) extends Module {
   val rdata = RegInit(0.U(vp.regBits.W))
 
   // registers
-  val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2*vp.nPtrs
+  val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2 * vp.nPtrs
   val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs
 
   val reg = Seq.fill(nTotal)(RegInit(0.U(vp.regBits.W)))
   val addr = Seq.tabulate(nTotal)(_ * 4)
-  val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
+  val reg_map = (addr zip reg) map { case (a, r) => a.U -> r }
   val eo = vp.nCtrl
   val vo = eo + vp.nECnt
   val po = vo + vp.nVals
 
-  switch (wstate) {
-    is (sWriteAddress) {
-      when (io.host.aw.valid) {
+  switch(wstate) {
+    is(sWriteAddress) {
+      when(io.host.aw.valid) {
         wstate := sWriteData
       }
     }
-    is (sWriteData) {
-      when (io.host.w.valid) {
+    is(sWriteData) {
+      when(io.host.w.valid) {
         wstate := sWriteResponse
       }
     }
-    is (sWriteResponse) {
-      when (io.host.b.ready) {
+    is(sWriteResponse) {
+      when(io.host.b.ready) {
         wstate := sWriteAddress
       }
     }
   }
 
-  when (io.host.aw.fire()) { waddr := io.host.aw.bits.addr }
+  when(io.host.aw.fire()) { waddr := io.host.aw.bits.addr }
 
   io.host.aw.ready := wstate === sWriteAddress
   io.host.w.ready := wstate === sWriteData
   io.host.b.valid := wstate === sWriteResponse
   io.host.b.bits.resp := 0.U
 
-
-  switch (rstate) {
-    is (sReadAddress) {
-      when (io.host.ar.valid) {
+  switch(rstate) {
+    is(sReadAddress) {
+      when(io.host.ar.valid) {
         rstate := sReadData
       }
     }
-    is (sReadData) {
-      when (io.host.r.ready) {
+    is(sReadData) {
+      when(io.host.r.ready) {
         rstate := sReadAddress
       }
     }
@@ -155,27 +153,27 @@ class VCR(implicit p: Parameters) extends Module {
   io.host.r.bits.data := rdata
   io.host.r.bits.resp := 0.U
 
-  when (io.vcr.finish) {
+  when(io.vcr.finish) {
     reg(0) := "b_10".U
-  } .elsewhen (io.host.w.fire() && addr(0).U === waddr) {
+  }.elsewhen(io.host.w.fire() && addr(0).U === waddr) {
     reg(0) := wdata
   }
 
   for (i <- 0 until vp.nECnt) {
-    when (io.vcr.ecnt(i).valid) {
+    when(io.vcr.ecnt(i).valid) {
       reg(eo + i) := io.vcr.ecnt(i).bits
-    } .elsewhen (io.host.w.fire() && addr(eo + i).U === waddr) {
+    }.elsewhen(io.host.w.fire() && addr(eo + i).U === waddr) {
       reg(eo + i) := wdata
     }
   }
 
   for (i <- 0 until (vp.nVals + nPtrs)) {
-    when (io.host.w.fire() && addr(vo + i).U === waddr) {
+    when(io.host.w.fire() && addr(vo + i).U === waddr) {
       reg(vo + i) := wdata
     }
   }
 
-  when (io.host.ar.fire()) {
+  when(io.host.ar.fire()) {
     rdata := MuxLookup(io.host.ar.bits.addr, 0.U, reg_map)
   }
 
@@ -185,13 +183,13 @@ class VCR(implicit p: Parameters) extends Module {
     io.vcr.vals(i) := reg(vo + i)
   }
 
-  if (mp.addrBits == 32) {  // 32-bit pointers
+  if (mp.addrBits == 32) { // 32-bit pointers
     for (i <- 0 until nPtrs) {
       io.vcr.ptrs(i) := reg(po + i)
     }
-  } else {  // 64-bits pointers
-    for (i <- 0 until (nPtrs/2)) {
-      io.vcr.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+  } else { // 64-bits pointers
+    for (i <- 0 until (nPtrs / 2)) {
+      io.vcr.ptrs(i) := Cat(reg(po + 2 * i + 1), reg(po + 2 * i))
     }
   }
 }

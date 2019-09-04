@@ -76,6 +76,7 @@ class VTASim(implicit p: Parameters) extends MultiIOModule {
   sim.io.clock := clock
   sim_wait := sim.io.dpi_wait
 }
+
 /** SimShell.
   *
   * The simulation shell instantiate the sim, host and memory DPI modules that

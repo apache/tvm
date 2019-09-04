@@ -55,21 +55,21 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val done = tensorStore.io.done
 
   // control
-  switch (state) {
-    is (sIdle) {
-      when (start) {
-        when (dec.io.isSync) {
+  switch(state) {
+    is(sIdle) {
+      when(start) {
+        when(dec.io.isSync) {
           state := sSync
-        } .elsewhen (dec.io.isStore) {
+        }.elsewhen(dec.io.isStore) {
           state := sExe
         }
       }
     }
-    is (sSync) {
+    is(sSync) {
       state := sIdle
     }
-    is (sExe) {
-      when (done) {
+    is(sExe) {
+      when(done) {
         state := sIdle
       }
     }
@@ -94,19 +94,19 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   // debug
   if (debug) {
     // start
-    when (state === sIdle && start) {
-      when (dec.io.isSync) {
+    when(state === sIdle && start) {
+      when(dec.io.isSync) {
         printf("[Store] start sync\n")
-      } .elsewhen (dec.io.isStore) {
+      }.elsewhen(dec.io.isStore) {
         printf("[Store] start\n")
       }
     }
     // done
-    when (state === sSync) {
+    when(state === sSync) {
       printf("[Store] done sync\n")
     }
-    when (state === sExe) {
-      when (done) {
+    when(state === sExe) {
+      when(done) {
         printf("[Store] done\n")
       }
     }

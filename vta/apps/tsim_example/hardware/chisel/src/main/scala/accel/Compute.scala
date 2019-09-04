@@ -54,27 +54,27 @@ class Compute(implicit config: AccelConfig) extends Module {
   val raddr = Reg(UInt(config.ptrBits.W))
   val waddr = Reg(UInt(config.ptrBits.W))
 
-  switch (state) {
-    is (sIdle) {
-      when (io.launch) {
+  switch(state) {
+    is(sIdle) {
+      when(io.launch) {
         state := sReadReq
       }
     }
-    is (sReadReq) {
+    is(sReadReq) {
       state := sReadData
     }
-    is (sReadData) {
-      when (io.mem.rd.valid) {
+    is(sReadData) {
+      when(io.mem.rd.valid) {
         state := sWriteReq
       }
     }
-    is (sWriteReq) {
+    is(sWriteReq) {
       state := sWriteData
     }
-    is (sWriteData) {
-      when (cnt === (length - 1.U)) {
+    is(sWriteData) {
+      when(cnt === (length - 1.U)) {
         state := sIdle
-      } .otherwise {
+      }.otherwise {
         state := sReadReq
       }
     }
@@ -83,9 +83,9 @@ class Compute(implicit config: AccelConfig) extends Module {
   val last = state === sWriteData && cnt === (length - 1.U)
 
   // cycle counter
-  when (state === sIdle) {
+  when(state === sIdle) {
     cycles := 0.U
-  } .otherwise {
+  }.otherwise {
     cycles := cycles + 1.U
   }
 
@@ -93,10 +93,10 @@ class Compute(implicit config: AccelConfig) extends Module {
   io.ecnt(0).bits := cycles
 
   // calculate next address
-  when (state === sIdle) {
+  when(state === sIdle) {
     raddr := io.ptrs(0)
     waddr := io.ptrs(1)
-  } .elsewhen (state === sWriteData) { // increment by 8-bytes
+  }.elsewhen(state === sWriteData) { // increment by 8-bytes
     raddr := raddr + 8.U
     waddr := waddr + 8.U
   }
@@ -108,7 +108,7 @@ class Compute(implicit config: AccelConfig) extends Module {
   io.mem.req.addr := Mux(state === sReadReq, raddr, waddr)
 
   // read
-  when (state === sReadData && io.mem.rd.valid) {
+  when(state === sReadData && io.mem.rd.valid) {
     reg := io.mem.rd.bits + const
   }
   io.mem.rd.ready := state === sReadData
@@ -118,9 +118,9 @@ class Compute(implicit config: AccelConfig) extends Module {
   io.mem.wr.bits := reg
 
   // count read/write
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt := 0.U
-  } .elsewhen (state === sWriteData) {
+  }.elsewhen(state === sWriteData) {
     cnt := cnt + 1.U
   }
 
