@@ -864,7 +864,7 @@ def test_extern_adt_defn():
 
     assert parses_as(
         """
-        extern type T
+        extern type T[A]
         """,
         mod
     )
