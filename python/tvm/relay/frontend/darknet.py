@@ -458,11 +458,11 @@ class GraphProto(object):
         if layer.nweights == 0:
             return None
 
-        if (layer.n * layer.c * layer.size * layer.size) != layer.nweights:
+        if (layer.n * layer.c // layer.groups * layer.size * layer.size) != layer.nweights:
             raise RuntimeError("layer weights size not matching with n c h w")
 
         params = {}
-        shape = (layer.n, layer.c, layer.size, layer.size)
+        shape = (layer.n, layer.c // layer.groups, layer.size, layer.size)
         weights = self._read_memory_buffer(shape, layer.weights)
 
         biases = self._read_memory_buffer((layer.n, ), layer.biases)
