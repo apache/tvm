@@ -337,9 +337,9 @@ def _crop_and_resize():
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
         # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
         try:
-            boxes = params.pop(inputs[1].name_hint).asnumpy().tolist()
-            box_ind = params.pop(inputs[2].name_hint).asnumpy().tolist()
-            crop_size = params.pop(inputs[3].name_hint).asnumpy().tolist()
+            boxes = _get_list_param(params, inputs[1])
+            box_ind = _get_list_param(params, inputs[2])
+            crop_size = _get_list_param(params, inputs[3])
         except (IndexError, KeyError):
             boxes = _infer_value(inputs[1], params).asnumpy().tolist()
             box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
@@ -507,7 +507,7 @@ def _pack():
 
 def _tile():
     def _impl(inputs, attr, params):
-        reps = params[inputs.pop().name_hint].asnumpy()
+        reps = _get_list_param(params, inputs.pop())
         new_input = []
         new_input.append(inputs.pop(0))
 
@@ -939,8 +939,8 @@ def _where():
 
 def _clip_by_value():
     def _impl(inputs, attr, params):
-        a_min = params.pop(inputs[1].name_hint).asnumpy()[0]
-        a_max = params.pop(inputs[2].name_hint).asnumpy()[0]
+        a_min = _get_num_param(params, inputs[1])
+        a_max = _get_num_param(params, inputs[2])
         return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
     return _impl
 
