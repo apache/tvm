@@ -190,7 +190,7 @@ class SplitSpace(TransformSpace):
         self.entities = []
 
         max_factor = kwargs.get("max_factor", 1 << 31)
-        fil = kwargs.get("filter", lambda x: True) 
+        fil = kwargs.get("filter", lambda x: True)
         self.product = axis.length
         self.num_output = kwargs.get("num_outputs", 0)
         assert self.num_output > 0
@@ -214,17 +214,21 @@ class SplitSpace(TransformSpace):
             else:
                 raise RuntimeError("Invalid policy: %s" % policy)
 
+            # Enforce the product of all split factors equals to the axis length
+            no_tail = kwargs.get("no_tail", policy == 'factors')
+
             # Generate split entity by enumerating candidate factors.
             self.factors = factors
-            self._generate_space(0, [None] * self.num_output, enforce_no_tail=(policy=='factors'))
+            self._generate_space(0, [None] * (self.num_output - 1), enforce_no_tail=no_tail)
 
         self.entities = list(filter(fil, self.entities))
 
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
-        if now == self.num_outputs - 1:
+        if now == self.num_output - 1:
+            # The last factor is from the product
             size = np.prod(tmp_stack, dtype=np.int64)
-            if self.product % size == 0:
+            if not enforce_no_tail or self.product % size == 0:
                 first = int(self.product // int(size))
                 self.entities.append(SplitEntity([first] + tmp_stack[::-1]))
         else:
@@ -641,7 +645,7 @@ class ConfigSpace(object):
             name of policy.
             If is 'factors', the tuner will try all divisible factors.
             If is 'power2', the tuner will try power-of-two factors less or equal to the length.
-            If is 'verbose', the tuner will try all candidates in above two policies. 
+            If is 'verbose', the tuner will try all candidates in above two policies.
             If is 'candidate', try given candidates.
         kwargs: dict
             extra arguments for policy
