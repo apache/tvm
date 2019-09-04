@@ -58,5 +58,10 @@ def test_negative_grad():
     check_grad(fwd_func)
 
 
+def test_cast_grad():
+    data = relay.var("data", relay.TensorType((10, 4), "float32"))
+    fwd_func = relay.Function([data], relay.cast(data, "float64"))
+    check_grad(fwd_func)
+
 if __name__ == "__main__":
     pytest.main()
