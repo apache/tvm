@@ -42,24 +42,24 @@
 #include <unordered_set>
 #include "./expr_subst.h"
 #include "./pattern_util.h"
-#include "./combine_parallel_op.h"
+#include "./combine_parallel_op_batch.h"
 
 namespace tvm {
 namespace relay {
 
-class ParallelDenseCombiner : public ParallelOpCombiner {
+class ParallelDenseCombiner : public ParallelOpBatchCombiner {
  public:
   explicit ParallelDenseCombiner(uint64_t min_num_branches)
-    : ParallelOpCombiner("nn.dense", min_num_branches) {
+    : ParallelOpBatchCombiner("nn.dense", "nn.batch_matmul", min_num_branches) {
   }
 
  protected:
-  bool IsSupportedOp(const CallNode* n) {
+  virtual bool IsSupportedOp(const CallNode* n) {
     const auto* attrs = n->attrs.as<DenseAttrs>();
     return !attrs->units.defined();
   }
 
-  bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
+  virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
     const auto* attrs_b = b->attrs.as<DenseAttrs>();
@@ -72,84 +72,6 @@ class ParallelDenseCombiner : public ParallelOpCombiner {
            eq(weight_a->shape[0], weight_b->shape[0]) &&
            eq(weight_a->shape[1], weight_b->shape[1]) &&
            eq(attrs_a->units.defined(), attrs_b->units.defined());
-  }
-
-  Call MakeCombinedOp(const Group& branches) {
-    static const Op& batch_matmul = Op::Get("nn.batch_matmul");
-    Array<Expr> datas;
-    Array<Expr> weights;
-    for (const auto& branch : branches) {
-      auto dense = branch[0];
-      auto data = dense->args[0];
-      auto weight = dense->args[1];
-      datas.push_back(data);
-      weights.push_back(weight);
-    }
-
-    Expr new_data = MakeStack(TupleNode::make(datas), 0);
-    Expr new_weight = MakeStack(TupleNode::make(weights), 0);
-    return CallNode::make(batch_matmul, {new_data, new_weight}, Attrs(), {});
-  }
-
-  bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
-    AttrsEqual eq;
-    auto ta = a->args[index]->type_as<TensorTypeNode>();
-    auto tb = b->args[index]->type_as<TensorTypeNode>();
-
-    if (!eq(ta->dtype, tb->dtype) || ta->shape.size() != tb->shape.size())
-      return false;
-
-    for (size_t i = 0; i < ta->shape.size(); i++) {
-      if (!eq(ta->shape[i], tb->shape[i]))
-        return false;
-    }
-    return true;
-  }
-
-  Call MakeCombinedCallFromFollowingOps(const Expr& data,
-                                        const Group& branches,
-                                        size_t depth,
-                                        size_t parent_index) {
-    Array<Expr> new_args;
-    const CallNode* call = branches[0][depth];
-
-    for (size_t i = 0; i < call->args.size(); i++) {
-      if (i == parent_index) {
-        new_args.push_back(data);
-        continue;
-      }
-
-      Array<Expr> tuple;
-      for (const auto& branch : branches) {
-        // if the shape of the arg is 1D, expand it to (1,j) so it can be properly broadcasted.
-        Expr arg = branch[depth]->args[i];
-        const TensorTypeNode* arg_tensor = arg->type_as<TensorTypeNode>();
-        if (arg_tensor->shape.size() == 1) {
-          Expr expanded_arg = MakeExpandDims(arg, 0, 1);
-          tuple.push_back(expanded_arg);
-        } else {
-          tuple.push_back(arg);
-        }
-      }
-
-      auto stack = MakeStack(TupleNode::make(tuple), 0);
-      new_args.push_back(std::move(stack));
-    }
-
-    return CallNode::make(call->op, new_args, call->attrs, {});
-  }
-
-  void UpdateGroupOutput(const Expr& data,
-                         const Group& branches,
-                         size_t depth,
-                         ExprSubstMap* subst_map) {
-    int index = 0;
-    auto split = MakeSplit(data, Integer(branches.size()), 0);
-    for (const auto& branch : branches) {
-      auto split_data = TupleGetItemNode::make(split, index++);
-      auto squeezed_data = MakeSqueeze(split_data, {0});
-      subst_map->insert({GetRef<Expr>(branch[depth]), squeezed_data});
-    }
   }
 };
 
