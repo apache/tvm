@@ -21,7 +21,7 @@ from tvm import autotvm
 from ..util import traverse_inline
 from .. import tag
 from .. import generic, nn
-from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_infer_layout
+from ..nn.depthwise_conv2d import depthwise_conv2d_infer_layout
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
 autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['intel_graphics'], 'direct',
@@ -313,7 +313,7 @@ def schedule_depthwise_conv2d_backward_weight_nhwc(outs):
     return s
 
 @depthwise_conv2d_infer_layout.register("intel_graphics")
-def _depthwise_conv2d_infer_layout(workload, cfg):
+def _depthwise_conv2d_infer_layout(workload, _):
     """Infer input/output shapes and layouts from a workload and cfg.
 
     Parameters
@@ -329,7 +329,7 @@ def _depthwise_conv2d_infer_layout(workload, cfg):
     Output : [tuple of tuple and str, tuple of tuple and str]
         Input shapes and layouts, and output shapes and layouts
     """
-    _, data, kernel, strides, padding, dilation, dtype = workload
+    _, data, kernel, strides, padding, _, _ = workload
     batch_size, in_channel, in_height, in_width = data[:-1]
     filter_channel, channel_multiplier, k_height, k_width = kernel[:-1]
     out_channel = filter_channel * channel_multiplier
