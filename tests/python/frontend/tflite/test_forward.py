@@ -950,6 +950,9 @@ if __name__ == '__main__':
     # BatchToSpaceND
     test_forward_batch_to_space_nd()
 
+    # SpaceToBatchND
+    test_forward_space_to_batch_nd()
+
     # Split
     test_forward_split()
 
