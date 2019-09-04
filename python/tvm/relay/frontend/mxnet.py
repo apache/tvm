@@ -56,7 +56,6 @@ def _mx_fully_connected(inputs, attrs):
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
     data_shape = _infer_type(inputs[0]).checked_type.shape
-    weight_shape = _infer_type(inputs[1]).checked_type.shape
     if len(data_shape) > 2:
         inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
@@ -65,7 +64,7 @@ def _mx_fully_connected(inputs, attrs):
         res = _op.nn.bias_add(res, inputs[2], axis=-1)
     if len(data_shape) > 2:
         new_shape = data_shape[:-1]
-        new_shape.append(weight_shape[0])
+        new_shape.append(units)
         res = _op.reshape(res, new_shape)
     return res
 
