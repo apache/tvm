@@ -145,7 +145,6 @@ bool Conv2DRel(const Array<Type>& types,
   return true;
 }
 
->>>>>>> init
 
 // Positional relay function to create conv2d operator
 // used by frontend FFI.
