@@ -211,6 +211,7 @@ This level supports dialect operators.
    :nosignatures:
 
    tvm.relay.qnn.op.requantize
+   tvm.relay.qnn.op.conv2d
 
 
 Level 1 Definitions
@@ -357,3 +358,4 @@ Level 10 Definitions
 Level 11 Definitions
 --------------------
 .. autofunction:: tvm.relay.qnn.op.requantize
+.. autofunction:: tvm.relay.qnn.op.conv2d

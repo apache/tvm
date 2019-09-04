@@ -415,6 +415,71 @@ static inline Expr Full(Expr fill_value,
   return CallNode::make(op, {fill_value}, Attrs(attrs), {});
 }
 
+static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
+                          Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
+                          IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
+                          std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+  auto attrs = make_node<Conv2DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get("nn.conv2d");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  auto attrs = make_node<ReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  static const Op& op = Op::Get("sum");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+static inline Expr Reshape(Expr data, Array<Integer> newshape) {
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = std::move(newshape);
+  attrs->reverse = false;
+  static const Op& op = Op::Get("reshape");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                             Array<IndexExpr> padding, std::string layout, bool ceil_mode,
+                             bool count_include_pad) {
+  auto attrs = make_node<AvgPool2DAttrs>();
+  attrs->pool_size = std::move(pool_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->layout = std::move(layout);
+  attrs->ceil_mode = ceil_mode;
+  attrs->count_include_pad = count_include_pad;
+  static const Op& op = Op::Get("nn.avg_pool2d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value) {
+  auto attrs = make_node<PadAttrs>();
+  attrs->pad_value = pad_value;
+  attrs->pad_width = std::move(pad_width);
+  static const Op& op = Op::Get("nn.pad");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+static inline Expr Tile(Expr data, Array<Integer> reps) {
+  auto attrs = make_node<TileAttrs>();
+  attrs->reps = reps;
+  static const Op& op = Op::Get("tile");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
