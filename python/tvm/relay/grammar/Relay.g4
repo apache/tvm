@@ -119,6 +119,7 @@ expr
 func: 'fn' typeParamList? '(' argList ')' ('->' typeExpr)? body ;
 defn
   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
+  | 'extern' 'type' generalIdent typeParamList?                           # externAdtDefn
   | 'type' generalIdent typeParamList? '{' adtConsDefnList? '}'           # adtDefn
   ;
 

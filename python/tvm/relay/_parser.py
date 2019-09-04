@@ -500,11 +500,12 @@ class ParseTreeToRelayIR(RelayVisitor):
         ident = self.mk_global_var(ident_name)
         self.module[ident] = self.mk_func(ctx)
 
-    def visitAdtDefn(self, ctx: RelayParser.AdtDefnContext):
+    def handle_adt_header(
+            self,
+            ctx: Union[RelayParser.ExternAdtDefnContext, RelayParser.AdtDefnContext]):
+        """Handles parsing of the name and type params of an ADT definition."""
         adt_name = ctx.generalIdent().getText()
-        adt_handle = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
-        self.enter_type_param_scope()
-
+        adt_var = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
         # parse type params
         type_params = ctx.typeParamList()
         if type_params is None:
@@ -512,7 +513,19 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
                            for type_ident in type_params.generalIdent()]
+        return adt_var, type_params
 
+    def visitExternAdtDefn(self, ctx: RelayParser.ExternAdtDefnContext):
+        # TODO(weberlo): update this handler once extern is implemented
+        self.enter_type_param_scope()
+        adt_var, type_params = self.handle_adt_header(ctx)
+        # update module being built
+        self.module[adt_var] = adt.TypeData(adt_var, type_params, [])
+        self.exit_type_param_scope()
+
+    def visitAdtDefn(self, ctx: RelayParser.AdtDefnContext):
+        self.enter_type_param_scope()
+        adt_var, type_params = self.handle_adt_header(ctx)
         # parse constructors
         adt_cons_defns = ctx.adtConsDefnList()
         if adt_cons_defns is None:
@@ -523,13 +536,11 @@ class ParseTreeToRelayIR(RelayVisitor):
         for cons_defn in adt_cons_defns:
             inputs = [self.visit(inp) for inp in cons_defn.typeExpr()]
             cons_defn_name = cons_defn.constructorName().getText()
-            cons_defn = adt.Constructor(cons_defn_name, inputs, adt_handle)
+            cons_defn = adt.Constructor(cons_defn_name, inputs, adt_var)
             self.mk_global_typ_cons(cons_defn_name, cons_defn)
             parsed_constructors.append(cons_defn)
-
         # update module being built
-        self.module[adt_handle] = adt.TypeData(adt_handle, type_params, parsed_constructors)
-
+        self.module[adt_var] = adt.TypeData(adt_var, type_params, parsed_constructors)
         self.exit_type_param_scope()
 
     def visitMatch(self, ctx: RelayParser.MatchContext):

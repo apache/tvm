@@ -782,8 +782,13 @@ class PrettyPrinter :
     }
     Doc separator;
     separator << "," << PrintNewLine();
-    doc << Brace(PrintSep(constructor_docs, separator) << ",");
-
+    Doc adt_body;
+    adt_body << PrintSep(constructor_docs, separator);
+    // add trailing comma if there are any constructors
+    if (!constructor_docs.empty()) {
+      adt_body << ",";
+    }
+    doc << Brace(adt_body);
     return doc;
   }
 

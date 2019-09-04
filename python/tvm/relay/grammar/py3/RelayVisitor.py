@@ -139,6 +139,11 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RelayParser#externAdtDefn.
+    def visitExternAdtDefn(self, ctx:RelayParser.ExternAdtDefnContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#adtDefn.
     def visitAdtDefn(self, ctx:RelayParser.AdtDefnContext):
         return self.visitChildren(ctx)

@@ -659,6 +659,20 @@ def test_adt_defn():
     )
 
 
+def test_empty_adt_defn():
+    mod = relay.Module()
+
+    glob_typ_var = relay.GlobalTypeVar("Ayy")
+    prog = relay.TypeData(glob_typ_var, [], [])
+    mod[glob_typ_var] = prog
+    assert parses_as(
+        """
+        type Ayy { }
+        """,
+        mod
+    )
+
+
 def test_multiple_cons_defn():
     mod = relay.Module()
 
@@ -840,6 +854,22 @@ def test_duplicate_global_var():
     )
 
 
+def test_extern_adt_defn():
+    # TODO(weberlo): update this test once extern is implemented
+    mod = relay.Module()
+
+    extern_var = relay.GlobalTypeVar("T")
+    extern_def = relay.TypeData(extern_var, [], [])
+    mod[extern_var] = extern_def
+
+    assert parses_as(
+        """
+        extern type T
+        """,
+        mod
+    )
+
+
 if __name__ == "__main__":
     test_comments()
     test_int_literal()
@@ -864,6 +894,7 @@ if __name__ == "__main__":
     test_function_type()
     test_tuple_type()
     test_adt_defn()
+    test_empty_adt_defn()
     test_multiple_cons_defn()
     test_multiple_type_param_defn()
     test_match()
@@ -872,3 +903,4 @@ if __name__ == "__main__":
     test_duplicate_adt_cons()
     test_duplicate_adt_cons_defn()
     test_duplicate_global_var()
+    test_extern_adt_defn()
