@@ -176,6 +176,21 @@ Expr Let::make(Var var, Expr value, Expr body) {
   return Expr(node);
 }
 
+const char* Call::vectorizable_intrinsics[] = {
+    "floor", "ceil", "sign", "trunc", "abs", "round", "exp", "tanh", "sqrt",
+    "log", "sin", "cos", "likely"
+};
+
+bool Call::is_vectorizable() const {
+  size_t cnt = sizeof(Call::vectorizable_intrinsics) / sizeof(char*);
+  for (size_t i = 0; i < cnt; ++i) {
+    if (name == Call::vectorizable_intrinsics[i]) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Expr Call::make(DataType type,
                 std::string name,
                 Array<Expr> args,

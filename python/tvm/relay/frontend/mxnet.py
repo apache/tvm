@@ -507,7 +507,7 @@ def _mx_arange(inputs, attrs):
     new_attrs = {}
     new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
     stop = attrs.get_str("stop", "None")
-    new_attrs["stop"] = None if stop == "None" else _expr.const(eval(stop))
+    new_attrs["stop"] = None if stop == "None" else _expr.const(float(stop))
     new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
     new_attrs["dtype"] = attrs.get_str("dtype", "float32")
     return _op.arange(**new_attrs)

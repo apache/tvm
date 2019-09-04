@@ -263,37 +263,39 @@ class Vectorizer : public IRMutator {
           {cond, t, f}, op->call_type, op->func, op->value_index);
     }
   }
-  Expr MutateErf_(const Call* op, const Expr& e) {
-    Expr arg = this->Mutate(op->args[0]);
-    if (arg.type().is_vector()) {
-      need_scalarize_ = true;
-      return e;
-    }
-    if (arg.same_as(op->args[0])) {
-      return e;
-    } else {
-      return Call::make(
-          op->type, op->name, {arg}, op->call_type, op->func, op->value_index);
-    }
-  }
   // Call
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->name == intrinsic::tvm_if_then_else) {
       return MutateIfThenElseExpr_(op, e);
     }
-    if (op->name == "erf") {
-      return MutateErf_(op, e);
-    }
-    int lane = 0;
-    Array<Expr> new_args = MutateArray(op->args, &lane);
-
-    // normal code path.
-    if (op->args.same_as(new_args)) {
-      return e;
+    if (!op->is_vectorizable()) {
+      // Cannot vectorize this op
+      Array<Expr> new_args;
+      for (auto arg : op->args) {
+        auto new_arg = this->Mutate(arg);
+        if (new_arg.type().is_vector()) {
+          need_scalarize_ = true;
+          return e;
+        }
+        new_args.push_back(new_arg);
+      }
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type, op->name, new_args, op->call_type, op->func, op->value_index);
+      }
     } else {
-      return Call::make(
-          op->type.with_lanes(lane), op->name, new_args,
-          op->call_type, op->func, op->value_index);
+      int lane = 0;
+      Array<Expr> new_args = MutateArray(op->args, &lane);
+      // normal code path.
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type.with_lanes(lane), op->name, new_args,
+            op->call_type, op->func, op->value_index);
+      }
     }
   }
   // Load
