@@ -27,7 +27,8 @@ from ..nn.depthwise_conv2d import depthwise_conv2d_infer_layout
 autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['intel_graphics'], 'direct',
                               nn.depthwise_conv2d_nchw.fdefault)
 
-@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, ['intel_graphics'], 'direct')
+@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, \
+        ['intel_graphics'], 'direct')
 def schedule_depthwise_conv2d_nchw_intel_graphics(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
 
