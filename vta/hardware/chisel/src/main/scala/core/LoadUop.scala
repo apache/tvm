@@ -77,9 +77,9 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val xcnt = Reg(chiselTypeOf(io.vme_rd.cmd.bits.len))
   val xlen = Reg(chiselTypeOf(io.vme_rd.cmd.bits.len))
   val xrem = Reg(chiselTypeOf(dec.xsize))
-  val xsize =  (dec.xsize >> log2Ceil(numUop)) + dec.xsize(0) + (dec.sram_offset % 2.U) - 1.U
+  val xsize = (dec.xsize >> log2Ceil(numUop)) + dec.xsize(0) + (dec.sram_offset % 2.U) - 1.U
   val xmax = (1 << mp.lenBits).U
-  val xmax_bytes = ((1 << mp.lenBits)*mp.dataBits/8).U
+  val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
 
   val offsetIsEven = (dec.sram_offset % 2.U) === 0.U
   val sizeIsEven = (dec.xsize % 2.U) === 0.U
@@ -88,38 +88,39 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val state = RegInit(sIdle)
 
   // control
-  switch (state) {
-    is (sIdle) {
-      when (io.start) {
+  switch(state) {
+    is(sIdle) {
+      when(io.start) {
         state := sReadCmd
-        when (xsize < xmax) {
+        when(xsize < xmax) {
           xlen := xsize
           xrem := 0.U
-        } .otherwise {
+        }.otherwise {
           xlen := xmax - 1.U
           xrem := xsize - xmax
         }
       }
     }
-    is (sReadCmd) {
-      when (io.vme_rd.cmd.ready) {
+    is(sReadCmd) {
+      when(io.vme_rd.cmd.ready) {
         state := sReadData
       }
     }
-    is (sReadData) {
-      when (io.vme_rd.data.valid) {
+    is(sReadData) {
+      when(io.vme_rd.data.valid) {
         when(xcnt === xlen) {
-          when (xrem === 0.U) {
+          when(xrem === 0.U) {
             state := sIdle
-          } .elsewhen (xrem < xmax) {
-            state := sReadCmd
-            xlen := xrem
-            xrem := 0.U
-          } .otherwise {
-            state := sReadCmd
-            xlen := xmax - 1.U
-            xrem := xrem - xmax
-          }
+          }.elsewhen(xrem < xmax) {
+              state := sReadCmd
+              xlen := xrem
+              xrem := 0.U
+            }
+            .otherwise {
+              state := sReadCmd
+              xlen := xmax - 1.U
+              xrem := xrem - xmax
+            }
         }
       }
     }
@@ -127,13 +128,14 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   // read-from-dram
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
-  when (state === sIdle) {
-    when (offsetIsEven) {
+  when(state === sIdle) {
+    when(offsetIsEven) {
       raddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))
-    } .otherwise {
-      raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) - uopBytes.U
+    }.otherwise {
+      raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
+        uopBytes)))) - uopBytes.U
     }
-  } .elsewhen (state === sReadData && xcnt === xlen && xrem =/= 0.U) {
+  }.elsewhen(state === sReadData && xcnt === xlen && xrem =/= 0.U) {
     raddr := raddr + xmax_bytes
   }
 
@@ -143,16 +145,16 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   io.vme_rd.data.ready := state === sReadData
 
-  when (state =/= sReadData) {
+  when(state =/= sReadData) {
     xcnt := 0.U
-  } .elsewhen (io.vme_rd.data.fire()) {
+  }.elsewhen(io.vme_rd.data.fire()) {
     xcnt := xcnt + 1.U
   }
 
   val waddr = Reg(UInt(log2Ceil(uopDepth).W))
-  when (state === sIdle) {
+  when(state === sIdle) {
     waddr := dec.sram_offset >> log2Ceil(numUop)
-  } .elsewhen (io.vme_rd.data.fire()) {
+  }.elsewhen(io.vme_rd.data.fire()) {
     waddr := waddr + 1.U
   }
 
@@ -160,36 +162,37 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mem = SyncReadMem(uopDepth, chiselTypeOf(wdata))
   val wmask = Reg(Vec(numUop, Bool()))
 
-  when (offsetIsEven) {
-    when (sizeIsEven) {
+  when(offsetIsEven) {
+    when(sizeIsEven) {
       wmask := "b_11".U.asTypeOf(wmask)
-    } .elsewhen (io.vme_rd.cmd.fire()) {
-      when (dec.xsize === 1.U) {
-        wmask := "b_01".U.asTypeOf(wmask)
-      } .otherwise {
-        wmask := "b_11".U.asTypeOf(wmask)
+    }.elsewhen(io.vme_rd.cmd.fire()) {
+        when(dec.xsize === 1.U) {
+          wmask := "b_01".U.asTypeOf(wmask)
+        }.otherwise {
+          wmask := "b_11".U.asTypeOf(wmask)
+        }
       }
-    } .elsewhen (io.vme_rd.data.fire()) {
-      when (xcnt === xlen - 1.U) {
-        wmask := "b_01".U.asTypeOf(wmask)
-      } .otherwise {
-        wmask := "b_11".U.asTypeOf(wmask)
+      .elsewhen(io.vme_rd.data.fire()) {
+        when(xcnt === xlen - 1.U) {
+          wmask := "b_01".U.asTypeOf(wmask)
+        }.otherwise {
+          wmask := "b_11".U.asTypeOf(wmask)
+        }
       }
-    }
-  } .otherwise {
-    when (io.vme_rd.cmd.fire()) {
+  }.otherwise {
+    when(io.vme_rd.cmd.fire()) {
       wmask := "b_10".U.asTypeOf(wmask)
-    } .elsewhen (io.vme_rd.data.fire()) {
-      when (sizeIsEven && xcnt === xlen - 1.U) {
+    }.elsewhen(io.vme_rd.data.fire()) {
+      when(sizeIsEven && xcnt === xlen - 1.U) {
         wmask := "b_01".U.asTypeOf(wmask)
-      } .otherwise {
+      }.otherwise {
         wmask := "b_11".U.asTypeOf(wmask)
       }
     }
   }
 
   wdata := io.vme_rd.data.bits.asTypeOf(wdata)
-  when (io.vme_rd.data.fire()) {
+  when(io.vme_rd.data.fire()) {
     mem.write(waddr, wdata, wmask)
   }
 
@@ -209,7 +212,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   // debug
   if (debug) {
-    when (io.vme_rd.cmd.fire()) {
+    when(io.vme_rd.cmd.fire()) {
       printf("[LoadUop] cmd addr:%x len:%x rem:%x\n", raddr, xlen, xrem)
     }
   }

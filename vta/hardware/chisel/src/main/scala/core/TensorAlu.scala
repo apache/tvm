@@ -116,7 +116,8 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
     val acc = new TensorMaster(tensorType = "acc")
     val out = new TensorMaster(tensorType = "out")
   })
-  val sIdle :: sReadUop :: sComputeIdx :: sReadTensorA :: sReadTensorB :: sExe :: Nil = Enum(6)
+  val sIdle :: sReadUop :: sComputeIdx :: sReadTensorA :: sReadTensorB :: sExe :: Nil =
+    Enum(6)
   val state = RegInit(sIdle)
   val alu = Module(new AluVector)
   val dec = io.inst.asTypeOf(new AluDecode)
@@ -132,81 +133,86 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val src_i = Reg(chiselTypeOf(dec.uop_end))
   val done =
     state === sExe &
-    alu.io.out.data.valid &
-    (cnt_o === dec.lp_0 - 1.U) &
-    (cnt_i === dec.lp_1 - 1.U) &
-    (uop_idx === uop_end - 1.U)
+      alu.io.out.data.valid &
+      (cnt_o === dec.lp_0 - 1.U) &
+      (cnt_i === dec.lp_1 - 1.U) &
+      (uop_idx === uop_end - 1.U)
 
-  switch (state) {
-    is (sIdle) {
-      when (io.start) {
+  switch(state) {
+    is(sIdle) {
+      when(io.start) {
         state := sReadUop
       }
     }
-    is (sReadUop) {
+    is(sReadUop) {
       state := sComputeIdx
     }
-    is (sComputeIdx) {
+    is(sComputeIdx) {
       state := sReadTensorA
     }
-    is (sReadTensorA) {
+    is(sReadTensorA) {
       state := sReadTensorB
     }
-    is (sReadTensorB) {
+    is(sReadTensorB) {
       state := sExe
     }
-    is (sExe) {
-      when (alu.io.out.data.valid) {
-        when ((cnt_o === dec.lp_0 - 1.U) &&
-              (cnt_i === dec.lp_1 - 1.U) &&
-              (uop_idx === uop_end - 1.U)) {
+    is(sExe) {
+      when(alu.io.out.data.valid) {
+        when(
+          (cnt_o === dec.lp_0 - 1.U) &&
+            (cnt_i === dec.lp_1 - 1.U) &&
+            (uop_idx === uop_end - 1.U)) {
           state := sIdle
-        } .otherwise {
+        }.otherwise {
           state := sReadUop
         }
       }
     }
   }
 
-  when (state === sIdle ||
-         (state === sExe &&
-          alu.io.out.data.valid &&
-          uop_idx === uop_end - 1.U)) {
+  when(
+    state === sIdle ||
+      (state === sExe &&
+        alu.io.out.data.valid &&
+        uop_idx === uop_end - 1.U)) {
     uop_idx := dec.uop_begin
-  } .elsewhen (state === sExe && alu.io.out.data.valid) {
+  }.elsewhen(state === sExe && alu.io.out.data.valid) {
     uop_idx := uop_idx + 1.U
   }
 
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt_o := 0.U
     dst_o := 0.U
     src_o := 0.U
-  } .elsewhen (state === sExe &&
-               alu.io.out.data.valid &&
-               uop_idx === uop_end - 1.U &&
-               cnt_i === dec.lp_1 - 1.U) {
+  }.elsewhen(
+    state === sExe &&
+      alu.io.out.data.valid &&
+      uop_idx === uop_end - 1.U &&
+      cnt_i === dec.lp_1 - 1.U) {
     cnt_o := cnt_o + 1.U
     dst_o := dst_o + dec.dst_0
     src_o := src_o + dec.src_0
   }
 
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt_i := 0.U
     dst_i := 0.U
     src_i := 0.U
-  } .elsewhen (state === sReadUop && cnt_i === dec.lp_1) {
-    cnt_i := 0.U
-    dst_i := dst_o
-    src_i := src_o
-  } .elsewhen (state === sExe &&
-               alu.io.out.data.valid &&
-               uop_idx === uop_end - 1.U) {
-    cnt_i := cnt_i + 1.U
-    dst_i := dst_i + dec.dst_1
-    src_i := src_i + dec.src_1
-  }
+  }.elsewhen(state === sReadUop && cnt_i === dec.lp_1) {
+      cnt_i := 0.U
+      dst_i := dst_o
+      src_i := src_o
+    }
+    .elsewhen(
+      state === sExe &&
+        alu.io.out.data.valid &&
+        uop_idx === uop_end - 1.U) {
+      cnt_i := cnt_i + 1.U
+      dst_i := dst_i + dec.dst_1
+      src_i := src_i + dec.src_1
+    }
 
-  when (state === sComputeIdx && io.uop.data.valid) {
+  when(state === sComputeIdx && io.uop.data.valid) {
     uop_dst := io.uop.data.bits.u0 + dst_i
     uop_src := io.uop.data.bits.u1 + src_i
   }
@@ -222,17 +228,25 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   // imm
   val tensorImm = Wire(new TensorClientData(tensorType = "acc"))
   tensorImm.data.valid := state === sReadTensorB
-  tensorImm.data.bits.foreach { b => b.foreach { c => c := dec.alu_imm } }
+  tensorImm.data.bits.foreach { b =>
+    b.foreach { c =>
+      c := dec.alu_imm
+    }
+  }
 
   // alu
   val isSHR = dec.alu_op === ALU_OP(3)
-  val neg_shift = isSHR & dec.alu_imm(C_ALU_IMM_BITS-1)
+  val neg_shift = isSHR & dec.alu_imm(C_ALU_IMM_BITS - 1)
   val fixme_alu_op = Cat(neg_shift, Mux(neg_shift, 0.U, dec.alu_op))
   alu.io.opcode := fixme_alu_op
   alu.io.acc_a.data.valid := io.acc.rd.data.valid & state === sReadTensorB
   alu.io.acc_a.data.bits <> io.acc.rd.data.bits
-  alu.io.acc_b.data.valid := Mux(dec.alu_use_imm, tensorImm.data.valid, io.acc.rd.data.valid & state === sExe)
-  alu.io.acc_b.data.bits <> Mux(dec.alu_use_imm, tensorImm.data.bits, io.acc.rd.data.bits)
+  alu.io.acc_b.data.valid := Mux(dec.alu_use_imm,
+                                 tensorImm.data.valid,
+                                 io.acc.rd.data.valid & state === sExe)
+  alu.io.acc_b.data.bits <> Mux(dec.alu_use_imm,
+                                tensorImm.data.bits,
+                                io.acc.rd.data.bits)
 
   // acc_o
   io.acc.wr.valid := alu.io.acc_y.data.valid
@@ -249,47 +263,51 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   if (debug) {
 
-    when (state === sReadUop) {
+    when(state === sReadUop) {
       printf("[TensorAlu] [uop] idx:%x\n", uop_idx)
     }
 
-    when (state === sReadTensorA) {
+    when(state === sReadTensorA) {
       printf("[TensorAlu] [uop] dst:%x src:%x\n", uop_dst, uop_src)
     }
 
-    when (state === sIdle && io.start) {
+    when(state === sIdle && io.start) {
       printf(p"[TensorAlu] decode:$dec\n")
     }
 
     alu.io.acc_a.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (alu.io.acc_a.data.valid) {
-          printf("[TensorAlu] [a] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(alu.io.acc_a.data.valid) {
+            printf("[TensorAlu] [a] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
 
     alu.io.acc_b.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (alu.io.acc_b.data.valid) {
-          printf("[TensorAlu] [b] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(alu.io.acc_b.data.valid) {
+            printf("[TensorAlu] [b] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
 
     alu.io.acc_y.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (alu.io.acc_y.data.valid) {
-          printf("[TensorAlu] [y] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(alu.io.acc_y.data.valid) {
+            printf("[TensorAlu] [y] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
 
     alu.io.out.data.bits.foreach { tensor =>
-      tensor.zipWithIndex.foreach { case(elem, i) =>
-        when (alu.io.out.data.valid) {
-          printf("[TensorAlu] [out] i:%x val:%x\n", i.U, elem)
-        }
+      tensor.zipWithIndex.foreach {
+        case (elem, i) =>
+          when(alu.io.out.data.valid) {
+            printf("[TensorAlu] [out] i:%x val:%x\n", i.U, elem)
+          }
       }
     }
   }

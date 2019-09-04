@@ -54,27 +54,28 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   val tensorType = Seq("inp", "wgt")
   val tensorDec = Seq(dec.io.isInput, dec.io.isWeight)
-  val tensorLoad = Seq.tabulate(2)(i => Module(new TensorLoad(tensorType = tensorType(i))))
+  val tensorLoad =
+    Seq.tabulate(2)(i => Module(new TensorLoad(tensorType = tensorType(i))))
 
   val start = inst_q.io.deq.valid & Mux(dec.io.pop_next, s.io.sready, true.B)
   val done = Mux(dec.io.isInput, tensorLoad(0).io.done, tensorLoad(1).io.done)
 
   // control
-  switch (state) {
-    is (sIdle) {
-      when (start) {
-        when (dec.io.isSync) {
+  switch(state) {
+    is(sIdle) {
+      when(start) {
+        when(dec.io.isSync) {
           state := sSync
-        } .elsewhen (dec.io.isInput || dec.io.isWeight) {
+        }.elsewhen(dec.io.isInput || dec.io.isWeight) {
           state := sExe
         }
       }
     }
-    is (sSync) {
+    is(sSync) {
       state := sIdle
     }
-    is (sExe) {
-      when (done) {
+    is(sExe) {
+      when(done) {
         state := sIdle
       }
     }
@@ -105,24 +106,25 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   // debug
   if (debug) {
     // start
-    when (state === sIdle && start) {
-      when (dec.io.isSync) {
+    when(state === sIdle && start) {
+      when(dec.io.isSync) {
         printf("[Load] start sync\n")
-      } .elsewhen (dec.io.isInput) {
-        printf("[Load] start input\n")
-      } .elsewhen (dec.io.isWeight) {
-        printf("[Load] start weight\n")
-      }
+      }.elsewhen(dec.io.isInput) {
+          printf("[Load] start input\n")
+        }
+        .elsewhen(dec.io.isWeight) {
+          printf("[Load] start weight\n")
+        }
     }
     // done
-    when (state === sSync) {
+    when(state === sSync) {
       printf("[Load] done sync\n")
     }
-    when (state === sExe) {
-      when (done) {
-        when (dec.io.isInput) {
+    when(state === sExe) {
+      when(done) {
+        when(dec.io.isInput) {
           printf("[Load] done input\n")
-        } .elsewhen (dec.io.isWeight) {
+        }.elsewhen(dec.io.isWeight) {
           printf("[Load] done weight\n")
         }
       }

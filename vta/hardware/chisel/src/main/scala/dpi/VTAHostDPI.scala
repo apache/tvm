@@ -78,55 +78,56 @@ class VTAHostDPI extends BlackBox with HasBlackBoxResource {
   *
   * Convert Host DPI to AXI for VTAShell
   */
-
-class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAHostDPIClient
     val axi = new AXILiteMaster(p(ShellKey).hostParams)
   })
   val addr = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.addr)))
   val data = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.value)))
-  val sIdle :: sReadAddress :: sReadData :: sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(6)
+  val sIdle :: sReadAddress :: sReadData :: sWriteAddress :: sWriteData :: sWriteResponse :: Nil =
+    Enum(6)
   val state = RegInit(sIdle)
 
-  switch (state) {
-    is (sIdle) {
-      when (io.dpi.req.valid) {
-        when (io.dpi.req.opcode) {
+  switch(state) {
+    is(sIdle) {
+      when(io.dpi.req.valid) {
+        when(io.dpi.req.opcode) {
           state := sWriteAddress
-        } .otherwise {
+        }.otherwise {
           state := sReadAddress
         }
       }
     }
-    is (sReadAddress) {
-      when (io.axi.ar.ready) {
+    is(sReadAddress) {
+      when(io.axi.ar.ready) {
         state := sReadData
       }
     }
-    is (sReadData) {
-      when (io.axi.r.valid) {
+    is(sReadData) {
+      when(io.axi.r.valid) {
         state := sIdle
       }
     }
-    is (sWriteAddress) {
-      when (io.axi.aw.ready) {
+    is(sWriteAddress) {
+      when(io.axi.aw.ready) {
         state := sWriteData
       }
     }
-    is (sWriteData) {
-      when (io.axi.w.ready) {
+    is(sWriteData) {
+      when(io.axi.w.ready) {
         state := sWriteResponse
       }
     }
-    is (sWriteResponse) {
-      when (io.axi.b.valid) {
+    is(sWriteResponse) {
+      when(io.axi.b.valid) {
         state := sIdle
       }
     }
   }
 
-  when (state === sIdle && io.dpi.req.valid) {
+  when(state === sIdle && io.dpi.req.valid) {
     addr := io.dpi.req.addr
     data := io.dpi.req.value
   }
@@ -147,9 +148,17 @@ class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Mo
   io.dpi.resp.bits := io.axi.r.bits.data
 
   if (debug) {
-    when (state === sWriteAddress && io.axi.aw.ready) { printf("[VTAHostDPIToAXI] [AW] addr:%x\n", addr) }
-    when (state === sReadAddress && io.axi.ar.ready) { printf("[VTAHostDPIToAXI] [AR] addr:%x\n", addr) }
-    when (io.axi.r.fire()) { printf("[VTAHostDPIToAXI] [R] value:%x\n", io.axi.r.bits.data) }
-    when (io.axi.w.fire()) { printf("[VTAHostDPIToAXI] [W] value:%x\n", io.axi.w.bits.data) }
+    when(state === sWriteAddress && io.axi.aw.ready) {
+      printf("[VTAHostDPIToAXI] [AW] addr:%x\n", addr)
+    }
+    when(state === sReadAddress && io.axi.ar.ready) {
+      printf("[VTAHostDPIToAXI] [AR] addr:%x\n", addr)
+    }
+    when(io.axi.r.fire()) {
+      printf("[VTAHostDPIToAXI] [R] value:%x\n", io.axi.r.bits.data)
+    }
+    when(io.axi.w.fire()) {
+      printf("[VTAHostDPIToAXI] [W] value:%x\n", io.axi.w.bits.data)
+    }
   }
 }

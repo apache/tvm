@@ -38,17 +38,18 @@ import vta.shell._
   * If one would like to add an event counter, then the value of nECnt must be
   * changed in VCRParams together with the corresponding counting logic here.
   */
-class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class EventCounters(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val vp = p(ShellKey).vcrParams
-  val io = IO(new Bundle{
+  val io = IO(new Bundle {
     val launch = Input(Bool())
     val finish = Input(Bool())
     val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
   })
   val cycle_cnt = RegInit(0.U(vp.regBits.W))
-  when (io.launch && !io.finish) {
+  when(io.launch && !io.finish) {
     cycle_cnt := cycle_cnt + 1.U
-  } .otherwise {
+  }.otherwise {
     cycle_cnt := 0.U
   }
   io.ecnt(0).valid := io.finish
