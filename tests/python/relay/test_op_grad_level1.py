@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
 from tvm import relay
+from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
-from tvm.relay.testing import ctx_list, run_infer_type
+
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -29,6 +31,7 @@ def relu(x):
     x_copy = np.copy(x)
     np.maximum(x_copy, 0, x_copy)
     return x_copy
+
 
 def test_unary_op():
     def check_single_op(opfunc, ref):
@@ -93,6 +96,20 @@ def test_binary_op():
         check_binary_op(opfunc, ref)
 
 
+def test_softmax_grad():
+    data = relay.var("data", relay.TensorType((1, 16), "float64"))
+    fwd_func = relay.Function([data], relay.nn.softmax(data))
+    check_grad(fwd_func)
+
+
+def test_bias_add_grad():
+    data = relay.var("data", relay.TensorType((1, 16), "float32"))
+    bias = relay.var("bias", relay.TensorType((16,), "float32"))
+    fwd_func = relay.Function([data, bias], relay.nn.bias_add(data, bias))
+    check_grad(fwd_func)
+
+
 if __name__ == "__main__":
     test_unary_op()
     test_binary_op()
+    test_bias_add_grad()
