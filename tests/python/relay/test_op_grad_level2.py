@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import tvm
+
 import topi
 import topi.testing
+import tvm
 from tvm import relay
+from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
-from tvm.relay.testing import ctx_list, check_grad
-from tvm.relay.testing import run_infer_type
 
 
 def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
@@ -129,7 +129,32 @@ def test_conv2d_grad():
     verify_conv2d_grad((1, 4, 16, 16), (16, 4, 3, 3), [1, 1], [1, 1], [1, 1], mode='first_order')
 
 
+def verify_dense_grad(d_shape, w_shape):
+    data = relay.var("data", relay.TensorType(d_shape, "float32"))
+    weight = relay.var("weight", relay.TensorType(w_shape, "float32"))
+    fwd_func = relay.Function([data, weight], relay.nn.dense(data, weight))
+    check_grad(fwd_func)
+
+
+def test_dense_grad():
+    verify_dense_grad((1, 8), (16, 8))
+    verify_dense_grad((1, 4), (3, 4))
+
+
+def verify_batch_flatten_grad(d_shape):
+    data = relay.var("data", relay.TensorType(d_shape, "float32"))
+    fwd_func = relay.Function([data], relay.nn.batch_flatten(data))
+    check_grad(fwd_func)
+
+
+def test_batch_flatten_grad():
+    verify_batch_flatten_grad((1, 2, 3, 4))
+    verify_batch_flatten_grad((1, 8))
+
+
 if __name__ == "__main__":
     test_max_pool2d_grad()
     test_avg_pool2d_grad()
     test_conv2d_grad()
+    test_dense_grad()
+    test_batch_flatten_grad()
