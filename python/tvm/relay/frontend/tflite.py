@@ -984,13 +984,12 @@ class OperatorConverter(object):
 
         paddings = list(self.get_tensor_value(input_tensors[2]))
 
-        remaining_shape_length = N - M - 1
-        paddings = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
-
         # From https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd:
         # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
         # to produce padded of shape padded_shape.
-        padded = _op.nn.pad(in_expr, pad_width=paddings)
+        remaining_shape_length = N - M - 1
+        padded_shape = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
+        padded = _op.nn.pad(in_expr, pad_width=padded_shape)
 
         # Reshape padded to reshaped_padded of shape:
         shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
