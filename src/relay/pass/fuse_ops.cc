@@ -436,17 +436,14 @@ class DominatorTree {
     }
     return lhs;
   }
-};
-
-DominatorTree DominatorTree::PostDom(common::Arena* arena,
-                                     const IndexedForwardGraph& graph) {
-  DominatorTree tree;
-  tree.nodes.resize(graph.post_dfs_order.size(), nullptr);
-  // reverse topo order
-  for (size_t i = graph.post_dfs_order.size(); i != 0; --i) {
-    size_t index = i - 1;
+  /*!
+   * \brief Convert the Node from an IndexedForwardGraph Node into DomaintorTree Node.
+   * \param arena The Arena.
+   * \param gnode An IndexedForwardGraph Node.
+   * \return The DominatorTree Node.
+   */
+  Node* GetNode(common::Arena* arena, IndexedForwardGraph::Node* gnode) {
     Node* tnode = arena->make<Node>();
-    auto* gnode = graph.post_dfs_order[index];
     tnode->gnode = gnode;
     if (gnode->extern_ref) {
       tnode->depth = 1;
@@ -459,8 +456,8 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
       bool init = true;
       for (auto link = gnode->outputs.head; link != nullptr; link= link->next) {
         size_t oindex = link->value.node->index;
-        CHECK_LT(oindex, tree.nodes.size());
-        Node* onode = tree.nodes[oindex];
+        CHECK_LT(oindex, nodes.size());
+        Node* onode = nodes[oindex];
         CHECK(onode != nullptr);
         if (init) {
           parent = onode;
@@ -474,7 +471,19 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
       tnode->parent = parent;
       tnode->pattern = pattern;
     }
-    tree.nodes[index] = tnode;
+    return tnode;
+  }
+};
+
+
+DominatorTree DominatorTree::PostDom(common::Arena* arena,
+                                     const IndexedForwardGraph& graph) {
+  DominatorTree tree;
+  tree.nodes.resize(graph.post_dfs_order.size(), nullptr);
+  // reverse topo order
+  for (size_t i = graph.post_dfs_order.size(); i != 0; --i) {
+    size_t index = i - 1;
+    tree.nodes[index] = tree.GetNode(arena, graph.post_dfs_order[index]);
   }
   return tree;
 }
