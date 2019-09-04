@@ -852,8 +852,8 @@ class FuseMutator : private ExprMutator {
   }
 
   Expr VisitExpr_(const TupleNode* tuple) {
-    auto* ret_group = gmap_.at(tuple)->FindRoot();
-    if (ret_group == gmap_.at(tuple)) {
+      auto* ret_group = gmap_.at(tuple)->FindRoot();
+      if (ret_group->root_ref == tuple) {
       return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
