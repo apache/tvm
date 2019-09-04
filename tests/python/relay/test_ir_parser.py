@@ -859,7 +859,8 @@ def test_extern_adt_defn():
     mod = relay.Module()
 
     extern_var = relay.GlobalTypeVar("T")
-    extern_def = relay.TypeData(extern_var, [], [])
+    typ_var = relay.TypeVar("A")
+    extern_def = relay.TypeData(extern_var, [typ_var], [])
     mod[extern_var] = extern_def
 
     assert parses_as(
