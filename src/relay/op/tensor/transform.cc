@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file transform.cc
  * \brief Transform operators.
  */
@@ -35,6 +35,7 @@
 #include <topi/nn.h>
 #include <vector>
 #include "../op_common.h"
+#include "../type_relations.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
 #include "transform.h"
@@ -2492,9 +2493,9 @@ RELAY_REGISTER_OP("one_hot")
     **off_value** Value to fill at all other positions besides indices.
 
     **depth** Depth of the one-hot dimension.
-    
+
     **axis** Axis to fill.
-    
+
     **dtype**)code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.OneHotAttrs")
 .set_num_inputs(3)
