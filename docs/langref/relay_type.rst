@@ -102,6 +102,7 @@ For example, in the below code, :code:`%t` is of type
 and :code:`%c` is of type :code:`Tensor[(10, 10), float32]`.
 
 .. code-block:: python
+
    let %t = (False, Constant(1, (10, 10), float32));
    let %c = %t.1;
    %c
@@ -195,6 +196,7 @@ to hold, if such values exist.
 For example we can define an identity relation to be:
 
 .. code-block:: prolog
+
     Identity(I, I) :- true
 
 It is usually convenient to type operators
@@ -203,6 +205,7 @@ encodes all the necessary constraints on the argument types
 and the return type. For example, we can define the relation for :code:`flatten`:
 
 .. code-block:: prolog
+
     Flatten(Tensor(sh, bt), O) :-
       O = Tensor(sh[0], prod(sh[1:]))
 
@@ -210,6 +213,7 @@ If we have a relation like :code:`Broadcast` it becomes possible
 to type operators like :code:`add`:
 
 .. code-block:: python
+
     add : fn<t1 : Type, t2 : Type, t3 : Type>(t1, t2) -> t3
                 where Broadcast
 

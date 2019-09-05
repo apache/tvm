@@ -49,7 +49,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val s = Seq.tabulate(2)(_ => Module(new Semaphore(counterBits = 8, counterInitValue = 0)))
+  val s = Seq.tabulate(2)(_ =>
+    Module(new Semaphore(counterBits = 8, counterInitValue = 0)))
 
   val loadUop = Module(new LoadUop)
   val tensorAcc = Module(new TensorLoad(tensorType = "acc"))
@@ -62,18 +63,20 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val dec = Module(new ComputeDecode)
   dec.io.inst := inst_q.io.deq.bits
 
-  val inst_type = Cat(dec.io.isFinish,
-                      dec.io.isAlu,
-                      dec.io.isGemm,
-                      dec.io.isLoadAcc,
-                      dec.io.isLoadUop).asUInt
+  val inst_type =
+    Cat(dec.io.isFinish,
+        dec.io.isAlu,
+        dec.io.isGemm,
+        dec.io.isLoadAcc,
+        dec.io.isLoadUop).asUInt
 
   val sprev = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s(0).io.sready, true.B)
   val snext = inst_q.io.deq.valid & Mux(dec.io.pop_next, s(1).io.sready, true.B)
   val start = snext & sprev
   val done =
-    MuxLookup(inst_type,
-               false.B, // default
+    MuxLookup(
+      inst_type,
+      false.B, // default
       Array(
         "h_01".U -> loadUop.io.done,
         "h_02".U -> tensorAcc.io.done,
@@ -84,21 +87,21 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
     )
 
   // control
-  switch (state) {
-    is (sIdle) {
-      when (start) {
-        when (dec.io.isSync) {
+  switch(state) {
+    is(sIdle) {
+      when(start) {
+        when(dec.io.isSync) {
           state := sSync
-        } .elsewhen (inst_type.orR) {
+        }.elsewhen(inst_type.orR) {
           state := sExe
         }
       }
     }
-    is (sSync) {
+    is(sSync) {
       state := sIdle
     }
-    is (sExe) {
-      when (done) {
+    is(sExe) {
+      when(done) {
         state := sIdle
       }
     }
@@ -109,22 +112,28 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   inst_q.io.deq.ready := (state === sExe & done) | (state === sSync)
 
   // uop
-  loadUop.io.start :=  state === sIdle & start & dec.io.isLoadUop
+  loadUop.io.start := state === sIdle & start & dec.io.isLoadUop
   loadUop.io.inst := inst_q.io.deq.bits
   loadUop.io.baddr := io.uop_baddr
   io.vme_rd(0) <> loadUop.io.vme_rd
-  loadUop.io.uop.idx <> Mux(dec.io.isGemm, tensorGemm.io.uop.idx, tensorAlu.io.uop.idx)
+  loadUop.io.uop.idx <> Mux(dec.io.isGemm,
+                            tensorGemm.io.uop.idx,
+                            tensorAlu.io.uop.idx)
 
   // acc
   tensorAcc.io.start := state === sIdle & start & dec.io.isLoadAcc
   tensorAcc.io.inst := inst_q.io.deq.bits
   tensorAcc.io.baddr := io.acc_baddr
-  tensorAcc.io.tensor.rd.idx <> Mux(dec.io.isGemm, tensorGemm.io.acc.rd.idx, tensorAlu.io.acc.rd.idx)
-  tensorAcc.io.tensor.wr <> Mux(dec.io.isGemm, tensorGemm.io.acc.wr, tensorAlu.io.acc.wr)
+  tensorAcc.io.tensor.rd.idx <> Mux(dec.io.isGemm,
+                                    tensorGemm.io.acc.rd.idx,
+                                    tensorAlu.io.acc.rd.idx)
+  tensorAcc.io.tensor.wr <> Mux(dec.io.isGemm,
+                                tensorGemm.io.acc.wr,
+                                tensorAlu.io.acc.wr)
   io.vme_rd(1) <> tensorAcc.io.vme_rd
 
   // gemm
-  tensorGemm.io.start :=  state === sIdle & start & dec.io.isGemm
+  tensorGemm.io.start := state === sIdle & start & dec.io.isGemm
   tensorGemm.io.inst := inst_q.io.deq.bits
   tensorGemm.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isGemm
   tensorGemm.io.uop.data.bits <> loadUop.io.uop.data.bits
@@ -136,7 +145,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorGemm.io.out.rd.data.bits <> io.out.rd.data.bits
 
   // alu
-  tensorAlu.io.start :=  state === sIdle & start & dec.io.isAlu
+  tensorAlu.io.start := state === sIdle & start & dec.io.isAlu
   tensorAlu.io.inst := inst_q.io.deq.bits
   tensorAlu.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isAlu
   tensorAlu.io.uop.data.bits <> loadUop.io.uop.data.bits
@@ -146,7 +155,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorAlu.io.out.rd.data.bits <> io.out.rd.data.bits
 
   // out
-  io.out.rd.idx <> Mux(dec.io.isGemm, tensorGemm.io.out.rd.idx, tensorAlu.io.out.rd.idx)
+  io.out.rd.idx <> Mux(dec.io.isGemm,
+                       tensorGemm.io.out.rd.idx,
+                       tensorAlu.io.out.rd.idx)
   io.out.wr <> Mux(dec.io.isGemm, tensorGemm.io.out.wr, tensorAlu.io.out.wr)
 
   // semaphore
@@ -163,38 +174,45 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   // debug
   if (debug) {
     // start
-    when (state === sIdle && start) {
-      when (dec.io.isSync) {
+    when(state === sIdle && start) {
+      when(dec.io.isSync) {
         printf("[Compute] start sync\n")
-      } .elsewhen (dec.io.isLoadUop) {
-        printf("[Compute] start load uop\n")
-      } .elsewhen (dec.io.isLoadAcc) {
-        printf("[Compute] start load acc\n")
-      } .elsewhen (dec.io.isGemm) {
-        printf("[Compute] start gemm\n")
-      } .elsewhen (dec.io.isAlu) {
-        printf("[Compute] start alu\n")
-      } .elsewhen (dec.io.isFinish) {
-        printf("[Compute] start finish\n")
-      }
+      }.elsewhen(dec.io.isLoadUop) {
+          printf("[Compute] start load uop\n")
+        }
+        .elsewhen(dec.io.isLoadAcc) {
+          printf("[Compute] start load acc\n")
+        }
+        .elsewhen(dec.io.isGemm) {
+          printf("[Compute] start gemm\n")
+        }
+        .elsewhen(dec.io.isAlu) {
+          printf("[Compute] start alu\n")
+        }
+        .elsewhen(dec.io.isFinish) {
+          printf("[Compute] start finish\n")
+        }
     }
     // done
-    when (state === sSync) {
+    when(state === sSync) {
       printf("[Compute] done sync\n")
     }
-    when (state === sExe) {
-      when (done) {
-        when (dec.io.isLoadUop) {
+    when(state === sExe) {
+      when(done) {
+        when(dec.io.isLoadUop) {
           printf("[Compute] done load uop\n")
-        } .elsewhen (dec.io.isLoadAcc) {
-          printf("[Compute] done load acc\n")
-        } .elsewhen (dec.io.isGemm) {
-          printf("[Compute] done gemm\n")
-        } .elsewhen (dec.io.isAlu) {
-          printf("[Compute] done alu\n")
-        } .elsewhen (dec.io.isFinish) {
-          printf("[Compute] done finish\n")
-        }
+        }.elsewhen(dec.io.isLoadAcc) {
+            printf("[Compute] done load acc\n")
+          }
+          .elsewhen(dec.io.isGemm) {
+            printf("[Compute] done gemm\n")
+          }
+          .elsewhen(dec.io.isAlu) {
+            printf("[Compute] done alu\n")
+          }
+          .elsewhen(dec.io.isFinish) {
+            printf("[Compute] done finish\n")
+          }
       }
     }
   }

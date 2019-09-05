@@ -52,7 +52,7 @@ def run(run_func):
                 assert simulator.enabled()
             run_func(env, rpc.LocalSession())
 
-    elif env.TARGET in ["pynq", "ultra96"]:
+    elif env.TARGET in ["pynq", "ultra96", "de10nano"]:
         # The environment variables below should be set if we are using
         # a tracker to obtain a remote for a test device
         tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
