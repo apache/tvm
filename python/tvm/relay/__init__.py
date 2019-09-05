@@ -17,6 +17,7 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from __future__ import absolute_import
+from sys import setrecursionlimit
 from ..api import register_func
 from . import base
 from . import ty
@@ -58,6 +59,9 @@ from . import quantize
 from . import qnn
 
 from .scope_builder import ScopeBuilder
+
+# Required to traverse large programs
+setrecursionlimit(10000)
 
 # Span
 Span = base.Span
