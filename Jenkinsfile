@@ -295,19 +295,20 @@ stage('Integration Test') {
         }
       }
     }
-  },
-  'docs: GPU': {
-    node('GPU') {
-      ws('workspace/tvm/docs-python-gpu') {
-        init_git()
-        unpack_lib('gpu', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
-        }
-        pack_lib('mydocs', 'docs.tgz')
-      }
-    }
   }
+  // TODO: Fix the doc
+  // 'docs: GPU': {
+  //   node('GPU') {
+  //     ws('workspace/tvm/docs-python-gpu') {
+  //       init_git()
+  //       unpack_lib('gpu', tvm_multilib)
+  //       timeout(time: max_time, unit: 'MINUTES') {
+  //         sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
+  //       }
+  //       pack_lib('mydocs', 'docs.tgz')
+  //     }
+  //   }
+  // }
 }
 
 /*
@@ -328,13 +329,13 @@ stage('Build packages') {
 }
 */
 
-stage('Deploy') {
-    node('doc') {
-      ws('workspace/tvm/deploy-docs') {
-        if (env.BRANCH_NAME == "master") {
-           unpack_lib('mydocs', 'docs.tgz')
-           sh "tar xf docs.tgz -C /var/docs"
-        }
-      }
-    }
-}
+// stage('Deploy') {
+//     node('doc') {
+//       ws('workspace/tvm/deploy-docs') {
+//         if (env.BRANCH_NAME == "master") {
+//            unpack_lib('mydocs', 'docs.tgz')
+//            sh "tar xf docs.tgz -C /var/docs"
+//         }
+//       }
+//     }
+// }
