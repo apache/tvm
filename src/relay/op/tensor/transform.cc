@@ -35,7 +35,6 @@
 #include <topi/nn.h>
 #include <vector>
 #include "../op_common.h"
-#include "../type_relations.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
 #include "transform.h"
