@@ -263,3 +263,45 @@ def conv2d(data,
                         strides, padding, dilation,
                         groups, channels, kernel_size,
                         data_layout, kernel_layout, out_layout, out_dtype)
+
+
+def add(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale,
+        output_zero_point):
+    """Quantized addition with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side quantized input data.
+
+    rhs : relay.Expr
+        The right hand side quantized input data.
+
+    lhs_scale: float
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: int
+       The zero point of lhs quantized expr.
+
+    rhs_scale: float
+        The scale of the rhs quantized expr.
+
+    rhs_zero_point: int
+       The zero point of rhs quantized expr.
+
+    output_scale: float
+        The scale of the output quantized expr.
+
+    output_zero_point: int
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.add(lhs, rhs,
+                     lhs_scale, lhs_zero_point,
+                     rhs_scale, rhs_zero_point,
+                     output_scale, output_zero_point)
