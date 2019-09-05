@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The attributes node used for Relay operators"""
+"""The attributes node used for QNN operators"""
 
 from ....attrs import Attrs
 from ...base import register_relay_attr_node

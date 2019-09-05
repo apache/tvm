@@ -83,42 +83,6 @@ def test_qnn_legalize():
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_qnn_legalize_qnn_conv2d():
-
-    def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype):
-        def get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype):
-            low = -128
-            high = 127
-            if data_dtype == "uint8":
-                low = 0
-                high = 255
-            golden_data = np.random.random_integers(low=low, high=high,
-                    size=data_shape).astype(data_dtype)
-            low = -128
-            high = 127
-            if kernel_dtype == "uint8":
-                low = 0
-                high = 255
-            golden_weight = np.random.random_integers(low=low, high=high,
-                    size=kernel_shape).astype(kernel_dtype)
-            return (golden_data, golden_weight)
-
-        def get_output(func, golden_inputs):
-            with relay.build_config(opt_level=3):
-                golden_data, golden_weight = golden_inputs
-                params = {'kernel': golden_weight}
-                graph, lib, params = relay.build(func, "llvm", params=params)
-                mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-                mod.set_input("data", golden_data)
-                # mod.set_input("kernel", golden_weight)
-                mod.set_input(**params)
-                mod.run()
-                res = mod.get_output(0).asnumpy()
-                return res
-        golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
-        golden_output = get_output(ref_func, golden_inputs)
-        qnn_output = get_output(qnn_func, golden_inputs)
-        np.testing.assert_equal(qnn_output, golden_output)
-
     data_shape = (1, 64, 256, 256)
     kernel_shape = (128, 64, 3, 3)
     for dtype in ['uint8', 'int8']:
@@ -140,13 +104,11 @@ def test_qnn_legalize_qnn_conv2d():
 
         mod = relay.Function(relay.analysis.free_vars(func), func)
         mod = relay.Module.from_expr(mod)
-        ref_mod = relay.qnn.transform.QnnToRelay()(mod)
 
-        with tvm.target.create('llvm'):
-            qnn_mod = relay.qnn.transform.Legalize()(mod)
-            qnn_mod = relay.qnn.transform.QnnToRelay()(qnn_mod)
+        with tvm.target.create('llvm -mcpu=skylake-avx512'):
+            mod = relay.qnn.transform.Legalize()(mod)
 
-        verify(ref_mod, qnn_mod, data_shape, data_dtype, kernel_shape, kernel_dtype)
+        assert 'cast' in mod.astext()
 
 if __name__ == "__main__":
     test_qnn_legalize()
