@@ -541,6 +541,18 @@ def test_immutable():
     assert relay.analysis.alpha_equal(new_mod, expected())
 
 
+def test_split():
+    """Test that the result is well formed."""
+    x = relay.var("x", shape=(6, 9))
+    y = relay.split(x, 3).astuple()
+    a = relay.TupleGetItem(y, 0)
+    b = relay.TupleGetItem(y, 1)
+    c = relay.TupleGetItem(y, 2)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
+    mod = transform.FuseOps()(mod)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -555,3 +567,4 @@ if __name__ == "__main__":
     test_inception_like()
     test_fuse_parallel_injective()
     test_immutable()
+    test_split()

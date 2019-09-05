@@ -304,14 +304,16 @@ class PrettyPrinter :
    * \return The corresponding name.
    */
   Doc AllocTypeVar(const TypeVar& var) {
+    if (memo_type_.count(var)) {
+      Doc val = memo_type_[var];
+      val << "-malformed-ir";
+      return val;
+    }
     std::string name = var->var->name_hint;
     if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "t" + name;
     }
     Doc val = GetUniqueName("%" + name);
-    if (memo_type_.count(var)) {
-      val << "-malformed-ir";
-    }
     memo_type_[var] = val;
     if (var->kind != kType) {
       val << ": " << Print(var->kind);
@@ -325,16 +327,18 @@ class PrettyPrinter :
    * \return The corresponding name.
    */
   Doc AllocVar(const Var& var) {
+    // still print if ir is malformed, but show the error.
+    if (memo_.count(var)) {
+      Doc val = memo_[var];
+      val << "-malformed-ir";
+      return val;
+    }
     std::string name = var->name_hint();
     // always make sure first name is alpha
     if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "v" + name;
     }
     Doc val = GetUniqueName("%" + name);
-    // still print if ir is malformed, but show the error.
-    if (memo_.count(var)) {
-      val << "-malformed-ir";
-    }
     memo_[var] = val;
     if (var->type_annotation.defined()) {
       val << ": " << Print(var->type_annotation);
