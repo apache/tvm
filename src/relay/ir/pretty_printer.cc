@@ -359,10 +359,9 @@ class PrettyPrinter :
     }
   }
 
-  // TODO(weberlo): Consolidate this method and `IsAtomic` in `pass_util.h`?
   bool AlwaysInline(const Expr& expr) {
     return expr.as<GlobalVarNode>() || expr.as<ConstantNode>() || expr.as<OpNode>() ||
-           expr.as<VarNode>() || expr.as<ConstructorNode>() || expr.as<MatchNode>();
+           expr.as<VarNode>() || expr.as<ConstructorNode>();
   }
 
   //------------------------------------
@@ -375,13 +374,10 @@ class PrettyPrinter :
     // This works since hashing uses pointer equality.
 
     // determine whether to inline
-    // TODO(weberlo): Graph vars created when not inlining exprs cause issues
-    // with scoping in clauses of match exprs.
-    bool inline_expr = true;
-    // bool inline_expr = AlwaysInline(expr);
-    // if (try_inline) {
-    //   inline_expr |= IsUnique(expr);
-    // }
+    bool inline_expr = AlwaysInline(expr);
+    if (try_inline) {
+      inline_expr |= IsUnique(expr);
+    }
 
     auto it = memo_.find(expr);
     if (it != memo_.end()) return it->second;
@@ -392,9 +388,9 @@ class PrettyPrinter :
     } else if (!inline_expr && expr.as<LetNode>()) {
       // wrap GNFed let in brackets
       Doc body;
-      printed_expr << "{";
+      printed_expr << "(";
       printed_expr << Indent(2, body << PrintNewLine() << VisitExpr(expr)) << PrintNewLine();
-      printed_expr << "}";
+      printed_expr << ")";
     } else {
       printed_expr = VisitExpr(expr);
     }
@@ -605,7 +601,7 @@ class PrettyPrinter :
     for (const auto& clause : op->clauses) {
       Doc clause_doc;
       clause_doc << PrintPattern(clause->lhs, false) << " => ";
-      Doc rhs_doc = PrintExpr(clause->rhs, false, true);
+      Doc rhs_doc = PrintScope(clause->rhs);
       if (clause->rhs.as<LetNode>()) {
         // only add braces if there are multiple lines on the rhs
         rhs_doc = Brace(rhs_doc);
