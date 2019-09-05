@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.analysis import is_unifiable, assert_is_unifiable
+from tvm.relay.analysis import graph_equal, assert_graph_equal
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union
@@ -69,7 +69,7 @@ type List[A] {
 
 def roundtrip(expr):
     x = relay.fromtext(str(expr))
-    assert_is_unifiable(x, expr)
+    assert_graph_equal(x, expr)
 
 
 def parse_text(code):
@@ -81,7 +81,7 @@ def parse_text(code):
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
-    result = is_unifiable(parsed, expr)
+    result = graph_equal(parsed, expr)
     return result
 
 def get_scalar(x):
@@ -177,13 +177,13 @@ def test_bin_op():
 
 
 def test_parens():
-    assert is_unifiable(parse_text("1 * 1 + 1"), parse_text("(1 * 1) + 1"))
-    assert not is_unifiable(parse_text("1 * 1 + 1"), parse_text("1 * (1 + 1)"))
+    assert graph_equal(parse_text("1 * 1 + 1"), parse_text("(1 * 1) + 1"))
+    assert not graph_equal(parse_text("1 * 1 + 1"), parse_text("1 * (1 + 1)"))
 
 
 def test_op_assoc():
-    assert is_unifiable(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
-    assert is_unifiable(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
+    assert graph_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
+    assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
 @nottest

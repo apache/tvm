@@ -596,15 +596,15 @@ TVM_REGISTER_API("relay._make._assert_alpha_equal")
   CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
-TVM_REGISTER_API("relay._make._is_unifiable")
+TVM_REGISTER_API("relay._make._graph_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   return AlphaEqualHandler(true, false).Equal(a, b);
 });
 
-TVM_REGISTER_API("relay._make._assert_is_unifiable")
+TVM_REGISTER_API("relay._make._assert_graph_equal")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-  bool is_unifiable = AlphaEqualHandler(true, true).Equal(a, b);
-  CHECK(is_unifiable) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
+  bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
+  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
 });
 
 }  // namespace relay
