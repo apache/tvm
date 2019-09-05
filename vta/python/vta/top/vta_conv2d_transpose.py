@@ -14,85 +14,88 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Conv2D operator declaration and schedule registration for VTA."""
+"""Conv2D_transpose operator declaration and schedule registration for VTA."""
 
 import numpy as np
 
 import tvm
 from tvm import autotvm
 import topi
+from topi.util import get_const_tuple
+from topi.nn.util import get_pad_tuple
 
-from .util import is_packed_layout
 from ..environment import get_env
 
-@autotvm.register_topi_compute(topi.nn.conv2d, 'vta', 'direct')
-def _declaration_conv2d(cfg,
-                        data,
-                        kernel,
-                        strides,
-                        padding,
-                        dilation,
-                        layout,
-                        out_dtype):
-    """ Packed conv2d function."""
-    if not is_packed_layout(layout):
-        raise topi.InvalidShapeError()
-    assert dilation == (1, 1)
+@autotvm.register_topi_compute(topi.nn.conv2d_transpose_nchw, 'vta', 'direct')
+def _declatation_conv2d_transpose(cfg,
+                                  data,
+                                  kernel,
+                                  strides,
+                                  padding,
+                                  out_dtype):
+    ishape = get_const_tuple(data.shape)
+    kshape = get_const_tuple(kernel.shape)
+    b, c_i, i_h, i_w, t_b, t_ci = ishape
+    c_o, _, k_h, k_w, t_co, t_ci = kshape
+    stride_h, stride_w = strides
 
-    if padding[0]:
-        pad_data = topi.nn.pad(data, [0, 0, padding[0], padding[1], 0, 0], name="pad_data")
-    else:
-        pad_data = data
-    assert len(data.shape) == 6
-    assert len(kernel.shape) == 6
-    oheight = topi.util.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
-    owidth = topi.util.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
-    oshape = (data.shape[0], kernel.shape[0], oheight, owidth, data.shape[4], kernel.shape[4])
+    # derive padding parameters
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (k_h, k_w))
+    bpad_top = k_h - 1 - fpad_top
+    bpad_bottom = k_h - 1 - fpad_bottom
+    bpad_left = k_w - 1 - fpad_left
+    bpad_right = k_w - 1 - fpad_right
 
-    ishape = topi.util.get_const_tuple(data.shape)
-    kshape = topi.util.get_const_tuple(kernel.shape)
-    d_i = tvm.reduce_axis((0, kshape[2]), name='d_i')
-    d_j = tvm.reduce_axis((0, kshape[3]), name='d_j')
-    k_o = tvm.reduce_axis((0, ishape[1]), name='k_o')
-    k_i = tvm.reduce_axis((0, ishape[-1]), name='k_i')
-    hstride, wstride = strides
-    res = tvm.compute(
+    # padding stage
+    dilated_input = topi.nn.dilate(data, [1, 1, stride_h, stride_w, 1, 1])
+    data_pad = topi.nn.pad(dilated_input,
+                           [0, 0, bpad_top, bpad_left, 0, 0],
+                           [0, 0, bpad_bottom, bpad_right, 0, 0])
+
+    # convolution transpose stage
+    out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
+    out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
+    oshape = (b, c_o, out_h, out_w, t_b, t_co)
+    d_c = tvm.reduce_axis((0, c_i), name='d_c')
+    d_h = tvm.reduce_axis((0, k_h), name='d_h')
+    d_w = tvm.reduce_axis((0, k_w), name='d_w')
+    d_ci = tvm.reduce_axis((0, t_ci), name='d_ci')
+
+    out = tvm.compute(
         oshape,
-        lambda b_o, c_o, i, j, b_i, c_i: tvm.sum(
-            pad_data[b_o, k_o, i*hstride+d_i, j*wstride+d_j, b_i, k_i].astype(out_dtype) *
-            kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
-            axis=[k_o, d_i, d_j, k_i]),
-        name="res", tag="conv2d_dense")
+        lambda i_n, i_c, i_h, i_w, j_n, j_c: tvm.sum(
+            data_pad(i_n, d_c, i_h + d_h, i_w + d_w, j_n, d_ci).astype(out_dtype) *
+            kernel[i_c, d_c, d_h, d_w, j_c, d_ci].astype(out_dtype),
+            axis=[d_c, d_h, d_w, d_ci]),
+        tag="packed_conv2d_transpose",
+        name='res')
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
                  kshape[2] * kshape[3] * ishape[1] * ishape[-1])
 
-    return res
+    return out
 
-@autotvm.register_topi_schedule(topi.generic.schedule_conv2d_nchw, 'vta', 'direct')
-def _schedule_conv2d(cfg, outs):
+@autotvm.register_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw, 'vta', 'direct')
+def _schedule_conv2d_transpose(cfg, outs):
     assert len(outs) == 1
     output = outs[0]
-    const_ops = []
     ewise_inputs = []
     ewise_ops = []
     conv2d_res = []
-    assert "int" in output.op.input_tensors[0].dtype
+    assert output.dtype == "int8"
+    assert output.op.input_tensors[0].dtype == "int32"
 
     def _traverse(op):
         if topi.tag.is_broadcast(op.tag):
             if not op.same_as(output.op):
-                if not op.axis:
-                    const_ops.append(op)
-                else:
-                    ewise_ops.append(op)
+                ewise_ops.append(op)
             for tensor in op.input_tensors:
                 if isinstance(tensor.op, tvm.tensor.PlaceholderOp):
                     ewise_inputs.append((op, tensor))
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "conv2d_dense"
+            assert op.tag == "packed_conv2d_transpose"
             conv2d_res.append(op)
 
     _traverse(output.op)
@@ -101,7 +104,7 @@ def _schedule_conv2d(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, c_o, x_i, x_j, _, _ = s[conv2d_stage].op.axis
+    b, c_o, x_i, x_j, _, c_i = s[conv2d_stage].op.axis
     c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
     cfg.define_split('tile_h', x_i, num_outputs=2)
@@ -136,14 +139,10 @@ def _schedule_conv2d(cfg, outs):
     for consumer, tensor in ewise_inputs:
         cache_read_ewise.append(
             s.cache_read(tensor, env.acc_scope, [consumer]))
-
     # set ewise scope
     for op in ewise_ops:
         s[op].set_scope(env.acc_scope)
         s[op].pragma(s[op].op.axis[0], env.alu)
-
-    for op in const_ops:
-        s[op].compute_inline()
 
     # tile
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
@@ -176,7 +175,12 @@ def _schedule_conv2d(cfg, outs):
 
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[conv2d_stage].op.axis
     k_o, d_i, d_j, k_i = s[conv2d_stage].op.reduce_axis
-    s[conv2d_stage].reorder(x_bo, k_o, x_j, d_j, d_i, x_co, x_i, x_bi, x_ci, k_i)
+    x_i, x_ii = s[conv2d_stage].split(x_i, 4)
+    x_j, x_jj = s[conv2d_stage].split(x_j, 2)
+    s[conv2d_stage].reorder(x_bo, k_o, x_j, x_co, x_i, x_jj, d_j, d_i, x_ii, x_bi, x_ci, k_i)
+
+    for axis in [d_j, d_i, x_ii, x_jj]:
+        s[conv2d_stage].unroll(axis)
 
     k_o, _ = cfg['tile_ci'].apply(s, conv2d_stage, k_o)
     s[cdata].compute_at(s[conv2d_stage], k_o)
@@ -185,7 +189,7 @@ def _schedule_conv2d(cfg, outs):
     # Use VTA instructions
     s[cdata].pragma(s[cdata].op.axis[0], env.dma_copy)
     s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
-    s[conv2d_stage].tensorize(x_bi, env.gemm)
+    s[conv2d_stage].pragma(x_bi, "conv2d_transpose_gemm")
     s[output].pragma(x_co1, env.dma_copy)
 
     return s
