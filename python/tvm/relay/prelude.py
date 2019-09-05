@@ -21,7 +21,7 @@ from .ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
 from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
-from .adt import PatternConstructor, PatternVar, PatternWildcard
+from .adt import PatternConstructor, PatternVar, PatternWildcard, PatternTuple
 from .parser import fromtext
 __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 from .module import Module
@@ -239,18 +239,19 @@ class Prelude:
         self.zip = GlobalVar("zip")
         a = TypeVar("a")
         b = TypeVar("b")
-        nil_case = Clause(PatternConstructor(self.nil), self.nil())
         l1 = Var("l1")
         l2 = Var("l2")
         h1 = Var("h1")
         h2 = Var("h2")
         t1 = Var("t1")
         t2 = Var("t2")
-        inner_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h2), PatternVar(t2)]),
-                                 self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
-        outer_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h1), PatternVar(t1)]),
-                                 Match(l2, [nil_case, inner_cons_case]))
-        self.mod[self.zip] = Function([l1, l2], Match(l1, [nil_case, outer_cons_case]),
+        cons_case = Clause(PatternTuple([PatternConstructor(self.cons,
+                                                            [PatternVar(h1), PatternVar(t1)]),
+                                         PatternConstructor(self.cons,
+                                                            [PatternVar(h2), PatternVar(t2)])]),
+                           self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
+        nil_case = Clause(PatternWildcard(), self.nil())
+        self.mod[self.zip] = Function([l1, l2], Match(Tuple([l1, l2]), [cons_case, nil_case]),
                                       self.l(TupleType([a, b])), [a, b])
 
 

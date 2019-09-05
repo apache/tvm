@@ -81,6 +81,23 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << ", " << node->patterns << ")";
 });
 
+PatternTuple PatternTupleNode::make(tvm::Array<Pattern> patterns) {
+  NodePtr<PatternTupleNode> n = make_node<PatternTupleNode>();
+  n->patterns = std::move(patterns);
+  return PatternTuple(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PatternTupleNode);
+
+TVM_REGISTER_API("relay._make.PatternTuple")
+.set_body_typed(PatternTupleNode::make);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<PatternTupleNode>([](const PatternTupleNode* node,
+                                   tvm::IRPrinter* p) {
+  p->stream << "PatternTupleNode(" << node->patterns << ")";
+});
+
 Constructor ConstructorNode::make(std::string name_hint,
                                   tvm::Array<Type> inputs,
                                   GlobalTypeVar belong_to) {

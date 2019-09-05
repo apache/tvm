@@ -163,6 +163,29 @@ class PatternConstructorNode : public PatternNode {
 
 RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
 
+/*! \brief A tuple pattern. Matches a tuple, binds recursively. */
+class PatternTuple;
+/*! \brief PatternVar container node */
+class PatternTupleNode : public PatternNode {
+ public:
+  /*! Sub-patterns to match against each value of the tuple. */
+  tvm::Array<Pattern> patterns;
+
+  PatternTupleNode() {}
+
+  TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("patterns", &patterns);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.PatternTuple";
+  TVM_DECLARE_NODE_TYPE_INFO(PatternTupleNode, PatternNode);
+};
+
+RELAY_DEFINE_NODE_REF(PatternTuple, PatternTupleNode, Pattern);
+
 /*!
  * \brief Stores all data for an Algebraic Data Type (ADT).
  *
