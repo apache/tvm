@@ -403,7 +403,7 @@ class DominatorTree {
     return rhs;
   }
   /*!
-   * \brief Find the least common acenstor of the two nodes.
+   * \brief Find the least common ancestor of the two nodes.
    * \param lhs The left node.
    * \param rhs The right node.
    * \param edge_pattern
@@ -437,6 +437,35 @@ class DominatorTree {
     return lhs;
   }
   /*!
+   * \brief Find the least common ancestor of a list of nodes.
+   * \param nodes the nodes.
+   * \param edge_pattern
+   *        The combined edge pattern across all the parents.
+   * \return The least common ancestor of all nodes.
+   */
+  Node* LeastCommonAncestor(const LinkedList<IndexedForwardGraph::Edge>& input_nodes,
+                            OpPatternKind* edge_pattern) {
+    auto link = input_nodes.head;
+    if (link == nullptr) {
+      return nullptr;
+    }
+    auto get_node = [&](const IndexedForwardGraph::Edge& edge) {
+      size_t oindex = edge.node->index;
+      CHECK_LT(oindex, nodes.size());
+      Node* onode = nodes[oindex];
+      CHECK(onode != nullptr);
+      return onode;
+    };
+    Node* parent = get_node(link->value);
+    *edge_pattern = CombinePattern(*edge_pattern, link->value.pattern);
+    link = link->next;
+    for (; link != nullptr; link = link->next) {
+      parent = LeastCommonAncestor(parent, get_node(link->value), edge_pattern);
+      *edge_pattern = CombinePattern(*edge_pattern, link->value.pattern);
+    }
+    return parent;
+  }
+  /*!
    * \brief Convert the Node from an IndexedForwardGraph Node into DomaintorTree Node.
    * \param arena The Arena.
    * \param gnode An IndexedForwardGraph Node.
@@ -452,21 +481,7 @@ class DominatorTree {
     } else {
       // find the LCAs of all outputs.
       OpPatternKind pattern = kElemWise;
-      Node* parent = nullptr;
-      bool init = true;
-      for (auto link = gnode->outputs.head; link != nullptr; link= link->next) {
-        size_t oindex = link->value.node->index;
-        CHECK_LT(oindex, nodes.size());
-        Node* onode = nodes[oindex];
-        CHECK(onode != nullptr);
-        if (init) {
-          parent = onode;
-          init = false;
-        } else {
-          parent = LeastCommonAncestor(parent, onode, &pattern);
-        }
-        pattern = CombinePattern(pattern, link->value.pattern);
-      }
+      Node* parent = LeastCommonAncestor(gnode->outputs, &pattern);
       tnode->depth = parent ? parent->depth + 1 : 1;
       tnode->parent = parent;
       tnode->pattern = pattern;
