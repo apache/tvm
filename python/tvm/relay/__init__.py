@@ -54,6 +54,7 @@ from . import image
 from . import frontend
 from . import backend
 from . import quantize
+from . import downcast_fp16
 
 # Dialects
 from . import qnn
