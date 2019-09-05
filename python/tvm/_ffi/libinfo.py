@@ -19,6 +19,25 @@ from __future__ import absolute_import
 import sys
 import os
 
+def split_env_var(env_var, split):
+    """Splits environment variable string.
+
+    Parameters
+    ----------
+    env_var : str
+        Name of environment variable.
+
+    split : str
+        String to split env_var on.
+
+    Returns
+    -------
+    splits : list(string)
+        If env_var exists, split env_var. Otherwise, empty list.
+    """
+    if os.environ.get(env_var, None):
+        return [p.strip() for p in os.environ[env_var].split(split)]
+    return []
 
 def find_lib_path(name=None, search_path=None, optional=False):
     """Find dynamic library files.
@@ -50,10 +69,14 @@ def find_lib_path(name=None, search_path=None, optional=False):
     if os.environ.get('TVM_LIBRARY_PATH', None):
         dll_path.append(os.environ['TVM_LIBRARY_PATH'])
 
-    if sys.platform.startswith('linux') and os.environ.get('LD_LIBRARY_PATH', None):
-        dll_path.extend([p.strip() for p in os.environ['LD_LIBRARY_PATH'].split(":")])
-    elif sys.platform.startswith('darwin') and os.environ.get('DYLD_LIBRARY_PATH', None):
-        dll_path.extend([p.strip() for p in os.environ['DYLD_LIBRARY_PATH'].split(":")])
+    if sys.platform.startswith('linux'):
+        dll_path.extend(split_env_var('LD_LIBRARY_PATH', ':'))
+        dll_path.extend(split_env_var('PATH', ':'))
+    elif sys.platform.startswith('darwin'):
+        dll_path.extend(split_env_var('DYLD_LIBRARY_PATH', ':'))
+        dll_path.extend(split_env_var('PATH', ':'))
+    elif sys.platform.startswith('win32'):
+        dll_path.extend(split_env_var('PATH', ';'))
 
     # Pip lib directory
     dll_path.append(os.path.join(ffi_dir, ".."))
