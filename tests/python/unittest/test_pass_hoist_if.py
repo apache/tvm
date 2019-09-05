@@ -139,7 +139,7 @@ def test_nested_for():
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
-def test_block():
+def test_if_block():
     ib = tvm.ir_builder.create()
     data = ib.pointer("float32", name="data")
 
@@ -180,4 +180,4 @@ if __name__ == "__main__":
     test_no_else()
     test_attr_stmt()
     test_nested_for()
-    test_block()
+    test_if_block()
