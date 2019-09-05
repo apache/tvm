@@ -27,6 +27,7 @@
 #include <vector>
 #include <initializer_list>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <string>
 #include "node.h"
@@ -48,32 +49,32 @@ class ArrayNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(ArrayNode, Node);
 };
 
+
+struct NodePtrHash {
+  size_t operator()(const NodePtr<Node>& n) const {
+    return std::hash<Node*>()(n.get());
+  }
+};
+
+struct NodePtrEqual {
+  bool operator()(const NodePtr<Node>& a, const NodePtr<Node>& b) const {
+    return a.get() == b.get();
+  }
+};
+
 /*! \brief map node content */
 class MapNode : public Node {
  public:
   void VisitAttrs(AttrVisitor* visitor) final {
      // Visitor to map have no effect.
   }
-  // hash function
-  struct Hash {
-    size_t operator()(const NodePtr<Node>& n) const {
-      return std::hash<Node*>()(n.get());
-    }
-  };
-  // comparator
-  struct Equal {
-    bool operator()(
-        const NodePtr<Node>& a,
-        const NodePtr<Node>& b) const {
-      return a.get() == b.get();
-    }
-  };
 
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<
-   NodePtr<Node>,
-   NodePtr<Node>,
-   Hash, Equal>;
+    NodePtr<Node>,
+    NodePtr<Node>,
+    NodePtrHash,
+    NodePtrEqual>;
 
   /*! \brief the data content */
   ContainerType data;
@@ -90,9 +91,7 @@ class StrMapNode : public Node {
      // Visitor to map have no effect.
   }
   /*! \brief The corresponding conatiner type */
-  using ContainerType = std::unordered_map<
-    std::string,
-    NodePtr<Node> >;
+  using ContainerType = std::unordered_map<std::string, NodePtr<Node>>;
 
   /*! \brief the data content */
   ContainerType data;
@@ -100,6 +99,25 @@ class StrMapNode : public Node {
   static constexpr const char* _type_key = "StrMap";
   TVM_DECLARE_NODE_TYPE_INFO(StrMapNode, Node);
 };
+
+
+/*! \brief set node content */
+class SetNode : public Node {
+ public:
+  void VisitAttrs(AttrVisitor* visitor) final {
+    // Visitor to set have no effect.
+  }
+
+  /*! \brief The corresponding conatiner type */
+  using ContainerType = std::unordered_set<NodePtr<Node>, NodePtrHash, NodePtrEqual>;
+
+  /*! \brief the data content */
+  ContainerType data;
+
+  static constexpr const char* _type_key = "Set";
+  TVM_DECLARE_NODE_TYPE_INFO(SetNode, Node);
+};
+
 
 /*!
  * \brief iterator adapter that adapts TIter to return another type.
@@ -347,7 +365,7 @@ template<typename K,
          typename V,
          typename = typename std::enable_if<
            std::is_base_of<NodeRef, K>::value ||
-           std::is_base_of<std::string, K>::value >::type,
+           std::is_base_of<std::string, K>::value>::type,
          typename = typename std::enable_if<std::is_base_of<NodeRef, V>::value>::type>
 class Map : public NodeRef {
  public:
@@ -449,7 +467,7 @@ class Map : public NodeRef {
   inline const V at(const K& key) const {
     return V(static_cast<const MapNode*>(node_.get())->data.at(key.node_));
   }
-  /*! \return The size of the array */
+  /*! \return The size of the map */
   inline size_t size() const {
     if (node_.get() == nullptr) return 0;
     return static_cast<const MapNode*>(node_.get())->data.size();
@@ -518,7 +536,7 @@ class Map : public NodeRef {
   }
 };
 
-// specialize of string map
+// specialization of string map
 template<typename V, typename T1, typename T2>
 class Map<std::string, V, T1, T2> : public NodeRef {
  public:
@@ -615,6 +633,175 @@ class Map<std::string, V, T1, T2> : public NodeRef {
   /*! \return begin iterator */
   inline iterator find(const std::string& key) const {
     return iterator(static_cast<const StrMapNode*>(node_.get())->data.find(key));
+  }
+};
+
+
+/*!
+ * \brief Map container of NodeRef->NodeRef in DSL graph.
+ *  Map implements copy on write semantics, which means map is mutable
+ *  but copy will happen when array is referenced in more than two places.
+ *
+ * operator[] only provide const acces, use Set to mutate the content.
+ * \tparam K The key NodeRef type.
+ * \tparam V The value NodeRef type.
+ */
+template<typename K,
+  typename = typename std::enable_if<std::is_base_of<NodeRef, K>::value>::type>
+class Set : public NodeRef {
+ public:
+  /*!
+   * \brief default constructor
+   */
+  Set() {
+    node_ = make_node<SetNode>();
+  }
+  /*!
+   * \brief move constructor
+   * \param other source
+   */
+  Set(Set<K> && other) {  // NOLINT(*)
+    node_ = std::move(other.node_);
+  }
+  /*!
+   * \brief copy constructor
+   * \param other source
+   */
+  Set(const Set<K> &other) : NodeRef(other.node_) { // NOLINT(*)
+  }
+  /*!
+   * \brief constructor from pointer
+   * \param n the container pointer
+   */
+  explicit Set(NodePtr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief constructor from iterator
+   * \param begin begin of iterator
+   * \param end end of iterator
+   * \tparam IterType The type of iterator
+   */
+  template<typename IterType>
+  Set(IterType begin, IterType end) {
+    assign(begin, end);
+  }
+  /*!
+   * \brief constructor from initializer list
+   * \param init The initalizer list
+   */
+  Set(std::initializer_list<K> init) { // NOLINT(*)
+    assign(init.begin(), init.end());
+  }
+  /*!
+   * \brief constructor from vector
+   * \param init The vector
+   */
+  template<typename Hash, typename Equal>
+  Set(const std::unordered_set<K, Hash, Equal>& init) { // NOLINT(*)
+    assign(init.begin(), init.end());
+  }
+  /*!
+   * \brief move assign operator
+   * \param other The source of assignment
+   * \return reference to self.
+   */
+  Set<K>& operator=(Set<K> && other) {
+    node_ = std::move(other.node_);
+    return *this;
+  }
+  /*!
+   * \brief copy assign operator
+   * \param other The source of assignment
+   * \return reference to self.
+   */
+  Set<K>& operator=(const Set<K> & other) {
+    node_ = other.node_;
+    return *this;
+  }
+  /*!
+   * \brief reset the array to content from iterator.
+   * \param begin begin of iterator
+   * \param end end of iterator
+   * \tparam IterType The type of iterator
+   */
+  template<typename IterType>
+  void assign(IterType begin, IterType end) {
+    NodePtr<MapNode> n = make_node<MapNode>();
+    for (IterType i = begin; i != end; ++i) {
+      n->data.emplace(std::make_pair(i->first.node_,
+                                     i->second.node_));
+    }
+    node_ = std::move(n);
+  }
+  /*! \return The size of the set */
+  inline size_t size() const {
+    if (node_.get() == nullptr) return 0;
+    return static_cast<const SetNode*>(node_.get())->data.size();
+  }
+  /*! \return The number of elements of the key */
+  inline size_t count(const K& key) const {
+    if (node_.get() == nullptr) return 0;
+    return static_cast<const SetNode*>(node_.get())->data.count(key.node_);
+  }
+  /*!
+   * \brief copy on write semantics
+   *  Do nothing if current handle is the unique copy of the array.
+   *  Otherwise make a new copy of the array to ensure the current handle
+   *  hold a unique copy.
+   *
+   * \return Handle to the internal node container(which ganrantees to be unique)
+   */
+  inline SetNode* CopyOnWrite() {
+    if (node_.get() == nullptr || !node_.unique())  {
+      NodePtr<SetNode> n = make_node<SetNode>();
+      n->data = static_cast<const SetNode*>(node_.get())->data;
+      NodePtr<Node>(std::move(n)).swap(node_);
+    }
+    return static_cast<SetNode*>(node_.get());
+  }
+  /*!
+   * \brief set the Set.
+   * \param key The index key.
+   */
+  inline void Insert(const K& key) {
+    SetNode* n = this->CopyOnWrite();
+    n->data.insert(key.node_);
+  }
+  /*!
+   * \brief unset the Set.
+   * \param key The index key.
+   */
+  inline void Remove(const K& key) {
+    SetNode* n = this->CopyOnWrite();
+    n->data.erase(key.node);
+  }
+  /*! \return whether set is empty */
+  inline bool empty() const {
+    return size() == 0;
+  }
+  /*! \brief specify container node */
+  using ContainerType = MapNode;
+
+  struct Ptr2NodeRef {
+    using ResultType = K;
+    static inline ResultType convert(const NodePtr<Node>& n) {
+      return K(n);
+    }
+  };
+
+  using iterator = IterAdapter<
+    Ptr2NodeRef, SetNode::ContainerType::const_iterator>;
+
+  /*! \return begin iterator */
+  inline iterator begin() const {
+    return iterator(static_cast<const SetNode*>(node_.get())->data.begin());
+  }
+  /*! \return end iterator */
+  inline iterator end() const {
+    return iterator(static_cast<const SetNode*>(node_.get())->data.end());
+  }
+  /*! \return begin iterator */
+  inline iterator find(const K& key) const {
+    return iterator(static_cast<const SetNode*>(node_.get())->data.find(key.node_));
   }
 };
 

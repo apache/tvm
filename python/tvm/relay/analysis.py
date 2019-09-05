@@ -364,6 +364,27 @@ def unmatched_cases(match, mod=None):
     return _analysis.unmatched_cases(match, mod)
 
 
+def pointer_analysis(expr, mod=None):
+    """
+    Andersen's algorithm, an inclusion based pointer analysis.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    result: PointerAnalysisResult
+      a structure with the following fields:
+        spawn: Dict[Expr, AbstractLocation], the abstract location an expr spawn
+        origin: Dict[AbstractLocation, Expr], the inverse map of spawn
+        contain: Dict[Expr, Set[AbstractLocation]], the possible reference a value might contain.
+        store: Dict[AbstractLocation, Set[Expr]], the exprs an AbstractLocation might hold.
+    """
+    return _analysis.PointerAnalysis(expr, mod)
+
+
 def detect_feature(a, b=None):
     """
     Detect the feature used in a relay program.

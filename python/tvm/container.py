@@ -69,8 +69,8 @@ class Map(NodeBase):
     """Map container of TVM.
 
     You do not need to create Map explicitly.
-    Normally python dict will be converted automaticall to Map during tvm function call.
-    You can use convert to create a dict[NodeBase-> NodeBase] into a Map
+    Normally python dict will be converted automatically to Map during tvm function call.
+    You can use convert to convert a dict[NodeBase-> NodeBase] into a Map
     """
     def __getitem__(self, k):
         return _api_internal._MapGetItem(self, k)
@@ -86,17 +86,38 @@ class Map(NodeBase):
     def __len__(self):
         return _api_internal._MapSize(self)
 
+    def __iter__(self):
+        return iter(self.items())
+
 
 @register_node
 class StrMap(Map):
     """A special map container that has str as key.
 
-    You can use convert to create a dict[str->NodeBase] into a Map.
+    You can use convert to convert a dict[str->NodeBase] into a Map.
     """
     def items(self):
         """Get the items from the map"""
         akvs = _api_internal._MapItems(self)
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
+
+
+@register_node
+class Set(NodeBase):
+    """Set container of tvm.
+    You do not need to create Set explicitly.
+    Normally python set will be converted automatically to Set during tvm function call.
+    You can use convert to convert a set[NodeBase] into a Set
+    """
+    def items(self):
+        """Get the items from the map"""
+        return _api_internal._SetItems(self)
+
+    def __contains__(self, k):
+        return _api_internal._SetCount(self, k) != 0
+
+    def __iter__(self):
+        return iter(self.items())
 
 
 @register_node

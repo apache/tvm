@@ -186,6 +186,7 @@ TVM_REGISTER_API("_MapItems")
       }
       *ret = rkvs;
     } else {
+      CHECK(sptr->is_type<StrMapNode>());
       auto* n = static_cast<const StrMapNode*>(sptr.get());
       auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
@@ -194,6 +195,28 @@ TVM_REGISTER_API("_MapItems")
       }
       *ret = rkvs;
     }
+  });
+
+TVM_REGISTER_API("_SetCount")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    CHECK(args[0].type_code() == kNodeHandle);
+    auto& sptr = args[0].node_sptr();
+    CHECK(sptr->is_type<SetNode>());
+    auto* n = static_cast<const SetNode*>(sptr.get());
+    CHECK(args[1].type_code() == kNodeHandle);
+    *ret = static_cast<int64_t>(n->data.count(args[1].node_sptr()));
+  });
+
+TVM_REGISTER_API("_SetItems")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    auto& sptr = args[0].node_sptr();
+    CHECK(sptr->is_type<SetNode>());
+    auto* n = static_cast<const SetNode*>(sptr.get());
+    auto rkvs = make_node<ArrayNode>();
+    for (const auto& k : n->data) {
+      rkvs->data.push_back(k);
+    }
+    *ret = rkvs;
   });
 
 TVM_REGISTER_API("Range")

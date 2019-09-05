@@ -279,6 +279,53 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  */
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
 
+class AbstractLocation;
+
+class AbstractLocationNode : public Node {
+ public:
+  int id;
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("id", &id);
+  }
+  TVM_DLL static AbstractLocation make(int i);
+  static constexpr const char* _type_key = "relay.AbstractLocationNode";
+  TVM_DECLARE_NODE_TYPE_INFO(AbstractLocationNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(AbstractLocation, AbstractLocationNode, NodeRef);
+
+class PointerAnalysisResult;
+
+class PointerAnalysisResultNode : public Node {
+ public:
+  // Each RefCreate in the program will has it's own AbstractLocation.
+  // Additionally, parameters passed in will has AbstractLocation of 0.
+  // What location does each RefCreate spawn? 0 is not in the range.
+  Map<Expr, AbstractLocation> spawn;
+  // Where locations are created. 0 is not in the domain.
+  Map<AbstractLocation, Expr> origin;
+  // All locations an expression may hold.
+  Map<Expr, Set<AbstractLocation>> contain;
+  // All Expressions that might flow into the location.
+  Map<AbstractLocation, Set<Expr>> store;
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("spawn", &spawn);
+    v->Visit("origin", &origin);
+    v->Visit("contain", &contain);
+    v->Visit("store", &store);
+  }
+  TVM_DLL static PointerAnalysisResult make(Map<Expr, AbstractLocation> spawn,
+                                            Map<AbstractLocation, Expr> origin,
+                                            Map<Expr, Set<AbstractLocation>> contain,
+                                            Map<AbstractLocation, Set<Expr>> store);
+  static constexpr const char* _type_key = "relay.PointerAnalysisResult";
+  TVM_DECLARE_NODE_TYPE_INFO(PointerAnalysisResultNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(PointerAnalysisResult, PointerAnalysisResultNode, NodeRef);
+
+TVM_DLL PointerAnalysisResult PointerAnalysis(const Expr& e);
+
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
   /*! \brief Hash a Relay type.
