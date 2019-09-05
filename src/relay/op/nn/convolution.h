@@ -27,6 +27,7 @@
 
 #include <string>
 #include <utility>
+#include <tvm/ir_pass.h>
 
 namespace tvm {
 namespace relay {

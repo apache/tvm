@@ -23,7 +23,6 @@
  * \brief Property def of qnn convolution operator.
  */
 #include <tvm/data_layout.h>
-#include <tvm/ir_pass.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>

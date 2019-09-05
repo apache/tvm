@@ -22,7 +22,7 @@ from tvm import relay
 
 def CanonicalizeOps():
     """Converts/Lowers an expression containing QNN ops to an expression containing only core
-    (non-Dialect) Relay ops. Each QNN op is lowered to a sequence of exisiting Relay ops. This is a
+    (non-Dialect) Relay ops. Each QNN op is lowered to a sequence of existing Relay ops. This is a
     target-independent pass. One can register the lowering/transformation function for this op using
     FTVMQnnCanonicalize attr_name for FTVMLegalize op attribute.  An example of this transformation
     is below
@@ -40,7 +40,7 @@ def CanonicalizeOps():
                                            output_zero_point=0,
                                            out_dtype='int8')
 
-        # We want to utilize all the existing Relay infrastucture. So, instead of supporting this
+        # We want to utilize all the existing Relay infrastructure. So, instead of supporting this
         # QNN requantize op, we convert it into a sequence of existing Relay operators.
         mod = relay.Module.from_expr(qnn_expr)
         mod = relay.qnn.transform.CanonicalizeOps()(mod)

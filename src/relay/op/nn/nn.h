@@ -26,6 +26,7 @@
 #define TVM_RELAY_OP_NN_NN_H_
 
 #include <utility>
+#include <tvm/relay/qnn/attrs.h>
 
 namespace tvm {
 namespace relay {
