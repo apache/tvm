@@ -21,7 +21,7 @@ from nose.tools import raises
 import tvm
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, check_grad
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -247,6 +247,7 @@ def test_reshape():
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
         func = relay.Function([x], z)
+        check_grad(func)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
         for target, ctx in ctx_list():

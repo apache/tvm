@@ -290,6 +290,12 @@ def dense_grad(orig, grad):
             collapse_sum_like(data * transpose(grad), weight)]
 
 
+@register_gradient("reshape")
+def reshape_grad(orig, grad):
+    """Gradient of reshape"""
+    return [reshape_like(grad, orig.args[0])]
+
+
 @register_gradient("nn.batch_flatten")
 def batch_flatten_grad(orig, grad):
     """Returns grad reshaped to data dims"""

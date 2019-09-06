@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -58,6 +59,4 @@ def test_negative_grad():
 
 
 if __name__ == "__main__":
-    test_clip()
-    test_transpose_grad()
-    test_negative_grad()
+    pytest.main()
