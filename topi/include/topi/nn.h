@@ -184,10 +184,10 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
   tvm::Array<tvm::Expr> output_shape;
   tvm::Array<tvm::Expr> pad_before_int32;
   tvm::Array<tvm::Expr> pad_after_int32;
-  for (const auto& ele: pad_before) {
+  for (const auto &ele : pad_before) {
     pad_before_int32.push_back(tvm::cast(tvm::Int(32), ele));
   }
-  for (const auto& ele: pad_after) {
+  for (const auto &ele : pad_after) {
     pad_after_int32.push_back(tvm::cast(tvm::Int(32), ele));
   }
   for (size_t i = 0; i < t->shape.size(); ++i) {
