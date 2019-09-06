@@ -114,6 +114,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // inference the type of expr.
   Expr Infer(Expr expr);
 
+  // infer the type for all exprs *simultaneously*
+  // (important for checking global vars, as global vars
+  // need to have constraints for all other globals)
+  tvm::Array<Expr> InferAll(const tvm::Array<Expr>& exprs);
+
  private:
   // type resolver that maps back to type
   class Resolver;
@@ -776,6 +781,26 @@ Expr TypeInferencer::Infer(Expr expr) {
   return resolved_expr;
 }
 
+tvm::Array<Expr> TypeInferencer::InferAll(const tvm::Array<Expr>& exprs) {
+  tvm::Array<Expr> ret;
+
+  // Step 1: Populate all constraints
+  for (const auto& e : exprs) {
+    GetType(e);
+  }
+
+  // Step 2: Solve all constraints
+  Solve();
+
+  // Step 3: Attach resolved types
+  for (const auto& e : exprs) {
+    auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(e);
+    ret.push_back(resolved_expr);
+  }
+
+  return ret;
+}
+
 struct AllCheckTypePopulated : ExprVisitor {
   void VisitExpr(const Expr& e) {
     if (e.as<OpNode>()) { return; }
@@ -833,6 +858,43 @@ Function InferType(const Function& func,
     << AsText(func, true)
     << std::endl << free_tvars;
   return Downcast<Function>(func_ret);
+}
+
+Map<GlobalVar, Function> InferTypes(const Map<GlobalVar, Function>& global_funcs,
+                                    const Module& mod) {
+  tvm::Array<GlobalVar> all_vars;
+  tvm::Array<Expr> all_funcs;
+  Map<GlobalVar, Function> ret;
+
+  // prepopulate module with all the functions (unchecked for now)
+  for (const auto& kv : global_funcs) {
+    auto var = kv.first;
+    auto func = kv.second;
+    Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
+    func_copy->checked_type_ = func_copy->func_type_annotation();
+    mod->AddUnchecked(var, func_copy);
+    all_vars.push_back(var);
+    all_funcs.push_back(func_copy);
+  }
+  if (all_vars.size() == 0) {
+    return ret;
+  }
+
+  // check all functions simultaneously
+  // (doesn't matter which var we give the inferencer because it will
+  // never need to be referenced)
+  tvm::Array<Expr> all_checked = TypeInferencer(mod, all_vars[0]).InferAll(all_funcs);
+
+  // collect functions and clean up the module before returning
+  for (size_t i = 0; i < all_checked.size(); ++i) {
+    auto var = all_vars[i];
+    auto checked_func = all_checked[i];
+    CHECK(WellFormed(checked_func));
+    ret.Set(var, Downcast<Function>(checked_func));
+    mod->Remove(var);
+  }
+
+  return ret;
 }
 
 namespace transform {

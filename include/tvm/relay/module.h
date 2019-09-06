@@ -87,6 +87,13 @@ class ModuleNode : public RelayNode {
   TVM_DLL void Add(const GlobalVar& var, const Function& func, bool update = false);
 
   /*!
+   * \brief Adds multiple functions simultaneously to the global environment.
+   * Supports mutual recursion.
+   * \param funcs A map of global vars to function definitions
+   */
+  TVM_DLL void AddMultiple(const Map<GlobalVar, Function>& funcs);
+
+  /*!
    * \brief Add a type-level definition to the global environment.
    * \param var The var of the global type definition.
    * \param type The type definition.
@@ -205,6 +212,11 @@ class ModuleNode : public RelayNode {
   TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
 
  private:
+  /*! \brief Helper function for finding free vars in a function
+  * to be added and warning about them before appending them to the function's parameters.
+  */
+  Function AppendFreeVars(const Function& f);
+
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
 

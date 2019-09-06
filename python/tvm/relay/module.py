@@ -109,6 +109,28 @@ class Module(RelayNode):
         else:
             return _module.Module_LookupDef(self, var)
 
+    def add_multiple(self, functions):
+        """
+        Simultaneously add multiple mappings to the module.
+        Supports mutual recursion.
+
+        Parameters
+        ---------
+        funcsfunctions: Map[GlobalVar, Function]
+        """
+        if functions is None:
+            functions = {}
+        elif isinstance(functions, dict):
+            mapped_funcs = {}
+            for k, v in functions.items():
+                if isinstance(k, _base.string_types):
+                    k = _expr.GlobalVar(k)
+                if not isinstance(k, _expr.GlobalVar):
+                    raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
+                mapped_funcs[k] = v
+            functions = mapped_funcs
+        _module.Module_AddMultiple(self, functions)
+
     def update(self, other):
         """Insert functions in another Module to current one.
 

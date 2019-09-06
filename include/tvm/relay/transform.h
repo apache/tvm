@@ -588,6 +588,24 @@ TVM_DLL Function InferType(const Function& f,
                            const GlobalVar& var);
 
 /*!
+ * \brief Infer the types of all the global functions in the map *simultaneously*.
+ * Hence the functions in the map can assume the existence of anything already in the module
+ * as well as everything else in the map.
+ *
+ * This function is intended to support type-checking mutual recursion
+ * (a situation where we have global variables v1 -> f1 and v2 -> f2
+ * and the definitions of f1 and f2 each use v2 and v1, respectively).
+ *
+ * \param global_funcs A mapping of global variables to their definitions (functions)
+ * \param mod The module used for referencing global functions not in global_funcs.
+ *
+ * \return A map of global vars to functions where each function's checked_type field is populated.
+ * \note this function mutates mod and is not thread-safe.
+ */
+TVM_DLL tvm::Map<GlobalVar, Function> InferTypes(const tvm::Map<GlobalVar, Function>& global_funcs,
+                                                 const Module& mod);
+
+/*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
  * function is used as a helper function to rewrtie an expression in a pass.
  *

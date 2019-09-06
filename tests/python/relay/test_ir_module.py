@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -69,11 +68,45 @@ def test_constructor_tag_differences():
             assert ctor2.tag - (i + 1) != 0
 
 
-def test_global_mutual_recursion():
+def test_add_mutual_recursion():
+    mod = Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+
+    # even and odd are mutually recursive
+    even = relay.GlobalVar('even')
+    odd = relay.GlobalVar('odd')
+
+    x = relay.Var("x")
+    v = relay.Var("v")
+    odd_func = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(v)]), even(v)),
+            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(False))
+        ]))
+
+    y = relay.Var("y")
+    w = relay.Var("w")
+    even_func = relay.Function(
+        [y],
+        relay.Match(y, [
+            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(w)]), odd(w)),
+            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(True))
+        ]))
+
+    mod.add_multiple({even: even_func, odd: odd_func})
+
+    expected_type = relay.FuncType([p.nat()],
+                                   relay.scalar_type('bool'))
+    assert mod[odd].checked_type == expected_type
+    assert mod[even].checked_type == expected_type
+
+
+def test_initial_mutual_recursion():
     odd = relay.GlobalVar("odd")
     even = relay.GlobalVar("even")
 
-    # even and odd are mutually recursive
     x = relay.Var("x", relay.scalar_type('int32'))
     odd_func = relay.Function(
         [x],
@@ -87,7 +120,9 @@ def test_global_mutual_recursion():
                  relay.const(True, 'bool'),
                  odd(relay.subtract(y, relay.const(1, 'int32')))))
 
-    mapping = {odd : odd_func, even : even_func}
+    main = relay.GlobalVar('main')
+    z = relay.Var('z')
+    mapping = {odd: odd_func, even : even_func, main : relay.Function([z], odd(z))}
     mod = relay.Module(mapping)
 
     expected_type = relay.FuncType([relay.scalar_type('int32')],
@@ -95,3 +130,4 @@ def test_global_mutual_recursion():
 
     assert mod[odd].checked_type == expected_type
     assert mod[even].checked_type == expected_type
+    assert mod[main].checked_type == expected_type

@@ -38,13 +38,6 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
   auto n = make_node<ModuleNode>();
   n->type_definitions = std::move(global_type_defs);
 
-  for (const auto& kv : n->functions) {
-    // set global var map
-    CHECK(!n->global_var_map_.count(kv.first->name_hint))
-      << "Duplicate global function name " << kv.first->name_hint;
-    n->global_var_map_.Set(kv.first->name_hint, kv.first);
-  }
-
   for (const auto& kv : n->type_definitions) {
     // set global typevar map
     CHECK(!n->global_type_var_map_.count(kv.first->var->name_hint))
@@ -53,13 +46,10 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     n->RegisterConstructors(kv.first, kv.second);
   }
 
-  // type check all global functions simultaneously
+  // type check the entire set of initial global functions
+  // simultaneously to permit mutual recursion
   auto ret = Module(n);
-  auto checked_funcs = InferTypes(global_funcs, ret);
-  for (const auto& kv : checked_funcs) {
-    ret->AddUnchecked(kv.first, kv.second);
-  }
-
+  ret->AddMultiple(global_funcs);
   return ret;
 }
 
@@ -106,11 +96,8 @@ tvm::Array<T> concat(const tvm::Array<T>& l, const tvm::Array<T>& r) {
   return ret;
 }
 
-void ModuleNode::Add(const GlobalVar& var,
-                     const Function& f,
-                     bool update) {
+Function ModuleNode::AppendFreeVars(const Function& f) {
   Function func = Downcast<Function>(DeDup(f));
-  // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
   auto fv = FreeVars(func);
   auto ftv = FreeTypeVars(func, mod);
@@ -130,12 +117,18 @@ void ModuleNode::Add(const GlobalVar& var,
       << AsText(func, false)
       << std::endl;
   }
-  func =
-    FunctionNode::make(concat(func->params, fv),
-                       func->body,
-                       func->ret_type,
-                       concat(func->type_params, ftv),
-                       func->attrs);
+  return FunctionNode::make(concat(func->params, fv),
+                            func->body,
+                            func->ret_type,
+                            concat(func->type_params, ftv),
+                            func->attrs);
+}
+
+void ModuleNode::Add(const GlobalVar& var,
+                     const Function& f,
+                     bool update) {
+  auto mod = GetRef<Module>(this);
+  Function func = AppendFreeVars(f);
   // Type check the item before we add it to the module.
   Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();
@@ -149,6 +142,20 @@ void ModuleNode::Add(const GlobalVar& var,
   }
   var->checked_type_ = type;
   AddUnchecked(var, checked_func);
+}
+
+void ModuleNode::AddMultiple(const tvm::Map<GlobalVar, Function>& funcs) {
+  // type check all at once in case there is mutual recursion
+  auto mod = GetRef<Module>(this);
+  tvm::Map<GlobalVar, Function> added_funcs;
+  for (auto pair : funcs) {
+    added_funcs.Set(pair.first, AppendFreeVars(pair.second));
+  }
+
+  auto inferred = InferTypes(added_funcs, mod);
+  for (auto pair : inferred) {
+    this->AddUnchecked(pair.first, pair.second);
+  }
 }
 
 void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
@@ -273,6 +280,9 @@ TVM_REGISTER_API("relay._module.Module_Add")
   }
   *ret = mod;
 });
+
+TVM_REGISTER_API("relay._module.Module_AddMultiple")
+.set_body_method<Module>(&ModuleNode::AddMultiple);
 
 TVM_REGISTER_API("relay._module.Module_AddDef")
 .set_body_method<Module>(&ModuleNode::AddDef);
