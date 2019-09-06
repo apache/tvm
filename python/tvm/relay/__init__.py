@@ -17,6 +17,7 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from __future__ import absolute_import
+import os
 from sys import setrecursionlimit
 from ..api import register_func
 from . import base
@@ -50,7 +51,7 @@ from . import nn
 from . import annotation
 from . import vision
 from . import contrib
-from . import image
+from . import imagers
 from . import frontend
 from . import backend
 from . import quantize
@@ -62,6 +63,10 @@ from .scope_builder import ScopeBuilder
 
 # Required to traverse large programs
 setrecursionlimit(10000)
+
+@register_func("tvm.relay.std_path")
+def _std_path():
+    return os.path.dirname(os.path.abspath(__file__))
 
 # Span
 Span = base.Span

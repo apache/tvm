@@ -252,6 +252,7 @@ struct Module : public NodeRef {
   using ContainerType = ModuleNode;
 };
 
+Module FromText(std::string source, const std::string& source_name);
 
 }  // namespace relay
 }  // namespace tvm
