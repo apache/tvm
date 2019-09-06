@@ -51,7 +51,7 @@ from . import nn
 from . import annotation
 from . import vision
 from . import contrib
-from . import imagers
+from . import image
 from . import frontend
 from . import backend
 from . import quantize
@@ -64,9 +64,12 @@ from .scope_builder import ScopeBuilder
 # Required to traverse large programs
 setrecursionlimit(10000)
 
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
 @register_func("tvm.relay.std_path")
 def _std_path():
-    return os.path.dirname(os.path.abspath(__file__))
+    global __STD_PATH__
+    return __STD_PATH__
 
 # Span
 Span = base.Span

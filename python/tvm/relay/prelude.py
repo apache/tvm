@@ -23,8 +23,9 @@ from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard, PatternTuple
 from .parser import fromtext
-__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
+
 from .module import Module
+from . import __STD_PATH__
 
 class Prelude:
     """Contains standard definitions."""
@@ -479,7 +480,7 @@ class Prelude:
         Parses the portions of the Prelude written in Relay's text format and adds
         them to the module.
         """
-        prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
+        prelude_file = os.path.join(__STD_PATH__, "prelude.rly")
         with open(prelude_file) as prelude:
             prelude = fromtext(prelude.read())
             self.mod.update(prelude)
