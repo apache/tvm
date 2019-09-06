@@ -165,6 +165,13 @@ class ModuleNode : public RelayNode {
   TVM_DLL TypeData LookupDef(const std::string& var) const;
 
   /*!
+   * \brief Check if a global type definition exists
+   * \param var The name of the global type definition.
+   * \return Whether the definition exists.
+   */
+  TVM_DLL bool HasDef(const std::string& var) const;
+
+  /*!
    * \brief Look up a constructor by its tag.
    * \param tag The tag for the constructor.
    * \return The constructor object.
