@@ -34,6 +34,7 @@ namespace tvm {
 namespace relay {
 namespace extern_op {
 
+// A helper class to insert annotation boundaries for subgraphs.
 class ExternOpWrapper : public ExprMutator {
  public:
   explicit ExternOpWrapper(const std::string& compiler) : compiler_(compiler) {}
@@ -72,102 +73,8 @@ class ExternOpWrapper : public ExprMutator {
   std::string compiler_;
 };
 
-/*!
- * \brief Eleminates the back-to-back subgraph_begin(s) and end(e) annotations
- * if they are using the same external compiler. For example, the following
- * Relay program
- *
- *       b
- *       |
- *      op1
- *       |
- *       e
- *       |
- *       b
- *       |
- *      op2
- *       |
- *       e
- *
- * will be updated to if op1 and op2 require codegen from the same external
- * compiler.
- *
- *       b
- *       |
- *      op1
- *       |
- *      op2
- *       |
- *       e
- *
- * However, in the following case (op1-6 and op8 use external compiler and op7
- * uses tvm codegen), we cannot simply cancel all back-to-back `start` and
- * `end` annotations even if they use the same external compiler.
- *
- * For example, op1-6 and op8 would be grouped into the same subgraph if we
- * cancel the back-to-back start and end annotations, leaving op7 alone in a
- * separate subgraph. Unfortunately, it creates a cycle where one output of
- * the former subgraph flows into the latter, and meanwhile it requires the
- * the computed results of op7 from the latter subgraph.
- *
- * Hence, we should prevent op1-6 and op8 falling into the same subgraph all
- * together in such a case.
- *
- *       |
- *       b
- *       |
- *      op1
- *    /  |  \
- *   e   e   e
- *   |   |   |
- *   b   b   b
- *   |   |   |
- *  op2 op3 op4
- *   |   |   |
- *   e   e   e
- *   |   |   |
- *   b   b   |
- *   |   |   |
- *  op5 op6 op7
- *   |   |   |
- *   e   e   |
- *   |   |   |
- *   b   b   b
- *    \  |  /
- *      op8
- *       |
- *       e
- *       |
- */
-struct EliminateAnnotation : public ExprMutator {
-  Expr VisitExpr_(const CallNode* cn) {
-    Expr new_e = ExprMutator::VisitExpr_(cn);
-    const auto* op_node = cn->op.as<OpNode>();
-    if (op_node && GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
-      Expr input = cn->args[0];
-      if (input.as<CallNode>() == nullptr) return new_e;
-      Call input_call = Downcast<Call>(input);
-      if (input_call.defined()) {
-        const auto* call_op = input_call->op.as<OpNode>();
-        if (call_op &&
-            GetRef<Op>(call_op) == Op::Get("annotation.subgraph_end")) {
-          auto end_attrs = cn->attrs.as<SubgraphAttrs>();
-          auto begin_attrs = input_call->attrs.as<SubgraphAttrs>();
-          if (end_attrs && begin_attrs &&
-              end_attrs->compiler == begin_attrs->compiler) {
-            // Eliminate end and begin
-            return input_call->args[0];
-          }
-        }
-      }
-    }
-    return new_e;
-  }
-};
-
 Expr ExternOp(const Expr& expr, const std::string& compiler) {
-  Expr annotated = ExternOpWrapper(compiler).Mutate(expr);
-  return annotated; //EliminateAnnotation().Mutate(annotated);
+  return ExternOpWrapper(compiler).Mutate(expr);
 }
 
 }  // namespace extern_op

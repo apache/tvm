@@ -27,7 +27,7 @@ to decide if we should use the external compiler.
 """
 from __future__ import absolute_import
 
-from . import gcc
+from . import gcc, cblas
 from .. import op as reg
 
 @reg.register_extern_op("nn.conv2d")
@@ -36,6 +36,18 @@ def external_conv2d(attrs, args, compiler):
     """
     if compiler == "gcc":
         return gcc.extern_op.conv2d(attrs, args)
+
+    raise RuntimeError("conv2d in {} is not registered" % (compiler))
+
+
+@reg.register_extern_op("nn.dense")
+def external_dense(attrs, args, compiler):
+    """Check if the external compiler should be used.
+    """
+    if compiler == "gcc":
+        return gcc.extern_op.dense(attrs, args)
+    if compiler == "cblas":
+        return cblas.extern_op.dense(attrs, args)
 
     raise RuntimeError("conv2d in {} is not registered" % (compiler))
 

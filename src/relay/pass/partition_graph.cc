@@ -218,7 +218,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleNode* op) {
+  Expr VisitExpr_(const TupleNode* op) final {
     auto subgraph = GetSubgraph(GetRef<Tuple>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -234,7 +234,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* g) {
+  Expr VisitExpr_(const TupleGetItemNode* g) final {
     auto subgraph = GetSubgraph(GetRef<TupleGetItem>(g));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(g);
@@ -245,7 +245,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const FunctionNode* op) {
+  Expr VisitExpr_(const FunctionNode* op) final {
     auto subgraph = GetSubgraph(GetRef<Function>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -263,7 +263,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const LetNode* op) {
+  Expr VisitExpr_(const LetNode* op) final {
     auto subgraph = GetSubgraph(GetRef<Let>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -279,7 +279,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) {
+  Expr VisitExpr_(const IfNode* op) final {
     auto subgraph = GetSubgraph(GetRef<If>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -294,7 +294,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefCreateNode* op) {
+  Expr VisitExpr_(const RefCreateNode* op) final {
     auto subgraph = GetSubgraph(GetRef<RefCreate>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -305,7 +305,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefReadNode* op) {
+  Expr VisitExpr_(const RefReadNode* op) final {
     auto subgraph = GetSubgraph(GetRef<RefRead>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
@@ -316,7 +316,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefWriteNode* op) {
+  Expr VisitExpr_(const RefWriteNode* op) final {
     auto subgraph = GetSubgraph(GetRef<RefWrite>(op));
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
