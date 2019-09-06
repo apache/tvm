@@ -55,6 +55,7 @@ def test_basic():
     l = tvm.var('l')
     m = tvm.var('m')
     n = tvm.var('n')
+
     with ib.for_range(0, l, "i") as i:
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
@@ -75,6 +76,7 @@ def test_no_else():
     l = tvm.var('l')
     m = tvm.var('m')
     n = tvm.var('n')
+
     with ib.for_range(0, l, "i") as i:
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
@@ -142,7 +144,6 @@ def test_nested_for():
 def test_if_block():
     ib = tvm.ir_builder.create()
     data = ib.pointer("float32", name="data")
-
     n = tvm.var("n")
 
 
