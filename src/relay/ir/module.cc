@@ -249,6 +249,7 @@ Module ModuleNode::FromExpr(
 }
 
 void ModuleNode::Import(const std::string& path) {
+  LOG(INFO) << "Importing: " << path;
   if (this->import_set_.count(path) == 0) {
     this->import_set_.insert(path);
     std::fstream src_file(path, std::fstream::in);
@@ -271,7 +272,7 @@ void ModuleNode::ImportStd(const std::string& path) {
   auto* f = tvm::runtime::Registry::Get("tvm.relay.std_path");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   std::string std_path = (*f)();
-  return this->Import(std_path + path);
+  return this->Import(std_path + "/" + path);
 }
 
 Module FromText(std::string source, const std::string& source_name) {
