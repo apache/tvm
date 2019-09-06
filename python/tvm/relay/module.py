@@ -211,3 +211,9 @@ class Module(RelayNode):
         funcs = functions if functions is not None else {}
         defs = type_defs if type_defs is not None else {}
         return _module.Module_FromExpr(expr, funcs, defs)
+
+    def _import(self, file_to_import):
+        return _module.Module_Import(self, file_to_import)
+
+    def import_std(self, file_to_import):
+        return _module.Module_ImportStd(self, file_to_import)
