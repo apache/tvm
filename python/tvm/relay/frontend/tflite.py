@@ -988,8 +988,17 @@ class OperatorConverter(object):
         # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
         # to produce padded of shape padded_shape.
         remaining_shape_length = N - M - 1
-        padded_shape = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
-        padded = _op.nn.pad(in_expr, pad_width=padded_shape)
+        padded_list = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
+
+        padded_shape = []
+        for element in padded_list:
+            if isinstance(element, np.ndarray):
+                element = element.tolist()
+
+            padded_shape.append(element)
+
+        padded_shape = tuple(padded_shape)
+        padded = _op.nn.pad(in_expr, pad_width=tuple(padded_shape))
 
         # Reshape padded to reshaped_padded of shape:
         shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
