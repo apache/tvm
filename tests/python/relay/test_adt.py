@@ -585,7 +585,7 @@ def test_wildcard_match_order():
 
 def test_nested_matches():
     a = relay.TypeVar('a')
-    x = relay.Var('x')
+    x = relay.Var('x', l(l(a)))
     y = relay.Var('y')
     w = relay.Var('w')
     h = relay.Var('h')
