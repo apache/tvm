@@ -96,7 +96,7 @@ def quantize(data,
         The output zero_point.
     output_scale : float
         The output scale.
-    input_dtype : str, optional
+    out_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8]
     Returns
     -------
@@ -319,14 +319,14 @@ def quantized_dense(data,
                     kernel_zero_point,
                     units=None,
                     out_dtype="int32"):
-    """Dense operator.
-    Applies a linear transformation
+    """Qnn Dense operator.
+    Applies a quantized linear transformation
      .. math::
      `Y = X * W`
-     Parameters
+    Parameters
     ----------
     data : tvm.relay.Expr
-        The quantied input data to the operator.
+        The quantized input data to the operator.
      weight : tvm.relay.Expr
         The quantized weight expressions.
      units : int, optional

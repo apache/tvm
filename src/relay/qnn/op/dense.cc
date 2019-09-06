@@ -27,7 +27,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
-#include <tvm/relay/analysis.h>
 #include "../../op/nn/nn.h"
 #include "../../pass/pattern_util.h"
 
@@ -38,7 +37,9 @@ namespace qnn {
 // relay.op.qnn.dense
 TVM_REGISTER_NODE_TYPE(QnnDenseAttrs);
 
-bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool QnnDenseRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -71,9 +72,9 @@ Expr MakeQuantizedDense(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-Expr QnnDenseCanonicalize (const Attrs& attrs,
-                       const Array<Expr>& new_args,
-                       const Array<tvm::relay::Type>& arg_types) {
+Expr QnnDenseCanonicalize(const Attrs& attrs,
+                          const Array<Expr>& new_args,
+                          const Array<tvm::relay::Type>& arg_types) {
   CHECK_EQ(new_args.size(), 2);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
