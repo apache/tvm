@@ -24,8 +24,7 @@ from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard, PatternTuple
 from .parser import fromtext
 
-from .module import Module
-from . import __STD_PATH__
+from .module import Module, __STD_PATH__
 
 class Prelude:
     """Contains standard definitions."""

@@ -17,11 +17,20 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
 """A global module storing everything needed to interpret or compile a Relay program."""
 from .base import register_relay_node, RelayNode
+from .. import register_func
 from .._ffi import base as _base
 from . import _make
 from . import _module
 from . import expr as _expr
 from . import ty as _ty
+import os
+
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
+@register_func("tvm.relay.std_path")
+def _std_path():
+    global __STD_PATH__
+    return __STD_PATH__
 
 @register_relay_node
 class Module(RelayNode):
