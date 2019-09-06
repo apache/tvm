@@ -252,6 +252,11 @@ struct Module : public NodeRef {
   using ContainerType = ModuleNode;
 };
 
+/*! \brief Parse Relay source into a module.
+ * \param source A string of Relay source code.
+ * \param source_name The name of the source file.
+ * \return A Relay module.
+ */
 Module FromText(std::string source, const std::string& source_name);
 
 }  // namespace relay
