@@ -109,6 +109,7 @@ set(USE_BLAS none)
 # /path/to/mkl: mkl root path when use mkl blas library
 # set(USE_MKL_PATH /opt/intel/mkl) for UNIX
 # set(USE_MKL_PATH ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
+# set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL_PATH none)
 
 # Whether use contrib.random in runtime
