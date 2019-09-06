@@ -67,7 +67,7 @@ using ExprSubstMap = std::unordered_map<Expr, Expr, NodeHash, NodeEqual>;
 class BranchGroupFinder : private ExprVisitor {
  public:
   /*
-    @brief Constructor.
+    @brief Constructor
     @param op_name name of op to start each group
     @param fis_supported_op function that returns true if op
                             is supported for combining
