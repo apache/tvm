@@ -323,6 +323,7 @@ def quantized_dense(data,
     Applies a quantized linear transformation
      .. math::
      `Y = X * W`
+
     Parameters
     ----------
     data : tvm.relay.Expr

@@ -435,9 +435,9 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
 }
 
 static inline Expr Dense(Expr data,
-                  Expr weight,
-                  IndexExpr units,
-                  DataType out_dtype) {
+                         Expr weight,
+                         IndexExpr units,
+                         DataType out_dtype) {
   auto attrs = make_node<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;

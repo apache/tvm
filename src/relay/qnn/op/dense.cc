@@ -44,14 +44,15 @@ bool QnnDenseRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
+  if(data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnDenseAttrs>();
+  CHECK(param != nullptr) << "QnnConv2DAttrs cannot be nullptr.";
   CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
     << "Expected quantized dense type(int8, uint8) for input but was " <<  data->dtype;
   CHECK(weight->dtype == Int(8) || weight->dtype == UInt(8))
     << "Expected quantized dense type(int8, uint8) for weight but was " <<  weight->dtype;
-  CHECK(data->dtype == weight->dtype) << "Weight and kernel dtypes do not match";
-  CHECK(param->out_dtype == Int(16) || param->out_dtype == Int(32))
-    << "Expected quantized dense type(int32, int16) for output but was " <<  param->out_dtype;
+  CHECK(param->out_dtype == Int(32))
+    << "Expected quantized dense type(int32) for output but was " <<  param->out_dtype;
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
   return DenseRel<QnnDenseAttrs>(types, num_inputs, attrs, reporter);
 }
@@ -64,7 +65,7 @@ Expr MakeQuantizedDense(Expr data,
                         int32_t kernel_zero_point,
                         DataType out_dtype) {
   auto attrs = make_node<QnnDenseAttrs>();
-  attrs->units = units;
+  attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
   attrs->input_zero_point = input_zero_point;
   attrs->kernel_zero_point = kernel_zero_point;
@@ -72,6 +73,16 @@ Expr MakeQuantizedDense(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
+/**
+ * \brief Lowers Qnn convolution in terms of core operators in relay.
+ * Mathematically it is equals to -
+ * Dense((quantized_input - input_zero_point;int32), (quantized_kernel - kernel_zero_point; int32))
+ *
+ * \param attrs QnnDenseAttrs for Qnn Dense layer.
+ * \param new_args The new mutated args to the call node.
+ * \param arg_types The data types of input and output.
+ * \reutrn The sequence of Relay ops for qnn cov2d op.
+ */
 Expr QnnDenseCanonicalize(const Attrs& attrs,
                           const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
@@ -79,18 +90,17 @@ Expr QnnDenseCanonicalize(const Attrs& attrs,
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
-  //TODO: need to benchmark the performance of this lowering.
   Expr quantized_data_int32 = Cast(quantized_data, Int(32));
   if(qnn_dense_attrs->input_zero_point != 0) {
     quantized_data_int32 = Subtract(quantized_data_int32,
                                     MakeConstantScalar(Int(32),
-                                                       qnn_dense_attrs->input_zero_point));
+                                    qnn_dense_attrs->input_zero_point));
   }
   Expr quantized_kernel_int32 = Cast(quantized_kernel, Int(32));
   if(qnn_dense_attrs->kernel_zero_point != 0) {
     quantized_kernel_int32 = Subtract(quantized_kernel_int32,
                                       MakeConstantScalar(Int(32),
-                                                         qnn_dense_attrs->kernel_zero_point));
+                                      qnn_dense_attrs->kernel_zero_point));
   }
   Expr int32_dense = Dense(quantized_data_int32,
                            quantized_kernel_int32,
