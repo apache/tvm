@@ -245,7 +245,7 @@ include(cmake/modules/contrib/HybridDump.cmake)
 
 if(NOT MSVC)
   include(CheckCXXCompilerFlag)
-  if(NOT USE_LLVM STREQUAL "OFF" AND TVM_LLVM_VERSION GREATER_EQUAL 100)
+  if(NOT USE_LLVM STREQUAL "OFF" AND TVM_LLVM_VERSION GREATER 91)
     check_cxx_compiler_flag("-std=c++14"    SUPPORT_CXX14)
     message(STATUS "Build with c++14")
     set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
