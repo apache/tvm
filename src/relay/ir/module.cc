@@ -206,6 +206,11 @@ TypeData ModuleNode::LookupDef(const std::string& name) const {
   return this->LookupDef(id);
 }
 
+bool ModuleNode::HasDef(const std::string& name) const {
+  auto it = global_type_var_map_.find(name);
+  return it != global_type_var_map_.end();
+}
+
 Constructor ModuleNode::LookupTag(const int32_t tag) {
   auto it = constructor_tag_map_.find(tag);
   CHECK(it != constructor_tag_map_.end())
