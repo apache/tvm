@@ -73,7 +73,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     if DOPAD:
         s[A0].compute_inline()
     batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
-    parallel_axis = s[A1].fuse(ic_chunk, ih)
+    parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
 
     # schedule kernel pack
@@ -115,7 +115,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
     s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
-    parallel_axis = s[O].fuse(oc_chunk, oh_outer)
+    parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
     s[C].compute_at(s[O], parallel_axis)
     s[O].vectorize(oc_block)
 
