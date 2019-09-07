@@ -69,6 +69,7 @@ def test_alter_layout_conv2d():
     targets=['cuda',
              'opencl -device=mali',
              'opencl -device=intel_graphics',
+
              'llvm -device=arm_cpu',
              'llvm -device=core-avx-ii']
 
@@ -83,5 +84,6 @@ def test_alter_layout_conv2d():
                 assert not relay.analysis.alpha_equal(N, O)
 
 if __name__ == "__main__":
+    import numpy as np
     np.random.seed(42)
     test_alter_layout_conv2d()
