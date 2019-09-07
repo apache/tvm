@@ -209,6 +209,7 @@ inline Tensor reshape(const Tensor& x,
                       std::string tag = kInjective) {
   auto x_shape = x->shape;
   Array<Expr> newshape_int32;
+
   for (const auto &ele : newshape) {
     newshape_int32.push_back(cast(Int(32), ele));
   }
