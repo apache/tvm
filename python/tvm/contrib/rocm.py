@@ -46,7 +46,7 @@ def find_lld(required=True):
         major = codegen.llvm_version_major()
         lld_list += ["ld.lld-%d.0" % major]
         lld_list += ["ld.lld-%d" % major]
-    lld_list += ["lld"]
+    lld_list += ["ld.lld"]
     valid_list = [util.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:

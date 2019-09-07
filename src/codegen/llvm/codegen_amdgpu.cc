@@ -170,8 +170,8 @@ inline int DetectROCMComputeVersion(const std::string& target) {
       return val.operator int();
     }
   }
-  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx803";
-  return 803;
+  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx900";
+  return 900;
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
