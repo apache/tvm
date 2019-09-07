@@ -25,6 +25,7 @@
 #include <vta/driver.h>
 #include <vta/hw_spec.h>
 #include <tvm/runtime/registry.h>
+#include <vta/sim_tlpp.h>
 #include <type_traits>
 #include <mutex>
 #include <map>
@@ -275,6 +276,7 @@ class Device {
   Device() {
     prof_ = Profiler::ThreadLocal();
     dram_ = DRAM::Global();
+    ptlpp = TlppVerify::Global();
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,
@@ -286,24 +288,35 @@ class Device {
     for (uint32_t i = 0; i < insn_count; ++i) {
       this->Run(insn + i);
     }
+    this->TlppSynchronization();
     return 0;
   }
 
  private:
-  void Run(const VTAGenericInsn* insn) {
+  static void Run_Insn(const VTAGenericInsn* insn, void * dev) {
+    Device * device = reinterpret_cast<Device *> (dev);
     const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
     const VTAGemInsn* gem = reinterpret_cast<const VTAGemInsn*>(insn);
     const VTAAluInsn* alu = reinterpret_cast<const VTAAluInsn*>(insn);
     switch (mem->opcode) {
-      case VTA_OPCODE_LOAD: RunLoad(mem); break;
-      case VTA_OPCODE_STORE: RunStore(mem); break;
-      case VTA_OPCODE_GEMM: RunGEMM(gem); break;
-      case VTA_OPCODE_ALU: RunALU(alu); break;
-      case VTA_OPCODE_FINISH: ++finish_counter_; break;
+      case VTA_OPCODE_LOAD: device->RunLoad(mem); break;
+      case VTA_OPCODE_STORE: device->RunStore(mem); break;
+      case VTA_OPCODE_GEMM: device->RunGEMM(gem); break;
+      case VTA_OPCODE_ALU: device->RunALU(alu); break;
+      case VTA_OPCODE_FINISH: ++(device->finish_counter_); break;
       default: {
         LOG(FATAL) << "Unknown op_code" << mem->opcode;
       }
     }
+  }
+
+ private:
+  void Run(const VTAGenericInsn* insn) {
+    ptlpp->TlppPushInsn(insn);
+  }
+
+  void TlppSynchronization(void) {
+    ptlpp->TlppSynchronization(Run_Insn, reinterpret_cast<void *> (this));
   }
 
   void RunLoad(const VTAMemInsn* op) {
@@ -466,6 +479,7 @@ class Device {
   Profiler* prof_;
   // The DRAM interface
   DRAM* dram_;
+  TlppVerify* ptlpp;
   // The SRAM
   SRAM<VTA_INP_WIDTH, VTA_BATCH * VTA_BLOCK_IN, VTA_INP_BUFF_DEPTH> inp_;
   SRAM<VTA_WGT_WIDTH, VTA_BLOCK_IN * VTA_BLOCK_OUT, VTA_WGT_BUFF_DEPTH> wgt_;
