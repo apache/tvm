@@ -213,7 +213,7 @@ inline Tensor reshape(const Tensor& x,
     newshape_int32.push_back(cast(Int(32), ele));
   }
   return compute(
-    newshape, [&](const Array<Var>& indices) {
+    newshape_int32, [&](const Array<Var>& indices) {
       return x(UnravelIndex(RavelIndex(Array<Expr>{indices.begin(), indices.end()}, newshape_int32),
                             x_shape));
     }, name, tag);
