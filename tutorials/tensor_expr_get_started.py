@@ -33,7 +33,7 @@ import numpy as np
 # Global declarations of environment.
 
 tgt_host="llvm"
-# Change it to respective GPU if gpu is enabled Ex: cuda, opencl
+# Change it to respective GPU if gpu is enabled Ex: cuda, opencl, rocm
 tgt="cuda"
 
 ######################################################################
@@ -113,7 +113,7 @@ bx, tx = s[C].split(C.op.axis[0], factor=64)
 # compute grid. These are GPU specific constructs that allow us
 # to generate code that runs on GPU.
 #
-if tgt == "cuda" or tgt.startswith('opencl'):
+if tgt == "cuda" or tgt == "rocm" or tgt.startswith('opencl'):
   s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
   s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
 
@@ -168,7 +168,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #
 # The following code fetches the device module and prints the content code.
 #
-if tgt == "cuda" or tgt.startswith('opencl'):
+if tgt == "cuda" or tgt == "rocm" or tgt.startswith('opencl'):
     dev_module = fadd.imported_modules[0]
     print("-----GPU code-----")
     print(dev_module.get_source())
@@ -212,6 +212,8 @@ temp = util.tempdir()
 fadd.save(temp.relpath("myadd.o"))
 if tgt == "cuda":
     fadd.imported_modules[0].save(temp.relpath("myadd.ptx"))
+if tgt == "rocm":
+    fadd.imported_modules[0].save(temp.relpath("myadd.hsaco"))
 if tgt.startswith('opencl'):
     fadd.imported_modules[0].save(temp.relpath("myadd.cl"))
 cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
@@ -236,6 +238,10 @@ print(temp.listdir())
 fadd1 = tvm.module.load(temp.relpath("myadd.so"))
 if tgt == "cuda":
     fadd1_dev = tvm.module.load(temp.relpath("myadd.ptx"))
+    fadd1.import_module(fadd1_dev)
+
+if tgt == "rocm":
+    fadd1_dev = tvm.module.load(temp.relpath("myadd.hsaco"))
     fadd1.import_module(fadd1_dev)
 
 if tgt.startswith('opencl'):
