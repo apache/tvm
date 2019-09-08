@@ -29,11 +29,11 @@ make cython3
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."
-python3 -m nose -v vta/tests/python/unittest
+python3 -m pytest -v vta/tests/python/unittest
 
 # Run unit tests in functional/fast simulator
 echo "Running integration test in fsim..."
-python3 -m nose -v vta/tests/python/integration
+python3 -m pytest -v vta/tests/python/integration
 
 # # Build VTA chisel design and verilator simulator
 # (make -C vta/hardware/chisel/)
@@ -43,11 +43,11 @@ python3 -m nose -v vta/tests/python/integration
 
 # # Run unit tests in cycle accurate simulator
 # echo "Running unittest in tsim..."
-# python3 -m nose -v vta/tests/python/unittest
+# python3 -m pytest -v vta/tests/python/unittest
 
 # # Run unit tests in cycle accurate simulator
 # echo "Running integration test in tsim..."
-# python3 -m nose -v vta/tests/python/integration
+# python3 -m pytest -v vta/tests/python/integration
 
 # # Reset default fsim simulation
 # cp vta/config/fsim_sample.json vta/config/vta_config.json
