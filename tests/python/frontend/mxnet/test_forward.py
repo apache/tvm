@@ -34,7 +34,7 @@ def verify_mxnet_frontend_impl(mx_symbol,
                                gluon_impl=False,
                                name=None,
                                dtype='float32'):
-    """Use name different from test to avoid let nose pick it up"""
+    """Use name different from test to avoid pytest picking it up"""
     if gluon_impl:
         def get_gluon_output(name, x):
             net = vision.get_model(name)

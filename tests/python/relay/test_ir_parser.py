@@ -17,11 +17,12 @@
 import tvm
 from tvm import relay
 from tvm.relay.analysis import graph_equal, assert_graph_equal
-from nose.tools import nottest, raises
+from tvm.relay.analysis import alpha_equal, assert_alpha_equal
+import pytest
 from numpy import isclose
 from typing import Union
 from functools import wraps
-raises_parse_error = raises(tvm._ffi.base.TVMError)
+raises_parse_error = pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 
 SEMVER = "v0.0.4"
 
@@ -186,7 +187,7 @@ def test_op_assoc():
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
-@nottest
+@pytest.mark.skip
 def test_vars():
     # temp vars won't work b/c they start with a digit
     # # temp var
@@ -536,11 +537,6 @@ def test_incomplete_type():
 def test_builtin_types():
     for builtin_type in TYPES:
         parse_text("let %_ : {} = (); ()".format(builtin_type))
-
-
-@nottest
-def test_call_type():
-    assert False
 
 
 def test_tensor_type():
