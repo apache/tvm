@@ -133,7 +133,7 @@ def main():
         cflags_str = " ".join(pkg.cflags)
         if pkg.TARGET == "pynq":
             cflags_str += " -DVTA_TARGET_PYNQ"
-        elif cfg.TARGET == "de10nano":
+        elif pkg.TARGET == "de10nano":
             cflags_str += " -DVTA_TARGET_DE10_NANO"
         elif pkg.TARGET == "ultra96":
             cflags_str += " -DVTA_TARGET_ULTRA96"
