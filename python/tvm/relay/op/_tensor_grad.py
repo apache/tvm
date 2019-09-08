@@ -25,7 +25,7 @@ from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
 from .op import register_gradient
 from .reduce import sum as _sum
-from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like
+from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like, equal
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
@@ -278,8 +278,7 @@ def max_grad(orig, grad):
     orig = broadcast_to_like(orig, x)
     grad = broadcast_to_like(grad, x)
     indicators = cast_like(equal(orig, x), grad)
-    count = reduce_sum(indicators, axis, True)
-    return [divide(indicators, count) * grad]
+    return [indicators * grad]
 
 
 @register_gradient("nn.softmax")
