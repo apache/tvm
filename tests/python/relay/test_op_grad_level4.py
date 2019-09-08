@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 from tvm import relay
 from tvm.relay.testing import check_grad
 
@@ -30,6 +31,16 @@ def test_sum_grad():
     verify_sum_grad((4, 2, 1), axis=(1, 2), exclude=True)
 
 
+def test_max_grad():
+    s = (5, 10, 5)
+    t = relay.TensorType(s)
+    x = relay.var("x", t)
+    axis = 0
+    z = relay.max(x, axis)
+
+    fwd_func = relay.Function([x], z)
+    check_grad(fwd_func)
+
 
 if __name__ == "__main__":
-    test_sum_grad()
+    pytest.main()
