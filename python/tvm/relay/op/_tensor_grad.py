@@ -29,6 +29,7 @@ from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
+    cast_like,
     reshape,
     reshape_like,
     strided_slice,
@@ -294,6 +295,12 @@ def dense_grad(orig, grad):
 def reshape_grad(orig, grad):
     """Gradient of reshape"""
     return [reshape_like(grad, orig.args[0])]
+
+
+@register_gradient("cast")
+def cast_grad(orig, grad):
+    x = orig.args[0]
+    return [cast_like(grad, x)]
 
 
 @register_gradient("nn.batch_flatten")

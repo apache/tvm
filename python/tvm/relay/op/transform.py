@@ -40,6 +40,23 @@ def cast(data, dtype):
     return _relay_make.cast(data, dtype)
 
 
+def cast_like(data, dtype_like):
+    """Cast input tensor to data type of another tensor.
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+    dtype_like: relay.Expr
+        The tensor to cast to.
+    Returns
+    -------
+    result : relay.Expr
+        The casted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.cast_like(data, dtype_like)
+
+
 def reinterpret(data, dtype):
     """Reinterpret input tensor to data type.
 
