@@ -698,13 +698,13 @@ bool BatchMatmulRel(const Array<Type>& types,
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape
-      << ", y shape=" << y->shape;
+    << "BatchDot: batch dimension doesn't match, "
+    << "x shape=, " << x->shape
+    << "y shape=" << y->shape;
   CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
-      << "BatchDot: shapes of x and y is inconsistent, "
-      << " x shape=" << x->shape
-      << ", y shape=" << y->shape;
+    << "BatchDot: shapes of x and y is inconsistent, "
+    << "x shape=, " << x->shape
+    << "y shape=" << y->shape;
 
   Array<tvm::Expr> oshape = x->shape;
   oshape.Set(2, y->shape[1]);
