@@ -44,7 +44,7 @@ bool QnnDenseRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
-  if(data == nullptr || weight == nullptr) return false;
+  if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnDenseAttrs>();
   CHECK(param != nullptr) << "QnnConv2DAttrs cannot be nullptr.";
   CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
@@ -91,13 +91,13 @@ Expr QnnDenseCanonicalize(const Attrs& attrs,
   Expr quantized_kernel = new_args[1];
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
   Expr quantized_data_int32 = Cast(quantized_data, Int(32));
-  if(qnn_dense_attrs->input_zero_point != 0) {
+  if (qnn_dense_attrs->input_zero_point != 0) {
     quantized_data_int32 = Subtract(quantized_data_int32,
                                     MakeConstantScalar(Int(32),
                                     qnn_dense_attrs->input_zero_point));
   }
   Expr quantized_kernel_int32 = Cast(quantized_kernel, Int(32));
-  if(qnn_dense_attrs->kernel_zero_point != 0) {
+  if (qnn_dense_attrs->kernel_zero_point != 0) {
     quantized_kernel_int32 = Subtract(quantized_kernel_int32,
                                       MakeConstantScalar(Int(32),
                                       qnn_dense_attrs->kernel_zero_point));
