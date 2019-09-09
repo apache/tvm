@@ -97,8 +97,8 @@ inline Tensor resize_nearest_neighbor_nhwc(const Tensor& input,
                                            std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(shape[0]);
-  out_shape.push_back(shape[1]);
+  out_shape.push_back(cast(Int(32), shape[0]));
+  out_shape.push_back(cast(Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
   return compute(
@@ -132,8 +132,8 @@ inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(shape[0]);
-  out_shape.push_back(shape[1]);
+  out_shape.push_back(cast(Int(32), shape[0]));
+  out_shape.push_back(cast(Int(32), shape[1]));
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -166,8 +166,8 @@ inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(shape[0]);
-  out_shape.push_back(shape[1]);
+  out_shape.push_back(cast(Int(32), shape[0]));
+  out_shape.push_back(cast(Int(32), shape[1]));
   out_shape.push_back(input->shape[4]);
 
   return compute(
@@ -233,8 +233,8 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
                                    std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(shape[0]);
-  out_shape.push_back(shape[1]);
+  out_shape.push_back(cast(Int(32), shape[0]));
+  out_shape.push_back(cast(Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
   Expr cone = make_const(Int(32), 1);
@@ -311,8 +311,8 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(shape[0]);
-  out_shape.push_back(shape[1]);
+  out_shape.push_back(cast(Int(32), shape[0]));
+  out_shape.push_back(cast(Int(32), shape[1]));
 
   Expr cone = make_const(Int(32), 1);
 

@@ -23,6 +23,7 @@ from numbers import Integral as _Integral
 from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
+from ._ffi.node_generic import _scalar_type_inference
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
@@ -73,7 +74,7 @@ def max_value(dtype):
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype):
+def const(value, dtype=None):
     """construct a constant
 
     Parameters
@@ -81,7 +82,7 @@ def const(value, dtype):
     value : number
         The content of the constant number.
 
-    dtype : str
+    dtype : str or None, optional
         The data type.
 
     Returns
@@ -89,6 +90,8 @@ def const(value, dtype):
     const_val: tvm.Expr
         The result expression.
     """
+    if dtype is None:
+        dtype = _scalar_type_inference(value)
     return _api_internal._const(value, dtype)
 
 
