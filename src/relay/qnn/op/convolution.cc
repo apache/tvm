@@ -47,7 +47,7 @@ bool QnnConv2DRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
-  if(data == nullptr || weight == nullptr) return false;
+  if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnConv2DAttrs>();
   CHECK(param != nullptr) << "QnnConv2DAttrs cannot be nullptr.";
   CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
