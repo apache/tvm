@@ -211,6 +211,22 @@ def exp(x):
     return call_pure_intrin(x.dtype, "exp", x)
 
 
+def erf(x):
+    """Take gauss error function of the input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "erf", x)
+
+
 def tanh(x):
     """Take hyperbolic tanh of input x.
 

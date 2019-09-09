@@ -512,6 +512,7 @@ TVM_DLL Expr trunc(Expr x);
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(erf);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
