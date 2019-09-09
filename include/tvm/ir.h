@@ -556,6 +556,9 @@ class Call : public ExprNode {
          name == intrin_name);
   }
 
+  /*! \return Whether call node can be vectorized. */
+  bool is_vectorizable() const;
+
   static constexpr const char* _type_key = "Call";
   TVM_DECLARE_NODE_TYPE_INFO(Call, ExprNode);
 
@@ -571,6 +574,9 @@ class Call : public ExprNode {
   static constexpr const char* likely = "likely";
   static constexpr const char* glsl_texture_store = "glsl_texture_store";
   static constexpr const char* prefetch = "prefetch";
+
+  /*! \brief Vectorizable intrinsic list. */
+  static const char* vectorizable_intrinsics[];
 };
 
 /*!

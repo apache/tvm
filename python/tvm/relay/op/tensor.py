@@ -92,6 +92,22 @@ def exp(data):
     return _make.exp(data)
 
 
+def erf(data):
+    """Compute elementwise error function of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.erf(data)
+
+
 def sqrt(data):
     """Compute elementwise sqrt of data.
 
