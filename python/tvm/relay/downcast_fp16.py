@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name,arguments-differ,no-else-return,unused-argument,missing-docstring
 from __future__ import absolute_import
 from .expr_functor import ExprMutator
-from .expr import Function, Call, Let, Var, GlobalVar, Constant
+from .expr import Function, Call, Let, Var, GlobalVar, Constant, Tuple
 from . import transform as _transform
 from . import module as _module
 from . import cast
@@ -49,15 +49,10 @@ def downcast_fp16(graph):
                     new_args.append(arg)
             return Call(new_fn, new_args, call.attrs)
 
-        def visit_function(self, fn):
-            new_params = [self.visit(x) for x in fn.params]
-            new_body = cast(self.visit(fn.body), dtype='float32')
-            return Function(
-                            list(new_params),
-                            new_body,
-                            fn.ret_type,
-                            fn.type_params,
-                            fn.attrs)
+    class UpcastMutator(ExprMutator):
+        def visit_call(self, call):
+            return cast(call, dtype='float32')
+
     def infer_type(expr):
         mod = _module.Module.from_expr(expr)
         mod = _transform.InferType()(mod)
@@ -66,6 +61,8 @@ def downcast_fp16(graph):
 
     downcast_pass = DowncastMutator()
     func = downcast_pass.visit(graph)
+    upcast_pass = UpcastMutator()
+    func = upcast_pass.visit(func)
     func = infer_type(func)
     return func
 
