@@ -32,14 +32,14 @@ def test_sum_grad():
 
 
 def test_max_grad():
-    s = (5, 10)
+    s = (10, 10)
     t = relay.TensorType(s)
     x = relay.var("x", t)
     axis = 0
     z = relay.max(x, axis)
 
     fwd_func = relay.Function([x], z)
-    check_grad(fwd_func, eps=1e-7, rtol=1)
+    check_grad(fwd_func, scale=1e-3)
 
 
 if __name__ == "__main__":
