@@ -133,7 +133,6 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
                                                                size_t parent_index) {
   Array<Expr> new_args;
   const CallNode* call = branches[0][depth];
-  const Op& add = Op::Get("add");
 
   for (size_t i = 0; i < call->args.size(); i++) {
     if (i == parent_index) {
@@ -143,15 +142,11 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
 
     Array<Expr> tuple;
     for (const auto& branch : branches) {
+      // if the shape of the arg is of shape (j,),
+      // expand it to (1,j) so it can be properly broadcasted.
       Expr arg = branch[depth]->args[i];
       const TensorTypeNode* arg_tensor = arg->type_as<TensorTypeNode>();
-
-      // special case for add: 1D data needs to be expanded to (1,size)
-      // for proper broadcasting.
-      //
-      // note that this can't be applied generally, as elementwise ops
-      // such as full have a valid 1D input.
-      if (call->op.same_as(add) && arg_tensor->shape.size() == 1) {
+      if (arg_tensor->shape.size() == 1) {
         Expr expanded_arg = MakeExpandDims(arg, 0, 1);
         tuple.push_back(expanded_arg);
       } else {
