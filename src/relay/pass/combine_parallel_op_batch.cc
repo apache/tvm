@@ -133,7 +133,7 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
                                                                size_t parent_index) {
   Array<Expr> new_args;
   const CallNode* call = branches[0][depth];
-  const Op& bias_add = Op::Get("nn.bias_add");
+  const Op& add = Op::Get("add");
 
   for (size_t i = 0; i < call->args.size(); i++) {
     if (i == parent_index) {
@@ -144,13 +144,14 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
     Array<Expr> tuple;
     for (const auto& branch : branches) {
       Expr arg = branch[depth]->args[i];
+      const TensorTypeNode* arg_tensor = arg->type_as<TensorTypeNode>();
 
-      // special case for bias_add: 1D data needs to be expanded to (1,size)
+      // special case for add: 1D data needs to be expanded to (1,size)
       // for proper broadcasting.
       //
       // note that this can't be applied generally, as elementwise ops
       // such as full have a valid 1D input.
-      if (call->op.same_as(bias_add)) {
+      if (call->op.same_as(add) && arg_tensor->shape.size() == 1) {
         Expr expanded_arg = MakeExpandDims(arg, 0, 1);
         tuple.push_back(expanded_arg);
       } else {
