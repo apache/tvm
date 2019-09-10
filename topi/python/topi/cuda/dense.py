@@ -17,14 +17,18 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for dense operator"""
 from __future__ import absolute_import as _abs
+import logging
 import tvm
 import tvm.autotvm as autotvm
+from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas
 from .tensor_intrin import dp4a
 from ..nn.dense import dense, dense_default
 from .. import tag
 from .. import generic
 from ..util import traverse_inline, get_const_tuple
+
+logger = logging.getLogger('topi')
 
 
 @autotvm.register_topi_compute(dense, ["cuda", "gpu"], "direct")
@@ -107,11 +111,11 @@ def schedule_dense(cfg, outs):
     def _schedule_small_batch(C):
         A, _ = C.op.input_tensors
         _, in_dim = get_const_tuple(A.shape)
-        cfg.define_split('tile_k', in_dim, num_outputs=2,
-                         filter=lambda x: x.size[1] > 2)
+        cfg.define_split('tile_k', in_dim, num_outputs=2)
+        if cfg.is_fallback:
+            cfg["tile_k"] = SplitEntity([1, in_dim])
 
-        k = C.op.reduce_axis[0]
-        ko, kf = cfg['tile_k'].apply(s, C, k)
+        ko, kf = cfg['tile_k'].apply(s, C, C.op.reduce_axis[0])
         CF = s.rfactor(C, kf)
 
         if C.op in s.outputs:
@@ -140,16 +144,29 @@ def schedule_dense(cfg, outs):
         vthread_cand = [2**x for x in range(1, 7)]
         n_thread_cand = [2**x for x in range(3, 7)]
 
-        cfg.define_split('tile_x', batch, num_outputs=4,
-                         filter=lambda x: (x.size[1] in vthread_cand and
-                                           x.size[2] in n_thread_cand and
-                                           (x.size[1] * x.size[2] * x.size[3]) in block_cand))
-        cfg.define_split('tile_y', out_dim, num_outputs=4,
-                         filter=lambda x: (x.size[1] in vthread_cand and
-                                           x.size[2] in n_thread_cand and
-                                           (x.size[1] * x.size[2] * x.size[3]) in block_cand))
-        cfg.define_split('tile_k', in_dim, num_outputs=3,
-                         filter=lambda x: x.size[0] > 2)
+        try:
+            cfg.define_split('tile_x', batch, num_outputs=4,
+                             filter=lambda x: (x.size[1] in vthread_cand and
+                                               x.size[2] in n_thread_cand and
+                                               (x.size[1] * x.size[2] * x.size[3]) in block_cand))
+            cfg.define_split('tile_y', out_dim, num_outputs=4,
+                             filter=lambda x: (x.size[1] in vthread_cand and
+                                               x.size[2] in n_thread_cand and
+                                               (x.size[1] * x.size[2] * x.size[3]) in block_cand))
+            cfg.define_split('tile_k', in_dim, num_outputs=3, filter=lambda x: x.size[0] > 2)
+        except IndexError:
+            logger.warning('Failed to create tuning space, fallback to default config')
+            cfg.define_split('tile_x', batch, num_outputs=4,
+                             policy='candidate', candidate=[[batch // 64, 2, 16, 2]])
+            cfg.define_split('tile_y', out_dim, num_outputs=4,
+                             policy='candidate', candidate=[[out_dim // 64, 2, 16, 2]])
+            cfg.define_split('tile_k', in_dim, num_outputs=3,
+                             policy='candidate', candidate=[[in_dim, 1, 1]])
+
+        if cfg.is_fallback:
+            cfg['tile_x'] = SplitEntity([batch // 64, 2, 16, 2])
+            cfg['tile_y'] = SplitEntity([out_dim // 64, 2, 16, 2])
+            cfg['tile_k'] = SplitEntity([in_dim, 1, 1])
 
         # scheduling template
         # memory access
