@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm, inspect, sys, traceback, numpy, nose, types, os
+import tvm, inspect, sys, traceback, numpy, pytest, types, os
 from tvm.contrib import util
 from tvm.hybrid import script
 from tvm.hybrid.runtime import HYBRID_GLOBALS
 
-@nose.tools.nottest
+@pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)

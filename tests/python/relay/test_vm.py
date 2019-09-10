@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-from nose.tools import nottest, raises
 
 import tvm
 import numpy as np
@@ -23,6 +22,7 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
+import pytest
 
 def check_result(args, expected_result, mod=None):
     """
@@ -328,7 +328,7 @@ def test_list_hd():
     result = veval(mod)
     tvm.testing.assert_allclose(result.asnumpy(), 3)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_list_tl_empty_list():
     mod = relay.Module()
     p = Prelude(mod)

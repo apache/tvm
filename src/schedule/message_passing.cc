@@ -56,6 +56,9 @@ void PassDownDomain(const Stage& stage,
                     arith::Analyzer* actx,
                     bool allow_missing) {
   auto ceil_div = [actx](Expr a, Expr b) {
+    if (actx->CanProve(a % b == 0)) {
+      return actx->Simplify(a / b);
+    }
     return actx->Simplify((a + (b - 1)) / b);
   };
 

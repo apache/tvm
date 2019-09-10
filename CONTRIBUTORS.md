@@ -95,6 +95,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly

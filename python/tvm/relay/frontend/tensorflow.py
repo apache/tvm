@@ -1261,6 +1261,7 @@ _convert_map = {
     'DepthToSpace'                      : _depth_to_space(),
     'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
+    'Erf'                               : AttrCvt('erf'),
     'Exp'                               : AttrCvt('exp'),
     'ExpandDims'                        : _expand_dims(),
     'Fill'                              : _fill(),

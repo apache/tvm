@@ -25,10 +25,11 @@ from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
 from .op import register_gradient
 from .reduce import sum as _sum
-from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like
+from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like, equal
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
+    cast_like,
     reshape,
     reshape_like,
     strided_slice,
@@ -268,6 +269,18 @@ def conv2d_grad(orig, grad):
     return [backward_data, backward_weight]
 
 
+@register_gradient("max")
+def max_grad(orig, grad):
+    """Returns the gradient of max"""
+    # Only support axis=0, since broadcasting orig to x behaves incorrectly
+    x, axis = orig.args[0], orig.attrs.axis
+    assert(axis is not None and len(axis) == 1 and int(axis[0]) == 0)
+    orig = broadcast_to_like(orig, x)
+    grad = broadcast_to_like(grad, x)
+    indicators = cast_like(equal(orig, x), grad)
+    return [indicators * grad]
+
+
 @register_gradient("nn.softmax")
 def softmax_grad(orig, grad):
     """Gradient of softmax"""
@@ -288,6 +301,18 @@ def dense_grad(orig, grad):
     data, weight = orig.args
     return [collapse_sum_like(transpose(grad) * weight, data),
             collapse_sum_like(data * transpose(grad), weight)]
+
+
+@register_gradient("reshape")
+def reshape_grad(orig, grad):
+    """Gradient of reshape"""
+    return [reshape_like(grad, orig.args[0])]
+
+
+@register_gradient("cast")
+def cast_grad(orig, grad):
+    x = orig.args[0]
+    return [cast_like(grad, x)]
 
 
 @register_gradient("nn.batch_flatten")

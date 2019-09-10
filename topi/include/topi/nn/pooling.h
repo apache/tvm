@@ -73,18 +73,18 @@ inline Tensor pool_impl(const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = kernel_size[0];
-  auto kernel_width = kernel_size[1];
-  auto stride_height = stride_size[0];
-  auto stride_width = stride_size[1];
+  auto kernel_height = cast(Int(32), kernel_size[0]);
+  auto kernel_width = cast(Int(32), kernel_size[1]);
+  auto stride_height = cast(Int(32), stride_size[0]);
+  auto stride_width = cast(Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = padding_size[0];
-  auto pad_left = padding_size[1];
-  auto pad_bottom = padding_size[2];
-  auto pad_right = padding_size[3];
+  auto pad_top = cast(Int(32), padding_size[0]);
+  auto pad_left = cast(Int(32), padding_size[1]);
+  auto pad_bottom = cast(Int(32), padding_size[2]);
+  auto pad_right = cast(Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -179,18 +179,18 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = kernel_size[0];
-  auto kernel_width = kernel_size[1];
-  auto stride_height = stride_size[0];
-  auto stride_width = stride_size[1];
+  auto kernel_height = cast(Int(32), kernel_size[0]);
+  auto kernel_width = cast(Int(32), kernel_size[1]);
+  auto stride_height = cast(Int(32), stride_size[0]);
+  auto stride_width = cast(Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = padding_size[0];
-  auto pad_left = padding_size[1];
-  auto pad_bottom = padding_size[2];
-  auto pad_right = padding_size[3];
+  auto pad_top = cast(Int(32), padding_size[0]);
+  auto pad_left = cast(Int(32), padding_size[1]);
+  auto pad_bottom = cast(Int(32), padding_size[2]);
+  auto pad_right = cast(Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -471,8 +471,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto out_height = output_size[0];
-  auto out_width = output_size[1];
+  auto out_height = cast(Int(32), output_size[0]);
+  auto out_width = cast(Int(32), output_size[1]);
   Array<Expr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);

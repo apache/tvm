@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import scipy
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
@@ -67,6 +68,7 @@ def test_unary_op():
 
     for opfunc, ref in [(tvm.relay.log, np.log),
                         (tvm.relay.exp, np.exp),
+                        (tvm.relay.erf, scipy.special.erf),
                         (tvm.relay.sqrt, np.sqrt),
                         (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),

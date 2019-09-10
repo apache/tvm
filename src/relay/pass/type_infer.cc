@@ -774,7 +774,6 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   bool update_missing_type_annotation_{true};
 };
 
-
 Expr TypeInferencer::Infer(Expr expr) {
   // Step 1: Populate the constraints.
   GetType(expr);

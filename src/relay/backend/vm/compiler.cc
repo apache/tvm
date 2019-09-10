@@ -815,10 +815,6 @@ void VMCompiler::Compile(const Module& mod_ref,
   // the global state.
   vm_->functions.resize(context_.module->functions.size());
 
-  // Next we get ready by allocating space for
-  // the global state.
-  vm_->functions.resize(context_.module->functions.size());
-
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
     auto func = named_func.second;
