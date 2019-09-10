@@ -220,8 +220,8 @@ void CodeGenCUDA::PrintVecElemStore(
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
   if (t.is_int() && t.bits() == 8) {
-    stream << vec << "=" << vec << " & ~(0x000000ff << " << i * 8 << ") | (" << value << " << " << i * 8
-           << ");\n";
+    stream << vec << "=" << vec << " & ~(0x000000ff << " << i * 8 << ") | ("
+        << value << " << " << i * 8 << ");\n";
   } else {
     stream << vec << "." << access[i] << " = " << value << ";\n";
   }
