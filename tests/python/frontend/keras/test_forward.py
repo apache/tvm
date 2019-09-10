@@ -125,6 +125,7 @@ def test_forward_activations():
                  keras.layers.ReLU(max_value=6.),
                  keras.layers.ReLU(max_value=6., threshold=0.),
                  keras.layers.ReLU(max_value=6., threshold=1.),
+                 keras.layers.ReLU(max_value=6., threshold=1., negative_slope=0.),
                  keras.layers.LeakyReLU(alpha=0.3),
                  keras.layers.PReLU(weights=np.random.rand(1, 32, 32, 3)),
                  keras.layers.ELU(alpha=0.5),
