@@ -20,13 +20,11 @@
 extern "C"
 {
 #include <mkl_cblas.h>
+#include <stdio.h>
 #endif  // extern "C"
 
-// TODO(@zhiics) Generate the signature that is consistent to cblas_sgemm
-// directly. We can process the other parameters from attribute of a Relay call
-// node.
 void dense(float* A, float* B, float* C, int M, int N, int K) {
- cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A, 1, B, 1, 0.0, C, 1);
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
 }
 
 #ifdef __cplusplus
