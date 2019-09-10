@@ -54,11 +54,6 @@ class ParallelDenseCombiner : public ParallelOpBatchCombiner {
   }
 
  protected:
-  virtual bool IsSupportedOp(const CallNode* n) {
-    const auto* attrs = n->attrs.as<DenseAttrs>();
-    return !attrs->units.defined();
-  }
-
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     AttrsEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
@@ -70,8 +65,7 @@ class ParallelDenseCombiner : public ParallelOpBatchCombiner {
 
     return eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
            eq(weight_a->shape[0], weight_b->shape[0]) &&
-           eq(weight_a->shape[1], weight_b->shape[1]) &&
-           eq(attrs_a->units.defined(), attrs_b->units.defined());
+           eq(weight_a->shape[1], weight_b->shape[1]);
   }
 };
 

@@ -31,23 +31,20 @@ def run_opt_pass(expr, opt_pass):
 
 
 def test_combine_parallel_dense():
-    """Simple testcase. One dense cannot be combined because of mismatched shapes or units"""
-    def before(x, w1, w2, w3, w4, units):
+    """Simple testcase. One dense cannot be combined because of mismatched shapes"""
+    def before(x, w1, w2, w3, w4):
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.dense(x, w1)
         y2 = relay.nn.dense(x, w2)
 
         # y3 cannot be combined
-        if units == -1:
-            y3 = relay.nn.dense(x, w3)
-        else:
-            y3 = relay.nn.dense(x, w3, units=units)
+        y3 = relay.nn.dense(x, w3)
 
         y4 = relay.nn.dense(x, w4)
         y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
-    def expected(x, w1, w2, w3, w4, units):
+    def expected(x, w1, w2, w3, w4):
         # use a fixed order of args so alpha equal check can pass
         args = [x, w1, w2, w3, w4]
         x_stacked = relay.stack((x, x, x), axis=0)
@@ -58,39 +55,28 @@ def test_combine_parallel_dense():
         y2 = relay.squeeze(y2, [0])
         y4 = relay.squeeze(y4, [0])
 
-        if units == -1:
-            y3 = relay.nn.dense(x, w3)
-        else:
-            y3 = relay.nn.dense(x, w3, units=units)
+        # y3 cannot be combined
+        y3 = relay.nn.dense(x, w3)
 
         y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
-    def check(i, j, k, use_units):
+    def check(i, j, k):
         x =  relay.var("x", shape=(i, k))
         w1 = relay.var("w1", shape=(j, k))
         w2 = relay.var("w2", shape=(j, k))
-
-        if use_units:
-            units = j
-            w3 = relay.var("w3", shape=(j, k))
-        else:
-            units = -1
-            w3 = relay.var("w3", shape=(j + 1, k))
-
+        w3 = relay.var("w3", shape=(j + 1, k))
         w4 = relay.var("w4", shape=(j, k))
 
-        y_before = before(x, w1, w2, w3, w4, units)
+        y_before = before(x, w1, w2, w3, w4)
         y = run_opt_pass(y_before,
                          transform.CombineParallelDense(min_num_branches=2))
-        y_expected = expected(x, w1, w2, w3, w4, units)
+        y_expected = expected(x, w1, w2, w3, w4)
         y_expected = run_opt_pass(y_expected, transform.InferType())
         assert relay.analysis.alpha_equal(y, y_expected)
 
-    check(3, 5, 4, False)
-    check(100, 200, 300, False)
-    check(3, 5, 4, True)
-    check(100, 200, 300, True)
+    check(3, 5, 4)
+    check(100, 200, 300)
 
 
 def test_combine_parallel_dense_biasadd():
