@@ -1344,7 +1344,6 @@ _convert_map = {
     'Square'                            : _square(),
     'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
-    'StopGradient'                      : _identity(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),
     'Sum'                               : _sum(),
