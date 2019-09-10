@@ -27,6 +27,7 @@
 #include <tvm/relay/transform.h>
 #include <sstream>
 #include <fstream>
+#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -166,7 +167,7 @@ void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
   this->type_definitions.Set(var, type);
   // set global type var map
   CHECK(!global_type_var_map_.count(var->var->name_hint))
-   << "Duplicate global type definition name " << var->var->name_hint;
+    << "Duplicate global type definition name " << var->var->name_hint;
 
   global_type_var_map_.Set(var->var->name_hint, var);
   RegisterConstructors(var, type);

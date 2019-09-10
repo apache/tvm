@@ -516,13 +516,13 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module, ErrorReporter* err_reporter)
-  : reporter_(make_node<Reporter>(this)),
-    current_func(current_func),
-    err_reporter_(err_reporter),
-    module_(module) {
-  CHECK(module_.defined()) <<
-    "internal error: module must be defined";
+TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module,
+                       ErrorReporter* err_reporter)
+    : reporter_(make_node<Reporter>(this)),
+      current_func(current_func),
+      err_reporter_(err_reporter),
+      module_(module) {
+  CHECK(module_.defined()) << "internal error: module must be defined";
 }
 
 // destructor
