@@ -88,6 +88,12 @@ def test_ewise():
     test_apply(topi.cos, "cos", np.cos, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
+    test_apply(topi.logical_and, "logical_and", np.logical_and, True, False)
+    test_apply(topi.logical_and, "logical_and", np.logical_and, [True, False], [False, False])
+    test_apply(topi.logical_or, "logical_or", np.logical_or, True, False)
+    test_apply(topi.logical_or, "logical_or", np.logical_or, [True, False], [False, False])
+    test_apply(topi.logical_not, "logical_not", np.logical_not, [True, False, 0, 1])
+    test_apply(topi.logical_not, "logical_not", np.logical_not, np.arange(5) < 3)
 
 
 def test_cast():
