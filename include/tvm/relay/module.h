@@ -188,6 +188,11 @@ class ModuleNode : public RelayNode {
   /*!
    * \brief Import Relay code from the file at path.
    * \param path The path of the Relay code to import.
+   *
+   * \note The path resolution behavior is standard,
+   * if abosolute will be the absolute file, if
+   * relative it will be resovled against the current
+   * working directory.
    */
   TVM_DLL void Import(const std::string& path);
 
@@ -195,7 +200,7 @@ class ModuleNode : public RelayNode {
    * \brief Import Relay code from the file at path, relative to the standard library.
    * \param path The path of the Relay code to import.
    */
-  TVM_DLL void ImportStd(const std::string& path);
+  TVM_DLL void ImportFromStd(const std::string& path);
 
   /*! \brief Construct a module from a standalone expression.
    *
@@ -257,7 +262,7 @@ struct Module : public NodeRef {
  * \param source_name The name of the source file.
  * \return A Relay module.
  */
-Module FromText(std::string source, const std::string& source_name);
+Module FromText(const std::string& source, const std::string& source_name);
 
 }  // namespace relay
 }  // namespace tvm

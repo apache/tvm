@@ -480,7 +480,7 @@ class Prelude:
         them to the module.
         """
         # TODO(@jroesch): we should remove this helper when we port over prelude
-        self.mod.import_std("prelude.rly")
+        self.mod.import_from_std("prelude.rly")
         self.id = self.mod.get_global_var("id")
         self.compose = self.mod.get_global_var("compose")
 

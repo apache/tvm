@@ -215,5 +215,5 @@ class Module(RelayNode):
     def _import(self, file_to_import):
         return _module.Module_Import(self, file_to_import)
 
-    def import_std(self, file_to_import):
-        return _module.Module_ImportStd(self, file_to_import)
+    def import_from_std(self, file_to_import):
+        return _module.Module_ImportFromStd(self, file_to_import)

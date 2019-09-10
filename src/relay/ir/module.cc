@@ -91,7 +91,6 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
 GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
   CHECK(global_type_var_map_.defined());
   auto it = global_type_var_map_.find(name);
-  std::cout << "pass here";
   CHECK(it != global_type_var_map_.end())
     << "Cannot find global type var " << name << " in the Module";
   return (*it).second;
@@ -268,14 +267,14 @@ void ModuleNode::Import(const std::string& path) {
   }
 }
 
-void ModuleNode::ImportStd(const std::string& path) {
+void ModuleNode::ImportFromStd(const std::string& path) {
   auto* f = tvm::runtime::Registry::Get("tvm.relay.std_path");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   std::string std_path = (*f)();
   return this->Import(std_path + "/" + path);
 }
 
-Module FromText(std::string source, const std::string& source_name) {
+Module FromText(const std::string& source, const std::string& source_name) {
   auto* f = tvm::runtime::Registry::Get("relay.fromtext");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   Module mod = (*f)(source, source_name);
@@ -366,9 +365,9 @@ TVM_REGISTER_API("relay._module.Module_Import")
   mod->Import(path);
 });
 
-TVM_REGISTER_API("relay._module.Module_ImportStd")
+TVM_REGISTER_API("relay._module.Module_ImportFromStd")
 .set_body_typed<void(Module, std::string)>([](Module mod, std::string path) {
-  mod->ImportStd(path);
+  mod->ImportFromStd(path);
 });;
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
