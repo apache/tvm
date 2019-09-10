@@ -16,7 +16,7 @@
  * under the License.
  */
 
-#include "test_external_library.h"
+#include "libs.h"
 
 #include <cstdint>
 #include <iostream>
@@ -56,9 +56,9 @@
     }                                                                      \
   }
 
-GCC_BINARY_OP(Subtract, -);
-GCC_BINARY_OP(Add, +);
-GCC_BINARY_OP(Multiply, *);
+GCC_BINARY_OP(subtract, -);
+GCC_BINARY_OP(add, +);
+GCC_BINARY_OP(multiply, *);
 
 // extern "C" void Subtract(ExternalTensor a, ExternalTensor b, ExternalTensor* out) {
 //   if (a.ndim > 2 || a.ndim != b.ndim || a.ndim  != out->ndim) {

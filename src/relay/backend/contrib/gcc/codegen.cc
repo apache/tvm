@@ -17,51 +17,42 @@
  */
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
-#include "test_external_library.h"
+#include "libs.h"
 
 namespace tvm {
 namespace relay {
+namespace contrib {
 
-typedef void (*sub)(ExternalTensor a, ExternalTensor b, ExternalTensor* out);
+typedef void (*GccBinaryFunc)(ExternalTensor a, ExternalTensor b, ExternalTensor* out);
 
-class ExternalModuleNode : public runtime:: ModuleNode {
+class GccModuleNode : public ExternModuleNodeBase {
  public:
-  ExternalModuleNode() = default;
-  ~ExternalModuleNode() {
-    if (handle_ != nullptr) {
-      dlclose(handle_);
-    }
-  }
 
-  // void Init(const std::string& bin_path);
-  // void Exec(const std::string& fun_name, const TVMArgs& args);
+  const std::string GetExternLibPath() override {
+    return "/tmp/relay_extern_gcc.so";
+  }
 
   /*!
    * \brief Get a PackedFunc from module, which is a function ptr can be invoked
    * for execution given some parameters.
    *
    * \param name the name of the external function.
+   * \param func_s The function symbol retrieved from the external library.
    * \param sptr_to_self The shared_ptr that points to this module node.
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  PackedFunc GetFunction(
-      const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (name == "Subtract" || "Add" || "Multiply") {
-      CHECK(handle_) << "You need to build the external module first";
-      func_s_ = reinterpret_cast<sub>(dlsym(handle_, name.c_str()));
-      char* error = dlerror();
-      if (error != NULL) {
-        LOG(FATAL) << error;
-        return PackedFunc();
-      }
+  runtime::PackedFunc InvokeExternFunc(const std::string& name, void* func_s,
+                                       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
+    if (name == "subtract" || "add" || "multiply") {
+      func_s_ = reinterpret_cast<GccBinaryFunc>(func_s);
 
       return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
         CHECK_EQ(args.size(), 3U);
@@ -109,35 +100,25 @@ class ExternalModuleNode : public runtime:: ModuleNode {
     return "";
   }
 
-  const char* type_key() const final {
-    return "ExternalModule";
+  const char* type_key() const override {
+    return "GccModule";
   }
 
-  void Build() {
-    std::system(
-        "g++ -std=c++11 -shared -fPIC -ldl src/relay/backend/test_external_library.cc -o /tmp/subtract.so");
-    handle_ = dlopen("/tmp/subtract.so", RTLD_LAZY);
-    if (!handle_) {
-      LOG(FATAL) << "Cannot open library: " << dlerror() << '\n';
+  void Build(const Expr& expr) override {
+    Function func = Downcast<Function>(expr);
+    CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
+    int ret = std::system(
+        "g++ -std=c++11 -shared -fPIC -ldl src/relay/backend/contrib/gcc/libs.cc "
+        "-o /tmp/relay_extern_gcc.so");
+    if (ret != 0) {
+      LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
   }
 
  private:
-  void* handle_{nullptr};
-  sub func_s_;
+  GccBinaryFunc func_s_;
 };
 
-runtime::Module CreateExternalModule() {
-  std::shared_ptr<ExternalModuleNode> n = std::make_shared<ExternalModuleNode>();
-  n->Build();
-  return runtime::Module(n);
-}
-
-}  // namespace relay
-}  // namespace tvm
-
-namespace tvm {
-namespace relay {
 
 /*!
  * \brief The external compiler/codegen tool. It takes a Relay expression and
@@ -152,14 +133,15 @@ namespace relay {
  * a single expression/function.
  *  2. Return runtime::Module.
  */
-runtime::Module Compiler(const Expr& expr) {
-  Function func = Downcast<Function>(expr);
-  CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
-  return CreateExternalModule();
+runtime::Module GccCompiler(const Expr& expr) {
+  std::shared_ptr<GccModuleNode> n = std::make_shared<GccModuleNode>();
+  n->Build(expr);
+  return runtime::Module(n);
 }
 
 TVM_REGISTER_API("relay.ext.gcc")
-.set_body_typed(Compiler);
+.set_body_typed(GccCompiler);
 
+}  // namespace contrib
 }  // namespace relay
 }  // namespace tvm

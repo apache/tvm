@@ -202,11 +202,10 @@ class Partitioner : public ExprMutator {
       // external funciton and leave the processing of the function to codegen.
       // Otherwise, it's hard to deal with multiple-node subgraphs.
       Expr arg0 = call->args[0];
-      std::string name = "Subgraph";
+      std::string name = "subgraph";
       if (const auto* arg_call = arg0.as<CallNode>()) {
         if (const auto* op_node = arg_call->op.as<OpNode>()) {
           name = op_node->name;
-          name[0] = name[0] - 32;
         }
       }
       subgraph_func =

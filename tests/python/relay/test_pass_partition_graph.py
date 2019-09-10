@@ -60,13 +60,13 @@ def test_partition_graph():
     mod = relay.transform.PartitionGraph()(mod)
     mod = relay.transform.InferType()(mod)
     print(mod['main'])
-    x_data = np.random.rand(10, 10).astype('float32')
-    y_data = np.random.rand(10, 10).astype('float32')
+    #x_data = np.random.rand(10, 10).astype('float32')
+    #y_data = np.random.rand(10, 10).astype('float32')
     # ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
     # res = ex.evaluate()(x_data)
     # tvm.testing.assert_allclose(res.asnumpy(), y_data - (x_data + x_data))
 
-def test_extern():
+def test_extern_gcc():
     x = relay.var('x', shape=(10, 10))
     y = relay.var('y', shape=(10, 10))
     z = x + x
@@ -83,6 +83,27 @@ def test_extern():
     res = ex.evaluate()(x_data, y_data)
     tvm.testing.assert_allclose(res.asnumpy(), (y_data * y_data) - (x_data + x_data))
 
+def test_extern_cblas():
+    m = 16
+    n = 224
+    k = 224
+    x = relay.var('x', shape=(m, k))
+    y = relay.var('y', shape=(n, k))
+    f = relay.Function([x, y], relay.op.nn.dense(x, y))
+    mod = relay.Module()
+    mod['main'] = f
+    mod = relay.transform.ExternOp('cblas')(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+    print(mod['main'])
+
+    x_data = np.random.uniform(low=0, high=1, size=(m, k)).astype('float32')
+    y_data = np.random.uniform(low=0, high=1, size=(n, k)).astype('float32')
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(x_data, y_data)
+    tvm.testing.assert_allclose(
+        res.asnumpy(), np.dot(x_data, y_data.T), rtol=1e-5)
+
 if __name__ == "__main__":
     test_partition_graph()
-    test_extern()
+    test_extern_gcc()
+    test_extern_cblas()

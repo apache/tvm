@@ -27,56 +27,59 @@ to decide if we should use the external compiler.
 """
 from __future__ import absolute_import
 
-from . import gcc, cblas
+import sys
+import pkgutil
+from pathlib import Path
+from importlib import import_module
+
 from .. import op as reg
+
+# Load available contrib compilers
+compilers = {}
+for _, name, _ in pkgutil.iter_modules([Path(__file__).parent]):
+    compilers[name] = import_module('.%s' % name, package='.'.join(__name__.split('.')[:-1]))
+
+def get_extern_op(compiler, op_name):
+    """Get the extern op function from the registered compiler
+    """
+    if compiler in compilers:
+        if hasattr(compilers[compiler], 'extern_op'):
+            extern_op = getattr(compilers[compiler], 'extern_op')
+            if hasattr(extern_op, op_name):
+                return getattr(extern_op, op_name)
+
+    raise RuntimeError("%s in %s is not registered" % (op_name, compiler))
 
 @reg.register_extern_op("nn.conv2d")
 def external_conv2d(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
-    if compiler == "gcc":
-        return gcc.extern_op.conv2d(attrs, args)
-
-    raise RuntimeError("conv2d in {} is not registered" % (compiler))
+    return get_extern_op(compiler, 'conv2d')(attrs, args)
 
 
 @reg.register_extern_op("nn.dense")
 def external_dense(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
-    if compiler == "gcc":
-        return gcc.extern_op.dense(attrs, args)
-    if compiler == "cblas":
-        return cblas.extern_op.dense(attrs, args)
-
-    raise RuntimeError("conv2d in {} is not registered" % (compiler))
+    return get_extern_op(compiler, 'dense')(attrs, args)
 
 
 @reg.register_extern_op("subtract")
 def external_subtract(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
-    if compiler == "gcc":
-        return gcc.extern_op.subtract(attrs, args)
-
-    raise RuntimeError("subtract in {} is not registered" % (compiler))
+    return get_extern_op(compiler, 'subtract')(attrs, args)
 
 
 @reg.register_extern_op("add")
 def external_add(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
-    if compiler == "gcc":
-        return gcc.extern_op.add(attrs, args)
-
-    raise RuntimeError("add in {} is not registered" % (compiler))
+    return get_extern_op(compiler, 'add')(attrs, args)
 
 
 @reg.register_extern_op("multiply")
 def external_multiply(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
-    if compiler == "gcc":
-        return gcc.extern_op.multiply(attrs, args)
-
-    raise RuntimeError("multiply in {} is not registered" % (compiler))
+    return get_extern_op(compiler, 'multiply')(attrs, args)
