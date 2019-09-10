@@ -64,8 +64,6 @@ def test_add_pipeline():
     s[C].vectorize(xi)
 
     def check_c():
-        if not tvm.module.enabled("llvm"):
-            return
         # Specifically allow offset to test codepath when offset is available
         Ab = tvm.decl_buffer(
             A.shape, A.dtype,
