@@ -23,43 +23,46 @@ def get_verify_pass(valid, **kwargs):
         return stmt
     return verify_pass
 
-def test_shared_memory(dtype):
-    N = 1024
-    M = 128
+def test_shared_memory():
+    def check_shared_memory(dtype):
+        N = 1024
+        M = 128
 
-    tvm_type = tvm.datatype._TVMType(dtype)
-    type_size = tvm_type.bits // 8 * tvm_type.lanes
+        tvm_type = tvm.datatype._TVMType(dtype)
+        type_size = tvm_type.bits // 8 * tvm_type.lanes
 
-    A = tvm.placeholder((N,), name='A', dtype=dtype)
-    B = tvm.compute((N, ), lambda i: A[i], name='B')
+        A = tvm.placeholder((N,), name='A', dtype=dtype)
+        B = tvm.compute((N, ), lambda i: A[i], name='B')
 
-    s = tvm.create_schedule([B.op])
-    AA = s.cache_read(A, "shared", [B])
-    o, i = s[B].split(s[B].op.axis[0], M)
-    s[AA].compute_at(s[B], o)
-    s[B].bind(o, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(i, tvm.thread_axis("threadIdx.x"))
+        s = tvm.create_schedule([B.op])
+        AA = s.cache_read(A, "shared", [B])
+        o, i = s[B].split(s[B].op.axis[0], M)
+        s[AA].compute_at(s[B], o)
+        s[B].bind(o, tvm.thread_axis("blockIdx.x"))
+        s[B].bind(i, tvm.thread_axis("threadIdx.x"))
 
-    # shared memory usage: M * sizeof(dtype) Bytes
-    # thread usage: M
+        # shared memory usage: M * sizeof(dtype) Bytes
+        # thread usage: M
 
-    for target in ['opencl', 'cuda']:
-        if not tvm.context(target).exist:
-            continue
-        valid = [None]
-        with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(valid,
-                                max_shared_memory_per_block=type_size * M - 1,
-                                max_threads_per_block=M))]}):
-            tvm.build(s, [A, B], target)
-        assert not valid[0]
+        for target in ['opencl', 'cuda']:
+            if not tvm.context(target).exist:
+                continue
+            valid = [None]
+            with tvm.build_config(**{"add_lower_pass": [
+                (2, get_verify_pass(valid,
+                                    max_shared_memory_per_block=type_size * M - 1,
+                                    max_threads_per_block=M))]}):
+                tvm.build(s, [A, B], target)
+            assert not valid[0]
 
-        with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(valid,
-                                max_shared_memory_per_block=type_size * M,
-                                max_threads_per_block=M))]}):
-            tvm.build(s, [A, B], target)
-        assert valid[0]
+            with tvm.build_config(**{"add_lower_pass": [
+                (2, get_verify_pass(valid,
+                                    max_shared_memory_per_block=type_size * M,
+                                    max_threads_per_block=M))]}):
+                tvm.build(s, [A, B], target)
+            assert valid[0]
+    check_shared_memory('float32')
+    check_shared_memory('int8x4')
 
 def test_local_memory():
     N = 1024
@@ -206,8 +209,7 @@ def test_wrong_bind():
 
 if __name__ == "__main__":
     test_local_memory()
-    test_shared_memory('float32')
-    test_shared_memory('int8x4')
+    test_shared_memory()
     test_num_thread()
     test_multiple_kernels()
     test_wrong_bind()
