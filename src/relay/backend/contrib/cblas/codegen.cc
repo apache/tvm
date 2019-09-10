@@ -37,10 +37,11 @@ namespace relay {
 namespace contrib {
 
 typedef void (*CblasFloat)(float* a, float* b, float* out, int M, int N, int K);
+typedef void (*CblasDouble)(double* a, double* b, double* out, int M, int N, int K);
 
 class CblasModuleNode : public ExternModuleNodeBase {
  public:
-  const std::string GetExternLibPath() override {
+  const std::string GetExternLibPath() const override {
     return "/tmp/relay_extern_cblas.so";
   }
 
@@ -110,11 +111,9 @@ class CblasModuleNode : public ExternModuleNodeBase {
     if (op == Op::Get("nn.conv2d")) {
       // const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
       // TODO(@zhiics) Generate the template.
-      ;
     } else if (op == Op::Get("nn.dense")) {
       // TODO(@zhiics) Generate the template.
-      //const auto* dense_attr = call->attrs.as<DenseAttrs>();
-      ;
+      // const auto* dense_attr = call->attrs.as<DenseAttrs>();
     } else {
       LOG(FATAL) << "CBLAS expects a single convolution or dense op.";
     }
@@ -131,15 +130,17 @@ class CblasModuleNode : public ExternModuleNodeBase {
   }
 
  private:
-  // Get the number of row of a ndarray.
-  int CountRow(const runtime::NDArray& data) {
+  // Get the number of rows of a ndarray.
+  int CountRow(const runtime::NDArray& data) const {
     const DLTensor* tensor = data.operator->();
+    CHECK(tensor) << "No container is defined in the NDArray" << "\n";
     return tensor->shape[0];
   }
 
   // Get the number of columns of a ndarray.
-  int CountColumn(const runtime::NDArray& data) {
+  int CountColumn(const runtime::NDArray& data) const {
     const DLTensor* tensor = data.operator->();
+    CHECK(tensor) << "No container is defined in the NDArray" << "\n";
     return tensor->shape[1];
   }
 

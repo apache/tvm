@@ -34,8 +34,7 @@ typedef void (*GccBinaryFunc)(ExternalTensor a, ExternalTensor b, ExternalTensor
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-
-  const std::string GetExternLibPath() override {
+  const std::string GetExternLibPath() const override {
     return "/tmp/relay_extern_gcc.so";
   }
 

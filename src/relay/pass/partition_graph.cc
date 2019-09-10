@@ -144,13 +144,12 @@ class Partitioner : public ExprMutator {
       return ExprMutator::VisitExpr_(call);
     } else if (GetRef<Op>(op_node) == Op::Get("annotation.subgraph_begin")) {
       // The annotation node is inserted on edge so it must have only one argument.
-      CHECK(call->args.size() == 1);
+      CHECK_EQ(call->args.size(), 1U);
 
       // Traverse the rest graph.
       auto input_expr = VisitExpr(call->args[0]);
 
       // Replace the begin annotation with an external call input variable.
-      // TODO: Confirm if it is safe to use checked_type_ instead of checked_type()
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
       auto var = VarNode::make(subgraph_attrs->compiler + "_input" + std::to_string(var_id_++),
                                input_expr->checked_type_);
@@ -166,7 +165,7 @@ class Partitioner : public ExprMutator {
     } else {
       CHECK(GetRef<Op>(op_node) == Op::Get("annotation.subgraph_end"));
       // The annotation node is inserted on edge so it must have only one argument.
-      CHECK(call->args.size() == 1);
+      CHECK_EQ(call->args.size(), 1U);
 
       auto subgraph_attrs = call->attrs.as<SubgraphAttrs>();
 
@@ -395,7 +394,8 @@ Pass PartitionGraph() {
   return Sequential({partitioned, InferType()});
 }
 
-TVM_REGISTER_API("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
+TVM_REGISTER_API("relay._transform.PartitionGraph")
+.set_body_typed(transform::PartitionGraph);
 
 }  // namespace transform
 
