@@ -27,7 +27,6 @@ to decide if we should use the external compiler.
 """
 from __future__ import absolute_import
 
-import sys
 import pkgutil
 from pathlib import Path
 from importlib import import_module

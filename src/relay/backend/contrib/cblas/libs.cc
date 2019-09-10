@@ -17,14 +17,13 @@
  */
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #include <mkl_cblas.h>
 #include <stdio.h>
 #endif  // extern "C"
 
 void dense(float* A, float* B, float* C, int M, int N, int K) {
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
 }
 
 #ifdef __cplusplus

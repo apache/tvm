@@ -21,12 +21,12 @@
 #include <dlpack/dlpack.h>
 #include <stdlib.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/util.h>
+#include <string>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -50,7 +50,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return The string of the library path.
    */
-  virtual const std::string GetExternLibPath() = 0;
+  virtual const std::string GetExternLibPath() const = 0;
 
   /*!
    * \brief Build the shared library of external ops.
@@ -86,7 +86,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     if (handle_ == nullptr) {
       Open(this->GetExternLibPath());
     }
-    CHECK(handle_) << "The external cblas module has not been built or failed to be opened.\n";
+    CHECK(handle_) << "The external cblas module has not been built or failed to open.\n";
 
     auto func_s = GetSymbol(name);
     char* error = dlerror();
@@ -132,7 +132,9 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
 
   // Close the handle.
   void Close() {
-    FreeLibrary(handle_);
+    if (handle_) {
+      FreeLibrary(handle_);
+    }
   }
 #else
   // The handle.
@@ -155,7 +157,9 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
   void Close() {
-    dlclose(handle_);
+    if (handle_) {
+      dlclose(handle_);
+    }
   }
 #endif
 };
@@ -163,4 +167,4 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
-#endif
+#endif  // TVM_RELAY_CONTRIB_CODEGEN_H_

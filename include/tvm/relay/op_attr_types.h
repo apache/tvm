@@ -159,9 +159,9 @@ using FTVMLegalize = runtime::TypedPackedFunc<
  * otherwise, false.
  */
 using FTVMExternOp = runtime::TypedPackedFunc<
-bool(const Attrs& attrs,
-     const Array<Expr>& args,
-     const std::string& compiler)>;
+  bool(const Attrs& attrs,  // NOLINT(*)
+       const Array<Expr>& args,
+       const std::string& compiler)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.
