@@ -73,20 +73,12 @@ GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
   return (*it).second;
 }
 
-void ModuleNode::AddUnchecked(const GlobalVar& var,
-                              const Function& func) {
-  auto mod = GetRef<Module>(this);
-  this->functions.Set(var, func);
-
-  auto it = global_var_map_.find(var->name_hint);
-  if (it != global_var_map_.end()) {
-    CHECK_EQ((*it).second, var);
-  } else {
-    CHECK(!global_var_map_.count(var->name_hint))
-        << "Duplicate global function name " << var->name_hint;
+tvm::Array<GlobalVar> ModuleNode::GetGlobalVars() const {
+  std::vector<GlobalVar> global_vars;
+  for (const auto& pair : global_var_map_) {
+    global_vars.push_back(pair.second);
   }
-
-  global_var_map_.Set(var->name_hint, var);
+  return tvm::Array<GlobalVar>(global_vars);
 }
 
 GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
@@ -95,6 +87,14 @@ GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
   CHECK(it != global_type_var_map_.end())
     << "Cannot find global type var " << name << " in the Module";
   return (*it).second;
+}
+
+tvm::Array<GlobalTypeVar> ModuleNode::GetGlobalTypeVars() const {
+  std::vector<GlobalTypeVar> global_type_vars;
+  for (const auto& pair : global_type_var_map_) {
+    global_type_vars.push_back(pair.second);
+  }
+  return tvm::Array<GlobalTypeVar>(global_type_vars);
 }
 
 template<typename T>
@@ -151,6 +151,22 @@ void ModuleNode::Add(const GlobalVar& var,
   AddUnchecked(var, checked_func);
 }
 
+void ModuleNode::AddUnchecked(const GlobalVar& var,
+                              const Function& func) {
+  auto mod = GetRef<Module>(this);
+  this->functions.Set(var, func);
+
+  auto it = global_var_map_.find(var->name_hint);
+  if (it != global_var_map_.end()) {
+    CHECK_EQ((*it).second, var);
+  } else {
+    CHECK(!global_var_map_.count(var->name_hint))
+        << "Duplicate global function name " << var->name_hint;
+  }
+
+  global_var_map_.Set(var->name_hint, var);
+}
+
 void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
   // We hash the global type var name to use as a globally unique prefix for tags.
   // The hash will be used as the most significant byte of the tag, with the index of
@@ -163,10 +179,10 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
   }
 }
 
-void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
+void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
   this->type_definitions.Set(var, type);
   // set global type var map
-  CHECK(!global_type_var_map_.count(var->var->name_hint))
+  CHECK(update || global_type_var_map_.count(var->var->name_hint) == 0)
     << "Duplicate global type definition name " << var->var->name_hint;
 
   global_type_var_map_.Set(var->var->name_hint, var);
@@ -178,8 +194,21 @@ void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
     << "Invalid or malformed typedata given to module: " << type;
 }
 
+void ModuleNode::AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type) {
+  this->type_definitions.Set(var, type);
+  // set global type var map
+  CHECK(!global_type_var_map_.count(var->var->name_hint))
+    << "Duplicate global type definition name " << var->var->name_hint;
+  global_type_var_map_.Set(var->var->name_hint, var);
+  RegisterConstructors(var, type);
+}
+
 void ModuleNode::Update(const GlobalVar& var, const Function& func) {
   this->Add(var, func, true);
+}
+
+void ModuleNode::UpdateDef(const GlobalTypeVar& var, const TypeData& type) {
+  this->AddDef(var, type, true);
 }
 
 void ModuleNode::Remove(const GlobalVar& var) {
@@ -226,6 +255,18 @@ Constructor ModuleNode::LookupTag(const int32_t tag) {
 }
 
 void ModuleNode::Update(const Module& mod) {
+  // add type defs. we add them unchecked first, so all definitions can
+  // reference each other, independent of the order in which they were defined.
+  for (auto pair : mod->type_definitions) {
+    this->AddDefUnchecked(pair.first, pair.second);
+  }
+  for (auto pair : mod->type_definitions) {
+    this->UpdateDef(pair.first, pair.second);
+  }
+  // then add func defs in a similar fashion
+  for (auto pair : mod->functions) {
+    this->AddUnchecked(pair.first, pair.second);
+  }
   for (auto pair : mod->functions) {
     this->Update(pair.first, pair.second);
   }
@@ -314,6 +355,12 @@ TVM_REGISTER_API("relay._module.Module_AddDef")
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalVar);
+
+TVM_REGISTER_API("relay._module.Module_GetGlobalVars")
+.set_body_method<Module>(&ModuleNode::GetGlobalVars);
+
+TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVars")
+.set_body_method<Module>(&ModuleNode::GetGlobalTypeVars);
 
 TVM_REGISTER_API("relay._module.Module_ContainGlobalVar")
 .set_body_method<Module>(&ModuleNode::ContainGlobalVar);

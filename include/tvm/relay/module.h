@@ -91,8 +91,10 @@ class ModuleNode : public RelayNode {
    * \brief Add a type-level definition to the global environment.
    * \param var The var of the global type definition.
    * \param type The type definition.
+   * \param update Controls whether you can replace a definition in the
+   * environment.
    */
-  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type);
+  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
 
   /*!
    * \brief Add a function to the global environment.
@@ -104,11 +106,27 @@ class ModuleNode : public RelayNode {
   TVM_DLL void AddUnchecked(const GlobalVar& var, const Function& func);
 
   /*!
+   * \brief Add a type definition to the global environment.
+   * \param var The name of the global function.
+   * \param func The function.
+   *
+   * It does not do type inference as AddDef does.
+   */
+  TVM_DLL void AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type);
+
+  /*!
    * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
    */
   TVM_DLL void Update(const GlobalVar& var, const Function& func);
+
+  /*!
+   * \brief Update a type definition in the global environment.
+   * \param var The name of the global type definition to update.
+   * \param func The new function.
+   */
+  TVM_DLL void UpdateDef(const GlobalTypeVar& var, const TypeData& type);
 
   /*!
    * \brief Remove a function from the global environment.
@@ -131,11 +149,23 @@ class ModuleNode : public RelayNode {
   TVM_DLL GlobalVar GetGlobalVar(const std::string& str) const;
 
   /*!
+   * \brief Collect all global vars defined in this module.
+   * \returns An array of global vars
+   */
+  tvm::Array<GlobalVar> GetGlobalVars() const;
+
+  /*!
    * \brief Look up a global function by its name.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
   TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str) const;
+
+  /*!
+   * \brief Collect all global type vars defined in this module.
+   * \returns An array of global type vars
+   */
+  tvm::Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
    * \brief Look up a global function by its variable.
