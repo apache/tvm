@@ -429,7 +429,7 @@ def test_mutual_recursion_adt():
     assert mod[even].checked_type == expected_type
 
 
-def test_add_multiple_with_type_var():
+def test_add_multiple_with_type_var_recursive():
     mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
@@ -458,6 +458,36 @@ def test_add_multiple_with_type_var():
 
     assert mod[main].checked_type == relay.FuncType([], l(nat()))
     assert mod[list_id].checked_type == relay.FuncType([l(a)], l(a), [a])
+
+
+def test_add_multiple_with_type_var_nonrecursive():
+    mod = relay.Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+    l, nat, nil, cons, hd = p.l, p.nat, p.nil, p.cons, p.hd
+    optional, some, none = p.optional, p.some, p.none
+
+    hd_hd = relay.GlobalVar('hd_hd')
+    a = relay.TypeVar('a')
+    x = relay.Var('x', l(l(a))) # fails without this annotation
+    h = relay.Var('h')
+    hd_hd_func = relay.Function(
+        [x],
+        relay.Match(
+            x, [
+                relay.Clause(relay.PatternConstructor(
+                    cons, [relay.PatternVar(h), relay.PatternWildcard()]), some(hd(h))),
+                relay.Clause(relay.PatternWildcard(), none())
+            ]),
+        optional(a), [a])
+
+    main = relay.GlobalVar('main')
+    test_list = cons(cons(make_nat_expr(p, 1), nil()), nil())
+    main_func = relay.Function([], hd_hd(test_list))
+
+    mod.add_multiple({main: main_func, hd_hd: hd_hd_func})
+    assert mod[main].checked_type == relay.FuncType([], optional(nat()))
+    assert mod[hd_hd].checked_type == relay.FuncType([l(l(a))], optional(a), [a])
 
 
 if __name__ == "__main__":
