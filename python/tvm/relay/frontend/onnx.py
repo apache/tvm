@@ -885,6 +885,18 @@ class And(Elemwise):
         return _op.logical_and(inputs[0], inputs[1])
 
 
+class Tile(Elemwise):
+    """Operator converter for Tile
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'repeats' not in attr:
+            raise tvm.error.OpAttributeInvalid('Attribute "repeats" should be set '
+                                               'for operator Tile.')
+        reps = attr.pop('repeats')  # The number of times repeating the tensor data.
+        return _op.tile(inputs[0], reps)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1002,7 +1014,8 @@ def _get_convert_map(opset):
         'Sign': Sign.get_converter(opset),
         'Equal': Equal.get_converter(opset),
         'Not': Not.get_converter(opset),
-        'And': And.get_converter(opset)
+        'And': And.get_converter(opset),
+        'Tile': Tile.get_converter(opset)
     }
 
 
