@@ -113,7 +113,8 @@ def schedule_dense(cfg, outs):
         _, in_dim = get_const_tuple(A.shape)
         cfg.define_split('tile_k', in_dim, num_outputs=2)
         if cfg.is_fallback:
-            cfg["tile_k"] = SplitEntity([1, in_dim])
+            cfg["tile_k"] = SplitEntity(
+                [in_dim // 64, 64] if in_dim > 64 else [1, 64])
 
         ko, kf = cfg['tile_k'].apply(s, C, C.op.reduce_axis[0])
         CF = s.rfactor(C, kf)
@@ -166,7 +167,7 @@ def schedule_dense(cfg, outs):
         if cfg.is_fallback:
             cfg['tile_x'] = SplitEntity([batch // 64, 2, 16, 2])
             cfg['tile_y'] = SplitEntity([out_dim // 64, 2, 16, 2])
-            cfg['tile_k'] = SplitEntity([in_dim, 1, 1])
+            cfg['tile_k'] = SplitEntity([in_dim // 8, 8, 1] if in_dim > 8 else [in_dim, 1, 1])
 
         # scheduling template
         # memory access
