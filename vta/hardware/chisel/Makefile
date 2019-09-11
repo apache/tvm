@@ -32,19 +32,21 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-CONFIG = DefaultF1Config
+CONFIG = DefaultPynqConfig
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
 VTA_LIBNAME = libvta_hw
+UNITTEST_NAME = all
+CXX = g++
+DEBUG = 0
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
-test_name = mvm
 
 verilator_opt = --cc
 verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
@@ -57,7 +59,11 @@ verilator_opt += --top-module ${TOP_TEST}
 verilator_opt += -Mdir ${verilator_build_dir}
 verilator_opt += -I$(chisel_build_dir)
 
-cxx_flags = -O2 -Wall -fPIC -shared
+ifeq ($(DEBUG), 0)
+  cxx_flags = -O2 -Wall
+else
+  cxx_flags = -O0 -g -Wall
+endif
 cxx_flags += -fvisibility=hidden -std=c++11
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
@@ -73,32 +79,47 @@ cxx_flags += -I$(vta_dir)/include
 cxx_flags += -I$(tvm_dir)/include
 cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 
-cxx_files = $(VERILATOR_INC_DIR)/verilated.cpp
-cxx_files += $(VERILATOR_INC_DIR)/verilated_dpi.cpp
-cxx_files += $(wildcard $(verilator_build_dir)/*.cpp)
-cxx_files += $(vta_dir)/hardware/dpi/tsim_device.cc
+ld_flags = -fPIC -shared
+
+cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
 
 ifneq ($(USE_TRACE), 0)
   verilator_opt += --trace
   cxx_flags += -DVM_TRACE=1
   cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
-  cxx_files += $(VERILATOR_INC_DIR)/verilated_vcd_c.cpp
+  cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
 else
   cxx_flags += -DVM_TRACE=0
 endif
 
+VPATH = $(VERILATOR_INC_DIR):$(verilator_build_dir):$(vta_dir)/hardware/dpi
+
 # The following is to be consistent with cmake
 ifeq ($(shell uname), Darwin)
   lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
+  cxx_flags += -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 else
   lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
-default: lib
+default: lint lib
+
+lint:
+	sbt scalafmt
 
 lib: $(lib_path)
-$(lib_path): $(verilator_build_dir)/V$(TOP_TEST).cpp
-	g++ $(cxx_flags) $(cxx_files) -o $@
+
+$(verilator_build_dir)/%.o: %.cpp
+	$(CXX) -fPIC $(cxx_flags) -c $^ -o $@
+
+$(verilator_build_dir)/tsim_device.o: tsim_device.cc
+	$(CXX) -fPIC $(cxx_flags) -c $^ -o $@
+
+$(lib_path): $(verilator_build_dir)/V$(TOP_TEST).cpp $(cxx_objs)
+	for f in $(shell find $(verilator_build_dir)/*.cpp); do \
+		$(CXX) -fPIC $(cxx_flags) -c $${f} -o $${f}.o ; \
+	done
+	$(CXX) $(ld_flags) $(cxx_flags) $(cxx_objs) $(patsubst %.cpp,%.cpp.o,$(shell find $(verilator_build_dir)/*.cpp)) -o $@
 
 verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp
 $(verilator_build_dir)/V$(TOP_TEST).cpp: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
@@ -112,11 +133,13 @@ verilog_test: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
 $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v:
 	sbt 'runMain vta.$(config_test) --target-dir $(chisel_build_dir) --top-name $(TOP_TEST).$(CONFIG)'
 
-test:
-	sbt 'test:runMain unittest.Launcher $(test_name)'
+unittest:
+	sbt 'test:runMain unittest.Launcher $(UNITTEST_NAME)'
 
 clean:
-	-rm -rf target project/target project/project
+	-rm -rf target project/target project/project test_run_dir
 
 cleanall:
-	-rm -rf $(vta_dir)/$(BUILD_NAME)
+	-rm -rf $(vta_dir)/$(BUILD_NAME)/chisel
+	-rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.so
+	-rm -rf $(vta_dir)/$(BUILD_NAME)/verilator

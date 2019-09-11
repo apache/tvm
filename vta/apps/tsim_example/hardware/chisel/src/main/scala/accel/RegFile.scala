@@ -59,52 +59,54 @@ class RegFile(implicit config: AccelConfig) extends Module {
   val sIdle :: sRead :: Nil = Enum(2)
   val state = RegInit(sIdle)
 
-  switch (state) {
-    is (sIdle) {
-      when (io.host.req.valid && !io.host.req.opcode) {
+  switch(state) {
+    is(sIdle) {
+      when(io.host.req.valid && !io.host.req.opcode) {
         state := sRead
       }
     }
-    is (sRead) {
+    is(sRead) {
       state := sIdle
     }
   }
 
   io.host.req.deq := state === sIdle & io.host.req.valid
 
-  val nTotal = config.nCtrl + config.nECnt + config.nVals + (2*config.nPtrs)
-  val reg = Seq.fill(nTotal)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
+  val nTotal = config.nCtrl + config.nECnt + config.nVals + (2 * config.nPtrs)
+  val reg =
+    Seq.fill(nTotal)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
   val addr = Seq.tabulate(nTotal)(_ * 4)
-  val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
+  val reg_map = (addr zip reg) map { case (a, r) => a.U -> r }
   val eo = config.nCtrl
   val vo = eo + config.nECnt
   val po = vo + config.nVals
 
-  when (io.finish) {
+  when(io.finish) {
     reg(0) := "b_10".U
-  } .elsewhen (state === sIdle && io.host.req.valid &&
-        io.host.req.opcode && addr(0).U === io.host.req.addr) {
+  }.elsewhen(state === sIdle && io.host.req.valid &&
+    io.host.req.opcode && addr(0).U === io.host.req.addr) {
     reg(0) := io.host.req.value
   }
 
   for (i <- 0 until config.nECnt) {
-    when (io.ecnt(i).valid) {
+    when(io.ecnt(i).valid) {
       reg(eo + i) := io.ecnt(i).bits
-    } .elsewhen (state === sIdle && io.host.req.valid &&
-          io.host.req.opcode && addr(eo + i).U === io.host.req.addr) {
+    }.elsewhen(state === sIdle && io.host.req.valid &&
+      io.host.req.opcode && addr(eo + i).U === io.host.req.addr) {
       reg(eo + i) := io.host.req.value
     }
   }
 
-  for (i <- 0 until (config.nVals + (2*config.nPtrs))) {
-    when (state === sIdle && io.host.req.valid &&
-          io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
+  for (i <- 0 until (config.nVals + (2 * config.nPtrs))) {
+    when(
+      state === sIdle && io.host.req.valid &&
+        io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
       reg(vo + i) := io.host.req.value
     }
   }
 
   val rdata = RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value)))
-  when (state === sIdle && io.host.req.valid && !io.host.req.opcode) {
+  when(state === sIdle && io.host.req.valid && !io.host.req.opcode) {
     rdata := MuxLookup(io.host.req.addr, 0.U, reg_map)
   }
 
@@ -118,6 +120,6 @@ class RegFile(implicit config: AccelConfig) extends Module {
   }
 
   for (i <- 0 until config.nPtrs) {
-    io.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+    io.ptrs(i) := Cat(reg(po + (2 * i) + 1), reg(po + (2 * i)))
   }
 }

@@ -20,7 +20,7 @@ import topi
 from ..util import simplify
 
 
-def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
+def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -37,7 +37,7 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
     layout : string, optional
         either "NCHW" or "NHWC"
 
-    method : {"BILINEAR", "NEAREST_NEIGHBOR"}
+    method : {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for upsampling.
 
     Returns
@@ -53,4 +53,5 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
         out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
     else:
         raise ValueError("not support this layout {} yet".format(layout))
-    return topi.cpp.nn.upsampling(data, out_shape, layout, method)
+    return topi.image.resize(data, out_shape, layout=layout,
+                             method=method, align_corners=align_corners)

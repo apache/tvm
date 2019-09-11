@@ -75,6 +75,11 @@ using TOpIsStateful = bool;
 using TNonComputational = bool;
 
 /*!
+ * \brief Mark the operator whether output shape is data dependant.
+ */
+using TShapeDataDependant = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention
@@ -186,7 +191,7 @@ using Shape = Array<IndexExpr>;
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<Tensor>(const Attrs& attrs,
                 const Array<Tensor>& inputs,
-                const Array<Shape>& out_shapes)>;
+                const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

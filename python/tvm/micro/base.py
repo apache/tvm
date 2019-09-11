@@ -29,7 +29,7 @@ from tvm.contrib import cc as _cc
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
 
-SUPPORTED_DEVICE_TYPES = ["host"]
+SUPPORTED_DEVICE_TYPES = ["host", "openocd"]
 
 class Session:
     """MicroTVM Device Session
@@ -50,15 +50,22 @@ class Session:
     .. code-block:: python
 
       c_mod = ...  # some module generated with "c" as the target
-      device_type = "host"
-      with tvm.micro.Session(device_type) as sess:
-          sess.create_micro_mod(c_mod)
+      device_type = "openocd"
+      toolchain_prefix = "riscv64-unknown-elf-"
+      with tvm.micro.Session(device_type,
+                             toolchain_prefix,
+                             base_addr=0x10010000,
+                             server_addr="127.0.0.1",
+                             port=6666):
+          c_mod.export_library(lib_obj_path, fcompile=tvm.micro.cross_compiler(toolchain_prefix))
+          micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     """
 
-    def __init__(self, device_type, toolchain_prefix):
+    def __init__(self, device_type, toolchain_prefix, **kwargs):
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
         self._check_system()
+        self._check_args(device_type, kwargs)
 
         # First, find and compile runtime library.
         runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
@@ -67,7 +74,11 @@ class Session:
         create_micro_lib(
             runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
-        self.module = _CreateSession(device_type, runtime_obj_path, toolchain_prefix)
+        base_addr = kwargs.get("base_addr", 0)
+        server_addr = kwargs.get("server_addr", "")
+        port = kwargs.get("port", 0)
+        self.module = _CreateSession(
+            device_type, runtime_obj_path, toolchain_prefix, base_addr, server_addr, port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
 
@@ -82,6 +93,15 @@ class Session:
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
             raise RuntimeError("microTVM is currently only supported on 64-bit platforms")
+
+    def _check_args(self, device_type, args):
+        """Check if the given configuration is valid."""
+        if device_type == "host":
+            pass
+        elif device_type == "openocd":
+            assert "base_addr" in args
+            assert "server_addr" in args
+            assert "port" in args
 
     def __enter__(self):
         self._enter()
@@ -181,7 +201,9 @@ def create_micro_lib(
     options = ["-I" + path for path in find_include_path()]
     options += ["-I{}".format(_get_micro_device_dir())]
     options += ["-fno-stack-protector"]
-    if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
+    # TODO(weberlo): Don't rely on the toolchain prefix to identify if this is the host
+    # device.
+    if toolchain_prefix == "" and sys.maxsize > 2**32 and sys.platform.startswith("linux"):
         # Only add this option if the host is a 64-bit Linux.
         options += ["-mcmodel=large"]
     compile_cmd = "{}gcc".format(toolchain_prefix)

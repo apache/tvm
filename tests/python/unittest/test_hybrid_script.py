@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm, inspect, sys, traceback, numpy, nose, types, os
+import tvm, inspect, sys, traceback, numpy, pytest, types, os
 from tvm.contrib import util
 from tvm.hybrid import script
 from tvm.hybrid.runtime import HYBRID_GLOBALS
 
-@nose.tools.nottest
+@pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
@@ -122,11 +122,13 @@ def test_outer_product():
     assert ibody.min.value == 0
     assert ibody.extent.name == 'm'
     #Check loop body
-    jbody = ibody.body
+    jblock = ibody.body
+    assert isinstance(jblock, tvm.stmt.Block)
+    jbody = jblock.first
     assert isinstance(jbody, tvm.stmt.AssertStmt)
     assert isinstance(jbody.message, tvm.expr.StringImm)
     assert jbody.message.value == "index out of range!"
-    jbody = jbody.body
+    jbody = jblock.rest
     assert isinstance(jbody, tvm.stmt.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2

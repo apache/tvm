@@ -30,6 +30,23 @@ def _set_class_node_base(cls):
     _CLASS_NODE_BASE = cls
 
 
+def _scalar_type_inference(value):
+    if hasattr(value, 'dtype'):
+        dtype = str(value.dtype)
+    elif isinstance(value, bool):
+        dtype = 'bool'
+    elif isinstance(value, float):
+        # We intentionally convert the float to float32 since it's more common in DL.
+        dtype = 'float32'
+    elif isinstance(value, int):
+        # We intentionally convert the python int to int32 since it's more common in DL.
+        dtype = 'int32'
+    else:
+        raise NotImplementedError('Cannot automatically inference the type.'
+                                  ' value={}'.format(value))
+    return dtype
+
+
 class NodeGeneric(object):
     """Base class for all classes that can be converted to node."""
     def asnode(self):
@@ -86,7 +103,7 @@ def const(value, dtype=None):
     value : int or float
         The input value
 
-    dtype : str
+    dtype : str or None, optional
         The data type.
 
     Returns
@@ -95,8 +112,5 @@ def const(value, dtype=None):
         Constant expression corresponds to the value.
     """
     if dtype is None:
-        if isinstance(value, Integral):
-            dtype = 'int32'
-        else:
-            dtype = 'float32'
+        dtype = _scalar_type_inference(value)
     return _api_internal._const(value, dtype)

@@ -20,6 +20,17 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file micro_session.h
+ * \brief session to manage multiple micro modules
+ *
+ * Each session consists of an interaction with a *single* logical device.
+ * Within that interaction, multiple TVM modules can be loaded on the logical
+ * device.
+ *
+ * Multiple sessions can exist simultaneously, but there is only ever one
+ * *active* session. The idea of an active session mainly has implications for
+ * the frontend, in that one must make a session active in order to allocate
+ * new TVM objects on it. Aside from that, previously allocated objects can be
+ * used even if the session which they belong to is not currently active.
  */
 #ifndef TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 #define TVM_RUNTIME_MICRO_MICRO_SESSION_H_
@@ -82,7 +93,10 @@ class MicroSession : public ModuleNode {
    */
   void CreateSession(const std::string& device_type,
                      const std::string& binary_path,
-                     const std::string& toolchain_prefix);
+                     const std::string& toolchain_prefix,
+                     std::uintptr_t base_addr,
+                     const std::string& server_addr,
+                     int port);
 
   /*!
    * \brief ends the session by destructing the low-level device and its allocators

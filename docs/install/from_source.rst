@@ -54,13 +54,14 @@ Our goal is to build the shared libraries:
 .. code:: bash
 
     sudo apt-get update
-    sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
+    sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
 
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
+- If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
 - It is possible to build TVM without the LLVM dependency if you only want to use CUDA/OpenCL
 - If you want to use the NNVM compiler, then LLVM is required
 
@@ -112,8 +113,7 @@ Building on Windows
 ~~~~~~~~~~~~~~~~~~~
 
 TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
-In order to generate the VS solution file using cmake,
-make sure you have a recent version of cmake added to your path and then from the TVM directory:
+In order to generate the VS solution file using cmake, make sure you have a recent version of cmake added to your path and then from the TVM directory:
 
 .. code:: bash
 
@@ -181,25 +181,25 @@ Python dependencies
 
    .. code:: bash
 
-       pip install --user numpy decorator attrs
+       pip3 install --user numpy decorator attrs
 
    * If you want to use RPC Tracker
 
    .. code:: bash
 
-       pip install --user tornado
+       pip3 install --user tornado
 
    * If you want to use auto-tuning module
 
    .. code:: bash
 
-       pip install --user tornado psutil xgboost
+       pip3 install --user tornado psutil xgboost
 
    * If you want to parse Relay text format progams, you must use Python 3 and run the following
 
    .. code:: bash
 
-       pip install --user mypy orderedset antlr4-python3-runtime
+       pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
 Install Contrib Libraries

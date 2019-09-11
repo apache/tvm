@@ -22,6 +22,7 @@ package unittest
 
 import chisel3._
 import chisel3.iotesters.{Driver, TesterOptionsManager}
+import unittest.util._
 import vta.core._
 import vta.util.config._
 import vta.shell._
@@ -45,7 +46,12 @@ object Launcher {
       Driver.execute(() => new MatrixVectorMultiplication, manager) {
         (c) => new TestMatrixVectorMultiplication(c)
       }
-    }
+    },
+		"alu" -> { (manager: TesterOptionsManager) =>
+      Driver.execute(() => new AluVector, manager) {
+        (c) => new TestAluVector(c)
+      }   
+    } 
   )
 
   def main(args: Array[String]): Unit = {

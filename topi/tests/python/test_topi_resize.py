@@ -23,7 +23,7 @@ import math
 
 from common import get_all_backend
 
-def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False, method="BILINEAR"):
+def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=True, method="bilinear"):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
@@ -40,7 +40,7 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
 
     B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners, method=method)
 
-    if method == "BILINEAR":
+    if method == "bilinear":
         b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
     else:
         scale_h = out_height / in_height
@@ -76,8 +76,8 @@ def test_resize():
     # Scale NHWC + Align Corners
     verify_resize(6, 32, 64, 64, 20, 20, "NHWC", True)
     # Nearest + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', method="NEAREST_NEIGHBOR")
-    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', method="NEAREST_NEIGHBOR")
+    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', method="nearest_neighbor", align_corners=False)
+    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', method="nearest_neighbor", align_corners=False)
 
 if __name__ == "__main__":
     test_resize()

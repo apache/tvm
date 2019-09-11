@@ -611,6 +611,21 @@ def test_hash_unequal():
 
     assert not analysis.structural_hash(func1) == analysis.structural_hash(func3)
 
+
+def test_tuple_match():
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    y = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+    assert analysis.alpha_equal(x, y)
+    assert analysis.structural_hash(x) == analysis.structural_hash(y)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()

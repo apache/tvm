@@ -91,6 +91,22 @@ def check_kind(t, mod=None):
         return _analysis.check_kind(t)
 
 
+def check_constant(expr):
+    """Check whether an expression is constant
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    result : bool
+        Whether the expression is constant.
+    """
+    return _analysis.check_constant(expr)
+
+
 def free_vars(expr):
     """Get free Vars from expression expr in Post DFS order.
 

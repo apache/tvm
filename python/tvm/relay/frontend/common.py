@@ -124,7 +124,16 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(',') if x)
+            ret = []
+            for x in tshape.strip('()[]').split(','):
+                x = x.strip()
+                if not x:
+                    continue
+                if x == "None":
+                    ret.append(None)
+                else:
+                    ret.append(int(x))
+            return tuple(ret)
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -273,9 +282,15 @@ class ExprTable(object):
     def get_expr(self, name):
         return self.exprs[name]
 
-    def set_expr(self, name, expr):
+    def set_expr(self, name, expr, force_override=False):
         assert isinstance(expr, _expr.Expr)
-        if name not in self.exprs:
+        # if name exists, we should override the value
+        # otherwise, we can not get like x = func(x) work.
+        # One example is CoreML preprocess, which will override
+        # the same name of input.
+        # However, according to git log, Find keras frontend depends
+        # on this property, so we add one force_override to control it.
+        if name not in self.exprs or force_override:
             self.exprs[name] = expr
 
     def has_expr(self, name):

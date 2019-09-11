@@ -39,7 +39,7 @@ namespace runtime {
 size_t GetDefaultSectionSize(SectionKind kind) {
   switch (kind) {
     case SectionKind::kText:
-      return 0xF0000;
+      return 0xF000;
     case SectionKind::kRodata:
       return 0xF000;
     case SectionKind::kData:
@@ -47,13 +47,13 @@ size_t GetDefaultSectionSize(SectionKind kind) {
     case SectionKind::kBss:
       return 0xF00;
     case SectionKind::kArgs:
-      return 0xF00000;
+      return 0xF0000;
     case SectionKind::kStack:
       return 0xF000;
     case SectionKind::kHeap:
-      return 0xF000000;
+      return 0xF00000;
     case SectionKind::kWorkspace:
-      return 0xF000000;
+      return 0xF0000;
     default:
       LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
       return 0;

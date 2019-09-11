@@ -91,7 +91,10 @@ else
   lib_path = $(build_dir)/$(LIBNAME).so
 endif
 
-default: lib
+default: lint lib
+
+lint:
+	sbt scalafmt
 
 lib: $(lib_path)
 $(lib_path): $(verilator_build_dir)/V$(TOP).cpp

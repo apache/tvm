@@ -229,11 +229,11 @@ class Environment(object):
     @property
     def target_host(self):
         """The target host"""
-        if self.TARGET == "pynq":
+        if self.TARGET in ["pynq", "de10nano"]:
             return "llvm -target=armv7-none-linux-gnueabihf"
-        if self.TARGET == "ultra96":
+        elif self.TARGET == "ultra96":
             return "llvm -target=aarch64-linux-gnu"
-        if self.TARGET == "sim" or self.TARGET == "tsim":
+        elif self.TARGET in ["sim", "tsim"]:
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 

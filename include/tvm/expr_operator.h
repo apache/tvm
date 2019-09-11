@@ -24,6 +24,7 @@
  * \note Most of the operator defined here perform simple constant folding
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
+// Acknowledgement: Most operator APIs originate from Halide.
 #ifndef TVM_EXPR_OPERATOR_H_
 #define TVM_EXPR_OPERATOR_H_
 
@@ -511,6 +512,7 @@ TVM_DLL Expr trunc(Expr x);
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(erf);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);

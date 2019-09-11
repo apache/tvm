@@ -55,10 +55,17 @@ def _mx_fully_connected(inputs, attrs):
     use_flatten = attrs.get_bool("flatten", True)
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
+    data_shape = _infer_type(inputs[0]).checked_type.shape
+    if len(data_shape) > 2:
+        inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=-1)
+    if len(data_shape) > 2:
+        new_shape = data_shape[:-1]
+        new_shape.append(units)
+        res = _op.reshape(res, new_shape)
     return res
 
 
@@ -241,8 +248,8 @@ def _mx_layer_norm(inputs, attrs):
 
 def _mx_slice(inputs, attrs):
     new_attrs = {}
-    begin = attrs.get_int_tuple('begin', None)
-    end = attrs.get_int_tuple('end', None)
+    begin = list(attrs.get_int_tuple('begin', None))
+    end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
     if begin is None:
         raise tvm.error.OpAttributeRequired(
@@ -251,11 +258,12 @@ def _mx_slice(inputs, attrs):
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
     if None in begin:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "begin" of operator Slice is not valid.')
-    if None in end:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "end" of operator Slice is not valid.')
+        data_shape = _infer_type(inputs[0]).checked_type.shape
+        for i, beg in enumerate(begin):
+            if beg is None:
+                assert end[i] is None
+                begin[i] = 0
+                end[i] = data_shape[i]
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -497,7 +505,8 @@ def _mx_arange(inputs, attrs):
             'Attribute "repeat" is not supported in operator arange.')
     new_attrs = {}
     new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
-    new_attrs["stop"] = _expr.const(attrs.get_float("stop"))
+    stop = attrs.get_str("stop", "None")
+    new_attrs["stop"] = None if stop == "None" else _expr.const(float(stop))
     new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
     new_attrs["dtype"] = attrs.get_str("dtype", "float32")
     return _op.arange(**new_attrs)
@@ -896,12 +905,21 @@ def _mx_rnn_layer(inputs, attrs):
             ret.append(_op.stack(inputs, axis=0))
     return ret
 
+def _mx_one_hot(inputs, attrs):
+    indices = inputs[0].astype('int32')
+    depth = attrs.get_int('depth', 0)
+    dtype = attrs.get_str('dtype', 'int32')
+    on_value = tvm.relay.const(attrs.get_float('on_value', 1.0), dtype)
+    off_value = tvm.relay.const(attrs.get_float('off_value', 0.0), dtype)
+    return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
+
 
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
     "log",
     "exp",
+    "erf",
     "sqrt",
     "floor",
     "ceil",
@@ -1041,6 +1059,7 @@ _convert_map = {
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "one_hot"           : _mx_one_hot,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,

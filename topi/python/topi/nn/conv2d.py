@@ -72,6 +72,28 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
 
 
 @tvm.target.generic_func
+def conv2d_legalize(attrs, inputs, types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    return None
+
+
+@tvm.target.generic_func
 def conv2d_alter_layout(attrs, inputs, tinfos, F):
     """Change Conv2D layout.
 

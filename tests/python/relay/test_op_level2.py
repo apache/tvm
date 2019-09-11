@@ -105,8 +105,8 @@ def test_conv2d_run():
                         except_targets=None,
                         **attrs):
         if except_targets is None:
-          except_targets = []
-          
+            except_targets = []
+
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
@@ -233,13 +233,13 @@ def test_conv2d_transpose_run():
 def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h*2, w*2), "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
@@ -502,7 +502,7 @@ def test_batch_flatten():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
-def _test_upsampling(layout, method):
+def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
     scale = 2
     dtype = "float32"
@@ -513,15 +513,17 @@ def _test_upsampling(layout, method):
             return (h, w, c), (h*scale, w*scale, c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    if method == "NEAREST_NEIGHBOR":
+    if method == "nearest_neighbor":
         ref = topi.testing.upsampling_python(data, (scale, scale), layout)
     else:
         ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
@@ -532,10 +534,10 @@ def _test_upsampling(layout, method):
 
 
 def test_upsampling():
-    _test_upsampling("NCHW", "NEAREST_NEIGHBOR")
-    _test_upsampling("NCHW", "BILINEAR")
-    _test_upsampling("NHWC", "NEAREST_NEIGHBOR")
-    _test_upsampling("NHWC", "BILINEAR")
+    _test_upsampling("NCHW", "nearest_neighbor")
+    _test_upsampling("NCHW", "bilinear", True)
+    _test_upsampling("NHWC", "nearest_neighbor")
+    _test_upsampling("NHWC", "bilinear", True)
 
 
 def test_conv2d_int8_intrinsics():
@@ -597,12 +599,35 @@ def test_conv2d_int8_intrinsics():
     assert "vpmulld" in asm and "vpadd" in asm
 
 
+def test_bitserial_conv2d_infer_type():
+    # Basic shape test with ambiguous batch.
+    n, c, h, w = tvm.var("n"), 32, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, h, w), "int16"))
+    w = relay.var("w", relay.ty.TensorType((32, 32, 3, 3), "int16"))
+    y = relay.nn.bitserial_conv2d(
+        x, w, kernel_size=(3, 3), padding=(0, 0), channels=32)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 32, 222, 222), "int16")
+
+
+def test_bitpack_infer_type():
+    # Test axis packing shape inference.
+    o, i, h, w = 32, 32, 128, 128
+    x = relay.var("x", relay.ty.TensorType((o, i, h, w), "int16"))
+    y = relay.nn.bitpack(x, bit_axis=4, pack_axis=1, pack_type='uint16', bits=1)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (32, 2, 128, 128, 1), "uint16")
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
+    test_bitpack_infer_type()
     test_upsampling_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
@@ -610,6 +635,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
+    test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
     test_conv2d_int8_intrinsics()

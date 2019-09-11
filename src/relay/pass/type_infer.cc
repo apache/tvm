@@ -276,6 +276,27 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
   }
 
+  void VisitPattern_(const PatternTupleNode* tup, const Type& t) {
+    auto pt = GetRef<PatternTuple>(tup);
+
+    // we can expect a certain number of arguments
+    Array<Type> unknown_args;
+    for (size_t i = 0; i < tup->patterns.size(); i++) {
+      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    Type expected = TupleTypeNode::make(unknown_args);
+    Type unified = Unify(t, expected, GetRef<NodeRef>(tup));
+
+    auto* tt = unified.as<TupleTypeNode>();
+    if (!tt) {
+      this->ReportFatalError(pt, RELAY_ERROR("Expected a tuple type, got " << unified));
+    }
+    CHECK(tup->patterns.size() == tt->fields.size()) << "not enough pattern";
+    for (size_t i = 0; i < tup->patterns.size(); ++i) {
+      VisitPattern(tup->patterns[i], tt->fields[i]);
+    }
+  }
+
   void VisitPattern_(const PatternVarNode* pv, const Type& t) {
     Type vt = GetType(pv->var);
     Unify(vt, t, pv->span);
@@ -753,7 +774,6 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   bool update_missing_type_annotation_{true};
 };
 
-
 Expr TypeInferencer::Infer(Expr expr) {
   // Step 1: Populate the constraints.
   GetType(expr);
@@ -825,9 +845,6 @@ Function InferType(const Function& func,
     << std::endl << free_tvars;
   return Downcast<Function>(func_ret);
 }
-
-TVM_REGISTER_API("relay._transform.infer_type")
-.set_body_typed<Expr(Expr, Module)>([](Expr l, Module r) { return InferType(l, r); });
 
 namespace transform {
 

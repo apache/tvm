@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
+
 import tvm
 from tvm import relay
+from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
-from tvm.relay.testing import ctx_list, run_infer_type
+
 
 def test_clip():
     ref = (lambda x: np.where(x > 10.0, np.zeros_like(x),
@@ -38,5 +41,27 @@ def test_clip():
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
 
+def verify_transpose_grad(d_shape, axes=None):
+    data = relay.var("data", relay.TensorType(d_shape, "float32"))
+    fwd_func = relay.Function([data], relay.transpose(data, axes=axes))
+    check_grad(fwd_func)
+
+
+def test_transpose_grad():
+    verify_transpose_grad((1, 2, 3, 4))
+    verify_transpose_grad((1, 2, 3, 4), axes=(0, 2, 3, 1))
+
+
+def test_negative_grad():
+    data = relay.var("data", relay.TensorType((10, 4), "float32"))
+    fwd_func = relay.Function([data], relay.negative(data))
+    check_grad(fwd_func)
+
+
+def test_cast_grad():
+    data = relay.var("data", relay.TensorType((10, 4), "float32"))
+    fwd_func = relay.Function([data], relay.cast(data, "float64"))
+    check_grad(fwd_func)
+
 if __name__ == "__main__":
-    test_clip()
+    pytest.main()

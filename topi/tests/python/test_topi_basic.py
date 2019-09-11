@@ -36,6 +36,7 @@ def test_ewise():
         assert B.op.body[0].name == name
 
     test_apply(topi.exp, "exp")
+    test_apply(topi.erf, "erf")
     test_apply(topi.tanh, "tanh")
     test_apply(topi.sigmoid, "sigmoid")
     test_apply(topi.log, "log")

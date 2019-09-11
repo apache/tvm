@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
+from tvm.contrib import cblas
 
 from .util import get_fp32_len
 from .. import generic, tag, nn
@@ -27,12 +28,19 @@ from ..util import traverse_inline, get_const_tuple
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
-    batch, _ = get_const_tuple(data.shape)
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        C = cblas.matmul(data, weight, False, True)
+        if bias is not None:
+            C = tvm.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
+                            tag=tag.BROADCAST)
+        return C
 
+    M, _ = get_const_tuple(data.shape)
     # For small batch sizes, don't pack weight into cache-friendly layout
     # because of overhead in packing and limited reuse from batch dimension
     # TODO(icemelon9): use a more systematic way to determine which schedule to use
-    if batch <= 16:
+    if M <= 16:
         return _declaration_dense_nopack(cfg, data, weight, bias, out_dtype)
     return _declaration_dense_pack(cfg, data, weight, bias, out_dtype)
 
@@ -42,29 +50,29 @@ def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
 def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
-    batch, in_dim = get_const_tuple(data.shape)
-    out_dim, _ = get_const_tuple(weight.shape)
+    M, K = get_const_tuple(data.shape) # batch, in_dim
+    N, _ = get_const_tuple(weight.shape) # out_dim
     # create tuning space
-    cfg.define_split("tile_y", batch, num_outputs=3)
-    cfg.define_split("tile_x", out_dim, num_outputs=3)
-    cfg.define_split("tile_k", in_dim, num_outputs=2)
+    cfg.define_split("tile_y", M, num_outputs=3)
+    cfg.define_split("tile_x", N, num_outputs=3)
+    cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
-        _default_dense_pack_config(cfg, batch, out_dim, in_dim)
+        _default_dense_pack_config(cfg, M, N, K)
 
     packw_bn = cfg["tile_x"].size[-1]
-    packw_shape = (out_dim // packw_bn, in_dim, packw_bn)
+    packw_shape = (N // packw_bn, K, packw_bn)
     packw = tvm.compute(packw_shape,
                         lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight")
 
-    k = tvm.reduce_axis((0, in_dim), name="k")
-    C = tvm.compute((batch, out_dim),
+    k = tvm.reduce_axis((0, K), name="k")
+    C = tvm.compute((M, N),
                     lambda y, x: tvm.sum(
                         data[y, k].astype(out_dtype) *
                         packw[x // packw_bn, k, x % packw_bn].astype(out_dtype),
                         axis=k),
                     tag="dense_pack")
     if bias is not None:
-        C = tvm.compute((batch, out_dim), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
+        C = tvm.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
                         tag=tag.BROADCAST)
     return C
 
@@ -74,28 +82,28 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
-    batch, in_dim = get_const_tuple(data.shape)
-    out_dim, _ = get_const_tuple(weight.shape)
+    M, K = get_const_tuple(data.shape)
+    N, _ = get_const_tuple(weight.shape)
     # create tuning space
-    cfg.define_split("tile_x", out_dim, num_outputs=2)
-    cfg.define_split("tile_y", batch, num_outputs=2)
-    cfg.define_split("tile_k", in_dim, num_outputs=2)
+    cfg.define_split("tile_y", M, num_outputs=2)
+    cfg.define_split("tile_x", N, num_outputs=2)
+    cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
-        _default_dense_nopack_config(cfg, batch, out_dim, in_dim)
+        _default_dense_nopack_config(cfg, M, N, K)
 
     vec = cfg["tile_k"].size[-1]
-    k = tvm.reduce_axis((0, in_dim // vec), "k")
-    CC = tvm.compute((batch, out_dim, vec),
+    k = tvm.reduce_axis((0, K // vec), "k")
+    CC = tvm.compute((M, N, vec),
                      lambda z, y, x: tvm.sum(
                          data[z, k * vec + x].astype(out_dtype) *
                          weight[y, k * vec + x].astype(out_dtype), axis=k))
 
     kk = tvm.reduce_axis((0, vec), "kk")
-    C = tvm.compute((batch, out_dim),
+    C = tvm.compute((M, N),
                     lambda y, x: tvm.sum(CC[y, x, kk], axis=kk),
                     tag="dense_nopack")
     if bias is not None:
-        C = tvm.compute((batch, out_dim), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
+        C = tvm.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype),
                         tag=tag.BROADCAST)
 
     return C
@@ -116,6 +124,10 @@ def _schedule_dense(cfg, outs):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_pack")
 def _schedule_dense_pack(cfg, outs):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -127,6 +139,10 @@ def _schedule_dense_pack(cfg, outs):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_nopack")
 def _schedule_dense_nopack(cfg, outs):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):

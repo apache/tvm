@@ -311,14 +311,18 @@ class PythonConverter(ExprFunctor):
         if isinstance(pattern, (relay.PatternWildcard, relay.PatternVar)):
             return NameConstant(True)
 
-        # constructor patterns check whether the constructors match
-        # and also the matches of any nested patterns
+        conds = []
 
-        # equiv: (arg.tag == patern_constructor.tag)
-        conds = [ast.Compare(ast.Attribute(data, 'tag', Load()),
-                             [ast.Eq()],
-                             [ast.Num(pattern.constructor.tag)])]
+        if isinstance(pattern, relay.PatternConstructor):
+            # constructor patterns check whether the constructors match
+            # and also the matches of any nested patterns
 
+            # equiv: (arg.tag == patern_constructor.tag)
+            conds.append(ast.Compare(ast.Attribute(data, 'tag', Load()),
+                                     [ast.Eq()],
+                                     [ast.Num(pattern.constructor.tag)]))
+
+        assert isinstance(pattern, (relay.PatternConstructor, relay.PatternTuple))
         # now check for any nested patterns
         for i in range(len(pattern.patterns)):
             nested_pat = pattern.patterns[i]

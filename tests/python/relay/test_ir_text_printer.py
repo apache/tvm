@@ -23,14 +23,14 @@ from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equ
 
 do_print = [False]
 
-SEMVER = "v0.0.3\n"
+SEMVER = "v0.0.4\n"
 
-def astext(p, graph_equal=False):
+def astext(p, unify_free_vars=False):
     txt = p.astext()
     if isinstance(p, Expr) and free_vars(p):
         return txt
     x = relay.fromtext(txt)
-    if graph_equal:
+    if unify_free_vars:
         assert_graph_equal(x, p)
     else:
         assert_alpha_equal(x, p)
@@ -78,7 +78,7 @@ def test_meta_data():
                         padding=(1, 1),
                         channels=2)
     f = relay.Function([x, w], z)
-    text = astext(f, graph_equal=True)
+    text = astext(f, unify_free_vars=True)
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
@@ -122,7 +122,7 @@ def test_let_if_scope():
 
     f = relay.Function([x, y, cond], result)
     text = astext(f)
-    assert text.count("{") == 4
+    assert text.count("{") == 3
     assert "%cond: bool" in text
     show(astext(f))
 
@@ -169,18 +169,22 @@ def test_inception_v3():
     net, params = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
     astext(net)
 
+
 def test_squeezenet():
     for version in ['1.0', '1.1']:
         net, params = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
         astext(net)
 
+
 def test_vgg():
     net, params = tvm.relay.testing.vgg.get_workload(batch_size=1)
     astext(net)
 
+
 def test_densenet():
     net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
     astext(net)
+
 
 def test_call_node_order():
     x = relay.var("x")
@@ -196,6 +200,7 @@ def test_call_node_order():
          "};\n"
          "%2(%1)")
 
+
 def test_let_inlining():
     tup = relay.Tuple([relay.const(0), relay.const(0)])
     x = relay.var("x")
@@ -207,6 +212,7 @@ def test_let_inlining():
     assert astext(relay.Let(x, tup, x)) == SEMVER + \
         ("let %x = (0, 0);\n"
          "%x")
+
 
 def test_zeros():
     x = relay.op.zeros([], "float32")

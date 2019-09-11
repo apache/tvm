@@ -84,10 +84,12 @@ def _dimension_constraint():
     return _dim_check, "Only 2d kernel supported."
 
 def _get_param(params, input_node):
+    if isinstance(input_node, _expr.Constant):
+        return np.atleast_1d(input_node.data.asnumpy())
     return params.pop(input_node.name_hint).asnumpy()
 
 def _get_num_param(params, input_node):
-    return _get_param(params, input_node)[0]
+    return _get_param(params, input_node).item()
 
 def _get_list_param(params, input_node):
     return _get_param(params, input_node).tolist()
@@ -251,9 +253,6 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if opname == 'depthwise':
-            if depth_mult > 1:
-                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative'
-                                                 ' is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding
@@ -338,9 +337,9 @@ def _crop_and_resize():
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
         # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
         try:
-            boxes = params.pop(inputs[1].name_hint).asnumpy().tolist()
-            box_ind = params.pop(inputs[2].name_hint).asnumpy().tolist()
-            crop_size = params.pop(inputs[3].name_hint).asnumpy().tolist()
+            boxes = _get_list_param(params, inputs[1])
+            box_ind = _get_list_param(params, inputs[2])
+            crop_size = _get_list_param(params, inputs[3])
         except (IndexError, KeyError):
             boxes = _infer_value(inputs[1], params).asnumpy().tolist()
             box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
@@ -358,7 +357,7 @@ def _crop_and_resize():
                 'Attribute method=nearest is not supported')
         else:
             attrs['align_corners'] = True
-            attrs['method'] = 'BILINEAR'
+            attrs['method'] = 'bilinear'
 
         out = None
         begin = [0] * data_dim
@@ -408,7 +407,7 @@ def _resize_bilinear():
 
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
-                       extras={'method': "BILINEAR"})(inputs, attr)
+                       extras={'method': "bilinear"})(inputs, attr)
     return _impl
 
 def _resize_nearest_neighbor():
@@ -423,7 +422,7 @@ def _resize_nearest_neighbor():
 
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
-                       extras={'method': "NEAREST_NEIGHBOR"})(inputs, attr)
+                       extras={'method': "nearest_neighbor"})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -448,11 +447,31 @@ def _matmul():
 
 def _batch_matmul():
     def _impl(inputs, attr, params):
+        input_x = inputs[0]
+        input_y = inputs[1]
+        orig_shape_x = attr['_input_shapes'][input_x]
+        orig_shape_y = attr['_input_shapes'][input_y]
+
+        # reshape n-dimensional batch matmul into 3d
+        if len(orig_shape_x) > 3:
+            outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
+            num_outer_elts = np.prod(outer_dims)
+            new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
+            new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            input_x = _op.reshape(input_x, newshape=new_shape_x)
+            input_y = _op.reshape(input_y, newshape=new_shape_y)
+
         adj_x = attr['adj_x']
         adj_y = attr['adj_y']
-        input_x = _op.transpose(inputs[0], axes=[0, 2, 1]) if adj_x else inputs[0]
-        input_y = _op.transpose(inputs[1], axes=[0, 2, 1]) if not adj_y else inputs[1]
+        input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
+        input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
         ret = get_relay_op('batch_matmul')(input_x, input_y)
+
+        # reshape result back to n-dimensional
+        if len(orig_shape_x) > 3:
+            final_shape = attr['_output_shapes'][0]
+            ret = _op.reshape(ret, newshape=final_shape)
+
         return ret
     return _impl
 
@@ -488,7 +507,7 @@ def _pack():
 
 def _tile():
     def _impl(inputs, attr, params):
-        reps = params[inputs.pop().name_hint].asnumpy()
+        reps = _get_list_param(params, inputs.pop())
         new_input = []
         new_input.append(inputs.pop(0))
 
@@ -559,6 +578,44 @@ def _depth_to_space():
             transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
             new_h = in_h * block_size
             new_w = in_w * block_size
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
+
+    return _impl
+
+
+def _space_to_depth():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_c = in_c * block_size * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else:  # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+            new_c = int(in_c * block_size * block_size)
             newshape = (in_n, new_c, new_h, new_w)
 
         return AttrCvt(
@@ -697,7 +754,7 @@ def _sum():
 
 def _reduce(op):
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()
+        axis = _get_list_param(params, inputs[1])
         axis = tuple(axis)
         return AttrCvt(
             op_name=op,
@@ -851,6 +908,19 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
+def _mirror_pad():
+    def _impl(inputs, attr, params):
+        padlist = _get_param(params, inputs[1])
+        paddings = tuple(tuple(l) for l in padlist)
+        attr['pad_width'] = paddings
+        mode = attr['mode'].decode('utf-8')
+        attr['mode'] = mode
+        new_inputs = [inputs[0]]
+        return AttrCvt(
+            op_name='mirror_pad',
+            ignores=['Tpaddings'],)(new_inputs, attr)
+    return _impl
+
 def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
@@ -869,8 +939,8 @@ def _where():
 
 def _clip_by_value():
     def _impl(inputs, attr, params):
-        a_min = params.pop(inputs[1].name_hint).asnumpy()[0]
-        a_max = params.pop(inputs[2].name_hint).asnumpy()[0]
+        a_min = _get_num_param(params, inputs[1])
+        a_max = _get_num_param(params, inputs[2])
         return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
     return _impl
 
@@ -897,10 +967,11 @@ def _rank():
 
 def _range():
     def _impl(inputs, attr, params):
-        start = params.pop(inputs[0].name_hint).asnumpy()[0]
-        limit = params.pop(inputs[1].name_hint).asnumpy()[0] \
-            if hasattr(inputs[1], "name_hint") else params.pop('Rank').asnumpy()[0]
-        delta = params.pop(inputs[2].name_hint).asnumpy()[0]
+        start = _get_param(params, inputs[0])[0]
+        limit = _get_param(params, inputs[1])[0] \
+            if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
+            else params.pop('Rank').asnumpy()[0]
+        delta = _get_param(params, inputs[2])[0]
         dtype = attr['dtype'].name if 'dtype' in attr else "int32"
         return AttrCvt(
             op_name="arange",
@@ -1016,7 +1087,7 @@ def _softplus():
 
 def _topk():
     def _impl(inputs, attr, params):
-        k = int(params.pop(inputs.pop(1).name_hint).asnumpy())
+        k = int(_get_num_param(params, inputs.pop(1)))
         if k < 1:
             raise tvm.error.OpAttributeInvalid(
                 'Attribute k must be positive in operator TopKV2')
@@ -1128,7 +1199,7 @@ def _batch_to_space_nd():
 
 def _prod():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        axis = _get_num_param(params, inputs[1])
         keepdims = attr['keep_dims']
         return _op.prod(inputs[0], int(axis), keepdims=keepdims)
     return _impl
@@ -1139,6 +1210,21 @@ def _log1p():
         one = tvm.relay.const(1, attr['T'].name)
         add_out = get_relay_op('add')(inputs[0], one)
         return get_relay_op('log')(add_out)
+    return _impl
+
+def _one_hot():
+    def _impl(inputs, attr, params):
+        depth = int(_get_num_param(params, inputs[1]))
+        dtype = attr['T'].name
+
+        on_value = _get_num_param(params, inputs[2])
+        off_value = _get_num_param(params, inputs[3])
+        new_inputs = [inputs[0], \
+                      tvm.relay.const(on_value, dtype), \
+                      tvm.relay.const(off_value, dtype)]
+        return AttrCvt('one_hot',
+                       ignores=['TI'],
+                       extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -1175,6 +1261,7 @@ _convert_map = {
     'DepthToSpace'                      : _depth_to_space(),
     'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
+    'Erf'                               : AttrCvt('erf'),
     'Exp'                               : AttrCvt('exp'),
     'ExpandDims'                        : _expand_dims(),
     'Fill'                              : _fill(),
@@ -1208,10 +1295,12 @@ _convert_map = {
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
     'Minimum'                           : _elemwise('minimum'),
+    'MirrorPad'                         : _mirror_pad(),
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
@@ -1240,6 +1329,7 @@ _convert_map = {
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
+    'SpaceToDepth'                      : _space_to_depth(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Sqrt'                              : AttrCvt('sqrt'),
@@ -2018,13 +2108,12 @@ class GraphProto(object):
             if array_ndim == 0:
                 new_array = np.empty([1], dtype=np_array.dtype)
                 new_array[0] = np_array
-                self._params[name] = tvm.nd.array(new_array)
+                self._nodes[name] = [tvm.relay.const(new_array)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
-
-            self._nodes[name] = [_expr.var(name,
-                                           shape=self._params[name].shape,
-                                           dtype=self._params[name].dtype)]
+                self._nodes[name] = [_expr.var(name,
+                                               shape=self._params[name].shape,
+                                               dtype=self._params[name].dtype)]
         else:
             if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \

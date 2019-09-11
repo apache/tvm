@@ -24,7 +24,7 @@ from tvm import rpc
 def rpc_proxy_check():
     """This is a simple test function for RPC Proxy
 
-    It is not included as nosetests, because:
+    It is not included as pytests, because:
     - It depends on tornado
     - It relies on the fact that Proxy starts before client and server connects,
       which is often the case but not always

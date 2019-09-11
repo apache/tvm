@@ -323,7 +323,24 @@ def test_triangle_number():
     assert_alpha_equal(dcpe(orig), const(55))
 
 
+def test_nat_update():
+    m = Module()
+    p = Prelude(m)
+    add_nat_definitions(p)
+    m = transform.ToANormalForm()(m)
+    transform.PartialEvaluate()(m)
+
+
+def test_tuple_match():
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+    assert_alpha_equal(dcpe(x), const(2))
+
+
 if __name__ == '__main__':
+    test_nat_update()
     test_ref()
     test_tuple()
     test_empty_ad()
@@ -342,3 +359,4 @@ if __name__ == '__main__':
     test_match_nat_id()
     test_concat()
     test_triangle_number()
+    test_tuple_match()

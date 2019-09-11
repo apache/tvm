@@ -81,16 +81,17 @@ Type ConcreteBroadcast(const TensorType& t1,
   for (; i <= std::min(ndim1, ndim2); ++i) {
     IndexExpr s1 = t1->shape[ndim1 - i];
     IndexExpr s2 = t2->shape[ndim2 - i];
-    if (EqualCheck(s1, s2)) {
-      oshape.push_back(s1);
-    } else if (EqualConstInt(s1, 1)) {
+    if (EqualConstInt(s1, 1)) {
       oshape.push_back(s2);
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
-    } else if (s1.as<Any>() && EqualConstInt(s2, 1)) {
-      // TODO(@jroesch): we need to come back to this
+    } else if (s1.as<Any>()) {
+      // s1 == 1 || s1 == s2
       oshape.push_back(s2);
-    } else if (s2.as<Any>() && EqualConstInt(s1, 1)) {
+    } else if (s2.as<Any>()) {
+      // s2 == 1 || s2 == s1
+      oshape.push_back(s1);
+    } else if (EqualCheck(s1, s2)) {
       oshape.push_back(s1);
     } else {
       RELAY_ERROR(

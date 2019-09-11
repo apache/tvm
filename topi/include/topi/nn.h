@@ -182,12 +182,20 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::Expr> output_shape;
+  tvm::Array<tvm::Expr> pad_before_int32;
+  tvm::Array<tvm::Expr> pad_after_int32;
+  for (const auto &ele : pad_before) {
+    pad_before_int32.push_back(tvm::cast(tvm::Int(32), ele));
+  }
+  for (const auto &ele : pad_after) {
+    pad_after_int32.push_back(tvm::cast(tvm::Int(32), ele));
+  }
   for (size_t i = 0; i < t->shape.size(); ++i) {
     if (i >= pad_before.size()) {
       output_shape.push_back(t->shape[i]);
     } else {
       output_shape.push_back(
-          tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
+          tvm::ir::Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
     }
   }
 
@@ -199,18 +207,18 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
     tvm::Array<tvm::Expr> indices;
     tvm::Array<tvm::Expr> sel;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      if (i >= pad_before.size()) {
+      if (i >= pad_before_int32.size()) {
         indices.push_back(ovars[i]);
         continue;
       }
-      if (!topi::detail::EqualCheck(pad_before[i], 0)) {
-        sel.push_back(ovars[i] >= pad_before[i]);
-        indices.push_back(ovars[i] - pad_before[i]);
+      if (!topi::detail::EqualCheck(pad_before_int32[i], 0)) {
+        sel.push_back(ovars[i] >= pad_before_int32[i]);
+        indices.push_back(ovars[i] - pad_before_int32[i]);
       } else {
         indices.push_back(ovars[i]);
       }
-      if (!topi::detail::EqualCheck(pad_after[i], 0)) {
-        sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before[i] + t->shape[i]));
+      if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
+        sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
       }
     }
     if (sel.size() != 0) {

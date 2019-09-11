@@ -36,12 +36,13 @@ requirements:
     - numpy
     - setuptools
     - decorator
-    - tvm-libs =={{ version }}
+    - tvm-libs {{ version }}
   run:
-    - python
+    - python {{ python }}
     - {{ pin_compatible('numpy') }}
     - decorator
-    - tvm-libs =={{ version }}
+    - tvm-libs {{ version }}
+    - psutil
 
 test:
   imports:
@@ -49,14 +50,15 @@ test:
     - topi
     - nnvm
   requires:
-    - nose
+    - pytest
     - scipy
   source_files:
     - tests/python
   commands:
-    - python -m nose -v tests/python/integration
+    - python -m pytest -v tests/python/integration
 
 about:
   home: https://github.com/dmlc/tvm
-  license: Apache2
+  license: Apache-2.0
+  license_family: Apache
   summary: a low level domain specific language for compiling tensor computation pipelines

@@ -152,3 +152,33 @@ def dense_add_bias(data, weight=None, bias=None, units=None, **kwargs):
     data = relay.nn.dense(data, weight, units, **kwargs)
     data = relay.nn.bias_add(data, bias, axis=-1)
     return data
+
+def conv_kernel_layout(data_layout, is_depthwise=False):
+    """Map the data layout to corresponding kernel layout.
+
+    Arbitrary layout is not fully supported in TOPI yet.
+
+    Parameters
+    ----------
+    data_layout : str
+        The data_layout, can be 'NCHW', 'NHWC'.
+
+    is_depthwise : bool, optional
+        Whether the conv is a depthwise convolution.
+
+    Returns
+    -------
+    result : str
+        The corresponding kernel layout.
+    """
+    conv_layout_map = {
+        'NCHW': 'OIHW',
+        'NHWC': 'HWIO',
+    }
+    depthwise_conv_layout_map = {
+        'NCHW': 'OIHW',
+        'NHWC': 'HWOI',
+    }
+    mapping = depthwise_conv_layout_map if is_depthwise else conv_layout_map
+    assert data_layout in mapping, "Unknown data layout %s" % data_layout
+    return mapping[data_layout]

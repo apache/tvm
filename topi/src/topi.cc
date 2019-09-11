@@ -148,6 +148,11 @@ TVM_REGISTER_GLOBAL("topi.exp")
   *rv = exp(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.erf")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = erf(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.cos")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = cos(args[0]);
@@ -157,7 +162,6 @@ TVM_REGISTER_GLOBAL("topi.sin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = sin(args[0]);
   });
-
 TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
@@ -415,6 +419,14 @@ TVM_REGISTER_GLOBAL("topi.tensordot")
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.one_hot")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  int depth = args[3];
+  int axis = args[4];
+  DataType dtype = args[5];
+  *rv = one_hot(args[0], args[1], args[2], depth, axis, dtype);
   });
 
 /* Ops from nn/upsampling.h */
