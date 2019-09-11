@@ -647,18 +647,20 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
     auto module = ModuleNode::make({}, {});
-    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), module, err_reporter);
+    auto dummy_fn_name = GlobalVarNode::make("test");
+    module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
+    auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 
-    auto mod = [solver, err_reporter](std::string name) -> PackedFunc {
+    auto mod = [module, solver, err_reporter](std::string name) -> PackedFunc {
       if (name == "Solve") {
         return TypedPackedFunc<bool()>([solver]() {
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
+        return TypedPackedFunc<Type(Type, Type)>([module, solver, err_reporter](Type lhs, Type rhs) {
             auto res = solver->Unify(lhs, rhs, lhs);
             if (err_reporter->AnyErrors()) {
-              err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
+              err_reporter->RenderErrors(module, true);
             }
             return res;
           });
