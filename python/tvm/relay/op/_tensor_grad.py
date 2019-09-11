@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 from ..expr import const
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where
+from .transform import collapse_sum_like, broadcast_to_like, where, split
 from .tensor import exp, negative, power, less, cos, sin
 from .tensor import zeros_like, ones_like
 from . import nn as _nn
@@ -176,3 +176,17 @@ def avg_pool2d_grad(orig, grad):
                                     layout=attrs.layout, ceil_mode=attrs.ceil_mode,
                                     count_include_pad=attrs.count_include_pad)
     return [pool_grad]
+
+@register_gradient("concatenate")
+def concatenate_grad(orig, grad):
+    axis = orig.attrs.axis
+
+    data_type = orig.type_args[0]
+    indices = []
+    split_indices = 0
+
+    for field in data_type.fields[:-1]:
+        split_indices += field.shape[axis]
+        indices.append(split_indices)
+
+    return [split(grad, indices, axis)]
