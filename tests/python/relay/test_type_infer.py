@@ -478,3 +478,6 @@ if __name__ == "__main__":
     test_constructor_call()
     test_adt_match()
     test_let_polymorphism()
+    test_mutual_recursion()
+    test_mutual_recursion_adt()
+    test_add_multiple_with_type_var()
