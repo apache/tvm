@@ -29,6 +29,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
+#include <tvm/relay/feature.h>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -761,6 +762,8 @@ CreateInterpreter(
     Target target) {
   auto intrp = std::make_shared<Interpreter>(mod, context, target);
   auto packed = [intrp](Expr expr) {
+    auto f = DetectFeature(expr);
+    CHECK(f.is_subset_of(FeatureSet::All() - fGraph));
     return intrp->Eval(expr);
   };
   return TypedPackedFunc<Value(Expr)>(packed);
