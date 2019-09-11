@@ -511,3 +511,4 @@ if __name__ == "__main__":
     test_mutual_recursion()
     test_mutual_recursion_adt()
     test_add_multiple_with_type_var()
+    test_add_multiple_with_type_var_nonrecursive()
