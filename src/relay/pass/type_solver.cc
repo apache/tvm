@@ -657,7 +657,8 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<Type(Type, Type)>([module, solver, err_reporter](Type lhs, Type rhs) {
+        return TypedPackedFunc<Type(Type, Type)>(
+          [module, solver, err_reporter](Type lhs, Type rhs) {
             auto res = solver->Unify(lhs, rhs, lhs);
             if (err_reporter->AnyErrors()) {
               err_reporter->RenderErrors(module, true);
