@@ -182,12 +182,9 @@ def @filter[A](%f: fn(A) -> Tensor[(), bool], %xs: List[A]) -> List[A] {
  * The zipped list will be the length of the shorter list.
  */
 def @zip[A, B](%xs: List[A], %ys: List[B]) -> List[(A, B)] {
-  match (%xs) {
-    Cons(%x, %x_rest) => match (%ys) {
-      Cons(%y, %y_rest) => Cons((%x, %y), @zip(%x_rest, %y_rest)),
-      Nil => Nil,
-    },
-    Nil => Nil,
+  match (%xs, %ys) {
+    (Cons(%x, %x_rest), Cons(%y, %y_rest)) => Cons((%x, %y), @zip(%x_rest, %y_rest)),
+    _ => Nil,
   }
 }
 
