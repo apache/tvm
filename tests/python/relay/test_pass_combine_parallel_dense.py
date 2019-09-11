@@ -31,7 +31,7 @@ def run_opt_pass(expr, opt_pass):
 
 
 def test_combine_parallel_dense():
-    """Simple testcase. One dense cannot be combined because of shape mismatch"""
+    """Simple testcase. One dense cannot be combined due to shape mismatch"""
     def before(x, w1, w2, w3, w4):
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.dense(x, w1)
