@@ -20,6 +20,8 @@
 from tvm import relay
 from tvm.relay import op, transform, analysis
 from tvm.relay.analysis import assert_alpha_equal
+from tvm.relay.prelude import Prelude
+from tvm.relay.testing import add_nat_definitions, make_nat_expr
 
 
 def run_infer_type(expr, mod=None):
@@ -359,6 +361,103 @@ def test_let_polymorphism():
     body = run_infer_type(body)
     int32 = relay.TensorType((), "int32")
     assert_alpha_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
+
+
+def test_mutual_recursion():
+    odd = relay.GlobalVar("odd")
+    even = relay.GlobalVar("even")
+
+    x = relay.Var("x", relay.scalar_type('int32'))
+    odd_func = relay.Function(
+        [x],
+        relay.If(relay.equal(x, relay.const(0, 'int32')),
+                 relay.const(True, 'bool'),
+                 even(relay.subtract(x, relay.const(1, 'int32')))))
+    y = relay.Var("y", relay.scalar_type('int32'))
+    even_func = relay.Function(
+        [y],
+        relay.If(relay.equal(y, relay.const(1, 'int32')),
+                 relay.const(True, 'bool'),
+                 odd(relay.subtract(y, relay.const(1, 'int32')))))
+
+    mod = relay.Module()
+    main = relay.GlobalVar('main')
+    z = relay.Var('z')
+    mapping = {odd: odd_func, even : even_func, main : relay.Function([z], odd(z))}
+    mod.add_multiple(mapping)
+
+    expected_type = relay.FuncType([relay.scalar_type('int32')],
+                                   relay.scalar_type('bool'))
+
+    assert mod[odd].checked_type == expected_type
+    assert mod[even].checked_type == expected_type
+    assert mod[main].checked_type == expected_type
+
+
+def test_mutual_recursion_adt():
+    mod = relay.module.Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+
+    # even and odd are mutually recursive
+    even = relay.GlobalVar('even')
+    odd = relay.GlobalVar('odd')
+
+    x = relay.Var("x")
+    v = relay.Var("v")
+    odd_func = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(v)]), even(v)),
+            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(False))
+        ]))
+
+    y = relay.Var("y")
+    w = relay.Var("w")
+    even_func = relay.Function(
+        [y],
+        relay.Match(y, [
+            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(w)]), odd(w)),
+            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(True))
+        ]))
+
+    mod.add_multiple({even: even_func, odd: odd_func})
+
+    expected_type = relay.FuncType([p.nat()],
+                                   relay.scalar_type('bool'))
+    assert mod[odd].checked_type == expected_type
+    assert mod[even].checked_type == expected_type
+
+
+def test_add_multiple_with_type_var():
+    mod = relay.Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+    l, nat, nil, cons = p.l, p.nat, p.nil, p.cons
+
+    a = relay.TypeVar('a')
+    x = relay.Var('x', l(a)) # fails without this annotation
+    h = relay.Var('h')
+    t = relay.Var('t')
+    list_id = relay.GlobalVar('list_id')
+    list_id_func = relay.Function(
+        [x],
+        relay.Match(
+            x,
+            [
+                relay.Clause(
+                    relay.PatternConstructor(cons, [relay.PatternVar(h), relay.PatternVar(t)]),
+                    cons(h, list_id(t))),
+                relay.Clause(relay.PatternConstructor(nil), nil())
+            ]),
+        l(a), [a])
+
+    main = relay.GlobalVar('main')
+    main_func = relay.Function([], list_id(cons(make_nat_expr(p, 1), nil())))
+    mod.add_multiple({main : main_func, list_id : list_id_func})
+
+    assert mod[main].checked_type == relay.FuncType([], l(nat()))
+    assert mod[list_id].checked_type == relay.FuncType([l(a)], l(a), [a])
 
 
 if __name__ == "__main__":

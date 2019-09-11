@@ -68,66 +68,6 @@ def test_constructor_tag_differences():
             assert ctor2.tag - (i + 1) != 0
 
 
-def test_add_mutual_recursion():
-    mod = Module()
-    p = Prelude(mod)
-    add_nat_definitions(p)
-
-    # even and odd are mutually recursive
-    even = relay.GlobalVar('even')
-    odd = relay.GlobalVar('odd')
-
-    x = relay.Var("x")
-    v = relay.Var("v")
-    odd_func = relay.Function(
-        [x],
-        relay.Match(x, [
-            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(v)]), even(v)),
-            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(False))
-        ]))
-
-    y = relay.Var("y")
-    w = relay.Var("w")
-    even_func = relay.Function(
-        [y],
-        relay.Match(y, [
-            relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(w)]), odd(w)),
-            relay.Clause(relay.PatternConstructor(p.z, []), relay.const(True))
-        ]))
-
-    mod.add_multiple({even: even_func, odd: odd_func})
-
-    expected_type = relay.FuncType([p.nat()],
-                                   relay.scalar_type('bool'))
-    assert mod[odd].checked_type == expected_type
-    assert mod[even].checked_type == expected_type
-
-
-def test_initial_mutual_recursion():
-    odd = relay.GlobalVar("odd")
-    even = relay.GlobalVar("even")
-
-    x = relay.Var("x", relay.scalar_type('int32'))
-    odd_func = relay.Function(
-        [x],
-        relay.If(relay.equal(x, relay.const(0, 'int32')),
-                 relay.const(True, 'bool'),
-                 even(relay.subtract(x, relay.const(1, 'int32')))))
-    y = relay.Var("y", relay.scalar_type('int32'))
-    even_func = relay.Function(
-        [y],
-        relay.If(relay.equal(y, relay.const(1, 'int32')),
-                 relay.const(True, 'bool'),
-                 odd(relay.subtract(y, relay.const(1, 'int32')))))
-
-    main = relay.GlobalVar('main')
-    z = relay.Var('z')
-    mapping = {odd: odd_func, even : even_func, main : relay.Function([z], odd(z))}
-    mod = relay.Module(mapping)
-
-    expected_type = relay.FuncType([relay.scalar_type('int32')],
-                                   relay.scalar_type('bool'))
-
-    assert mod[odd].checked_type == expected_type
-    assert mod[even].checked_type == expected_type
-    assert mod[main].checked_type == expected_type
+if __name__ == "__main__":
+    test_constructor_tag_round_trip()
+    test_constructor_tag_differences()
