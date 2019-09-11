@@ -194,7 +194,7 @@ def test_forward_upsample(interpolation='nearest'):
     data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
     keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
+    verify_keras_frontend(keras_model)
 
 
 def test_forward_reshape():
