@@ -424,15 +424,15 @@ def logical_and(lhs, rhs):
         Parameters
     ----------
     lhs : tvm.Tensor or Expr
-        The left operand
+          The left operand
     rhs : tvm.Tensor or Expr
-        The right operand
+          The right operand
 
     Returns
     -------
     ret : tvm.Tensor or Expr
-        Returns Expr if both operands are Expr.
-        Otherwise returns Tensor.
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
     """
     return cpp.logical_and(lhs, rhs)
 
@@ -443,15 +443,15 @@ def logical_or(lhs, rhs):
         Parameters
     ----------
     lhs : tvm.Tensor or Expr
-        The left operand
+          The left operand
     rhs : tvm.Tensor or Expr
-        The right operand
+          The right operand
 
     Returns
     -------
     ret : tvm.Tensor or Expr
-        Returns Expr if both operands are Expr.
-        Otherwise returns Tensor.
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
     """
     return cpp.logical_or(lhs, rhs)
 
@@ -462,12 +462,11 @@ def logical_not(data):
         Parameters
     ----------
     data : tvm.Tensor or Expr
-        The left operand
 
     Returns
     -------
     ret : tvm.Tensor or Expr
-        Returns Expr if both operands are Expr.
-        Otherwise returns Tensor.
+          Returns Expr if the operand are Expr.
+          Otherwise returns Tensor.
     """
     return cpp.logical_not(data)
