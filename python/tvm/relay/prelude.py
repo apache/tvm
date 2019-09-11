@@ -36,5 +36,43 @@ class Prelude:
         """Parses the Prelude from Relay's text format into a module."""
         # TODO(@jroesch): we should remove this helper when we port over prelude
         self.mod.import_from_std("prelude.rly")
-        self.id = self.mod.get_global_var("id")
-        self.compose = self.mod.get_global_var("compose")
+
+        self.l = self.mod.get_global_type_var("List")
+        list_adt = self.mod[self.l]
+        self.cons = list_adt.constructors[0]
+        self.nil = list_adt.constructors[1]
+
+        self.optional = self.mod.get_global_type_var("Option")
+        optional_adt = self.mod[self.optional]
+        self.some = optional_adt.constructors[0]
+        self.none = optional_adt.constructors[1]
+
+        self.tree = self.mod.get_global_type_var("Tree")
+        tree_adt = self.mod[self.tree]
+        self.rose = tree_adt.constructors[0]
+
+        GLOBAL_DEFS = [
+            "hd",
+            "tl",
+            "nth",
+            "update",
+            "map",
+            "foldl",
+            "foldr",
+            "foldr1",
+            "concat",
+            "filter",
+            "zip",
+            "rev",
+            "map_accuml",
+            "map_accumr",
+            "unfoldl",
+            "unfoldr",
+            "sum",
+            "length",
+            "tmap",
+            "size",
+            "iterate",
+        ]
+        for global_def in GLOBAL_DEFS:
+            setattr(self, global_def, self.mod.get_global_var(global_def))
