@@ -556,14 +556,10 @@ def split(data, indices_or_sections, axis=0):
 
     Returns
     -------
-    ret : relay.Tuple([relay.Expr, relay.Expr])
-        The computed result.
+    result : relay.Expr
+        The resulting tensor.
     """
-    if isinstance(indices_or_sections, int):
-        ret_size = indices_or_sections
-    else:
-        ret_size = len(indices_or_sections) + 1
-    return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
+    return _make.split(data, indices_or_sections, axis)
 
 
 def strided_slice(data, begin, end, strides=None):
