@@ -570,7 +570,13 @@ class PrettyPrinter :
     } else {
       doc << Print(op->op);
     }
-    return doc << "(" << PrintSep(args) << ")";
+
+    if (cons_node && cons_node->inputs.size() == 0) {
+      // don't print as a call if it's a 0-arity cons
+      return doc;
+    } else {
+      return doc << "(" << PrintSep(args) << ")";
+    }
   }
 
   Doc VisitExpr_(const RefCreateNode* op) final {
