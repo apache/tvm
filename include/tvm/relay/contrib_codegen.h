@@ -46,11 +46,11 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
   /*!
-   * \brief Get the full path of compiled external shared library of this compiler.
+   * \brief Get the full path of compiled external shared libraries of this compiler.
    *
-   * \return The string of the library path.
+   * \return An array of strings of the library paths.
    */
-  virtual const std::string GetExternLibPath() const = 0;
+  virtual const std::vector<std::string> GetExternLibPaths() const = 0;
 
   /*!
    * \brief Build the shared library of external ops.
@@ -69,7 +69,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  virtual runtime::PackedFunc InvokeExternFunc(const std::string& name, void* func_s,
+  virtual runtime::PackedFunc InvokeExternFunc(const std::string& name,
                                                const std::shared_ptr<ModuleNode>& sptr_to_self) = 0;
 
   /*!
@@ -83,18 +83,18 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    */
   runtime::PackedFunc GetFunction(const std::string& name,
                                   const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (handle_ == nullptr) {
-      Open(this->GetExternLibPath());
+    if (!IsHandleOpen()) {
+      Open(this->GetExternLibPaths());
     }
-    CHECK(handle_) << "The external cblas module has not been built or failed to open.\n";
+    CHECK(handle_) << "The external module has not been built or failed to open.\n";
 
-    auto func_s = GetSymbol(name);
+    auto func_s = this->InvokeExternFunc(name, sptr_to_self);
     char* error = dlerror();
     if (error != NULL) {
       LOG(FATAL) << error;
       return PackedFunc();
     }
-    return this->InvokeExternFunc(name, func_s, sptr_to_self);
+    return func_s;
   }
 
   /*!
@@ -112,26 +112,36 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     return "ExternModule";
   }
 
- private:
+  /*!
+   * \brief Check if the library is opened or not.
+   *
+   *
+   * \return True if the library is already opened.
+   */
+  virtual bool IsHandleOpen() {
+    return handle_ != nullptr;
+  }
+
+ protected:
   // Platform dependent handlers for opening system lib.
 #if defined(_WIN32)
   // The handle.
   HMODULE handle_{nullptr};
 
   // Open the library
-  void Open(const std::string& name) {
+  virtual void Open(const std::string& name) {
     std::wstring wname(name.begin(), name.end());
     handle_ = LoadLibraryW(wname.c_str());
     CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library " << name;
   }
 
   // Retrieve a symbol.
-  void* GetSymbol(const std::string& name) {
+  virtual void* GetSymbol(const std::string& name) {
     return reinterpret_cast<void*>(GetProcAddress(handle_, (LPCSTR)name.c_str()));  // NOLINT(*)
   }
 
   // Close the handle.
-  void Close() {
+  virtual void Close() {
     if (handle_) {
       FreeLibrary(handle_);
     }
@@ -141,22 +151,27 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   void* handle_{nullptr};
 
   // load the library
-  void Open(const std::string& name) {
-    handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
-    CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library " << name << " "
+  virtual void Open(const std::vector<std::string> lib_names) {
+    CHECK(lib_names.size() == 1) << "Default library loader only loads one library. "
+                                 << "Please override the loader if multiple libraries are used";
+    handle_ = dlopen(lib_names[0].c_str(), RTLD_LAZY | RTLD_LOCAL);
+    CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library " << lib_names[0] << " "
                               << dlerror();
   }
 
-  // Retrieve a symbol.
-  void* GetSymbol(const std::string& name) {
-    std::string op_name = name;
-    if (op_name.find('.') != std::string::npos) {
-      op_name = op_name.substr(op_name.rfind('.') + 1);
-    }
-    return dlsym(handle_, op_name.c_str());
+  /*!
+   * \brief Retrieve the pre-compiled function symbol from the opened library.
+   *
+   * \param name the name of the external function.
+   *
+   * \return The pointer to the external function.
+   * \note Exceptions when loading the symbol can be retrieved by dlerror().
+   */
+  virtual void* GetSymbol(const std::string& name) {
+    return dlsym(handle_, name.c_str());
   }
 
-  void Close() {
+  virtual void Close() {
     if (handle_) {
       dlclose(handle_);
     }

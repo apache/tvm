@@ -22,4 +22,4 @@ from __future__ import absolute_import
 def dense(attrs, args):
     """Check if the external codegen should be used.
     """
-    return True
+    return (args[0]._checked_type_.dtype == 'float32' or args[0]._checked_type_.dtype == 'float64')

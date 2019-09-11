@@ -34,8 +34,8 @@ typedef void (*GccBinaryFunc)(ExternalTensor a, ExternalTensor b, ExternalTensor
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-  const std::string GetExternLibPath() const override {
-    return "/tmp/relay_extern_gcc.so";
+  const std::vector<std::string> GetExternLibPaths() const override {
+    return {"/tmp/relay_extern_gcc.so"};
   }
 
   /*!
@@ -48,10 +48,10 @@ class GccModuleNode : public ExternModuleNodeBase {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  runtime::PackedFunc InvokeExternFunc(const std::string& name, void* func_s,
+  runtime::PackedFunc InvokeExternFunc(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) override {
     if (name == "subtract" || "add" || "multiply") {
-      func_s_ = reinterpret_cast<GccBinaryFunc>(func_s);
+      func_s_ = reinterpret_cast<GccBinaryFunc>(GetSymbol(name));
 
       return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
         CHECK_EQ(args.size(), 3U);

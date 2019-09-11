@@ -41,8 +41,8 @@ typedef void (*CblasDouble)(double* a, double* b, double* out, int M, int N, int
 
 class CblasModuleNode : public ExternModuleNodeBase {
  public:
-  const std::string GetExternLibPath() const override {
-    return "/tmp/relay_extern_cblas.so";
+  const std::vector<std::string> GetExternLibPaths() const override {
+    return {"/tmp/relay_extern_cblas.so"};
   }
 
   /*!
@@ -55,27 +55,41 @@ class CblasModuleNode : public ExternModuleNodeBase {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  runtime::PackedFunc InvokeExternFunc(const std::string& name, void* func_s,
+  runtime::PackedFunc InvokeExternFunc(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) override {
     if (name == "nn.dense") {
-      func_s_ = reinterpret_cast<CblasFloat>(func_s);
+      curr_op_name = "dense";
       return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
         CHECK_EQ(args.size(), 3U);
         runtime::NDArray data = args[0];
         runtime::NDArray weight = args[1];
         runtime::NDArray out = args[2];
-
-        const DLTensor* dptr = data.operator->();
-        CHECK(runtime::TypeMatch(dptr->dtype, kDLFloat, 32));
-
-        float* d_data = reinterpret_cast<float*>(data->data);
-        float* weight_data = reinterpret_cast<float*>(weight->data);
-        float* out_data = reinterpret_cast<float*>(out->data);
-
         int M = CountRow(data);
         int N = CountColumn(weight);
         int K = CountColumn(data);
-        (*func_s_)(d_data, weight_data, out_data, M, N, K);
+
+        const DLTensor* dptr = data.operator->();
+        std::string encoded_name = curr_op_name + "_" + std::to_string(dptr->dtype.code) + "_" +
+                                   std::to_string(dptr->dtype.bits);
+
+        if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
+          float* d_data = reinterpret_cast<float*>(data->data);
+          float* weight_data = reinterpret_cast<float*>(weight->data);
+          float* out_data = reinterpret_cast<float*>(out->data);
+
+          auto func_s_ = reinterpret_cast<CblasFloat>(GetSymbol(encoded_name));
+          (*func_s_)(d_data, weight_data, out_data, M, N, K);
+        } else if (runtime::TypeMatch(dptr->dtype, kDLFloat, 64)) {
+          double* d_data = reinterpret_cast<double*>(data->data);
+          double* weight_data = reinterpret_cast<double*>(weight->data);
+          double* out_data = reinterpret_cast<double*>(out->data);
+
+          auto func_s_ = reinterpret_cast<CblasDouble>(GetSymbol(encoded_name));
+          (*func_s_)(d_data, weight_data, out_data, M, N, K);
+        } else {
+          LOG(FATAL) << "Only support float32 and float64 types.";
+        }
+        
         *rv = out;
       });
     } else {
@@ -144,7 +158,7 @@ class CblasModuleNode : public ExternModuleNodeBase {
     return tensor->shape[1];
   }
 
-  CblasFloat func_s_;
+  std::string curr_op_name;
 };
 
 /*!

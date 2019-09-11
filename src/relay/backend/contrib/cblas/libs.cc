@@ -22,8 +22,12 @@ extern "C" {
 #include <stdio.h>
 #endif  // extern "C"
 
-void dense(float* A, float* B, float* C, int M, int N, int K) {
+void dense_2_32(float* A, float* B, float* C, int M, int N, int K) {
   cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
+}
+
+void dense_2_64(double* A, double* B, double* C, int M, int N, int K) {
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
 }
 
 #ifdef __cplusplus
