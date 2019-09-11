@@ -139,19 +139,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
   Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
-    // TODO(tqchen, jroesch): propagate span to solver
     try {
-      // instantiate higher-order func types when unifying because
-      // we only allow polymorphism at the top level
-      Type first = t1;
-      Type second = t2;
-      if (auto* ft1 = t1.as<FuncTypeNode>()) {
-        first = InstantiateFuncType(ft1);
-      }
-      if (auto* ft2 = t2.as<FuncTypeNode>()) {
-        second = InstantiateFuncType(ft2);
-      }
-      return solver_.Unify(first, second, expr);
+      return solver_.Unify(t1, t2, expr);
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,

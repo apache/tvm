@@ -120,7 +120,7 @@ class AlphaEqualHandler:
    * \return the comparison result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
-    auto compute = [&](){
+    auto compute = [&]() {
       if (lhs.same_as(rhs)) return true;
       if (!lhs.defined() || !rhs.defined()) return false;
       return this->VisitType(lhs, rhs);

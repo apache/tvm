@@ -280,6 +280,7 @@ class Interpreter(Executor):
         """
         seq = transform.Sequential([transform.SimplifyInference(),
                                     transform.FuseOps(0),
+                                    transform.ToANormalForm(),
                                     transform.InferType()])
         return seq(self.mod)
 
