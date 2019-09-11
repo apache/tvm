@@ -36,7 +36,15 @@ using namespace runtime;
 Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
                         tvm::Map<GlobalTypeVar, TypeData> global_type_defs) {
   auto n = make_node<ModuleNode>();
+  n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
+
+  for (const auto& kv : n->functions) {
+    // set global var map
+    CHECK(!n->global_var_map_.count(kv.first->name_hint))
+      << "Duplicate global function name " << kv.first->name_hint;
+    n->global_var_map_.Set(kv.first->name_hint, kv.first);
+  }
 
   for (const auto& kv : n->type_definitions) {
     // set global typevar map
@@ -46,11 +54,7 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     n->RegisterConstructors(kv.first, kv.second);
   }
 
-  // type check the entire set of initial global functions
-  // simultaneously to permit mutual recursion
-  auto ret = Module(n);
-  ret->AddMultiple(global_funcs);
-  return ret;
+  return Module(n);
 }
 
 bool ModuleNode::ContainGlobalVar(const std::string& name) const {
