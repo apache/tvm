@@ -239,6 +239,11 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RelayParser#typeParen.
+    def visitTypeParen(self, ctx:RelayParser.TypeParenContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RelayParser#typeCallType.
     def visitTypeCallType(self, ctx:RelayParser.TypeCallTypeContext):
         return self.visitChildren(ctx)

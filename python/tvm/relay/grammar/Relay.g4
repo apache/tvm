@@ -136,6 +136,7 @@ patternList: '(' pattern (',' pattern)* ')';
 pattern
   : '_'
   | localVar (':' typeExpr)?
+  | constructorName patternList?
   ;
 
 adtCons: constructorName adtConsParamList? ;
@@ -155,6 +156,7 @@ attr: CNAME '=' expr ;
 
 typeExpr
   : '(' ')'                                                                # tupleType
+  | '(' typeExpr ')'                                                       # typeParen
   | '(' typeExpr ',' ')'                                                   # tupleType
   | '(' typeExpr (',' typeExpr)+ ')'                                       # tupleType
   | generalIdent typeParamList                                             # typeCallType
@@ -164,7 +166,7 @@ typeExpr
   | '_'                                                                    # incompleteType
   ;
 
-typeParamList: '[' generalIdent (',' generalIdent)* ']' ;
+typeParamList: '[' typeExpr (',' typeExpr)* ']' ;
 
 shapeList
   : '(' ')'
