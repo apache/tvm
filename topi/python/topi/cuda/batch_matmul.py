@@ -42,7 +42,7 @@ def batch_matmul_cuda(x, y):
         3-D with shape [batch, M, N]
     """
     target = tvm.target.current_target()
-    if "cublas" in target.libs:
+    if target.target_name == "cuda" and "cublas" in target.libs:
         return cublas.batch_matmul(x, y, False, True)
     return batch_matmul_default(x, y)
 
@@ -62,7 +62,7 @@ def schedule_batch_matmul(outs):
         The computation schedule for the op.
     """
     target = tvm.target.current_target()
-    if "cublas" in target.libs:
+    if target.target_name == "cuda" and "cublas" in target.libs:
         return generic.schedule_extern(outs)
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
