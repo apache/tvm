@@ -193,6 +193,10 @@ class Integer : public Expr {
    */
   Integer(int value) : Expr(value) {}  // NOLINT(*)
   /*!
+  /* \brief Construct integer from int64 value, clamp to INT32_MAX/MIN.
+  */
+  Integer(int64_t value) : Integer(int(value > INT32_MAX ? INT32_MAX : (value < INT32_MIN ? INT32_MIN : value))) {}  // NOLINT(*)
+  /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
    */
