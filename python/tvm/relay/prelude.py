@@ -487,31 +487,3 @@ class Prelude:
             mod = Module()
         self.mod = mod
         self.load_prelude()
-        self.define_list_adt()
-        self.define_list_hd()
-        self.define_list_tl()
-        self.define_list_map()
-        self.define_list_foldl()
-        self.define_list_foldr()
-        self.define_list_foldr1()
-        self.define_list_concat()
-        self.define_list_filter()
-        self.define_list_zip()
-        self.define_list_rev()
-        self.define_list_map_accumr()
-        self.define_list_map_accuml()
-
-        self.define_optional_adt()
-        self.define_list_unfoldr()
-        self.define_list_unfoldl()
-
-        self.define_list_length()
-        self.define_list_nth()
-        self.define_list_update()
-        self.define_list_sum()
-
-        self.define_tree_adt()
-        self.define_tree_map()
-        self.define_tree_size()
-
-        self.define_iterate()
