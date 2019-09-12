@@ -496,6 +496,19 @@ def vta(model='unknown', options=None):
     return ret
 
 
+def bifrost(model='unknown', options=None):
+    """Return an ARM Mali GPU target (Bifrost architecture).
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    opts = ["-device=bifrost", '-model=%s' % model]
+    opts = _merge_opts(opts, options)
+    return _api_internal._TargetCreate("opencl", *opts)
+
+
 def create(target_str):
     """Get a target given target string.
 
