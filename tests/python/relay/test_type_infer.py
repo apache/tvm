@@ -429,7 +429,7 @@ def test_mutual_recursion_adt():
     assert mod[even].checked_type == expected_type
 
 
-def test_add_multiple_with_type_var_recursive():
+def test_add_multiple_generic_recursive():
     mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
@@ -460,7 +460,7 @@ def test_add_multiple_with_type_var_recursive():
     assert mod[list_id].checked_type == relay.FuncType([l(a)], l(a), [a])
 
 
-def test_add_multiple_with_type_var_nonrecursive():
+def test_add_multiple_generic_nonrecursive():
     mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
@@ -510,5 +510,5 @@ if __name__ == "__main__":
     test_let_polymorphism()
     test_mutual_recursion()
     test_mutual_recursion_adt()
-    test_add_multiple_with_type_var()
-    test_add_multiple_with_type_var_nonrecursive()
+    test_add_multiple_generic_recursive()
+    test_add_multiple_generic_nonrecursive()
