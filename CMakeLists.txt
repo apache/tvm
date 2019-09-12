@@ -46,6 +46,7 @@ tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
 tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
+tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
@@ -57,6 +58,7 @@ tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
+tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
 # include directories
@@ -66,6 +68,7 @@ include_directories(${DLPACK_PATH})
 include_directories(${DMLC_PATH})
 include_directories(${RANG_PATH})
 include_directories(${COMPILER_RT_PATH})
+include_directories(${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -239,6 +242,7 @@ include(cmake/modules/Micro.cmake)
 include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
+include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
