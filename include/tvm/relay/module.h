@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -185,6 +186,23 @@ class ModuleNode : public RelayNode {
    */
   TVM_DLL void Update(const Module& other);
 
+  /*!
+   * \brief Import Relay code from the file at path.
+   * \param path The path of the Relay code to import.
+   *
+   * \note The path resolution behavior is standard,
+   * if abosolute will be the absolute file, if
+   * relative it will be resovled against the current
+   * working directory.
+   */
+  TVM_DLL void Import(const std::string& path);
+
+  /*!
+   * \brief Import Relay code from the file at path, relative to the standard library.
+   * \param path The path of the Relay code to import.
+   */
+  TVM_DLL void ImportFromStd(const std::string& path);
+
   /*! \brief Construct a module from a standalone expression.
    *
    * Allows one to optionally pass a global function map and
@@ -222,6 +240,11 @@ class ModuleNode : public RelayNode {
    * for convenient access
    */
   std::unordered_map<int32_t, Constructor> constructor_tag_map_;
+
+  /*! \brief The files previously imported, required to ensure
+      importing is idempotent for each module.
+   */
+  std::unordered_set<std::string> import_set_;
 };
 
 struct Module : public NodeRef {
@@ -235,6 +258,12 @@ struct Module : public NodeRef {
   using ContainerType = ModuleNode;
 };
 
+/*! \brief Parse Relay source into a module.
+ * \param source A string of Relay source code.
+ * \param source_name The name of the source file.
+ * \return A Relay module.
+ */
+Module FromText(const std::string& source, const std::string& source_name);
 
 }  // namespace relay
 }  // namespace tvm
