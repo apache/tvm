@@ -429,6 +429,26 @@ def test_mutual_recursion_adt():
     assert mod[even].checked_type == expected_type
 
 
+def test_simple_add_multiple_case():
+    mod = relay.Module()
+    p = Prelude(mod)
+    l, nil, cons = p.l, p.nil, p.cons
+
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a) # fails without this annotation
+    f = relay.GlobalVar('f')
+    func = relay.Function([x], cons(x, nil()), l(a), [a])
+
+    main = relay.GlobalVar('main')
+    main_func = relay.Function([], f(relay.Tuple([])))
+    mapping = {f : func, main : main_func}
+    mod.add_multiple({main : main_func, f : func})
+
+    print(mod[main].checked_type)
+    assert mod[main].checked_type == relay.FuncType([], l(relay.TupleType([])))
+    assert mod[f].checked_type == relay.FuncType([a], l(a), [a])
+
+
 def test_add_multiple_generic_recursive():
     mod = relay.Module()
     p = Prelude(mod)
