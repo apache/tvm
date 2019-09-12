@@ -1859,8 +1859,8 @@ def test_forward_squared_difference():
     with tf.Graph().as_default():
         in1 = tf.placeholder(shape=inp_array_a.shape, dtype=inp_array_a.dtype, name="in1")
         in2 = tf.placeholder(shape=inp_array_b.shape, dtype=inp_array_b.dtype, name="in2")
-        tf.math.squared_difference(in1, in2)
-        compare_tf_with_tvm([inp_array_a, inp_array_b], ['in1:0', 'in2:0'], 'SquaredDifference:0')
+        out = tf.math.squared_difference(in1, in2)
+        compare_tf_with_tvm([inp_array_a, inp_array_b], [in1.name, in2.name], out.name)
 
 def _test_forward_reverse_v2(in_shape, axis, dtype):
     np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
