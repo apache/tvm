@@ -1340,6 +1340,72 @@ def contrib_depthwise_conv2d_nchwc(data,
                                                 groups, channels, kernel_size, data_layout,
                                                 kernel_layout, out_layout, out_dtype)
 
+def contrib_conv2d_nchwc_int8(data,
+                              kernel,
+                              strides=(1, 1),
+                              padding=(0, 0),
+                              dilation=(1, 1),
+                              groups=1,
+                              channels=None,
+                              kernel_size=None,
+                              data_layout="NCHW8c",
+                              kernel_layout="OIHW",
+                              out_layout="",
+                              out_dtype=""):
+    r"""Variant of 2D convolution. It deals with only int8 inputs.
+
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output, following a specialized
+    NCHWc data layout.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    kernel : tvm.relay.Expr
+        The kernel expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_NCHWc_int8(data, kernel, strides, padding, dilation,
+                                           groups, channels, kernel_size, data_layout,
+                                           kernel_layout, out_layout, out_dtype)
+
+
 def contrib_conv2d_winograd_weight_transform(weight,
                                              tile_size):
     r"""Weight Transformation part for 2D convolution with winograd algorithm.
