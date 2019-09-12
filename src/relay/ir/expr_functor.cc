@@ -444,7 +444,6 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-
 TVM_REGISTER_API("relay._expr.Bind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef input = args[0];

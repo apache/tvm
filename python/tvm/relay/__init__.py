@@ -17,6 +17,7 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from __future__ import absolute_import
+import os
 from sys import setrecursionlimit
 from ..api import register_func
 from . import base
