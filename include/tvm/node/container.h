@@ -287,7 +287,7 @@ class Array : public NodeRef {
    *  Otherwise make a new copy of the array to ensure the current handle
    *  hold a unique copy.
    *
-   * \return Handle to the internal node container(which ganrantees to be unique)
+   * \return Handle to the internal node container(which guarantees to be unique)
    */
   inline ArrayNode* CopyOnWrite() {
     if (node_.get() == nullptr || !node_.unique())  {
@@ -479,11 +479,11 @@ class Map : public NodeRef {
   }
   /*!
    * \brief copy on write semantics
-   *  Do nothing if current handle is the unique copy of the array.
-   *  Otherwise make a new copy of the array to ensure the current handle
+   *  Do nothing if current handle is the unique copy of the map.
+   *  Otherwise make a new copy of the map to ensure the current handle
    *  hold a unique copy.
    *
-   * \return Handle to the internal node container(which ganrantees to be unique)
+   * \return Handle to the internal node container(which guarantees to be unique)
    */
   inline MapNode* CopyOnWrite() {
     if (node_.get() == nullptr || !node_.unique())  {
@@ -638,13 +638,11 @@ class Map<std::string, V, T1, T2> : public NodeRef {
 
 
 /*!
- * \brief Map container of NodeRef->NodeRef in DSL graph.
- *  Map implements copy on write semantics, which means map is mutable
+ * \brief Set container of NodeRef->NodeRef in DSL graph.
+ *  Map implements copy on write semantics, which means set is mutable
  *  but copy will happen when array is referenced in more than two places.
  *
- * operator[] only provide const acces, use Set to mutate the content.
  * \tparam K The key NodeRef type.
- * \tparam V The value NodeRef type.
  */
 template<typename K,
   typename = typename std::enable_if<std::is_base_of<NodeRef, K>::value>::type>
@@ -744,11 +742,11 @@ class Set : public NodeRef {
   }
   /*!
    * \brief copy on write semantics
-   *  Do nothing if current handle is the unique copy of the array.
-   *  Otherwise make a new copy of the array to ensure the current handle
+   *  Do nothing if current handle is the unique copy of the set.
+   *  Otherwise make a new copy of the set to ensure the current handle
    *  hold a unique copy.
    *
-   * \return Handle to the internal node container(which ganrantees to be unique)
+   * \return Handle to the internal node container(which guarantees to be unique)
    */
   inline SetNode* CopyOnWrite() {
     if (node_.get() == nullptr || !node_.unique())  {

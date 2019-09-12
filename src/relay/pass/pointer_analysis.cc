@@ -44,7 +44,7 @@ struct AllocAbstractLocation : ExprVisitor {
   }
 };
 
-AbstractLocation external_ref = AbstractLocationNode::make(0);
+const AbstractLocation external_ref = AbstractLocationNode::make(0);
 
 struct Analyze : ExprFunctor<void(const Expr&)> {
   Map<Expr, AbstractLocation> spawn;
@@ -75,27 +75,27 @@ struct Analyze : ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const OpNode* op) final { }
   void VisitExpr_(const ConstructorNode* op) final { }
 
-  void AddContain(const Expr& e, AbstractLocation loc) {
-    Set<AbstractLocation> locs = contain.at(e);
-    if (locs.count(loc) == 0) {
+  void FlowTo(AbstractLocation from, const Expr& to) {
+    Set<AbstractLocation> locs = contain.at(to);
+    if (locs.count(from) == 0) {
       progress = true;
-      locs.Insert(loc);
-      contain.Set(e, locs);
+      locs.Insert(from);
+      contain.Set(to, locs);
     }
   }
 
-  void AddStore(AbstractLocation loc, const Expr& expr) {
-    Set<Expr> exprs = store.at(loc);
-    if (exprs.count(expr) == 0) {
+  void FlowTo(const Expr& from, AbstractLocation to) {
+    Set<Expr> exprs = store.at(to);
+    if (exprs.count(from) == 0) {
       progress = true;
-      exprs.Insert(expr);
-      store.Set(loc, exprs);
+      exprs.Insert(from);
+      store.Set(to, exprs);
     }
   }
 
-  void UnionContain(const Expr& parent, const Expr& child) {
-    for (auto loc : contain.at(child)) {
-      AddContain(parent, loc);
+  void FlowTo(const Expr& from, const Expr& to) {
+    for (auto loc : contain.at(from)) {
+      FlowTo(loc, to);
     }
   }
 
@@ -106,27 +106,27 @@ struct Analyze : ExprFunctor<void(const Expr&)> {
     }
     Expr expr = GetRef<Expr>(op);
     CHECK(op->op.as<OpNode>()) << "Only support call to operator right now.";
-    UnionContain(expr, op->op);
+    FlowTo(op->op, expr);
     for (Expr e : op->args) {
-      UnionContain(expr, e);
+      FlowTo(e, expr);
     }
   }
 
   void VisitExpr_(const RefCreateNode* op) final {
     VisitExpr(op->value);
     Expr expr = GetRef<Expr>(op);
-    AddContain(expr, spawn.at(expr));
-    AddStore(spawn.at(expr), op->value);
+    FlowTo(spawn.at(expr), expr);
+    FlowTo(op->value, spawn.at(expr));
   }
 
   void VisitExpr_(const RefReadNode* op) final {
     VisitExpr(op->ref);
-    Expr lhs = GetRef<Expr>(op);
+    Expr self = GetRef<Expr>(op);
     CHECK_GT(contain.count(op->ref), 0);
     std::unordered_set<Expr, NodeHash, NodeEqual> exprs;
     for (const auto& abs_loc : contain.at(op->ref)) {
       if (abs_loc == external_ref) {
-        AddContain(lhs, external_ref);
+        FlowTo(external_ref, self);
       } else {
         CHECK_GT(store.count(abs_loc), 0);
         for (const auto& expr : store.at(abs_loc)) {
@@ -134,8 +134,8 @@ struct Analyze : ExprFunctor<void(const Expr&)> {
         }
       }
     }
-    for (const auto& rhs : exprs) {
-      UnionContain(lhs, rhs);
+    for (const auto& expr : exprs) {
+      FlowTo(expr, self);
     }
   }
 
@@ -144,7 +144,7 @@ struct Analyze : ExprFunctor<void(const Expr&)> {
     VisitExpr(op->value);
     CHECK_GT(contain.count(op->ref), 0);
     for (const auto& loc : contain.at(op->ref)) {
-      AddStore(loc, op->value);
+      FlowTo(op->value, loc);
     }
   }
 };
