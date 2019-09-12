@@ -123,20 +123,20 @@ def setup():
 
     register("posit", 131)
 
-    register_op(create_lower_func("FloatToPosit16es1"), "Cast", "llvm",
+    register_op(create_lower_func("FloatToPosit32es2"), "Cast", "llvm",
                 "posit", "float")
-    register_op(create_lower_func("Posit16es1ToFloat"), "Cast", "llvm",
+    register_op(create_lower_func("Posit32es2ToFloat"), "Cast", "llvm",
                 "float", "posit")
-    register_op(create_lower_func("IntToPosit16es1"), "Cast", "llvm", "posit",
+    register_op(create_lower_func("IntToPosit32es2"), "Cast", "llvm", "posit",
                 "int")
-    register_op(create_lower_func("Posit16es1Add"), "Add", "llvm", "posit")
-    register_op(create_lower_func("Posit16es1Sub"), "Sub", "llvm", "posit")
-    register_op(create_lower_func("FloatToPosit16es1"), "FloatImm", "llvm",
+    register_op(create_lower_func("Posit32es2Add"), "Add", "llvm", "posit")
+    register_op(create_lower_func("Posit32es2Sub"), "Sub", "llvm", "posit")
+    register_op(create_lower_func("FloatToPosit32es2"), "FloatImm", "llvm",
                 "posit")
-    register_op(create_lower_func("Posit16es1Mul"), "Mul", "llvm", "posit")
-    register_op(create_lower_func("Posit16es1Div"), "Div", "llvm", "posit")
-    register_op(create_lower_func("Posit16es1Max"), "Max", "llvm", "posit")
-    register_op(create_lower_func("Posit16es1Sqrt"),
+    register_op(create_lower_func("Posit32es2Mul"), "Mul", "llvm", "posit")
+    register_op(create_lower_func("Posit32es2Div"), "Div", "llvm", "posit")
+    register_op(create_lower_func("Posit32es2Max"), "Max", "llvm", "posit")
+    register_op(create_lower_func("Posit32es2Sqrt"),
                 "Call",
                 "llvm",
                 "posit",
@@ -147,13 +147,13 @@ def setup():
                 "llvm",
                 "posit",
                 intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("Posit16es1Exp"),
+    register_op(create_lower_func("Posit32es2Exp"),
                 "Call",
                 "llvm",
                 "posit",
                 intrinsic_name="exp")
-    # TODO(@gussmith23) update this with the real value at some point
     register_min_func(lambda num_bits: -3.38953139e38, "posit")
+
 
 def test_ops_same_function(src_dtype, dst_dtype):
     def check_unary_op(op, src_dtype, dst_dtype):
@@ -162,21 +162,22 @@ def test_ops_same_function(src_dtype, dst_dtype):
         z = op(x)
         x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
 
-        func = relay.Function([x], z)
+        module = tvm.IRModule.from_expr(relay.Function([x], z))
 
-        ex = relay.create_executor("graph")
+        ex = relay.create_executor("graph", mod=module)
 
-        correct = ex.evaluate(func)(x_data)
+        correct = ex.evaluate()(x_data)
 
-        func, _ = change_dtype(src_dtype, dst_dtype, func, [], ex)
+        module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+        ex = relay.create_executor("graph", mod=module)
 
-        x_converted = convert_ndarray(dst_dtype, x_data, ex)
-        maybe_correct = ex.evaluate(func)(x_converted)
-        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct, ex)
-        np.testing.assert_allclose(
-            maybe_correct_converted.asnumpy(), correct.asnumpy(), rtol=0.0001, atol=0.0001)
-        print(maybe_correct_converted)
-        print(correct)
+        x_converted = convert_ndarray(dst_dtype, x_data)
+        maybe_correct = ex.evaluate()(x_converted)
+        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
+        np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
+                                   correct.asnumpy(),
+                                   rtol=0.0001,
+                                   atol=0.0001)
 
     for op in [
             #(tvm.relay.log, np.log),
@@ -186,7 +187,8 @@ def test_ops_same_function(src_dtype, dst_dtype):
             # #(tvm.relay.sigmoid, sigmoid),
             # #(tvm.relay.tanh, np.tanh),
             # (relay.nn.relu, relu),
-            relay.nn.softmax]:
+            relay.nn.softmax
+    ]:
         check_unary_op(op, src_dtype, dst_dtype)
 
 
@@ -217,8 +219,8 @@ def test_ops(src_dtype, dst_dtype):
                 # TODO(gus) increased the tolerance an unreasonable amount
                 np.testing.assert_allclose(op_res_converted.asnumpy(),
                                            ref_res,
-                                           rtol=0.1,
-                                           atol=0.1)
+                                           rtol=0.0001,
+                                           atol=0.0001)
 
     def check_binary_op(opfunc, ref, src_dtype, dst_dtype):
         if ref is not None:
@@ -249,8 +251,8 @@ def test_ops(src_dtype, dst_dtype):
                 op_res_converted = convert_ndarray(src_dtype, op_res)
                 np.testing.assert_allclose(op_res_converted.asnumpy(),
                                            ref_res,
-                                           rtol=0.01,
-                                           atol=0.01)
+                                           rtol=0.001,
+                                           atol=0.001)
 
     def my_func(x, y):
         a = relay.add(x, y)
@@ -273,23 +275,62 @@ def test_ops(src_dtype, dst_dtype):
         one = np.ones_like(x)
         return one / np.sqrt(x)
 
-    check_binary_op(relay.add, np.add, src_dtype, dst_dtype)
-    check_binary_op(relay.subtract, np.subtract, src_dtype, dst_dtype)
-    check_binary_op(relay.divide, np.divide, src_dtype, dst_dtype)
-    check_binary_op(relay.multiply, np.multiply, src_dtype, dst_dtype)
-    check_unary_op(relay.sqrt, np.sqrt, src_dtype, dst_dtype)
-    check_unary_op(relay.negative, np.negative, src_dtype, dst_dtype)
-    #check_binary_op(my_func, my_func_np, src_dtype, dst_dtype)
-    check_unary_op(relay.nn.relu, relu, src_dtype, dst_dtype)
-    for opfunc, ref in [  #(tvm.relay.log, np.log),
-        (tvm.relay.exp, np.exp),
-        (tvm.relay.sqrt, np.sqrt),
-        (tvm.relay.rsqrt, rsqrt),
-            #(tvm.relay.sigmoid, sigmoid),
-            #(tvm.relay.tanh, np.tanh),
-        (relay.nn.relu, relu)
+    def softmax(x):
+        return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+    # check_binary_op(relay.add, np.add, src_dtype, dst_dtype)
+    # check_binary_op(relay.subtract, np.subtract, src_dtype, dst_dtype)
+    #y_op(relay.divide, np.divide, src_dtype, dst_dtype)
+    # check_binary_op(relay.multiply, np.multiply, src_dtype, dst_dtype)
+    # check_unary_op(relay.sqrt, np.sqrt, src_dtype, dst_dtype)
+    # check_unary_op(relay.negative, np.negative, src_dtype, dst_dtype)
+    # #check_binary_op(my_func, my_func_np, src_dtype, dst_dtype)
+    # check_unary_op(relay.nn.relu, relu, src_dtype, dst_dtype)
+    ex = tvm.relay.create_executor("graph")
+    x = relay.var("x", shape=(5, 10, 5))
+    softmax_relay = relay.Function([x], relay.nn.softmax(x))
+    for opfunc, ref in [
+            #(tvm.relay.log, np.log),
+            #(tvm.relay.exp, np.exp),
+            # (tvm.relay.sqrt, np.sqrt),
+            # (tvm.relay.rsqrt, rsqrt),
+            # #(tvm.relay.sigmoid, sigmoid),
+            # #(tvm.relay.tanh, np.tanh),
+            # (relay.nn.relu, relu),
+        (relay.nn.softmax, lambda x: ex.evaluate(softmax_relay)(x).asnumpy()),
+            #(relay.nn.softmax, softmax)
     ]:
         check_unary_op(opfunc, ref, src_dtype, dst_dtype)
+    exit(0)
+
+
+def test_softmax():
+    def softmax(x):
+        return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+    t1 = relay.TensorType((5, 10, 5))
+    x = relay.var("x", t1)
+    z = relay.nn.softmax(x)
+    x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+    ref_res = softmax(x_data)
+    func = relay.Function([x], z)
+
+    ex = relay.create_executor("graph")
+    func, _ = change_dtype(src_dtype, dst_dtype, func, [])
+    print(func)
+
+    for target, ctx in [("llvm", tvm.cpu(0))]:
+        # use graph by execuor default for testing, as we need
+        # create function explicitly to avoid constant-folding.
+        intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        x_converted = convert_ndarray(dst_dtype, x_data)
+        op_res = intrp.evaluate(func)(x_converted)
+        op_res_converted = convert_ndarray(src_dtype, op_res)
+        # TODO(gus) increased the tolerance an unreasonable amount
+        np.testing.assert_allclose(op_res_converted.asnumpy(),
+                                   ref_res,
+                                   rtol=0.001,
+                                   atol=0.1)
 
 
 def test_change_dtype_simple():
@@ -393,8 +434,8 @@ def test_model(get_workload, input_shape, src_dtype, dst_dtype):
 
     tvm.testing.assert_allclose(convert_ndarray(src_dtype, result).asnumpy(),
                                 correct.asnumpy(),
-                                rtol=0.5,
-                                atol=0.5)
+                                rtol=0.001,
+                                atol=0.001)
 
 
 def test_conv2d():
@@ -526,11 +567,13 @@ def test_conv2d():
 if __name__ == "__main__":
     setup()
     # test_conv2d()
-    test_ops('float32', 'custom[bfloat]16')
-    test_ops('float32', 'custom[posit]16')
-    test_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]16')
-    # test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]16')
-    # test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]16')
+    #test_ops('float32', 'custom[bfloat]16')
+    #test_ops('float32', 'float32')
+    #test_ops('float32', 'custom[posit]32')
+    test_ops_same_function('float32', 'custom[posit]32')
+    #test_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
+    # test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
     # test_change_dtype_inception_v3()
     # test_change_dtype_simple()
     # test_change_dtype_mobilenet()
