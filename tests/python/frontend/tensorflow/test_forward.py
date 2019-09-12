@@ -1853,7 +1853,7 @@ def test_forward_erf():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Erf:0')
 
 def test_forward_squared_difference():
-    ishape = (1, 3, 10, 12)
+    ishape = (1, 3, 10, 14)
     inp_array_a = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
     inp_array_b = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
     with tf.Graph().as_default():
