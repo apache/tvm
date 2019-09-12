@@ -91,6 +91,9 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 # Whether enable additional vm profiler functions
 set(USE_VM_PROFILER OFF)
 
+# Whether enable uTVM standalone runtime
+set(USE_MICRO_STANDALONE_RUNTIME ON)
+
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
 #
