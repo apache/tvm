@@ -21,12 +21,6 @@ from __future__ import absolute_import as _abs
 from tvm.expr import FloatImm, IntImm
 from tvm.relay.expr import Tuple
 from . import _make
-from .qnn_quantize_helper import _quantize_mkldnn_min_max_uint8, \
-                                 _quantize_mxnet_min_max_uint8, \
-                                 _quantize_mkldnn_min_max_int8, \
-                                 _quantize_mxnet_min_max_int8, \
-                                 _quantize
-
 
 def requantize(data,
                input_scale,
@@ -110,66 +104,10 @@ def quantize(data,
         The computed result.
     """
 
-    return _quantize(data,
+    return _make.quantize(data,
                      output_scale,
                      output_zero_point,
                      out_dtype)
-
-
-def quantize_mxnet_min_max(data,
-                           min_range,
-                           max_range,
-                           out_dtype='int8',
-                           use_mkldnn=False):
-    r"""Quantizes the given `data` in float32 and the given
-    min and max ranges and the output data type.
-    Only `int8` and `uint8` is supported as output data types.
-    The input data type is expected to be `float32`.
-    Mxnet has two different flavors for quantization 1) Default 2)MKLDNN.
-    To get the second one Mxnet must be built with MKLDNN during compile time.
-    Users can choose either of the implementation for TVM runtime.
-    The main difference between the two implementation is that MKLDNN is centered
-    around 0 and the default implementation for uint8 is not.
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The input tensor to be quantized. Can be of type float32.
-    imin_range : float
-        The minimum to use data elements.
-    imax_range : float
-        The maximum to use for data elements.
-    out_dtype: str, optional
-        The output data type, can be 'int8' or 'uint8'
-    use_mkldnn: bool, optional
-        If True then uses MKLDNN quantization implementation otherwise
-        will use default implementation.
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The computed result.
-    """
-    if out_dtype == 'uint8':
-        if use_mkldnn:
-            return _quantize_mkldnn_min_max_uint8(data,
-                                                  min_range,
-                                                  max_range)
-        else:
-            return _quantize_mxnet_min_max_uint8(data,
-                                                 min_range,
-                                                 max_range)
-    elif out_dtype == 'int8':
-        if use_mkldnn:
-            return _quantize_mkldnn_min_max_int8(data,
-                                                 min_range,
-                                                 max_range)
-        else:
-            return _quantize_mxnet_min_max_int8(data,
-                                                min_range,
-                                                max_range)
-    else:
-        raise ValueError(
-            "Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
 
 
 def dequantize(data,

@@ -14,55 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name
-"""QNN dialect quantization helper methods."""
+# pylint: disable=invalid-name, import-self, len-as-condition, no-else-return
+"""MXNet qnn dialect helper methods for MXNet specific implementations of more
+   generic qnn supported ops.
+"""
+
 import numpy as np
-from . import _make
+from tvm.relay.qnn.op.qnn import quantize
 
-
-zero_centered_uint8_quantized_range = np.float32(255)
-zero_centered_int8_quantized_range = np.float32(127)
-
-
-def _quantize(data,
-              output_scale,
-              output_zero_point,
-              out_dtype='int8'):
-    r""" Quantize op
-    This operator takes float32 as input and produces quantized int8 or unit8 as output.
-    The input tensor can be of any shape. The output shape is the same as input shape.
-
-    Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
-                     out_dtype::min,
-                     out_dtype::max)
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The input tensor to be quantized. Can be of type float32.
-    output_zero_point : int
-        The output zero_point.
-    output_scale : float
-        The output scale.
-    out_dtype : str, optional
-        The data type of the input tensor. Can be [int8, uint8]
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The computed result.
-    """
-
-    return _make.quantize(data,
-                          output_scale,
-                          output_zero_point,
-                          out_dtype)
+zero_centered_uint8quantized_range = np.float32(255)
+zero_centered_int8quantized_range = np.float32(127)
 
 
 def _quantize_with_zero_centered(data,
-                                 data_min,
-                                 data_max,
-                                 quantized_range,
-                                 out_dtype):
+                                data_min,
+                                data_max,
+                                quantized_range,
+                                out_dtype):
     r"""Quantizes the given data tensor by calculating the scale
     using the MKLDNN formula `quantized_range / max(abs(data_min, data_max))`.
     Where quantized_range is 255 for uint8 and 127 for int8. The `data_min`
@@ -80,6 +48,7 @@ def _quantize_with_zero_centered(data,
         255 for uint8 and 127 for int8. This is the data type range.
     out_dtype : str
         The output data type. Can be int8 or uint8
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -91,15 +60,15 @@ def _quantize_with_zero_centered(data,
     scale = np.divide(quantized_range, real_range)
     scale_inverse = np.divide(1.0, scale)
     zero_point = 0
-    return _quantize(data,
-                     scale_inverse,
-                     zero_point,
-                     out_dtype=out_dtype)
+    return quantize(data,
+                    scale_inverse,
+                    zero_point,
+                    out_dtype=out_dtype)
 
 
 def _quantize_mxnet_min_max_uint8(data,
-                                  imin_range,
-                                  imax_range):
+                                 imin_range,
+                                 imax_range):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `uint8`.
     The method of quantizing is described here - https://tinyurl.com/y4d7hrzf.
@@ -116,6 +85,7 @@ def _quantize_mxnet_min_max_uint8(data,
         The minimum to use data elements.
     imax_range : float
         The maximum to use for data elements.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -131,15 +101,15 @@ def _quantize_mxnet_min_max_uint8(data,
                       (imax_range - imin_range))
     scale_inverse = np.divide(1.0, scale)
     zero_point = np.int(-1 * imin_range * scale)
-    return _quantize(data,
-                     scale_inverse,
-                     zero_point,
-                     out_dtype='uint8')
+    return quantize(data,
+                    scale_inverse,
+                    zero_point,
+                    out_dtype='uint8')
 
 
 def _quantize_mxnet_min_max_int8(data,
-                                 data_min,
-                                 data_max):
+                                data_min,
+                                data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `int8`.
     The method of quantizing is described here - https://tinyurl.com/y4d7hrzf.
@@ -156,6 +126,7 @@ def _quantize_mxnet_min_max_int8(data,
         The minimum to use data elements.
     imax_range : float
         The maximum to use for data elements.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -163,15 +134,15 @@ def _quantize_mxnet_min_max_int8(data,
     """
 
     return _quantize_with_zero_centered(data,
-                                        data_min,
-                                        data_max,
-                                        zero_centered_int8_quantized_range,
-                                        'int8')
+                                       data_min,
+                                       data_max,
+                                       zero_centered_int8quantized_range,
+                                       'int8')
 
 
 def _quantize_mkldnn_min_max_uint8(data,
-                                   data_min,
-                                   data_max):
+                                  data_min,
+                                  data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `uint8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
@@ -188,21 +159,22 @@ def _quantize_mkldnn_min_max_uint8(data,
         The minimum to use data elements.
     imax_range : float
         The maximum to use for data elements.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     return _quantize_with_zero_centered(data,
-                                        data_min,
-                                        data_max,
-                                        zero_centered_uint8_quantized_range,
-                                        'uint8')
+                                       data_min,
+                                       data_max,
+                                       zero_centered_uint8quantized_range,
+                                       'uint8')
 
 
 def _quantize_mkldnn_min_max_int8(data,
-                                  data_min,
-                                  data_max):
+                                 data_min,
+                                 data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `int8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
@@ -219,6 +191,7 @@ def _quantize_mkldnn_min_max_int8(data,
         The minimum to use data elements.
     imax_range : float
         The maximum to use for data elements.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -226,7 +199,65 @@ def _quantize_mkldnn_min_max_int8(data,
     """
 
     return _quantize_with_zero_centered(data,
-                                        data_min,
-                                        data_max,
-                                        zero_centered_int8_quantized_range,
-                                        'int8')
+                                       data_min,
+                                       data_max,
+                                       zero_centered_int8quantized_range,
+                                       'int8')
+
+
+def quantize_mxnet_min_max(data,
+                           min_range,
+                           max_range,
+                           out_dtype='int8',
+                           use_mkldnn=False):
+    r"""Quantizes the given `data` in float32 and the given
+    min and max ranges and the output data type.
+    Only `int8` and `uint8` is supported as output data types.
+    The input data type is expected to be `float32`.
+    Mxnet has two different flavors for quantization 1) Default 2)MKLDNN.
+    To get the second one Mxnet must be built with MKLDNN during compile time.
+    Users can choose either of the implementation for TVM runtime.
+    The main difference between the two implementation is that MKLDNN is centered
+    around 0 and the default implementation for uint8 is not.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be quantized. Can be of type float32.
+    imin_range : float
+        The minimum to use data elements.
+    imax_range : float
+        The maximum to use for data elements.
+    out_dtype: str, optional
+        The output data type, can be 'int8' or 'uint8'
+    use_mkldnn: bool, optional
+        If True then uses MKLDNN quantization implementation otherwise
+        will use default implementation.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    if out_dtype == 'uint8':
+        if use_mkldnn:
+            return _quantize_mkldnn_min_max_uint8(data,
+                                                  min_range,
+                                                  max_range)
+        else:
+            return _quantize_mxnet_min_max_uint8(data,
+                                                 min_range,
+                                                 max_range)
+    elif out_dtype == 'int8':
+        if use_mkldnn:
+            return _quantize_mkldnn_min_max_int8(data,
+                                                 min_range,
+                                                 max_range)
+        else:
+            return _quantize_mxnet_min_max_int8(data,
+                                                min_range,
+                                                max_range)
+    else:
+        raise ValueError(
+            "Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
