@@ -105,9 +105,9 @@ def quantize(data,
     """
 
     return _make.quantize(data,
-                     output_scale,
-                     output_zero_point,
-                     out_dtype)
+                          output_scale,
+                          output_zero_point,
+                          out_dtype)
 
 
 def dequantize(data,
