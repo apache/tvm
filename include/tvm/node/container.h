@@ -639,7 +639,7 @@ class Map<std::string, V, T1, T2> : public NodeRef {
 
 /*!
  * \brief Set container of NodeRef->NodeRef in DSL graph.
- *  Map implements copy on write semantics, which means set is mutable
+ *  Set implements copy on write semantics, which means set is mutable
  *  but copy will happen when array is referenced in more than two places.
  *
  * \tparam K The key NodeRef type.
