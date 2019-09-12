@@ -61,6 +61,10 @@ class TypeSolver::Reporter : public TypeReporterNode {
     location = ref;
   }
 
+  TVM_DLL Module GetModule() final {
+    return this->solver_->module_;
+  }
+
  private:
   /*! \brief The location to report unification errors at. */
   mutable NodeRef location;
@@ -526,10 +530,13 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver(const GlobalVar &current_func, ErrorReporter* err_reporter)
-  : reporter_(make_node<Reporter>(this)),
-    current_func(current_func),
-    err_reporter_(err_reporter) {
+TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module,
+                       ErrorReporter* err_reporter)
+    : reporter_(make_node<Reporter>(this)),
+      current_func(current_func),
+      err_reporter_(err_reporter),
+      module_(module) {
+  CHECK(module_.defined()) << "internal error: module must be defined";
 }
 
 // destructor
@@ -653,18 +660,22 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
-    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), err_reporter);
+    auto module = ModuleNode::make({}, {});
+    auto dummy_fn_name = GlobalVarNode::make("test");
+    module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
+    auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 
-    auto mod = [solver, err_reporter](std::string name) -> PackedFunc {
+    auto mod = [module, solver, err_reporter](std::string name) -> PackedFunc {
       if (name == "Solve") {
         return TypedPackedFunc<bool()>([solver]() {
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
+        return TypedPackedFunc<Type(Type, Type)>(
+          [module, solver, err_reporter](Type lhs, Type rhs) {
             auto res = solver->Unify(lhs, rhs, lhs);
             if (err_reporter->AnyErrors()) {
-              err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
+              err_reporter->RenderErrors(module, true);
             }
             return res;
           });
