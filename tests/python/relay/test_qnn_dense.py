@@ -31,8 +31,18 @@ def make_requantize_params(input_scale, output_scale, output_zero_point, out_dty
     return config
 
 
-def make_test_configuration(quantized_data, quantized_kernel, dtype, input_shape, kernel_shape, input_zero_point,
-                            kernel_zero_point, units, output, out_dtype='int32', bias=None, requantize=None):
+def make_configuration(quantized_data, 
+                       quantized_kernel,
+                       dtype,
+                       input_shape,
+                       kernel_shape,
+                       input_zero_point,
+                       kernel_zero_point,
+                       units,
+                       output,
+                       out_dtype='int32',
+                       bias=None,
+                       requantize=None):
     if requantize is not None:
         assert bias is not None
     config = {
@@ -78,17 +88,17 @@ def make_uint_configuration(use_bias=False, requantize_output=False):
     else:
         output = np.array([92, 92, 92, 228, 228, 228 ])
     output = output.astype(out_dtype).reshape(output_shape)
-    return make_test_configuration(quantized_data=quantized_data_np,
-                                   quantized_kernel=quantized_kernel_np,
-                                   dtype=in_dtype,
-                                   input_shape=input_shape,
-                                   kernel_shape=kernel_shape,
-                                   input_zero_point=input_zero_point,
-                                   kernel_zero_point=kernel_zero_point,
-                                   units=units,
-                                   output=output,
-                                   bias=bias,
-                                   requantize=requant_params)
+    return make_configuration(quantized_data=quantized_data_np,
+                              quantized_kernel=quantized_kernel_np,
+                              dtype=in_dtype,
+                              input_shape=input_shape,
+                              kernel_shape=kernel_shape,
+                              input_zero_point=input_zero_point,
+                              kernel_zero_point=kernel_zero_point,
+                              units=units,
+                              output=output,
+                              bias=bias,
+                              requantize=requant_params)
 
 
 def make_int_configuration(use_bias=False, requantize_output=False):
@@ -117,29 +127,31 @@ def make_int_configuration(use_bias=False, requantize_output=False):
     else:
         output = np.array([92, 92, 92, 228, 228, 228 ])
     output = output.astype(out_dtype).reshape(output_shape)
-    return make_test_configuration(quantized_data=quantized_data_np,
-                                   quantized_kernel=quantized_kernel_np,
-                                   dtype=in_dtype,
-                                   input_shape=input_shape,
-                                   kernel_shape=kernel_shape,
-                                   input_zero_point=input_zero_point,
-                                   kernel_zero_point=kernel_zero_point,
-                                   units=units,
-                                   output=output,
-                                   bias=bias,
-                                   requantize=requant_params)
+    return make_configuration(quantized_data=quantized_data_np,
+                              quantized_kernel=quantized_kernel_np,
+                              dtype=in_dtype,
+                              input_shape=input_shape,
+                              kernel_shape=kernel_shape,
+                              input_zero_point=input_zero_point,
+                              kernel_zero_point=kernel_zero_point,
+                              units=units,
+                              output=output,
+                              bias=bias,
+                              requantize=requant_params)
 
 
-def test_quantized_dense(test_configuration):
+def qnn_dense_driver(test_configuration):
     in_dtype = test_configuration['dtype']
     out_dtype = test_configuration['out_dtype']
     quantized_data_name = "quantized_data"
     quantized_kernel_name = "quantized_kernel"
     expected_out_dtype = test_configuration['out_dtype']
     bias_name = 'bias'
-    quantized_data = relay.var(quantized_data_name, shape=test_configuration['input_shape'],
+    quantized_data = relay.var(quantized_data_name,
+                               shape=test_configuration['input_shape'],
                                dtype=in_dtype)
-    quantized_kernel = relay.var(quantized_kernel_name, shape=test_configuration['kernel_shape'],
+    quantized_kernel = relay.var(quantized_kernel_name,
+                                 shape=test_configuration['kernel_shape'],
                                  dtype=in_dtype)
     mod = relay.qnn.op.quantized_dense(
         quantized_data,
@@ -148,7 +160,9 @@ def test_quantized_dense(test_configuration):
         test_configuration['kernel_zero_point'],
         test_configuration['units'])
     if test_configuration[bias_name] is not None:
-        bias = relay.var(bias_name, shape=test_configuration['bias'].shape, dtype=out_dtype)
+        bias = relay.var(bias_name,
+                         shape=test_configuration['bias'].shape,
+                         dtype=out_dtype)
         mod = relay.nn.bias_add(mod, bias)
     if test_configuration['requantize'] is not None:
         requantize_config = test_configuration['requantize']
@@ -179,24 +193,30 @@ def test_quantized_dense(test_configuration):
 
 
 def test_qnn_dense_without_bias():
-    uint32_output_without_bias_paramas = make_uint_configuration(use_bias=False)
-    int32_output_without_bias_params = make_int_configuration(use_bias=False)
-    test_quantized_dense(uint32_output_without_bias_paramas)
-    test_quantized_dense(int32_output_without_bias_params)
+    uint32_output_without_bias_paramas = \
+        make_uint_configuration(use_bias=False)
+    int32_output_without_bias_params = \
+        make_int_configuration(use_bias=False)
+    qnn_dense_driver(uint32_output_without_bias_paramas)
+    qnn_dense_driver(int32_output_without_bias_params)
 
 
 def test_qnn_dense_with_bias():
-    uint32_output_with_bias_params = make_uint_configuration(use_bias=True)
-    int32_output_with_bias_params = make_int_configuration(use_bias=True)
-    test_quantized_dense(uint32_output_with_bias_params)
-    test_quantized_dense(int32_output_with_bias_params)
+    uint32_output_with_bias_params = \
+        make_uint_configuration(use_bias=True)
+    int32_output_with_bias_params = \
+        make_int_configuration(use_bias=True)
+    qnn_dense_driver(uint32_output_with_bias_params)
+    qnn_dense_driver(int32_output_with_bias_params)
 
 
 def test_qnn_dense_with_requantized_output():
-    uint8_requantized_output_with_bias_params = make_uint_configuration(use_bias=True, requantize_output=True)
-    int8_requantized_output_with_bias_params = make_int_configuration(use_bias=True, requantize_output=True)
-    test_quantized_dense(uint8_requantized_output_with_bias_params)
-    test_quantized_dense(int8_requantized_output_with_bias_params)
+    uint8_requantized_output_with_bias_params = \
+        make_uint_configuration(use_bias=True, requantize_output=True)
+    int8_requantized_output_with_bias_params = \
+        make_int_configuration(use_bias=True, requantize_output=True)
+    qnn_dense_driver(uint8_requantized_output_with_bias_params)
+    qnn_dense_driver(int8_requantized_output_with_bias_params)
 
 
 if __name__ == "__main__":
