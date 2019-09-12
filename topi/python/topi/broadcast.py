@@ -18,6 +18,7 @@
 from __future__ import absolute_import as _abs
 from .import cpp as _cpp
 
+
 def broadcast_to(data, shape):
     """Broadcast the src to the target shape
 
@@ -341,3 +342,57 @@ def less_equal(lhs, rhs):
         Otherwise returns Tensor.
     """
     return _cpp.less_equal(lhs, rhs)
+
+
+def logical_and(lhs, rhs):
+    """Compute element-wise logical and of data.
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+          The left operand
+    rhs : tvm.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.logical_and(lhs, rhs)
+
+
+def logical_or(lhs, rhs):
+    """Compute element-wise logical or of data.
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+          The left operand
+    rhs : tvm.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.logical_or(lhs, rhs)
+
+
+def logical_not(data):
+    """Compute element-wise logical not of data.
+
+    Parameters
+    ----------
+    data : tvm.Tensor or Expr
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if the operand are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.logical_not(data)
