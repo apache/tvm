@@ -116,9 +116,6 @@ scale and zero point.
 TVM_REGISTER_API("relay.qnn.op._make.quantize")
 .set_body_typed(MakeQuantize);
 
-TVM_REGISTER_API("relay.qnn.op._make.quantize_min_max")
-.set_body_typed(MakeQuantize);
-
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
