@@ -72,15 +72,15 @@ Expr MakeQuantize(Expr data,
 Expr QuantizeLower(const Expr& input_tensor,
                    const QuantizeAttrs* attrs) {
   const auto out_dtype = attrs->out_dtype;
-  const auto output_zero_point = MakeConstantScalar(Int(32), attrs->output_zero_point);
+  const auto output_zero_point = MakeConstantScalar(Float(32), attrs->output_zero_point);
   const auto scale = MakeConstantScalar(Float(32), attrs->output_scale);
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
-  auto scale_data = Cast(Round(Divide(input_tensor, scale)), Int(32));
-  auto add_zero_point = Add(scale_data, output_zero_point);
+  auto scale_data = Divide(input_tensor, scale);
+  auto add_zero_point = Cast(Round(Add(scale_data, output_zero_point)), Int(32));
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
-  auto clamp_out_dtype = Cast(clamped_output, out_dtype);
-  return clamp_out_dtype;
+  auto output = Cast(clamped_output, out_dtype);
+  return output;
 }
 
 Expr QuantizeQnnCanonicalize(const Attrs& attrs,
@@ -114,6 +114,9 @@ scale and zero point.
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
 
 TVM_REGISTER_API("relay.qnn.op._make.quantize")
+.set_body_typed(MakeQuantize);
+
+TVM_REGISTER_API("relay.qnn.op._make.quantize_min_max")
 .set_body_typed(MakeQuantize);
 
 }  // namespace qnn
