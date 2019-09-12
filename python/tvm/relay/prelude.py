@@ -52,6 +52,9 @@ class Prelude:
         self.rose = tree_adt.constructors[0]
 
         GLOBAL_DEFS = [
+            "id",
+            "compose",
+            "flip",
             "hd",
             "tl",
             "nth",

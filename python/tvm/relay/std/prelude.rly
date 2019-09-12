@@ -30,6 +30,12 @@ def @compose[A, B, C](%f: fn(B) -> C, %g: fn(A) -> B) {
   }
 }
 
+def @flip[A, B, C](%f: fn(A, B) -> C) -> fn(B, A) -> C {
+  fn(%b: B, %a: A) -> C {
+    %f(%a, %b)
+  }
+}
+
 /*
  * A LISP-style list ADT. An empty list is represented by `Nil`, and a member
  * `x` can be appended to the front of a list `l` via the constructor `Cons(x, l)`.
@@ -153,11 +159,7 @@ def @sum(%xs: List[Tensor[(), int32]]) {
  * Concatenates two lists.
  */
 def @concat[A](%xs: List[A], %ys: List[A]) -> List[A] {
-  // TODO(weberlo): allow using `Cons` directly as the arg to foldr
-  let %updater = fn(%x: A, %yss: List[A]) -> List[A] {
-    Cons(%x, %yss)
-  };
-  @foldr(%updater, %ys, %xs)
+  @foldr(Cons, %ys, %xs)
 }
 
 /*
@@ -191,11 +193,8 @@ def @zip[A, B](%xs: List[A], %ys: List[B]) -> List[(A, B)] {
 /*
  * Reverses a list.
  */
-def @reverse[A](%xs: List[A]) -> List[A] {
-  let %updater = fn(%ys: List[A], %x: A) -> List[A] {
-    Cons(%x, %ys)
-  };
-  @foldl(%updater, Nil, %xs)
+def @rev[A](%xs: List[A]) -> List[A] {
+  @foldl(@flip(Cons), Nil, %xs)
 }
 
 /*
@@ -256,7 +255,7 @@ def @unfoldr[A, B](%f: fn(A) -> Option[(A, B)], %seed: A) -> List[B] {
  * output values will be combined into a list, left to right.
  */
 def @unfoldl[A, B](%f: fn(A) -> Option[(A, B)], %seed: A) -> List[B] {
-  @reverse(@unfoldr(%f, %seed))
+  @rev(@unfoldr(%f, %seed))
 }
 
 /*
