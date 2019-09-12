@@ -567,46 +567,36 @@ class ParseTreeToRelayIR(RelayVisitor):
             match_clauses = match_clauses.matchClause()
         parsed_clauses = []
         for clause in match_clauses:
-            constructor_name = clause.constructorName().getText()
-            constructor = self.global_type_vars[constructor_name]
             self.enter_var_scope()
-            patternList = clause.patternList()
-            if patternList is None:
-                patterns = []
-            else:
-                patterns = [self.visit(pattern) for pattern in patternList.pattern()]
+            pattern = self.visit(clause.pattern())
             clause_body = self.visit(clause.expr())
             self.exit_var_scope()
-            parsed_clauses.append(adt.Clause(
-                adt.PatternConstructor(
-                    constructor,
-                    patterns
-                ),
-                clause_body
-            ))
+            parsed_clauses.append(adt.Clause(pattern, clause_body))
         return adt.Match(match_data, parsed_clauses, complete=complete_match)
 
-    def visitPattern(self, ctx: RelayParser.PatternContext):
-        if ctx.getText() == "_":
-            return adt.PatternWildcard()
-        elif ctx.localVar() is not None:
-            text = ctx.localVar().getText()
-            typ = ctx.typeExpr()
-            if typ is not None:
-                typ = self.visit(typ)
-            var = self.mk_var(text[1:], typ=typ)
-            return adt.PatternVar(var)
-        elif ctx.constructorName() is not None:
-            constructor_name = ctx.constructorName().getText()
-            constructor = self.global_type_vars[constructor_name]
-            pattern_list = ctx.patternList()
-            if pattern_list is None:
-                patterns = []
-            else:
-                patterns = [self.visit(pattern) for pattern in pattern_list.pattern()]
-            return adt.PatternConstructor(constructor, patterns)
+    def visitWildcardPattern(self, ctx: RelayParser.WildcardPatternContext):
+        return adt.PatternWildcard()
+
+    def visitVarPattern(self, ctx: RelayParser.VarPatternContext):
+        text = ctx.localVar().getText()
+        typ = ctx.typeExpr()
+        if typ is not None:
+            typ = self.visit(typ)
+        var = self.mk_var(text[1:], typ=typ)
+        return adt.PatternVar(var)
+
+    def visitConstructorPattern(self, ctx: RelayParser.ConstructorPatternContext):
+        constructor_name = ctx.constructorName().getText()
+        constructor = self.global_type_vars[constructor_name]
+        pattern_list = ctx.patternList()
+        if pattern_list is None:
+            patterns = []
         else:
-            raise ParseError(f"invalid pattern syntax \"{text}\"")
+            patterns = [self.visit(pattern) for pattern in pattern_list.pattern()]
+        return adt.PatternConstructor(constructor, patterns)
+
+    def visitTuplePattern(self, ctx: RelayParser.TuplePatternContext):
+        return adt.PatternTuple([self.visit(pattern) for pattern in ctx.patternList().pattern()])
 
     def visitCallNoAttr(self, ctx: RelayParser.CallNoAttrContext):
         return (self.visit_list(ctx.exprList().expr()), None)
