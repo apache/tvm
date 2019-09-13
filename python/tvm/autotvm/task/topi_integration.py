@@ -85,6 +85,7 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: "topi_nn_group_conv2d_nchw",
             topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
             topi.nn.conv2d_NCHWc: "topi_x86_conv2d_NCHWc",
+            topi.nn.conv2d_NCHWc_int8: "topi_x86_conv2d_NCHWc_int8",
             topi.nn.dense: "topi_nn_dense",
             topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
@@ -100,6 +101,7 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: [topi.generic.schedule_group_conv2d_nchw],
             topi.nn.conv2d_transpose_nchw: [topi.generic.schedule_conv2d_transpose_nchw],
             topi.nn.conv2d_NCHWc: [topi.generic.schedule_conv2d_NCHWc],
+            topi.nn.conv2d_NCHWc_int8: [topi.generic.schedule_conv2d_NCHWc_int8],
             topi.nn.dense: [topi.generic.schedule_dense],
             topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
@@ -111,6 +113,7 @@ class TaskExtractEnv:
         self.func_to_reflection = {
             topi.nn.conv2d:                 lambda x: setattr(topi.nn, 'conv2d', x),
             topi.nn.conv2d_NCHWc:           lambda x: setattr(topi.nn, 'conv2d_NCHWc', x),
+            topi.nn.conv2d_NCHWc_int8:      lambda x: setattr(topi.nn, 'conv2d_NCHWc_int8', x),
             topi.nn.depthwise_conv2d_nchw:  lambda x: setattr(topi.nn, 'depthwise_conv2d_nchw', x),
             topi.nn.group_conv2d_nchw:      lambda x: setattr(topi.nn, 'group_conv2d_nchw', x),
             topi.nn.conv2d_transpose_nchw:  lambda x: setattr(topi.nn, 'conv2d_transpose_nchw', x),

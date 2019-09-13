@@ -27,7 +27,7 @@ from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple, get_shape
-from ..nn.conv2d import conv2d, conv2d_NCHWc, \
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_NCHWc_int8, \
     conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
@@ -77,7 +77,6 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
         else:
             conv2d_avx_common._fallback_schedule(cfg, wkl)
 
-
 def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
@@ -92,19 +91,15 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
         target = tvm.target.current_target(allow_none=False)
-        if _is_int8_hw_support(data.dtype, kernel.dtype, target):
-            oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
-            ic = ic_chunk*ic_bn
-            assert ic == k_ic*k_ic_f*k_ic_s
-        else:
-            oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
-            assert ic_chunk == k_ic_chunk
-            assert ic_bn == k_ic_bn
-            ic = ic_chunk*ic_bn
+        oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
+        assert ic_chunk == k_ic_chunk
+        assert ic_bn == k_ic_bn
+        ic = ic_chunk*ic_bn
         oc = oc_chunk*oc_bn
     else:
         raise ValueError("Not support this layout {} with "
                          "schedule template.".format(layout))
+
     is_kernel_1x1 = kh == 1 and kw == 1
     ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
@@ -444,14 +439,25 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
                                                    in_channel//ic_bn, ic_bn//n_elems, n_elems))
         kernel_OIHWioe = F.transpose(kernel_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
         copy_inputs = [data_expr, kernel_OIHWioe]
-        # Store altered operator's config
-        new_kernel = tvm.placeholder((out_channel//oc_bn, kh, kw, oc_bn,
-                                      in_channel//ic_bn, ic_bn//n_elems,
-                                      n_elems))
-        new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, dilation,
-             new_attrs[layout_name], new_attrs['out_layout'], out_dtype],
-            conv2d_NCHWc)
+
+        # Store altered operator's config. New kernel layout OIHWio4
+        new_kernel = tvm.placeholder((out_channel // oc_bn,
+                                      in_channel // ic_bn,
+                                      kh,
+                                      kw,
+                                      ic_bn // n_elems,
+                                      oc_bn,
+                                      n_elems), dtype=kernel.dtype)
+
+        new_workload = autotvm.task.args_to_workload([new_data,
+                                                      new_kernel,
+                                                      strides,
+                                                      padding,
+                                                      dilation,
+                                                      new_attrs[layout_name],
+                                                      new_attrs['out_layout'],
+                                                      out_dtype],
+                                                     conv2d_NCHWc_int8)
         dispatch_ctx.update(target, new_workload, cfg)
         if F.__name__ == 'nnvm.symbol':
             logging.warning("Use native layout for int8 convolution on NNVM.")
