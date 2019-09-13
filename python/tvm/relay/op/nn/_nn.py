@@ -548,6 +548,34 @@ reg.register_pattern("nn.contrib_conv2d_NCHWc",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_compute("nn.contrib_conv2d_NCHWc_int8")
+def compute_contrib_conv2d_NCHWc_int8(attrs, inputs, out_dtype, target):
+    """Compute definition of conv2d NCHWc"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    data_layout = attrs.get_str("data_layout")
+    out_layout = attrs.get_str("out_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+
+    out = topi.nn.conv2d_NCHWc_int8(inputs[0], inputs[1], strides, padding, dilation,
+                                    data_layout, out_layout, out_dtype)
+    return [out]
+
+
+@reg.register_schedule("nn.contrib_conv2d_NCHWc_int8")
+def schedule_contrib_conv2d_NCHWc_int8(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_NCHWc_int8"""
+    with target:
+        return topi.generic.schedule_conv2d_NCHWc_int8(outs)
+
+
+reg.register_pattern("nn.contrib_conv2d_NCHWc_int8",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_compute("nn.contrib_depthwise_conv2d_NCHWc")
 def compute_contrib_depthwise_conv2d_NCHWc(attrs, inputs, out_dtype, target):
     """Compute definition of depthwise conv2d NCHWc"""
