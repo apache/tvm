@@ -27,10 +27,10 @@ zero_centered_int8quantized_range = np.float32(127)
 
 
 def _quantize_with_zero_centered(data,
-                                data_min,
-                                data_max,
-                                quantized_range,
-                                out_dtype):
+                                 data_min,
+                                 data_max,
+                                 quantized_range,
+                                 out_dtype):
     r"""Quantizes the given data tensor by calculating the scale
     using the MKLDNN formula `quantized_range / max(abs(data_min, data_max))`.
     Where quantized_range is 255 for uint8 and 127 for int8. The `data_min`
@@ -67,8 +67,8 @@ def _quantize_with_zero_centered(data,
 
 
 def _quantize_mxnet_min_max_uint8(data,
-                                 imin_range,
-                                 imax_range):
+                                  imin_range,
+                                  imax_range):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `uint8`.
     The method of quantizing is described here - https://tinyurl.com/y4d7hrzf.
@@ -108,8 +108,8 @@ def _quantize_mxnet_min_max_uint8(data,
 
 
 def _quantize_mxnet_min_max_int8(data,
-                                data_min,
-                                data_max):
+                                 data_min,
+                                 data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `int8`.
     The method of quantizing is described here - https://tinyurl.com/y4d7hrzf.
@@ -134,15 +134,15 @@ def _quantize_mxnet_min_max_int8(data,
     """
 
     return _quantize_with_zero_centered(data,
-                                       data_min,
-                                       data_max,
-                                       zero_centered_int8quantized_range,
-                                       'int8')
+                                        data_min,
+                                        data_max,
+                                        zero_centered_int8quantized_range,
+                                        'int8')
 
 
 def _quantize_mkldnn_min_max_uint8(data,
-                                  data_min,
-                                  data_max):
+                                   data_min,
+                                   data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `uint8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
@@ -166,15 +166,15 @@ def _quantize_mkldnn_min_max_uint8(data,
         The computed result.
     """
     return _quantize_with_zero_centered(data,
-                                       data_min,
-                                       data_max,
-                                       zero_centered_uint8quantized_range,
-                                       'uint8')
+                                        data_min,
+                                        data_max,
+                                        zero_centered_uint8quantized_range,
+                                        'uint8')
 
 
 def _quantize_mkldnn_min_max_int8(data,
-                                 data_min,
-                                 data_max):
+                                  data_min,
+                                  data_max):
     r"""Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `int8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
@@ -199,10 +199,10 @@ def _quantize_mkldnn_min_max_int8(data,
     """
 
     return _quantize_with_zero_centered(data,
-                                       data_min,
-                                       data_max,
-                                       zero_centered_int8quantized_range,
-                                       'int8')
+                                        data_min,
+                                        data_max,
+                                        zero_centered_int8quantized_range,
+                                        'int8')
 
 
 def quantize_mxnet_min_max(data,
@@ -261,3 +261,4 @@ def quantize_mxnet_min_max(data,
     else:
         raise ValueError(
             "Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
+
