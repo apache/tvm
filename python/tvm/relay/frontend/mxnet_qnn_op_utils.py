@@ -261,4 +261,3 @@ def quantize_mxnet_min_max(data,
     else:
         raise ValueError(
             "Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
-
