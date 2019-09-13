@@ -321,24 +321,28 @@ def quantized_dense(data,
                     out_dtype="int32"):
     """Qnn Dense operator.
     Applies a quantized linear transformation
+
      .. math::
+
      `Y = X * W`
 
     Parameters
     ----------
     data : tvm.relay.Expr
         The quantized input data to the operator.
-     weight : tvm.relay.Expr
+    weight : tvm.relay.Expr
         The quantized weight expressions.
-     units : int, optional
+    units : int, optional
         Number of hidden units of the dense transformation.
-     out_dtype : str, optional
+    out_dtype : str, optional
         Specifies the output data type for mixed precision dense can be int32 or int16.
-     Returns
+
+    Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
+
     return _make.dense(data,
                        weight,
                        units,
