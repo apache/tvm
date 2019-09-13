@@ -22,9 +22,9 @@ from .. import generic
 from ..util import get_const_tuple, traverse_inline
 from ..nn import conv2d_transpose_nchw, dilate, pad, get_pad_tuple
 from . import conv2d_avx_1x1, conv2d_avx_common
-from .conv2d import _declaration_conv_impl
-from .conv2d import _create_tuning_space as _create_tuning_space_conv2d
-from .conv2d import _get_default_config as _get_default_config_conv2d
+from .conv2d import _declaration_conv_impl, \
+    _create_tuning_space as _create_tuning_space_conv2d, \
+    _get_default_config as _get_default_config_conv2d
 
 
 @autotvm.register_topi_compute(conv2d_transpose_nchw, 'cpu', ['direct'])
