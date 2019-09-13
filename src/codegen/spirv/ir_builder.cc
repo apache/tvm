@@ -33,7 +33,10 @@ namespace spirv {
 void IRBuilder::InitHeader() {
   CHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
-  header_.push_back(spv::Version);
+  // Use SPIR-V v1.0. This needs to be kept in sync (or at least behind)
+  // `VkApplicationInfo.apiVersion` in `vulkan.cc` to ensure Vulkan API
+  // validation passes.
+  header_.push_back(0x10000);
   // generator: set to 0, unknown
   header_.push_back(0U);
   // Bound: set during Finalize
