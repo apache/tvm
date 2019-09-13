@@ -81,30 +81,32 @@ class BranchGroupFinder : private ExprVisitor {
 
   /*
     \brief Finds all groups that can be combined.
+    \param expr Relay expression that represents function
+                to look at for groups to be combined
     \return Vector of groups which can be combined.
    */
   std::vector<Group> Find(const Expr& expr);
 
  private:
-  /* name of op to find parallel branches for */
+  /* \brief name of op to find parallel branches for */
   std::string op_name_;
 
-  /* function to return true if op is eligible to be combined,
-     false otherwise 
+  /* \brief function to return true if op is eligible to be combined,
+            false otherwise 
    */
   FIsSupportedOp fis_supported_op_;
 
-  /* function to return true if two parallel ops are eligible
-     to be combined, false otherwise 
+  /* \brief function to return true if two parallel ops are eligible
+            to be combined, false otherwise 
    */
   FAreCompatibleOps fare_compatible_ops_;
 
-  /* ops that are on the first (logically, leftmost) branch
-     of parallel ops and are eligible to be combined
+  /* \brief ops that are on the first (logically, leftmost) branch
+            of parallel ops and are eligible to be combined
    */
   std::unordered_set<Expr, NodeHash, NodeEqual> op_roots_;
 
-  /* map of Expr to CallNodes that follow it  */
+  /* \brief map of Expr to CallNodes that follow it  */
   std::unordered_map<Expr, std::vector<const CallNode*>, NodeHash, NodeEqual> children_map_;
 
   /*
@@ -204,13 +206,13 @@ class ParallelOpCombiner {
                                  ExprSubstMap* subst_map) = 0;
 
  private:
-  /* name of op to be combined */
+  /* \brief name of op to be combined */
   std::string op_name_;
 
-  /* minimum number of parallel branches to combine */
+  /* \brief minimum number of parallel branches to combine */
   uint64_t min_num_branches_;
 
-  /* map of Expr to Expr to substitute it with after running pass */
+  /* \brief map of Expr to Expr to substitute it with after running pass */
   ExprSubstMap subst_map_;
 
   /*

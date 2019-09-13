@@ -190,6 +190,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
  private:
+  /* \brief index of channel dimension */
   size_t channel_pos_;
 
   std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {

@@ -136,9 +136,9 @@ class ParallelOpBatchCombiner : public ParallelOpCombiner {
                          ExprSubstMap* subst_map) final;
 
  private:
-  /* name of op to replace combined ops with. for example,
-     for combining parallel dense, this will will be set to
-     nn.batch_matmul 
+  /* \brief name of op to replace combined ops with. for example,
+            for combining parallel dense, this will will be set to
+            nn.batch_matmul 
     */
   std::string batch_op_name_;
 };
