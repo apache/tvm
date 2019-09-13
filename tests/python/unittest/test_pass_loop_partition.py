@@ -171,6 +171,18 @@ def test_condition():
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
 
+def test_condition_EQ():
+    ib = tvm.ir_builder.create()
+    m = tvm.var('m')
+    n = tvm.var('n')
+    with ib.for_range(0, 10, 'i') as i:
+            ib.emit(tvm.make.Evaluate(
+                tvm.make.Select(ib.likely(tvm.expr.EQ(i, 5)), m, n)))
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
+
 def test_thread_axis2():
     n = tvm.convert(4096)
     m = tvm.var('m')
@@ -420,6 +432,7 @@ if __name__ == "__main__":
     test_thread_axis()
     test_vectorize()
     test_condition()
+    test_condition_EQ()
     test_thread_axis2()
     test_everything_during_deduction()
     test_single_likely()
