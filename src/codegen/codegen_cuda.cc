@@ -207,7 +207,11 @@ void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, Type t, int i, std::ostream& os) {  // NOLINT(*)
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
-  os << vec << "." << access[i];
+  if (t.is_int() && t.bits() == 8) {
+    os << "(0x000000ff & (" << vec << " >> " << i * 8 << "))";
+  } else {
+    os << vec << "." << access[i];
+  }
 }
 
 void CodeGenCUDA::PrintVecElemStore(
@@ -215,7 +219,12 @@ void CodeGenCUDA::PrintVecElemStore(
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
-  stream << vec << "." << access[i] << " = " << value << ";\n";
+  if (t.is_int() && t.bits() == 8) {
+    stream << vec << "=" << vec << " & ~(0x000000ff << " << i * 8 << ") | ("
+        << value << " << " << i * 8 << ");\n";
+  } else {
+    stream << vec << "." << access[i] << " = " << value << ";\n";
+  }
 }
 
 void CodeGenCUDA::PrintStorageSync(const Call* op) {
