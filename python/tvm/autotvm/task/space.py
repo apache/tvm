@@ -226,11 +226,8 @@ class SplitSpace(TransformSpace):
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
         if now == self.num_output - 1:
-            # The last factor is from the product
-            size = np.prod(tmp_stack, dtype=np.int64)
-            if not enforce_no_tail or self.product % size == 0:
-                first = int(self.product // int(size))
-                self.entities.append(SplitEntity([first] + tmp_stack[::-1]))
+            if not enforce_no_tail or self.product % np.prod(tmp_stack, dtype=np.int64) == 0:
+                self.entities.append(SplitEntity([-1] + tmp_stack[::-1]))
         else:
             for factor in self.factors:
                 tmp_stack[now] = factor
@@ -649,7 +646,16 @@ class ConfigSpace(object):
             If is 'candidate', try given candidates.
         kwargs: dict
             extra arguments for policy
-            see examples below for how to use filter
+            max_factor: int
+                the maximum split factor.
+            filter: function(int) -> bool
+                see examples below for how to use filter.
+            num_outputs: int
+                the total number of axis after split.
+            no_tail: bool
+                should we only include divisible numbers as split factors.
+            candidate: list
+                (policy=candidate) manual candidate list.
 
         Examples
         --------
