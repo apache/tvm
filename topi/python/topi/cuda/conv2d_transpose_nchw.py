@@ -131,6 +131,7 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def _fallback_schedule(N, F, Y, X):
+        # pylint: disable=unused-argument
         # split N (batch dimension)
         if N > 1:
             cfg["tile_n"] = SplitEntity([-1, 1, 1, 4])

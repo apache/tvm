@@ -46,16 +46,17 @@ def _conv2d_transpose_nchw(cfg, data, kernel, strides, padding, out_dtype):
                    name='data_pad')
     # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
     kernel_transform = tvm.compute((out_c, in_c, filter_h, filter_w), \
-                                   lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
-                                   name='kernel_transform')
+                                    lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
+                                    name='kernel_transform')
     # reuse conv2d implementation
-    _create_tuning_space_conv2d(cfg, data_pad, kernel_transform, strides=(1,1), padding=(0,0), \
-                                dilation=(1,1), layout="NCHW")
+    _create_tuning_space_conv2d(cfg, data_pad, kernel_transform, strides=(1, 1), \
+                                padding=(0, 0), dilation=(1, 1), layout="NCHW")
     if cfg.is_fallback:
-        _get_default_config_conv2d(cfg, data_pad, kernel_transform, strides=(1,1), padding=(0,0), \
-                                   out_dtype=out_dtype, layout='NCHW')
-    return _declaration_conv_impl(cfg, data_pad, kernel_transform, strides=(1,1), padding=(0,0), \
-                                  dilation=(1,1), layout="NCHW", out_dtype=out_dtype)
+        _get_default_config_conv2d(cfg, data_pad, kernel_transform, strides=(1, 1), \
+                                   padding=(0, 0), out_dtype=out_dtype, layout='NCHW')
+    return _declaration_conv_impl(cfg, data_pad, kernel_transform, strides=(1, 1), \
+                                  padding=(0, 0), dilation=(1, 1), layout="NCHW", \
+                                  out_dtype=out_dtype)
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_transpose_nchw, 'cpu', ['direct'])
