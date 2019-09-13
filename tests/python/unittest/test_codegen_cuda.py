@@ -52,6 +52,7 @@ def test_cuda_vectorize_add():
 
     check_cuda("float32", 64, 2)
     check_cuda("float16", 64, 2)
+    check_cuda("int8", 64, 4)
 
 
 def test_cuda_multiply_add():
