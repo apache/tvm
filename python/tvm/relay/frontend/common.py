@@ -41,6 +41,20 @@ class StrAttrsDict(object):
     def __init__(self, attrs):
         self.attrs = attrs
 
+    def is_attr_present(self, key):
+        """Checks if a attribute is present in the map.
+
+        Parameters
+        ----------
+        key : str
+            The attribute key
+
+        Returns
+        -------
+        bool : True if the key is present in the attributes else false.
+        """
+        return key in self.attrs
+
     def get_float(self, key, default=RequiredAttr()):
         """Get float attribute
 
