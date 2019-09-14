@@ -20,7 +20,7 @@ import tvm
 from tvm import autotvm
 from .. import generic
 from ..util import get_const_tuple, traverse_inline
-from ..nn import conv2d_transpose_nchw, dilate, pad, get_pad_tuple
+from ..nn import conv2d_transpose_nchw_preprocess, conv2d_transpose_nchw
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d import _declaration_conv_impl, \
     _create_tuning_space as _create_tuning_space_conv2d, \
@@ -29,25 +29,8 @@ from .conv2d import _declaration_conv_impl, \
 
 @autotvm.register_topi_compute(conv2d_transpose_nchw, 'cpu', ['direct'])
 def _conv2d_transpose_nchw(cfg, data, kernel, strides, padding, out_dtype):
-    batch, in_c, in_h, in_w = data.shape
-    _, out_c, filter_h, filter_w = kernel.shape
-    stride_h, stride_w = strides
-    # dilate data
-    data_dilate = dilate(data, [1, 1, stride_h, stride_w], name='data_dilate')
-    # pad data
-    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
-    bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
-    bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
-    data_pad = pad(data_dilate, \
-                   [0, 0, bpad_top, bpad_left], \
-                   [0, 0, bpad_bottom, bpad_right], \
-                   name='data_pad')
-    # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
-    kernel_transform = tvm.compute((out_c, in_c, filter_h, filter_w), \
-                                    lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
-                                    name='kernel_transform')
+    data_pad, kernel_transform = \
+        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype)
     # reuse conv2d implementation
     _create_tuning_space_conv2d(cfg, data_pad, kernel_transform, strides=(1, 1), \
                                 padding=(0, 0), dilation=(1, 1), layout="NCHW")
