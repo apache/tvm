@@ -26,6 +26,8 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <sstream>
+#include <fstream>
+#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -38,6 +40,9 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
   auto n = make_node<ModuleNode>();
   n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
+  n->global_type_var_map_ = {};
+  n->global_var_map_ = {};
+  n->constructor_tag_map_ = {};
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -85,6 +90,7 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
 }
 
 GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
+  CHECK(global_type_var_map_.defined());
   auto it = global_type_var_map_.find(name);
   CHECK(it != global_type_var_map_.end())
     << "Cannot find global type var " << name << " in the Module";
@@ -162,6 +168,7 @@ void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
   // set global type var map
   CHECK(!global_type_var_map_.count(var->var->name_hint))
     << "Duplicate global type definition name " << var->var->name_hint;
+
   global_type_var_map_.Set(var->var->name_hint, var);
   RegisterConstructors(var, type);
 
@@ -238,6 +245,40 @@ Module ModuleNode::FromExpr(
   }
   auto main_gv = GlobalVarNode::make("main");
   mod->Add(main_gv, func);
+  return mod;
+}
+
+void ModuleNode::Import(const std::string& path) {
+  LOG(INFO) << "Importing: " << path;
+  if (this->import_set_.count(path) == 0) {
+    this->import_set_.insert(path);
+    std::fstream src_file(path, std::fstream::in);
+    std::string file_contents {
+      std::istreambuf_iterator<char>(src_file),
+      std::istreambuf_iterator<char>() };
+    auto mod_to_import = FromText(file_contents, path);
+
+    for (auto func : mod_to_import->functions) {
+      this->Add(func.first, func.second, false);
+    }
+
+    for (auto type : mod_to_import->type_definitions) {
+      this->AddDef(type.first, type.second);
+    }
+  }
+}
+
+void ModuleNode::ImportFromStd(const std::string& path) {
+  auto* f = tvm::runtime::Registry::Get("tvm.relay.std_path");
+  CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
+  std::string std_path = (*f)();
+  return this->Import(std_path + "/" + path);
+}
+
+Module FromText(const std::string& source, const std::string& source_name) {
+  auto* f = tvm::runtime::Registry::Get("relay.fromtext");
+  CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
+  Module mod = (*f)(source, source_name);
   return mod;
 }
 
@@ -319,6 +360,16 @@ TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
   mod->Update(from);
 });
+
+TVM_REGISTER_API("relay._module.Module_Import")
+.set_body_typed<void(Module, std::string)>([](Module mod, std::string path) {
+  mod->Import(path);
+});
+
+TVM_REGISTER_API("relay._module.Module_ImportFromStd")
+.set_body_typed<void(Module, std::string)>([](Module mod, std::string path) {
+  mod->ImportFromStd(path);
+});;
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModuleNode>(

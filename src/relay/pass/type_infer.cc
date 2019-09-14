@@ -108,7 +108,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   explicit TypeInferencer(Module mod, GlobalVar current_func)
       : mod_(mod), current_func_(current_func),
-        err_reporter(), solver_(current_func, &this->err_reporter) {
+        err_reporter(), solver_(current_func, mod, &this->err_reporter) {
+    CHECK(mod.defined()) << "internal error: Module must be set in the type inferencer";
   }
 
   // inference the type of expr.
@@ -790,36 +791,22 @@ void EnsureCheckedType(const Expr& e) {
   AllCheckTypePopulated().VisitExpr(e);
 }
 
-Expr InferType(const Expr& expr, const Module& mod_ref) {
-  if (!mod_ref.defined()) {
-    Module mod = ModuleNode::FromExpr(expr);
-    // NB(@jroesch): By adding the expression to the module we will
-    // type check it anyway; afterwards we can just recover type
-    // from the type-checked function to avoid doing unnecessary work.
-
-    Function func = mod->Lookup("main");
-
-    // FromExpr wraps a naked expression as a function, we will unbox
-    // it here.
-    if (expr.as<FunctionNode>()) {
-      return std::move(func);
-    } else {
-      return func->body;
-    }
-  } else {
-    auto e = TypeInferencer(mod_ref, mod_ref->GetGlobalVar("main")).Infer(expr);
-    CHECK(WellFormed(e));
-    auto free_tvars = FreeTypeVars(e, mod_ref);
-    CHECK(free_tvars.size() == 0)
-      << "Found unbound type variables in " << e << ": " << free_tvars;
-    EnsureCheckedType(e);
-    return e;
-  }
+Expr InferType(const Expr& expr, const Module& mod) {
+  auto main = mod->GetGlobalVar("main");
+  auto inferencer = TypeInferencer(mod, main);
+  auto e = inferencer.Infer(expr);
+  CHECK(WellFormed(e));
+  auto free_tvars = FreeTypeVars(e, mod);
+  CHECK(free_tvars.size() == 0)
+    << "Found unbound type variables in " << e << ": " << free_tvars;
+  EnsureCheckedType(e);
+  return e;
 }
 
 Function InferType(const Function& func,
                    const Module& mod,
                    const GlobalVar& var) {
+  CHECK(mod.defined()) << "internal error: module must be set for type inference";
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
   mod->AddUnchecked(var, func_copy);
