@@ -218,10 +218,10 @@ def test_logical_single_ele():
             dtype="bool",
     ):
         # Build the logic and compile the function
-        A = (tvm.var("A", dtype=dtype))
-        C = func(A)
+        A = tvm.placeholder(shape=indata.shape, name="A", dtype=dtype)
+        B = func(A)
         if isinstance(A, tvm.expr.Expr):
-            assert (isinstance(C, tvm.expr.Expr))
+            assert (isinstance(B, tvm.expr.Expr))
             return
 
         def check_device(device):
@@ -231,21 +231,22 @@ def test_logical_single_ele():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(C)
-            foo = tvm.build(s, [A, C], device, name=name)
+                s = topi.generic.schedule_broadcast(B)
+            foo = tvm.build(s, [A, B], device, name=name)
 
-            indata_nd = tvm.nd.array(indata, ctx)
+            data_npy = indata.astype(A.dtype)
+            data_nd = tvm.nd.array(data_npy, ctx)
 
             out_npy = f_numpy(indata)
-            out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
-            foo(indata_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+            out_nd = tvm.nd.array(np.empty(data_npy.shape).astype(B.dtype), ctx)
+            foo(data_nd, out_nd)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
         for device in get_all_backend():
             check_device(device)
 
-    test_apply(topi.logical_not, "logical_not", np.logical_not, [True, False, 0, 1])
-    test_apply(topi.logical_not, "logical_not", np.logical_not, np.arange(5) < 3)
+    test_apply(topi.logical_not, "logical_not", np.logical_not, np.array([True, False, 0, 1]))
+    test_apply(topi.logical_not, "logical_not", np.logical_not, np.array(np.arange(5) < 3))
 
 
 def test_logical_binary_ele():
