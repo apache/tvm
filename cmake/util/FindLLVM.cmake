@@ -47,6 +47,7 @@ macro(find_llvm use_llvm)
   elseif(NOT LLVM_CONFIG STREQUAL "OFF")
     # use llvm config
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
+    separate_arguments(LLVM_CONFIG)
     execute_process(COMMAND ${LLVM_CONFIG} --libfiles
       OUTPUT_VARIABLE __llvm_libfiles)
     execute_process(COMMAND ${LLVM_CONFIG} --system-libs
@@ -60,7 +61,7 @@ macro(find_llvm use_llvm)
     # definitions
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})
     # include dir
-    string(REGEX MATCHALL "(^| )-I[^ ]*" __llvm_include_flags ${__llvm_cxxflags})    
+    string(REGEX MATCHALL "(^| )-I[^ ]*" __llvm_include_flags ${__llvm_cxxflags})
     set(LLVM_INCLUDE_DIRS "")
     foreach(__flag IN ITEMS ${__llvm_include_flags})
       string(REGEX REPLACE "(^| )-I" "" __dir "${__flag}")
