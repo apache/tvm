@@ -46,14 +46,14 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
 
   for (const auto& kv : n->functions) {
     // set global var map
-    CHECK(!n->global_var_map_.count(kv.first->name_hint))
+    CHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
       << "Duplicate global function name " << kv.first->name_hint;
     n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
 
   for (const auto& kv : n->type_definitions) {
     // set global typevar map
-    CHECK(!n->global_type_var_map_.count(kv.first->var->name_hint))
+    CHECK(n->global_type_var_map_.count(kv.first->var->name_hint) == 0)
       << "Duplicate global type definition name " << kv.first->var->name_hint;
     n->global_type_var_map_.Set(kv.first->var->name_hint, kv.first);
     n->RegisterConstructors(kv.first, kv.second);
@@ -160,7 +160,7 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
   if (it != global_var_map_.end()) {
     CHECK_EQ((*it).second, var);
   } else {
-    CHECK(!global_var_map_.count(var->name_hint))
+    CHECK(global_var_map_.count(var->name_hint) == 0)
         << "Duplicate global function name " << var->name_hint;
   }
 
@@ -180,25 +180,20 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
 }
 
 void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
-  this->type_definitions.Set(var, type);
-  // set global type var map
-  CHECK(update || global_type_var_map_.count(var->var->name_hint) == 0)
-    << "Duplicate global type definition name " << var->var->name_hint;
-
-  global_type_var_map_.Set(var->var->name_hint, var);
-  RegisterConstructors(var, type);
-
+  AddDefUnchecked(var, type, update);
   // need to kind check at the end because the check can look up
   // a definition potentially
   CHECK(KindCheck(type, GetRef<Module>(this)) == Kind::kTypeData)
     << "Invalid or malformed typedata given to module: " << type;
 }
 
-void ModuleNode::AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type) {
+void ModuleNode::AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update) {
   this->type_definitions.Set(var, type);
-  // set global type var map
-  CHECK(!global_type_var_map_.count(var->var->name_hint))
-    << "Duplicate global type definition name " << var->var->name_hint;
+  if (!update) {
+    // set global type var map
+    CHECK(global_type_var_map_.count(var->var->name_hint) == 0)
+      << "Duplicate global type definition name " << var->var->name_hint;
+  }
   global_type_var_map_.Set(var->var->name_hint, var);
   RegisterConstructors(var, type);
 }
@@ -299,12 +294,20 @@ void ModuleNode::Import(const std::string& path) {
       std::istreambuf_iterator<char>() };
     auto mod_to_import = FromText(file_contents, path);
 
-    for (auto func : mod_to_import->functions) {
-      this->Add(func.first, func.second, false);
+    // add type defs. we add them unchecked first, so all definitions can
+    // reference each other, independent of the order in which they were defined.
+    for (auto pair : mod_to_import->type_definitions) {
+      this->AddDefUnchecked(pair.first, pair.second);
     }
-
-    for (auto type : mod_to_import->type_definitions) {
-      this->AddDef(type.first, type.second);
+    for (auto pair : mod_to_import->type_definitions) {
+      this->UpdateDef(pair.first, pair.second);
+    }
+    // then add func defs in a similar fashion
+    for (auto pair : mod_to_import->functions) {
+      this->AddUnchecked(pair.first, pair.second);
+    }
+    for (auto pair : mod_to_import->functions) {
+      this->Update(pair.first, pair.second);
     }
   }
 }

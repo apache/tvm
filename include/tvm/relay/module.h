@@ -88,15 +88,6 @@ class ModuleNode : public RelayNode {
   TVM_DLL void Add(const GlobalVar& var, const Function& func, bool update = false);
 
   /*!
-   * \brief Add a type-level definition to the global environment.
-   * \param var The var of the global type definition.
-   * \param type The type definition.
-   * \param update Controls whether you can replace a definition in the
-   * environment.
-   */
-  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
-
-  /*!
    * \brief Add a function to the global environment.
    * \param var The name of the global function.
    * \param func The function.
@@ -106,13 +97,24 @@ class ModuleNode : public RelayNode {
   TVM_DLL void AddUnchecked(const GlobalVar& var, const Function& func);
 
   /*!
+   * \brief Add a type-level definition to the global environment.
+   * \param var The var of the global type definition.
+   * \param type The type definition.
+   * \param update Controls whether you can replace a definition in the
+   * environment.
+   */
+  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
+
+  /*!
    * \brief Add a type definition to the global environment.
    * \param var The name of the global function.
    * \param func The function.
+   * \param update Controls whether you can replace a definition in the
+   * environment.
    *
    * It does not do type inference as AddDef does.
    */
-  TVM_DLL void AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type);
+  TVM_DLL void AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update = false);
 
   /*!
    * \brief Update a function in the global environment.
