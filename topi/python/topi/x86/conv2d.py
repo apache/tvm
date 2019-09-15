@@ -95,7 +95,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         if _is_int8_hw_support(data.dtype, kernel.dtype, target):
             oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
             ic = ic_chunk*ic_bn
-            assert ic == k_ic*k_ic_f*kic_s
+            assert ic == k_ic*k_ic_f*k_ic_s
         else:
             oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
             assert ic_chunk == k_ic_chunk
