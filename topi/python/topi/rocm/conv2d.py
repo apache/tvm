@@ -78,7 +78,8 @@ def conv2d_rocm(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
                                      pad_w,
                                      dilation_h,
                                      dilation_w,
-                                     conv_mode=0)
+                                     conv_mode=0,
+                                     data_type=1)
 
     return conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
 
