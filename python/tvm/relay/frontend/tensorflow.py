@@ -469,7 +469,9 @@ def _batch_matmul():
 
         # reshape result back to n-dimensional
         if len(orig_shape_x) > 3:
-            final_shape = attr['_output_shapes'][0]
+            final_shape = list(orig_shape_x)
+            final_shape[-2] = orig_shape_x[-1] if adj_x else orig_shape_x[-2]
+            final_shape[-1] = orig_shape_y[-2] if adj_y else orig_shape_y[-1]
             ret = _op.reshape(ret, newshape=final_shape)
 
         return ret
@@ -1227,6 +1229,12 @@ def _one_hot():
                        extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
     return _impl
 
+def _squared_difference():
+    def _impl(inputs, attr, params):
+        difference = _op.subtract(inputs[0], inputs[1])
+        return _op.multiply(difference, difference)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1334,6 +1342,7 @@ _convert_map = {
     'SplitV'                            : _split(True),
     'Sqrt'                              : AttrCvt('sqrt'),
     'Square'                            : _square(),
+    'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),

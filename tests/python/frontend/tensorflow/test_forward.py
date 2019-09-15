@@ -1852,6 +1852,16 @@ def test_forward_erf():
         tf.math.erf(in1)
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Erf:0')
 
+def test_forward_squared_difference():
+    ishape = (1, 3, 10, 14)
+    inp_array_a = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    inp_array_b = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array_a.shape, dtype=inp_array_a.dtype, name="in1")
+        in2 = tf.placeholder(shape=inp_array_b.shape, dtype=inp_array_b.dtype, name="in2")
+        out = tf.math.squared_difference(in1, in2)
+        compare_tf_with_tvm([inp_array_a, inp_array_b], [in1.name, in2.name], out.name)
+
 def _test_forward_reverse_v2(in_shape, axis, dtype):
     np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
     tf.reset_default_graph()
@@ -2253,6 +2263,7 @@ if __name__ == '__main__':
     test_forward_bias_add()
     test_forward_zeros_like()
     test_forward_erf()
+    test_forward_squared_difference()
 
     # Reductions
     test_forward_argminmax()
