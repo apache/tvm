@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""QNN dialect related operators."""
-from __future__ import absolute_import as _abs
-from .qnn import *
-from .op import register_qnn_legalize
-from . import legalizations
-from . import op_attrs
+"""The attributes node used for QNN operators"""
+
+from ....attrs import Attrs
+from ...base import register_relay_attr_node
+
+@register_relay_attr_node
+class QnnConv2DAttrs(Attrs):
+    """Attributes for qnn.conv2d"""
