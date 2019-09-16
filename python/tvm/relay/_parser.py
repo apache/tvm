@@ -297,7 +297,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if type_expr is not None:
             # Zero-arity constructor calls fall into the general ident case, so in that case,
             # we construct a constructor call with no args.
-            if isinstance(type_expr, adt.Constructor) and len(type_expr.inputs) == 0:
+            if isinstance(type_expr, adt.Constructor) and not len(type_expr.inputs):
                 type_expr = expr.Call(type_expr, [])
             return type_expr
         # Check if it's an operator.
