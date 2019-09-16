@@ -265,7 +265,7 @@ bool ConcatenateRel(const Array<Type>& types,
       throw relay::Error("relay.concatenate requires all tensors have the same dtype");
     }
     for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == axis) continue;
+      if (j == static_cast<size_t>(axis)) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
       throw relay::Error("relay.concatenate requires all tensors have the same shape "
                          "on non-concatenating axes");
@@ -407,7 +407,7 @@ bool StackRel(const Array<Type>& types,
     CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
     for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == axis) continue;
+      if (j == static_cast<size_t>(axis)) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
       throw relay::Error("relay.stack requires all tensors have the same shape "
                          "on non-stacking axes");
