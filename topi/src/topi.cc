@@ -118,11 +118,6 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
       }                                                                 \
     });                                                                 \
 
-TVM_REGISTER_GLOBAL("topi.broadcast_to")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = broadcast_to(args[0], args[1]);
-  });
-
 TOPI_REGISTER_BCAST_OP("topi.add", topi::add);
 TOPI_REGISTER_BCAST_OP("topi.subtract", topi::subtract);
 TOPI_REGISTER_BCAST_OP("topi.multiply", topi::multiply);
@@ -141,6 +136,16 @@ TOPI_REGISTER_BCAST_OP("topi.equal", topi::equal);
 TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
+
+TVM_REGISTER_GLOBAL("topi.broadcast_to")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_to(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.logical_not")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = logical_not(args[0]);
+  });
 
 /* Ops from elemwise.h */
 TVM_REGISTER_GLOBAL("topi.exp")

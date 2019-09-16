@@ -175,6 +175,9 @@ topi
 .. autofunction:: topi.topk
 .. autofunction:: topi.sequence_mask
 .. autofunction:: topi.one_hot
+.. autofunction:: topi.logical_and
+.. autofunction:: topi.logical_or
+.. autofunction:: topi.logical_not
 
 topi.nn
 ~~~~~~~

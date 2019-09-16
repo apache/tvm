@@ -21,6 +21,7 @@ import tvm
 from . import tag
 from . import cpp
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def identity(x):
     """Take identity of input x.
@@ -107,6 +108,7 @@ def tanh(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.tanh(x(*i)))
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def cos(x):
     """Take cos of input x.
@@ -123,6 +125,7 @@ def cos(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.cos(x(*i)))
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def sin(x):
     """Take sin of input x.
@@ -138,6 +141,7 @@ def sin(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.sin(x(*i)))
+
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
@@ -172,6 +176,7 @@ def ceil(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
 
+
 def sign(x):
     """Returns -1, 0, 1 based on sign of x.
 
@@ -186,6 +191,7 @@ def sign(x):
         The result.
     """
     return cpp.sign(x)
+
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def trunc(x):
@@ -253,6 +259,7 @@ def log(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.log(x(*i)))
+
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def sqrt(x):
@@ -390,6 +397,7 @@ def cast(x, dtype):
         return tvm.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     return tvm.make._cast(dtype, x)
+
 
 def reinterpret(x, dtype):
     """Reinterpret input to specified data type.
