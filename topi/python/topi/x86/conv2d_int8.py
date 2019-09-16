@@ -17,30 +17,108 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D int8 schedule on x86"""
 
+import re
 import tvm
 from tvm import autotvm
+from tvm.autotvm.task import get_config
+from tvm.autotvm.task.topi_integration import deserialize_args
 from .. import generic, tag
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d_NCHWc_int8
 from .. import nn
-from .conv2d import _get_default_config
 from . import conv2d_avx_1x1, conv2d_avx_common
+
+def _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, layout):
+    """Create schedule configuration from input arguments"""
+    dshape = get_const_tuple(data.shape)
+    kshape = get_const_tuple(kernel.shape)
+    pat = re.compile(r'NCHW.+(\d+)c')
+    if layout == 'NCHW':
+        n, ic, h, w = dshape
+        oc, _, kh, kw = kshape
+    elif layout == 'NHWC':
+        n, h, w, ic = dshape
+        kh, kw, oc, _ = kshape
+    elif pat.match(layout) is not None:
+        n, ic_chunk, h, w, ic_bn = dshape
+        target = tvm.target.current_target(allow_none=False)
+        oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
+        ic = ic_chunk * ic_bn
+        assert ic == k_ic * k_ic_f * k_ic_s
+        oc = oc_chunk*oc_bn
+    else:
+        raise ValueError("Not support this layout {} with "
+                         "schedule template.".format(layout))
+
+    is_kernel_1x1 = kh == 1 and kw == 1
+    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    oh = (h - kh + 2 * ph) // sh + 1
+    ow = (w - kw + 2 * pw) // sw + 1
+
+    # Create schedule config
+    cfg.define_split('tile_ic', ic, num_outputs=2, filter=lambda y: y.size[-1] % 4 == 0)
+    cfg.define_split('tile_oc', oc, num_outputs=2, filter=lambda y: y.size[-1] % 16 == 0)
+    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    if is_kernel_1x1:
+        cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
+    else:
+        cfg.define_knob("unroll_kw", [True, False])
+
+
+# Define template function for autotvm task
+# We define schedule template in this function instead of
+# declaration function since actual input arguments need
+# to be altered by the schedule selected.
+@autotvm.task.register("topi_x86_conv2d_NCHWc_int8")
+def _topi_nn_conv2d_NCHWc_int8(*args, **kwargs):
+    assert not kwargs, "Do not support kwargs in template function call"
+    args = deserialize_args(args)
+
+    if len(args) == 7:
+        data, kernel, strides, padding, dilation, origin_layout, dtype = args
+    else:
+        assert len(args) == 8
+        data, kernel, strides, padding, dilation, origin_layout, out_layout, dtype = args
+
+    raw_data_shape = get_const_tuple(data.shape)
+    raw_kernel_shape = get_const_tuple(kernel.shape)
+
+    # get config here
+    cfg = get_config()
+    _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, origin_layout)
+
+    # change shape with the value in config
+    ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                           cfg["tile_ow"].size[-1])
+
+    data_layout = "NCHW%dc" % ic_bn
+    out_layout = "NCHW%dc" % oc_bn
+
+    # Set up the new shape for data and kernel
+    new_data_shape = (raw_data_shape[0], raw_data_shape[1] // ic_bn,
+                      raw_data_shape[2], raw_data_shape[3], ic_bn)
+    n_elems = 4
+    new_kernel_shape = (raw_kernel_shape[0] // oc_bn,
+                        raw_kernel_shape[1] // ic_bn,
+                        raw_kernel_shape[2],
+                        raw_kernel_shape[3],
+                        ic_bn // n_elems,
+                        oc_bn,
+                        n_elems)
+
+    new_data = tvm.placeholder(new_data_shape, data.dtype)
+    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
+
+    C = _declaration_conv_NCHWc_int8(cfg, new_data, new_kernel, strides, padding, dilation,
+                                     data_layout, out_layout, dtype)
+    s = _schedule_conv2d_NCHWc_int8(cfg, [C])
+    return s, [new_data, new_kernel, C]
+
 
 @autotvm.register_topi_compute(conv2d_NCHWc_int8, 'cpu', 'direct')
 def _declaration_conv_NCHWc_int8(cfg, data, kernel, strides,
                                  padding, dilation, layout, out_layout, out_dtype):
-    n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
-    in_channel = ic_chunk * ic_bn
-    oc_chunk, _, kernel_height, kernel_width, _, oc_bn, _ = \
-            get_const_tuple(kernel.shape)
-    num_filter = oc_chunk * oc_bn
-
-    # If config is not set, we can reuse the default config for NCHW.
-    if cfg.is_fallback:
-        _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                            tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                            dtype=kernel.dtype),
-                            strides, padding, out_dtype)
     return nn.conv2d_NCHWc_int8_compute(data,
                                         kernel,
                                         strides,
