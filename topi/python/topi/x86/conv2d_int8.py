@@ -22,11 +22,51 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.topi_integration import deserialize_args
+from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .. import generic, tag
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d_NCHWc_int8
 from .. import nn
 from . import conv2d_avx_1x1, conv2d_avx_common
+
+def _get_default_config_int8(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False,
+                             layout='NCHW'):
+    """
+    Get default schedule config for the workload
+    """
+    assert not is_depthwise, "Depthwise Int8 not supported"
+    wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
+    is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
+    if is_kernel_1x1:
+        conv2d_avx_1x1._fallback_schedule_int8(cfg, wkl)
+    else:
+        conv2d_avx_common._fallback_schedule_int8(cfg, wkl)
+
+
+def _is_int8_hw_support(data_dtype, kernel_dtype):
+    """
+    Checks to ensure that we can use Intel DLBoost instructions
+    1) The datatypes are correct.
+    2) LLVM version has support for the instructions.
+    3) Target is skylake and above.
+    """
+    # 1) Check datatypes
+    is_dtype_support = data_dtype == 'uint8' and kernel_dtype == 'int8'
+
+    # 2) Check LLVM support
+    llvm_intrin_fast_int8 = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8)
+    is_llvm_support = llvm_id != 0
+
+    # 3) Check target
+    target = tvm.target.current_target()
+    is_target_support = False
+    for opt in target.options:
+        if opt == '-mcpu=skylake-avx512':
+            is_target_support = True
+
+    return is_dtype_support and is_llvm_support and is_target_support
+
 
 def _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""

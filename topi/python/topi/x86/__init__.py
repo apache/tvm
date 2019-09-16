@@ -17,3 +17,4 @@ from .batch_matmul import schedule_batch_matmul
 from .roi_align import roi_align_nchw
 from .conv2d_transpose import _schedule_conv2d_transpose_nchw
 from .sparse import *
+from .conv2d_alter_op import *
