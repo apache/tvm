@@ -50,40 +50,40 @@ using FAreCompatibleOps = std::function<bool (const CallNode* a, const CallNode*
 using ExprSubstMap = std::unordered_map<Expr, Expr, NodeHash, NodeEqual>;
 
 /*
-  Class to find parallel branches starting with op that are 
-  grouped if they are able to be combined. They are eligible to
-  be combined if they have the same input data.
-  Op can be followed by zero or more elemwise or broadcast ops,
-  which are included in the group.
-  Intermediate nodes have exactly one successor. It is possible that branches meet at a point,
-  which should be handled in ParallelOpCombiner.
-
-         data
-        /    \
-      op      op
-      |        |
-  elem-wise elem-wise
-      |        |
-*/
+ * Class to find parallel branches starting with op that are 
+ * grouped if they are able to be combined. They are eligible to
+ * be combined if they have the same input data.
+ * Op can be followed by zero or more elemwise or broadcast ops,
+ * which are included in the group.
+ * Intermediate nodes have exactly one successor. It is possible that branches meet at a point,
+ * which should be handled in ParallelOpCombiner.
+ *
+ *        data
+ *       /    \
+ *     op      op
+ *     |        |
+ * elem-wise elem-wise
+ *     |        |
+ */
 class BranchGroupFinder : private ExprVisitor {
  public:
   /*
-    \brief Constructor
-    \param op_name name of op to start each group
-    \param fis_supported_op function that returns true if op
-                            is supported for combining
-    \param fare_compatible_ops function that returns true if
-                               two ops are compatible for combining
+   * \brief Constructor
+   * \param op_name name of op to start each group
+   * \param fis_supported_op function that returns true if op
+   *                         is supported for combining
+   * \param fare_compatible_ops function that returns true if
+   *                            two ops are compatible for combining
    */
   BranchGroupFinder(const std::string& op_name,
                     FIsSupportedOp fis_supported_op,
                     FAreCompatibleOps fare_compatible_ops);
 
   /*
-    \brief Finds all groups that can be combined.
-    \param expr Relay expression that represents function
-                to look at for groups to be combined
-    \return Vector of groups which can be combined.
+   * \brief Finds all groups that can be combined.
+   * \param expr Relay expression that represents function
+   *             to look at for groups to be combined
+   * \return Vector of groups which can be combined.
    */
   std::vector<Group> Find(const Expr& expr);
 
@@ -92,17 +92,17 @@ class BranchGroupFinder : private ExprVisitor {
   std::string op_name_;
 
   /* \brief function to return true if op is eligible to be combined,
-            false otherwise 
+   *         false otherwise 
    */
   FIsSupportedOp fis_supported_op_;
 
   /* \brief function to return true if two parallel ops are eligible
-            to be combined, false otherwise 
+   *         to be combined, false otherwise 
    */
   FAreCompatibleOps fare_compatible_ops_;
 
   /* \brief ops that are on the first (logically, leftmost) branch
-            of parallel ops and are eligible to be combined
+   *         of parallel ops and are eligible to be combined
    */
   std::unordered_set<Expr, NodeHash, NodeEqual> op_roots_;
 
@@ -110,82 +110,82 @@ class BranchGroupFinder : private ExprVisitor {
   std::unordered_map<Expr, std::vector<const CallNode*>, NodeHash, NodeEqual> children_map_;
 
   /*
-    \brief Creates new branch from op and its children that have
-           elementwise or broadcast patterns
-    \return New branch
+   * \brief Creates new branch from op and its children that have
+   *        elementwise or broadcast patterns
+   * \return New branch
    */
   Branch CreateBranch(const CallNode* op);
 
   /*
-    \brief Expression visitor function
+   * \brief Expression visitor function
    */
   void VisitExpr_(const CallNode* n) final;
 };
 
 /*
-  Abstract class to find and combine parallel ops and the elementwise ops that follow.
-*/
+ * Abstract class to find and combine parallel ops and the elementwise ops that follow.
+ */
 class ParallelOpCombiner {
  public:
   /*
-    \brief Constructor.
-    \param op_name name of op to combine
-    \param min_num_branches min number of parallel branches beginning with op
-                            to start combining
+   * \brief Constructor.
+   * \param op_name name of op to combine
+   * \param min_num_branches min number of parallel branches beginning with op
+   *                         to start combining
    */
   explicit ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches);
 
   /*
-    \brief Combines ops and following elementwise or broadcast ops
-    \param expr function to modify
-    \return new function with combined ops
+   * \brief Combines ops and following elementwise or broadcast ops
+   * \param expr function to modify
+   * \return new function with combined ops
    */
   Expr Combine(const Expr& expr);
 
  protected:
   /*
-    \brief Checks if node is supported to be combined
-    \param n node in question
-    \return True if the op represented by n is supported to be the root of a branch
-            to be combined. False otherwise.
+   * \brief Checks if node is supported to be combined
+   * \param n node in question
+   * \return True if the op represented by n is supported to be the root of a branch
+   *         to be combined. False otherwise.
    */
   virtual bool IsSupportedOp(const CallNode* n) = 0;
 
   /*
-    \brief Checks if two ops can be combined
-    \param a node a
-    \param b node b
-    \return True if a and b can be combined. False otherwise.
+   * \brief Checks if two ops can be combined
+   * \param a node a
+   * \param b node b
+   * \return True if a and b can be combined. False otherwise.
    */
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) = 0;
 
   /*
-    \brief Makes combined op from parallel ops in branches. This usually involves
-           concatenating or stacking inputs, then creating a new call.
-    \param branches branches that are to be combined
-    \return new call with branches combined.
+   * \brief Makes combined op from parallel ops in branches. This usually involves
+   *        concatenating or stacking inputs, then creating a new call.
+   * \param branches branches that are to be combined
+   * \return new call with branches combined.
    */
   virtual Call MakeCombinedOp(const Group& branches) = 0;
 
   /*
-    \brief Checks if argument of op following combined ops are able to be combined
-    \param a node a
-    \param b node b
-    \param index index of argument in question
-    \return True if argument of a and b and index can be combined
+   * \brief Checks if argument of op following combined ops are able to be combined
+   * \param a node a
+   * \param b node b
+   * \param index index of argument in question
+   * \return True if argument of a and b and index can be combined
    */
   virtual bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) = 0;
 
   /*
-    \brief Create combined call from ops that follow the initial combined op at the depth-th level.
-           This usually involves concatenating or stacking inputs, then creating a new call.
-           Only called if IsArgCompatbile returns true for each arg.
-    \param data combined op
-    \param branches branches of parallel ops to be combined
-    \param depth depth at which to combine ops
-    \param parent_index index of arg that corresponds to original input that was shared among
-                        all combined ops
-    \return new combined call
+   * \brief Create combined call from ops that follow the initial combined op at the depth-th level.
+   *        This usually involves concatenating or stacking inputs, then creating a new call.
+   *        Only called if IsArgCompatbile returns true for each arg.
+   * \param data combined op
+   * \param branches branches of parallel ops to be combined
+   * \param depth depth at which to combine ops
+   * \param parent_index index of arg that corresponds to original input that was shared among
+   *                     all combined ops
+   * \return new combined call
    */
   virtual Call MakeCombinedCallFromFollowingOps(const Expr& data,
                                                 const Group& branches,
@@ -193,12 +193,12 @@ class ParallelOpCombiner {
                                                 size_t parent_index) = 0;
 
   /*
-    \brief Updates map of expr to substitute with combined expr. This usually involves
-           slicing or splitting data.
-    \param data combined op
-    \param branches branches of parallel ops to be combined
-    \param depth depth at which to substitute
-    \param subst_map map of Expr to replace with Expr to replace it with
+   * \brief Updates map of expr to substitute with combined expr. This usually involves
+   *        slicing or splitting data.
+   * \param data combined op
+   * \param branches branches of parallel ops to be combined
+   * \param depth depth at which to substitute
+   * \param subst_map map of Expr to replace with Expr to replace it with
    */
   virtual void UpdateGroupOutput(const Expr& data,
                                  const Group& branches,
@@ -216,20 +216,20 @@ class ParallelOpCombiner {
   ExprSubstMap subst_map_;
 
   /*
-    \brief Combine parallel branches and updates subst_map_ with Exprs
-           to be substituted
-    \param branches branches to be combined
+   * \brief Combine parallel branches and updates subst_map_ with Exprs
+   *        to be substituted
+   * \param branches branches to be combined
    */
   void CombineBranches(const Group& branches);
 
   /*
-    \brief Combine parallel branches and updates subst_map_ with Exprs
-           to be substituted
-    \param branches parallel branches to potentially be combined
-    \param depth depth at which to look at op
-    \param parent_index index of arg that corresponds to original input that was shared among
-                        all combined ops
-    \return true if parallel ops at depth can be combined, false otherwise
+   * \brief Combine parallel branches and updates subst_map_ with Exprs
+   *        to be substituted
+   * \param branches parallel branches to potentially be combined
+   * \param depth depth at which to look at op
+   * \param parent_index index of arg that corresponds to original input that was shared among
+   *                     all combined ops
+   * \return true if parallel ops at depth can be combined, false otherwise
    */
   bool CheckLevel(const Group& branches, size_t depth, size_t parent_index);
 };
