@@ -1003,6 +1003,9 @@ class FallbackConfigEntity(ConfigSpace):
         We use tuned parameters from TopHub as reference data.
         For an unseen shape, we find the most similar tuned one from TopHub and
         mimic its parameters.
+        Note that we are not matching by workload (e.g., input size, kernel size),
+        but instead matching by configuration space. The idea is that if two workloads have
+        similar configuration space, their optimal configurations are also likely to be similar.
 
         Parameters
         ----------
