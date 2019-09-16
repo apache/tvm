@@ -331,8 +331,19 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
                                  Type dtype,
                                  std::string name,
                                  int data_alignment,
-                                 int offset_factor) {
+                                 int offset_factor,
+                                 bool compact) {
   auto data = Var(name, Handle());
+  bool has_any = false;
+  if (!compact) {
+    for (const auto& it : shape) {
+      if (it.as<Variable>()) {
+        has_any = true;
+        break;
+      }
+    }
+  }
+  BufferType buffer_type = has_any ? kAutoBroadcast : kDefault;
 
   Expr elem_offset;
   if (offset_factor != 0) {
@@ -342,10 +353,11 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
   }
 
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-    data_alignment, offset_factor, kDefault);
+    data_alignment, offset_factor, buffer_type);
 }
 
 void GetBinds(const Array<Tensor>& args,
+              bool compact,
               const std::unordered_map<Tensor, Buffer>& binds,
               Map<Tensor, Buffer>* out_binds,
               Array<NodeRef>* out_arg_list,
@@ -355,7 +367,7 @@ void GetBinds(const Array<Tensor>& args,
   for (const auto &x : args) {
     if (out_binds->find(x) == out_binds->end()) {
       auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
-        config->data_alignment, config->offset_factor);
+        config->data_alignment, config->offset_factor, compact);
       out_binds->Set(x, buf);
       out_arg_list->push_back(buf);
     } else {
@@ -380,15 +392,16 @@ Stmt BuildStmt(Schedule sch,
                bool loop_partition,
                Array<NodeRef> *out_arg_list,
                const BuildConfig& config) {
-  Map<Tensor, Buffer> out_binds;
-  GetBinds(args, binds, &out_binds, out_arg_list, config);
-
   sch = sch.normalize();
 
   // Phase 0
   auto bounds = schedule::InferBound(sch);
   auto stmt = schedule::ScheduleOps(sch, bounds, false);
   stmt = ir::InjectPrefetch(stmt);
+
+  bool compact = ir::VerifyCompactBuffer(stmt);
+  Map<Tensor, Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
 
   // Phase 1
   stmt = ir::StorageFlatten(stmt, out_binds, 64,

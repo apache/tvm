@@ -206,6 +206,14 @@ Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size,
                     bool create_bound_attribute = false);
+/*!
+ * \brief Verify if there is any argument bound to compact buffer.
+ *
+ * \param stmt The stmt to be verified.
+ * \return true if there is any buffer_bind_scope attribute found,
+ *        otherwise, false.
+ */
+bool VerifyCompactBuffer(Stmt stmt);
 
 /*!
  * \brief Remove No Op from the Stmt.
