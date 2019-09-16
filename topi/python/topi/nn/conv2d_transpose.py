@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
 from __future__ import absolute_import as _abs
 import tvm
-
 from .dilate import dilate
 from .pad import pad
 from .util import get_pad_tuple
@@ -53,27 +52,44 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     """
     return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype)
 
-def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype):
-    """Implementation of conv2d transpose"""
+
+def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype):
+    """Preprocess data and kernel to make the compute pattern
+       of conv2d_transpose the same as conv2d"""
     batch, in_c, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides
-    # dilate stage
-    DilatedInput = dilate(data, [1, 1, stride_h, stride_w], name='DilatedInput')
-    # padding stage
+    # dilate data
+    data_dilate = dilate(data, [1, 1, stride_h, stride_w], name='data_dilate')
+    # pad data
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
     bpad_bottom = filter_h - 1 - fpad_bottom
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right
-    PaddedInput = pad(DilatedInput, \
-                        [0, 0, bpad_top, bpad_left], \
-                        [0, 0, bpad_bottom, bpad_right], \
-                        name='PaddedInput')
+    data_pad = pad(data_dilate, \
+                   [0, 0, bpad_top, bpad_left], \
+                   [0, 0, bpad_bottom, bpad_right], \
+                   name='data_pad')
+    # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
+    kernel_transform = tvm.compute((out_c, in_c, filter_h, filter_w), \
+                                    lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
+                                    name='kernel_transform')
+    return data_pad, kernel_transform
+
+
+def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype):
+    """Implementation of conv2d transpose"""
+    data_pad, kernel_transform = \
+        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype)
+    batch, in_c, in_h, in_w = data_pad.shape
+    out_c, _, filter_h, filter_w = kernel_transform.shape
+    stride_h, stride_w = strides
+
     # convolution stage
     out_c = simplify(out_c)
-    out_h = simplify((in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h)
-    out_w = simplify((in_w - 1) * stride_w - fpad_left - fpad_right + filter_w)
+    out_h = simplify(in_h - filter_h + 1)
+    out_w = simplify(in_w - filter_w + 1)
     dc = tvm.reduce_axis((0, in_c), name='dc')
     dh = tvm.reduce_axis((0, filter_h), name='dh')
     dw = tvm.reduce_axis((0, filter_w), name='dw')
@@ -81,8 +97,8 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype)
     Output = tvm.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
-            PaddedInput[b, dc, h+dh, w+dw].astype(out_dtype) *
-            kernel[dc, c, filter_h-1-dh, filter_w-1-dw].astype(out_dtype),
+            data_pad[b, dc, h+dh, w+dw].astype(out_dtype) *
+            kernel_transform[c, dc, dh, dw].astype(out_dtype),
             axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
 
     return Output
