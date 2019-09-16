@@ -164,8 +164,8 @@ LoweredFunc MakeAPI(Stmt body,
   }
 
   for (const auto& buf_arg : buf_defs) {
-     binder.BindDLTensor(buf_arg.first, device_type, device_id,
-                         buf_arg.second, buf_arg.second->name_hint);
+    binder.BindDLTensor(buf_arg.first, device_type, device_id,
+                        buf_arg.second, buf_arg.second->name_hint);
   }
 
   NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
