@@ -65,7 +65,7 @@ bool ConcatenateRel(const Array<Type>& types,
   const int ndim = static_cast<int>(first->shape.size());
   const DataType dtype = first->dtype;
 
-   // Sanity check: axis
+  // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
     throw relay::Error(RELAY_ERROR(
@@ -75,7 +75,7 @@ bool ConcatenateRel(const Array<Type>& types,
   }
   axis = axis < 0 ? ndim + axis : axis;
 
-   for (const Type& ele : tensor_tuple->fields) {
+  for (const Type& ele : tensor_tuple->fields) {
     if (ele.as<IncompleteTypeNode>()) {
       return false;
     }
@@ -98,7 +98,7 @@ bool ConcatenateRel(const Array<Type>& types,
     }
   }
 
-   // Calculate shape
+  // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
   IndexExpr &concat_dim = oshape[axis];
   bool has_any = false;
@@ -115,11 +115,11 @@ bool ConcatenateRel(const Array<Type>& types,
     }
   }
 
-   if (has_any) {
+  if (has_any) {
     concat_dim = Any::make();
   }
 
-   auto rtype = TensorTypeNode::make(oshape, dtype);
+  auto rtype = TensorTypeNode::make(oshape, dtype);
   reporter->Assign(types[1], rtype);
   return true;
 }
