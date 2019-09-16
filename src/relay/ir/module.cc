@@ -293,22 +293,7 @@ void ModuleNode::Import(const std::string& path) {
       std::istreambuf_iterator<char>(src_file),
       std::istreambuf_iterator<char>() };
     auto mod_to_import = FromText(file_contents, path);
-
-    // add type defs. we add them unchecked first, so all definitions can
-    // reference each other, independent of the order in which they were defined.
-    for (auto pair : mod_to_import->type_definitions) {
-      this->AddDefUnchecked(pair.first, pair.second);
-    }
-    for (auto pair : mod_to_import->type_definitions) {
-      this->UpdateDef(pair.first, pair.second);
-    }
-    // then add func defs in a similar fashion
-    for (auto pair : mod_to_import->functions) {
-      this->AddUnchecked(pair.first, pair.second);
-    }
-    for (auto pair : mod_to_import->functions) {
-      this->Update(pair.first, pair.second);
-    }
+    Update(mod_to_import);
   }
 }
 

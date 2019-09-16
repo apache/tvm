@@ -99,7 +99,7 @@ class ModuleNode : public RelayNode {
   /*!
    * \brief Add a type-level definition to the global environment.
    * \param var The var of the global type definition.
-   * \param type The type definition.
+   * \param type The ADT.
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
@@ -108,7 +108,7 @@ class ModuleNode : public RelayNode {
   /*!
    * \brief Add a type definition to the global environment.
    * \param var The name of the global function.
-   * \param func The function.
+   * \param type The ADT.
    * \param update Controls whether you can replace a definition in the
    * environment.
    *
@@ -126,7 +126,7 @@ class ModuleNode : public RelayNode {
   /*!
    * \brief Update a type definition in the global environment.
    * \param var The name of the global type definition to update.
-   * \param func The new function.
+   * \param type The new ADT.
    */
   TVM_DLL void UpdateDef(const GlobalTypeVar& var, const TypeData& type);
 
