@@ -25,11 +25,13 @@ from tvm.relay.op import op as reg
 from tvm.relay.op.op import OpPattern
 from tvm.relay.op.nn import _nn
 
-from .vta_conv2d import is_packed_layout
+from .util import is_packed_layout
 from ..environment import get_env
+
 
 # override to force partition at copy
 reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
+
 
 @reg.register_compute("clip", level=15)
 def compute_clip(attrs, inputs, output_type, target):
@@ -108,6 +110,48 @@ def schedule_conv2d(attrs, outs, target):
 
     # If VTA is not the target, default to _nn def
     return _nn.schedule_conv2d(attrs, outs, target)
+
+
+@reg.register_compute("nn.conv2d_transpose", level=15)
+def compute_conv2d_transpose(attrs, inputs, output_type, target):
+    """ 2D convolution algorithm.
+    """
+    padding = topi.util.get_const_tuple(attrs.padding)
+    strides = topi.util.get_const_tuple(attrs.strides)
+    dilation = tuple([int(d) for d in attrs.dilation])
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+
+    if target.device_name == "vta":
+        assert dilation == (1, 1), "support for dilation limited to (1, 1)"
+        if is_packed_layout(layout):
+            return [topi.nn.conv2d_transpose_nchw(
+                inputs[0], inputs[1], strides, padding, out_dtype)]
+        else:
+            # If it's not packed, run on ARM CPU
+            with tvm.target.arm_cpu(tvm.target.current_target().model):
+                return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
+
+    # If VTA is not the target, default to _nn def
+    return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
+
+
+@reg.register_schedule("nn.conv2d_transpose", level=15)
+def schedule_conv2d_transpose(attrs, outputs, target):
+    """ 2D convolution schedule.
+    """
+    layout = attrs.data_layout
+
+    if target.device_name == "vta":
+        if is_packed_layout(layout):
+            return topi.nn.schedule_conv2d_transpose_nchw(outputs)
+        else:
+            # If it's not packed, run on ARM CPU
+            with tvm.target.arm_cpu(tvm.target.current_target().model):
+                return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
+
+    # If VTA is not the target, default to _nn def
+    return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
 
 
 @reg.register_compute("nn.dense", level=15)

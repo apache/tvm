@@ -52,6 +52,9 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   tvm::Expr one(1);
   int i;
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
+    // TODO(@icemelon9): Need to revisit this part
+    const Variable* var1 = shape1[s1_size - i].as<Variable>();
+    const Variable* var2 = shape2[s2_size - i].as<Variable>();
     bh.all_vars.push_front(tvm::Var());
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
@@ -62,6 +65,16 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
       bh.common_shape.push_front(shape2[s2_size - i]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
+      bh.common_shape.push_front(shape1[s1_size - i]);
+      bh.vars1.push_front(bh.all_vars[0]);
+    } else if (var1 && var2) {
+      bh.common_shape.push_front(max(shape1[s1_size - i], shape2[s2_size - i]));
+      bh.vars1.push_front(bh.all_vars[0]);
+      bh.vars2.push_front(bh.all_vars[0]);
+    } else if (var1) {
+      bh.common_shape.push_front(shape2[s2_size - i]);
+      bh.vars2.push_front(bh.all_vars[0]);
+    } else if (var2) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
     } else {

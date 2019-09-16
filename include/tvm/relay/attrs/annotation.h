@@ -44,6 +44,19 @@ struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   }
 };
 
+/*!
+ * \brief Annotate an expression to be cast into specific data type.
+ */
+struct CastHintAttrs : public tvm::AttrsNode<CastHintAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(CastHintAttrs, "relay.attrs.CastHintAttrs") {
+    TVM_ATTR_FIELD(dtype)
+      .describe(
+         "The data type denoted to be cast.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ANNOTATION_H_

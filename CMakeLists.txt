@@ -28,6 +28,7 @@ tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_RPC "Build with RPC" ON)
+tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
@@ -45,6 +46,7 @@ tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
 tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
+tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
@@ -56,6 +58,7 @@ tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
+tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
 # include directories
@@ -65,6 +68,7 @@ include_directories(${DLPACK_PATH})
 include_directories(${DMLC_PATH})
 include_directories(${RANG_PATH})
 include_directories(${COMPILER_RT_PATH})
+include_directories(${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -89,15 +93,13 @@ if(MSVC)
     endforeach(flag_var)
   endif()
 else(MSVC)
-  include(CheckCXXCompilerFlag)
-  check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message("Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS} -rdynamic")
-    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS} -rdynamic")
+    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS} -rdynamic")
   else()
     set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     if (HIDE_PRIVATE_SYMBOLS)
       message("Hide private symbols...")
       set(CMAKE_C_FLAGS "-fvisibility=hidden ${CMAKE_C_FLAGS}")
@@ -130,10 +132,33 @@ file(GLOB COMPILER_SRCS
     src/schedule/*.cc
     )
 
-file(GLOB_RECURSE RELAY_SRCS
-    src/relay/*.cc
+file(GLOB_RECURSE RELAY_OP_SRCS
+    src/relay/op/*.cc
     )
-list(APPEND COMPILER_SRCS ${RELAY_SRCS})
+file(GLOB_RECURSE RELAY_PASS_SRCS
+    src/relay/pass/*.cc
+    )
+file(GLOB RELAY_BACKEND_SRCS
+    src/relay/backend/*.cc
+    src/relay/backend/vm/*.cc
+    )
+file(GLOB_RECURSE RELAY_IR_SRCS
+    src/relay/ir/*.cc
+    )
+file(GLOB_RECURSE RELAY_QNN_SRCS
+    src/relay/qnn/*.cc
+)
+list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
+
+if(USE_VM_PROFILER)
+  message(STATUS "Build compiler with Relay VM profiler support...")
+  file(GLOB BACKEND_VM_PROFILER_SRCS src/relay/backend/vm/profiler/*.cc)
+  list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
+endif(USE_VM_PROFILER)
 
 file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
@@ -197,6 +222,12 @@ if(USE_GRAPH_RUNTIME)
   endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
 
+if(USE_VM_PROFILER)
+  message(STATUS "Build with Relay VM profiler support...")
+  file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
+endif(USE_VM_PROFILER)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
@@ -211,9 +242,23 @@ include(cmake/modules/Micro.cmake)
 include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
+include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
+
+if(NOT MSVC)
+  include(CheckCXXCompilerFlag)
+  if(NOT USE_LLVM STREQUAL "OFF" AND TVM_LLVM_VERSION GREATER 91)
+    check_cxx_compiler_flag("-std=c++14"    SUPPORT_CXX14)
+    message(STATUS "Build with c++14")
+    set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+  else()
+    check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
+    message(STATUS "Build with c++11")
+    set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+  endif()
+endif()
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
@@ -232,6 +277,17 @@ if(NOT USE_SGX STREQUAL "OFF")
   install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
 endif()
 add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
+
+if(USE_THREADS)
+  message(STATUS "Build with thread support...")
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+  set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+  find_package(Threads REQUIRED)
+  target_link_libraries(tvm Threads::Threads)
+  target_link_libraries(tvm_topi Threads::Threads)
+  target_link_libraries(tvm_runtime Threads::Threads)
+  target_link_libraries(nnvm_compiler Threads::Threads)
+endif(USE_THREADS)
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})

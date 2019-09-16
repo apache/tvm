@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -33,7 +33,10 @@ namespace spirv {
 void IRBuilder::InitHeader() {
   CHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
-  header_.push_back(spv::Version);
+  // Use SPIR-V v1.0. This needs to be kept in sync (or at least behind)
+  // `VkApplicationInfo.apiVersion` in `vulkan.cc` to ensure Vulkan API
+  // validation passes.
+  header_.push_back(0x10000);
   // generator: set to 0, unknown
   header_.push_back(0U);
   // Bound: set during Finalize
@@ -522,17 +525,17 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
     }                                                             \
   }
 
-#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)               \
-  Value IRBuilder::_OpName(Value a, Value b) {                    \
-    CHECK_EQ(a.stype.id, b.stype.id);                             \
-    if (a.stype.type.is_int()) {                                   \
-      return MakeValue(spv::OpS ## _Op, a.stype, a, b);            \
-    } else if (a.stype.type.is_uint()) {                           \
-      return MakeValue(spv::OpU ## _Op, a.stype, a, b);            \
-    } else {                                                       \
-      CHECK(a.stype.type.is_float());                              \
-      return MakeValue(spv::OpF ## _Op, a.stype, a, b);            \
-    }                                                              \
+#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)   \
+  Value IRBuilder::_OpName(Value a, Value b) {        \
+    CHECK_EQ(a.stype.id, b.stype.id);                 \
+    if (a.stype.type.is_int()) {                      \
+      return MakeValue(spv::OpS##_Op, a.stype, a, b); \
+    } else if (a.stype.type.is_uint()) {              \
+      return MakeValue(spv::OpU##_Op, a.stype, a, b); \
+    } else {                                          \
+      CHECK(a.stype.type.is_float());                 \
+      return MakeValue(spv::OpF##_Op, a.stype, a, b); \
+    }                                                 \
   }
 
 DEFINE_BUILDER_BINARY_USIGN_OP(Add, Add);
@@ -552,21 +555,19 @@ Value IRBuilder::Mod(Value a, Value b) {
   }
 }
 
-
-#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                        \
-  Value IRBuilder:: _OpName(Value a, Value b) {                    \
-    CHECK_EQ(a.stype.id, b.stype.id);                              \
-    if (t_bool_.id == 0) {                                         \
-      t_bool_ = DeclareType(UInt(1));                              \
-    }                                                              \
-    if (a.stype.type.is_int()) {                                   \
-      return MakeValue(spv::OpS ## _Op, t_bool_, a, b);            \
-    } else if (a.stype.type.is_uint()) {                           \
-      return MakeValue(spv::OpU ## _Op, t_bool_, a, b);            \
-    } else {                                                       \
-      CHECK(a.stype.type.is_float());                              \
-      return MakeValue(spv::OpFOrd ## _Op, t_bool_, a, b);         \
-    }                                                              \
+#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                           \
+  Value IRBuilder::_OpName(Value a, Value b) {                                        \
+    CHECK_EQ(a.stype.id, b.stype.id);                                                 \
+    CHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
+    const auto& bool_type = this->GetSType(UInt(1).with_lanes(a.stype.type.lanes())); \
+    if (a.stype.type.is_int()) {                                                      \
+      return MakeValue(spv::OpS##_Op, bool_type, a, b);                               \
+    } else if (a.stype.type.is_uint()) {                                              \
+      return MakeValue(spv::OpU##_Op, bool_type, a, b);                               \
+    } else {                                                                          \
+      CHECK(a.stype.type.is_float());                                                 \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                            \
+    }                                                                                 \
   }
 
 DEFINE_BUILDER_CMP_OP(LT, LessThan);
@@ -574,18 +575,17 @@ DEFINE_BUILDER_CMP_OP(LE, LessThanEqual);
 DEFINE_BUILDER_CMP_OP(GT, GreaterThan);
 DEFINE_BUILDER_CMP_OP(GE, GreaterThanEqual);
 
-#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                       \
-  Value IRBuilder:: _OpName(Value a, Value b) {                    \
-    CHECK_EQ(a.stype.id, b.stype.id);                              \
-    if (t_bool_.id == 0) {                                         \
-      t_bool_ = DeclareType(UInt(1));                              \
-    }                                                              \
-    if (a.stype.type.is_int() || a.stype.type.is_uint()) {         \
-      return MakeValue(spv::OpI ## _Op, t_bool_, a, b);            \
-    } else {                                                       \
-      CHECK(a.stype.type.is_float());                              \
-      return MakeValue(spv::OpFOrd ## _Op, t_bool_, a, b);         \
-    }                                                              \
+#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                          \
+  Value IRBuilder::_OpName(Value a, Value b) {                                        \
+    CHECK_EQ(a.stype.id, b.stype.id);                                                 \
+    CHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
+    const auto& bool_type = this->GetSType(UInt(1).with_lanes(a.stype.type.lanes())); \
+    if (a.stype.type.is_int() || a.stype.type.is_uint()) {                            \
+      return MakeValue(spv::OpI##_Op, bool_type, a, b);                               \
+    } else {                                                                          \
+      CHECK(a.stype.type.is_float());                                                 \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                            \
+    }                                                                                 \
   }
 
 DEFINE_BUILDER_CMP_UOP(EQ, Equal);
@@ -593,7 +593,7 @@ DEFINE_BUILDER_CMP_UOP(NE, NotEqual);
 
 Value IRBuilder::Select(Value cond, Value a, Value b) {
   CHECK_EQ(a.stype.id, b.stype.id);
-  CHECK_EQ(cond.stype.type, UInt(1));
+  CHECK_EQ(cond.stype.type.element_of(), UInt(1));
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 

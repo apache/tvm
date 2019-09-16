@@ -101,3 +101,106 @@ def _sparse_dense_bsrmm(data, weight_data, weight_indices, weight_indptr):
         (m, num_blocks * bs_r),
         lambda m, n: bsrmm_block[m, n // bs_r, n % bs_r],
         tag="sparse_dense_bsrmm")
+
+@tvm.target.generic_func
+def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
+    """
+    Transpose a square sparse matrix,
+    `A` is an n-by-n sparse matrix in the CSR format.
+    ** Currently only support Square Matrices **
+
+    Parameters
+    ----------
+    sparse_data : tvm.Tensor
+        1-D with shape [nonzeros], dtype of 'float32'
+
+    sparse_indices : tvm.Tensor
+        1-D with shape [nonzeros], dtype of 'int32'
+
+    sparse_indptr : tvm.Tensor
+        1-D with shape [n+1], dtype of 'int32'
+
+    Returns
+    -------
+    out_data : tvm.Tensor
+        1-D with shape [nonzeros], dtype of 'float32'
+
+    out_indices : tvm.Tensor
+        1-D with shape [nonzeros], dtype of 'int32'
+
+    out_indptr : tvm.Tensor
+        1-D with shape [n+1], dtype of 'int32'
+    """
+    assert len(sparse_data.shape) == 1, "error in data dimension"
+    assert len(sparse_indices.shape) == 1, "error in indices dimension"
+    assert len(sparse_indptr.shape) == 1, "error in indptr dimension"
+
+    nnz = get_const_tuple(sparse_data.shape)[0]
+    n = get_const_tuple(sparse_indptr.shape)[0] - 1
+    output_shape = [(nnz,), (nnz,), (n+1,)]
+
+    # TODO: Add BSR transpose support
+
+    output_data, output_indices, output_indptr = tvm.extern(
+        shape=output_shape,
+        inputs=[sparse_data, sparse_indices, sparse_indptr],
+        fcompute=lambda ins, outs:
+        csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
+        tag="sparse_transpose_csr",
+        dtype=['float32', 'int32', 'int32'],
+        name='out')
+
+    return [output_data, output_indices, output_indptr]
+
+def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
+    """define ir for csr_transpose"""
+    irb = tvm.ir_builder.create()
+
+    data_ptr = irb.buffer_ptr(data)
+    indices_ptr = irb.buffer_ptr(indices)
+    indptr_ptr = irb.buffer_ptr(indptr)
+
+    out_data_ptr = irb.buffer_ptr(out_data)
+    out_indices_ptr = irb.buffer_ptr(out_indices)
+    out_indptr_ptr = irb.buffer_ptr(out_indptr)
+
+    n = get_const_tuple(indptr.shape)[0] - 1
+    nnz = get_const_tuple(data.shape)[0]
+
+    with irb.for_range(0, n, for_type="parallel", name='col') as col:
+        out_indptr_ptr[col] = 0
+
+    with irb.for_range(0, nnz, for_type="serial", name='nz_idx') as nz_idx:
+        out_indptr_ptr[indices_ptr[nz_idx]] += 1
+
+    cumsum = irb.allocate('int32', (1,), name='cumsum', scope='local')
+    temp = irb.allocate('int32', (1,), name='temp', scope='local')
+    cumsum[0] = 0
+    with irb.for_range(0, n, for_type="serial", name='col') as col:
+        temp[0] = out_indptr_ptr[col]
+        out_indptr_ptr[col] = cumsum[0]
+        cumsum[0] += temp[0]
+
+    out_indptr_ptr[n] = nnz
+
+    with irb.for_range(0, n, for_type="serial", name='row') as row:
+        offset = indptr_ptr[row]
+        diff = indptr_ptr[row+1] - indptr_ptr[row]
+        with irb.for_range(0, diff, for_type="serial", name='idx') as idx:
+            real_idx = offset + idx
+            col = indices_ptr[real_idx]
+            dest = out_indptr_ptr[col]
+
+            out_indices_ptr[dest] = row
+            out_data_ptr[dest] = data_ptr[real_idx]
+            out_indptr_ptr[col] += 1
+
+    last = irb.allocate('int32', (1,), name='last', scope='local')
+    temp2 = irb.allocate('int32', (1,), name='temp2', scope='local')
+    last[0] = 0
+    with irb.for_range(0, n, for_type="serial", name="col") as col:
+        temp2[0] = out_indptr_ptr[col]
+        out_indptr_ptr[col] = last[0]
+        last[0] = temp2[0]
+
+    return irb.get()

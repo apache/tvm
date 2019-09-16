@@ -81,7 +81,9 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
-            'SPLIT': self.convert_split
+            'SPLIT': self.convert_split,
+            'TRANSPOSE': self.convert_transpose,
+            'TILE': self.convert_tile
         }
 
     def check_unsupported_ops(self):
@@ -261,7 +263,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "BILINEAR":
+        if method == "bilinear":
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -279,11 +281,11 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("BILINEAR", op)
+        return self._convert_resize("bilinear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
-        return self._convert_resize("NEAREST_NEIGHBOR", op)
+        return self._convert_resize("nearest_neighbor", op)
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
@@ -621,8 +623,6 @@ class OperatorConverter(object):
             conv_options = DepthwiseConv2DOptions()
             conv_options.Init(op_options.Bytes, op_options.Pos)
             depth_multiplier = conv_options.DepthMultiplier()
-            assert depth_multiplier == 1, "TF frontend transforms it to be 1 regardless of what " \
-                                          "original value is set to 0.25, 0.5 or anything else"
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(conv_type))
@@ -634,11 +634,13 @@ class OperatorConverter(object):
         padding = conv_options.Padding()
         fused_activation_fn = conv_options.FusedActivationFunction()
 
-        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, input_c = input_tensor.tensor.ShapeAsNumpy()
 
         if is_depthwise_conv:
-            multiplier, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
-            assert multiplier == depth_multiplier
+            # TFLite depthwise convolution kernel layout is:
+            # 1 KH KW C(input_c * depth_multiplier)
+            _, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
+            assert in_channels == input_c * depth_multiplier
         else:
             output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
 
@@ -652,7 +654,7 @@ class OperatorConverter(object):
                   'data_layout': 'NHWC'}
 
         if is_depthwise_conv:
-            params['channels'] = int(in_channels * multiplier)
+            params['channels'] = int(in_channels)
             params['groups'] = int(in_channels)
             params['kernel_layout'] = 'HWOI'
         else:
@@ -667,9 +669,16 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         weight_value = self.get_tensor_value(weight_tensor)
 
-        # TFLite is OC/M KH KW IC, we require KH KW IC OC/M
-        # M means multiplier in depthwise convolution
-        weight_value = weight_value.transpose((1, 2, 3, 0))
+        # TFLite kernel layout:
+        # convolution:
+        # OC KH KW IC, we require KH KW IC OC (HWIO)
+        # depthwise convolution:
+        # 1 KH KW C(input_c * depth_multiplier), we require
+        # KH KW IC M (depth_multiplier) (HWOI)
+        if is_depthwise_conv:
+            weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+        else:
+            weight_value = weight_value.transpose((1, 2, 3, 0))
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
@@ -740,6 +749,53 @@ class OperatorConverter(object):
         if isinstance(out, _expr.TupleWrapper):
             if out.size == 1:
                 out = out[0]
+
+        return out
+
+    def convert_transpose(self, op):
+        """transpose implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # axis
+        in_axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        if not in_axis:
+            out = _op.transpose(in_expr)
+        else:
+            out = _op.transpose(in_expr, in_axis)
+
+        return out
+
+    def convert_tile(self, op):
+        """tile implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # reps (tuple of int) – The number of times repeating the tensor data.
+        reps = tuple(self.get_tensor_value(input_tensors[1]))
+
+        out = _op.tile(in_expr, reps)
 
         return out
 

@@ -24,7 +24,7 @@ import numpy as np
 tgt = "llvm"
 
 
-def setup():
+def setup_module():
     # You must first load the library containing the datatype implementation.
     # In this case, we have built the test functions used below right into TVM.
     # CDLL("libmybfloat16.so", RTLD_GLOBAL)
@@ -144,7 +144,7 @@ def test_bfloat_add_and_cast_FloatImm():
 
 
 if __name__ == "__main__":
-    setup()
+    setup_module()
     test_bfloat_add_and_cast_1()
     test_bfloat_add_and_cast_2()
     test_bfloat_add_and_cast_FloatImm()

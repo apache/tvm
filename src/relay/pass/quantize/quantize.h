@@ -59,104 +59,8 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   }
 };
 
-/*!
- * \brief TempExpr used during annotate forward rewrite.
- */
-class QAnnotateExpr;
-/*!
- * \brief TempExprNode used during annotate forward rewrite.
- */
-class QAnnotateExprNode : public TempExprNode {
- public:
-  /*! \brief The original expression */
-  Expr expr;
-  /*! \brief The kind of annotate field */
-  QAnnotateKind kind;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("expr", &expr);
-    v->Visit("kind", &kind);
-  }
-
-  TVM_DLL static QAnnotateExpr make(Expr expr, QAnnotateKind kind);
-
-  Expr Realize() const final;
-
-  static constexpr const char* _type_key = "relay.QAnnotateExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QAnnotateExprNode, TempExprNode);
-};
-
-RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
-
-
-/*!
- * \brief TempExpr used to insert `force_cast` for VTA.
- */
-class QVTAExpr;
-/*!
- * \brief TempExprNode used to insert `force_cast` for VTA.
- */
-class QVTAExprNode : public TempExprNode {
- public:
-  /*! \brief The original expression */
-  Expr expr;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("expr", &expr);
-  }
-
-  TVM_DLL static QVTAExpr make(Expr expr);
-
-  Expr Realize() const final;
-
-  static constexpr const char* _type_key = "relay.QVTAExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QVTAExprNode, TempExprNode);
-};
-
-RELAY_DEFINE_NODE_REF(QVTAExpr, QVTAExprNode, TempExpr);
-
-
-/*! \brief TempExpr used during realize forward rewrite. */
-class QRealizeExpr;
-/*! \brief TempExpr representing integer. */
-class QRealizeIntExpr;
-
-class QRealizeExprNode : public TempExprNode {
- public:
-  /*! \brief The original expression */
-  Expr data;
-  static constexpr const char* _type_key = "relay.quantize.QRealizeExpr";
-  TVM_DECLARE_BASE_NODE_INFO(QRealizeExprNode, TempExprNode);
-};
-
-RELAY_DEFINE_NODE_REF(QRealizeExpr, QRealizeExprNode, TempExpr);
-
-
-class QRealizeIntExprNode : public QRealizeExprNode {
- public:
-  Expr dom_scale;
-  /*! \brief current data type */
-  DataType dtype;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("data", &data);
-    v->Visit("dom_scale", &dom_scale);
-    v->Visit("dtype", &dtype);
-  }
-
-  Expr Realize() const final;
-
-  TVM_DLL static QRealizeIntExpr make(Expr data, Expr dom_scale, DataType dtype);
-
-  static constexpr const char * _type_key = "relay.quantize.QRealizeIntExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QRealizeIntExprNode, QRealizeExprNode);
-};
-
-RELAY_DEFINE_NODE_REF(QRealizeIntExpr, QRealizeIntExprNode, QRealizeExpr);
-
 
 class QConfig;
-
 /*!
 * \brief Container for build configuration options
 */
@@ -170,8 +74,8 @@ class QConfigNode : public Node {
   DataType dtype_activation = Int(32);
   double global_scale = 8.0;
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
+  bool do_simulation = false;
   bool round_for_shift = true;
-  bool store_lowbit_output = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
 
   void VisitAttrs(AttrVisitor* v) final {
@@ -183,8 +87,8 @@ class QConfigNode : public Node {
     v->Visit("dtype_activation", &dtype_activation);
     v->Visit("global_scale", &global_scale);
     v->Visit("skip_conv_layers", &skip_conv_layers);
+    v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
-    v->Visit("store_lowbit_output", &store_lowbit_output);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
   }
 
@@ -249,12 +153,6 @@ struct QConfigContext {
     QConfig::ExitQConfigScope();
   }
 };
-
-/*!
-* \brief Construct a BuildConfig containing a new BuildConfigNode
-* \return The new BuildConfig
-*/
-TVM_DLL QConfig qconfig();
 
 }  // namespace quantize
 }  // namespace relay

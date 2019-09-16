@@ -962,6 +962,7 @@ def test_binary_ops():
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
     verify_binary_ops("Greater", x, y, x > y, broadcast=True)
     verify_binary_ops("Less", x, y, x < y, broadcast=True)
+    verify_binary_ops("Equal", x, y, x == y, broadcast=True)
 
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
@@ -1082,8 +1083,11 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    shapes = { '0' : input_size }
-    expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
+    for target, ctx in ctx_list():
+        input_data = np.random.uniform(size=input_size).astype('int32')
+        c2_out = get_caffe2_output(onnx_model, input_data)
+        tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
+        tvm.testing.assert_allclose(c2_out, tvm_out)
 
 def test_resnet():
     check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
@@ -1115,6 +1119,90 @@ def test_inception():
 # TODO(@jroesch): Update Torch + ONNX to support this import.
 # def test_shufflenetv2():
 #     check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
+
+def test_sign():
+    def Sign_x(x):
+        return np.sign(x)
+    _test_onnx_op_elementwise((3, 4, 5, 6),
+                              Sign_x,
+                              {},
+                              'float32',
+                              'Sign',
+                              {})
+
+
+def verify_not(indata, dtype):
+    x = indata.astype(dtype)
+    outdata = np.logical_not(x)
+
+    node = helper.make_node('Not', inputs=['in'], outputs=['out'],)
+
+    graph = helper.make_graph([node],
+                              'not_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.BOOL, list(x.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='not_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_not():
+    # 2d
+    verify_not(indata=(np.random.randn(3, 4) > 0), dtype=bool)
+    # 3d
+    verify_not(indata=(np.random.randn(3, 4, 5) > 0), dtype=bool)
+    # 4d
+    verify_not(indata=(np.random.randn(3, 4, 5, 6) > 0), dtype=bool)
+
+
+def verify_and(indata, dtype):
+    x = indata[0].astype(dtype)
+    y = indata[1].astype(dtype)
+    outdata = np.logical_and(x, y)
+
+    node = helper.make_node('And', inputs=['in1', 'in2'], outputs=['out'], )
+
+    graph = helper.make_graph([node],
+                              'and_test',
+                              inputs=[helper.make_tensor_value_info("in1", TensorProto.BOOL, list(x.shape)),
+                                      helper.make_tensor_value_info("in2", TensorProto.BOOL, list(y.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='and_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x, y], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_and():
+    # 2d
+    x = (np.random.randn(3, 4) > 0)
+    y = (np.random.randn(3, 4) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(3, 4, 5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 4d
+    x = (np.random.randn(3, 4, 5, 6) > 0)
+    y = (np.random.randn(3, 4, 5, 6) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d vs 1d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d vs 2d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(4, 5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
 
 
 if __name__ == '__main__':
@@ -1159,3 +1247,6 @@ if __name__ == '__main__':
     test_resnet()
     test_inception()
     test_densenet()
+    test_sign()
+    test_not()
+    test_and()

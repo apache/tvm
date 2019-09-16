@@ -196,6 +196,7 @@ REGISTER_MAKE_BINARY_OP(_OpDiv, operator/);
 REGISTER_MAKE_BINARY_OP(_OpMod, operator%);
 REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
+REGISTER_MAKE_BINARY_OP(_OpPow, pow);
 REGISTER_MAKE_BINARY_OP(_OpMin, min);
 REGISTER_MAKE_BINARY_OP(_OpMax, max);
 REGISTER_MAKE_BINARY_OP(_OpEQ, operator==);
@@ -211,6 +212,10 @@ REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
 REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
+TVM_REGISTER_API("make._OpIfThenElse")
+.set_body_typed<Expr(Expr, Expr, Expr)>([] (Expr cond, Expr true_value, Expr false_value) {
+  return if_then_else(cond, true_value, false_value);
+});
 
 }  // namespace ir
 }  // namespace tvm

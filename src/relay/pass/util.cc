@@ -438,7 +438,11 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
    private:
     const tvm::Map<TypeVar, Type>& subst_map_;
   };
-  return TypeSubstMutator(subst_map).VisitExpr(expr);
+  CHECK(WellFormed(expr));
+  auto ret = TypeSubstMutator(subst_map).VisitExpr(expr);
+  CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
+  CHECK(WellFormed(ret));
+  return ret;
 }
 
 }  // namespace relay

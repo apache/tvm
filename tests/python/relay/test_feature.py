@@ -63,7 +63,8 @@ def test_ad():
         Feature.fLet,
         Feature.fRefCreate,
         Feature.fRefRead,
-        Feature.fRefWrite
+        Feature.fRefWrite,
+        Feature.fGraph
     ])
 
 

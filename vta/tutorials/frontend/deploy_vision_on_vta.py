@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Deploy Pretrained ResNet Model from MxNet on VTA
+Deploy Pretrained Vision Model from MxNet on VTA
 ================================================
 **Author**: `Thierry Moreau <https://homes.cs.washington.edu/~moreau/>`_
 
-This tutorial provides an end-to-end demo, on how to run ResNet-18 inference
-onto the VTA accelerator design to perform ImageNet classification tasks.
+This tutorial provides an end-to-end demo, on how to run ImageNet classification
+inference onto the VTA accelerator design to perform ImageNet classification tasks.
 It showcases Relay as a front end compiler that can perform quantization (VTA
 only supports int8/32 inference) as well as graph packing (in order to enable
 tensorization in the core) to massage the compute graph for the hardware target.
@@ -40,7 +40,7 @@ tensorization in the core) to massage the compute graph for the hardware target.
 
 from __future__ import absolute_import, print_function
 
-import argparse, json, os, requests, time
+import argparse, json, os, requests, sys, time
 from io import BytesIO
 from os.path import join, isfile
 from PIL import Image
@@ -53,6 +53,7 @@ import tvm
 from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_runtime, util, download
 from tvm.contrib.debugger import debug_runtime
+from tvm.relay import transform
 
 import vta
 from vta.testing import simulator
@@ -60,7 +61,6 @@ from vta.top import graph_pack
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.module.enabled("rpc")
-
 
 ######################################################################
 # Define the platform and model targets
@@ -75,13 +75,22 @@ env = vta.get_env()
 device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
+# Dictionary lookup for when to start/end bit packing
+pack_dict = {
+    "resnet18_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet34_v1": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet18_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet34_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet50_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+    "resnet101_v2": ["nn.max_pool2d", "nn.global_avg_pool2d"],
+}
+
 # Name of Gluon model to compile
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
 model = "resnet18_v1"
-start_pack="nn.max_pool2d"
-stop_pack="nn.global_avg_pool2d"
+assert model in pack_dict
 
 ######################################################################
 # Obtain an execution remote
@@ -125,7 +134,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 ######################################################################
 # Build the inference graph runtime
 # ---------------------------------
-# Grab ResNet-18 model from Gluon model zoo and compile with Relay.
+# Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
 #    1) Front end translation from MxNet into Relay module.
 #    2) Apply 8-bit quantization: here we skip the first conv layer,
@@ -140,7 +149,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
 
-    # Populate the shape and data type dictionary for ResNet input
+    # Populate the shape and data type dictionary for ImageNet classifier input
     dtype_dict = {"data": 'float32'}
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
@@ -157,21 +166,22 @@ with autotvm.tophub.context(target):
     shape_dict.update({k: v.shape for k, v in params.items()})
     dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
 
-    # Perform quantization in Relay
-    with relay.quantize.qconfig(global_scale=8.0,
-                                skip_conv_layers=[0]):
-        relay_prog = relay.quantize.quantize(mod["main"], params=params)
-
-    # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
+        # Perform quantization in Relay
+        with relay.quantize.qconfig(global_scale=8.0,
+                                    skip_conv_layers=[0]):
+            relay_prog = relay.quantize.quantize(mod["main"], params=params)
+        # Perform graph packing and constant folding for VTA target
         assert env.BLOCK_IN == env.BLOCK_OUT
         relay_prog = graph_pack(
             relay_prog,
             env.BATCH,
             env.BLOCK_OUT,
             env.WGT_WIDTH,
-            start_name=start_pack,
-            stop_name=stop_pack)
+            start_name=pack_dict[model][0],
+            stop_name=pack_dict[model][1])
+    else:
+        relay_prog = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
     with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
@@ -199,8 +209,8 @@ with autotvm.tophub.context(target):
     m = graph_runtime.create(graph, lib, ctx)
 
 ######################################################################
-# Perform ResNet-18 inference
-# ---------------------------
+# Perform image classification inference
+# --------------------------------------
 # We run classification on an image sample from ImageNet
 # We just need to download the categories files, `synset.txt`
 # and an input test image.
@@ -256,7 +266,6 @@ else:
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
 for b in range(env.BATCH):
     top_categories = np.argsort(tvm_output.asnumpy()[b])
-
     # Report top-5 classification results
     print("\n{} prediction for sample {}".format(model, b))
     print("\t#1:", synset[top_categories[-1]])
@@ -264,7 +273,6 @@ for b in range(env.BATCH):
     print("\t#3:", synset[top_categories[-3]])
     print("\t#4:", synset[top_categories[-4]])
     print("\t#5:", synset[top_categories[-5]])
-
     # This just checks that one of the 5 top categories
     # is one variety of cat; this is by no means an accurate
     # assessment of how quantization affects classification

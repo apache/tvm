@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,invalid-name
+# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
 """Bitserial conv2d schedule on arm cpu"""
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
+from tvm import relay
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc
+from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_legalize
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
@@ -81,11 +82,11 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
     ci, kh, kw = cfg.reduce_axis(CI_packed), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(activation_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, policy='all', num_outputs=2,
+    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
                               filter=lambda x: x.size[-1] == 8)
-    oh, vh = cfg.define_split('tile_oh', oh, policy='all', num_outputs=2,
+    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
                               filter=lambda x: x.size[-1] >= 2)
-    ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
+    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
                               filter=lambda x: x.size[-1] >= 2)
     ci_o, ci_i = cfg.define_split("tile_ci", ci, num_outputs=2,
                                   filter=lambda x: x.size[-1] == 8 or x.size[-1] == 16)
@@ -277,13 +278,13 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
         s[data_pad].compute_inline()
 
     _, h, _, _, _, _, _ = s[data_vec].op.axis
-    cfg.define_split("tile_ah", cfg.axis(h), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_ah", cfg.axis(h), num_outputs=2, max_factor=32)
     oh, ih = cfg["tile_ah"].apply(s, data_vec, h)
     s[data_vec].parallel(oh)
 
     #### Schedule kernel packing
     co, _, _, _, _, _ = s[kernel_vec].op.axis
-    cfg.define_split("tile_bco", cfg.axis(co), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_bco", cfg.axis(co), num_outputs=2, max_factor=32)
     oco, ico = cfg["tile_bco"].apply(s, kernel_vec, co)
     s[kernel_vec].parallel(oco)
 
@@ -350,3 +351,40 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
 
     traverse(outs[0].op)
     return s
+
+@bitserial_conv2d_legalize.register("arm_cpu")
+def _bitserial_conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Bitserial Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    # Fix different kernel layouts where possible.
+    if attrs['data_layout'] == 'NHWC':
+        data, kernel = inputs
+        if len(kernel.data.shape) == 4:
+            # HWIO layout is expected for NHWC input.
+            if attrs['kernel_layout'] == 'HWOI':
+                # Handle HWOI layout. This is common in TF depthwise conv2d graph.
+                kernel = relay.transpose(kernel, axes=(0, 1, 3, 2))
+            elif attrs['kernel_layout'] == 'OIHW':
+                kernel = relay.transpose(kernel, axes=(2, 3, 1, 0))
+            ## Set new attrs for the tranposed conv.
+            new_attrs = {k: attrs[k] for k in attrs.keys()}
+            new_attrs['kernel_layout'] = 'HWIO'
+
+            conv = relay.nn.bitserial_conv2d(data, kernel, **new_attrs)
+            return conv
+    return None

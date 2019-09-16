@@ -16,14 +16,11 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
-import os
 from .ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
 from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
-from .adt import PatternConstructor, PatternVar, PatternWildcard
-from .parser import fromtext
-__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
+from .adt import PatternConstructor, PatternVar, PatternWildcard, PatternTuple
 from .module import Module
 
 class Prelude:
@@ -239,18 +236,19 @@ class Prelude:
         self.zip = GlobalVar("zip")
         a = TypeVar("a")
         b = TypeVar("b")
-        nil_case = Clause(PatternConstructor(self.nil), self.nil())
         l1 = Var("l1")
         l2 = Var("l2")
         h1 = Var("h1")
         h2 = Var("h2")
         t1 = Var("t1")
         t2 = Var("t2")
-        inner_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h2), PatternVar(t2)]),
-                                 self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
-        outer_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h1), PatternVar(t1)]),
-                                 Match(l2, [nil_case, inner_cons_case]))
-        self.mod[self.zip] = Function([l1, l2], Match(l1, [nil_case, outer_cons_case]),
+        cons_case = Clause(PatternTuple([PatternConstructor(self.cons,
+                                                            [PatternVar(h1), PatternVar(t1)]),
+                                         PatternConstructor(self.cons,
+                                                            [PatternVar(h2), PatternVar(t2)])]),
+                           self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
+        nil_case = Clause(PatternWildcard(), self.nil())
+        self.mod[self.zip] = Function([l1, l2], Match(Tuple([l1, l2]), [cons_case, nil_case]),
                                       self.l(TupleType([a, b])), [a, b])
 
 
@@ -478,12 +476,10 @@ class Prelude:
         Parses the portions of the Prelude written in Relay's text format and adds
         them to the module.
         """
-        prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
-        with open(prelude_file) as prelude:
-            prelude = fromtext(prelude.read())
-            self.mod.update(prelude)
-            self.id = self.mod.get_global_var("id")
-            self.compose = self.mod.get_global_var("compose")
+        # TODO(@jroesch): we should remove this helper when we port over prelude
+        self.mod.import_from_std("prelude.rly")
+        self.id = self.mod.get_global_var("id")
+        self.compose = self.mod.get_global_var("compose")
 
 
     def __init__(self, mod=None):

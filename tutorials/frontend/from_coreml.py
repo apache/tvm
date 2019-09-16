@@ -18,7 +18,8 @@
 Compile CoreML Models
 =====================
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_, \
-            `Kazutaka Morita <https://github.com/kazum>`_
+            `Kazutaka Morita <https://github.com/kazum>`_, \
+            `Zhao Wu <https://github.com/FrozenGene>`_
 
 This article is an introductory tutorial to deploy CoreML models with Relay.
 
@@ -58,13 +59,15 @@ mlmodel = cm.models.MLModel(model_path)
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 img_path = download_testdata(img_url, 'cat.png', module='data')
 img = Image.open(img_path).resize((224, 224))
-x = np.transpose(img, (2, 0, 1))[np.newaxis, :]
+# Mobilenet.mlmodel's input is BGR format
+img_bgr = np.array(img)[:,:,::-1]
+x = np.transpose(img_bgr, (2, 0, 1))[np.newaxis, :]
 
 ######################################################################
 # Compile the model on Relay
 # ---------------------------
 # We should be familiar with the process right now.
-target = 'cuda'
+target = 'llvm'
 shape_dict = {'image': x.shape}
 
 # Parse CoreML model and convert into Relay computation graph
@@ -80,7 +83,7 @@ with relay.build_config(opt_level=3):
 # -------------------
 # The process is no different from other example
 from tvm.contrib import graph_runtime
-ctx = tvm.gpu(0)
+ctx = tvm.cpu(0)
 dtype = 'float32'
 m = graph_runtime.create(graph, lib, ctx)
 # set inputs
@@ -104,4 +107,5 @@ synset_name = 'imagenet1000_clsid_to_human.txt'
 synset_path = download_testdata(synset_url, synset_name, module='data')
 with open(synset_path) as f:
     synset = eval(f.read())
+# You should see the following result: Top-1 id 282 class name tiger cat
 print('Top-1 id', top1, 'class name', synset[top1])

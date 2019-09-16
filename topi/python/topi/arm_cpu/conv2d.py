@@ -18,10 +18,11 @@
 """Conv2D schedule for ARM CPU"""
 from __future__ import absolute_import as _abs
 
-import warnings
+import logging
 
 import tvm
 from tvm import autotvm
+from tvm import relay
 import tvm.contrib.nnpack
 
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform, \
@@ -31,8 +32,11 @@ from ..nn import dilate, pad, conv2d, conv2d_alter_layout, \
                  conv2d_winograd_without_weight_transform, \
                  conv2d_winograd_nnpack_without_weight_transform, \
                  depthwise_conv2d_nchw
+from ..nn import conv2d_legalize
 from ..nn.util import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
+
+logger = logging.getLogger('topi')
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['direct'])
 def conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
@@ -276,13 +280,15 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     s[conv].compute_at(s[last], ow)
 
     # mark parallel
-    s[last].parallel(co)
+    p = s[last].fuse(n, co)
+    s[last].parallel(p)
 
     if data_vec.op.name == 'data_vec_undilated':
-        _, h, _, _, _, _, _, _ = s[data_vec].op.axis
+        n, h, _, _, _, _, _, _ = s[data_vec].op.axis
     else:
-        _, h, _, _, _, _ = s[data_vec].op.axis
-    s[data_vec].parallel(h)
+        n, h, _, _, _, _ = s[data_vec].op.axis
+    p = s[data_vec].fuse(n, h)
+    s[data_vec].parallel(p)
 
     if kernel_vec.op.name == 'kernel_vec':
         co, _, _, _, _ = s[kernel_vec].op.axis
@@ -466,8 +472,9 @@ def _schedule_winograd(cfg, s, output, last):
     # output
     n, co, h, w = s[last].op.axis
     co, coi = cfg['tile_k'].apply(s, last, co)
-    s[M].compute_at(s[last], co)
-    s[last].parallel(co)
+    p = s[last].fuse(n, co)
+    s[M].compute_at(s[last], p)
+    s[last].parallel(p)
 
     MM = s.cache_read(M, 'global', [Y])
     m = get_const_int(V.shape[0]) + 1 - 3
@@ -670,7 +677,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
     if layout != 'NCHW':
         return None
     if dilation != (1, 1):
-        warnings.warn("Does not support weight pre-transform for dilated convolution.")
+        logger.warning("Does not support weight pre-transform for dilated convolution.")
         return None
 
     data, kernel = tinfos[0:2]
@@ -783,3 +790,48 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             # currently we only have contrib_spatial_pack and direct template
             # add more schedule templates.
             return None
+
+@conv2d_legalize.register("arm_cpu")
+def _conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    if attrs['data_layout'] == 'NHWC':
+        data, kernel = inputs
+        if attrs['kernel_layout'] == 'HWIO':
+            # Handle HWIO layout. This is common in TF graph.
+            kernel = relay.transpose(kernel, axes=(3, 2, 0, 1))
+        elif attrs['kernel_layout'] == 'HWOI':
+            # Handle HWOI layout. This is common in TF depthwise conv2d graph.
+            kernel = relay.transpose(kernel, axes=(2, 3, 0, 1))
+        elif attrs['kernel_layout'] != 'OIHW':
+            return None
+
+        logger.warning("Legalize arm_cpu - NHWC schedule absent. Inserting layout transforms to "
+                       + "fallback to NCHW. This can result in performance degradation.")
+        # Set new attrs for the tranposed conv.
+        new_attrs = {k: attrs[k] for k in attrs.keys()}
+        new_attrs['data_layout'] = 'NCHW'
+        new_attrs['kernel_layout'] = 'OIHW'
+
+        # Convert from NHWC to NCHW.
+        data = relay.transpose(data, axes=(0, 3, 1, 2))
+        conv = relay.nn.conv2d(data, kernel, **new_attrs)
+        # Convert back to original NHWC layout.
+        out = relay.transpose(conv, axes=(0, 2, 3, 1))
+        return out
+    return None

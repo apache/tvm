@@ -30,6 +30,20 @@ def rand(dtype='float32', *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
 
 
+def test_id():
+    x = relay.var("x", shape=[])
+    id = run_infer_type(relay.Function([x], x))
+    id_cps = run_infer_type(to_cps(id))
+
+
+def test_double():
+    t = relay.TypeVar("t")
+    x = relay.var("x", t)
+    f = relay.var("f", relay.FuncType([t], t))
+    double = run_infer_type(relay.Function([f, x], f(f(x)), t, [t]))
+    double_cps = run_infer_type(to_cps(double))
+
+
 # make sure cps work for recursion.
 def test_recursion():
     mod = relay.Module()

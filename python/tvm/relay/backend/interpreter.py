@@ -170,8 +170,8 @@ class Executor(object):
             return args
 
         if kwargs and not isinstance(expr, Function):
-            raise Exception("can only supply keyword parameters for a \
-                             relay.Function, found {0}".format(expr))
+            raise Exception("can only supply keyword parameters for a "
+                            "relay.Function, found {0}".format(expr))
 
         params = expr.params
         param_names = [p.name_hint for p in params]
@@ -182,16 +182,16 @@ class Executor(object):
             if i < num_of_args:
                 if kwargs.get(name):
                     raise Exception(
-                        "duplicate argument supplied in \
-                         both positional args (at position: {0}), \
-                         and keyword argument (with name: {1})".format(i, name))
+                        "duplicate argument supplied in "
+                        "both positional args (at position: {0}), "
+                        "and keyword argument (with name: {1})".format(i, name))
             else:
                 cargs.append(kwargs[name])
 
         if len(cargs) != len(params):
             raise Exception(
-                "insufficient arguments, expected" \
-                " {0}, provided {1}".format(len(cargs), len(params)))
+                "insufficient arguments, expected "
+                "{0}, provided {1}".format(len(cargs), len(params)))
 
         return tuple(cargs)
 
@@ -269,7 +269,6 @@ class Interpreter(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        self._intrp = _backend.CreateInterpreter(mod, ctx, target)
 
     def optimize(self):
         """Optimize functions in a module.
@@ -281,6 +280,7 @@ class Interpreter(Executor):
         """
         seq = transform.Sequential([transform.SimplifyInference(),
                                     transform.FuseOps(0),
+                                    transform.ToANormalForm(),
                                     transform.InferType()])
         return seq(self.mod)
 
@@ -313,5 +313,6 @@ class Interpreter(Executor):
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)
-            return self._intrp(opt_expr)
+            _intrp = _backend.CreateInterpreter(mod, self.ctx, self.target)
+            return _intrp(opt_expr)
         return _interp_wrapper

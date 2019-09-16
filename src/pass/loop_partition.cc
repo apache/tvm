@@ -226,8 +226,6 @@ class PartitionFinder : public IRVisitor {
 
  private:
   Expr InverseCond(const Expr& cond) {
-    // We expect most condition not to be of EQ or NE form.
-    // Currently we do not handle inversing EQ or NE.
     Expr inverse_cond;
     if (const LT* op = cond.as<LT>()) {
       // a < b -> a >= b
@@ -241,6 +239,12 @@ class PartitionFinder : public IRVisitor {
     } else if (const GE* op = cond.as<GE>()) {
       // a >= b -> a < b
       inverse_cond = LT::make(op->a, op->b);
+    } else if (const EQ* op = cond.as<EQ>()) {
+      // a == b -> a != b
+      inverse_cond = NE::make(op->a, op->b);
+      // a != b -> a == b
+    } else if (const NE* op = cond.as<NE>()) {
+      inverse_cond = EQ::make(op->a, op->b);
     }
     return inverse_cond;
   }

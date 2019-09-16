@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The scope builder interface """
+
+"""The scope builder interface."""
 from __future__ import absolute_import
 
 from . import expr as _expr

@@ -26,11 +26,13 @@ In this part of documentation, we share the rationale for the specific choices m
 
    runtime
    debugger
-   nnvm_json_spec
-   nnvm_overview
    hybrid_script
    relay_intro
    relay_add_op
+   relay_pass_infra
    relay_add_pass
+   virtual_machine
    codebase_walkthrough
    inferbound
+   nnvm_json_spec
+   nnvm_overview

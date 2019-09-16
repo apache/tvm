@@ -72,7 +72,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     if DOPAD:
         s[A0].compute_inline()
     batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
-    parallel_axis = s[A1].fuse(ic_chunk, ih)
+    parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
 
     # schedule kernel pack
@@ -117,7 +117,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
     oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
     s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    parallel_axis = s[O].fuse(oc_chunk, oh)
+    parallel_axis = s[O].fuse(batch, oc_chunk, oh)
     s[C].compute_at(s[O], parallel_axis)
     s[O].vectorize(oc_block)
 
@@ -135,7 +135,7 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
         batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
-        parallel_axis = s[A].fuse(ic_chunk, ih)
+        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
         s[A].parallel(parallel_axis)
 
     # schedule 5-D NCHW[x]c conv
@@ -194,7 +194,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
         batch, ic_chunk, ih, iw, _ = s[A].op.axis
-        parallel_axis = s[A].fuse(ic_chunk, ih)
+        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
         s[A].parallel(parallel_axis)
 
     # schedule 5-D NCHW[x]c conv

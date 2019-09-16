@@ -211,6 +211,22 @@ def exp(x):
     return call_pure_intrin(x.dtype, "exp", x)
 
 
+def erf(x):
+    """Take gauss error function of the input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "erf", x)
+
+
 def tanh(x):
     """Take hyperbolic tanh of input x.
 
@@ -419,7 +435,7 @@ def power(x, y):
     z : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "pow", x, y)
+    return _make._OpPow(convert(x), convert(y))
 
 
 def popcount(x):
@@ -482,12 +498,7 @@ def if_then_else(cond, t, f):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    t = convert(t)
-    f = convert(f)
-    cond = convert(cond)
-    if cond.dtype != "bool":
-        raise TypeError("The condition's data type has to be bool")
-    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+    return _make._OpIfThenElse(convert(cond), convert(t), convert(f))
 
 
 # Intrinsic rule related code

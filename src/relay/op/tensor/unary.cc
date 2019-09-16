@@ -85,6 +85,18 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
+
+RELAY_REGISTER_UNARY_OP("erf")
+.describe(R"code(Returns the error function value for input array, computed element-wise.
+
+.. math::
+   \erf(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::erf));
+
+
 RELAY_REGISTER_UNARY_OP("sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.
 
@@ -295,7 +307,9 @@ RELAY_REGISTER_OP("shape_of")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("ShapeOf", ShapeOfRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
+// Use kOpaque for shape_of op for now since it won't be performance critic,
+// and it makes things easier for dynamic shape func
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_support_level(10)

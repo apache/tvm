@@ -61,6 +61,10 @@ class TypeSolver::Reporter : public TypeReporterNode {
     location = ref;
   }
 
+  TVM_DLL Module GetModule() final {
+    return this->solver_->module_;
+  }
+
  private:
   /*! \brief The location to report unification errors at. */
   mutable NodeRef location;
@@ -289,30 +293,44 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
-        || op->type_params.size() != ftn->type_params.size()
         || op->type_constraints.size() != ftn->type_constraints.size()) {
       return Type(nullptr);
     }
 
-    // remap type vars so they match
-    Map<TypeVar, Type> subst_map;
-    for (size_t i = 0; i < op->type_params.size(); i++) {
-      subst_map.Set(ftn->type_params[i], op->type_params[i]);
+    // without loss of generality, suppose op->type_params.size() >= ftn->type_params.size().
+    if (op->type_params.size() < ftn->type_params.size()) {
+      return VisitType_(ftn, GetRef<FuncType>(op));
     }
 
-    auto ft1 = GetRef<FuncType>(op);
-    auto ft2 = Downcast<FuncType>(Bind(GetRef<FuncType>(ftn), subst_map));
+    // remap type vars so they match
+    Map<TypeVar, Type> subst_map;
+    tvm::Array<TypeVar> ft_type_params;
+    for (size_t i = 0; i < ftn->type_params.size(); ++i) {
+      subst_map.Set(op->type_params[i], ftn->type_params[i]);
+      ft_type_params.push_back(op->type_params[i]);
+    }
+
+    for (size_t i = ftn->type_params.size(); i < op->type_params.size(); ++i) {
+      subst_map.Set(op->type_params[i], IncompleteTypeNode::make(kType));
+    }
+
+    FuncType ft = FuncTypeNode::make(op->arg_types,
+                                     op->ret_type,
+                                     ft_type_params,
+                                     op->type_constraints);
+    auto ft1 = Downcast<FuncType>(Bind(ft, subst_map));
+    auto ft2 = GetRef<FuncType>(ftn);
 
     Type ret_type = Unify(ft1->ret_type, ft2->ret_type);
 
     std::vector<Type> arg_types;
-    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+    for (size_t i = 0; i < ft2->arg_types.size(); ++i) {
       Type arg_type = Unify(ft1->arg_types[i], ft2->arg_types[i]);
       arg_types.push_back(arg_type);
     }
 
     std::vector<TypeConstraint> type_constraints;
-    for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
+    for (size_t i = 0; i < ft1->type_constraints.size(); ++i) {
       Type unified_constraint = Unify(ft1->type_constraints[i],
                                       ft2->type_constraints[i]);
       const auto* tcn = unified_constraint.as<TypeConstraintNode>();
@@ -321,7 +339,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
-    return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+    return FuncTypeNode::make(arg_types, ret_type, ft2->type_params, type_constraints);
   }
 
   Type VisitType_(const RefTypeNode* op, const Type& tn) final {
@@ -512,10 +530,13 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver(const GlobalVar &current_func, ErrorReporter* err_reporter)
-  : reporter_(make_node<Reporter>(this)),
-    current_func(current_func),
-    err_reporter_(err_reporter) {
+TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module,
+                       ErrorReporter* err_reporter)
+    : reporter_(make_node<Reporter>(this)),
+      current_func(current_func),
+      err_reporter_(err_reporter),
+      module_(module) {
+  CHECK(module_.defined()) << "internal error: module must be defined";
 }
 
 // destructor
@@ -639,18 +660,22 @@ TVM_REGISTER_API("relay._analysis._test_type_solver")
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
-    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), err_reporter);
+    auto module = ModuleNode::make({}, {});
+    auto dummy_fn_name = GlobalVarNode::make("test");
+    module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
+    auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 
-    auto mod = [solver, err_reporter](std::string name) -> PackedFunc {
+    auto mod = [module, solver, err_reporter](std::string name) -> PackedFunc {
       if (name == "Solve") {
         return TypedPackedFunc<bool()>([solver]() {
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<Type(Type, Type)>([solver, err_reporter](Type lhs, Type rhs) {
+        return TypedPackedFunc<Type(Type, Type)>(
+          [module, solver, err_reporter](Type lhs, Type rhs) {
             auto res = solver->Unify(lhs, rhs, lhs);
             if (err_reporter->AnyErrors()) {
-              err_reporter->RenderErrors(ModuleNode::make({}, {}), true);
+              err_reporter->RenderErrors(module, true);
             }
             return res;
           });

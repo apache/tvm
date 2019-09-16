@@ -34,7 +34,7 @@ def verify_mxnet_frontend_impl(mx_symbol,
                                gluon_impl=False,
                                name=None,
                                dtype='float32'):
-    """Use name different from test to avoid let nose pick it up"""
+    """Use name different from test to avoid pytest picking it up"""
     if gluon_impl:
         def get_gluon_output(name, x):
             net = vision.get_model(name)
@@ -528,6 +528,8 @@ def test_forward_gather_nd():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 def test_forward_bilinear_resize():
     # add tests including scale_height and scale_width when mxnet is updated to version 1.5
@@ -712,6 +714,88 @@ def test_forward_sequence_mask():
     verify((5, 4, 3), False, 1.0, 1, 'float64', 'float64')
     verify((5, 4, 3, 2), True, 1.0, 0, 'float32', 'float32')
 
+def test_forward_contrib_div_sqrt_dim():
+    def verify(shape):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.contrib.div_sqrt_dim(mx.nd.array(x_np))
+        mx_sym = mx.sym.contrib.div_sqrt_dim(mx.sym.var("x"))
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4))
+    verify((3, 4, 5))
+
+def test_forward_batch_norm():
+    def verify(shape, axis=1, fix_gamma=False):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[axis])).astype("float32")
+        beta = np.random.uniform(size=(shape[axis])).astype("float32")
+        moving_mean = np.random.uniform(size=(shape[axis])).astype("float32")
+        moving_var = np.random.uniform(size=(shape[axis])).astype("float32")
+        ref_res = mx.nd.BatchNorm(mx.nd.array(x), mx.nd.array(gamma), mx.nd.array(beta),
+                                  mx.nd.array(moving_mean), mx.nd.array(moving_var),
+                                  axis=axis, use_global_stats=True, fix_gamma=fix_gamma)
+        mx_sym = mx.sym.BatchNorm(mx.sym.var("x"), mx.sym.var("gamma"),
+                                  mx.sym.var("beta"), mx.sym.var("mean"),
+                                  mx.sym.var("var"), axis=axis, use_global_stats=True,
+                                  fix_gamma=fix_gamma)
+
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape,
+                      "mean": moving_mean.shape, "var": moving_var.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        #print(mod)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta, moving_mean, moving_var)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((2, 3, 4, 5))
+    verify((2, 3, 4, 5), axis=0)
+    verify((2, 3, 4, 5), axis=-1)
+    verify((2, 3, 4, 5), fix_gamma=True)
+
+
+def test_forward_layer_norm():
+    def verify(shape, axis=-1):
+        x = np.random.uniform(size=shape).astype("float32")
+        gamma = np.random.uniform(size=(shape[axis])).astype("float32")
+        beta = np.random.uniform(size=(shape[axis])).astype("float32")
+        ref_res = mx.nd.LayerNorm(mx.nd.array(x), mx.nd.array(gamma), mx.nd.array(beta),
+                                  axis=axis)
+        mx_sym = mx.sym.LayerNorm(mx.sym.var("x"), mx.sym.var("gamma"),
+                                  mx.sym.var("beta"), axis=axis)
+        shape_dict = {"x": x.shape, "gamma": gamma.shape, "beta": beta.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, gamma, beta)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((2, 5))
+    verify((2, 5), axis=0)
+    verify((2, 5, 6))
+
+def test_forward_one_hot():
+    def verify(indices_shape, depth, on_value, off_value, dtype):
+        x = np.random.randint(0, 5, size=indices_shape)
+        ref_res = mx.nd.one_hot(mx.nd.array(x), depth, on_value, off_value, dtype)
+        mx_sym = mx.sym.one_hot(mx.sym.var("x"), depth, on_value, off_value, dtype)
+        shape_dict = {"x": x.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x.astype("float32"))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((3,), 3, 1, 0, "int32")
+    verify((3,), 3, 1.0, 0.0, "float32")
+    verify((2, 2), 5, 2, -2, "int32")
+    verify((2, 2), 5, 0.5, -0.5, "float32")
+    verify((3, 2, 4, 5), 6, 1, 0, "int32")
+    verify((3, 2, 4, 5), 6, 1.0, 0.0, "float32")
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -757,3 +841,7 @@ if __name__ == '__main__':
     test_forward_argsort()
     test_forward_topk()
     test_forward_sequence_mask()
+    test_forward_contrib_div_sqrt_dim()
+    test_forward_batch_norm()
+    test_forward_layer_norm()
+    test_forward_one_hot()

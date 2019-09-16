@@ -21,15 +21,28 @@ import os.path as osp
 from sys import platform
 
 def get_ext():
+    """Return shared library extension"""
     return ".dylib" if platform == "darwin" else ".so"
 
 def load_dll(dll):
+    """Load shared library
+
+    Parameters
+    ------------
+    dll : str
+        Path for shared library
+
+    Returns
+    ------------
+    The shared library
+    """
     try:
         return [ctypes.CDLL(dll, ctypes.RTLD_GLOBAL)]
     except OSError:
         return []
 
 def load_sw():
+    """Load all software shared libraries"""
     cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
     sw_libname = "libsw" + get_ext()
     sw_lib = osp.join(cur_path, "..", "build", sw_libname)
@@ -38,9 +51,9 @@ def load_sw():
 def init(hw_backend):
     """Init hardware and software shared library for accelerator
 
-     Parameters
-     ------------
-     hw_backend : str
+    Parameters
+    ------------
+    hw_backend : str
         Hardware backend can be verilog or chisel
 
     """
@@ -48,11 +61,12 @@ def init(hw_backend):
     hw_libname = "libhw" + get_ext()
     if hw_backend in ("verilog", "chisel"):
         hw_lib = osp.join(cur_path, "..", "hardware", hw_backend, "build", hw_libname)
-    m = tvm.module.load(hw_lib, "vta-tsim")
     load_sw()
+    m = tvm.module.load(hw_lib, "vta-tsim")
     f = tvm.get_global_func("tvm.vta.tsim.init")
     f(m)
 
 def load_module():
+    """Return driver function"""
     load_sw()
     return tvm.get_global_func("tvm.vta.driver")

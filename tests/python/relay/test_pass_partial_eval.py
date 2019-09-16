@@ -123,7 +123,7 @@ def test_ad():
     body = relay.Let(x1, o, body)
     expected = Function([d], relay.Let(x, m, body))
     expected = run_opt_pass(expected, transform.InferType())
-    assert alpha_equal(g, expected)
+    assert_alpha_equal(g, expected)
 
 
 def test_if_ref():
@@ -311,10 +311,36 @@ def test_concat():
     x = Var("x", t)
     y = Var("x", t)
     orig = run_infer_type(Function([x, y], op.concatenate([x, y], axis=0)))
-    assert_alpha_equal(orig, dcpe(orig))
+    assert_alpha_equal(dcpe(orig), orig)
+
+
+def test_triangle_number():
+    t = relay.TensorType([], "int32")
+    x = Var("x", t)
+    f_var = Var("f")
+    f = Function([x], If(op.equal(x, const(0)), const(0), x + f_var(x - const(1))))
+    orig = run_infer_type(Let(f_var, f, f_var(const(10))))
+    assert_alpha_equal(dcpe(orig), const(55))
+
+
+def test_nat_update():
+    m = Module()
+    p = Prelude(m)
+    add_nat_definitions(p)
+    m = transform.ToANormalForm()(m)
+    transform.PartialEvaluate()(m)
+
+
+def test_tuple_match():
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+    assert_alpha_equal(dcpe(x), const(2))
 
 
 if __name__ == '__main__':
+    test_nat_update()
     test_ref()
     test_tuple()
     test_empty_ad()
@@ -332,3 +358,5 @@ if __name__ == '__main__':
     test_global_match_nat_id()
     test_match_nat_id()
     test_concat()
+    test_triangle_number()
+    test_tuple_match()

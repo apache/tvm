@@ -87,6 +87,7 @@ ALLOW_FILE_NAME = {
     ".clang-format",
     ".gitmodules",
     "CODEOWNERS",
+    ".scalafmt.conf",
    }
 
 # List of specific files allowed in relpath to <proj_root>

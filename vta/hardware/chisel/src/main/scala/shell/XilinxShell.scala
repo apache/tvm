@@ -20,7 +20,7 @@
 package vta.shell
 
 import chisel3._
-import chisel3.experimental.{RawModule, withClockAndReset}
+import chisel3.experimental.{withClockAndReset, RawModule}
 import vta.util.config._
 import vta.interface.axi._
 
@@ -39,7 +39,9 @@ class XilinxShell(implicit p: Parameters) extends RawModule {
   val m_axi_gmem = IO(new XilinxAXIMaster(mp))
   val s_axi_control = IO(new XilinxAXILiteClient(hp))
 
-  val shell = withClockAndReset (clock = ap_clk, reset = ~ap_rst_n) { Module(new VTAShell) }
+  val shell = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
+    Module(new VTAShell)
+  }
 
   // memory
   m_axi_gmem.AWVALID := shell.io.mem.aw.valid

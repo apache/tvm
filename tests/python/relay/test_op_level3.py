@@ -17,11 +17,11 @@
 """ Support level3 operator test cases.
 """
 import numpy as np
-from nose.tools import raises
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, check_grad
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -220,8 +220,7 @@ def test_squeeze_infer_type():
     assert yy.checked_type == relay.TensorType(
         (4,), "float32")
 
-
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_squeeze_bad_axes_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
@@ -247,6 +246,7 @@ def test_reshape():
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
         func = relay.Function([x], z)
+        check_grad(func)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
         for target, ctx in ctx_list():
@@ -682,7 +682,8 @@ def test_gather_nd():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
     verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
-
+    verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
+    verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 if __name__ == "__main__":
     test_arange()

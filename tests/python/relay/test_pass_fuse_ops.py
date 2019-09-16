@@ -512,6 +512,47 @@ def test_fuse_parallel_injective():
     assert relay.analysis.alpha_equal(zz, after)
 
 
+def test_immutable():
+    """Verify the fusion pass won't change original module."""
+    def before():
+        x = relay.var("x", shape=(10, 20))
+        y = relay.add(x, relay.const(1, "float32"))
+        z = relay.exp(y)
+        w = relay.squeeze(z)
+        mod = relay.module.Module()
+        mod["main"] = relay.Function([x], w)
+        return mod
+
+    def expected():
+        x = relay.var("p", shape=(10, 20))
+        y = relay.add(x, relay.const(1, "float32"))
+        z = relay.exp(y)
+        w = relay.squeeze(z)
+        f1 = relay.Function([x], w)
+        x = relay.var("x", shape=(10, 20))
+        y = relay.Call(f1, [x])
+        mod = relay.module.Module()
+        mod["main"] = relay.Function([x], y)
+        return mod
+
+    mod = before()
+    new_mod = transform.FuseOps(fuse_opt_level=2)(mod)
+    assert relay.analysis.alpha_equal(mod, before())
+    assert relay.analysis.alpha_equal(new_mod, expected())
+
+
+def test_split():
+    """Test that the result is well formed."""
+    x = relay.var("x", shape=(6, 9))
+    y = relay.split(x, 3).astuple()
+    a = relay.TupleGetItem(y, 0)
+    b = relay.TupleGetItem(y, 1)
+    c = relay.TupleGetItem(y, 2)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
+    mod = transform.FuseOps()(mod)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -525,3 +566,5 @@ if __name__ == "__main__":
     test_tuple_consecutive()
     test_inception_like()
     test_fuse_parallel_injective()
+    test_immutable()
+    test_split()

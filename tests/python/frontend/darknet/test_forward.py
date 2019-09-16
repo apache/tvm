@@ -189,6 +189,18 @@ def test_forward_resnet50():
     verify_darknet_frontend(net)
     LIB.free_network(net)
 
+def test_forward_resnext50():
+    '''test resnet50 model'''
+    model_name = 'resnext50'
+    cfg_name = model_name + '.cfg'
+    weights_name = model_name + '.weights'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
+    verify_darknet_frontend(net)
+    LIB.free_network(net)
+
+
 def test_forward_yolov2():
     '''test yolov2 model'''
     model_name = 'yolov2'
@@ -441,6 +453,7 @@ def test_forward_rnn():
 
 if __name__ == '__main__':
     test_forward_resnet50()
+    test_forward_resnext50()
     test_forward_alexnet()
     test_forward_extraction()
     test_forward_yolov2()

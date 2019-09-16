@@ -4,7 +4,9 @@ from . import bitpack
 from .graphpack import graph_pack
 from . import op
 from . import vta_conv2d
+from . import vta_conv2d_transpose
 from . import vta_dense
+from . import util
 
 # NNVM is deprecated for VTA
 # from . import nnvm_bitpack

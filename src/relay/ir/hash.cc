@@ -389,6 +389,14 @@ class RelayHashHandler:
     return hash;
   }
 
+  size_t VisitPattern_(const PatternTupleNode* ptn) final {
+    size_t hash = std::hash<std::string>()(PatternTupleNode::_type_key);
+    for (const auto& p : ptn->patterns) {
+      hash = Combine(hash, PatternHash(p));
+    }
+    return hash;
+  }
+
   size_t VisitPattern_(const PatternVarNode* pvn) final {
     size_t hash = std::hash<std::string>()(PatternVarNode::_type_key);
     hash = Combine(hash, BindVar(pvn->var));

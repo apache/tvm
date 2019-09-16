@@ -29,6 +29,8 @@
 
 #include "codegen_spirv.h"
 #include "../build_common.h"
+
+#include "../../runtime/vulkan/vulkan_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 
 namespace tvm {
