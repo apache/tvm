@@ -65,23 +65,7 @@ bool ConcatenateRel(const Array<Type>& types,
   const int ndim = static_cast<int>(first->shape.size());
   const DataType dtype = first->dtype;
 
-  for (const Type& ele : tensor_tuple->fields) {
-    if (ele.as<IncompleteTypeNode>()) {
-      return false;
-    }
-
-    const auto& e = Downcast<TensorType>(ele);
-
-    int e_ndim = static_cast<int>(e->shape.size());
-    const DataType& e_dtype = e->dtype;
-    if (e_ndim != ndim) {
-      throw relay::Error("relay.concatenate requires all tensors have the same ndim");
-    }
-    if (e_dtype != dtype) {
-      throw relay::Error("relay.concatenate requires all tensors have the same dtype");
-    }
-  }
-  // Sanity check: axis
+   // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
     throw relay::Error(RELAY_ERROR(
@@ -90,7 +74,31 @@ bool ConcatenateRel(const Array<Type>& types,
       ", and ndim = " << ndim));
   }
   axis = axis < 0 ? ndim + axis : axis;
-  // Calculate shape
+
+   for (const Type& ele : tensor_tuple->fields) {
+    if (ele.as<IncompleteTypeNode>()) {
+      return false;
+    }
+
+     const auto& e = Downcast<TensorType>(ele);
+
+     int e_ndim = static_cast<int>(e->shape.size());
+    const DataType& e_dtype = e->dtype;
+    if (e_ndim != ndim) {
+      throw relay::Error("relay.concatenate requires all tensors have the same ndim");
+    }
+    if (e_dtype != dtype) {
+      throw relay::Error("relay.concatenate requires all tensors have the same dtype");
+    }
+    for (size_t j = 0; j < first->shape.size(); ++j) {
+      if (j == static_cast<size_t>(axis)) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw relay::Error("relay.concatenate requires all tensors have the same shape "
+                         "on non-concatenating axes");
+    }
+  }
+
+   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
   IndexExpr &concat_dim = oshape[axis];
   bool has_any = false;
@@ -107,11 +115,11 @@ bool ConcatenateRel(const Array<Type>& types,
     }
   }
 
-  if (has_any) {
+   if (has_any) {
     concat_dim = Any::make();
   }
 
-  auto rtype = TensorTypeNode::make(oshape, dtype);
+   auto rtype = TensorTypeNode::make(oshape, dtype);
   reporter->Assign(types[1], rtype);
   return true;
 }
