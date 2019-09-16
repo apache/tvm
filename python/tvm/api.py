@@ -582,7 +582,7 @@ def decl_buffer(shape,
     buffer_type: str, optional, {"", "auto_broadcast"}
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
-        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
+        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
 
     Returns
     -------
@@ -601,8 +601,8 @@ def decl_buffer(shape,
         A = tvm.placeholder((m0, m1, m2), name='A')
         B = tvm.placeholder((n0, n1, n2), name='B')
         C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
-        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="broadcast")
-        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="broadcast")
+        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
         s = tvm.create_schedule(C.op)
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
         ctx = tvm.cpu(0)
