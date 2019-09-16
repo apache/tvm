@@ -29,6 +29,7 @@ def test_buffer():
     assert Ab.dtype == tvm.float32
     assert tuple(Ab.shape) == (m, n)
 
+
 def test_buffer_access_ptr():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -39,6 +40,7 @@ def test_buffer_access_ptr():
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("w")
     assert aptr.args[4].value == Buffer.WRITE
+
 
 def test_buffer_access_ptr_offset():
     m = tvm.var('m')
@@ -58,6 +60,7 @@ def test_buffer_access_ptr_offset():
     assert tvm.ir_pass.Equal(offset, tvm.call_extern('int32', "test_call", 200 + v))
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
 
+
 def test_buffer_access_ptr_extent():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -70,6 +73,7 @@ def test_buffer_access_ptr_extent():
     aptr = Ab.access_ptr("rw", offset=100)
     assert tvm.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m - 100)
 
+
 def test_buffer_vload():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -77,6 +81,7 @@ def test_buffer_vload():
     load = Ab.vload([2, 3])
     offset = tvm.ir_pass.Simplify(load.index)
     assert tvm.ir_pass.Equal(offset, n * 2 + 103)
+
 
 def test_buffer_index_merge_mult_mod():
     m = tvm.var('m')
@@ -109,6 +114,7 @@ def test_buffer_index_merge_mult_mod():
     index_direct = A.vload((0, ((k0 % (k1 / s)) / n) * n + ((k0 % (k1 / n)) % n + (k0 % k1))))
     assert_simplified_equal(index_simplified, index_direct)
 
+
 def test_buffer_broadcast():
     m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
     n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
@@ -137,6 +143,48 @@ def test_buffer_broadcast():
     check()
 
 
+def test_bbuffer_roadcast_expr():
+    n0, m0, x = tvm.var('n0'), tvm.var('m0'), tvm.var('x')
+    n1, m1 = tvm.var('n1'), tvm.var('m1')
+    o0, o1 = tvm.var('o0'), tvm.var('o1')
+
+    A = tvm.placeholder((m0, n0), name='A')
+    B = tvm.placeholder((m1, n1), name='B')
+    C = tvm.compute((o0, o1/x), lambda i, j: A[i, j] + B[i, j], name='C')
+
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
+    Cc = tvm.decl_buffer(C.shape, C.dtype, name="Cc", buffer_type="auto_broadcast")
+    s = tvm.create_schedule(C.op)
+
+    def check_stride():
+        if not tvm.module.enabled("llvm"):
+            return
+        fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
+                         binds={A:Ab, B:Bb, C:Cc})
+        ctx = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), ctx)
+        fadd(a, b, c, 4, 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+    def check_no_stride():
+        if not tvm.module.enabled("llvm"):
+            return
+        fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
+                         binds={A: Ab, B: Bb, C: Cc})
+        ctx = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(1, 4)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), ctx)
+        fadd(a, b, c, 4, 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+    check_stride()
+    check_no_stride()
+
+
 if __name__ == "__main__":
     test_buffer()
     test_buffer_access_ptr()
@@ -145,3 +193,4 @@ if __name__ == "__main__":
     test_buffer_vload()
     test_buffer_index_merge_mult_mod()
     test_buffer_broadcast()
+    test_buffer_broadcast_expr()
