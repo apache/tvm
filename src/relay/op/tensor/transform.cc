@@ -239,6 +239,16 @@ bool ConcatenateRel(const Array<Type>& types,
   const int ndim = static_cast<int>(first->shape.size());
   const DataType dtype = first->dtype;
 
+  // Sanity check: axis
+  int axis = param->axis;
+  if (!(-ndim <= axis && axis < ndim)) {
+    throw relay::Error(RELAY_ERROR(
+      "concatenate only accepts `axis` in [-ndim, ndim)" <<
+      ", but got axis = " << axis <<
+      ", and ndim = " << ndim));
+  }
+  axis = axis < 0 ? ndim + axis : axis;
+
   for (const Type& ele : tensor_tuple->fields) {
     if (ele.as<IncompleteTypeNode>()) {
       return false;
@@ -255,21 +265,13 @@ bool ConcatenateRel(const Array<Type>& types,
       throw relay::Error("relay.concatenate requires all tensors have the same dtype");
     }
     for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == static_cast<size_t>(param->axis)) continue;
+      if (j == axis) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
       throw relay::Error("relay.concatenate requires all tensors have the same shape "
                          "on non-concatenating axes");
     }
   }
-  // Sanity check: axis
-  int axis = param->axis;
-  if (!(-ndim <= axis && axis < ndim)) {
-    throw relay::Error(RELAY_ERROR(
-      "concatenate only accepts `axis` in [-ndim, ndim)" <<
-      ", but got axis = " << axis <<
-      ", and ndim = " << ndim));
-  }
-  axis = axis < 0 ? ndim + axis : axis;
+
   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
   IndexExpr &concat_dim = oshape[axis];
@@ -386,8 +388,17 @@ bool StackRel(const Array<Type>& types,
   }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
-  // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
+
+  // Sanity check: axis
+  int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  axis = axis < 0 ? ndim + axis + 1 : axis;
+
+  // Sanity check: ndim and dtype.
   const DataType dtype = first->dtype;
   for (const Type& ele : tensor_tuple->fields) {
     const auto& e = Downcast<TensorType>(ele);
@@ -396,19 +407,13 @@ bool StackRel(const Array<Type>& types,
     CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
     for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == static_cast<size_t>(param->axis)) continue;
+      if (j == axis) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
       throw relay::Error("relay.stack requires all tensors have the same shape "
                          "on non-stacking axes");
     }
   }
-  // Sanity check: axis
-  int axis = param->axis;
-  CHECK(-ndim <= axis && axis < ndim)
-    << "stack only accepts `axis` in [-ndim, ndim)"
-    << ", but got axis = " << axis
-    << ", and ndim = " << ndim;
-  axis = axis < 0 ? ndim + axis + 1 : axis;
+
   // Calculate shape
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim + 1);
