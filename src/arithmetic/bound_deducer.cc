@@ -23,6 +23,7 @@
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/expr.h>
+#include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/arithmetic.h>
@@ -149,7 +150,29 @@ class BoundDeducer: public IRVisitor {
     // always use relax bound
     bool divided = analyzer_.CanProve(result_ % operand == 0);
 
-    result_ = result_ / operand;
+    /*
+     * If both sides are convertible to int constant, then
+     * use floordiv and evaluate the new constant.
+     * This particularly is useful for bound check for conditions on
+     * loop itervars. e.g., an expr like -5/8 should not evaluate to
+     * zero because that indicate that the loop iter var can take on
+     * value of 0 in loop_partition.cc.
+     * TODO: On the other hand, under what conditions floordiv is not
+     * desirable for int constant and you want round towards zero
+     * result?
+     */
+    auto dividend = analyzer_.Simplify(result_);
+    auto divisor = analyzer_.Simplify(operand);
+    auto* dividend_const_value_ptr = as_const_int(dividend);
+    auto* divisor_const_value_ptr = as_const_int(divisor);
+    if (dividend_const_value_ptr && divisor_const_value_ptr) {
+      auto int_bound = analyzer_.const_int_bound(floordiv(dividend, divisor));
+      CHECK_EQ(int_bound->min_value, int_bound->max_value);
+      result_ = Expr(static_cast<int32_t>(int_bound->min_value));
+    }
+    else {
+      result_ = result_ / operand;
+    }
 
     if (!divided) {
       // Handle non-divisible case
