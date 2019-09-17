@@ -41,7 +41,7 @@ class StrAttrsDict(object):
     def __init__(self, attrs):
         self.attrs = attrs
 
-    def is_attr_present(self, key):
+    def has_attr(self, key):
         """Checks if a attribute is present in the map.
 
         Parameters

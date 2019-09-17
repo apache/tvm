@@ -19,12 +19,12 @@ from tvm.relay.frontend.common import StrAttrsDict
 
 def test_key_is_present():
     attrs = StrAttrsDict({"a": 1})
-    assert attrs.is_attr_present("a")
+    assert attrs.has_attr("a")
 
 
 def test_key_is_not_present():
     attrs = StrAttrsDict({"a": 1})
-    assert not attrs.is_attr_present("b")
+    assert not attrs.has_attr("b")
 
 
 if __name__ == '__main__':
