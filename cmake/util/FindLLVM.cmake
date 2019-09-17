@@ -49,13 +49,29 @@ macro(find_llvm use_llvm)
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
     separate_arguments(LLVM_CONFIG)
     execute_process(COMMAND ${LLVM_CONFIG} --libfiles
+      RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_libfiles)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libfiles")
+    endif()
     execute_process(COMMAND ${LLVM_CONFIG} --system-libs
+      RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_system_libs)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --system-libs")
+    endif()
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
+      RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_cxxflags)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --cxxflags")
+    endif()
     execute_process(COMMAND ${LLVM_CONFIG} --version
+      RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_version)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --version")
+    endif()
     # llvm version
     string(REGEX REPLACE "^([^.]+)\.([^.])+\.[^.]+.*$" "\\1\\2" TVM_LLVM_VERSION ${__llvm_version})
     # definitions
