@@ -71,7 +71,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (tvm::ir::Equal(param->channels, param->groups)) {
+    if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_nchw[1], param->groups / dshape_nchw[1], param->kernel_size[0],
                  param->kernel_size[1]}};

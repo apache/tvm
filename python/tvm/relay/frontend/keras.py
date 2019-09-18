@@ -395,7 +395,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
 def _convert_upsample(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
-    params = {'layout': 'NHWC'}
+    params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
         params['scale'] = h
