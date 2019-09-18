@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rewrite_simplify.h
  * \brief Rewrite-rule based simplification.
  */
@@ -31,6 +30,7 @@
 #include <unordered_map>
 #include "const_fold.h"
 #include "pattern_match.h"
+#include "ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {
@@ -42,10 +42,12 @@ using namespace ir;
  *
  * This class can be inheritated for other simplifiers.
  */
-class RewriteSimplifier::Impl : public IRMutator {
+class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::Mutate_;
+
   explicit Impl(Analyzer* parent)
-      : parent_(parent) {}
+      : IRMutatorWithAnalyzer(parent) {}
 
   void Update(const Var& var, const Expr& info, bool override);
   Expr Mutate_(const Add* op, const Expr& self) override;
@@ -68,7 +70,6 @@ class RewriteSimplifier::Impl : public IRMutator {
   Expr Mutate_(const Not* op, const Expr& self) override;
   Expr Mutate_(const Select* op, const Expr& self) override;
   Expr Mutate_(const Call* op, const Expr& self) override;
-  Expr Mutate_(const Let* op, const Expr& self) override;
   Expr Mutate_(const Variable* op, const Expr& self) override;
   Expr Mutate_(const Cast* op, const Expr& self) override;
 
@@ -83,8 +84,6 @@ class RewriteSimplifier::Impl : public IRMutator {
     kLE,
     kNE
   };
-  // reference to the main analyzer
-  Analyzer* parent_;
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
@@ -103,7 +102,7 @@ class RewriteSimplifier::Impl : public IRMutator {
  private:
   // Whether x >= val
   bool CanProveGreaterEqual(const Expr& x, int64_t val) {
-    return parent_->CanProveGreaterEqual(x, val);
+    return analyzer_->CanProveGreaterEqual(x, val);
   }
   // Whether x == val
   bool CanProveEqual(const Expr& x, int64_t val) {

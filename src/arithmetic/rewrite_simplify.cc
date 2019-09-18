@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rewrite_simplify.cc
  * \brief Rewrite-rule based simplification.
  */
@@ -80,7 +79,7 @@ TryCompare(const Expr& x, int64_t val) {
       return kLT;
     }
   }
-  ConstIntBound dbound = parent_->const_int_bound(diff);
+  ConstIntBound dbound = analyzer_->const_int_bound(diff);
   if (dbound->min_value > val) {
     return kGT;
   }
@@ -94,7 +93,7 @@ TryCompare(const Expr& x, int64_t val) {
     return kLE;
   }
   if (val == 0) {
-    ModularSet dmod = parent_->modular_set(diff);
+    ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
       return kNE;
     }
@@ -490,7 +489,7 @@ Mutate_(const Div* op, const Expr& self) {
       }
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
-        ModularSet bmod = parent_->modular_set(b1.Eval());
+        ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
         int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
@@ -692,7 +691,7 @@ Mutate_(const Mod* op, const Expr& self) {
       }
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
-        ModularSet bmod = parent_->modular_set(b1.Eval());
+        ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
         int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0) {
@@ -740,7 +739,7 @@ Mutate_(const Mod* op, const Expr& self) {
 
     // try modular analysis
     if ((x % c1).Match(ret)) {
-      ModularSet mod = parent_->modular_set(x.Eval());
+      ModularSet mod = analyzer_->modular_set(x.Eval());
       int64_t c1val = c1.Eval()->value;
       if (mod->coeff % c1val == 0 &&
           c1val > 0 &&
@@ -777,7 +776,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      ModularSet bmod = parent_->modular_set(b1.Eval());
+      ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
       if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
@@ -923,7 +922,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
         return broadcast(floormod(b1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      ModularSet bmod = parent_->modular_set(b1.Eval());
+      ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
       if (bmod->coeff % c2val == 0) {
@@ -956,7 +955,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
 
     // try modular analysis
     if (floormod(x, c1).Match(ret)) {
-      ModularSet mod = parent_->modular_set(x.Eval());
+      ModularSet mod = analyzer_->modular_set(x.Eval());
       int64_t c1val = c1.Eval()->value;
       if (mod->coeff % c1val == 0 && c1val > 0) {
         return floormod(mod->base, c1).Eval();
@@ -990,8 +989,8 @@ Mutate_(const Min* op, const Expr& self) {
     TVM_TRY_REWRITE(min(x, x), x);
 
     // constant int bound
-    ConstIntBound a_bound = parent_->const_int_bound(op->a);
-    ConstIntBound b_bound = parent_->const_int_bound(op->b);
+    ConstIntBound a_bound = analyzer_->const_int_bound(op->a);
+    ConstIntBound b_bound = analyzer_->const_int_bound(op->b);
     if (a_bound->max_value <= b_bound->min_value) {
       return op->a;
     }
@@ -1175,8 +1174,8 @@ Mutate_(const Max* op, const Expr& self) {
     TVM_TRY_REWRITE(max(x, x), x);
 
     // constant int bound
-    ConstIntBound a_bound = parent_->const_int_bound(op->a);
-    ConstIntBound b_bound = parent_->const_int_bound(op->b);
+    ConstIntBound a_bound = analyzer_->const_int_bound(op->a);
+    ConstIntBound b_bound = analyzer_->const_int_bound(op->b);
     if (a_bound->min_value >= b_bound->max_value) {
       return op->a;
     }
@@ -1658,32 +1657,9 @@ Mutate_(const Or* op, const Expr& self) {
 
 Expr RewriteSimplifier::Impl::
 Mutate_(const Select* op, const Expr& self) {
-  Expr cond = Mutate(op->condition);
-  Expr true_value, false_value;
-  {
-    With<ConstraintContext> constraint(parent_, cond);
-    true_value = Mutate(op->true_value);
-  }
-  {
-    With<ConstraintContext> constraint(parent_, Mutate(Not::make(cond)));
-    false_value = Mutate(op->false_value);
-  }
-  if (is_zero(cond)) {
-    return false_value;
-  }
-  if (is_one(cond)) {
-    return true_value;
-  }
-  // normal path
-  Expr ret;
-  if (cond.same_as(op->condition) &&
-      true_value.same_as(op->true_value) &&
-      false_value.same_as(op->false_value)) {
-    ret = self;
-  } else {
-    ret = Select::make(cond, true_value, false_value);
-  }
+  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
   op = ret.as<Select>();
+  if (op == nullptr) return ret;
   // Pattern var to match any expression
   PVar<Expr> x, y;
   TVM_TRY_REWRITE(select(x, y, y), y);
@@ -1693,58 +1669,13 @@ Mutate_(const Select* op, const Expr& self) {
 Expr RewriteSimplifier::Impl::
 Mutate_(const Call* op, const Expr& self) {
   // add condition context to if_then_else
-  Expr ret;
-  if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
-    Expr cond = Mutate(op->args[0]);
-    Expr true_value, false_value;
-    {
-      With<ConstraintContext> constraint(parent_, cond);
-      true_value = Mutate(op->args[1]);
-    }
-    {
-      With<ConstraintContext> constraint(parent_, Mutate(Not::make(cond)));
-      false_value = Mutate(op->args[2]);
-    }
-    if (is_zero(cond)) {
-      return false_value;
-    }
-    if (is_one(cond)) {
-      return true_value;
-    }
-    if (cond.same_as(op->args[0]) &&
-        true_value.same_as(op->args[1]) &&
-        false_value.same_as(op->args[2])) {
-      ret = self;
-    } else {
-      ret = Call::make(op->type, op->name,
-                        {cond, true_value, false_value},
-                        op->call_type);
-    }
-  } else {
-    ret = IRMutator::Mutate_(op, self);
-  }
+  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
   op = ret.as<Call>();
+  if (op == nullptr) return ret;
   if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
     return op->args[0];
   }
   return ret;
-}
-
-Expr RewriteSimplifier::Impl::
-Mutate_(const Let* op, const Expr& self) {
-  // For now assume value does not has side-effect.
-  Expr value = this->Mutate(op->value);
-  if (!ir::HasSideEffect(value)) {
-    parent_->Bind(op->var, value);
-    return this->Mutate(op->body);
-  }
-  Expr body = this->Mutate(op->body);
-  if (value.same_as(op->value) &&
-      body.same_as(op->body)) {
-    return self;
-  } else {
-    return Let::make(op->var, value, body);
-  }
 }
 
 Expr RewriteSimplifier::Impl::
