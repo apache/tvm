@@ -366,7 +366,7 @@ bool StackRel(const Array<Type>& types,
     << "stack only accepts `axis` in [-ndim, ndim)"
     << ", but got axis = " << axis
     << ", and ndim = " << ndim;
-  axis = axis < 0 ? ndim + axis: axis;
+  axis = axis < 0 ? ndim + axis + 1: axis;
 
   // Sanity check: ndim and dtype.
   const DataType dtype = first->dtype;
