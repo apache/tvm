@@ -16,20 +16,17 @@
  * under the License.
  */
 
-#ifdef __cplusplus
-extern "C" {
 #include <mkl_cblas.h>
 #include <stdio.h>
-#endif  // extern "C"
 
-void dense_2_32(float* A, float* B, float* C, int M, int N, int K) {
-  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
-}
+#define DENSE_FP32(p_ID_, p_M_, p_N_, p_K_)                                                       \
+  extern "C" void p_ID_(float* A, float* B, float* C) {                                           \
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, p_M_, p_N_, p_K_, 1.0, A, p_K_, B, p_N_, \
+                0.0, C, p_N_);                                                                    \
+  }
 
-void dense_2_64(double* A, double* B, double* C, int M, int N, int K) {
-  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A, K, B, N, 0.0, C, N);
-}
-
-#ifdef __cplusplus
-}
-#endif
+#define DENSE_FP64(p_ID_, p_M_, p_N_, p_K_)                                                       \
+  extern "C" void p_ID_(double* A, double* B, double* C) {                                        \
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, p_M_, p_N_, p_K_, 1.0, A, p_K_, B, p_N_, \
+                0.0, C, p_N_);                                                                    \
+  }

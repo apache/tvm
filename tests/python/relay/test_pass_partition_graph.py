@@ -87,23 +87,92 @@ def test_extern_cblas():
     m = 16
     n = 224
     k = 224
-    for dtype in ['float32', 'float64']:
-        x = relay.var('x', shape=(m, k), dtype=dtype)
-        y = relay.var('y', shape=(n, k), dtype=dtype)
-        f = relay.Function([x, y], relay.op.nn.dense(x, y))
-        mod = relay.Module()
-        mod['main'] = f
-        mod = relay.transform.ExternOp('cblas')(mod)
-        mod = relay.transform.PartitionGraph()(mod)
+    dtype = 'float64'
+    x = relay.var('x', shape=(m, k), dtype=dtype)
+    y = relay.var('y', shape=(n, k), dtype=dtype)
+    f = relay.Function([x, y], relay.op.nn.dense(x, y))
+    mod = relay.Module()
+    mod['main'] = f
+    mod = relay.transform.ExternOp('cblas')(mod)
+    mod = relay.transform.PartitionGraph()(mod)
 
-        x_data = np.random.uniform(0, 1, (m, k)).astype(dtype)
-        y_data = np.random.uniform(0, 1, (n, k)).astype(dtype)
-        ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
-        res = ex.evaluate()(x_data, y_data)
-        tvm.testing.assert_allclose(
-            res.asnumpy(), np.dot(x_data, y_data.T), rtol=1e-5)
+    x_data = np.random.uniform(0, 1, (m, k)).astype(dtype)
+    y_data = np.random.uniform(0, 1, (n, k)).astype(dtype)
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(x_data, y_data)
+    tvm.testing.assert_allclose(
+        res.asnumpy(), np.dot(x_data, y_data.T), rtol=1e-5)
+
+def test_extern_dnnl():
+    dtype = 'float32'
+    ishape = (1, 32, 14, 14)
+    w1shape = (32, 1, 3, 3)
+    w2shape = (100, 32 * 14 * 14)
+
+    data = relay.var('data', shape=(ishape), dtype=dtype)
+    weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
+    depthwise_conv2d_1 = relay.nn.conv2d(data,
+                                         weight1,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                         weight1,
+                                         kernel_size=(3, 3),
+                                         padding=(1, 1),
+                                         groups=32)
+    out1 = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+    out2 = relay.nn.batch_flatten(data=out1)
+    weight2 = relay.var('weight2', shape=(w2shape), dtype=dtype)
+    out3 = relay.nn.dense(out2, weight2)
+
+    f = relay.Function([data, weight1, weight2], out3)
+
+    mod = relay.Module()
+    mod['main'] = f
+    mod = relay.transform.ExternOp('dnnl')(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+
+    ref_mod = relay.Module()
+    ref_mod['main'] = f
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+    w2_data = np.random.uniform(0, 1, w2shape).astype(dtype)
+
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(i_data, w1_data, w2_data)
+
+    ref_ex = relay.create_executor("debug", mod=ref_mod, ctx=tvm.cpu(0))
+    ref_res = ref_ex.evaluate()(i_data, w1_data, w2_data)
+
+    tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+
+def test_extern_dnnl_mobilenet():
+    # FIXME: This test is only for demo purpose and supposed to be removed.
+    dtype = 'float32'
+    ishape = (1, 3, 224, 224)
+    mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
+
+    mod = relay.transform.ExternOp('dnnl')(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(i_data, **params)
+
+    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
+    ref_ex = relay.create_executor("debug", mod=ref_mod, ctx=tvm.cpu(0))
+    ref_res = ref_ex.evaluate()(i_data, **params)
+
+    tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
 
 if __name__ == "__main__":
     test_partition_graph()
     test_extern_gcc()
     test_extern_cblas()
+    test_extern_dnnl()
+    #test_extern_dnnl_mobilenet()

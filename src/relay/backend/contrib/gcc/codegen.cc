@@ -34,8 +34,8 @@ typedef void (*GccBinaryFunc)(ExternalTensor a, ExternalTensor b, ExternalTensor
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths() const override {
-    return {"/tmp/relay_extern_gcc.so"};
+  const std::vector<std::string> GetExternLibPaths(std::string id = "") const override {
+    return {"/tmp/relay_gcc_lib_" + id + ".so"};
   }
 
   /*!
@@ -50,42 +50,37 @@ class GccModuleNode : public ExternModuleNodeBase {
    */
   runtime::PackedFunc InvokeExternFunc(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (name == "subtract" || "add" || "multiply") {
-      func_s_ = reinterpret_cast<GccBinaryFunc>(GetSymbol(name));
+    std::string _curr_id = GetSubgraphID(name);
+    std::string encoded_id = _prefix + _curr_id;
+    func_s_ = reinterpret_cast<GccBinaryFunc>(GetSymbol(encoded_id));
 
-      return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 3U);
-        runtime::NDArray a = args[0];
-        ExternalTensor lhs;
-        lhs.data = a->data;
-        lhs.ndim = a.Shape().size();
-        // lhs.shape = a.Shape().data();
-        lhs.shape = new int64_t[lhs.ndim];
+    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 3U);
+      runtime::NDArray a = args[0];
+      ExternalTensor lhs;
+      lhs.data = a->data;
+      lhs.ndim = a.Shape().size();
+      lhs.shape = new int64_t[lhs.ndim];
 
-        runtime::NDArray b = args[1];
-        ExternalTensor rhs;
-        rhs.data = b->data;
-        rhs.ndim = b.Shape().size();
-        rhs.shape = new int64_t[rhs.ndim];
-        // rhs.shape = b.Shape().data();
+      runtime::NDArray b = args[1];
+      ExternalTensor rhs;
+      rhs.data = b->data;
+      rhs.ndim = b.Shape().size();
+      rhs.shape = new int64_t[rhs.ndim];
 
-        runtime::NDArray c = args[2];
-        ExternalTensor out;
-        out.data = c->data;
-        out.ndim = c.Shape().size();
-        out.shape = c.Shape().data();
+      runtime::NDArray c = args[2];
+      ExternalTensor out;
+      out.data = c->data;
+      out.ndim = c.Shape().size();
+      out.shape = c.Shape().data();
 
-        for (int i = 0; i < lhs.ndim; i++) {
-          lhs.shape[i] = a.Shape()[i];
-          rhs.shape[i] = b.Shape()[i];
-        }
-        (*func_s_)(lhs, rhs, &out);
-        *rv = c;
-      });
-    } else {
-      LOG(FATAL) << "Unknown function found when invoking extern library: " << name;
-      return PackedFunc();
-    }
+      for (int i = 0; i < lhs.ndim; i++) {
+        lhs.shape[i] = a.Shape()[i];
+        rhs.shape[i] = b.Shape()[i];
+      }
+      (*func_s_)(lhs, rhs, &out);
+      *rv = c;
+    });
   }
 
   /*!
@@ -106,9 +101,38 @@ class GccModuleNode : public ExternModuleNodeBase {
   void Build(const Expr& expr) override {
     Function func = Downcast<Function>(expr);
     CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
-    int ret = std::system(
-        "g++ -std=c++11 -shared -fPIC -ldl src/relay/backend/contrib/gcc/libs.cc "
-        "-o /tmp/relay_extern_gcc.so");
+    const auto* call = func->body.as<CallNode>();
+    CHECK(call) << "GCC expects a single op.";
+
+    // Record subgraph ID for runtime invoke.
+    auto id = GetSubgraphID(func);
+    std::string encoded_id = _prefix + id;
+    std::string code = "GCC_BINARY_OP(" + encoded_id + ", ";
+
+    if (IsOp(call, "add")) {
+      code += "+";
+    } else if (IsOp(call, "subtract")) {
+      code += "-";
+    } else if (IsOp(call, "multiply")) {
+      code += "*";
+    } else {
+      LOG(FATAL) << "Unrecognized op: ";
+    }
+    code += ");";
+
+    // Prepare library source
+    std::string lib_src_name = "/tmp/relay_gcc_lib_" + id + ".cc";
+    std::string lib_name = "/tmp/relay_gcc_lib_" + id + ".so";
+    std::string cmd = "cp src/relay/backend/contrib/gcc/libs.cc " + lib_src_name;
+    std::system(cmd.c_str());
+    std::system("cp src/relay/backend/contrib/gcc/libs.h /tmp/");
+    
+    cmd = "echo \"" + code + "\" >> " + lib_src_name;
+    std::system(cmd.c_str());
+
+    cmd = "g++ -std=c++11 -shared -fPIC -ldl " + lib_src_name +
+          " -o " + lib_name;
+    int ret = std::system(cmd.c_str());
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
@@ -116,6 +140,7 @@ class GccModuleNode : public ExternModuleNodeBase {
 
  private:
   GccBinaryFunc func_s_;
+  std::string _prefix = "gcc_";
 };
 
 
