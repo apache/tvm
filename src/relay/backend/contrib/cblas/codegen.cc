@@ -36,13 +36,13 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-typedef void (*CblasFloat)(float* a, float* b, float* out, int M, int N, int K);
-typedef void (*CblasDouble)(double* a, double* b, double* out, int M, int N, int K);
+typedef void (*CblasFloat)(float* a, float* b, float* out);
+typedef void (*CblasDouble)(double* a, double* b, double* out);
 
 class CblasModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths() const override {
-    return {"/tmp/relay_extern_cblas.so"};
+  const std::vector<std::string> GetExternLibPaths(std::string id = "") const override {
+    return {"/tmp/relay_cblas_lib_" + id + ".so"};
   }
 
   /*!
@@ -57,45 +57,36 @@ class CblasModuleNode : public ExternModuleNodeBase {
    */
   runtime::PackedFunc InvokeExternFunc(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (name == "nn.dense") {
-      curr_op_name = "dense";
-      return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 3U);
-        runtime::NDArray data = args[0];
-        runtime::NDArray weight = args[1];
-        runtime::NDArray out = args[2];
-        int M = CountRow(data);
-        int N = CountColumn(weight);
-        int K = CountColumn(data);
+    _curr_id = GetSubgraphID(name);
+    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 3U);
+      runtime::NDArray data = args[0];
+      runtime::NDArray weight = args[1];
+      runtime::NDArray out = args[2];
 
-        const DLTensor* dptr = data.operator->();
-        std::string encoded_name = curr_op_name + "_" + std::to_string(dptr->dtype.code) + "_" +
-                                   std::to_string(dptr->dtype.bits);
+      const DLTensor* dptr = data.operator->();
+      std::string encoded_name = _prefix + _curr_id;
 
-        if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-          float* d_data = reinterpret_cast<float*>(data->data);
-          float* weight_data = reinterpret_cast<float*>(weight->data);
-          float* out_data = reinterpret_cast<float*>(out->data);
+      if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
+        float* d_data = reinterpret_cast<float*>(data->data);
+        float* weight_data = reinterpret_cast<float*>(weight->data);
+        float* out_data = reinterpret_cast<float*>(out->data);
 
-          auto func_s_ = reinterpret_cast<CblasFloat>(GetSymbol(encoded_name));
-          (*func_s_)(d_data, weight_data, out_data, M, N, K);
-        } else if (runtime::TypeMatch(dptr->dtype, kDLFloat, 64)) {
-          double* d_data = reinterpret_cast<double*>(data->data);
-          double* weight_data = reinterpret_cast<double*>(weight->data);
-          double* out_data = reinterpret_cast<double*>(out->data);
+        auto func_s_ = reinterpret_cast<CblasFloat>(GetSymbol(encoded_name));
+        (*func_s_)(d_data, weight_data, out_data);
+      } else if (runtime::TypeMatch(dptr->dtype, kDLFloat, 64)) {
+        double* d_data = reinterpret_cast<double*>(data->data);
+        double* weight_data = reinterpret_cast<double*>(weight->data);
+        double* out_data = reinterpret_cast<double*>(out->data);
 
-          auto func_s_ = reinterpret_cast<CblasDouble>(GetSymbol(encoded_name));
-          (*func_s_)(d_data, weight_data, out_data, M, N, K);
-        } else {
-          LOG(FATAL) << "Only support float32 and float64 types.";
-        }
-        
-        *rv = out;
-      });
-    } else {
-      LOG(INFO) << name << " is not Supported. Only nn.dense is supported so far";
-      return PackedFunc();
-    }
+        auto func_s_ = reinterpret_cast<CblasDouble>(GetSymbol(encoded_name));
+        (*func_s_)(d_data, weight_data, out_data);
+      } else {
+        LOG(FATAL) << "Only support float32 and float64 types.";
+      }
+      
+      *rv = out;
+    });
   }
 
   /*!
@@ -117,48 +108,60 @@ class CblasModuleNode : public ExternModuleNodeBase {
     Function func = Downcast<Function>(expr);
     CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();
-    CHECK(call) << "CBLAS expects a single convolution or dense op.";
+    CHECK(call) << "CBLAS expects a single dense op.";
 
-    const auto* op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "CBLAS expects a single convolution or dense op.";
-    Op op = GetRef<Op>(op_node);
-    if (op == Op::Get("nn.conv2d")) {
-      // const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
-      // TODO(@zhiics) Generate the template.
-    } else if (op == Op::Get("nn.dense")) {
-      // TODO(@zhiics) Generate the template.
-      // const auto* dense_attr = call->attrs.as<DenseAttrs>();
+    // Record subgraph ID for runtime invoke.
+    auto id = GetSubgraphID(func);
+    std::string encoded_id = _prefix + id;
+    std::string code = "";
+
+    // Args: ID
+    std::vector<std::string> args;
+    args.push_back(encoded_id);
+
+    if (IsOp(call, "nn.dense")) {
+      auto ishape = GetShape(call->args[0]);
+      auto wshape = GetShape(call->args[1]);
+
+      // Args: M, N, K
+      args.push_back(std::to_string(ishape[0]));
+      args.push_back(std::to_string(wshape[1]));
+      args.push_back(std::to_string(ishape[1]));
+
+      auto type_node = call->checked_type().as<TensorTypeNode>();
+      CHECK(type_node != nullptr);
+      CHECK(type_node->dtype.is_float()) << "Only support float types";
+
+      code = "DENSE_FP" + std::to_string(type_node->dtype.bits()) + "(" +
+             args[0] + ", " + args[1] + ", " + args[2] + ", " + args[3] + ");";
     } else {
-      LOG(FATAL) << "CBLAS expects a single convolution or dense op.";
+      LOG(FATAL) << "CBLAS expects a single dense op.";
     }
 
     if (!std::getenv("MKLROOT")) {
       LOG(FATAL) << "MKLROOT not found. Did you source mklvars.sh?";
     }
-    int ret = std::system("g++ -O2 -Wall -std=c++11 -shared -fPIC "
-                          "src/relay/backend/contrib/cblas/libs.cc "
-                          "-o /tmp/relay_extern_cblas.so -ldl -lpthread -lm -lmkl_rt");
+    std::string lib_src_name = "/tmp/relay_cblas_lib_" + id + ".cc";
+    std::string lib_name = "/tmp/relay_cblas_lib_" + id + ".so";
+
+    // Prepare library source
+    std::string cmd = "cp src/relay/backend/contrib/cblas/libs.cc " + lib_src_name;
+    std::system(cmd.c_str());
+
+    cmd = "echo \"" + code + "\" >> " + lib_src_name;
+    std::system(cmd.c_str());
+
+    cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + lib_src_name + " -o " + lib_name +
+          " -ldl -lpthread -lm -lmkl_rt";
+    int ret = std::system(cmd.c_str());
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile CBLAS library. Error code: " << ret;
     }
   }
 
  private:
-  // Get the number of rows of a ndarray.
-  int CountRow(const runtime::NDArray& data) const {
-    const DLTensor* tensor = data.operator->();
-    CHECK(tensor) << "No container is defined in the NDArray" << "\n";
-    return tensor->shape[0];
-  }
-
-  // Get the number of columns of a ndarray.
-  int CountColumn(const runtime::NDArray& data) const {
-    const DLTensor* tensor = data.operator->();
-    CHECK(tensor) << "No container is defined in the NDArray" << "\n";
-    return tensor->shape[1];
-  }
-
-  std::string curr_op_name;
+  std::string _curr_id;
+  std::string _prefix = "cblas_";
 };
 
 /*!

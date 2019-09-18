@@ -14,22 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-message(STATUS "Build with relay.backend.contrib")
-
-# Gcc (for demo purpose)
-file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
-list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
-
-# CBLAS (for demo purpose)
-file(GLOB CBLAS_RELAY_CONTRIB_SRC src/relay/backend/contrib/cblas/codegen.cc)
-if(USE_BLAS STREQUAL "mkl")
-    list(APPEND COMPILER_SRCS ${CBLAS_RELAY_CONTRIB_SRC})
-elseif(USE_BLAS STREQUAL "none")
-    # pass
-endif()
-
-# DNNL (for demo purpose)
-file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
-list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
-
+# pylint: disable=wildcard-import
+"""Neural network related operators."""
+from __future__ import absolute_import as _abs
+from .extern_op import *

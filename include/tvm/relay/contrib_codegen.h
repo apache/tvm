@@ -50,7 +50,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return An array of strings of the library paths.
    */
-  virtual const std::vector<std::string> GetExternLibPaths() const = 0;
+  virtual const std::vector<std::string> GetExternLibPaths(std::string id = "") const = 0;
 
   /*!
    * \brief Build the shared library of external ops.
@@ -83,9 +83,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    */
   runtime::PackedFunc GetFunction(const std::string& name,
                                   const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    if (!IsHandleOpen()) {
-      Open(this->GetExternLibPaths());
-    }
+    auto id = GetSubgraphID(name);
+    Open(this->GetExternLibPaths(id));
     CHECK(handle_) << "The external module has not been built or failed to open.\n";
 
     auto func_s = this->InvokeExternFunc(name, sptr_to_self);
@@ -113,16 +112,57 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
   /*!
-   * \brief Check if the library is opened or not.
+   * \brief Split the encoded function name to tokens.
    *
+   * \param the function name string.
    *
-   * \return True if the library is already opened.
+   * \return a vector of tokenized function name splitted by "_".
    */
-  virtual bool IsHandleOpen() {
-    return handle_ != nullptr;
+  std::string GetSubgraphID(Function& func) {
+    const auto name_node = FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
+    CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
+    std::string name = name_node->value;
+    return GetSubgraphID(name);
+  }
+  
+  std::string GetSubgraphID(std::string name) {
+    std::string temp = name;
+    std::vector<std::string> tokens;
+    std::string delimiter = "_";
+    size_t pos = 0;
+    std::string token;
+    while ((pos = temp.find(delimiter)) != std::string::npos) {
+      token = temp.substr(0, pos);
+      tokens.push_back(token);
+      temp.erase(0, pos + delimiter.length());
+    }
+    tokens.push_back(temp);
+
+    CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
+    CHECK(tokens[0] == "subgraph") << "Function name does not start with \"subgraph\": " << name;
+    return tokens[1];
+  }
+
+  bool IsOp(const CallNode* call, std::string op_name) {
+    const auto* op_node = call->op.as<OpNode>();
+    CHECK(op_node) << "Expects a single op.";
+    Op op = GetRef<Op>(op_node);
+    return op == Op::Get(op_name);
   }
 
  protected:
+  std::vector<int> GetShape(const Expr& expr) const {
+    const auto* ttype = expr->checked_type().as<TensorTypeNode>();
+    CHECK(ttype);
+    std::vector<int> _shape;
+    for (int i = 0; i < ttype->shape.size(); ++i) {
+      auto* val = ttype->shape[i].as<IntImm>();
+      CHECK(val);
+      _shape.push_back(val->value);
+    }
+    return _shape;
+  }
+
   // Platform dependent handlers for opening system lib.
 #if defined(_WIN32)
   // The handle.
@@ -152,6 +192,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
 
   // load the library
   virtual void Open(const std::vector<std::string> lib_names) {
+    Close();
     CHECK(lib_names.size() == 1) << "Default library loader only loads one library. "
                                  << "Please override the loader if multiple libraries are used";
     handle_ = dlopen(lib_names[0].c_str(), RTLD_LAZY | RTLD_LOCAL);
@@ -168,7 +209,12 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    * \note Exceptions when loading the symbol can be retrieved by dlerror().
    */
   virtual void* GetSymbol(const std::string& name) {
-    return dlsym(handle_, name.c_str());
+    auto sym = dlsym(handle_, name.c_str());
+    char* error = dlerror();
+    if (error) {
+      CHECK(0) << "Fail to get symbol " << name << ": " << error;
+    }
+    return sym;
   }
 
   virtual void Close() {

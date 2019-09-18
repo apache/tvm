@@ -27,11 +27,14 @@ to decide if we should use the external compiler.
 """
 from __future__ import absolute_import
 
+import logging
 import pkgutil
 from pathlib import Path
 from importlib import import_module
 
 from .. import op as reg
+
+logger = logging.getLogger('ExternOp')
 
 # Load available contrib compilers
 compilers = {}
@@ -47,7 +50,8 @@ def get_extern_op(compiler, op_name):
             if hasattr(extern_op, op_name):
                 return getattr(extern_op, op_name)
 
-    raise RuntimeError("%s in %s is not registered" % (op_name, compiler))
+    logger.warning("%s in %s is not registered. Fallback to CPU" % (op_name, compiler))
+    return lambda x, y: False
 
 @reg.register_extern_op("nn.conv2d")
 def external_conv2d(attrs, args, compiler):
@@ -61,6 +65,12 @@ def external_dense(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
     return get_extern_op(compiler, 'dense')(attrs, args)
+
+@reg.register_extern_op("nn.relu")
+def external_relu(attrs, args, compiler):
+    """Check if the external compiler should be used.
+    """
+    return get_extern_op(compiler, 'relu')(attrs, args)
 
 
 @reg.register_extern_op("subtract")
