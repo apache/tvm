@@ -80,9 +80,9 @@ bool ConcatenateRel(const Array<Type>& types,
       return false;
     }
 
-     const auto& e = Downcast<TensorType>(ele);
+    const auto& e = Downcast<TensorType>(ele);
 
-     int e_ndim = static_cast<int>(e->shape.size());
+    int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
     if (e_ndim != ndim) {
       throw relay::Error("relay.concatenate requires all tensors have the same ndim");
