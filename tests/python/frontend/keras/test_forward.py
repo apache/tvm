@@ -181,6 +181,7 @@ def test_forward_conv():
                                       strides=(2, 2), padding='same'),
                   keras.layers.Conv2D(filters=10, kernel_size=(3, 3),
                                       dilation_rate=(2, 2), padding='same'),
+                  keras.layers.Conv2D(filters=1, kernel_size=(3, 3), padding='same'),
                   keras.layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same'),
                   keras.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding='valid'),
                   keras.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding='same')]
@@ -194,7 +195,7 @@ def test_forward_upsample(interpolation='nearest'):
     data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
     keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
+    verify_keras_frontend(keras_model)
 
 
 def test_forward_reshape():
