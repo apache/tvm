@@ -79,8 +79,10 @@ class BoundDeducer: public IRVisitor {
   friend class Converter;
   BoundDeducer(Expr target, Expr expr,
                const std::unordered_map<const Variable*, IntSet>& hint_map,
-               const std::unordered_map<const Variable*, IntSet>& relax_map)
-  : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
+               const std::unordered_map<const Variable*, IntSet>& relax_map,
+               const bool return_lower_bound=false)
+  : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map),
+    return_lower_bound_(return_lower_bound){}
 
   void Deduce();
 
@@ -150,27 +152,30 @@ class BoundDeducer: public IRVisitor {
     // always use relax bound
     bool divided = analyzer_.CanProve(result_ % operand == 0);
 
-    /*
-     * If both sides are convertible to int constant, then
-     * use floordiv and evaluate the new constant.
-     * This particularly is useful for bound check for conditions on
-     * loop itervars. e.g., an expr like -5/8 should not evaluate to
-     * zero because that indicate that the loop iter var can take on
-     * value of 0 in loop_partition.cc.
-     * TODO: On the other hand, under what conditions floordiv is not
-     * desirable for int constant and you want round towards zero
-     * result?
-     */
-    auto dividend = analyzer_.Simplify(result_);
-    auto divisor = analyzer_.Simplify(operand);
-    auto* dividend_const_value_ptr = as_const_int(dividend);
-    auto* divisor_const_value_ptr = as_const_int(divisor);
-    if (dividend_const_value_ptr && divisor_const_value_ptr) {
-      auto int_bound = analyzer_.const_int_bound(floordiv(dividend, divisor));
-      CHECK_EQ(int_bound->min_value, int_bound->max_value);
-      result_ = Expr(static_cast<int32_t>(int_bound->min_value));
-    }
-    else {
+    if (return_lower_bound_) {
+      /*
+       * If both sides are convertible to int constant, then
+       * use floordiv and evaluate the new constant.
+       * This particularly is useful for bound check for conditions on
+       * loop itervars. e.g., an expr like -5/8 should not evaluate to
+       * zero because that indicate that the loop iter var can take on
+       * value of 0 in loop_partition.cc.
+       * TODO: On the other hand, under what conditions floordiv is not
+       * desirable for int constant and you want round towards zero
+       * result?
+       */
+      auto dividend = analyzer_.Simplify(result_);
+      auto divisor = analyzer_.Simplify(operand);
+      auto* dividend_const_value_ptr = as_const_int(dividend);
+      auto* divisor_const_value_ptr = as_const_int(divisor);
+      if (dividend_const_value_ptr && divisor_const_value_ptr) {
+        auto int_bound = analyzer_.const_int_bound(floordiv(dividend, divisor));
+        CHECK_EQ(int_bound->min_value, int_bound->max_value);
+        result_ = Expr(static_cast<int32_t>(int_bound->min_value));
+      } else {
+        result_ = result_ / operand;
+      }
+    } else {
       result_ = result_ / operand;
     }
 
@@ -231,6 +236,7 @@ class BoundDeducer: public IRVisitor {
   size_t iter_{0};
   // internal analzyer
   Analyzer analyzer_;
+  bool return_lower_bound_{false};
 };
 
 class BoundDeduceInputChecker: public IRVisitor {
@@ -368,8 +374,9 @@ void BoundDeducer::Relax() {
 
 IntSet DeduceBound(Expr v, Expr e,
   const std::unordered_map<const Variable*, IntSet>& hint_map,
-  const std::unordered_map<const Variable*, IntSet>& relax_map) {
-  BoundDeducer d(v, e, hint_map, relax_map);
+  const std::unordered_map<const Variable*, IntSet>& relax_map,
+  const bool return_lower_bound) {
+  BoundDeducer d(v, e, hint_map, relax_map, return_lower_bound);
   d.Deduce();
   if (!d.success_) return IntSet::nothing();
   Expr min = neg_inf(), max = pos_inf();
@@ -388,7 +395,8 @@ IntSet DeduceBound(Expr v, Expr e,
 // return empty set to represent deduce failure.
 IntSet DeduceBound(Expr v, Expr e,
                    const Map<Var, IntSet>& hint_map,
-                   const Map<Var, IntSet>& relax_map) {
+                   const Map<Var, IntSet>& relax_map,
+                   const bool return_lower_bound) {
   std::unordered_map<const Variable*, IntSet> hmap;
   for (auto kv : hint_map) {
     hmap[kv.first.get()] = kv.second;
@@ -397,7 +405,7 @@ IntSet DeduceBound(Expr v, Expr e,
   for (auto kv : relax_map) {
     rmap[kv.first.get()] = kv.second;
   }
-  return DeduceBound(v, e, hmap, rmap);
+  return DeduceBound(v, e, hmap, rmap, return_lower_bound);
 }
 
 }  // namespace arith

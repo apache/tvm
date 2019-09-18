@@ -635,7 +635,8 @@ IntSet Intersect(const Array<IntSet>& sets);
  */
 IntSet DeduceBound(Expr v, Expr cond,
                    const Map<Var, IntSet>& hint_map,
-                   const Map<Var, IntSet>& relax_map);
+                   const Map<Var, IntSet>& relax_map,
+                   const bool return_lower_bound=false);
 /*!
  * \brief Same as DeduceBound with  unordered_map signature.
  *
@@ -648,7 +649,8 @@ IntSet DeduceBound(Expr v, Expr cond,
  */
 IntSet DeduceBound(Expr v, Expr cond,
                    const std::unordered_map<const Variable*, IntSet>& hint_map,
-                   const std::unordered_map<const Variable*, IntSet>& relax_map);
+                   const std::unordered_map<const Variable*, IntSet>& relax_map,
+                   const bool return_lower_bound=false);
 
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.

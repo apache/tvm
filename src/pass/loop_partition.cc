@@ -201,8 +201,13 @@ class PartitionFinder : public IRVisitor {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
+        // Get the lower bound for the interval. This is specifically to get around the issue
+        // where interval be neg_inf, ...
+        // Here without asking for lower_bound max of the interval can be zero, due to round
+        // to zero of the integer division.
+        bool return_lower_bound(true);
         IntSet interval =
-                DeduceBound(current_var_, cond, hint_map_, relax_map_);
+                DeduceBound(current_var_, cond, hint_map_, relax_map_, return_lower_bound);
         if (!interval.is_nothing()) {
           // cond is true within interval
           partitions[{cond.get(), true}] = interval;
@@ -210,7 +215,7 @@ class PartitionFinder : public IRVisitor {
         Expr inverse_cond = InverseCond(cond);
         if (inverse_cond.defined()) {
           IntSet interval =
-                  DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
+                  DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_, return_lower_bound);
           if (!interval.is_nothing()) {
             // cond is false within interval
             partitions[{cond.get(), false}] = interval;
