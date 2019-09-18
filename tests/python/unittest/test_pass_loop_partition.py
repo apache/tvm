@@ -367,17 +367,14 @@ def test_conv_tiling():
 
 def test_multilevel_splitting_with_indivisble_factors():
     import topi
-    A = tvm.placeholder((130, 54), dtype="float32")
+    A = tvm.placeholder((130,), dtype="float32")
     B = topi.nn.relu(A)
     s = tvm.create_schedule(B.op)
-    (y, x) = s[B].op.axis
-    (xo, xi) = s[B].split(x, factor=2)
+    (y,) = s[B].op.axis
     (yo, yi) = s[B].split(y, factor=8)
-    (xoo, xoi) = s[B].split(xo, factor=16)
     (yoo, yoi) = s[B].split(yo, factor=16)
-    s[B].reorder(yoo, xoo, yoi, xoi, yi, xi)
+    s[B].reorder(yoo, yoi, yi)
     s[B].unroll(yi)
-    s[B].vectorize(xi)
 
     # But this does the right thing.
     with tvm.build_config(partition_const_loop=True):
@@ -385,7 +382,7 @@ def test_multilevel_splitting_with_indivisble_factors():
         def visit_stmt(op):
             return(isinstance(op, tvm.expr.Max))
         num_max = collect_visit(lowered_body, visit_stmt)
-        assert num_max.count(True) == 20
+        assert num_max.count(True) == 10
 
 
 def test_double_splitting_with_indivisible_factors():
