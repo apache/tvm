@@ -107,6 +107,10 @@ class Module(ModuleBase):
         kwargs : dict, optional
             Additional arguments passed to fcompile
         """
+        from pathlib import Path
+        if isinstance(file_name, Path):
+            file_name = str(file_name)
+
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
                 raise ValueError("Module[%s]: can only be saved as stackvm format."
