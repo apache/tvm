@@ -219,6 +219,18 @@ def test_concatenate():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
+    # check shape mismatches (the following case is expected to raise tvm._ffi.base.TVMError.
+    try:
+        x = relay.var('p1', shape=(2, 5))
+        y = relay.var('p2', shape=(2, 3))
+        c = relay.concatenate([x, y], axis=0)
+        func = relay.Function([x, y], c)
+        zz = run_infer_type(func)
+    except tvm._ffi.base.TVMError:
+        pass
+    else:
+        assert False
+
     x = relay.var("x", shape=(10, 5))
     y = relay.var("y", shape=(10, 5))
     t = relay.var("z", shape=())
@@ -301,7 +313,7 @@ def test_dense():
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.TensorType((2, w), "float32"))
     y = relay.nn.dense(x, w, units=2)
-    "units=2" in y.astext()
+    assert "units=2" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
 
