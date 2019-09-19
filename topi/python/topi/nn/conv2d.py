@@ -151,7 +151,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     if data_layout == 'NCHW':
         CO, CIG, KH, KW = [x.value for x in kernel.shape]
     else:
-        KH, KW, CO, CIG = [x.value for x in kernel.shape]
+        KH, KW, CIG, CO = [x.value for x in kernel.shape]
 
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
     GRPS = CI // CIG

@@ -541,18 +541,35 @@ def test_upsampling():
 
 
 def test_conv2d_int8_intrinsics():
-    def _compile(input_dtype, weight_dtype, output_dtype, target):
-        n, ic, h, w, oc, ch, cw = 1, 16, 224, 224, 32, 3, 3
-        x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
-        w = relay.var("w", relay.TensorType((oc, ic, ch, cw), weight_dtype))
+    def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
+        input_dtype, weight_dtype, output_dtype = dtypes
+
+        n, h, w, ch, cw = 1, 64, 64, 3, 3
+        if data_layout == 'NCHW':
+            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+        elif data_layout == 'NHWC':
+            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+        else:
+            raise ValueError('Not supported')
+
+        if kernel_layout == 'OIHW':
+            kernel_shape = (oc, ic, ch, cw)
+        elif kernel_layout == 'HWIO':
+            kernel_shape = (ch, cw, ic, oc)
+        else:
+            raise ValueError('Not supported')
+
+        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
         y = relay.nn.conv2d(x, w,
                             kernel_size=(ch, cw),
                             channels=oc,
                             padding=(1, 1),
                             dilation=(1, 1),
+                            data_layout=data_layout,
+                            kernel_layout=kernel_layout,
                             out_dtype=output_dtype)
         func = relay.Function([x, w], y)
-        wdata = np.random.rand(oc, ic, ch, cw) * 10
+        wdata = np.random.rand(*kernel_shape) * 10
         parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
@@ -564,37 +581,59 @@ def test_conv2d_int8_intrinsics():
     name = "llvm.x86.avx512.pmaddubs.w.512"
     llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
     if llvm_id != 0:
-        # Intel Int8 instruction need uint8 data and int8 kernel
-        asm = _compile(input_dtype="uint8",
-                       weight_dtype="int8",
-                       output_dtype="int32",
-                       target=target)
-        # Check that intrinisic is present in the assembly.
+        fast_int8_dtypes = ('uint8', 'int8', 'int32')
+        # Sweep the input channels to check int8 robustness
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+
+        # Sweep the output channels to check int8 robustness
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        # Check that both non-divisible oc and ic work
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                       dtypes=fast_int8_dtypes)
+        assert "pmaddubs" in asm
+
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=fast_int8_dtypes)
         assert "pmaddubs" in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
-        asm = _compile(input_dtype="int8",
-                       weight_dtype="int8",
-                       output_dtype="int32",
-                       target=target)
+        dtypes = ('int8', 'int8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
         # Check that intrinisic is not present in the assembly.
         assert "pmaddubs" not in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
-        asm = _compile(input_dtype="uint8",
-                       weight_dtype="uint8",
-                       output_dtype="int32",
-                       target=target)
+        dtypes = ('uint8', 'uint8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
         # Check that intrinisic is not present in the assembly.
         assert "pmaddubs" not in asm
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
     target = "llvm -mcpu=core-avx2"
-    asm = _compile(input_dtype="int8",
-                  weight_dtype="int8",
-                  output_dtype="int32",
-                  target=target)
+    fast_int8_dtypes = ('uint8', 'int8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                   dtypes=fast_int8_dtypes)
     # Check that vector int mult and add instructions are generated.
     assert "vpmulld" in asm and "vpadd" in asm
 
