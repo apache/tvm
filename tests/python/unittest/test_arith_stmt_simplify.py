@@ -30,5 +30,23 @@ def test_stmt_simplify():
     assert isinstance(body.body, tvm.stmt.Store)
 
 
+def test_thread_extent_simplify():
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    C = ib.pointer("float32", name="C")
+    n = tvm.var("n")
+    tx = tvm.thread_axis("threadIdx.x")
+    ty = tvm.thread_axis("threadIdx.y")
+    ib.scope_attr(tx, "thread_extent", n)
+    ib.scope_attr(tx, "thread_extent", n)
+    ib.scope_attr(ty, "thread_extent", 1)
+    with ib.if_scope(tx + ty < 12):
+        A[tx] = C[tx + ty]
+    body = tvm.stmt.LetStmt(n, 10, ib.get())
+    body = tvm.ir_pass.CanonicalSimplify(body)
+    assert isinstance(body.body.body.body, tvm.stmt.Store)
+
+
 if __name__ == "__main__":
     test_stmt_simplify()
+    test_thread_extent_simplify()
