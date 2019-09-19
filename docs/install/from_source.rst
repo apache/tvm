@@ -226,11 +226,5 @@ tests in TVM. The easiest way to install GTest is from source.
        make
        make install
 
-Now, you'll need to modify ``build/config.cmake`` and change ``set(USE_GTEST
-OFF)`` to ``set(USE_GTEST ON)``.
 
-TVM can then be built `as usual`__.
-
-__ build-shared-library_
-
-After building, the C++ tests can be run with ``make cpptest``.
+After installing GTest, the C++ tests can be built with ``make cpptest``.
