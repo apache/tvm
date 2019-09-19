@@ -258,10 +258,6 @@ void IfThenElseHoist::LocateTopFor() {
     top_for_var_map_.insert({for_node->loop_var.get(), if_list});
     for (const Stmt& if_stmt : if_list) {
       const Node* if_node = if_stmt.get();
-      if (!if2for_map_.count(if_node)) {
-        std::vector<Stmt> new_for_list;
-        if2for_map_.insert({if_node, new_for_list});
-      }
       if2for_map_[if_node].push_back(for_stmt);
     }
   }

@@ -49,6 +49,7 @@ def verify_structure(stmt, expected_struct):
 
     assert struct == expected_struct, "Structure mismatch: expect %s but got %s" \
                                       % (expected_struct, struct)
+    var_list.clear()
 
 def test_basic():
     ib = tvm.ir_builder.create()
