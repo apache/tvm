@@ -52,10 +52,10 @@ void Analyzer::Bind(const VarExpr& v, const Expr& expr) {
 void Analyzer::Bind(const VarExpr& v, const Range& range) {
   CHECK(range.defined());
   Var var(v.node_);
-  this->const_int_bound.Bind(var, range);
   if (is_one(range->extent)) {
-    this->rewrite_simplify.Update(var, range->min);
-    this->canonical_simplify.Update(var, range->min);
+    this->Bind(var, range->min);
+  } else {
+    this->const_int_bound.Bind(var, range);
   }
   // skip modular_set
   // skip rewrite simplify
