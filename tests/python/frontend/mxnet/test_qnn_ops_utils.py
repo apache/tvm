@@ -27,10 +27,10 @@ def test_mxnet_quantization():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         min_range = quant_args['min_range']
         max_range = quant_args['max_range']
-        quantized_output = relay.frontend.quantize_mxnet_min_max(input_data,
-                                                                 min_range=min_range,
-                                                                 max_range=max_range,
-                                                                 out_dtype=out_dtype)
+        quantized_output, _, _ = relay.frontend.quantize_mxnet_min_max(input_data,
+                                                                       min_range=min_range,
+                                                                       max_range=max_range,
+                                                                       out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = relay.Module.from_expr(mod)
         mod = relay.qnn.transform.CanonicalizeOps()(mod)
@@ -76,11 +76,11 @@ def test_mxnet_mkldnn_quantization():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         min_range = quant_args['min_range']
         max_range = quant_args['max_range']
-        quantized_output = relay.frontend.quantize_mxnet_min_max(input_data,
-                                                                 min_range=min_range,
-                                                                 max_range=max_range,
-                                                                 out_dtype=out_dtype,
-                                                                 use_mkldnn=True)
+        quantized_output, _, _ = relay.frontend.quantize_mxnet_min_max(input_data,
+                                                                       min_range=min_range,
+                                                                       max_range=max_range,
+                                                                       out_dtype=out_dtype,
+                                                                       use_mkldnn=True)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = relay.Module.from_expr(mod)
         mod = relay.qnn.transform.CanonicalizeOps()(mod)
@@ -120,6 +120,42 @@ def test_mxnet_mkldnn_quantization():
     test_float32_to_int8()
 
 
+def test_mxnet_conv_weight_quantization_mkldnn():
+    def quantize_test_driver(out_dtype, in_data, verify_output_data):
+        quantized_output, _, _ = relay.frontend.quantize_conv_weights_mkldnn(in_data,
+                                                                             "input_data")
+        mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
+        mod = relay.Module.from_expr(mod)
+        mod = relay.qnn.transform.CanonicalizeOps()(mod)
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(mod, "llvm", params=None)
+            rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            rt_mod.set_input(input_data=in_data)
+            rt_mod.set_input(**params)
+            rt_mod.run()
+            res = rt_mod.get_output(0).asnumpy()
+            np.testing.assert_equal(res, verify_output_data)
+            assert res.dtype == out_dtype
+
+    def test_float32_to_int8():
+        data = np.array([0.0441604, 0.03017418, 0.03101145, 0.03285711, 0.0184189, 0.0333233,
+                         0.02895038, 0.01649691, 0.01324425, 0.01096264, 0.01516934, 0.00323179,
+                         -0.01969179, -0.02577864, -0.02674193, -0.02682905, -0.05210099, -0.05635381,
+                         -0.04693264, -0.04124459]) \
+            .astype('float32') \
+            .reshape((5, 1, 2, 2))
+        output = np.array([100, 68, 70, 74,  42, 75, 65, 37, 30, 25, 34, 7, -44, -58,
+                           -60, -60, -117, -127, -106, -93]) \
+            .astype('int8') \
+            .reshape((5, 1, 2, 2))
+        quant_args = {}
+        quantize_test_driver(out_dtype='int8',
+                             in_data=data, verify_output_data=output)
+
+    test_float32_to_int8()
+
+
 if __name__ == "__main__":
     test_mxnet_quantization()
     test_mxnet_mkldnn_quantization()
+    test_mxnet_conv_weight_quantization_mkldnn()

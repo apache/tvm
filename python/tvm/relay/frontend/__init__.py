@@ -24,7 +24,8 @@ for Relay.
 from __future__ import absolute_import
 
 from .mxnet import from_mxnet
-from .mxnet_qnn_op_utils import quantize_mxnet_min_max
+from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
+                                quantize_conv_weights_mkldnn
 from .keras import from_keras
 from .onnx import from_onnx
 from .tflite import from_tflite

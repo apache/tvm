@@ -20,6 +20,7 @@
 """
 
 import numpy as np
+from tvm import relay
 from tvm.relay.qnn.op.qnn import quantize
 
 zero_centered_uint8quantized_range = np.float32(255)
@@ -60,10 +61,11 @@ def _quantize_with_zero_centered(data,
     scale = np.divide(quantized_range, real_range)
     scale_inverse = np.divide(1.0, scale)
     zero_point = 0
-    return quantize(data,
-                    scale_inverse,
-                    zero_point,
-                    out_dtype=out_dtype)
+    quantized_output = quantize(data,
+                                scale_inverse,
+                                zero_point,
+                                out_dtype=out_dtype)
+    return quantized_output, scale, zero_point
 
 
 def _quantize_mxnet_min_max_uint8(data,
@@ -101,10 +103,11 @@ def _quantize_mxnet_min_max_uint8(data,
                       (imax_range - imin_range))
     scale_inverse = np.divide(1.0, scale)
     zero_point = np.int(-1 * imin_range * scale)
-    return quantize(data,
-                    scale_inverse,
-                    zero_point,
-                    out_dtype='uint8')
+    quantized_output = quantize(data,
+                                scale_inverse,
+                                zero_point,
+                                out_dtype='uint8')
+    return quantized_output, scale, zero_point
 
 
 def _quantize_mxnet_min_max_int8(data,
@@ -203,6 +206,27 @@ def _quantize_mkldnn_min_max_int8(data,
                                         data_max,
                                         zero_centered_int8quantized_range,
                                         'int8')
+
+
+def quantize_conv_weights_mkldnn(weights,
+                                 weights_name):
+    r"""Helper method to quantize
+
+    :param weights:
+    :param min_range:
+    :param max_range:
+    :return:
+    """
+    shape = weights.shape
+    input_data = relay.var(weights_name, shape=shape, dtype='float32')
+    min_range = np.amin(weights)
+    max_range = np.amax(weights)
+    return quantize_mxnet_min_max(input_data,
+                                  min_range,
+                                  max_range,
+                                  # mkldnn uses only int8 for weights
+                                  out_dtype='int8',
+                                  use_mkldnn=True)
 
 
 def quantize_mxnet_min_max(data,
