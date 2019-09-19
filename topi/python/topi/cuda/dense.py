@@ -104,8 +104,8 @@ def schedule_dense(cfg, outs):
         A, _ = C.op.input_tensors
         batch, _ = get_const_tuple(A.shape)
         if batch < 32:
-            return schedule_dense_small_batch(cfg, s, C, outs)
-        return schedule_dense_large_batch(cfg, s, C, outs)
+            return schedule_dense_small_batch(cfg, s, C)
+        return schedule_dense_large_batch(cfg, s, C)
 
     scheduled_ops = []
 
@@ -131,7 +131,7 @@ def schedule_dense(cfg, outs):
     return s
 
 
-def schedule_dense_small_batch(cfg, s, C, outs):
+def schedule_dense_small_batch(cfg, s, C):
     """Schedule float32/64 dense with small batch size"""
     A, _ = C.op.input_tensors
     _, in_dim = get_const_tuple(A.shape)
@@ -145,7 +145,7 @@ def schedule_dense_small_batch(cfg, s, C, outs):
     if C.op in s.outputs:
         Out = C
     else:
-        Out = outs[0].op.output(0)
+        Out = s.outputs[0].output(0)
         s[C].compute_at(s[Out], s[Out].op.axis[1])
     s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
     s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
@@ -157,7 +157,7 @@ def schedule_dense_small_batch(cfg, s, C, outs):
     s[C].set_store_predicate(thread_x.var.equal(0))
     s[Out].set_store_predicate(thread_x.var.equal(0))
 
-def schedule_dense_large_batch(cfg, s, C, outs):
+def schedule_dense_large_batch(cfg, s, C):
     """Schedule float32/64 dense with large batch size"""
     A, B = C.op.input_tensors
     batch, in_dim = get_const_tuple(A.shape)
@@ -208,6 +208,11 @@ def schedule_dense_large_batch(cfg, s, C, outs):
     BL = s.cache_read(BB, "local", [C])
     CC = s.cache_write(C, "local")
 
+    # Deal with op fusion
+    if C.op not in s.outputs:
+        s[C].compute_inline()
+        C = s.outputs[0].output(0)
+
     # Split and reorder computation
     bx, txz, tx, xi = cfg['tile_x'].apply(s, C, C.op.axis[0])
     by, tyz, ty, yi = cfg['tile_y'].apply(s, C, C.op.axis[1])
@@ -249,12 +254,6 @@ def schedule_dense_large_batch(cfg, s, C, outs):
     s[BB].bind(ty, tvm.thread_axis("threadIdx.y"))
     s[BB].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[BB].double_buffer()
-
-    # Deal with bias
-    if C.op not in s.outputs:
-        Out = outs[0].op.output(0)
-        s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
-        s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
 
 @autotvm.register_topi_compute(dense, ['cuda'], ['int8'])
 def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
