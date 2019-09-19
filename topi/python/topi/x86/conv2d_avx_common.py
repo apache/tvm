@@ -55,6 +55,34 @@ def _fallback_schedule(cfg, wkl):
     cfg["unroll_kw"] = OtherOptionEntity(False)
 
 
+def _fallback_schedule_int8(cfg, wkl):
+    simd_width = get_fp32_len()
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+
+    oc_bn = 16
+    assert wkl.out_filter % oc_bn == 0
+
+    ic_bn = 1
+    for bn in range(oc_bn, 0, -4):
+        if wkl.in_filter % bn == 0:
+            ic_bn = bn
+            break
+    assert wkl.in_filter % 4 == 0
+
+    reg_n = 1
+    for n in range(31, 0, -1):
+        if out_width % n == 0:
+            reg_n = n
+            break
+
+    cfg["tile_ic"] = SplitEntity([wkl.in_filter // ic_bn, ic_bn])
+    cfg["tile_oc"] = SplitEntity([wkl.out_filter // oc_bn, oc_bn])
+    cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
+    cfg["unroll_kw"] = OtherOptionEntity(False)
+
+
 def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):
     # fetch schedule
     ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
