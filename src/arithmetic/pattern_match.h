@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/pattern_match.h
  *
  * \brief Internal tool for expression-template based pattern matching.
@@ -326,6 +325,8 @@ TVM_PATTERN_BINARY_OP(operator/, ir::Div);
 TVM_PATTERN_BINARY_OP(operator%, ir::Mod);
 TVM_PATTERN_BINARY_OP(min, ir::Min);
 TVM_PATTERN_BINARY_OP(max, ir::Max);
+TVM_PATTERN_BINARY_OP(truncdiv, ir::Div);
+TVM_PATTERN_BINARY_OP(truncmod, ir::Mod);
 TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDiv);
 TVM_PATTERN_BINARY_OP(floormod, ir::FloorMod);
 

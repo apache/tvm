@@ -333,6 +333,30 @@ TVM_DLL Expr operator||(Expr a, Expr b);
  */
 TVM_DLL Expr operator!(Expr a);
 /*!
+ * \brief compute trunc(a / b)
+ *
+ * This is the default integer division behavior in C.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr truncdiv(Expr a, Expr b);
+/*!
+ * \brief compute the remainder of truncdiv
+ *
+ * This is the default integer division behavior in C.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr truncmod(Expr a, Expr b);
+/*!
  * \brief compute floor(a / b)
  *
  * \param a left operand
