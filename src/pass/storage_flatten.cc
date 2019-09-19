@@ -27,6 +27,7 @@
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/shape_expr_mutator.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -418,8 +419,13 @@ class StorageFlattener : public IRMutator {
       }
     } else {
       for (size_t i = 0; i < tuple->args.size(); i += 2) {
+        IndexVarFinder begins_var_finder;
+        begins_var_finder.Visit(tuple->args[i]);
+        IndexVarReplacer extent_var_replacer;
+        extent_var_replacer.Init(begins_var_finder.var_map());
+        auto new_extent = Simplify(extent_var_replacer.Mutate(tuple->args[i+1]));
         begins.push_back(tuple->args[i]);
-        extents.push_back(tuple->args[i + 1]);
+        extents.push_back(new_extent);
       }
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
