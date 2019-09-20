@@ -87,6 +87,7 @@ def test_llvm_lookup_intrin():
     func = tvm.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
     fcode = tvm.build(func, None, "llvm")
 
+
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)

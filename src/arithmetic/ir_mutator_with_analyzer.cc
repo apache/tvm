@@ -41,8 +41,9 @@ Mutate_(const LetStmt* op, const Stmt& s) {
   Expr value = this->Mutate(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
-    return this->Mutate(op->body);
   }
+  // We keep the let-binding here
+  // as sub-class may or maynot choose to replace it.
   Stmt body = this->Mutate(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
@@ -152,8 +153,9 @@ Mutate_(const Let* op, const Expr& self) {
   Expr value = this->Mutate(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
-    return this->Mutate(op->body);
   }
+  // We keep the let-binding here
+  // as sub-class may or maynot choose to replace it.
   Expr body = this->Mutate(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
