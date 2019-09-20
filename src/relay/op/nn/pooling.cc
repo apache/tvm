@@ -161,9 +161,12 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool2d does not support input split on width";
 
-  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
+  CHECK(inputs[0].ndim() == 4U ||
+        inputs[0].ndim() == 5U ||
+        inputs[0].ndim() == 6U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
-      << " or 5-D input (last dimension is a split of channel)";
+      << " or 5-D input (e.g. NCHWc on for vector instructions)"
+      << " or 6-D input (e.g. NCHWnc for tensor accelerators)";
 
   if (param->padding.size() == 1) {
     padding.push_back(padding[0]);

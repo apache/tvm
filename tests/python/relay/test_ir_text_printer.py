@@ -23,14 +23,14 @@ from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equ
 
 do_print = [False]
 
-SEMVER = "v0.0.3\n"
+SEMVER = "v0.0.4\n"
 
-def astext(p, graph_equal=False):
+def astext(p, unify_free_vars=False):
     txt = p.astext()
     if isinstance(p, Expr) and free_vars(p):
         return txt
     x = relay.fromtext(txt)
-    if graph_equal:
+    if unify_free_vars:
         assert_graph_equal(x, p)
     else:
         assert_alpha_equal(x, p)
@@ -78,7 +78,7 @@ def test_meta_data():
                         padding=(1, 1),
                         channels=2)
     f = relay.Function([x, w], z)
-    text = astext(f, graph_equal=True)
+    text = astext(f, unify_free_vars=True)
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
@@ -122,7 +122,7 @@ def test_let_if_scope():
 
     f = relay.Function([x, y, cond], result)
     text = astext(f)
-    assert text.count("{") == 4
+    assert text.count("{") == 3
     assert "%cond: bool" in text
     show(astext(f))
 
@@ -218,14 +218,6 @@ def test_zeros():
     x = relay.op.zeros([], "float32")
     astext(x)
 
-
-def test_cast():
-    data = relay.var('data', dtype='float32')
-    fp16_cast = relay.cast(data, dtype='float16')
-    cast_func = relay.Function(relay.analysis.free_vars(fp16_cast), fp16_cast)
-    astext(cast_func)
-
-
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -247,4 +239,3 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
-    test_cast()

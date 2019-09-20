@@ -15,12 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import numpy as np
 
 def test_const():
     x = tvm.const(1, "int32")
     print(x.dtype)
     assert x.dtype == tvm.int32
     assert isinstance(x, tvm.expr.IntImm)
+
+
+def test_scalar_dtype_inference():
+    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
+                 np.int8(1), np.int16(1), np.int32(1), np.int64(1),
+                 np.float16(1), np.float32(1), np.float64(1)]:
+        assert tvm.const(data).dtype == str(np.array(data).dtype)
+    assert tvm.const(1).dtype == 'int32'
+    assert tvm.const(1.0).dtype == 'float32'
+
+    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
+                 np.int8(1), np.int16(1), np.int32(1), np.int64(1),
+                 np.float16(1), np.float32(1), np.float64(1)]:
+        assert tvm.convert(data).dtype == str(np.array(data).dtype)
+    assert tvm.convert(1).dtype == 'int32'
+    assert tvm.convert(1.0).dtype == 'float32'
 
 def test_make():
     x = tvm.const(1, "int32")
@@ -175,6 +192,7 @@ if __name__ == "__main__":
     test_cast()
     test_attr()
     test_const()
+    test_scalar_dtype_inference()
     test_make()
     test_ir()
     test_basic()

@@ -128,7 +128,7 @@ cmake ..
 make runtime vta -j2
 # Build VTA RPC server (takes 1 min)
 cd ..
-sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is 'xilinx'
+sudo ./apps/vta_rpc/start_rpc_server.sh # pw is 'xilinx'
 ```
 
 You should see the following being displayed when starting the RPC server. In order to run the next examples, you'll need to leave the RPC server running in an `ssh` session.

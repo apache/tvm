@@ -66,7 +66,7 @@ from tvm.contrib.download import download_testdata
 #
 #   mkdir build
 #   cd build
-#   cmake -DUSE_LLVM=llvm-config-6.0 \
+#   cmake -DUSE_LLVM=llvm-config-8 \
 #         -DUSE_RPC=ON \
 #         -DUSE_SORT=ON \
 #         -DUSE_VULKAN=ON \

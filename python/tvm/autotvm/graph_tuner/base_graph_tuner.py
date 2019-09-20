@@ -243,6 +243,7 @@ class BaseGraphTuner(object):
         transformation and is_valid showing whether this is a valid layout transformation.
         """
         input_names = self._input_shapes.keys()
+        pair_tracker = set()
         for key, val in self._in_nodes_dict.items():
             node_entry = self._node_list[key]
             target_input_idx = -1
@@ -282,6 +283,9 @@ class BaseGraphTuner(object):
                     i_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][i]]
                     i_wkl = node_entry["workloads"][i]
 
+                if (i_idx, o_idx) in pair_tracker:
+                    continue
+                pair_tracker.add((i_idx, o_idx))
 
                 for m, i_record in enumerate(in_node_entry["record_candidates"]):
                     for n, o_record in enumerate(node_entry["record_candidates"]):

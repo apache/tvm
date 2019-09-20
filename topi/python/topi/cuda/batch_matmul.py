@@ -18,10 +18,33 @@
 """cuda batch_matmul operators"""
 from __future__ import absolute_import as _abs
 import tvm
-
+from tvm.contrib import cublas
+from topi.nn import batch_matmul, batch_matmul_default
 from .. import generic
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
+@batch_matmul.register(["cuda", "gpu"])
+def batch_matmul_cuda(x, y):
+    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
+    data in batch.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        3-D with shape [batch, M, K]
+
+    y : tvm.Tensor
+        3-D with shape [batch, N, K]
+
+    Returns
+    -------
+    output : tvm.Tensor
+        3-D with shape [batch, M, N]
+    """
+    target = tvm.target.current_target()
+    if target.target_name == "cuda" and "cublas" in target.libs:
+        return cublas.batch_matmul(x, y, False, True)
+    return batch_matmul_default(x, y)
 
 @generic.schedule_batch_matmul.register(["cuda", "gpu"])
 def schedule_batch_matmul(outs):
@@ -38,6 +61,10 @@ def schedule_batch_matmul(outs):
     s: Schedule
         The computation schedule for the op.
     """
+    target = tvm.target.current_target()
+    if target.target_name == "cuda" and "cublas" in target.libs:
+        return generic.schedule_extern(outs)
+
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 

@@ -35,21 +35,22 @@ using namespace runtime;
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   const int mode = args[0];
-  const int pad_h = args[1];
-  const int pad_w = args[2];
-  const int stride_h = args[3];
-  const int stride_w = args[4];
-  const int dilation_h = args[5];
-  const int dilation_w = args[6];
-  const int x_dim0 = args[7];
-  const int x_dim1 = args[8];
-  const int x_dim2 = args[9];
-  const int x_dim3 = args[10];
-  const int w_dim0 = args[11];
-  const int w_dim1 = args[12];
-  const int w_dim2 = args[13];
-  const int w_dim3 = args[14];
-  void *out_shape = args[15];
+  const int dtype = args[1];
+  const int pad_h = args[2];
+  const int pad_w = args[3];
+  const int stride_h = args[4];
+  const int stride_w = args[5];
+  const int dilation_h = args[6];
+  const int dilation_w = args[7];
+  const int x_dim0 = args[8];
+  const int x_dim1 = args[9];
+  const int x_dim2 = args[10];
+  const int x_dim3 = args[11];
+  const int w_dim0 = args[12];
+  const int w_dim1 = args[13];
+  const int w_dim2 = args[14];
+  const int w_dim3 = args[15];
+  void *out_shape = args[16];
 
   MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
   // Set Mode
@@ -57,7 +58,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
   // Set Ctx
   entry_ptr->conv_entry.ctx = TVMContext{kDLROCM, 0};
   // Set Data Type
-  entry_ptr->conv_entry.data_type = miopenFloat;  // MIOpen only suppports fp32
+  entry_ptr->conv_entry.data_type = static_cast<miopenDataType_t>(
+      dtype);  // MIOpen supports fp32(miopenFloat), fp16(miopenHalf) at
+               // this moment.
   // Set Desc
   MIOPEN_CALL(miopenInitConvolutionDescriptor(entry_ptr->conv_entry.conv_desc,
                                               entry_ptr->conv_entry.mode,
@@ -170,16 +173,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   const int mode = args[0];
-  const int pad_h = args[1];
-  const int pad_w = args[2];
-  const int stride_h = args[3];
-  const int stride_w = args[4];
-  const int dilation_h = args[5];
-  const int dilation_w = args[6];
-  const int algo = args[7];
-  const DLTensor *x = args[8];
-  const DLTensor *w = args[9];
-  const DLTensor *y = args[10];
+  const int dtype = args[1];
+  const int pad_h = args[2];
+  const int pad_w = args[3];
+  const int stride_h = args[4];
+  const int stride_w = args[5];
+  const int dilation_h = args[6];
+  const int dilation_w = args[7];
+  const int algo = args[8];
+  const DLTensor *x = args[9];
+  const DLTensor *w = args[10];
+  const DLTensor *y = args[11];
 
   MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
   entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);
@@ -188,7 +192,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
   // Set Ctx
   entry_ptr->conv_entry.ctx = x->ctx;
   // Set Data Type
-  entry_ptr->conv_entry.data_type = miopenFloat;  // MIOpen only suppports fp32
+  entry_ptr->conv_entry.data_type = static_cast<miopenDataType_t>(
+      dtype);  // MIOpen supports fp32(miopenFloat), fp16(miopenHalf) at
+               // this moment.
   // Set Desc
   MIOPEN_CALL(miopenInitConvolutionDescriptor(entry_ptr->conv_entry.conv_desc,
                                               entry_ptr->conv_entry.mode,

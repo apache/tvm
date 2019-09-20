@@ -82,5 +82,34 @@ def test_qnn_legalize():
     b = run_opt_pass(expected(), transform.InferType())
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
+def test_qnn_legalize_qnn_conv2d():
+    data_shape = (1, 64, 256, 256)
+    kernel_shape = (128, 64, 3, 3)
+    for dtype in ['uint8', 'int8']:
+        data_dtype =  kernel_dtype = dtype
+        data = relay.var("data", shape=data_shape,
+                dtype=data_dtype)
+        kernel = relay.var("kernel", shape=kernel_shape,
+                dtype=kernel_dtype)
+        func = relay.qnn.op.conv2d(
+                data, kernel,
+                input_zero_point=1,
+                kernel_zero_point=1,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                dilation=(1, 1),
+                out_dtype='int32',
+                data_layout='NCHW',
+                kernel_layout='OIHW')
+
+        mod = relay.Function(relay.analysis.free_vars(func), func)
+        mod = relay.Module.from_expr(mod)
+
+        with tvm.target.create('llvm -mcpu=skylake-avx512'):
+            mod = relay.qnn.transform.Legalize()(mod)
+
+        assert 'cast' in mod.astext()
+
 if __name__ == "__main__":
     test_qnn_legalize()
+    test_qnn_legalize_qnn_conv2d()

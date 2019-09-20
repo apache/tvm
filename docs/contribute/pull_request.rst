@@ -96,7 +96,7 @@ Necessary dependencies:
 
 .. code:: bash
 
-  pip install --user nose Cython
+  pip install --user pytest Cython
 
 If you want to run all tests:
 
@@ -118,4 +118,4 @@ If you want to run a single test:
   export PYTHONPATH=python:topi/python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  TVM_FFI=ctypes python -m nose -v tests/python/unittest/test_pass_storage_rewrite.py
+  TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py

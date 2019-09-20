@@ -114,6 +114,13 @@ def test_mobilenet():
     mod, params = testing.mobilenet.get_workload(batch_size=1)
     benchmark_execution(mod, params)
 
+# TODO: enable when the low building performance (several minutes) fixed.
+def test_mobilenet_nhwc():
+    image_shape = (1, 224, 224, 3)
+    mod, params = testing.mobilenet.get_workload(batch_size=1,
+                                                 image_shape=image_shape[1:],
+                                                 layout='NHWC')
+    benchmark_execution(mod, params, measure=False, data_shape=image_shape)
 
 def test_densenet():
     mod, params = testing.densenet.get_workload(batch_size=1)

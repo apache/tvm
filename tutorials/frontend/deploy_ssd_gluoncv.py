@@ -38,7 +38,7 @@ from gluoncv import model_zoo, data, utils
 # ------------------------------
 # .. note::
 #
-#   We support compiling SSD on bot CPUs and GPUs now.
+#   We support compiling SSD on both CPUs and GPUs now.
 #
 #   To get best inference performance on CPU, change
 #   target argument according to your device and

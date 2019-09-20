@@ -18,11 +18,11 @@ import os
 import tvm
 import numpy as np
 
-from nose.tools import nottest
+import pytest
 from tvm import relay
 from tvm.relay.testing import resnet
 
-@nottest
+@pytest.mark.skip
 def test_basic():
     mod, params = resnet.get_workload()
     compiler = relay.profiler_vm.VMCompilerProfiler()

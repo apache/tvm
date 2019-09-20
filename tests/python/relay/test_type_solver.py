@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from nose.tools import raises
+import pytest
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):
@@ -223,7 +223,8 @@ def test_backward_solving_after_child_update():
     assert solver.Resolve(t4) == tup_concrete
     assert solver.Resolve(t5) == tup_concrete
 
-@raises(tvm._ffi.base.TVMError)
+
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_tuple_unification():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
@@ -238,14 +239,14 @@ def test_incompatible_tuple_unification():
     solver.Unify(tup1, tup2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_bad_recursive_unification():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
     solver.Unify(t1, relay.ty.TupleType([t1, t1]))
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_unify_invalid_global_typevars():
     solver = make_solver()
     gtv1 = relay.GlobalTypeVar('gtv1')
@@ -253,7 +254,7 @@ def test_unify_invalid_global_typevars():
     solver.Unify(gtv1, gtv2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_typecall_var_unification():
     solver = make_solver()
     gtv1 = relay.GlobalTypeVar('gtv1')
@@ -267,7 +268,7 @@ def test_incompatible_typecall_var_unification():
     solver.Unify(tc1, tc2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_typecall_args_unification():
     solver = make_solver()
     gtv = relay.GlobalTypeVar('gtv1')

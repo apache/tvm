@@ -82,11 +82,11 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
     ci, kh, kw = cfg.reduce_axis(CI_packed), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(activation_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, policy='all', num_outputs=2,
+    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
                               filter=lambda x: x.size[-1] == 8)
-    oh, vh = cfg.define_split('tile_oh', oh, policy='all', num_outputs=2,
+    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
                               filter=lambda x: x.size[-1] >= 2)
-    ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
+    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
                               filter=lambda x: x.size[-1] >= 2)
     ci_o, ci_i = cfg.define_split("tile_ci", ci, num_outputs=2,
                                   filter=lambda x: x.size[-1] == 8 or x.size[-1] == 16)
@@ -278,13 +278,13 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
         s[data_pad].compute_inline()
 
     _, h, _, _, _, _, _ = s[data_vec].op.axis
-    cfg.define_split("tile_ah", cfg.axis(h), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_ah", cfg.axis(h), num_outputs=2, max_factor=32)
     oh, ih = cfg["tile_ah"].apply(s, data_vec, h)
     s[data_vec].parallel(oh)
 
     #### Schedule kernel packing
     co, _, _, _, _, _ = s[kernel_vec].op.axis
-    cfg.define_split("tile_bco", cfg.axis(co), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_bco", cfg.axis(co), num_outputs=2, max_factor=32)
     oco, ico = cfg["tile_bco"].apply(s, kernel_vec, co)
     s[kernel_vec].parallel(oco)
 

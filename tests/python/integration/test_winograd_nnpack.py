@@ -23,7 +23,7 @@ from tvm.contrib.pickle_memoize import memoize
 import topi
 import topi.testing
 from topi.util import get_const_tuple
-from nose import SkipTest
+from pytest import skip
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -60,7 +60,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
-            raise SkipTest("Skip because %s is not enabled" % device)
+            skip("s is not enabled" % device)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)
@@ -99,10 +99,10 @@ class WinogradFallback(autotvm.FallbackContext):
 
 def test_conv2d_nchw():
     if not tvm.get_global_func("tvm.contrib.nnpack.convolution_inference_without_weight_transform", True):
-        raise SkipTest("skip because extern function is not available")
+        skip("extern function is not available")
 
     if not nnpack.is_available():
-        raise SkipTest("skip because nnpack is not available")
+        skip("nnpack is not available")
 
     devices = ['llvm -device=arm_cpu']
     autotvm.DispatchContext.current.silent = True
@@ -139,5 +139,5 @@ def test_conv2d_nchw():
 
 
 if __name__ == "__main__":
-    import nose
-    nose.runmodule()
+    import pytest
+    pytest.main()

@@ -70,7 +70,10 @@ class AlphaEqualHandler:
       }
       if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
       for (const auto& p : lhsm->type_definitions) {
-        if (!Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) return false;
+        if (!rhsm->HasDef(p.first->var->name_hint) ||
+            !Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) {
+          return false;
+        }
       }
       return true;
     }
@@ -117,7 +120,7 @@ class AlphaEqualHandler:
    * \return the comparison result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
-    auto compute = [&](){
+    auto compute = [&]() {
       if (lhs.same_as(rhs)) return true;
       if (!lhs.defined() || !rhs.defined()) return false;
       return this->VisitType(lhs, rhs);
@@ -288,7 +291,7 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const GlobalTypeVarNode* lhs, const Type& other) final {
-    return GetRef<Type>(lhs) == other;
+    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
   }
 
   bool VisitType_(const TypeCallNode* lhs, const Type& other) final {
@@ -301,6 +304,26 @@ class AlphaEqualHandler:
 
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       if (!TypeEqual(lhs->args[i], rhs->args[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitType_(const TypeDataNode* lhs, const Type& other) final {
+    const TypeDataNode* rhs = other.as<TypeDataNode>();
+    if (rhs == nullptr
+        || lhs->type_vars.size() != rhs->type_vars.size()
+        || !TypeEqual(lhs->header, rhs->header)) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs->type_vars.size(); ++i) {
+      if (!TypeEqual(lhs->type_vars[i], rhs->type_vars[i])) {
+        return false;
+      }
+    }
+    for (size_t i = 0; i < lhs->constructors.size(); ++i) {
+      if (!ExprEqual(lhs->constructors[i], rhs->constructors[i])) {
         return false;
       }
     }
@@ -485,7 +508,10 @@ class AlphaEqualHandler:
   }
 
   bool VisitExpr_(const ConstructorNode* lhs, const Expr& other) final {
-    return GetRef<Expr>(lhs) == other;
+    if (const ConstructorNode* rhs = other.as<ConstructorNode>()) {
+      return lhs->name_hint == rhs->name_hint;
+    }
+    return false;
   }
 
   bool ClauseEqual(const Clause& lhs, const Clause& rhs) {
@@ -493,7 +519,7 @@ class AlphaEqualHandler:
   }
 
   bool PatternEqual(const Pattern& lhs, const Pattern& rhs) {
-    return VisitPattern(lhs, rhs);
+    return Compare(VisitPattern(lhs, rhs), lhs, rhs);
   }
 
   bool VisitPattern_(const PatternWildcardNode* lhs, const Pattern& other) final {
@@ -511,6 +537,21 @@ class AlphaEqualHandler:
     const auto* rhs = other.as<PatternConstructorNode>();
     if (rhs == nullptr
         || !ExprEqual(lhs->constructor, rhs->constructor)
+        || lhs->patterns.size() != rhs->patterns.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < lhs->patterns.size(); i++) {
+      if (!PatternEqual(lhs->patterns[i], rhs->patterns[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitPattern_(const PatternTupleNode* lhs, const Pattern& other) final {
+    const auto* rhs = other.as<PatternTupleNode>();
+    if (rhs == nullptr
         || lhs->patterns.size() != rhs->patterns.size()) {
       return false;
     }
@@ -567,7 +608,7 @@ TVM_REGISTER_API("relay._make._alpha_equal")
 TVM_REGISTER_API("relay._make._assert_alpha_equal")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
-  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not alpha equal";
+  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
 TVM_REGISTER_API("relay._make._graph_equal")
@@ -578,7 +619,7 @@ TVM_REGISTER_API("relay._make._graph_equal")
 TVM_REGISTER_API("relay._make._assert_graph_equal")
 .set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
   bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
-  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " is not graph equal";
+  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
 });
 
 }  // namespace relay

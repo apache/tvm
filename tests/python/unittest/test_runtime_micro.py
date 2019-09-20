@@ -17,7 +17,6 @@
 
 import os
 
-from nose.tools import nottest
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime, util

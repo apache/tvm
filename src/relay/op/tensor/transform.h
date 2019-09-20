@@ -65,6 +65,16 @@ bool ConcatenateRel(const Array<Type>& types,
   const int ndim = static_cast<int>(first->shape.size());
   const DataType dtype = first->dtype;
 
+  // Sanity check: axis
+  int axis = param->axis;
+  if (!(-ndim <= axis && axis < ndim)) {
+    throw relay::Error(RELAY_ERROR(
+      "concatenate only accepts `axis` in [-ndim, ndim)" <<
+      ", but got axis = " << axis <<
+      ", and ndim = " << ndim));
+  }
+  axis = axis < 0 ? ndim + axis : axis;
+
   for (const Type& ele : tensor_tuple->fields) {
     if (ele.as<IncompleteTypeNode>()) {
       return false;
@@ -80,16 +90,14 @@ bool ConcatenateRel(const Array<Type>& types,
     if (e_dtype != dtype) {
       throw relay::Error("relay.concatenate requires all tensors have the same dtype");
     }
+    for (size_t j = 0; j < first->shape.size(); ++j) {
+      if (j == static_cast<size_t>(axis)) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw relay::Error("relay.concatenate requires all tensors have the same shape "
+                         "on non-concatenating axes");
+    }
   }
-  // Sanity check: axis
-  int axis = param->axis;
-  if (!(-ndim <= axis && axis < ndim)) {
-    throw relay::Error(RELAY_ERROR(
-      "concatenate only accepts `axis` in [-ndim, ndim)" <<
-      ", but got axis = " << axis <<
-      ", and ndim = " << ndim));
-  }
-  axis = axis < 0 ? ndim + axis : axis;
+
   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
   IndexExpr &concat_dim = oshape[axis];

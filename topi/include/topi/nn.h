@@ -144,6 +144,10 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
  * \param pad_after An Array of Expr describing the padding after the
  * respective iterator
  * \param pad_value The value to fill padding elements with
+ * \param pad_mode Padding type to use.
+ * "constant" pads with constant_value;
+ * "edge" pads using the edge values of the input array;
+ * "reflect" pads by reflecting values with respect to the edges.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
@@ -173,7 +177,8 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
                        Expr pad_value = Expr(),
                        std::string name = "T_pad",
-                       std::string tag = kElementWise) {
+                       std::string tag = kElementWise,
+                       std::string pad_mode = "constant") {
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
@@ -182,40 +187,68 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::Expr> output_shape;
+  tvm::Array<tvm::Expr> pad_before_int32;
+  tvm::Array<tvm::Expr> pad_after_int32;
+  for (const auto &ele : pad_before) {
+    pad_before_int32.push_back(tvm::cast(tvm::Int(32), ele));
+  }
+  for (const auto &ele : pad_after) {
+    pad_after_int32.push_back(tvm::cast(tvm::Int(32), ele));
+  }
   for (size_t i = 0; i < t->shape.size(); ++i) {
     if (i >= pad_before.size()) {
       output_shape.push_back(t->shape[i]);
     } else {
       output_shape.push_back(
-          tvm::ir::Simplify(t->shape[i] + pad_before[i] + pad_after[i]));
+          tvm::ir::Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
     }
   }
 
   if (!pad_value.defined()) {
     pad_value = tvm::make_const(t->dtype, 0);
   }
-
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     tvm::Array<tvm::Expr> indices;
     tvm::Array<tvm::Expr> sel;
+    tvm::Array<tvm::Expr> pad_idx;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      if (i >= pad_before.size()) {
+      if (i >= pad_before_int32.size()) {
         indices.push_back(ovars[i]);
         continue;
       }
-      if (!topi::detail::EqualCheck(pad_before[i], 0)) {
-        sel.push_back(ovars[i] >= pad_before[i]);
-        indices.push_back(ovars[i] - pad_before[i]);
+      if (!topi::detail::EqualCheck(pad_before_int32[i], 0)) {
+        sel.push_back(ovars[i] >= pad_before_int32[i]);
+        indices.push_back(ovars[i] - pad_before_int32[i]);
       } else {
         indices.push_back(ovars[i]);
       }
-      if (!topi::detail::EqualCheck(pad_after[i], 0)) {
-        sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before[i] + t->shape[i]));
+      if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
+        sel.push_back(tvm::ir::Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
+      }
+      if (pad_mode == "edge") {
+        pad_idx.push_back(tvm::if_then_else(
+            ovars[i] < pad_before[i],
+            0,
+            tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
+                              t->shape[i] - 1,
+                              ovars[i] - pad_before[i])));
+      } else if (pad_mode == "reflect") {
+        pad_idx.push_back(tvm::if_then_else(
+            ovars[i] < pad_before[i],
+            pad_before[i] - ovars[i],
+            tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
+                              t->shape[i] * 2 - ovars[i] + pad_before[i] - 2,
+                              ovars[i] - pad_before[i])));
       }
     }
     if (sel.size() != 0) {
-      return tvm::if_then_else(
-          detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+      if (pad_mode == "constant") {
+        return tvm::if_then_else(
+            detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+      } else if (pad_mode == "edge" || pad_mode == "reflect") {
+        return tvm::if_then_else(
+            detail::Map(sel, tvm::ir::And::make), t(indices), t(pad_idx));
+      }
     }
     return t(indices);
   };

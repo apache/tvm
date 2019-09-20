@@ -49,7 +49,8 @@ def conv2d_forward(x,
                    pad_w=0,
                    dilation_h=1,
                    dilation_w=1,
-                   conv_mode=0):
+                   conv_mode=0,
+                   data_type=1):
     """Create an extern op that compute 2D convolution with MIOpen
 
     Parameters
@@ -73,18 +74,22 @@ def conv2d_forward(x,
     conv_mode: int
         0: miopenConvolution
         1: miopenTranspose
+    data_type: int
+        0: miopenHalf (fp16)
+        1: miopenFloat (fp32)
 
     Returns
     -------
     y: Tensor
         The result tensor
     """
-    assert conv_mode == 0, "Transpose convolutions not supported yet."
+    assert (conv_mode == 0 or conv_mode == 1), "0: miopenConvolution / 1: miopenTranspose"
     oshape = np.zeros((len(x.shape)), dtype=np.int32)
     xshape = x.shape
     wshape = w.shape
     setup_func = _get_global_func("tvm.contrib.miopen.conv2d.setup")
     algo = setup_func(conv_mode,
+                      data_type,
                       pad_h,
                       pad_w,
                       stride_h,
@@ -106,6 +111,7 @@ def conv2d_forward(x,
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.miopen.conv2d.forward",
             conv_mode,
+            data_type,
             pad_h,
             pad_w,
             stride_h,

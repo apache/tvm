@@ -50,12 +50,12 @@ test:
     - topi
     - nnvm
   requires:
-    - nose
+    - pytest
     - scipy
   source_files:
     - tests/python
   commands:
-    - python -m nose -v tests/python/integration
+    - python -m pytest -v tests/python/integration
 
 about:
   home: https://github.com/dmlc/tvm

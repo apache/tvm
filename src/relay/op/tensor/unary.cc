@@ -75,6 +75,17 @@ RELAY_REGISTER_UNARY_OP("sin")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sin));
 
 
+RELAY_REGISTER_UNARY_OP("atan")
+.describe(R"code(Returns the atan of input array, computed element-wise.
+
+.. math::
+   Y = atan(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::atan));
+
+
 RELAY_REGISTER_UNARY_OP("exp")
 .describe(R"code(Returns the exp input array, computed element-wise.
 
@@ -84,6 +95,18 @@ RELAY_REGISTER_UNARY_OP("exp")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
+
+
+RELAY_REGISTER_UNARY_OP("erf")
+.describe(R"code(Returns the error function value for input array, computed element-wise.
+
+.. math::
+   \erf(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::erf));
+
 
 RELAY_REGISTER_UNARY_OP("sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.

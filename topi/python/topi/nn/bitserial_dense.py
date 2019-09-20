@@ -95,9 +95,9 @@ def bitserial_dense_default(cfg, data, weight, data_bits, weight_bits, pack_dtyp
     ######## Search space
     x, y = cfg.axis(X), cfg.axis(Y)
     db, wb, k = cfg.reduce_axis(DB), cfg.reduce_axis(WB), cfg.reduce_axis(K)
-    ko, ki = cfg.define_split('tile_k', k, policy='all', num_outputs=2)
-    yo, yi = cfg.define_split('tile_y', y, policy='all', num_outputs=2)
-    xo, xi = cfg.define_split('tile_x', x, policy='all', num_outputs=2)
+    ko, ki = cfg.define_split('tile_k', k, num_outputs=2)
+    yo, yi = cfg.define_split('tile_y', y, num_outputs=2)
+    xo, xi = cfg.define_split('tile_x', x, num_outputs=2)
 
     cfg.define_reorder('reorder_0', [yo, xo, ko, yi, wb, db, ki, xi],
                        policy='candidate', candidate=[

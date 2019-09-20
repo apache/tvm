@@ -25,10 +25,11 @@ from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
 from .op import register_gradient
 from .reduce import sum as _sum
-from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like
+from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like, equal
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
+    cast_like,
     reshape,
     reshape_like,
     strided_slice,
@@ -44,6 +45,7 @@ def log_grad(orig, grad):
     x = orig.args[0]
     return [grad * ones_like(x) / x]
 
+
 @register_gradient("cos")
 def cos_grad(orig, grad):
     """Returns [grad * (-sin(x))]"""
@@ -51,11 +53,19 @@ def cos_grad(orig, grad):
     ones = ones_like(x)
     return [grad * (-ones * sin(x))]
 
+
 @register_gradient("sin")
 def sin_grad(orig, grad):
     """Returns [grad * cos(x)]"""
     x = orig.args[0]
     return [grad * cos(x)]
+
+@register_gradient("atan")
+def atan_grad(orig, grad):
+    """Returns [grad * 1 / (1 + x ^ 2)]"""
+    x = orig.args[0]
+    a = const(2.0)
+    return [grad * ones_like(x) / (ones_like(x) + power(x, a))]
 
 @register_gradient("exp")
 def exp_grad(orig, grad):
@@ -173,6 +183,7 @@ def clip_grad(orig, grad):
     ones = ones_like(x)
     return [where(less(x, a_mins), zeros, where(less(a_maxs, x), zeros, ones * grad))]
 
+
 @register_gradient("nn.max_pool2d")
 def max_pool2d_grad(orig, grad):
     attrs = orig.attrs
@@ -180,6 +191,7 @@ def max_pool2d_grad(orig, grad):
                                     strides=attrs.strides, padding=attrs.padding,
                                     layout=attrs.layout, ceil_mode=attrs.ceil_mode)
     return [pool_grad]
+
 
 @register_gradient("nn.avg_pool2d")
 def avg_pool2d_grad(orig, grad):
@@ -189,6 +201,7 @@ def avg_pool2d_grad(orig, grad):
                                     layout=attrs.layout, ceil_mode=attrs.ceil_mode,
                                     count_include_pad=attrs.count_include_pad)
     return [pool_grad]
+
 
 # not implemented, this is only for testing.
 @register_gradient("concatenate")
@@ -200,6 +213,7 @@ def concatenate_grad(orig, grad):
     # Assume only two element in tuple rn.
     # In the real implementation, concatenate_grad probably need to be implemented by an operator.
     return [Tuple([zeros_like(x), zeros_like(y)])]
+
 
 @register_gradient("nn.conv2d")
 def conv2d_grad(orig, grad):
@@ -261,6 +275,18 @@ def conv2d_grad(orig, grad):
     return [backward_data, backward_weight]
 
 
+@register_gradient("max")
+def max_grad(orig, grad):
+    """Returns the gradient of max"""
+    # Only support axis=0, since broadcasting orig to x behaves incorrectly
+    x, axis = orig.args[0], orig.attrs.axis
+    assert(axis is not None and len(axis) == 1 and int(axis[0]) == 0)
+    orig = broadcast_to_like(orig, x)
+    grad = broadcast_to_like(grad, x)
+    indicators = cast_like(equal(orig, x), grad)
+    return [indicators * grad]
+
+
 @register_gradient("nn.softmax")
 def softmax_grad(orig, grad):
     """Gradient of softmax"""
@@ -268,8 +294,8 @@ def softmax_grad(orig, grad):
 
 
 @register_gradient("nn.bias_add")
-def bias_grad(orig, grad):
-    """Returns grad"""
+def bias_add_grad(orig, grad):
+    """Returns gradient of bias_add"""
     data, bias = orig.args
     return [collapse_sum_like(grad, data),
             collapse_sum_like(grad, bias)]
@@ -281,6 +307,18 @@ def dense_grad(orig, grad):
     data, weight = orig.args
     return [collapse_sum_like(transpose(grad) * weight, data),
             collapse_sum_like(data * transpose(grad), weight)]
+
+
+@register_gradient("reshape")
+def reshape_grad(orig, grad):
+    """Gradient of reshape"""
+    return [reshape_like(grad, orig.args[0])]
+
+
+@register_gradient("cast")
+def cast_grad(orig, grad):
+    x = orig.args[0]
+    return [cast_like(grad, x)]
 
 
 @register_gradient("nn.batch_flatten")

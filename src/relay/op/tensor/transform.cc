@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file transform.cc
  * \brief Transform operators.
  */
@@ -97,6 +97,63 @@ RELAY_REGISTER_OP("cast")
 .set_attr<FTVMCompute>("FTVMCompute", CastCompute)
 .set_attr<TOpPattern>("TOpPattern", kElemWise)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
+
+// relay.cast_like
+bool CastLikeRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* dtype_like = types[1].as<TensorTypeNode>();
+  if (dtype_like == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TensorType but get "
+        << types[1];
+    return false;
+  }
+  reporter->Assign(types[2], TensorTypeNode::make(data->shape, dtype_like->dtype));
+  return true;
+}
+
+
+Array<Tensor> CastLikeCompute(const Attrs& attrs,
+                              const Array<Tensor>& inputs,
+                              const Type& out_type,
+                              const Target& target) {
+  return { topi::cast(inputs[0], inputs[1]->dtype) };
+}
+
+
+Expr MakeCastLike(Expr data,
+                  Expr dtype_like) {
+  static const Op& op = Op::Get("cast_like");
+  return CallNode::make(op, {data, dtype_like}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay._make.cast_like")
+.set_body_typed(MakeCastLike);
+
+RELAY_REGISTER_OP("cast_like")
+.describe(R"code(Cast the data into the type of another tensor.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("dtype_like", "Tensor", "The tensor to cast to.")
+.set_support_level(3)
+.add_type_rel("CastLike", CastLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", CastLikeCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
 
 Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs,
                                  const Type& out_type, const Target& target) {
@@ -301,8 +358,17 @@ bool StackRel(const Array<Type>& types,
   }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
-  // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
+
+  // Sanity check: axis
+  int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  axis = axis < 0 ? ndim + axis + 1: axis;
+
+  // Sanity check: ndim and dtype.
   const DataType dtype = first->dtype;
   for (const Type& ele : tensor_tuple->fields) {
     const auto& e = Downcast<TensorType>(ele);
@@ -310,14 +376,14 @@ bool StackRel(const Array<Type>& types,
     const DataType& e_dtype = e->dtype;
     CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
+    for (size_t j = 0; j < first->shape.size(); ++j) {
+      if (j == static_cast<size_t>(axis)) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw relay::Error("relay.stack requires all tensors have the same shape "
+                         "on non-stacking axes");
+    }
   }
-  // Sanity check: axis
-  int axis = param->axis;
-  CHECK(-ndim <= axis && axis < ndim)
-    << "stack only accepts `axis` in [-ndim, ndim)"
-    << ", but got axis = " << axis
-    << ", and ndim = " << ndim;
-  axis = axis < 0 ? ndim + axis + 1 : axis;
+
   // Calculate shape
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim + 1);
@@ -1541,7 +1607,6 @@ RELAY_REGISTER_OP("squeeze")
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
-// Have no idea how to assert the constraint.
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
 bool CollapseSumLikeRel(const Array<Type>& types,
                         int num_inputs,
@@ -1549,7 +1614,7 @@ bool CollapseSumLikeRel(const Array<Type>& types,
                         const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   reporter->Assign(types[2], types[1]);
-  return true;
+  return BroadcastRel({types[0], types[1], types[0]}, 2, Attrs(), reporter);
 }
 
 Expr MakeCollapseSumLike(Expr data,
@@ -1593,7 +1658,7 @@ bool BroadCastToRel(const Array<Type>& types,
   if (intt == nullptr) { return false; }
   auto type = TensorTypeNode::make(ioattrs->shape, intt->dtype);
   reporter->Assign(types[1], type);
-  return true;
+  return BroadcastRel({types[0], types[1], types[1]}, 2, Attrs(), reporter);
 }
 
 Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
@@ -1632,7 +1697,7 @@ bool BroadCastToLikeRel(const Array<Type>& types,
                         const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   reporter->Assign(types[2], types[1]);
-  return true;
+  return BroadcastRel({types[0], types[1], types[1]}, 2, Attrs(), reporter);
 }
 
 Expr MakeBroadCastToLike(Expr data,
@@ -2483,7 +2548,7 @@ TVM_REGISTER_API("relay.op._make.one_hot")
 .set_body_typed(MakeOneHot);
 
 RELAY_REGISTER_OP("one_hot")
-.describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1, 
+.describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1,
     other locations take value 0. Final dimension is <indices dimensions> x depth.
 
     **indices** Locations to set to 1.
@@ -2493,9 +2558,9 @@ RELAY_REGISTER_OP("one_hot")
     **off_value** Value to fill at all other positions besides indices.
 
     **depth** Depth of the one-hot dimension.
-    
+
     **axis** Axis to fill.
-    
+
     **dtype**)code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.OneHotAttrs")
 .set_num_inputs(3)

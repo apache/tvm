@@ -410,6 +410,12 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual void SetLocation(const NodeRef& ref) = 0;
 
+  /*!
+   * \brief Retrieve the current global module.
+   * \return The global module.
+   */
+  TVM_DLL virtual Module GetModule() = 0;
+
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
 

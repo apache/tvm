@@ -254,11 +254,11 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(in_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, policy='all', num_outputs=2,
+    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
-    oh, vh = cfg.define_split('tile_oh', oh, policy='all', num_outputs=2,
+    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
-    ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
+    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
 
@@ -358,11 +358,11 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
     ib, kb = cfg.reduce_axis(in_bits), cfg.reduce_axis(weight_bits)
 
-    co, vc = cfg.define_split('tile_co', co, policy='all', num_outputs=2,
+    co, vc = cfg.define_split('tile_co', co, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
-    oh, vh = cfg.define_split('tile_oh', oh, policy='all', num_outputs=2,
+    oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
-    ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
+    ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
     cfg.define_reorder("reorder_0",

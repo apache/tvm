@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
@@ -29,6 +29,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
+#include <tvm/relay/feature.h>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -708,6 +709,18 @@ class Interpreter :
     return false;
   }
 
+  bool VisitPattern_(const PatternTupleNode* op, const Value& v) final {
+    const TupleValueNode* tvn = v.as<TupleValueNode>();
+    CHECK(tvn) << "need to be a tuple for match";
+    CHECK_EQ(op->patterns.size(), tvn->fields.size());
+    for (size_t i = 0; i < op->patterns.size(); ++i) {
+      if (!VisitPattern(op->patterns[i], tvn->fields[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool VisitPattern_(const PatternWildcardNode* op, const Value& v) final {
     return true;
   }
@@ -749,6 +762,8 @@ CreateInterpreter(
     Target target) {
   auto intrp = std::make_shared<Interpreter>(mod, context, target);
   auto packed = [intrp](Expr expr) {
+    auto f = DetectFeature(expr);
+    CHECK(f.is_subset_of(FeatureSet::All() - fGraph));
     return intrp->Eval(expr);
   };
   return TypedPackedFunc<Value(Expr)>(packed);
