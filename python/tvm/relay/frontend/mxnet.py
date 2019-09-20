@@ -112,11 +112,55 @@ def _mx_zeros(inputs, attrs):
     return _op.zeros(shape=shape, dtype=dtype)
 
 
+def _mx_conv(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+def _mx_conv1d(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) != 1:
+        raise tvm.error.OpAttributeInvalid(
+            'Non 1D or 2D kernels are not supported for operator Convolution')
+    data_layout = attrs.get_str("layout", "NCW")
+    # MXNet Conv1D only supports ‘NCW’ layout for now.
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + kernel_size
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", False)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d(data, kernel, **new_attrs)
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
+    return res
+
+
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
         raise tvm.error.OpAttributeInvalid(
-            'Non-2D kernels are not supported for operator Conv2D.')
+            'Non 1D or 2D kernels are not supported for operator Convolution')
     data_layout = attrs.get_str("layout", "NCHW")
     channel_axis = _get_channel_axis(data_layout, "conv2d")
 
@@ -139,6 +183,51 @@ def _mx_conv2d(inputs, attrs):
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
+def _mx_conv_transpose(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d_transpose(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d_transpose(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+
+def _mx_conv1d_transpose(inputs, attrs):
+    if "target_shape" in attrs.attrs:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
+    data_layout = attrs.get_str("layout", "NCW")
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["output_padding"] = (0,) + attrs.get_int_tuple("adj", (0,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", True)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d_transpose(data, kernel, **new_attrs)
+
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
     return res
 
 
@@ -257,13 +346,7 @@ def _mx_slice(inputs, attrs):
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    if None in begin:
-        data_shape = _infer_type(inputs[0]).checked_type.shape
-        for i, beg in enumerate(begin):
-            if beg is None:
-                assert end[i] is None
-                begin[i] = 0
-                end[i] = data_shape[i]
+    begin = tuple(x if x is not None else 0 for x in begin)
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -373,6 +456,27 @@ def _mx_expand_dims(inputs, attrs):
     axis = attrs.get_int("axis")
     return _op.expand_dims(inputs[0], axis=axis)
 
+def _mx_pad(inputs, attrs):
+    pad_mode = attrs.get_str('mode', None)
+    if pad_mode is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "mode" not found in operator pad.')
+    if pad_mode not in ['constant', 'edge', 'reflect']:
+        raise tvm.error.OpAttributeInvalid(
+            'Value ' + mode + ' in attribute "mode" is not valid')
+    pad_width = attrs.get_int_tuple('pad_width', None)
+    if pad_width is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "pad_width" not found in operator pad.')
+    if None in pad_width:
+        raise tvm.error.OpAttributeInvalid(
+            'Value None in attribute "pad_width" of operator Slice is not valid.')
+    constant_value = attrs.get_float('constant_value', 0.0)
+    padding = tuple(tuple((b, a)) for b, a in zip(pad_width[::2], pad_width[1::2]))
+    return _op.nn.pad(data=inputs[0],
+                      pad_width=padding,
+                      pad_value=constant_value,
+                      pad_mode=pad_mode)
 
 def _mx_leaky_relu(inputs, attrs):
     act_type = attrs.get_str("act_type")
@@ -931,6 +1035,8 @@ _identity_list = [
     "ones_like",
     "where",
     "gather_nd",
+    "cos",
+    "sin"
 ]
 
 _convert_map = {
@@ -943,6 +1049,7 @@ _convert_map = {
     "broadcast_mod"          : _rename(_op.mod),
     "broadcast_maximum"      : _rename(_op.maximum),
     "broadcast_minimum"      : _rename(_op.minimum),
+    "arctan"                 : _rename(_op.atan),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),
@@ -1018,9 +1125,9 @@ _convert_map = {
     "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
     "Activation"    : _mx_activations,
-    "Convolution"   : _mx_conv2d,
+    "Convolution"   : _mx_conv,
     "Convolution_v1": _mx_conv2d,
-    "Deconvolution" : _mx_conv2d_transpose,
+    "Deconvolution" : _mx_conv_transpose,
     "Pooling"       : _mx_pooling,
     "Pooling_v1"    : _mx_pooling,
     "Dropout"       : _mx_dropout,
@@ -1044,6 +1151,8 @@ _convert_map = {
     "_full"         : _mx_full,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
+    "pad"           : _mx_pad,
+    "Pad"           : _mx_pad,
     "take"          : _mx_take,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
