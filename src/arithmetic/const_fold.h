@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file const_fold.h
  * \brief Centralized location for constant folding.
  */

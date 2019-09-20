@@ -51,6 +51,23 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Mutate(stmt);
   }
 
+  Stmt Mutate_(const LetStmt* op, const Stmt& s) {
+    Expr value = this->Mutate(op->value);
+    if (!ir::HasSideEffect(value)) {
+      // it is fine to discard the let binding
+      // because the call to simplify will always inline the var.
+      analyzer_->Bind(op->var, value);
+      return Mutate(op->body);
+    }
+    Stmt body = this->Mutate(op->body);
+    if (value.same_as(op->value) &&
+        body.same_as(op->body)) {
+      return s;
+    } else {
+      return LetStmt::make(op->var, value, body);
+    }
+  }
+
   // eliminate useless stores
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
