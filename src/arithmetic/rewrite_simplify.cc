@@ -1676,10 +1676,12 @@ Mutate_(const Call* op, const Expr& self) {
     return op->args[0];
   } else if (op->is_intrinsic(Call::shift_right)) {
     if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+      // the operator overload will eagerly constant fold.
       return op->args[0] >> op->args[1];
     }
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+      // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }
   }
