@@ -88,6 +88,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.cos")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sin")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.atan")
+.set_body(DispatchExternLibDevice);
+
 }  // namespace llvm
 }  // namespace codegen
 }  // namespace tvm
