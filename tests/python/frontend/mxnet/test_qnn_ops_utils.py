@@ -148,14 +148,30 @@ def test_mxnet_conv_weight_quantization_mkldnn():
                            -60, -60, -117, -127, -106, -93]) \
             .astype('int8') \
             .reshape((5, 1, 2, 2))
-        quant_args = {}
         quantize_test_driver(out_dtype='int8',
                              in_data=data, verify_output_data=output)
 
     test_float32_to_int8()
 
 
+def test_get_scale():
+
+    def test_uint8_scale():
+        scale = relay.frontend.get_mkldnn_uint8_scale(0.000407, 0.999356)
+        expected_scale = 0.00391904
+        assert np.allclose(expected_scale, scale)
+
+    def test_int8_scale():
+        scale = relay.frontend.get_mkldnn_int8_scale(0.000407, 0.999356)
+        expected_scale = 0.007868945
+        assert np.allclose(expected_scale, scale)
+
+    test_uint8_scale()
+    test_int8_scale()
+
+
 if __name__ == "__main__":
     test_mxnet_quantization()
     test_mxnet_mkldnn_quantization()
     test_mxnet_conv_weight_quantization_mkldnn()
+    test_get_scale()

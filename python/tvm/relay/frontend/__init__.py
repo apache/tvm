@@ -25,7 +25,9 @@ from __future__ import absolute_import
 
 from .mxnet import from_mxnet
 from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
-                                quantize_conv_weights_mkldnn
+                                quantize_conv_weights_mkldnn, \
+                                get_mkldnn_int8_scale, \
+                                get_mkldnn_uint8_scale
 from .keras import from_keras
 from .onnx import from_onnx
 from .tflite import from_tflite
