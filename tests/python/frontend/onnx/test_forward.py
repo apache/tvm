@@ -1205,6 +1205,27 @@ def test_and():
     verify_and(indata=[x, y], dtype=bool)
 
 
+def verify_tile(indata, outdata, **kwargs):
+    node = helper.make_node('Tile', inputs=['in'], outputs=['out'], **kwargs)
+    graph = helper.make_graph([node],
+                              'tile_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='tile_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_tile():
+    x = np.random.rand(2, 3, 4, 5).astype(np.float32)
+    repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
+    z = np.tile(x, repeats)
+    verify_tile(x, z, repeats=repeats)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1250,3 +1271,4 @@ if __name__ == '__main__':
     test_sign()
     test_not()
     test_and()
+    test_tile()
