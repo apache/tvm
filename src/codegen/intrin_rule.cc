@@ -46,6 +46,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sin")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")
 .set_body(DispatchExtern<FloatSuffix>);
 
