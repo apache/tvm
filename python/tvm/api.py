@@ -891,6 +891,52 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
+def truncdiv(a, b):
+    """Compute the truncdiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _make._OpTruncDiv(a, b)
+
+
+def truncmod(a, b):
+    """Compute the truncmod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _make._OpTruncMod(a, b)
+
+
 def floordiv(a, b):
     """Compute the floordiv of two expressions.
 

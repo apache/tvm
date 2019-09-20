@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,23 +18,28 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
- *  Lower intrinsic calls to device specific ir when possible.
+ *  Lower intrinsic calls and ops to device specific ir when possible.
  * \file lower_intrin.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
+#include <tvm/expr_operator.h>
 #include <unordered_set>
 #include "ir_util.h"
+#include "../arithmetic/pattern_match.h"
+#include "../arithmetic/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace ir {
 
-class IntrinInjecter : public IRMutator {
+class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
  public:
-  explicit IntrinInjecter(std::string target) {
+  using IRMutatorWithAnalyzer::Mutate_;
+
+  IntrinInjecter(arith::Analyzer* analyzer, std::string target)
+      : IRMutatorWithAnalyzer(analyzer) {
     std::istringstream is(target);
     std::string starget;
     is >> starget;
@@ -59,6 +64,118 @@ class IntrinInjecter : public IRMutator {
       return MakeFMA(ma->a, ma->b, op->b, op, e);
     }
     return IRMutator::Mutate_(op, e);
+  }
+
+  // We use floordiv for integer analysis,
+  // but will need to lower them to native truncdiv instructions
+  Expr Mutate_(const FloorDiv* op, const Expr& e) final {
+    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
+    op = ret.as<FloorDiv>();
+    if (op == nullptr) return ret;
+    int shift;
+    const DataType& dtype = op->type;
+    if (dtype.is_float()) {
+      return floor(Div::make(op->a, op->b));
+    }
+    CHECK(dtype.is_int() || !dtype.is_uint());
+
+    if (is_const_power_of_two_integer(op->b, &shift)) {
+      // lower to right shift if possible.
+      return op->a >> make_const(dtype, shift);
+    }
+
+    if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
+      // Common path, positive divisor
+      if (analyzer_->CanProveGreaterEqual(op->a, 0) ||
+          analyzer_->CanProveGreaterEqual(e, 0)) {
+        return truncdiv(op->a, op->b);
+      } else {
+        DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
+        Expr rdiv = truncdiv(op->a, op->b);
+        Expr rmod = truncmod(op->a, op->b);
+        // condition on b >= 0.
+        // truncmod(a, b) < 0 will implies ceildiv,
+        // So we need to correct these cases.
+        if (dtype == Int(32) || dtype == Int(64)) {
+          // equivalent to rdiv + (rmod >= 0 ? 0: -1);
+          return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
+        } else {
+          return ir::Select::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+        }
+      }
+    } else {
+      // uncommon case
+      DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
+      // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
+      // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
+      Expr rdiv = truncdiv(op->a, op->b);
+      Expr rmod = truncmod(op->a, op->b);
+      return ir::Select::make(
+          (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
+          rdiv, rdiv - make_const(dtype, 1));
+    }
+  }
+
+  Expr Mutate_(const FloorMod* op, const Expr& e) final {
+    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
+    op = ret.as<FloorMod>();
+    if (op == nullptr) return ret;
+    // Lower floordiv to native truncdiv.
+    int shift;
+    const DataType& dtype = op->type;
+    CHECK(dtype.is_int() || !dtype.is_uint());
+
+    if (is_const_power_of_two_integer(op->b, &shift)) {
+      // lower to masking if possible.
+      int64_t mask = (
+          static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
+      return op->a & make_const(dtype, mask);
+    }
+
+    if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
+      // Common pass, positive divisor
+      if (analyzer_->CanProveGreaterEqual(op->a, 0) ||
+          analyzer_->CanProveGreaterEqual(e, 0)) {
+        return truncmod(op->a, op->b);
+      } else {
+        DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
+        // NOTE:condition on b >= 0.
+        // mod(a, b) < 0 will imply we are doing ceildiv,
+        // So we need to correct these cases.
+        Expr rmod = truncmod(op->a, op->b);
+        if (dtype == Int(32) || dtype == Int(64)) {
+          // (rmod >> shift) & b
+          // -> (rmod >= 0 ? 0: -1) & b
+          // -> rmod >= 0 ? 0 : b
+          return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
+        } else {
+          return ir::Select::make(rmod >= 0, rmod, rmod + op->b);
+        }
+      }
+    } else {
+      // uncommon case
+      DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
+      Expr rmod = truncmod(op->a, op->b);
+      // b > 0 && rmod >= 0 -> rmod
+      // b > 0 && rmod < 0  -> rmod + b
+      // b < 0 && rmod < 0 -> rmod
+      // b < 0 && rmod > 0 -> rmod + b
+      return ir::Select::make(
+          (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
+          rmod, rmod + op->b);
+    }
+  }
+
+  Expr Mutate_(const Max* op, const Expr& e) final {
+    using namespace arith;
+    PVar<Expr> x, y;
+    PVar<Integer> c;
+    if (max(floordiv(x, y), c).Match(e) &&
+        c.Eval()->value >= 0 &&
+        analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
+      return max(Mutate(truncdiv(x, y).Eval()), c.Eval());
+    }
+    return IRMutatorWithAnalyzer::Mutate_(op, e);
   }
 
  private:
@@ -132,17 +249,27 @@ class IntrinInjecter : public IRMutator {
     }
     return Expr();
   }
+
   // patterns
   std::vector<std::string> patterns_;
   const PackedFunc* fma_{nullptr};
 };
 
+Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
+  arith::Analyzer analyzer;
+  return IntrinInjecter(&analyzer, target).Mutate(stmt);
+}
+
 LoweredFunc
 LowerIntrin(LoweredFunc f, const std::string& target) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
-  n->body = IntrinInjecter(target).Mutate(n->body);
+  n->body = LowerIntrinStmt(n->body, target);
   return LoweredFunc(n);
 }
+
+// Register the api only for test purposes
+TVM_REGISTER_API("ir_pass._LowerIntrinStmt")
+.set_body_typed(LowerIntrinStmt);
 
 }  // namespace ir
 }  // namespace tvm

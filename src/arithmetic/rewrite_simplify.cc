@@ -1674,6 +1674,16 @@ Mutate_(const Call* op, const Expr& self) {
   if (op == nullptr) return ret;
   if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
     return op->args[0];
+  } else if (op->is_intrinsic(Call::shift_right)) {
+    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+      // the operator overload will eagerly constant fold.
+      return op->args[0] >> op->args[1];
+    }
+  } else if (op->is_intrinsic(Call::bitwise_and)) {
+    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+      // the operator overload will eagerly constant fold.
+      return op->args[0] & op->args[1];
+    }
   }
   return ret;
 }
@@ -1693,6 +1703,24 @@ Mutate_(const Cast* op, const Expr& self) {
   Expr ret = IRMutator::Mutate_(op, self);
   op = ret.as<Cast>();
   return cast(op->type, op->value);
+}
+
+Expr RewriteSimplifier::Impl::
+Mutate_(const Let* op, const Expr& self) {
+  Expr value = this->Mutate(op->value);
+  if (!ir::HasSideEffect(value)) {
+    // it is fine to discard the let binding
+    // because the value will always be inlined in the simplifier.
+    analyzer_->Bind(op->var, value);
+    return this->Mutate(op->body);
+  }
+  Expr body = this->Mutate(op->body);
+  if (value.same_as(op->value) &&
+      body.same_as(op->body)) {
+    return self;
+  } else {
+    return Let::make(op->var, value, body);
+  }
 }
 
 Expr RewriteSimplifier::operator()(const Expr& expr) {
