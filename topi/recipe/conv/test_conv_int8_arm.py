@@ -110,9 +110,14 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
 
 
     with tvm.target.create(TARGET_NAME):
-        conv = topi.nn.conv2d_NCHWc(data, kernel, stride=hstride,
-                                    padding=hpad, dilation=(1, 1),
-                                    layout='NCHWc', out_layout='NCHWc', out_dtype=out_dtype)
+        if out_dtype == "float32":
+            conv = topi.nn.conv2d_NCHWc(data, kernel, stride=hstride,
+                                        padding=hpad, dilation=(1, 1),
+                                        layout='NCHWc', out_layout='NCHWc', out_dtype=out_dtype)
+        else:
+            conv = topi.nn.conv2d_NCHWc_int8(data, kernel, strides=hstride,
+                                             padding=hpad, dilation=(1, 1),
+                                             layout='NCHWc', out_layout='NCHWc', out_dtype=out_dtype)
         out = topi.nn.relu(conv)
         sch = tvm.create_schedule(out.op)
         func = tvm.build(sch, [data, kernel, out], target=TARGET_NAME, name='out')
@@ -120,7 +125,10 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
         LOGGER.debug(tvm.lower(sch, [data, kernel], simple_mode=True))
 
         # Generate and run the optimized schedule
-        sconv = topi.generic.nn.schedule_conv2d_NCHWc(outs=[out])
+        if out_dtype == "float32":
+            sconv = topi.generic.nn.schedule_conv2d_NCHWc(outs=[out])
+        else:
+            sconv = topi.generic.nn.schedule_conv2d_NCHWc_int8(outs=[out])
         func = tvm.build(sconv, [data, kernel, out], target=TARGET_NAME, name='conv')
         func(data_array, kernel_array, c_sch)
 
@@ -138,10 +146,8 @@ if __name__ == "__main__":
     LOGGER.info("Workload, Kernel_size, FP32_time, INT8_time, Speedup")
     SPEEDUP_ARRAY = []
     for i, wkl in enumerate(WORKLOADS):
-        fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
-        int8_time = run_inference('uint8', 'int8', 'int32', *wkl)
-        # For ARM,
-        # int8_time = run_inference('uint8', 'uint8', 'uint32', *wkl)
+        # fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
+        int8_time = run_inference('uint8', 'uint8', 'uint32', *wkl)
         kernel_h = wkl[4]
         kernel_w = wkl[5]
         LOGGER.info("Workload#" + str(i) + ", " + str(kernel_h) + "x" + str(kernel_w) + ", "
