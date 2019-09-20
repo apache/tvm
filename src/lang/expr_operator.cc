@@ -178,18 +178,26 @@ Expr operator*(Expr a, Expr b) {
   return ir::Mul::make(a, b);
 }
 
-Expr operator/(Expr a, Expr b) {
+Expr truncdiv(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Div>(a, b);
   if (ret.defined()) return ret;
   return ir::Div::make(a, b);
 }
 
-Expr operator%(Expr a, Expr b) {
+Expr truncmod(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Mod>(a, b);
   if (ret.defined()) return ret;
   return ir::Mod::make(a, b);
+}
+
+Expr operator/(Expr a, Expr b) {
+  return truncdiv(a, b);
+}
+
+Expr operator%(Expr a, Expr b) {
+  return truncmod(a, b);
 }
 
 Expr floordiv(Expr a, Expr b) {

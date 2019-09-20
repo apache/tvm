@@ -45,6 +45,8 @@ class IRMutatorWithAnalyzer : public ir::IRMutator {
   explicit IRMutatorWithAnalyzer(Analyzer* analyzer)
       : analyzer_(analyzer) {}
 
+  using IRMutator::Mutate_;
+
   // override functions that need to populate the context information.
   Stmt Mutate_(const ir::For* op, const Stmt& self) override;
   Stmt Mutate_(const ir::LetStmt* op, const Stmt& self) override;
