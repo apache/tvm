@@ -144,6 +144,22 @@ def sin(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def atan(x):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.atan(x(*i)))
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
     """Take floor of input x.
 

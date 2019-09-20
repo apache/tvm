@@ -60,6 +60,12 @@ def sin_grad(orig, grad):
     x = orig.args[0]
     return [grad * cos(x)]
 
+@register_gradient("atan")
+def atan_grad(orig, grad):
+    """Returns [grad * 1 / (1 + x ^ 2)]"""
+    x = orig.args[0]
+    a = const(2.0)
+    return [grad * ones_like(x) / (ones_like(x) + power(x, a))]
 
 @register_gradient("exp")
 def exp_grad(orig, grad):

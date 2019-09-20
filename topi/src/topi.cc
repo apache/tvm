@@ -172,6 +172,11 @@ TVM_REGISTER_GLOBAL("topi.tanh")
   *rv = tanh(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.atan")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = atan(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.sigmoid")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = sigmoid(args[0]);

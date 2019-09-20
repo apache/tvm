@@ -57,6 +57,7 @@ TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
 TOPI_DECLARE_UNARY_OP(cos);
 TOPI_DECLARE_UNARY_OP(sin);
+TOPI_DECLARE_UNARY_OP(atan);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen
