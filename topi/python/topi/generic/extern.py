@@ -43,5 +43,5 @@ def schedule_extern(outs):
     for out in outs:
         if isinstance(out.op, tvm.tensor.ExternOp):
             continue
-        schedule_injective(out.op, s)
+        schedule_injective(out)
     return s
