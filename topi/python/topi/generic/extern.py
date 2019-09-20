@@ -35,8 +35,12 @@ def schedule_extern(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.current_target(allow_none=False)
-    if target.target_name != "llvm":
-        raise RuntimeError("schedule_extern not registered for '%s'" % target)
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    return tvm.create_schedule([x.op for x in outs])
+    s = tvm.create_schedule([x.op for x in outs])
+
+    tvm.schedule.AutoInlineInjective(s)
+    for out in outs:
+        if isinstance(out.op, tvm.tensor.ExternOp):
+            continue
+        _schedule_injective(out.op, s)
+    return s
