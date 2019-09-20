@@ -65,6 +65,7 @@
 
 #include <topi/x86/bnn.h>
 #include <topi/x86/default.h>
+#include <topi/x86/extern.h>
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
@@ -604,6 +605,11 @@ TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
   } else {
     *rv = topi::x86::default_schedule(args[0], args[1]);
   }
+  });
+
+TVM_REGISTER_GLOBAL("topi.x86.schedule_extern")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::x86::schedule_extern(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")

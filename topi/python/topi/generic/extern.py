@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from .injective import _schedule_injective
 
 @tvm.target.generic_func
 def schedule_extern(outs):
