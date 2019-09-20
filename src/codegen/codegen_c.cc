@@ -519,14 +519,22 @@ void CodeGenC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   if (op->call_type == Call::Extern ||
       op->call_type == Call::PureExtern) {
-    os << op->name << "(";
-    for (size_t i = 0; i < op->args.size(); i++) {
-      this->PrintExpr(op->args[i], os);
-      if (i < op->args.size() - 1) {
-        os << ", ";
+    if (op->name == "is_nan") {
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << " != ";
+      this->PrintExpr(op->args[0], os);
+      os << ")";
+    } else {
+      os << op->name << "(";
+      for (size_t i = 0; i < op->args.size(); i++) {
+        this->PrintExpr(op->args[i], os);
+        if (i < op->args.size() - 1) {
+          os << ", ";
+        }
       }
+      os << ")";
     }
-    os << ")";
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     PrintBinaryIntrinsic(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {

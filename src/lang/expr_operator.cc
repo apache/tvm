@@ -424,6 +424,28 @@ Expr abs(Expr x) {
   }
 }
 
+Expr isnan(Expr x) {
+  Type t = Bool(x.type().lanes());
+  if (x.type().is_int() || x.type().is_uint()) {
+    return make_const(t, false);
+  } else if (x.type().is_float()) {
+    using ir::FloatImm;
+    const FloatImm* fx = x.as<FloatImm>();
+    if (fx) {
+      return make_const(t, std::isnan(fx->value));
+    }
+    if (x.type().bits() == 16) {
+      return ir::Call::make(t, "is_nan", {cast(Float(32, t.lanes()), std::move(x))}, ir::Call::PureExtern);
+    } else {
+      return ir::Call::make(t, "is_nan", {x}, ir::Call::PureExtern);
+    }
+  } else {
+    LOG(FATAL) << "Data type " << x.type()
+               <<" not supported for isnan op. Skipping isnan op...";
+    return x;
+  }
+}
+
 Expr sum(Expr source, Array<IterVar> rdom) {
   Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Add::make(x, y);

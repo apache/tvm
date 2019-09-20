@@ -993,7 +993,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
     return CreateIntrinsic(op);
   } else if (op->call_type == Call::Extern ||
              op->call_type == Call::PureExtern) {
-    return CreateCallExtern(op);
+    if (op->call_type == Call::PureExtern && op->name == "is_nan") {
+      // TODO(hgt312): set fast math flag
+      llvm::Value* a = MakeValue(op->args[0]);
+      return builder_->CreateFCmpUNO(a, a);
+    } else {
+      return CreateCallExtern(op);
+    }
   } else {
     LOG(FATAL) << "Unknown call type " <<
       "name= " << op->name <<
