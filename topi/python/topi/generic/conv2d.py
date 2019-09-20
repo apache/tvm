@@ -113,63 +113,62 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last, int32_lane
     More details - https://software.intel.com/en-us/articles/
     lower-numerical-precision-deep-learning-inference-and-training
     """
-    oh_factor, ow_factor = cfg["tile_oh"].val, cfg["tile_ow"].size[-1]
+    reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
     _, _, _, _, ic_bn = get_const_tuple(data.shape)
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
-    # schedule data
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
+        batch, ic_chunk, ih, iw, _ = s[A].op.axis
         parallel_axis = s[A].fuse(batch, ic_chunk, ih)
         s[A].parallel(parallel_axis)
 
+    # schedule 5-D NCHW[x]c conv
     C, O = conv_out, last
     CC = s.cache_write(C, 'global')
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
-    ow_outer, ow_inner = s[C].split(ow, factor=ow_factor)
-    s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
+    ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
+    s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+    parallel_axis = s[C].fuse(batch, oc_chunk, oh)
     s[C].vectorize(oc_block)
-
-    parallel_axis = s[C].fuse(batch, oc_chunk, oh_outer)
-    s[CC].compute_at(s[C], parallel_axis)
     if C == O:
         s[C].parallel(parallel_axis)
 
+    s[CC].compute_at(s[C], ow_chunk)
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
+    ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
+
+    # Skylake and future processors have 16 vector lanes
     assert oc_bn % int32_lanes == 0
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
-    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
-
-    s[CC].reorder(oc_chunk, oh_outer, ow_outer, kh, kw, ic_outer, ic_f_inner, oh_inner,
-                  ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
-    s[CC].fuse(oc_chunk, oh_outer)
+    if unroll_kw:
+        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, ic_f_inner, kw,
+                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
+        s[CC].unroll(kw)
+    else:
+        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, kw, ic_f_inner,
+                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
 
     if intrin is not None:
         s[CC].tensorize(oc_s_inner, intrin)
-    s[CC].unroll(ow_inner)
-    s[CC].unroll(oh_inner)
+    s[CC].unroll(ow_block)
+    s[CC].unroll(oc_f_inner)
 
     if C != O:
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
-        ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-        parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
+        ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
+        s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
         s[C].compute_at(s[O], parallel_axis)
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
 
     return s
-
 
 def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last, int32_lanes=16, intrin=None):
     """
