@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-from .injective import _schedule_injective
+from .injective import schedule_injective
 
 @tvm.target.generic_func
 def schedule_extern(outs):
@@ -43,5 +43,5 @@ def schedule_extern(outs):
     for out in outs:
         if isinstance(out.op, tvm.tensor.ExternOp):
             continue
-        _schedule_injective(out.op, s)
+        schedule_injective(out.op, s)
     return s
