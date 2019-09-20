@@ -58,6 +58,25 @@ def test_any_broadcast():
     verify_any_broadcast((relay.Any(),), (3, 2), (2,), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, 2), (3, 2), (3, 2), relay.add, np.add)
 
+
+def test_any_broadcast_fail():
+    # Test broadcast with incompatible values at runtime
+    def check_fail(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
+        try:
+            verify_any_broadcast(
+                x_shape, y_shape, x_np_shape, y_np_shape, op, np_op)
+        except tvm._ffi.base.TVMError:
+            pass
+        else:
+            assert False
+
+    check_fail((relay.Any(),), (3, 2), (1,), (4, 2), relay.add, np.add)
+    check_fail((relay.Any(), 2), (3, 2), (4, 2), (4, 2), relay.add, np.add)
+    check_fail((relay.Any(), 2), (3, relay.Any()), (1, 2), (4, 1), relay.add, np.add)
+    check_fail((relay.Any(), 2), (3, 3), (1, 3), (3, 3), relay.add, np.add)
+    check_fail((relay.Any(),), (3, 2), (2), (4, 2), relay.add, np.add)
+
+
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
     y = relay.var('y', shape=(1, 2), dtype="float32")
@@ -254,6 +273,7 @@ def test_recursive_concat_with_wrong_annotation():
 
 if __name__ == "__main__":
     test_any_broadcast()
+    test_any_broadcast_fail()
     test_any_concat()
     test_any_reshape()
     test_any_take()
