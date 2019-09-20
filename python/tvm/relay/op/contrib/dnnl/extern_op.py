@@ -32,3 +32,8 @@ def relu(attrs, args):
     """Check if the external codegen should be used.
     """
     return True
+
+def batch_norm(attrs, args):
+    """Check if the external codegen should be used.
+    """
+    return False

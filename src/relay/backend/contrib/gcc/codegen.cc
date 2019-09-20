@@ -38,49 +38,8 @@ class GccModuleNode : public ExternModuleNodeBase {
     return {"/tmp/relay_gcc_lib_" + id + ".so"};
   }
 
-  /*!
-   * \brief Get a PackedFunc from module, which is a function ptr can be invoked
-   * for execution given some parameters.
-   *
-   * \param name the name of the external function.
-   * \param func_s The function symbol retrieved from the external library.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   *
-   * \return PackedFunc(nullptr) when it is not available.
-   */
-  runtime::PackedFunc InvokeExternFunc(const std::string& name,
-                                       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    std::string _curr_id = GetSubgraphID(name);
-    std::string encoded_id = _prefix + _curr_id;
-    func_s_ = reinterpret_cast<GccBinaryFunc>(GetSymbol(encoded_id));
-
-    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 3U);
-      runtime::NDArray a = args[0];
-      ExternalTensor lhs;
-      lhs.data = a->data;
-      lhs.ndim = a.Shape().size();
-      lhs.shape = new int64_t[lhs.ndim];
-
-      runtime::NDArray b = args[1];
-      ExternalTensor rhs;
-      rhs.data = b->data;
-      rhs.ndim = b.Shape().size();
-      rhs.shape = new int64_t[rhs.ndim];
-
-      runtime::NDArray c = args[2];
-      ExternalTensor out;
-      out.data = c->data;
-      out.ndim = c.Shape().size();
-      out.shape = c.Shape().data();
-
-      for (int i = 0; i < lhs.ndim; i++) {
-        lhs.shape[i] = a.Shape()[i];
-        rhs.shape[i] = b.Shape()[i];
-      }
-      (*func_s_)(lhs, rhs, &out);
-      *rv = c;
-    });
+  const std::string GetPrefix() const override {
+    return "gcc_";
   }
 
   /*!
@@ -104,10 +63,23 @@ class GccModuleNode : public ExternModuleNodeBase {
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "GCC expects a single op.";
 
+    auto ashape = GetShape(call->args[0]);
+    auto bshape = GetShape(call->args[1]);
+
+    // Check shape
+    CHECK(ashape.size() <= 2 && ashape.size() == bshape.size())
+        << "Input shape dimensions are not consistent, " << ashape.size() << " vs. "
+        << bshape.size();
+    for (int i = 0; i < ashape.size(); ++i) {
+      CHECK(ashape[i] == bshape[i]) << "Input shapes are not consistent at dim " << i << ":"
+                                    << ashape[i] << " vs. " << bshape[i];
+    }
+
     // Record subgraph ID for runtime invoke.
     auto id = GetSubgraphID(func);
-    std::string encoded_id = _prefix + id;
-    std::string code = "GCC_BINARY_OP(" + encoded_id + ", ";
+    SetSubgraphInfo(id, DLDataType{kDLFloat, 32, 1}, 3);
+    std::string code =
+        "GCC_BINARY_OP_" + std::to_string(ashape.size()) + "D(" + GetPrefix() + id + ", ";
 
     if (IsOp(call, "add")) {
       code += "+";
@@ -117,6 +89,10 @@ class GccModuleNode : public ExternModuleNodeBase {
       code += "*";
     } else {
       LOG(FATAL) << "Unrecognized op: ";
+    }
+
+    for (int i = 0; i < ashape.size(); ++i) {
+      code += ", " + std::to_string(ashape[i]);
     }
     code += ");";
 
@@ -137,10 +113,6 @@ class GccModuleNode : public ExternModuleNodeBase {
       LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
   }
-
- private:
-  GccBinaryFunc func_s_;
-  std::string _prefix = "gcc_";
 };
 
 

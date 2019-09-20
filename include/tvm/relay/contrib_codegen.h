@@ -38,6 +38,21 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
+template <typename T>
+using F2ARGS = void (*)(T* a, T* b);
+template <typename T>
+using F3ARGS = void (*)(T* a, T* b, T* c);
+template <typename T>
+using F4ARGS = void (*)(T* a, T* b, T* c, T* d);
+template <typename T>
+using F5ARGS = void (*)(T* a, T* b, T* c, T* d, T* e);
+template <typename T>
+using F6ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f);
+template <typename T>
+using F7ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f, T* g);
+template <typename T>
+using F8ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f, T* g, T* h);
+
 class ExternModuleNodeBase : public runtime:: ModuleNode {
  public:
   ExternModuleNodeBase() = default;
@@ -53,6 +68,13 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   virtual const std::vector<std::string> GetExternLibPaths(std::string id = "") const = 0;
 
   /*!
+   * \brief Get the function prefix of this compiler.
+   *
+   * \return A string of the function name prefix in the library.
+   */
+  virtual const std::string GetPrefix() const = 0;
+
+  /*!
    * \brief Build the shared library of external ops.
    *
    * \param expr The subgraph Relay expression to be executed using extern ops.
@@ -60,17 +82,48 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    */
   virtual void Build(const Expr& expr) = 0;
 
-  /*!
-   * \brief The extern module specific implementation of invoking pre-built functions.
-   *
-   * \param name the name of the external function.
-   * \param func_s The function symbol retrieved from the external library.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   *
-   * \return PackedFunc(nullptr) when it is not available.
-   */
-  virtual runtime::PackedFunc InvokeExternFunc(const std::string& name,
-                                               const std::shared_ptr<ModuleNode>& sptr_to_self) = 0;
+  void SetSubgraphInfo(std::string id, const DLDataType type, int num_args) {
+    _subgraph_info[id] = std::make_pair(type, num_args);
+  }
+
+  std::pair<DLDataType, int> GetSubgraphInfo(std::string id) {
+    if (_subgraph_info.count(id) == 0) {
+      LOG(FATAL) << "Info of subgraph " << id << " is missing.";
+    }
+    return _subgraph_info[id];
+  }
+
+  template<typename T>
+  void Invoke(void* func_s, std::vector<T*> data) {
+    try {
+      if (data.size() == 2) {
+        auto func = reinterpret_cast<F2ARGS<T>>(func_s);
+        (*func)(data[0], data[1]);
+      } else if (data.size() == 3) {
+        auto func = reinterpret_cast<F3ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2]);
+      } else if (data.size() == 4) {
+        auto func = reinterpret_cast<F4ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2], data[3]);
+      } else if (data.size() == 5) {
+        auto func = reinterpret_cast<F5ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2], data[3], data[4]);
+      } else if (data.size() == 6) {
+        auto func = reinterpret_cast<F6ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2], data[3], data[4], data[5]);
+      } else if (data.size() == 7) {
+        auto func = reinterpret_cast<F7ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2], data[3], data[4], data[5], data[6]);
+      } else if (data.size() == 8) {
+        auto func = reinterpret_cast<F8ARGS<T>>(func_s);
+        (*func)(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+      } else {
+          LOG(FATAL) << "Unsupported argument number: " << data.size();
+      }
+    } catch (const std::exception& e) {
+      LOG(FATAL) << "Execution failure: " << e.what();
+    }
+  }
 
   /*!
    * \brief Get a PackedFunc from module, which is a function ptr can be invoked
@@ -83,17 +136,47 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    */
   runtime::PackedFunc GetFunction(const std::string& name,
                                   const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    auto id = GetSubgraphID(name);
-    Open(this->GetExternLibPaths(id));
+    _curr_id = GetSubgraphID(name);
+    Open(this->GetExternLibPaths(_curr_id));
     CHECK(handle_) << "The external module has not been built or failed to open.\n";
 
-    auto func_s = this->InvokeExternFunc(name, sptr_to_self);
-    char* error = dlerror();
-    if (error != NULL) {
-      LOG(FATAL) << error;
-      return PackedFunc();
-    }
-    return func_s;
+    // Generate an external packed function
+    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      const DLTensor* dptr = ((runtime::NDArray) args[0]).operator->();
+
+      // Check type and argument number
+      auto info = GetSubgraphInfo(_curr_id);
+      CHECK(info.first.code == dptr->dtype.code && info.first.bits == dptr->dtype.bits)
+            << "Data type of subgraph " << _curr_id << " and input is mismatch";
+      CHECK(info.second == args.size())
+            << "Argument number of subgraph " << _curr_id
+            << " and input data is mismatch: " << info.second
+            << " vs. " << args.size();
+
+      // Get function from the library
+      std::string encoded_name = GetPrefix() + _curr_id;
+      auto func_s = GetSymbol(encoded_name);
+
+      // Reinterpret data and function to the right type and invoke
+      if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
+        std::vector<float *> data;
+        for (int i = 0; i < args.size(); ++i) {
+          runtime::NDArray arg = args[i];
+          data.push_back(reinterpret_cast<float*>(arg->data));
+        }
+        Invoke<float>(func_s, data);
+      } else if (runtime::TypeMatch(dptr->dtype, kDLFloat, 64)) {
+        std::vector<double*> data;
+        for (int i = 0; i < args.size(); ++i) {
+          runtime::NDArray arg = args[i];
+          data.push_back(reinterpret_cast<double*>(arg->data));
+        }
+        Invoke<double>(func_s, data);
+      } else {
+        LOG(FATAL) << "Only support float32 and float64 types.";
+      }
+      //*rv = out;
+    });
   }
 
   /*!
@@ -223,6 +306,10 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     }
   }
 #endif
+
+private:
+  std::string _curr_id;
+  std::unordered_map<std::string, std::pair<DLDataType, int>> _subgraph_info;
 };
 
 }  // namespace contrib

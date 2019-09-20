@@ -148,6 +148,44 @@ def test_extern_dnnl():
 
     tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
+def test_extern_dnnl_bn():
+    dtype = 'float32'
+    shapes = [
+        (1, 1024, 7, 7),
+        (1024, ),
+        (1024, ),
+        (1024, ),
+        (1024, )
+    ]
+    eps = 1e-5
+
+    data = [np.absolute(np.random.normal(size=shape).astype('float32'))
+            for shape in shapes]
+    relay_args = [
+        relay.var('data' + str(idx), shape=arg.shape, dtype=dtype)
+        for idx, arg in enumerate(data)
+    ]
+
+    out = relay.nn.batch_norm(*relay_args, epsilon=eps)[0]
+
+    f = relay.Function([*relay_args], out)
+
+    mod = relay.Module()
+    mod['main'] = f
+    mod = relay.transform.ExternOp('dnnl')(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+
+    ref_mod = relay.Module()
+    ref_mod['main'] = f
+
+    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+    res = ex.evaluate()(*data)
+
+    ref_ex = relay.create_executor("debug", mod=ref_mod, ctx=tvm.cpu(0))
+    ref_res = ref_ex.evaluate()(*data)
+
+    tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
 
 def test_extern_dnnl_mobilenet():
     # FIXME: This test is only for demo purpose and supposed to be removed.
@@ -175,4 +213,5 @@ if __name__ == "__main__":
     test_extern_gcc()
     test_extern_cblas()
     test_extern_dnnl()
+    test_extern_dnnl_bn()
     #test_extern_dnnl_mobilenet()

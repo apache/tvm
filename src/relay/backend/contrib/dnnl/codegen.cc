@@ -36,79 +36,14 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-typedef void (*DNNL2PFP32)(float* input, float* out);
-typedef void (*DNNL3PFP32)(float* input, float* weights, float* out);
-
 class DNNLModuleNode : public ExternModuleNodeBase {
  public:
   const std::vector<std::string> GetExternLibPaths(std::string id) const override {
     return {"/tmp/relay_dnnl_lib_" + id + ".so"};
   }
 
-  /*!
-   * \brief Get a PackedFunc from module, which is a function ptr can be invoked
-   * for execution given some parameters.
-   *
-   * \param name the name of the external function.
-   * \param func_s The function symbol retrieved from the external library.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   *
-   * \return PackedFunc(nullptr) when it is not available.
-   */
-  runtime::PackedFunc InvokeExternFunc(const std::string& name,
-                                       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    _curr_id = GetSubgraphID(name);
-    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-      if (args.size() == 3U) {
-        runtime::NDArray data = args[0];
-        runtime::NDArray weight = args[1];
-        runtime::NDArray out = args[2];
-
-        const DLTensor* dptr = data.operator->();
-        std::string encoded_name = _prefix + _curr_id;
-
-        if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-          float* d_data = reinterpret_cast<float*>(data->data);
-          float* weight_data = reinterpret_cast<float*>(weight->data);
-          float* out_data = reinterpret_cast<float*>(out->data);
-
-          auto func_s_ = reinterpret_cast<DNNL3PFP32>(GetSymbol(encoded_name));
-          try {
-            (*func_s_)(d_data, weight_data, out_data);
-          } catch (const std::exception& e) {
-            LOG(FATAL) << e.what();
-          }
-        } else {
-          LOG(FATAL) << "Only support float32 types.";
-        }
-        *rv = out;
-      }
-      else if (args.size() == 2U) {
-        runtime::NDArray data = args[0];
-        runtime::NDArray out = args[1];
-
-        const DLTensor* dptr = data.operator->();
-        std::string encoded_name = _prefix + _curr_id;
-
-        if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-          float* d_data = reinterpret_cast<float*>(data->data);
-          float* out_data = reinterpret_cast<float*>(out->data);
-
-          auto func_s_ = reinterpret_cast<DNNL2PFP32>(GetSymbol(encoded_name));
-          try {
-            (*func_s_)(d_data, out_data);
-          } catch (const std::exception& e) {
-            LOG(FATAL) << e.what();
-          }
-        } else {
-          LOG(FATAL) << "Only support float32 types.";
-        }
-        *rv = out;
-      }
-      else {
-        LOG(FATAL) << "Unsupported argument number: " << args.size();
-      }
-    });
+  const std::string GetPrefix() const override {
+    return "dnnl_";
   }
 
   /*!
@@ -130,7 +65,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
 
     // Record subgraph ID for runtime invoke.
     auto id = GetSubgraphID(func);
-    std::string encoded_id = _prefix + id;
+    std::string encoded_id = GetPrefix() + id;
     std::string code = "";
 
     // Args: ID
@@ -138,6 +73,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
     args.push_back(encoded_id);
 
     if (IsOp(call, "nn.conv2d")) {
+      SetSubgraphInfo(id, DLDataType{kDLFloat, 32, 1}, 3);
       code = "CONV2D";
       const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
 
@@ -159,8 +95,8 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
       args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
     } else if (IsOp(call, "nn.dense")) {
+      SetSubgraphInfo(id, DLDataType{kDLFloat, 32, 1}, 3);
       code = "DENSE";
-
       auto ishape = GetShape(call->args[0]);
       auto wshape = GetShape(call->args[1]);
 
@@ -170,14 +106,27 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       args.push_back(std::to_string(wshape[0]));
 
     } else if (IsOp(call, "nn.relu")) {
+      SetSubgraphInfo(id, DLDataType{kDLFloat, 32, 1}, 2);
       code = "RELU";
-
       auto ishape = GetShape(call->args[0]);
 
       // Args: N, C, H, W
       for (auto s : ishape) {
         args.push_back(std::to_string(s));
       }
+    } else if (IsOp(call, "nn.batch_norm")) {
+      SetSubgraphInfo(id, DLDataType{kDLFloat, 32, 1}, 8);
+      code = "BN";
+      const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
+      auto ishape = GetShape(call->args[0]);
+
+      // Args: N, C, H, W
+      for (auto s : ishape) {
+        args.push_back(std::to_string(s));
+        }
+
+        // Args: epilson
+        args.push_back(std::to_string(bn_attr->epsilon));
     } else {
       LOG(FATAL) << "DNNL expects a single convolution or dense op.";
     }
@@ -216,7 +165,6 @@ class DNNLModuleNode : public ExternModuleNodeBase {
   }
 
   std::string _curr_id;
-  const std::string _prefix = "dnnl_";
 };
 
 /*!

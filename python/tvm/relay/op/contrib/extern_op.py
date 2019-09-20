@@ -72,6 +72,12 @@ def external_relu(attrs, args, compiler):
     """
     return get_extern_op(compiler, 'relu')(attrs, args)
 
+@reg.register_extern_op("nn.batch_norm")
+def external_batch_norm(attrs, args, compiler):
+    """Check if the external compiler should be used.
+    """
+    return get_extern_op(compiler, 'batch_norm')(attrs, args)
+
 
 @reg.register_extern_op("subtract")
 def external_subtract(attrs, args, compiler):

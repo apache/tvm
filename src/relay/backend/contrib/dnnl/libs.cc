@@ -146,3 +146,44 @@ inline void read_from_dnnl_memory(void* handle, memory& mem) {
     s.wait();                                                                                     \
     read_from_dnnl_memory(out, dst_memory);                                                       \
   }
+
+#define BN(p_ID_, p_N_, p_C_, p_H_, p_W_, p_E_)                                               \
+  extern "C" void p_ID_(float* data, float* gamma, float* beta, float* mean, float* variance, \
+                        float* out) {                                                         \
+    using tag = memory::format_tag;                                                           \
+    using dt = memory::data_type;                                                             \
+                                                                                              \
+    engine eng(engine::kind::cpu, 0);                                                         \
+    stream s(eng);                                                                            \
+                                                                                              \
+    memory::dims data_tz = {p_N_, p_C_, p_H_, p_W_};                                          \
+                                                                                              \
+    auto data_md = memory::desc{{data_tz}, dt::f32, tag::nchw};                               \
+                                                                                              \
+    auto data_memory = memory(data_md, eng, data);                                            \
+    auto dst_memory = memory(data_md, eng);                                                   \
+                                                                                              \
+    auto bn_desc = batch_normalization_forward::desc(                                         \
+        prop_kind::forward_inference, data_md, p_E_,                                          \
+        normalization_flags::use_global_stats | normalization_flags::use_scale_shift);        \
+    auto bn_prim_desc = batch_normalization_forward::primitive_desc(bn_desc, eng);            \
+    assert(data_md == bn_prim_desc.dst_desc());                                               \
+                                                                                              \
+    float* weight = (float*)malloc(sizeof(float) * 2 * p_C_);                                 \
+    memcpy(weight, gamma, sizeof(float) * p_C_);                                              \
+    memcpy(weight + p_C_, beta, sizeof(float) * p_C_);                                        \
+                                                                                              \
+    auto weight_memory = memory(bn_prim_desc.weights_desc(), eng, weight);                    \
+    auto mean_memory = memory(bn_prim_desc.mean_desc(), eng, mean);                           \
+    auto variance_memory = memory(bn_prim_desc.variance_desc(), eng, variance);               \
+                                                                                              \
+    auto bn = batch_normalization_forward(bn_prim_desc);                                      \
+    bn.execute(s, {{DNNL_ARG_SRC, data_memory},                                               \
+                   {DNNL_ARG_DST, dst_memory},                                                \
+                   {DNNL_ARG_SCALE_SHIFT, weight_memory},                                     \
+                   {DNNL_ARG_MEAN, mean_memory},                                              \
+                   {DNNL_ARG_VARIANCE, variance_memory}});                                    \
+    s.wait();                                                                                 \
+    read_from_dnnl_memory(out, dst_memory);                                                   \
+    free(weight);                                                                             \
+  }
