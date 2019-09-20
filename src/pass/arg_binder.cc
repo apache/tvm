@@ -120,7 +120,8 @@ void ArgBinder::BindBuffer(const Buffer& arg,
       Expr offset = value->elem_offset;
       Expr factor = make_const(offset.type(), arg->offset_factor);
       Expr zero = make_zero(offset.type());
-      BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+      BinderAddAssert(truncmod(offset, factor) == zero,
+                      arg_name + ".elem_offset", &asserts_);
     }
   }
 
@@ -288,7 +289,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
         Expr offset = buffer->elem_offset;
         Expr factor = make_const(offset.type(), buffer->offset_factor);
         Expr zero = make_zero(offset.type());
-        BinderAddAssert(offset % factor == zero, arg_name + ".elem_offset", &asserts_);
+        BinderAddAssert(truncmod(offset, factor) == zero, arg_name + ".elem_offset", &asserts_);
       }
     }
   }

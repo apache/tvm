@@ -658,7 +658,7 @@ inline Tensor take(const Tensor& a,
   } else {  // mode == "wrap"
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
-          auto idx = (indices(out_index) % a_size + a_size) % a_size;
+          auto idx = truncmod(truncmod(indices(out_index), a_size) + a_size, a_size);
           return a(UnravelIndex(idx, a_shape));
         }, name, tag);
   }
@@ -787,7 +787,7 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          auto idx = (indices(indices_position) % axis_dim + axis_dim) % axis_dim;
+          auto idx = truncmod(truncmod(indices(indices_position), axis_dim) + axis_dim, axis_dim);
           real_indices.push_back(idx);
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
@@ -888,7 +888,7 @@ inline Tensor repeat(const Tensor& x,
       for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
         idx.push_back(indices[i]);
       }
-      idx.push_back(indices[axis] / repeats);
+      idx.push_back(indexdiv(indices[axis], repeats));
       for (size_t i = axis + 1; i < indices.size(); ++i) {
         idx.push_back(indices[i]);
       }
@@ -944,10 +944,10 @@ inline Tensor tile(const Tensor& x,
       Array<Expr> idx;
       if (ndim >= rdim) {
         for (size_t i = 0; i < ndim; ++i)
-          idx.push_back(indices[i] % x->shape[i]);
+          idx.push_back(indexmod(indices[i], x->shape[i]));
       } else {
         for (size_t i = 0; i < ndim; ++i)
-          idx.push_back(indices[rdim - ndim + i] % x->shape[i]);
+          idx.push_back(indexmod(indices[rdim - ndim + i], x->shape[i]));
       }
       return x(idx);
     }, name, tag);
@@ -1253,7 +1253,7 @@ inline Tensor ndarray_size(const Tensor& src,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value, 
+ * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value,
     other locations take value off_value.
  * \param indices locations to set to on_value.
  * \param on_value value that locations represented by indices take on.

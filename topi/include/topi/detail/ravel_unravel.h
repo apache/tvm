@@ -68,8 +68,8 @@ inline Array<Expr> UnravelIndex(Expr idx, Array<Expr> shape) {
   std::vector<Expr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
-    indices.push_back(idx % shape[i]);
-    idx = idx / shape[i];
+    indices.push_back(indexmod(idx, shape[i]));
+    idx = indexdiv(idx, shape[i]);
   }
   std::reverse(indices.begin(), indices.end());
   return indices;

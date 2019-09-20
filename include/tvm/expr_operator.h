@@ -217,16 +217,6 @@ TVM_DLL Expr operator*(Expr a, Expr b);
  */
 TVM_DLL Expr operator/(Expr a, Expr b);
 /*!
- * \brief mod operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL Expr operator%(Expr a, Expr b);
-/*!
  * \brief left shift operator
  *
  * \param a left operand
@@ -370,6 +360,35 @@ TVM_DLL Expr truncdiv(Expr a, Expr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL Expr truncmod(Expr a, Expr b);
+/*!
+ * \brief compute floor(a / b) where a and b are non-negative.
+ *
+ * Use this function for index split calculation.
+ *
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr indexdiv(Expr a, Expr b);
+/*!
+ * \brief compute the remainder floor(a / b) where a and b are non-negative.
+ *
+ * Use this function for index split calculation.
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr indexmod(Expr a, Expr b);
 /*!
  * \brief compute floor(a / b)
  *
@@ -654,21 +673,6 @@ inline Expr make_zero(Type t) {
   return make_const(t, 0);
 }
 
-/*!
- * \brief Helper function to raise a compiler error about division ambiguity.
- * \note The call to this function will always results in a compiler error.
- * \tparam TA Any class type.
- */
-template<typename TA>
-inline void DivAmbiguityError(const TA& a) {
-  constexpr bool div_ambiguity = !std::is_class<TA>::value;
-  static_assert(div_ambiguity,
-                "TVM supports multiple types of integer divisions, "
-                "please call div, floordiv/floormod or truncdiv/truncmod directly "
-                "to avoid ambiguity in the code. "
-                "Checkout these functions in expr_operator.h.");
-}
-
 // additional const expression overloading
 #define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc)            \
   inline Expr Name(Expr& a, Expr b) {                          \
@@ -710,11 +714,9 @@ inline void DivAmbiguityError(const TA& a) {
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator-=, operator-);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator*=, operator*);
-TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator/=, operator/);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator+);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator-);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator*);
-TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator/);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(max);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(min);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(div);
@@ -723,11 +725,12 @@ TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator>=);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<);  // NOLINT(*)
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<=);
 // integer related ops
-TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator%);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(indexdiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(indexmod);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floordiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floormod);
-TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator>>); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator<<); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator&);
@@ -736,6 +739,46 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator^);
 // logical ops
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator&&);
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator||);
+
+
+/*!
+ * \brief Helper function to raise a compiler error about division ambiguity.
+ * \note The call to this function will always results in a compiler error.
+ * \tparam TA Any class type.
+ */
+template<typename TA>
+inline void DivAmbiguityError(const TA& a) {
+  constexpr bool div_ambiguity = !std::is_class<TA>::value;
+  static_assert(div_ambiguity,
+                "TVM supports multiple types of integer divisions, "
+                "please call div, indexdiv/indexmod, "
+                "floordiv/floormod or truncdiv/truncmod directly "
+                "to avoid ambiguity in the code. "
+                "Checkout these functions in expr_operator.h.");
+}
+
+// The following code are not intended to be used in the codebase.
+// Instead, they generate clear compiler errors that ask developers
+// to use the specific division function.
+// The second template argument is necessary to make sure the
+// code compiles lazily by the compiler during invocation.
+template<typename TB>
+inline Expr operator/(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
+
+template<typename TB>
+inline Expr operator/=(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
+
+template<typename TB>
+inline Expr operator%(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
 
 }  // namespace tvm
 #endif  // TVM_EXPR_OPERATOR_H_

@@ -227,7 +227,7 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    return IntervalSet::SinglePoint(a->min_value % b->min_value);
+    return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;

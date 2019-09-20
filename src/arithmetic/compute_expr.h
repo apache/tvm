@@ -93,12 +93,12 @@ inline Expr Compute<ir::Mul>(Expr a, Expr b) {
 
 template<>
 inline Expr Compute<ir::Div>(Expr a, Expr b) {
-  return a / b;
+  return truncdiv(a, b);
 }
 
 template<>
 inline Expr Compute<ir::Mod>(Expr a, Expr b) {
-  return a % b;
+  return truncmod(a, b);
 }
 
 template<>

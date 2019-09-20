@@ -85,7 +85,7 @@ inline Tensor lrn(const Tensor& data,
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
         return tvm::pow(bias +
-                        (alpha * sqr_sum(i, j, k, l) / size),
+                        (div(alpha * sqr_sum(i, j, k, l), size)),
                         beta);
       });
   return topi::divide(data, sqrt_sum_up);

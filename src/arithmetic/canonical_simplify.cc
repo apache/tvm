@@ -912,7 +912,7 @@ Mutate_(const Mod* op, const Expr& self) {
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         Expr temp = Normalize(extra);
         if (temp.as<IntImm>()) {
-          return temp % c1.Eval();
+          return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
           if (TryCompare(temp, cval) == kLT) {

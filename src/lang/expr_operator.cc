@@ -206,6 +206,15 @@ Expr operator%(Expr a, Expr b) {
   return truncmod(a, b);
 }
 
+// TODO(tqchen): switch to floordiv
+Expr indexdiv(Expr a, Expr b) {
+  return truncdiv(a, b);
+}
+
+Expr indexmod(Expr a, Expr b) {
+  return truncmod(a, b);
+}
+
 Expr floordiv(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::FloorDiv>(a, b);
