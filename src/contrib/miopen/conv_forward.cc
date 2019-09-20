@@ -50,16 +50,20 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
   const int w_dim1 = args[13];
   const int w_dim2 = args[14];
   const int w_dim3 = args[15];
-  void *out_shape = args[16];
+  const int n_group = args[16];
+  void *out_shape = args[17];
 
   MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
+  assert(n_group > 0 && "Group Size > 0 is expected");
+  if (n_group > 1)
+    assert(mode > 1 && "Group /Depthwise Conv mode when num of groups > 1");
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
   // Set Ctx
   entry_ptr->conv_entry.ctx = TVMContext{kDLROCM, 0};
   // Set Data Type
   entry_ptr->conv_entry.data_type = static_cast<miopenDataType_t>(
-      dtype);  // MIOpen supports fp32(miopenFloat), fp16(miopenHalf) at
+      dtype);  // MIOpen supports fp32(miopenFloat), fp16(miopenHalf), int32, int8 at
                // this moment.
   // Set Desc
   MIOPEN_CALL(miopenInitConvolutionDescriptor(entry_ptr->conv_entry.conv_desc,
@@ -70,11 +74,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
                                               stride_w,
                                               dilation_h,
                                               dilation_w));
+  if (n_group > 1)
+    MIOPEN_CALL(miopenSetConvolutionGroupCount(entry_ptr->conv_entry.conv_desc, n_group));
   // Set Filter
   MIOPEN_CALL(miopenSet4dTensorDescriptor(entry_ptr->conv_entry.filter_desc,
                                           entry_ptr->conv_entry.data_type,
                                           w_dim0,
-                                          w_dim1,
+                                          w_dim1/n_group,
                                           w_dim2,
                                           w_dim3));
   // Set Input
