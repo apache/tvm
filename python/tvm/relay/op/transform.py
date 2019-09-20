@@ -144,7 +144,6 @@ def squeeze(data, axis=None):
     """
     return _make.squeeze(data, axis)
 
-
 def reshape(data, newshape):
     """Reshapes the input array.
 

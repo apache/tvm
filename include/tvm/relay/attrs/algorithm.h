@@ -31,6 +31,12 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attributes for ArgWhere operator */
+struct ArgWhereAttrs : public tvm::AttrsNode<ArgWhereAttrs> {
+  TVM_DECLARE_ATTRS(ArgWhereAttrs, "relay.attrs.ArgWhereAttrs") {
+  }
+};
+
 /*! \brief Attributes used in argsort operators */
 struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   int axis;

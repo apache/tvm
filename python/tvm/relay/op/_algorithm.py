@@ -17,6 +17,8 @@
 "Definition of classic algorithms"
 # pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
+import tvm
+from tvm.relay.ty import TensorType
 
 import topi
 from topi.util import get_const_int
@@ -41,6 +43,26 @@ def compute_argsort(attrs, inputs, _, target):
 
 register_pattern("argsort", OpPattern.OPAQUE)
 
+# argwhere
+@register_schedule("argwhere")
+def schedule_argwhere(_, outs, target):
+    """Schedule definition of argwhere"""
+    with target:
+        return topi.generic.schedule_argwhere(outs)
+
+
+@register_compute("argwhere")
+def compute_argwhere(attrs, inputs, output_type, _):
+    """Compute definition of argwhere"""
+    output_shape = []
+    for s in output_type.shape:
+        if hasattr(s, "value"):
+            output_shape.append(s)
+        else:
+            # see Any, replace it with a var
+            output_shape.append(tvm.var("any_dim", "int32"))
+    new_output_type = TensorType(output_shape, "int32")
+    return [topi.argwhere(new_output_type, inputs[0])]
 
 @register_schedule("topk")
 def schedule_topk(_, outs, target):

@@ -326,7 +326,6 @@ RELAY_REGISTER_OP("shape_of")
 .set_support_level(10)
 .set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
-
 TVM_REGISTER_NODE_TYPE(NdarraySizeAttrs);
 
 bool NdarraySizeRel(const Array<Type>& types,
