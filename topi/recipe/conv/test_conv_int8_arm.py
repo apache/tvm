@@ -146,7 +146,7 @@ if __name__ == "__main__":
     LOGGER.info("Workload, Kernel_size, FP32_time, INT8_time, Speedup")
     SPEEDUP_ARRAY = []
     for i, wkl in enumerate(WORKLOADS):
-        # fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
+        fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
         int8_time = run_inference('uint8', 'uint8', 'uint32', *wkl)
         kernel_h = wkl[4]
         kernel_w = wkl[5]
