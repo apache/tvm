@@ -132,7 +132,8 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_isa_version_900.amdgcn.bc",
         "oclc_isa_version_906.amdgcn.bc",
         "oclc_unsafe_math_off.amdgcn.bc",
-        "oclc_unsafe_math_on.amdgcn.bc"
+        "oclc_unsafe_math_on.amdgcn.bc",
+        "oclc_wavefrontsize64_on.amdgcn.bc"
     ]
     paths = [join(rocdl_dir, bitcode) for bitcode in bitcode_files]
     return convert([path for path in paths if exists(path)])
