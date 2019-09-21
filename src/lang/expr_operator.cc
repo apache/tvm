@@ -435,9 +435,9 @@ Expr isnan(Expr x) {
       return make_const(t, std::isnan(fx->value));
     }
     if (x.type().bits() == 16) {
-      return ir::Call::make(t, "is_nan", {cast(Float(32, t.lanes()), std::move(x))}, ir::Call::PureExtern);
+      return ir::Call::make(t, ir::Call::isnan, {cast(Float(32, t.lanes()), std::move(x))}, ir::Call::PureIntrinsic);
     } else {
-      return ir::Call::make(t, "is_nan", {x}, ir::Call::PureExtern);
+      return ir::Call::make(t, ir::Call::isnan, {x}, ir::Call::PureIntrinsic);
     }
   } else {
     LOG(FATAL) << "Data type " << x.type()

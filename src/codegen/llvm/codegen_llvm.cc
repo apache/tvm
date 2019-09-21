@@ -746,6 +746,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(Call::reinterpret)) {
     llvm::Type * target = LLVMType(op->type);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+  } else if (op->is_intrinsic(Call::isnan)) {
+    // TODO(hgt312): set fast math flag
+    llvm::Value* a = MakeValue(op->args[0]);
+    return builder_->CreateFCmpUNO(a, a);
   } else if (op->is_intrinsic("vectorlow")) {
     llvm::Value *v = MakeValue(op->args[0]);
     int l = v->getType()->getVectorNumElements();
@@ -993,13 +997,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
     return CreateIntrinsic(op);
   } else if (op->call_type == Call::Extern ||
              op->call_type == Call::PureExtern) {
-    if (op->call_type == Call::PureExtern && op->name == "is_nan") {
-      // TODO(hgt312): set fast math flag
-      llvm::Value* a = MakeValue(op->args[0]);
-      return builder_->CreateFCmpUNO(a, a);
-    } else {
-      return CreateCallExtern(op);
-    }
+    return CreateCallExtern(op);
   } else {
     LOG(FATAL) << "Unknown call type " <<
       "name= " << op->name <<
