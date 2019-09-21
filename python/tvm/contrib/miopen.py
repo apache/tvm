@@ -50,7 +50,8 @@ def conv2d_forward(x,
                    dilation_h=1,
                    dilation_w=1,
                    conv_mode=0,
-                   data_type=1):
+                   data_type=1,
+                   group_count=1):
     """Create an extern op that compute 2D convolution with MIOpen
 
     Parameters
@@ -77,13 +78,16 @@ def conv2d_forward(x,
     data_type: int
         0: miopenHalf (fp16)
         1: miopenFloat (fp32)
-
+    group_count: int
+        number of groups
     Returns
     -------
     y: Tensor
         The result tensor
     """
-    assert (conv_mode == 0 or conv_mode == 1), "0: miopenConvolution / 1: miopenTranspose"
+    assert (0 <= conv_mode <= 2), "0: miopenConvolution / 1: miopenTranspose / 2: miopenGroupConv"
+    if group_count > 1:
+        conv_mode = 2
     oshape = np.zeros((len(x.shape)), dtype=np.int32)
     xshape = x.shape
     wshape = w.shape
@@ -104,6 +108,7 @@ def conv2d_forward(x,
                       wshape[1].value,
                       wshape[2].value,
                       wshape[3].value,
+                      group_count,
                       _get_np_int32_array_handle(oshape))
 
     return _api.extern(
