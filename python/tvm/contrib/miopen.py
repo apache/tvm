@@ -79,7 +79,7 @@ def conv2d_forward(x,
         0: miopenHalf (fp16)
         1: miopenFloat (fp32)
     group_count: int
-        number of groups 
+        number of groups
     Returns
     -------
     y: Tensor
