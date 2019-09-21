@@ -582,7 +582,6 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     os << " != ";
     this->PrintExpr(op->args[0], os);
     os << ")";
-    PrintBinaryIntrinsic(op, " & ", os, this);
   } else {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
