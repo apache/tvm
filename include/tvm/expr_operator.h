@@ -465,6 +465,12 @@ TVM_DLL Expr pow(Expr x, Expr y);
  * \return The aboslute value of input data x
  */
 TVM_DLL Expr abs(Expr x);
+/*!
+ * \brief Check if x is NaN.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL Expr isnan(Expr x);
 
 /*!
  * \brief sum of of source expression over axis

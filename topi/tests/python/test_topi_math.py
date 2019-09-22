@@ -72,6 +72,46 @@ def test_ewise():
         for device in get_all_backend():
             check_device(device)
 
+    def test_isnan(
+        low,
+        high,
+        shape=(20, 3),
+        dtype=tvm.float32,
+        check_round=False,
+        skip_name_check=False,
+    ):
+        m = tvm.var("m")
+        l = tvm.var("l")
+        A = tvm.placeholder((m, l), dtype=dtype, name="A")
+
+        B = topi.isnan(A)
+        assert tuple(B.shape) == tuple(A.shape)
+        if not skip_name_check:
+            assert B.op.body[0].name == "isnan"
+        a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
+        a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
+        # avoid round check too close to boundary
+        if check_round:
+            a_np += ((np.fmod(a_np, 1) - 0.5) < 1e-6) * 1e-5
+        b_np = np.isnan(a_np)
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.generic.schedule_injective(B)
+            foo = tvm.build(s, [A, B], device, name="isnan")
+            a = tvm.nd.array(a_np, ctx)
+            b = tvm.nd.array(np.zeros_like(b_np), ctx)
+            foo(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+
+        for device in get_all_backend():
+            check_device(device)
+
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
     test_apply(topi.sign, "sign", np.sign, -100, 100, skip_name_check=True)
@@ -88,6 +128,7 @@ def test_ewise():
     test_apply(topi.cos, "cos", np.cos, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
+    test_isnan(-100, 100)
 
 
 def test_cast():
