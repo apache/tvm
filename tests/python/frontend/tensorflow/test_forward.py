@@ -436,6 +436,23 @@ def test_forward_batch_to_space_nd():
     )
 
 #######################################################################
+# StopGradient
+# -------
+
+def _test_stop_gradient(ishape):
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        out = array_ops.stop_gradient(in_data)
+
+        compare_tf_with_tvm(inp_array, in_data.name, out.name)
+
+def test_forward_stop_gradient():
+    _test_stop_gradient((1, 3, 20, 20))
+    _test_stop_gradient((1, 32, 32, 4))
+
+#######################################################################
 # Reshape
 # -------
 
@@ -2288,6 +2305,7 @@ if __name__ == '__main__':
     test_forward_l2_normalize()
     test_forward_space_to_batch_nd()
     test_forward_batch_to_space_nd()
+    test_forward_stop_gradient()
 
     # End to End
     test_forward_inception_v3()
