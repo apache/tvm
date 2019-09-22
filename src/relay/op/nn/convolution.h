@@ -25,6 +25,7 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
+#include <tvm/ir_pass.h>
 #include <string>
 #include <utility>
 

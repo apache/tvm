@@ -19,7 +19,6 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import create_workload
 from tvm.relay.testing import run_infer_type
 from tvm.contrib import graph_runtime
 
