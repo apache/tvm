@@ -23,7 +23,6 @@
  * \brief Property def of qnn convolution operator.
  */
 #include <tvm/data_layout.h>
-#include <tvm/ir_pass.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
@@ -178,7 +177,7 @@ Expr Conv2DPadInput(const Expr& data, const QnnConv2DAttrs* param) {
  * \param data The input expr.
  * \param weight The weight expr.
  * \param param The qnn conv2d attributes.
- * \return The sequence of Relay operatos for term1.
+ * \return The sequence of Relay operators for term1.
  * \note The term1 is
  *       Sigma(c,r,s) QW(k, c, r, s) * QA(n, c, h + r, w + s)
  *       This is just conv2d on int tensors.
@@ -198,12 +197,12 @@ Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const QnnConv2
  * \param param The qnn conv2d attributes.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
- * \return The sequence of Relay operatos for term2.
+ * \return The sequence of Relay operators for term2.
  * \note The term2 looks like this
  *
  *       Sigma(c,r,s) zp_w * QA(n, c, h + r, w + s)
  *
- *       Second term is not directly represetable by one Relay operator.
+ *       Second term is not directly representable by one Relay operator.
  *       However, deeper analysis shows that we can reduce r,s using avg_pool2d,
  *       followed by a reduce on the C axis. Using avg_pool2d also gives an
  *       opportunity to reuse alter_op_layout infrastructure.
@@ -313,7 +312,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& zp_data, const QnnConv2DAtt
  * \param in_channels The number of input channels.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
- * \return The sequence of Relay operatos for term4.
+ * \return The sequence of Relay operators for term4.
  * \note The term4 looks like this
  *
  *       Sigma(c,r,s) zp_a * zp_w
@@ -373,7 +372,7 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  *       where QA is quantized tensor, scale_a and zp_A are quantizations
  *       params.
  *
- *       Quantized convlution convolves two quantized tensors and returns a
+ *       Quantized convolution will convolve two quantized tensors and returns a
  *       quantized tensor of default dtype of int32, with scale equaling to the
  *       product of scales of input tensors, and a zero point of zero.
  *
@@ -399,7 +398,7 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  *         zero point. This might leave some performance opportunity at the
  *         table. Can be avoided by modifying conv2d API to accept the
  *         pad_const_value.
- *         2) Second term is not directly represetable by one Relay operator.
+ *         2) Second term is not directly representable by one Relay operator.
  *         However, deeper analysis shows that we can reduce r,s using
  *         avg_pool2d, followed by a reduce on the C axis. Using avg_pool2d also
  *         gives an opportunity to reuse alter_op_layout infrastructure.
@@ -408,7 +407,7 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  *         the conv is dilated. We fallback also in case of depthwise conv.
  *
  *       The whole process can be broken down into following steps
- *       * Assertion checks for exisiting support, fallback if necessary
+ *       * Assertion checks for existing support, fallback if necessary
  *       * Pad the input.
  *       * Get Term1.
  *       * Get Term2.

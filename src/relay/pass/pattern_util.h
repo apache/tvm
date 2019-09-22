@@ -434,6 +434,17 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
+static inline Expr Dense(Expr data,
+                         Expr weight,
+                         IndexExpr units,
+                         DataType out_dtype) {
+  auto attrs = make_node<DenseAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.dense");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   auto attrs = make_node<ReduceAttrs>();
   attrs->axis = std::move(axis);
