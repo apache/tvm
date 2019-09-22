@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#![feature(bind_by_move_pattern_guards, proc_macro_span)]
+#![feature(proc_macro_span)]
 
 extern crate proc_macro;
 

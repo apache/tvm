@@ -30,7 +30,7 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#![feature(box_syntax, type_alias_enum_variants)]
+#![feature(box_syntax)]
 
 #[macro_use]
 extern crate failure;

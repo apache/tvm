@@ -20,7 +20,7 @@
 //! This crate contains the refactored basic components required
 //! for `runtime` and `frontend` TVM crates.
 
-#![feature(box_syntax, type_alias_enum_variants, trait_alias)]
+#![feature(box_syntax, trait_alias)]
 
 #[macro_use]
 extern crate failure;
