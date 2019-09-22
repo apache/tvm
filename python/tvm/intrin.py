@@ -434,6 +434,22 @@ def round(x):
     return _make.round(x)
 
 
+def isnan(x):
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.isnan(x)
+
+
 def power(x, y):
     """x power y
 

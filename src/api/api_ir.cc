@@ -38,6 +38,9 @@ TVM_REGISTER_API("_Var")
 TVM_REGISTER_API("make.abs")
 .set_body_typed(tvm::abs);
 
+TVM_REGISTER_API("make.isnan")
+.set_body_typed(tvm::isnan);
+
 TVM_REGISTER_API("make.floor")
 .set_body_typed(tvm::floor);
 

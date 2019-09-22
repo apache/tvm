@@ -244,6 +244,23 @@ def abs(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def isnan(x):
+    """Check if value of x is NaN, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.isnan(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def round(x):
     """Round elements of x to nearest integer.
 
