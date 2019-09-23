@@ -28,10 +28,6 @@ categories = ["api-bindings", "science"]
 authors = ["TVM Contributors"]
 edition = "2018"
 
-[lib]
-name = "tvm_frontend"
-crate-type = ["dylib"]
-
 [dependencies]
 failure = "0.1"
 lazy_static = "1.1"
