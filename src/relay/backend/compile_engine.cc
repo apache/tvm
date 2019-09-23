@@ -656,8 +656,8 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_[key] = value;
     }
 
-    auto compiler = FunctionGetAttr(key->source_func, "External");
-    if (compiler.defined()) {
+    if (key->source_func->IsExternal()) {
+      auto compiler = FunctionGetAttr(key->source_func, "External");
       const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
       CHECK(code_gen);
       std::string ext_name = "relay.ext." + code_gen->value;

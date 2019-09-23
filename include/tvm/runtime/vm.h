@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_VM_H_
 #define TVM_RUNTIME_VM_H_
 
+#include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -139,6 +140,7 @@ enum class Opcode {
   LoadConsti = 14U,
   Fatal = 15U,
   AllocStorage = 16U,
+  InvokeExternal = 17U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -201,6 +203,16 @@ struct Instruction {
       Index output_size;
       /*! \brief The arguments to pass to the packed function. */
       RegName* packed_args;
+    };
+    struct /* InvokeExternal Operands */ {
+      /*! \brief The index into the external function table. */
+      Index ext_index;
+      /*! \brief The arity of the external function. */
+      Index ext_arity;
+      /*! \brief The number of outputs produced by the external function. */
+      Index ext_output_size;
+      /*! \brief The arguments to pass to the external function. */
+      RegName* ext_args;
     };
     struct /* If Operands */ {
       /*! \brief The register containing the test value. */
@@ -299,6 +311,16 @@ struct Instruction {
    */
   static Instruction AllocTensor(RegName storage,
                                  const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
+  /*! 
+   * \brief Construct an invoke external instruction.
+   * \param packed_index The index of the external function.
+   * \param ext_arity The arity of the function.
+   * \param ext_output_size The number of outputs of the external function.
+   * \param args The argument registers.
+   * \return The invoke external instruction.
+   */
+  static Instruction InvokeExternal(Index external_index, Index ext_arity, Index ext_output_size,
+                                    const std::vector<RegName>& args);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
@@ -697,6 +719,20 @@ class VirtualMachine : public runtime::ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self);
 
+  /*!
+   * \brief Invoke an external function.
+   *
+   * \param external_index The offset of the external function in all functions.
+   * \param func The external function to be invoked.
+   * \param arg_count The number of arguments to the external function.
+   * \param output_size The number of outputs of the external function.
+   * \param args Arguments to the external function.
+   *
+   * \note The return value will be stored in the last output_size slots of args.
+   */
+  virtual void InvokeExternal(Index External_index, const relay::Function& func, Index arg_count,
+                              Index output_size, const std::vector<Object>& args);
+
   virtual ~VirtualMachine() {}
 
   const char* type_key() const final {
@@ -714,6 +750,8 @@ class VirtualMachine : public runtime::ModuleNode {
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
+  /*! \brief The virtual machine's external function table. */
+  std::vector<relay::Function> external_funcs;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */

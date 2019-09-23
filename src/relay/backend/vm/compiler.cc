@@ -27,6 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
+#include <tvm/ir.h>
 #include <tvm/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
@@ -295,6 +296,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         last_register_ = instr.dst;
         break;
       case Opcode::InvokePacked:
+      case Opcode::InvokeExternal:
       case Opcode::If:
       case Opcode::Ret:
       case Opcode::Goto:
@@ -444,6 +446,54 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       argument_registers));
   }
 
+  void EmitInvokeExternal(const Function& func,
+                          const std::vector<Index>& unpacked_arg_regs,
+                          size_t arity,
+                          size_t return_count) {
+    CHECK(func->IsExternal());
+    auto comp = FunctionGetAttr(func, "External");
+    const auto* comp_name = comp.as<tvm::ir::StringImm>();
+    CHECK(comp_name);
+    // Append all subgraphs to a list, and then perform codegen for each
+    // category (i.e. the ones that use the same codegen should be compiled
+    // together.)
+    context_->external_funcs.push_back(func);
+    size_t subgraph_id = context_->external_funcs.size();
+    // Emit an instruction to invoke the external function/subgraph.
+    Emit(Instruction::InvokeExternal(subgraph_id, arity, return_count, unpacked_arg_regs));
+  }
+
+  void EmitInvokePacked(const Function& func,
+                        const std::vector<Index>& unpacked_arg_regs,
+                        size_t arity,
+                        size_t return_count) {
+    Target target;
+    if (targets_.size() == 1) {
+      // homogeneous execution.
+      for (auto kv : targets_) {
+        target = kv.second;
+      }
+    } else {
+      // heterogeneous execution.
+      LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+    }
+    auto key = CCacheKeyNode::make(func, target);
+    auto cfunc = engine_->Lower(key);
+    // TODO(jroesch): support lowered funcs for multiple targets
+    CHECK_EQ(cfunc->funcs.size(), 1);
+    auto op_index = -1;
+    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+      op_index = context_->cached_funcs.size();
+      context_->cached_funcs.push_back(cfunc);
+      context_->seen_funcs[cfunc->funcs[0]] = op_index;
+    } else {
+      op_index = context_->seen_funcs[cfunc->funcs[0]];
+    }
+
+    Emit(Instruction::InvokePacked(op_index, arity, return_count, unpacked_arg_regs));
+  }
+
+
   void EmitInvokeTVMOp(const Function& func,
                        const Expr& inputs,
                        const Expr& outputs) {
@@ -477,35 +527,14 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     // Next generate the invoke instruction.
-    Target target;
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      for (auto kv : targets_) {
-        target = kv.second;
-      }
+    CHECK(func->IsPrimitive() || func->IsExternal());
+    if (func->IsExternal()) {
+      EmitInvokeExternal(op_index, argument_registers.size(), output_tuple->fields.size(),
+                         argument_registers);
     } else {
-      // heterogeneous execution.
-      LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      EmitInvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
+                       argument_registers);
     }
-
-    auto key = CCacheKeyNode::make(func, target);
-    auto cfunc = engine_->Lower(key);
-
-    // TODO(jroesch): support lowered funcs for multiple targets
-    CHECK_EQ(cfunc->funcs.size(), 1);
-    auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->cached_funcs.size();
-      context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
-    } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
-
-    Emit(Instruction::InvokePacked(op_index,
-      argument_registers.size(),
-      output_tuple->fields.size(),
-      argument_registers));
   }
 
   void VisitExpr_(const CallNode* call_node) {
@@ -639,7 +668,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const FunctionNode* func_node) {
-    if (!func_node->IsPrimitive()) {
+    if (!func_node->IsPrimitive() && !func_node->IsExternal()) {
       LOG(FATAL) << "local functions should have been removed by lambda lifting:" << std::endl
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);

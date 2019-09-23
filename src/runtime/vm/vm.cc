@@ -105,6 +105,12 @@ Instruction::Instruction(const Instruction& instr) {
       this->output_size = instr.output_size;
       this->packed_args = Duplicate<RegName>(instr.packed_args, instr.arity);
       return;
+    case Opcode::InvokeExternal:
+      this->ext_index = instr.ext_index;
+      this->ext_arity = instr.ext_arity;
+      this->ext_output_size = instr.ext_output_size;
+      this->ext_args = Duplicate<RegName>(instr.ext_args, instr.ext_arity);
+      return;
     case Opcode::InvokeClosure:
       this->closure = instr.closure;
       this->num_closure_args = instr.num_closure_args;
@@ -198,6 +204,13 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       FreeIf(this->packed_args);
       this->packed_args = Duplicate<RegName>(instr.packed_args, instr.arity);
       return *this;
+    case Opcode::InvokeExternal:
+      this->ext_index = instr.ext_index;
+      this->ext_arity = instr.ext_arity;
+      this->ext_output_size = instr.ext_output_size;
+      FreeIf(this->ext_args);
+      this->ext_args = Duplicate<RegName>(instr.ext_args, instr.ext_arity);
+      return *this;
     case Opcode::InvokeClosure:
       this->closure = instr.closure;
       this->num_closure_args = instr.num_closure_args;
@@ -262,6 +275,9 @@ Instruction::~Instruction() {
     case Opcode::InvokePacked:
       delete this->packed_args;
       return;
+    case Opcode::InvokeExternal:
+      delete this->ext_args;
+      return;
     case Opcode::InvokeClosure:
       delete this->closure_args;
       return;
@@ -299,6 +315,22 @@ Instruction Instruction::InvokePacked(Index packed_index,
   instr.packed_args = new RegName[arity];
   for (Index i = 0; i < arity; ++i) {
     instr.packed_args[i] = args[i];
+  }
+  return instr;
+}
+
+Instruction Instruction::InvokeExternal(Index ext_index,
+                                        Index ext_arity,
+                                        Index ext_output_size,
+                                        const std::vector<RegName>& args) {
+  Instruction instr;
+  instr.op = Opcode::InvokeExternal;
+  instr.ext_index = ext_index;
+  instr.ext_arity = ext_arity;
+  instr.ext_output_size = ext_output_size;
+  instr.ext_args = new RegName[ext_arity];
+  for (Index i = 0; i < ext_arity; ++i) {
+    instr.ext_args[i] = args[i];
   }
   return instr;
 }
@@ -513,6 +545,16 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << ", out: $"
          << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
                              instr.output_size, ", $")
+         << ")";
+      break;
+    }
+    case Opcode::InvokeExternal: {
+      os << "invoke_external Function[" << instr.ext_index << "] (in: $"
+         << StrJoin<RegName>(instr.ext_args, 0,
+                             instr.ext_arity - instr.ext_output_size, ", $")
+         << ", out: $"
+         << StrJoin<RegName>(instr.ext_args, instr.ext_arity - instr.ext_output_size,
+                             instr.ext_output_size, ", $")
          << ")";
       break;
     }
@@ -802,6 +844,12 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   }
 }
 
+// TODO(@zhiics) Invoke the external function/subgraph.
+void VirtualMachine::InvokeExternal(Index ext_index,
+                                    const relay::Function& func,
+                                    Index arg_count, Index output_size,
+                                    const std::vector<Object>& args) {
+}
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
   ctxs_ = ctxs;
@@ -905,6 +953,21 @@ void VirtualMachine::RunLoop() {
         // through the registers mutably.
         InvokePacked(instr.packed_index, func, arity, instr.output_size, args);
         pc_++;
+        goto main_loop;
+      }
+      case Opcode::InvokeExternal: {
+        const auto& func = external_funcs[instr.ext_index];
+        const auto& arity = instr.ext_arity;
+        std::vector<Object> args;
+        for (Index i = 0; i < arity; ++i) {
+          args.push_back(ReadRegister(instr.ext_args[i]));
+        }
+        InvokeExternal(instr.ext_index, func, arity, instr.ext_output_size, args);
+        for (Index i = 0; i < instr.ext_output_size; ++i) {
+          WriteRegister(instr.ext_args[instr.ext_arity - instr.ext_output_size + i],
+                        args[instr.ext_arity - instr.ext_output_size + i]);
+        }
+        pc++;
         goto main_loop;
       }
       case Opcode::InvokeClosure: {

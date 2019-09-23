@@ -16,6 +16,7 @@
  * under the License.
  */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <algorithm>
 #include <numeric>

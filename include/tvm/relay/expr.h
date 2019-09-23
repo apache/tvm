@@ -268,6 +268,14 @@ class FunctionNode : public ExprNode {
    */
   bool IsPrimitive() const;
 
+  /*!
+   * \brief Check whether the function is an external function.
+   * External functions are subgraphes that supported by external libraries.
+   *
+   * \return Whether the function is external or not.
+   */
+  bool IsExternal() const;
+
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
