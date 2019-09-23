@@ -1239,7 +1239,7 @@ def verify_erf(indata, outdata):
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 def test_erf():
-    x = np.random.rand(2, 3, 4, 5).astype(np.float32)
+    x = np.random.rand(2, 3, 4, 6).astype(np.float32)
     z = scipy.special.erf(x)
     verify_erf(x, z)
 
