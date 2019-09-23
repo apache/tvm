@@ -5,10 +5,14 @@
 namespace tvm {
 namespace ir {
 
-class BoundedAnalyzer final : public IRVisitor {
+class IRVisitorWithAnalyzer final : public IRVisitor {
  public:
+  Expr Simplify(const Expr& expr) {
+    return analyzer_.Simplify(expr);
+  }
+
   void Visit_(const For* op) {
-    analyzer.Bind(op->loop_var,
+    analyzer_.Bind(op->loop_var,
                    Range::make_by_min_extent(op->min, op->extent));
     return IRVisitor::Visit_(op);
   }
@@ -18,7 +22,7 @@ class BoundedAnalyzer final : public IRVisitor {
         op->attr_key == attr::virtual_thread) {
       IterVar iv(op->node.node_);
       CHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer.Bind(iv->var,
+      analyzer_.Bind(iv->var,
                       Range::make_by_min_extent(0, op->value));
       IRVisitor::Visit_(op);
     } else {
@@ -29,14 +33,15 @@ class BoundedAnalyzer final : public IRVisitor {
   void Visit_(const Reduce* op) {
     // Setup the domain information before simplification.
     for (const IterVar& iv : op->axis) {
-      analyzer.Bind(iv->var, iv->dom);
+      analyzer_.Bind(iv->var, iv->dom);
     }
     // Recursively call simplification when necessary.
     IRVisitor::Visit_(op);
   }
 
+ protected:
   /*! \brief internal analyzer field. */
-  arith::Analyzer analyzer;
+  arith::Analyzer analyzer_;
 };
 
 }  // namespace ir

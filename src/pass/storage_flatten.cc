@@ -24,7 +24,6 @@
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
 #include <tvm/arithmetic.h>
-#include <tvm/bounded_analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
@@ -39,6 +38,7 @@
 #include "ir_util.h"
 #include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
+#include "../arithmetic/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -53,7 +53,7 @@ class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
                             int cache_line_size, bool create_bound_attributes,
-                            const std::shared_ptr<BoundedAnalyzer>& bounded_analyzer)
+                            const std::shared_ptr<IRVisitorWithAnalyzer>& bounded_analyzer)
       : create_bound_attributes_(create_bound_attributes),
         bounded_analyzer_(bounded_analyzer) {
     for (auto kv : extern_buffer) {
@@ -424,7 +424,7 @@ class StorageFlattener : public IRMutator {
     } else {
       for (size_t i = 0; i < tuple->args.size(); i += 2) {
         begins.push_back(tuple->args[i]);
-        auto new_extent = bounded_analyzer_->analyzer.Simplify(tuple->args[i+1]);
+        auto new_extent = bounded_analyzer_->Simplify(tuple->args[i+1]);
         extents.push_back(new_extent);
       }
     }
@@ -518,7 +518,7 @@ class StorageFlattener : public IRMutator {
   std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
   // However
-  std::shared_ptr<BoundedAnalyzer> bounded_analyzer_;
+  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
@@ -537,8 +537,8 @@ Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
    * or moves data. Perhaps we should disable copy operator and implement
    * move operator.
    */
-  std::shared_ptr<BoundedAnalyzer> bounded_analyzer=
-    std::make_shared<BoundedAnalyzer>();
+  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer=
+    std::make_shared<IRVisitorWithAnalyzer>();
   bounded_analyzer->Visit(stmt);
   stmt =
       StorageFlattener(extern_buffer, cache_line_size,
