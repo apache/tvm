@@ -24,7 +24,6 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
-#include <tvm/shape_expr_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
 #include "op_util.h"
@@ -213,6 +212,15 @@ class TensorIntrinMatcher final : public IRMutator {
             const TensorIntrin& intrin,
             Map<Var, Range>* compute_intrin_iter_space) {
     CHECK(self == stage->op.get());
+
+    for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+      IterVar iv = stage->leaf_iter_vars[i];
+      auto vit = dom_map.find(iv);
+      CHECK(vit != dom_map.end());
+      const Range vrange = vit->second;
+      compute_intrin_iter_space->Set(iv->var, vrange);
+    }
+
     // input remap.
     Array<Tensor> inputs = self->InputTensors();
     CHECK_EQ(inputs.size(), intrin->inputs.size());
@@ -224,22 +232,12 @@ class TensorIntrinMatcher final : public IRMutator {
       // Enable fuzzy matching, to match [1, n, m] to [n, m]
       e.start = e.region.size() - e.tensor.ndim();
       for (size_t j = 0; j < e.start; ++j) {
-        if(!is_one(e.region[j]->extent)) {
-          // Is this safe to do?
-          // This essentially finds variables in min expr and replaces
-          // them with some const so as to make it easy to simplify.
-          IndexVarFinder lhs_var_finder;
-          lhs_var_finder.Visit(e.region[j]->min);
-          IndexVarReplacer rhs_var_replacer;
-          rhs_var_replacer.Init(lhs_var_finder.var_map());
-          auto new_extent = rhs_var_replacer.Mutate(e.region[j]->extent);
-          auto canonical_extent = Simplify(new_extent);
-          CHECK(is_one(canonical_extent))
-              << "Tensorize " << intrin->name << ":"
-              << " Input dimension mismatch with tensor intrin "
-              << " expected shape=" << e.tensor->shape
-              << ", given region=" << e.region;
-        }
+        auto canonical_extent = Simplify(e.region[j]->extent, *compute_intrin_iter_space);
+        CHECK(is_one(canonical_extent))
+            << "Tensorize " << intrin->name << ":"
+            << " Input dimension mismatch with tensor intrin "
+            << " expected shape=" << e.tensor->shape
+            << ", given region=" << e.region;
       }
       in_remap_[inputs[i]] = e;
     }
@@ -288,14 +286,6 @@ class TensorIntrinMatcher final : public IRMutator {
       var_remap_[iv->var.get()] = target_iv->var + r->min;
       axis_remap_[iv] = target_iv;
       compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
-    }
-
-    for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-      IterVar iv = stage->leaf_iter_vars[i];
-      auto vit = dom_map.find(iv);
-      CHECK(vit != dom_map.end());
-      const Range vrange = vit->second;
-      compute_intrin_iter_space->Set(iv->var, vrange);
     }
   }
 
