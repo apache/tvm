@@ -88,6 +88,7 @@ ALLOW_FILE_NAME = {
     ".gitmodules",
     "CODEOWNERS",
     ".scalafmt.conf",
+    "Cargo.lock"
    }
 
 # List of specific files allowed in relpath to <proj_root>
