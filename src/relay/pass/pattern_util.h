@@ -476,10 +476,12 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value) {
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+                       std::string pad_mode) {
   auto attrs = make_node<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
+  attrs->pad_mode = std::move(pad_mode);
   static const Op& op = Op::Get("nn.pad");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }

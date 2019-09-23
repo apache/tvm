@@ -167,7 +167,7 @@ Expr Conv2DPadInput(const Expr& data, const QnnConv2DAttrs* param) {
     } else {
       LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
     }
-    padded_data = Pad(data, pad_width, param->input_zero_point);
+    padded_data = Pad(data, pad_width, param->input_zero_point, "constant");
   }
   return padded_data;
 }
