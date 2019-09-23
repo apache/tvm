@@ -35,27 +35,6 @@ using namespace tvm;
 namespace x86 {
 
 /*!
- * \brief Updates an existing schedule for the given injective ops.
- *
- * \param sch The schedule to update.
- * \param out The tensor representing the injective op.
- * 
- * \return The updated schedule.
- */
-inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
-  auto axis = sch[out]->op.as<ComputeOpNode>()->axis;
-  if (axis.size() == 4) {
-    auto n = axis[0];
-    auto c = axis[1];
-    auto fused = detail::Fuse(sch[out], { n, c });  // for nhwc layout, fuse n and h
-    sch[out].parallel(fused);
-  } else {
-    sch[out].parallel(axis[0]);
-  }
-  return sch;
-}
-
-/*!
 * \brief Create an x86 schedule for the given injective ops.
 *
 * \param target The target to generate a schedule for.
@@ -72,7 +51,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   tvm::schedule::AutoInlineInjective(s);
 
   auto x = outs[0];
-  schedule_injective_from_existing(s, x);
+  tvm::GenericFunc::Get("schedule_injective_from_existing")(s, x);
 
   return s;
 }
