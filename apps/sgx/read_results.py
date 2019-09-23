@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "sgx-demo"
-version = "0.1.0"
-authors = ["Nick Hynes <nhynes@nhynes.com>"]
-edition = "2018"
+import struct
+import sys
 
-[dependencies]
-tvm-runtime = { path = "../../rust/runtime" }
+import numpy as np
 
-[patch.crates-io]
-"backtrace" = { git = "https://github.com/nhynes/backtrace-rs", branch = "fix-sgx" }
+def float_bytes(l):
+    for i in range(0, len(l), 4):
+        yield l[i:i + 4]
+
+floats = [struct.unpack('f', f)[0] for f in float_bytes(sys.stdin.buffer.read())]
+print(np.array(floats))
