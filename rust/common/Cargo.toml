@@ -30,4 +30,4 @@ failure = "0.1"
 ndarray = "0.12"
 
 [build-dependencies]
-bindgen = "0.37"
+bindgen = "0.51"

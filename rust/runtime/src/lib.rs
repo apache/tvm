@@ -78,8 +78,8 @@ lazy_static! {
 }
 
 #[no_mangle]
-pub extern "C" fn TVMAPISetLastError(cmsg: *const i8) {
-    *LAST_ERROR.write().unwrap() = Some(unsafe { std::ffi::CStr::from_ptr(cmsg) });
+pub unsafe extern "C" fn TVMAPISetLastError(cmsg: *const i8) {
+    *LAST_ERROR.write().unwrap() = Some(std::ffi::CStr::from_ptr(cmsg));
 }
 
 #[no_mangle]

@@ -63,7 +63,7 @@ pub struct NDArray {
 impl NDArray {
     pub(crate) fn new(handle: ffi::TVMArrayHandle) -> Self {
         NDArray {
-            handle: handle,
+            handle,
             is_view: true,
         }
     }
@@ -89,8 +89,7 @@ impl NDArray {
 
     /// Returns the total number of entries of the NDArray.
     pub fn size(&self) -> Option<usize> {
-        self.shape()
-            .map(|v| v.into_iter().fold(1, |acc, &mut e| acc * e))
+        self.shape().map(|v| v.iter().product())
     }
 
     /// Returns the context which the NDArray was defined.
@@ -100,7 +99,7 @@ impl NDArray {
 
     /// Returns the type of the entries of the NDArray.
     pub fn dtype(&self) -> TVMType {
-        unsafe { (*self.handle).dtype.into() }
+        unsafe { (*self.handle).dtype }
     }
 
     /// Returns the number of dimensions of the NDArray.
@@ -211,8 +210,8 @@ impl NDArray {
             bail!(
                 "{}",
                 errors::TypeMismatchError {
-                    expected: format!("{}", self.dtype().to_string()),
-                    actual: format!("{}", target.dtype().to_string()),
+                    expected: self.dtype().to_string(),
+                    actual: target.dtype().to_string(),
                 }
             );
         }
@@ -228,7 +227,7 @@ impl NDArray {
     pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray, Error> {
         let tmp = NDArray::empty(
             self.shape().ok_or(errors::MissingShapeError)?,
-            target.clone(),
+            *target,
             self.dtype(),
         );
         let copy = self.copy_to_ndarray(tmp)?;
@@ -241,8 +240,8 @@ impl NDArray {
         ctx: TVMContext,
         dtype: TVMType,
     ) -> Result<Self, Error> {
-        let mut shape = rnd.shape().to_vec();
-        let mut nd = NDArray::empty(&mut shape, ctx, dtype);
+        let shape = rnd.shape().to_vec();
+        let mut nd = NDArray::empty(&shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
         nd.copy_from_buffer(
             buf.as_slice_mut()
@@ -257,9 +256,9 @@ impl NDArray {
         check_call!(ffi::TVMArrayAlloc(
             shape.as_ptr() as *const i64,
             shape.len() as c_int,
-            dtype.code as c_int,
-            dtype.bits as c_int,
-            dtype.lanes as c_int,
+            i32::from(dtype.code) as c_int,
+            i32::from(dtype.bits) as c_int,
+            i32::from(dtype.lanes) as c_int,
             ctx.device_type.0 as c_int,
             ctx.device_id as c_int,
             &mut handle as *mut _,
@@ -364,9 +363,9 @@ mod tests {
         assert_eq!(ndarray.ndim(), 1);
         assert!(ndarray.is_contiguous().is_ok());
         assert_eq!(ndarray.byte_offset(), 0);
-        let mut shape = vec![4];
+        let shape = vec![4];
         let e = NDArray::empty(
-            &mut shape,
+            &shape,
             TVMContext::cpu(0),
             TVMType::from_str("int32").unwrap(),
         );
@@ -378,16 +377,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
     fn copy_wrong_dtype() {
-        let mut shape = vec![4];
+        let shape = vec![4];
         let mut data = vec![1f32, 2., 3., 4.];
         let ctx = TVMContext::cpu(0);
-        let mut nd_float = NDArray::empty(
-            &mut shape,
-            ctx.clone(),
-            TVMType::from_str("float32").unwrap(),
-        );
+        let mut nd_float = NDArray::empty(&shape, ctx, TVMType::from_str("float32").unwrap());
         nd_float.copy_from_buffer(&mut data);
-        let empty_int = NDArray::empty(&mut shape, ctx, TVMType::from_str("int32").unwrap());
+        let empty_int = NDArray::empty(&shape, ctx, TVMType::from_str("int32").unwrap());
         nd_float.copy_to_ndarray(empty_int).unwrap();
     }
 

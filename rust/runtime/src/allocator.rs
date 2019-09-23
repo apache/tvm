@@ -32,14 +32,11 @@ impl Allocation {
     pub fn new(size: usize, align: Option<usize>) -> Result<Self, LayoutErr> {
         let alignment = align.unwrap_or(DEFAULT_ALIGN_BYTES);
         let layout = Layout::from_size_align(size, alignment)?;
-        let ptr = unsafe { alloc::alloc(layout.clone()) };
+        let ptr = unsafe { alloc::alloc(layout) };
         if ptr.is_null() {
             alloc::handle_alloc_error(layout);
         }
-        Ok(Self {
-            ptr: ptr,
-            layout: layout,
-        })
+        Ok(Self { ptr, layout })
     }
 
     pub fn as_mut_ptr(&self) -> *mut u8 {
@@ -70,7 +67,7 @@ impl Allocation {
 impl Drop for Allocation {
     fn drop(&mut self) {
         unsafe {
-            alloc::dealloc(self.ptr, self.layout.clone());
+            alloc::dealloc(self.ptr, self.layout);
         }
     }
 }

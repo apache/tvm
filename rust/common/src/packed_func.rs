@@ -83,7 +83,7 @@ macro_rules! TVMPODValue {
                 use $name::*;
                 #[allow(non_upper_case_globals)]
                 unsafe {
-                    match type_code as i32 {
+                    match type_code {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
@@ -153,7 +153,7 @@ TVMPODValue! {
     },
     match &self {
         Bytes(val) => {
-            (TVMValue { v_handle: val.clone() as *const _ as *mut c_void }, TVMTypeCode_kBytes)
+            (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kBytes)
         }
         Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr) }
     }
@@ -166,11 +166,14 @@ TVMPODValue! {
     /// # Example
     ///
     /// ```
+    /// use std::convert::{TryFrom, TryInto};
+    /// use tvm_common::TVMRetValue;
+    ///
     /// let a = 42u32;
-    /// let b: i64 = TVMRetValue::from(a).try_into().unwrap();
+    /// let b: u32 = tvm_common::TVMRetValue::from(a).try_into().unwrap();
     ///
     /// let s = "hello, world!";
-    /// let t: TVMRetValue = s.into();
+    /// let t: TVMRetValue = s.to_string().into();
     /// assert_eq!(String::try_from(t).unwrap(), s);
     /// ```
     TVMRetValue {

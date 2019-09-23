@@ -33,11 +33,11 @@ const IN_DIM: usize = 8;
 
 macro_rules! check_sum {
     ($e:expr, $a:ident, $b:ident) => {
-        let a = Array::try_from($e.get_input(stringify!($a)).unwrap()).unwrap();
+        let a = Array::try_from($e.get_input(stringify!($a)).unwrap().to_owned()).unwrap();
         check_sum!(a, $b);
     };
     ($e:expr, $a:expr, $b:ident) => {
-        let a = Array::try_from($e.get_output($a).unwrap()).unwrap();
+        let a = Array::try_from($e.get_output($a).unwrap().to_owned()).unwrap();
         check_sum!(a, $b);
     };
     ($a:ident, $b:ident) => {
@@ -73,11 +73,11 @@ fn main() {
             .collect::<Vec<f32>>(),
     )
     .unwrap();
-    let w = Array::try_from(params.get("dense0_weight").unwrap())
+    let w = Array::try_from(params.get("dense0_weight").unwrap().to_owned())
         .unwrap()
         .into_shape((IN_DIM * 2, IN_DIM))
         .unwrap();
-    let b = Array::try_from(params.get("dense0_bias").unwrap()).unwrap();
+    let b = Array::try_from(params.get("dense0_bias").unwrap().to_owned()).unwrap();
     let dense = x.dot(&w.t()) + &b;
     let left = dense.slice(s![.., 0..IN_DIM]);
     let right = dense.slice(s![.., IN_DIM..]);

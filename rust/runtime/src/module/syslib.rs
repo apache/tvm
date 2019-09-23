@@ -42,8 +42,7 @@ impl Module for SystemLibModule {
         SYSTEM_LIB_FUNCTIONS
             .lock()
             .unwrap()
-            .get(name.as_ref())
-            .map(|f| *f)
+            .get(name.as_ref()).copied()
     }
 }
 
@@ -67,5 +66,5 @@ pub extern "C" fn TVMBackendRegisterSystemLibSymbol(
         name.to_string(),
         &*Box::leak(super::wrap_backend_packed_func(name.to_string(), func)),
     );
-    return 0;
+    0
 }

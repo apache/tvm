@@ -38,7 +38,7 @@ pub trait Module {
 fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<dyn PackedFunc> {
     box move |args: &[TVMArgValue]| {
         let (values, type_codes): (Vec<TVMValue>, Vec<i32>) = args
-            .into_iter()
+            .iter()
             .map(|arg| {
                 let (val, code) = arg.to_tvm_value();
                 (val, code as i32)

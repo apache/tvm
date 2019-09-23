@@ -114,10 +114,7 @@ impl<'a> Threads {
                 (handle, p)
             })
             .unzip();
-        Threads {
-            handles: handles,
-            queues: queues,
-        }
+        Threads { handles, queues }
     }
 }
 
@@ -133,7 +130,7 @@ impl ThreadPool {
     fn new() -> Self {
         let num_workers = max_concurrency();
         ThreadPool {
-            num_workers: num_workers,
+            num_workers,
             threads: Threads::launch(num_workers, ThreadPool::run_worker),
         }
     }
@@ -181,7 +178,7 @@ unsafe impl<T> Sync for Consumer<T> {}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn max_concurrency() -> usize {
-    if let Ok(threads_str) = env::var("TVM_NUM_THREADS").or(env::var("OMP_NUM_THREADS")) {
+    if let Ok(threads_str) = env::var("TVM_NUM_THREADS").or_else(|_| env::var("OMP_NUM_THREADS")) {
         if let Ok(threads) = usize::from_str_radix(&threads_str, 10) {
             return threads;
         }
@@ -202,27 +199,30 @@ pub extern "C" fn TVMBackendParallelLaunch(
 ) -> c_int {
     if max_concurrency() < 2 {
         let penv = TVMParallelGroupEnv {
-            sync_handle: 0 as *mut c_void,
+            sync_handle: std::ptr::null_mut(),
             num_task: 1,
         };
         cb(0, &penv as *const _, cdata);
     } else {
         THREAD_POOL.with(|pool| {
             pool.launch(Job {
-                cb: cb,
-                cdata: cdata,
+                cb,
+                cdata,
                 req_num_tasks: num_task,
                 pending: Arc::new(AtomicUsize::new(0)),
             });
         });
     }
-    return 0;
+    0
 }
 
 // @see https://github.com/dmlc/tvm/issues/988 for information on why this function is used.
 #[no_mangle]
-pub extern "C" fn TVMBackendParallelBarrier(_task_id: usize, penv: *const TVMParallelGroupEnv) {
-    let barrier: &Arc<Barrier> = unsafe { &*((*penv).sync_handle as *const Arc<Barrier>) };
+pub unsafe extern "C" fn TVMBackendParallelBarrier(
+    _task_id: usize,
+    penv: *const TVMParallelGroupEnv,
+) {
+    let barrier: &Arc<Barrier> = &*((*penv).sync_handle as *const Arc<Barrier>);
     barrier.wait();
 }
 
@@ -246,7 +246,7 @@ mod tests {
         penv: *const TVMParallelGroupEnv,
         cdata: *const c_void,
     ) -> i32 {
-        if cdata == ptr::null() {
+        if cdata.is_null() {
             return 0;
         }
         unsafe {

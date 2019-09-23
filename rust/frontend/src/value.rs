@@ -93,7 +93,7 @@ mod tests {
         let tvm: TVMByteArray = TVMRetValue::from(v).try_into().unwrap();
         assert_eq!(
             tvm.data(),
-            w.iter().map(|e| *e).collect::<Vec<u8>>().as_slice()
+            w.iter().copied().collect::<Vec<u8>>().as_slice()
         );
     }
 

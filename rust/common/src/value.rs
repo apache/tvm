@@ -42,7 +42,7 @@ impl FromStr for TVMType {
             return Ok(TVMType::new(1, 1, 1));
         }
 
-        let mut type_lanes = type_str.split("x");
+        let mut type_lanes = type_str.split('x');
         let typ = type_lanes.next().expect("Missing dtype");
         let lanes = type_lanes
             .next()
@@ -163,7 +163,7 @@ impl_tvm_context!(
 ///
 /// ```
 /// let v = b"hello";
-/// let barr = TVMByteArray::from(&v);
+/// let barr = tvm_common::TVMByteArray::from(&v);
 /// assert_eq!(barr.len(), v.len());
 /// assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
 /// ```
@@ -181,6 +181,10 @@ impl TVMByteArray {
     /// Converts the underlying byte-array to `Vec<u8>`
     pub fn to_vec(&self) -> Vec<u8> {
         self.data().to_vec()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
