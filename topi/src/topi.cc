@@ -56,7 +56,6 @@
 #include <topi/generic/injective.h>
 
 #include <topi/cuda/dense.h>
-#include <topi/cuda/extern.h>
 #include <topi/cuda/injective.h>
 #include <topi/cuda/pooling.h>
 #include <topi/cuda/reduction.h>
@@ -65,7 +64,6 @@
 
 #include <topi/x86/bnn.h>
 #include <topi/x86/default.h>
-#include <topi/x86/extern.h>
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
@@ -607,11 +605,6 @@ TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
   }
   });
 
-TVM_REGISTER_GLOBAL("topi.x86.schedule_extern")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::schedule_extern(args[0], args[1]);
-  });
-
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::x86::schedule_injective(args[0], args[1]);
@@ -647,11 +640,6 @@ TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_dense(args[0], args[1]);
-  });
-
-TVM_REGISTER_GLOBAL("topi.cuda.schedule_extern")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_extern(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
