@@ -54,8 +54,8 @@ class StorageFlattener : public IRMutator {
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
                             int cache_line_size, bool create_bound_attributes,
                             const std::shared_ptr<IRVisitorWithAnalyzer>& bounded_analyzer)
-      : create_bound_attributes_(create_bound_attributes),
-        bounded_analyzer_(bounded_analyzer) {
+      : bounded_analyzer_(bounded_analyzer),
+        create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -537,7 +537,7 @@ Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
    * or moves data. Perhaps we should disable copy operator and implement
    * move operator.
    */
-  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer=
+  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer =
     std::make_shared<IRVisitorWithAnalyzer>();
   bounded_analyzer->Visit(stmt);
   stmt =
