@@ -18,7 +18,7 @@
 """Schedule for softmax operator"""
 import tvm
 from .. import generic
-from .injective import _schedule_injective
+from .injective import schedule_injective_from_existing
 
 @generic.schedule_softmax.register(["cuda", "gpu"])
 def schedule_softmax(outs):
@@ -58,7 +58,7 @@ def schedule_softmax(outs):
             ops.append(exp.op)
             
         for op in ops:
-            s = _schedule_injective(op, s)
+            s = schedule_injective_from_existing(s, op.output(0))
     else:
         num_thread = 64
         block_x = tvm.thread_axis("blockIdx.x")
