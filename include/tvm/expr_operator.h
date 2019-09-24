@@ -333,6 +333,20 @@ TVM_DLL Expr operator||(Expr a, Expr b);
  */
 TVM_DLL Expr operator!(Expr a);
 /*!
+ * \brief compute division in C semantics.
+ *
+ * a / b as in C/C++.
+ *
+ * When operands are integers, it directly corresponds to truncdiv.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr div(Expr a, Expr b);
+/*!
  * \brief compute trunc(a / b)
  *
  * This is the default integer division behavior in C.
@@ -640,6 +654,21 @@ inline Expr make_zero(Type t) {
   return make_const(t, 0);
 }
 
+/*!
+ * \brief Helper function to raise a compiler error about division ambiguity.
+ * \note The call to this function will always results in a compiler error.
+ * \tparam TA Any class type.
+ */
+template<typename TA>
+inline void DivAmbiguityError(const TA& a) {
+  constexpr bool div_ambiguity = !std::is_class<TA>::value;
+  static_assert(div_ambiguity,
+                "TVM supports multiple types of integer divisions, "
+                "please call div, floordiv/floormod or truncdiv/truncmod directly "
+                "to avoid ambiguity in the code. "
+                "Checkout these functions in expr_operator.h.");
+}
+
 // additional const expression overloading
 #define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc)            \
   inline Expr Name(Expr& a, Expr b) {                          \
@@ -688,12 +717,17 @@ TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator*);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator/);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(max);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(min);
+TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(div);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator>);  // NOLINT(*)
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator>=);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<);  // NOLINT(*)
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<=);
 // integer related ops
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator%);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncmod);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floordiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floormod);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator>>); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator<<); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator&);

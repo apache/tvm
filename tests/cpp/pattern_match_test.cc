@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -47,9 +47,9 @@ TEST(Pattern, Basic) {
   }
   CHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
   CHECK((px + min(py, px)).Match(z + min(y, z)));
-  CHECK((px + py / (px * py)).Match(x + 2 / (x * 2)));
-  CHECK((px - py % (px * pz)).Match(x - 2 % (x * 2)));
-  CHECK((px - py % (px * PConst<Expr>(2))).Match(x - 2 % (x * 2)));
+  CHECK((px + truncdiv(py, px * py)).Match(x + truncdiv(2, x * 2)));
+  CHECK((px - truncmod(py, px * pz)).Match(x - truncmod(2, x * 2)));
+  CHECK((px - floormod(py, px * PConst<Expr>(2))).Match(x - floormod(2, x * 2)));
 
   // logicals
   CHECK((px == pz).Match(x == 1));
