@@ -138,6 +138,7 @@ def build_config(opt_level=2,
                 "CanonicalizeCast": 3,
                 "EliminateCommonSubexpr": 3,
                 "CombineParallelConv2D": 4,
+                "CombineParallelDense": 4
             }
 
     fallback_device : int, str, or tvm.TVMContext, optional
@@ -398,6 +399,35 @@ def CombineParallelConv2D(min_num_branches=3):
         The registered pass that combines parallel conv2d operators.
     """
     return _transform.CombineParallelConv2D(min_num_branches)
+
+
+def CombineParallelDense(min_num_branches=3):
+    """Combine multiple dense operators into one. For example:
+
+                data
+          /              \
+     dense (2,2)         dense (2,2)
+         |                 |
+    elemwise/bcast (2,2)  elemwise/bcast (2,2)
+
+    Would become:
+
+             data
+              |
+        batch_matmul+elemwise/bcast (2,2,2)
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that combines parallel dense operators.
+    """
+    return _transform.CombineParallelDense(min_num_branches)
 
 
 def AlterOpLayout():
