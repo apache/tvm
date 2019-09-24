@@ -56,24 +56,26 @@ def test_vector_simplify():
               tvm.expr.Ramp(x * 2, 8, 4))
 
     ## DivMod rules
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # truc div
-    ck.verify(y.astype("int32x2") / x.astype("int32x2"),
-              (y / x).astype("int32x2"))
-    ck.verify(tvm.expr.Ramp(x, 4, 4) / 2,
-              tvm.expr.Ramp(x/ 2, 2, 4))
+    ck.verify(tdiv(y.astype("int32x2"), x.astype("int32x2")),
+              tdiv(y, x).astype("int32x2"))
+    ck.verify(tdiv(tvm.expr.Ramp(x, 4, 4), 2),
+              tvm.expr.Ramp(tdiv(x, 2), 2, 4))
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
-    ck.verify(tvm.expr.Ramp(x * 8 + 1, 1, 4) / 8,
+    ck.verify(tdiv(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
               (x).astype("int32x4"))
-    ck.verify(tvm.expr.Ramp(x * 8 + 15, 1, 4) / 8,
-              tvm.expr.Ramp(x * 8 + 15, 1, 4) / 8)
-    ck.verify(y.astype("int32x2") % x.astype("int32x2"),
-              (y % x).astype("int32x2"))
-    ck.verify(tvm.expr.Ramp(x, 4, 4) % 2,
-              tvm.expr.Broadcast(x % 2, 4))
-    ck.verify(tvm.expr.Ramp(x * 8 + 1, 1, 4) % 8,
+    ck.verify(tdiv(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8),
+              tdiv(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8))
+    ck.verify(tmod(y.astype("int32x2"), x.astype("int32x2")),
+              tmod(y, x).astype("int32x2"))
+    ck.verify(tmod(tvm.expr.Ramp(x, 4, 4), 2),
+              tvm.expr.Broadcast(tmod(x, 2), 4))
+    ck.verify(tmod(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
               tvm.expr.Ramp(1, 1, 4))
-    ck.verify(tvm.expr.Ramp(x * 8 + 1, 15, 4) % 8,
-              tvm.expr.Ramp(1, 15, 4) % 8)
+    ck.verify(tmod(tvm.expr.Ramp(x * 8 + 1, 15, 4), 8),
+              tmod(tvm.expr.Ramp(1, 15, 4), 8))
 
     # floor div
     fld = tvm.floordiv
@@ -187,10 +189,12 @@ def test_add_index_simplify():
     ck.verify(x + 2 + 3 + 4 + x * 3, x * 4 + 9);
 
     # DivMod rules
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # truc div
-    ck.verify(y * (x % 8) + 10 * (x % 8), (x % 8) * (y + 10))
+    ck.verify(y * tmod(x, 8) + 10 * tmod(x, 8), tmod(x, 8) * (y + 10))
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1, 1000), override=True)
-    ck.verify((x / 8) * 8 + x % 8, x)
+    ck.verify(tdiv(x, 8) * 8 + tmod(x, 8), x)
 
     # floor div
     fld = tvm.floordiv
@@ -256,31 +260,33 @@ def test_sub_index_simplify():
 
     # DivMod patterns
     # truc div
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
-    ck.verify(x - (x / 3) * 3, x % 3)
+    ck.verify(x - tdiv(x, 3) * 3, tmod(x, 3))
 
-    ck.verify((x + 5) / 3 - x / 3, ((x % 3) + 5)/ 3)
-    ck.verify((x + 5) / 3 - (x + 1) / 3, (((x + 1) % 3) + 4)/ 3)
+    ck.verify(tdiv(x + 5, 3) - tdiv(x, 3), tdiv(tmod(x, 3) + 5, 3))
+    ck.verify(tdiv(x + 5, 3) - tdiv(x + 1, 3), tdiv(tmod(x + 1, 3) + 4, 3))
 
-    ck.verify(y - (y / (-5)) * (-5), y % 5)
-    ck.verify((y / 3) * 3 - y, 0 - y % 3)
-    ck.verify(y - ((y - 6) / 5) * 5, (y + (-6)) % 5 + 6)
-    ck.verify(((y - 6) / 5) * 5 - y, (-6) - (y + (-6)) % 5)
-    ck.verify(y - ((y + z) / 5) * 5, (y + z) % 5 - z)
-    ck.verify(((y + z) / 5) * 5 - y, z - (y + z) % 5)
-    ck.verify(y - ((y - z) / 5) * 5, (y - z) % 5 + z)
-    ck.verify(((y - z) / 5) * 5 - y, 0 - (y - z) % 5 - z)
+    ck.verify(y - tdiv(y, (-5)) * (-5), tmod(y, 5))
+    ck.verify(tdiv(y, 3) * 3 - y, 0 - tmod(y, 3))
+    ck.verify(y - tdiv(y - 6, 5) * 5, tmod(y + (-6), 5) + 6)
+    ck.verify(tdiv(y - 6, 5) * 5 - y, (-6) - tmod(y + (-6), 5))
+    ck.verify(y - tdiv(y + z, 5) * 5, tmod(y + z, 5) - z)
+    ck.verify(tdiv(y + z, 5) * 5 - y, z - tmod(y + z, 5))
+    ck.verify(y - tdiv(y - z, 5) * 5, tmod(y - z, 5) + z)
+    ck.verify(tdiv(y - z, 5) * 5 - y, 0 - tmod(y - z, 5) - z)
 
-    ck.verify(y * 3 - (y / 2) * 6, (y % 2) * 3)
-    ck.verify((y / 3) * 6 - y * 2, (y % 3) * (-2))
-    ck.verify(y * 5 - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
-    ck.verify(y * 5 - ((y - z) / 2) * 10, ((y - z) % 2 + z) * 5)
-    ck.verify(((y + z) / 3) * 6 - y * 2, (z - (y + z) % 3) * 2)
-    ck.verify(((y - z) / 3) * 6 - y * 2, (0 - (y - z) % 3 - z) * 2)
-    ck.verify(5 * y - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
-    ck.verify(5 * y - 10 * ((y - z) / 2), ((y - z) % 2 + z) * 5)
-    ck.verify(6 * ((y + z) / 3) - y * 2, (z - (y + z) % 3) * 2)
-    ck.verify(((y - z) / 3) * 6 - 2 * y, (0 - (y - z) % 3 - z) * 2)
+    ck.verify(y * 3 - tdiv(y, 2) * 6, tmod(y, 2) * 3)
+    ck.verify(tdiv(y, 3) * 6 - y * 2, tmod(y, 3) * (-2))
+    ck.verify(y * 5 - tdiv(y + z, 2) * 10, (tmod(y + z, 2) - z) * 5)
+    ck.verify(y * 5 - tdiv(y - z, 2) * 10, (tmod(y - z, 2) + z) * 5)
+    ck.verify(tdiv(y + z, 3) * 6 - y * 2, (z - tmod(y + z, 3)) * 2)
+    ck.verify(tdiv(y - z, 3) * 6 - y * 2, (0 - tmod(y - z, 3) - z) * 2)
+    ck.verify(5 * y - tdiv(y + z, 2) * 10, (tmod(y + z, 2) - z) * 5)
+    ck.verify(5 * y - 10 * tdiv(y - z, 2), (tmod(y - z, 2) + z) * 5)
+    ck.verify(6 * tdiv(y + z, 3) - y * 2, (z - tmod(y + z, 3)) * 2)
+    ck.verify(tdiv(y - z, 3) * 6 - 2 * y, (0 - tmod(y - z, 3) - z) * 2)
 
     # floor div
     fld = tvm.floordiv
@@ -323,46 +329,48 @@ def test_mul_index_simplify():
 def test_div_index_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
 
-    ck.verify(x / x, 1)
+    ck.verify(tdiv(x, x), 1)
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.analyzer.update(z, tvm.arith.ConstIntBound(0, 1000), override=True)
 
-    ck.verify(x / 2 / 3, x / 6)
-    ck.verify((x / 2 + 1) / 3, (x + 2) / 6)
-    ck.verify(x * 2 / 4, x / 2)
-    ck.verify(x * 4 / 2, x * 2)
+    ck.verify(tdiv(tdiv(x, 2), 3), tdiv(x, 6))
+    ck.verify(tdiv(tdiv(x, 2) + 1, 3), tdiv(x + 2, 6))
+    ck.verify(tdiv(x * 2, 4), tdiv(x, 2))
+    ck.verify(tdiv(x * 4, 2), x * 2)
 
-    ck.verify((x * 4 + y) / 2, x * 2 + y / 2)
-    ck.verify(tvm.min(x * 6, y) / 2, tvm.min(x * 3, y / 2))
-    ck.verify(tvm.max(x * 6, y) / 2, tvm.max(x * 3, y / 2))
+    ck.verify(tdiv(x * 4 + y, 2), x * 2 + tdiv(y, 2))
+    ck.verify(tdiv(tvm.min(x * 6, y), 2), tvm.min(x * 3, tdiv(y, 2)))
+    ck.verify(tdiv(tvm.max(x * 6, y), 2), tvm.max(x * 3, tdiv(y, 2)))
 
-    ck.verify((y + x * 4) / 2, y / 2 + x * 2)
-    ck.verify(tvm.min(y, x * 6) / 2, tvm.min(y / 2, x * 3))
-    ck.verify(tvm.max(y, x * 6) / 2, tvm.max(y / 2, x * 3))
+    ck.verify(tdiv(y + x * 4, 2), tdiv(y, 2) + x * 2)
+    ck.verify(tdiv(tvm.min(y, x * 6), 2), tvm.min(tdiv(y, 2), x * 3))
+    ck.verify(tdiv(tvm.max(y, x * 6), 2), tvm.max(tdiv(y, 2), x * 3))
 
     # 3-operands
-    ck.verify((x * 6 + y + z) / 2, x * 3 + (y + z) / 2)
-    ck.verify((x * 6 - y + (y + 3)) / 2, x * 3 + 1)
-    ck.verify((x * 6 + (y + 3) - y) / 2, x * 3 + 1)
-    ck.verify((y + x * 6 + z) / 2, x * 3 + (y + z) / 2)
-    ck.verify((x + 4) / 2, x / 2 + 2)
+    ck.verify(tdiv(x * 6 + y + z, 2), x * 3 + tdiv(y + z, 2))
+    ck.verify(tdiv(x * 6 - y + (y + 3), 2), x * 3 + 1)
+    ck.verify(tdiv(x * 6 + (y + 3) - y, 2), x * 3 + 1)
+    ck.verify(tdiv(y + x * 6 + z, 2), x * 3 + tdiv(y + z, 2))
+    ck.verify(tdiv(x + 4, 2), tdiv(x, 2) + 2)
 
-    ck.verify((x + y) / x, y / x + 1)
-    ck.verify((y + x) / x, y / x + 1)
-    ck.verify(((x + y) + z) / x, (y + z) / x + 1)
-    ck.verify(((y + x) + z) / x, (y + z) / x + 1)
-    ck.verify((y + (x + z)) / x, (y + z) / x + 1)
-    ck.verify((y + (z + x)) / x, (y + z) / x + 1)
+    ck.verify(tdiv(x + y, x), tdiv(y, x) + 1)
+    ck.verify(tdiv(y + x, x), tdiv(y, x) + 1)
+    ck.verify(tdiv((x + y) + z, x), tdiv(y + z, x) + 1)
+    ck.verify(tdiv((y + x) + z, x), tdiv(y + z, x) + 1)
+    ck.verify(tdiv(y + (x + z), x), tdiv(y + z, x) + 1)
+    ck.verify(tdiv(y + (z + x), x), tdiv(y + z, x) + 1)
 
-    ck.verify((x * y) / y, x)
-    ck.verify((y * x) / y, x)
+    ck.verify(tdiv(x * y, y), x)
+    ck.verify(tdiv(y * x, y), x)
 
-    ck.verify((x * z + y) / z, x + y / z)
-    ck.verify((z * x + y) / z, x + y / z)
-    ck.verify((y + x * z) / z, y / z + x)
-    ck.verify((y + z * x) / z, y / z + x)
+    ck.verify(tdiv(x * z + y, z), x + tdiv(y, z))
+    ck.verify(tdiv(z * x + y, z), x + tdiv(y, z))
+    ck.verify(tdiv(y + x * z, z), tdiv(y, z) + x)
+    ck.verify(tdiv(y + z * x, z), tdiv(y, z) + x)
 
 
 def test_floordiv_index_simplify():
@@ -417,31 +425,33 @@ def test_mod_index_simplify():
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.analyzer.update(nx, tvm.arith.ConstIntBound(-1000, 0), override=True)
     ck.analyzer.update(ny, tvm.arith.ConstIntBound(-1000, 0), override=True)
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
 
-    ck.verify(x * 10 % 2, 0)
-    ck.verify((x * 10 + y) % 2, y % 2)
-    ck.verify((x + 10) % 2, x % 2)
-    ck.verify((x + y * 10) % 2, x % 2)
-    ck.verify((x* 10 + 1 + y * 2 + 2) % 2, 1)
-    ck.verify(x * 10 % -2, 0)
-    ck.verify((x * 10 + y) % -2, y % 2)
-    ck.verify((x + 10) % -2, x % 2)
-    ck.verify((x + y * 10) % -2, x % 2)
-    ck.verify((x* 10 + 1 + y * 2 + 2) % -2, 1)
+    ck.verify(tmod(x * 10, 2), 0)
+    ck.verify(tmod(x * 10 + y, 2), tmod(y, 2))
+    ck.verify(tmod(x + 10, 2), tmod(x, 2))
+    ck.verify(tmod(x + y * 10, 2), tmod(x, 2))
+    ck.verify(tmod(x* 10 + 1 + y * 2 + 2, 2), 1)
+    ck.verify(tmod(x * 10, -2), 0)
+    ck.verify(tmod(x * 10 + y, -2), tmod(y, 2))
+    ck.verify(tmod(x + 10, -2), tmod(x, 2))
+    ck.verify(tmod(x + y * 10, -2), tmod(x, 2))
+    ck.verify(tmod(x* 10 + 1 + y * 2 + 2, -2), 1)
 
-    ck.verify(x * (-10) % 2, 0)
-    ck.verify((x * (-10) + y) % 2, (x * (-10) + y) % 2)
-    ck.verify((x + (-10)) % 2, (x + (-10)) % 2)
-    ck.verify((x + y * (-10)) % 2, (x + y * (-10)) % 2)
-    ck.verify(x * (-10) % -2, 0)
+    ck.verify(tmod(x * (-10), 2), 0)
+    ck.verify(tmod(x * (-10) + y, 2), tmod(x * (-10) + y, 2))
+    ck.verify(tmod(x + (-10), 2), tmod(x + (-10), 2))
+    ck.verify(tmod(x + y * (-10), 2), tmod(x + y * (-10), 2))
+    ck.verify(tmod(x * (-10), -2), 0)
 
-    ck.verify(nx * 10 % 2, 0)
-    ck.verify((nx * (-10) + y) % 2, y % 2)
-    ck.verify((x + ny * (-10)) % 2, x % 2)
-    ck.verify((nx * (-10) + 1 + ny * (-2) + 2) % 2, 1)
-    ck.verify(nx * 10 % -2, 0)
-    ck.verify((nx * (-10) + y) % -2, y % 2)
-    ck.verify((x + ny * (-10)) % -2, x % 2)
+    ck.verify(tmod(nx * 10, 2), 0)
+    ck.verify(tmod(nx * (-10) + y, 2), tmod(y, 2))
+    ck.verify(tmod(x + ny * (-10), 2), tmod(x, 2))
+    ck.verify(tmod(nx * (-10) + 1 + ny * (-2) + 2, 2), 1)
+    ck.verify(tmod(nx * 10, -2), 0)
+    ck.verify(tmod(nx * (-10) + y, -2), tmod(y, 2))
+    ck.verify(tmod(x + ny * (-10), -2), tmod(x, 2))
 
 
 def test_floormod_index_simplify():
@@ -468,8 +478,10 @@ def test_min_index_simplify():
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     fld = tvm.floordiv
     flm = tvm.floormod
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # const int bound
-    ck.verify(tvm.min(x % 2, y % 2 + 10), x % 2)
+    ck.verify(tvm.min(tmod(x, 2), tmod(y, 2) + 10), tmod(x, 2))
     ck.verify(tvm.min(flm(x, 2), flm(y, 2) + 10), flm(x, 2))
 
     ck.verify(tvm.min(x + 1, x + 10), x + 1)
@@ -521,13 +533,14 @@ def test_min_index_simplify():
     # DivMod rules
     # truc div
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000))
-    ck.verify(tvm.min((x + 3) / 4 * 4, x), x)
-    ck.verify(tvm.min((x + 3) / 4 * 4, tvm.max(x, 4)), tvm.max(x, 4))
-    ck.verify(tvm.min(x, (x + 3) / 4 * 4), x)
-    ck.verify(tvm.min(tvm.max(x, 4), (x + 3) / 4 * 4), tvm.max(x, 4))
+    ck.verify(tvm.min(tdiv(x + 3, 4) * 4, x), x)
+    ck.verify(tvm.min(tdiv(x + 3, 4) * 4, tvm.max(x, 4)), tvm.max(x, 4))
+    ck.verify(tvm.min(x, tdiv(x + 3, 4) * 4), x)
+    ck.verify(tvm.min(tvm.max(x, 4), tdiv(x + 3, 4) * 4), tvm.max(x, 4))
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), True)
-    ck.verify(tvm.min(x / 10, y / 10), tvm.min(x, y) / 10)
-    ck.verify(tvm.min(x / (-10), y / (-10)), tvm.max(x, y) / (-10))
+    ck.verify(tvm.min(tdiv(x, 10), tdiv(y, 10)), tdiv(tvm.min(x, y), 10))
+    ck.verify(tvm.min(tdiv(x, (-10)), tdiv(y, (-10))),
+              tdiv(tvm.max(x, y), (-10)))
 
     # floor div
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-1000, 1000), True)
@@ -545,8 +558,10 @@ def test_max_index_simplify():
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     flm = tvm.floormod
     fld = tvm.floordiv
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # const int bound
-    ck.verify(tvm.max(x % 2, y % 2 + 10), y % 2 + 10)
+    ck.verify(tvm.max(tmod(x, 2), tmod(y, 2) + 10), tmod(y, 2) + 10)
     ck.verify(tvm.max(flm(x, 2), flm(y, 2) + 10), flm(y, 2) + 10)
 
     ck.verify(tvm.max(x + 1, x + 10), x + 10)
@@ -597,9 +612,9 @@ def test_max_index_simplify():
 
     # DivMod rules
     # truc div
-    ck.verify(tvm.max(x / 10, y / 10), tvm.max(x, y) / 10)
-    ck.verify(tvm.max(x / (-10), y / (-10)), tvm.min(x, y) / (-10))
-    ck.verify(tvm.max((x + 3) / 4 * 4, x), (x + 3) / 4 * 4)
+    ck.verify(tvm.max(tdiv(x, 10), tdiv(y, 10)), tdiv(tvm.max(x, y), 10))
+    ck.verify(tvm.max(tdiv(x, (-10)), tdiv(y, (-10))), tdiv(tvm.min(x, y), (-10)))
+    ck.verify(tvm.max(tdiv(x + 3, 4) * 4, x), tdiv(x + 3, 4) * 4)
 
     # floordiv
     ck.verify(tvm.max(fld(x, 10), fld(y, 10)), fld(tvm.max(x, y), 10))
@@ -614,11 +629,13 @@ def test_cmp_simplify():
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     flm = tvm.floormod
     fld = tvm.floordiv
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # const int bound
-    ck.verify((x % 2 + 10).equal(0), tvm.const(0, "bool"))
-    ck.verify(tvm.expr.NE(x % 2 + 10, 0), tvm.const(1, "bool"))
-    ck.verify(x % 2 + 10 > 1, tvm.const(1, "bool"))
-    ck.verify(x % 2 + 10 <= 1, tvm.const(0, "bool"))
+    ck.verify((tmod(x, 2) + 10).equal(0), tvm.const(0, "bool"))
+    ck.verify(tvm.expr.NE(tmod(x, 2) + 10, 0), tvm.const(1, "bool"))
+    ck.verify(tmod(x, 2) + 10 > 1, tvm.const(1, "bool"))
+    ck.verify(tmod(x, 2) + 10 <= 1, tvm.const(0, "bool"))
     ck.verify(flm(x, 2) + 2 > 1, tvm.const(1, "bool"))
     ck.verify(flm(x, 2) + 10 <= 1, tvm.const(0, "bool"))
 
@@ -688,26 +705,26 @@ def test_cmp_simplify():
 
     # DivMod rules
     # truc div
-    ck.verify(x / 2 < 3, x < 6)
-    ck.verify(3 < x / 2, tvm.expr.LT(7, x))
-    ck.verify(x / 3 >= 0, tvm.expr.LE(-2, x))
-    ck.verify(x / 2 >= 1, tvm.expr.LE(2, x))
-    ck.verify(x / 2 >= 0, tvm.expr.LE(-1, x))
-    ck.verify(x / 2 >= -1, tvm.expr.LE(-3, x))
+    ck.verify(tdiv(x, 2) < 3, x < 6)
+    ck.verify(3 < tdiv(x, 2), tvm.expr.LT(7, x))
+    ck.verify(tdiv(x, 3) >= 0, tvm.expr.LE(-2, x))
+    ck.verify(tdiv(x, 2) >= 1, tvm.expr.LE(2, x))
+    ck.verify(tdiv(x, 2) >= 0, tvm.expr.LE(-1, x))
+    ck.verify(tdiv(x, 2) >= -1, tvm.expr.LE(-3, x))
 
-    ck.verify(x / 2 <= 1, tvm.expr.LE(x, 3))
-    ck.verify(x / 2 <= 0, tvm.expr.LE(x, 1))
-    ck.verify(x / 2 <= -1, tvm.expr.LE(x, -2))
+    ck.verify(tdiv(x, 2) <= 1, tvm.expr.LE(x, 3))
+    ck.verify(tdiv(x, 2) <= 0, tvm.expr.LE(x, 1))
+    ck.verify(tdiv(x, 2) <= -1, tvm.expr.LE(x, -2))
 
-    ck.verify(x / 4 * 4 < x, tvm.expr.LT(0, x % 4))
-    ck.verify(x / 4 * 4 >= x, tvm.expr.LE(x % 4, 0))
+    ck.verify(tdiv(x, 4) * 4 < x, tvm.expr.LT(0, tmod(x, 4)))
+    ck.verify(tdiv(x, 4) * 4 >= x, tvm.expr.LE(tmod(x, 4), 0))
 
-    ck.verify(x / 4 * 4 < x + y, tvm.expr.LT(0, x % 4 + y))
-    ck.verify(x / 4 * 4 < x - y, tvm.expr.LT(y, x % 4))
+    ck.verify(tdiv(x, 4) * 4 < x + y, tvm.expr.LT(0, tmod(x, 4) + y))
+    ck.verify(tdiv(x, 4) * 4 < x - y, tvm.expr.LT(y, tmod(x, 4)))
 
-    ck.verify((x + 2) / 4 * 4 >= x, tvm.expr.LE((x + 2) % 4, 2))
-    ck.verify((x + 2) / 4 * 4 >= x + y, tvm.expr.LE((x + 2) % 4 + y, 2))
-    ck.verify((x + 2) / 4 * 4 >= x - y, tvm.expr.LE((x + 2) % 4 + (-2), y))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x, tvm.expr.LE(tmod(x + 2, 4), 2))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x + y, tvm.expr.LE(tmod(x + 2, 4) + y, 2))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x - y, tvm.expr.LE(tmod(x + 2, 4) + (-2), y))
 
     # floor div
     ck.verify(fld(x, 2) < 3, x < 6)
@@ -753,7 +770,7 @@ def test_cmp_simplify():
     ck.verify((x + 1)*(y - 1) < 0, tvm.const(1, "bool"))
     ck.verify(y*y >= 0, tvm.const(1, "bool"))
     ck.verify(x*6 <= -3, tvm.const(0, "bool"))
-    ck.verify((y - 1) % 3 == 0, (y + (-1)) % 3 == 0)
+    ck.verify(tmod(y - 1, 3) == 0, tmod(y + (-1), 3) == 0)
 
 
 def test_logical_simplify():

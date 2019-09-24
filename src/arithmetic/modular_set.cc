@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file modular_set.cc
  * \brief Modular set analysis
  */
@@ -111,7 +110,8 @@ class ModularSetAnalyzer::Impl :
     PVar<Var> var;
     PVar<Integer> coeff, base;
     // pattern match interesting constraints
-    if (((var % coeff) == base).Match(constraint)) {
+    if ((truncmod(var, coeff) == base).Match(constraint) ||
+        (floormod(var, coeff) == base).Match(constraint)) {
       Entry entry(coeff.Eval()->value, base.Eval()->value);
       return UpdateByIntersect(var.Eval(), entry);
     }

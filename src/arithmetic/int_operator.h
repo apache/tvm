@@ -93,6 +93,26 @@ inline bool WillOverflow<ir::Mod>(int64_t x,
 }
 
 /*!
+ * \brief Peform trunc division of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t truncdiv(int64_t x, int64_t y) {
+  return x / y;
+}
+
+/*!
+ * \brief Compute the truncdiv remainder of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t truncmod(int64_t x, int64_t y) {
+  return x % y;
+}
+
+/*!
  * \brief Peform floor division of two integers.
  * \param x The left operand.
  * \param y The right operand.

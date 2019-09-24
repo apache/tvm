@@ -67,7 +67,7 @@ enum DivMode {
 
 inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
   if (mode == kTruncDiv) {
-    return a % b;
+    return truncmod(a, b);
   } else {
     CHECK_EQ(mode, kFloorDiv);
     return floormod(a, b);
@@ -76,7 +76,7 @@ inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
 
 inline Expr DivImpl(Expr a, Expr b, DivMode mode) {
   if (mode == kTruncDiv) {
-    return a / b;
+    return truncdiv(a, b);
   } else {
     CHECK_EQ(mode, kFloorDiv);
     return floordiv(a, b);
