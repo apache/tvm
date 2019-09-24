@@ -37,12 +37,15 @@ namespace x86 {
 /*!
  * \brief Updates an existing schedule for the given injective ops.
  *
+ * \param target The target to update the schedule for.
  * \param sch The schedule to update.
  * \param out The tensor representing the injective op.
  * 
  * \return The updated schedule.
  */
-inline Schedule schedule_injective_from_existing(const Target& target, Schedule sch, const Tensor& out) {
+inline Schedule schedule_injective_from_existing(const Target& target,
+                                                 Schedule sch,
+                                                 const Tensor& out) {
   auto axis = sch[out]->op.as<ComputeOpNode>()->axis;
   if (axis.size() == 4) {
     auto n = axis[0];
