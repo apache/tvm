@@ -30,8 +30,6 @@ def test_avx2_int8_gemm_acc32():
     X = tvm.placeholder((m, k), name='X', dtype="uint8")
     W = tvm.placeholder((n, k), name='W', dtype="int8")
 
-    #peak = 280 // This needs measurement and description of what this number is for avx2 machine.
-    #print("Peak {} Gops/s".format(peak))
     memory_ops = m * k + n * k + 2 * m * n
     gops_per_mm = 2 * m * n * k
 
@@ -85,8 +83,6 @@ def test_avx2_int8_gemm_acc32():
         gops_per_sec = gops_per_mm / result.mean / 1e9
         # verify the correctness
         tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=0)
-        #print('Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}'.format(
-        #    result.mean * 1000, gops_per_sec, gops_per_sec / peak))
         print('Tensorization: running time: {:.3f} ms, {:.2f} Gops/s'.format(
             result.mean * 1000, gops_per_sec))
 

@@ -339,21 +339,21 @@ def dot_1x4x16_int8_int8_int32_avx2():
             vec_b_1 = ins[1].vload([8, 0], "int8x32")
             vec_one = tvm.const(1, "int16x16")
             pair_reduction_0 = tvm.call_llvm_intrin('int16x16',
-                                                  'llvm.x86.avx2.pmadd.ub.sw',
-                                                  tvm.const(0, 'uint32'),
-                                                  vec_a, vec_b_0)
+                                                    'llvm.x86.avx2.pmadd.ub.sw',
+                                                    tvm.const(0, 'uint32'),
+                                                    vec_a, vec_b_0)
             quad_reduction_0 = tvm.call_llvm_intrin('int32x8',
-                                                  'llvm.x86.avx2.pmadd.wd',
-                                                  tvm.const(0, 'uint32'),
-                                                  pair_reduction_0, vec_one)
+                                                    'llvm.x86.avx2.pmadd.wd',
+                                                    tvm.const(0, 'uint32'),
+                                                    pair_reduction_0, vec_one)
             pair_reduction_1 = tvm.call_llvm_intrin('int16x16',
-                                                  'llvm.x86.avx2.pmadd.ub.sw',
-                                                  tvm.const(0, 'uint32'),
-                                                  vec_a, vec_b_1)
+                                                    'llvm.x86.avx2.pmadd.ub.sw',
+                                                    tvm.const(0, 'uint32'),
+                                                    vec_a, vec_b_1)
             quad_reduction_1 = tvm.call_llvm_intrin('int32x8',
-                                                  'llvm.x86.avx2.pmadd.wd',
-                                                  tvm.const(0, 'uint32'),
-                                                  pair_reduction_1, vec_one)
+                                                    'llvm.x86.avx2.pmadd.wd',
+                                                    tvm.const(0, 'uint32'),
+                                                    pair_reduction_1, vec_one)
             if index == 0:
                 ib.emit(outs[0].vstore([0], quad_reduction_0))
                 ib.emit(outs[0].vstore([8], quad_reduction_1))
