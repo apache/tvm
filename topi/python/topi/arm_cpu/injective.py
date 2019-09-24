@@ -41,7 +41,7 @@ def schedule_injective_from_existing(sch, out):
     elif len(sch[out].op.axis) >= 3:
         fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1])
         sch[out].parallel(fused)
-    elif len(sch[x].op.axis) >= 2:
+    elif len(sch[out].op.axis) >= 2:
         sch[out].parallel(sch[out].op.axis[0])
     return sch
 
