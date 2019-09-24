@@ -71,7 +71,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   for (auto out : outs) {
-    tvm::GenericFunc::Get("schedule_injective_from_existing")(target, s, out);
+    schedule_injective_from_existing(target, s, out);
   }
   return s;
 }
