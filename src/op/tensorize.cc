@@ -216,9 +216,10 @@ class TensorIntrinMatcher final : public IRMutator {
     for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
       IterVar iv = stage->leaf_iter_vars[i];
       auto vit = dom_map.find(iv);
-      CHECK(vit != dom_map.end());
-      const Range vrange = vit->second;
-      compute_intrin_iter_space->Set(iv->var, vrange);
+      if (vit != dom_map.end()) {
+        const Range vrange = vit->second;
+        compute_intrin_iter_space->Set(iv->var, vrange);
+      }
     }
 
     // input remap.
