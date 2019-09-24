@@ -813,6 +813,20 @@ def test_forward_softmax():
     """ Softmax """
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+#######################################################################
+# Tanh
+# --------
+
+def _test_tanh(data):
+    """ One iteration of TANH """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = math_ops.sigmoid(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_tanh():
+    """ TANH """
+    _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
 #######################################################################
 # Fully Connected
@@ -976,6 +990,7 @@ if __name__ == '__main__':
     test_forward_logistic()
     test_forward_pooling()
     test_forward_softmax()
+    test_forward_tanh()
     test_forward_fully_connected()
 
     # Elemwise
