@@ -82,6 +82,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
+            'TANH':self.convert_tanh,
             'SPLIT': self.convert_split,
             'TRANSPOSE': self.convert_transpose,
             'TILE': self.convert_tile,
@@ -323,6 +324,23 @@ class OperatorConverter(object):
         params = {'axis': 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.nn.softmax(in_expr, **params)
+
+        return out
+
+    def convert_tanh(self, op):
+        """Convert TFLite TANH"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.tanh(in_expr)
 
         return out
 
