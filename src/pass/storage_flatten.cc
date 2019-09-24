@@ -53,7 +53,7 @@ class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
                             int cache_line_size, bool create_bound_attributes,
-                            const std::shared_ptr<IRVisitorWithAnalyzer>& bounded_analyzer)
+                            IRVisitorWithAnalyzer* bounded_analyzer)
       : bounded_analyzer_(bounded_analyzer),
         create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
@@ -518,7 +518,7 @@ class StorageFlattener : public IRMutator {
   std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
   // However
-  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer_;
+  IRVisitorWithAnalyzer* bounded_analyzer_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
@@ -529,20 +529,11 @@ class StorageFlattener : public IRMutator {
 
 Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
-  /*
-   * Unforunately we have to resort to shared_ptr because Analyzer used by
-   * bounded_analyzer has other analyzers in it. e.g. canonical.
-   * These ones allocate impl and destroy them on destructor calls.
-   * However there is no copy/move operator on analyzer that safely copies
-   * or moves data. Perhaps we should disable copy operator and implement
-   * move operator.
-   */
-  std::shared_ptr<IRVisitorWithAnalyzer> bounded_analyzer =
-    std::make_shared<IRVisitorWithAnalyzer>();
-  bounded_analyzer->Visit(stmt);
+  IRVisitorWithAnalyzer bounded_analyzer;
+  bounded_analyzer.Visit(stmt);
   stmt =
       StorageFlattener(extern_buffer, cache_line_size,
-          create_bound_attributes, bounded_analyzer).Mutate(stmt);
+          create_bound_attributes, &bounded_analyzer).Mutate(stmt);
   return stmt;
 }
 
