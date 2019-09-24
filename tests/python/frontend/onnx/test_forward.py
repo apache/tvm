@@ -28,6 +28,7 @@ from nnvm.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto
 import unittest
+import scipy
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
@@ -1225,6 +1226,23 @@ def test_tile():
     z = np.tile(x, repeats)
     verify_tile(x, z, repeats=repeats)
 
+def verify_erf(indata, outdata):
+    node = helper.make_node('Erf', inputs=['in'], outputs=['out'])
+    graph = helper.make_graph([node],
+                              'erf_test',
+                              inputs=[helper.make_tensor_value_info('in', TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info('out', TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='erf_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_erf():
+    x = np.random.rand(2, 3, 4, 6).astype(np.float32)
+    z = scipy.special.erf(x)
+    verify_erf(x, z)
+
 
 if __name__ == '__main__':
     test_flatten()
@@ -1272,3 +1290,4 @@ if __name__ == '__main__':
     test_not()
     test_and()
     test_tile()
+    test_erf()

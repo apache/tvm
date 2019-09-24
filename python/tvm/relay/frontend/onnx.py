@@ -896,6 +896,13 @@ class Tile(Elemwise):
         reps = attr.pop('repeats')  # The number of times repeating the tensor data.
         return _op.tile(inputs[0], reps)
 
+class Erf(OnnxOpConverter):
+    """Operator converter for Erf
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.erf(inputs[0])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1015,7 +1022,8 @@ def _get_convert_map(opset):
         'Equal': Equal.get_converter(opset),
         'Not': Not.get_converter(opset),
         'And': And.get_converter(opset),
-        'Tile': Tile.get_converter(opset)
+        'Tile': Tile.get_converter(opset),
+        'Erf': Erf.get_converter(opset)
     }
 
 
