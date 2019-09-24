@@ -483,6 +483,17 @@ TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip = nullptr);
 TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
 
 /*!
+ * \brief Combine parallel dense ops into a single batch_matmul if the
+ * number of branches of this dense operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branches The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3);
+
+/*!
  * \brief Backward fold axis scaling into weights of conv/dense operators.
  *
  * \return The pass.

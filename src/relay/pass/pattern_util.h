@@ -497,6 +497,14 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
+Expr MakeStack(Expr data, int axis);
+
+Expr MakeSplit(Expr data, NodeRef indices_or_sections, int axis);
+
+Expr MakeSqueeze(Expr data, Array<Integer> axis);
+
+Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
+
 Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);
