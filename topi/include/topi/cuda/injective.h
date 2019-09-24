@@ -35,6 +35,24 @@ using namespace tvm;
 namespace cuda {
 
 /*!
+ * \brief Updates an existing schedule for the given injective ops.
+ *
+ * \param sch The schedule to update.
+ * \param out The tensor representing the injective op.
+ * 
+ * \return The updated schedule.
+ */
+inline Schedule schedule_injective_from_existing(const Target& target, Schedule sch, const Tensor& out) {
+  auto fused = detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
+  auto num_thread = target->max_num_threads;
+  IterVar bx, tx;
+  sch[out].split(fused, num_thread, &bx, &tx);
+  sch[out].bind(bx, thread_axis(Range(), "blockIdx.x"));
+  sch[out].bind(tx, thread_axis(Range(), "threadIdx.x"));
+  return sch;
+}
+
+/*!
  * \brief Create a CUDA schedule for the given output tensors.
  *
  * \param target The target to generate a schedule for.
@@ -50,7 +68,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   for (auto out : outs) {
-    tvm::GenericFunc::Get("schedule_injective_from_existing")(s, out);
+    tvm::GenericFunc::Get("schedule_injective_from_existing")(target, s, out);
   }
   return s;
 }

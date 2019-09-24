@@ -587,7 +587,7 @@ TVM_REGISTER_GLOBAL("topi.generic.schedule_injective")
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::schedule_injective_from_existing(args[0], args[1]);
+  *rv = topi::generic::schedule_injective_from_existing(args[0], args[1], args[2]);
  });
 
 /* x86 schedules */
@@ -614,6 +614,11 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::x86::schedule_injective(args[0], args[1]);
   });
+
+TVM_REGISTER_GLOBAL("topi.x86.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::x86::schedule_injective_from_existing(args[0], args[1], args[2]);
+ });
 
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
@@ -651,6 +656,11 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_injective(args[0], args[1]);
   });
+
+TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::cuda::schedule_injective_from_existing(args[0], args[1], args[2]);
+ });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -753,7 +763,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 
 /*! \brief Builder function for instantiating schedules from existing schedules. */
 using FTVMScheduleFromExistingBuilder = std::function<
-  tvm::Schedule(tvm::Schedule sch, const tvm::Tensor& out)>;
+  tvm::Schedule(const Target& target, tvm::Schedule sch, const tvm::Tensor& out)>;
 
 /*!
  * \brief Helper function for registering generic functions matching the
@@ -766,12 +776,14 @@ using FTVMScheduleFromExistingBuilder = std::function<
  */
 inline PackedFunc WrapScheduleFromExisting(FTVMScheduleFromExistingBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    *ret = builder(args[0], args[1]);
+    *ret = builder(args[0], args[1], args[2]);
   });
 }
 
 TVM_REGISTER_GENERIC_FUNC(schedule_injective_from_existing)
-.set_default(WrapScheduleFromExisting(topi::generic::schedule_injective_from_existing));
+.set_default(WrapScheduleFromExisting(topi::generic::schedule_injective_from_existing))
+.register_func({ "cpu" }, WrapScheduleFromExisting(topi::x86::schedule_injective_from_existing))
+.register_func({ "cuda", "gpu" }, WrapScheduleFromExisting(topi::cuda::schedule_injective_from_existing));
 
 /*! \brief Builder function for instantiating dense ops. */
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
