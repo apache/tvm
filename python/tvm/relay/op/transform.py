@@ -213,6 +213,21 @@ def reshape(data, newshape):
         newshape = [newshape]
     return _make.reshape(data, list(newshape))
 
+def argwhere(condition):
+    """Find the indices of elements of a tensor that are
+    non-zero.
+
+    Parameters
+    ----------
+    condition : relay.Expr
+        The input condition tensor.
+
+    Returns
+    -------
+    out : relay.Expr
+        Tensor with the indices of elements that are non-zero.
+    """
+    return _make.argwhere(condition)
 
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.

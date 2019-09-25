@@ -19,22 +19,6 @@ from __future__ import absolute_import as _abs
 from . import _make
 from ..expr import TupleWrapper
 
-def argwhere(condition):
-    """Find the indices of elements of a tensor that are
-    non-zero.
-
-    Parameters
-    ----------
-    condition : relay.Expr
-        The input condition tensor.
-
-    Returns
-    -------
-    out : relay.Expr
-        Tensor with the indices of elements that are non-zero.
-    """
-    return _make.argwhere(condition)
-
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
