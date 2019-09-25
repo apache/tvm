@@ -20,6 +20,29 @@ import tvm
 from tvm import hybrid
 
 @hybrid.script
+def hybrid_argwhere_1d(output_shape, condition):
+    """Find the indices of elements of a 1-D tensor that are non-zero.
+
+    Parameters
+    ----------
+    condition : tvm.Tensor
+        1-D tensor with boolean values.
+
+    Returns
+    -------
+    out : tvm.Tensor
+        Indices of non-zero elements.
+    """
+    a = output_tensor(output_shape, "int32")
+    a1 = condition.shape[0]
+    valid_index = 0
+    for i1 in range(a1):
+        if condition[i1]:
+            a[valid_index, 0] = i1
+            valid_index += 1
+    return a
+
+@hybrid.script
 def hybrid_argwhere_2d(output_shape, condition):
     """Find the indices of elements of a 2-D tensor that are non-zero.
 
@@ -155,6 +178,8 @@ def argwhere(output_shape, condition):
     out : tvm.Tensor
         Indices of non-zero elements.
     """
+    if len(condition.shape) == 1:
+        return hybrid_argwhere_1d(output_shape.shape, condition)
     if len(condition.shape) == 2:
         return hybrid_argwhere_2d(output_shape.shape, condition)
     if len(condition.shape) == 3:

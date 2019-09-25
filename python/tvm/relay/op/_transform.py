@@ -209,6 +209,16 @@ def take_shape_func(attrs, inputs, out_ndims):
         return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
 @script
+def _argwhere_shape_func_1d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(1)
+    for i1 in range(condition.shape[0]):
+        if condition[i1]:
+            out[0] += int64(1)
+    return out
+
+@script
 def _argwhere_shape_func_2d(condition):
     out = output_tensor((2, ), "int64")
     out[0] = int64(0)
@@ -263,7 +273,9 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     """
     Shape function for argwhere.
     """
-    if len(inputs[0].shape) == 2:
+    if len(inputs[0].shape) == 1:
+        return [_argwhere_shape_func_1d(inputs[0])]
+    elif len(inputs[0].shape) == 2:
         return [_argwhere_shape_func_2d(inputs[0])]
     elif len(inputs[0].shape) == 3:
         return [_argwhere_shape_func_3d(inputs[0])]

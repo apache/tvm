@@ -106,6 +106,7 @@ def verify_any_argwhere(x_shape, x_np_shape, out_shape):
         tvm.testing.assert_allclose(result.flatten(), expected.flatten())
 
 def test_any_argwhere():
+    verify_any_argwhere(any_dims(1), (5,), None)
     verify_any_argwhere(any_dims(2), (5, 5), None)
     verify_any_argwhere(any_dims(3), (5, 5, 5), None)
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5), None)
