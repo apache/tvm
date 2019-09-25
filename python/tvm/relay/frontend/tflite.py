@@ -74,6 +74,7 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
+            'GREATER': self.convert_greater,
             'REDUCE_MIN': self._convert_reduce_min,
             'REDUCE_MAX': self._convert_reduce_max,
             'MEAN': self._convert_reduce_mean,
@@ -455,6 +456,9 @@ class OperatorConverter(object):
 
     def convert_minimum(self, op):
         return self._convert_elemwise(_op.minimum, op)
+
+    def convert_greater(self, op):
+        return self._convert_elemwise(_op.greater, op)
 
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
