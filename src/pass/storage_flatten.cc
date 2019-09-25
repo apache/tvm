@@ -211,7 +211,7 @@ class StorageFlattener : public IRMutator {
           if (dim < avec.size() && avec[dim].align_factor != 0) {
             Expr factor = make_const(stride.type(), avec[dim].align_factor);
             Expr offset = make_const(stride.type(), avec[dim].align_offset);
-            stride = stride + (factor + offset - stride % factor) % factor;
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
