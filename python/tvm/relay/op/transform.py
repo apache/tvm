@@ -226,6 +226,13 @@ def argwhere(condition):
     -------
     out : relay.Expr
         Tensor with the indices of elements that are non-zero.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        condition = [[True, False], [False, True]]
+        relay.argwhere(condition) = [[0, 0], [1, 1]]
     """
     return _make.argwhere(condition)
 
