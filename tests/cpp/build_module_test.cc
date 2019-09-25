@@ -114,7 +114,7 @@ TEST(BuildModule, Heterogeneous) {
   auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
   Map<tvm::Target, Array<LoweredFunc>> inputs = {{target_cuda, lowered_s1},
                                                  {target_llvm, lowered_s2}};
-  auto module = build(inputs, Target(), config);
+  auto module = build(inputs, target_llvm, config);
 
   // Assertion for build.
   CHECK_EQ(module->imports().size(), 1);
