@@ -309,7 +309,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
         return ir::Substitute(op->body, rmap);
@@ -317,7 +317,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         under_outer = true;
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent;
+        rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
         return For::make(parent->var, Expr(0), extent * op->extent,
@@ -325,7 +325,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (under_outer) {
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = ir::Substitute(body, rmap);
         extent = extent * op->extent;
         return body;

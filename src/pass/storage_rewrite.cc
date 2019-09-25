@@ -610,8 +610,8 @@ class StoragePlanRewriter : public IRMutator {
           }
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
-          bool divided = analyzer_.CanProve(combo_size % type_bits == 0);
-          combo_size = combo_size / type_bits;
+          bool divided = analyzer_.CanProve(indexmod(combo_size, type_bits) == 0);
+          combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
             combo_size = combo_size + make_const(Int(32), 1);

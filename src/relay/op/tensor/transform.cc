@@ -615,7 +615,7 @@ bool ReshapeRel(const Array<Type>& types,
         if (d0.as<Any>()) {
           oshape.push_back(Any::make());
         } else {
-          oshape.push_back(d0 / d2);
+          oshape.push_back(indexdiv(d0, d2));
         }
         used_output_dims.insert(oshape.size());
         oshape.push_back(d2);
@@ -627,7 +627,7 @@ bool ReshapeRel(const Array<Type>& types,
           if (d0.as<Any>()) {
             oshape.push_back(Any::make());
           } else {
-            oshape.push_back(d0 / d1);
+            oshape.push_back(indexdiv(d0, d1));
           }
         } else {
           oshape.push_back(d2);
@@ -659,7 +659,7 @@ bool ReshapeRel(const Array<Type>& types,
           infer_dim = Any::make();
           break;
         }
-        infer_dim /= oshape[i];
+        infer_dim = indexdiv(infer_dim, oshape[i]);
       }
     }
     oshape.Set(infer_idx, infer_dim);
@@ -1987,13 +1987,13 @@ bool SplitRel(const Array<Type>& types,
     << "axis should be within the input dimension range.";
 
   if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
-    CHECK(reporter->Assert(data->shape[axis] %
-                           sections->value == make_zero(Int(64))))
+    CHECK(reporter->Assert(indexmod(data->shape[axis],
+                                    sections->value) == make_zero(Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
         std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-        oshape[axis] /= int32_t(sections->value);
+        oshape[axis] = indexdiv(oshape[axis], sections->value);
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }

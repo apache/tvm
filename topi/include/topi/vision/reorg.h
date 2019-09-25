@@ -64,9 +64,9 @@ inline Tensor reorg(const Tensor &data,
   auto out = tvm::compute(input_shape,
                           [&](Var b, Var k, Var j, Var i) {
                           return data(b * stride * stride,
-                                      (k % out_c) * stride * stride,
-                                      (j*stride + (k / out_c) / stride) * stride,
-                                      (i*stride + (k / out_c) % stride));
+                                      indexmod(k, out_c) * stride * stride,
+                                      (j*stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
+                                      (i*stride + indexmod(indexdiv(k, out_c), stride)));
                           },
                           name,
                           tag);

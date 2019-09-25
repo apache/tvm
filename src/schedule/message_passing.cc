@@ -56,10 +56,10 @@ void PassDownDomain(const Stage& stage,
                     arith::Analyzer* actx,
                     bool allow_missing) {
   auto ceil_div = [actx](Expr a, Expr b) {
-    if (actx->CanProve(a % b == 0)) {
-      return actx->Simplify(a / b);
+    if (actx->CanProve(indexmod(a, b) == 0)) {
+      return actx->Simplify(indexdiv(a, b));
     }
-    return actx->Simplify((a + (b - 1)) / b);
+    return actx->Simplify(indexdiv(a + (b - 1), b));
   };
 
   auto& state = *p_state;
@@ -146,8 +146,8 @@ void PassUpIndex(const Stage& stage,
       Expr factor = dom_map.at(s->inner)->extent;
       Expr outer_min = dom_map.at(s->outer)->min;
       Expr inner_min = dom_map.at(s->inner)->min;
-      state[s->outer] = value / factor;
-      state[s->inner] = value % factor;
+      state[s->outer] = indexdiv(value, factor);
+      state[s->inner] = indexmod(value, factor);
       // add min if they exist
       if (!is_zero(outer_min)) {
         state[s->outer] = state[s->outer] + outer_min;
@@ -190,8 +190,8 @@ void PassDownIndex(const Stage& stage,
       CHECK(is_zero(r->min));
       Expr parent = state.at(s->parent);
       Expr factor = r->extent;
-      state[s->outer] = parent / factor;
-      state[s->inner] = parent % factor;
+      state[s->outer] = indexdiv(parent, factor);
+      state[s->inner] = indexmod(parent, factor);
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->inner) && !state.count(s->outer)) {
         CHECK(allow_missing);
@@ -266,8 +266,8 @@ void PassUpDomain(const FuseNode* s,
   if (fused.is_single_point()) {
     Expr value = fused.point_value();
     Expr factor = dom_map.at(s->inner)->extent;
-    Expr v_outer  = value / factor;
-    Expr v_inner  = value % factor;
+    Expr v_outer  = indexdiv(value, factor);
+    Expr v_inner  = indexmod(value, factor);
     if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
     if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
     *outer = IntSet::single_point(v_outer);
@@ -275,17 +275,18 @@ void PassUpDomain(const FuseNode* s,
   } else {
     Expr fused_extent = (fused.max() - fused.min() + 1);
     Expr inner_extent = dom_map.at(s->inner)->extent;
-    *outer = IntSet::interval(outer_min + fused.min() / inner_extent,
-            outer_min + fused.max() / inner_extent);
-    if (is_zero(Simplify(inner_extent % fused_extent)) &&
-      is_zero(Simplify(fused.min() % fused_extent)) ) {
+    *outer = IntSet::interval(
+        outer_min + indexdiv(fused.min(), inner_extent),
+        outer_min + indexdiv(fused.max(), inner_extent));
+    if (is_zero(Simplify(indexmod(inner_extent, fused_extent))) &&
+        is_zero(Simplify(indexmod(fused.min(), fused_extent)))) {
       // fused never spans multiple rows, make a tight bounding box
       // there may be other cases when bounding box could be tightened
-      *inner = IntSet::interval(inner_min + fused.min() % inner_extent,
-                                inner_min + fused.max() % inner_extent);
+      *inner = IntSet::interval(inner_min + indexmod(fused.min(), inner_extent),
+                                inner_min + indexmod(fused.max(), inner_extent));
     } else {  // fused may span multiple rows, use full row widths
-      if (!is_zero(Simplify(fused_extent % inner_extent)) ||
-        !is_zero(Simplify(fused.min() % inner_extent))) {
+      if (!is_zero(Simplify(indexmod(fused_extent, inner_extent))) ||
+          !is_zero(Simplify(indexmod(fused.min(), inner_extent)))) {
         LOG(WARNING) <<
           "fused and original axes are not aligned, this may cause redundant computations";
       }

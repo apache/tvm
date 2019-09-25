@@ -74,10 +74,10 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
     if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
-      wshape = {{dshape_nchw[1], param->groups / dshape_nchw[1], param->kernel_size[0],
+      wshape = {{dshape_nchw[1], indexdiv(param->groups, dshape_nchw[1]), param->kernel_size[0],
                  param->kernel_size[1]}};
     } else {
-      wshape = {{param->channels, dshape_nchw[1] / param->groups, param->kernel_size[0],
+      wshape = {{param->channels, indexdiv(dshape_nchw[1], param->groups), param->kernel_size[0],
                  param->kernel_size[1]}};
     }
 
@@ -108,7 +108,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv2D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
-    CHECK(reporter->AssertEQ(dshape_nchw[1] / param->groups, wshape[1]));
+    CHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]));
     channels = wshape[0];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
@@ -116,8 +116,10 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
-  oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1);
-  oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1);
+  oshape.Set(2, indexdiv(dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y,
+                         param->strides[0]) + 1);
+  oshape.Set(3, indexdiv(dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x,
+                         param->strides[1]) + 1);
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;

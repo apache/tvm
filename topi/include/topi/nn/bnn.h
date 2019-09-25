@@ -58,7 +58,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
   Array<Expr> oshape;
   for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == static_cast<size_t>(axis) ?
-                     tvm::ir::Simplify(ishape[i] / 32) :
+                     tvm::ir::Simplify(indexdiv(ishape[i], 32)) :
                      ishape[i]);
   }
 

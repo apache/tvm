@@ -146,10 +146,12 @@ class BoundDeducer: public IRVisitor {
       success_ = false;
       return;
     }
-    // always use relax bound
-    bool divided = analyzer_.CanProve(result_ % operand == 0);
 
-    result_ = result_ / operand;
+    // always use relax bound
+    bool divided = analyzer_.CanProve(floormod(result_, operand) == 0);
+
+    // TODO(tvm-team): use floordiv, which could give better bound.
+    result_ = truncdiv(result_, operand);
 
     if (!divided) {
       // Handle non-divisible case
