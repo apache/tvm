@@ -102,7 +102,11 @@ TEST(BuildModule, Heterogeneous) {
     return copy[i] - C[i];
   }, "elemwise_sub");
 
+  const runtime::PackedFunc* enter_target_scope_func = runtime::Registry::Get("_EnterTargetScope");
+  (*enter_target_scope_func)(target_cuda);
   auto s1 = topi::cuda::schedule_injective(target_cuda, {elemwise_add});
+
+  (*enter_target_scope_func)(target_llvm);
   auto s2 = create_schedule({elemwise_sub->op});
 
   auto config = BuildConfig::Create();
@@ -114,7 +118,7 @@ TEST(BuildModule, Heterogeneous) {
   auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
   Map<tvm::Target, Array<LoweredFunc>> inputs = {{target_cuda, lowered_s1},
                                                  {target_llvm, lowered_s2}};
-  auto module = build(inputs, target_llvm, config);
+  auto module = build(inputs, Target(), config);
 
   // Assertion for build.
   CHECK_EQ(module->imports().size(), 1);
