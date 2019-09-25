@@ -20,7 +20,6 @@ from __future__ import absolute_import
 import tvm
 import topi
 from topi.util import get_const_int, get_const_tuple
-from tvm.relay.ty import TensorType
 from . import op as _reg
 from ._reduce import _schedule_reduce
 from .op import OpPattern
@@ -302,5 +301,5 @@ def compute_argwhere(attrs, inputs, output_type, _):
         else:
             # see Any, replace it with a var
             output_shape.append(tvm.var("any_dim", "int32"))
-    new_output_type = TensorType(output_shape, "int32")
+    new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]

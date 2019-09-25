@@ -562,4 +562,3 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 0, 1]]
     """
     return cpp.one_hot(indices, on_value, off_value, depth, axis, dtype)
-    
