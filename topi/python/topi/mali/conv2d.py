@@ -27,7 +27,8 @@ from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
 from ..nn.winograd_util import winograd_transform_matrices
 
 # reuse some compute declarations from ARM CPU
-from ..arm_cpu.conv2d import _decl_spatial_pack, _alter_conv2d_layout_arm
+from ..arm_cpu.conv2d import _alter_conv2d_layout_arm
+from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nchw
 
 
 @autotvm.register_topi_compute(conv2d, 'mali', ['direct'])
@@ -67,8 +68,11 @@ def conv2d_mali(cfg, data, kernel, strides, padding, dilation, layout, out_dtype
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
-                              num_tile=3)
+    if layout == 'NCHW':
+        return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
+                                        dilation, out_dtype, num_tile=3)
+    else:
+        raise ValueError("Unsupported layout {}".format(layout))
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'mali', ['direct', 'winograd'])
 def schedule_conv2d_nchw_mali(cfg, outs):

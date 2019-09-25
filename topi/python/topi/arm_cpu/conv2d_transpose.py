@@ -24,7 +24,7 @@ from tvm import autotvm
 from ..generic import schedule_conv2d_transpose_nchw
 from ..nn import conv2d_transpose_nchw, dilate, pad, get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
-from .conv2d import _schedule_spatial_pack
+from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 @autotvm.task.register_topi_compute(conv2d_transpose_nchw, "arm_cpu", "direct")
 def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype):
@@ -154,7 +154,8 @@ def schedule_conv2d_transpose_arm(cfg, outs):
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
-            _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
+            schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
+                                              conv, output, outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
     return s
