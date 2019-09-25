@@ -543,6 +543,14 @@ TVM_DLL Expr ceil(Expr x);
 TVM_DLL Expr round(Expr x);
 
 /*!
+ * \brief Calculates std::nearbyint(x)
+ * \param x The input expression.
+ * \return The result expression.
+ * This is a faster alternate to round.
+ */
+TVM_DLL Expr nearbyint(Expr x);
+
+/*!
  * \brief Calculate trunc(x)
  * \param x The input expression.
  * \return The result expression.

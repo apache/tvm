@@ -527,6 +527,13 @@ Expr round(Expr x) {
   return ir::Call::make(x.type(), "round", {x}, ir::Call::PureIntrinsic);
 }
 
+Expr nearbyint(Expr x) {
+  using ir::FloatImm;
+  const FloatImm* fx = x.as<FloatImm>();
+  if (fx) return FloatImm::make(x.type(), std::nearbyint(fx->value));
+  return ir::Call::make(x.type(), "nearbyint", {x}, ir::Call::PureIntrinsic);
+}
+
 Expr trunc(Expr x) {
   using ir::FloatImm;
   const FloatImm* fx = x.as<FloatImm>();
