@@ -505,7 +505,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
       indices.Set(height_axis, i_start_h + dheight);
       indices.Set(width_axis, i_start_w + dwidth);
-      return tvm::sum(indexdiv(x(indices), divide_factor), { dheight, dwidth });
+      return tvm::sum(div(x(indices), divide_factor), { dheight, dwidth });
     }, "tensor", "adaptive_pool_avg");
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
