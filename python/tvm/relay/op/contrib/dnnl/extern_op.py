@@ -35,5 +35,11 @@ def relu(attrs, args):
 
 def batch_norm(attrs, args):
     """Check if the external codegen should be used.
+    FIXME: Turn off due to not support of multiple outputs.
     """
     return False
+
+def add(attrs, args):
+    """Check if the external codegen should be used.
+    """
+    return True

@@ -20,5 +20,5 @@
 #include <iostream>
 
 typedef struct {
-  float** data;
-} GccPackedArgs;
+  void** data;
+} DnnlPackedArgs;

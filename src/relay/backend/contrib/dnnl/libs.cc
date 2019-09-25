@@ -19,11 +19,12 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <algorithm>
-#include <numeric>
 #include <iostream>
+#include <numeric>
 #include <string>
 
 #include "dnnl.hpp"
+#include "libs.h"
 
 using namespace dnnl;
 
@@ -63,7 +64,7 @@ inline void read_from_dnnl_memory(void* handle, memory& mem) {
     auto conv2d_src_md = memory::desc({conv2d_src_tz}, dt::f32, tag::any);                         \
     auto conv2d_bias_md = memory::desc({conv2d_bias_tz}, dt::f32, tag::any);                       \
     auto conv2d_weights_md = memory::desc({conv2d_weights_tz}, dt::f32, tag::any);                 \
-    auto conv2d_dst_md = memory::desc({conv2d_dst_tz}, dt::f32, tag::any);                         \
+    auto conv2d_dst_md = memory::desc({conv2d_dst_tz}, dt::f32, tag::nchw);                        \
                                                                                                    \
     auto conv2d_desc =                                                                             \
         convolution_forward::desc(prop_kind::forward_inference, algorithm::convolution_direct,     \
@@ -187,4 +188,34 @@ inline void read_from_dnnl_memory(void* handle, memory& mem) {
     s.wait();                                                                                 \
     read_from_dnnl_memory(out, dst_memory);                                                   \
     free(weight);                                                                             \
+  }
+
+#define ADD(p_ID_, p_N_, p_C_, p_H_, p_W_)                                           \
+  extern "C" void p_ID_(float* data, float* weight, float* out) {                    \
+    using tag = memory::format_tag;                                                  \
+    using dt = memory::data_type;                                                    \
+                                                                                     \
+    engine eng(engine::kind::cpu, 0);                                                \
+    stream s(eng);                                                                   \
+                                                                                     \
+    memory::dims data_tz = {p_N_, p_C_, p_H_, p_W_};                                 \
+                                                                                     \
+    auto data_md = memory::desc{{data_tz}, dt::f32, tag::nchw};                      \
+    auto weight_md = memory::desc({{data_tz}, dt::f32, tag::nchw});                  \
+    auto dst_md = memory::desc({{data_tz}, dt::f32, tag::nchw});                     \
+                                                                                     \
+    auto data_memory = memory(data_md, eng, data);                                   \
+    auto weight_memory = memory(weight_md, eng, weight);                             \
+    auto dst_memory = memory(dst_md, eng);                                           \
+                                                                                     \
+    auto add_desc = binary::desc(algorithm::binary_add, data_md, weight_md, dst_md); \
+    auto add_prim_desc = binary::primitive_desc(add_desc, eng);                      \
+    assert(dst_md == add_prim_desc.dst_desc());                                      \
+                                                                                     \
+    auto add = binary(add_prim_desc);                                                \
+    add.execute(s, {{DNNL_ARG_SRC_0, data_memory},                                   \
+                    {DNNL_ARG_SRC_1, weight_memory},                                 \
+                    {DNNL_ARG_DST, dst_memory}});                                    \
+    s.wait();                                                                        \
+    read_from_dnnl_memory(out, dst_memory);                                          \
   }

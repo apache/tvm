@@ -38,21 +38,6 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-template <typename T>
-using F2ARGS = void (*)(T* a, T* b);
-template <typename T>
-using F3ARGS = void (*)(T* a, T* b, T* c);
-template <typename T>
-using F4ARGS = void (*)(T* a, T* b, T* c, T* d);
-template <typename T>
-using F5ARGS = void (*)(T* a, T* b, T* c, T* d, T* e);
-template <typename T>
-using F6ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f);
-template <typename T>
-using F7ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f, T* g);
-template <typename T>
-using F8ARGS = void (*)(T* a, T* b, T* c, T* d, T* e, T* f, T* g, T* h);
-
 class ExternModuleNodeBase : public runtime:: ModuleNode {
  public:
   ExternModuleNodeBase() = default;
@@ -82,49 +67,6 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    */
   virtual void Build(const Expr& expr) = 0;
 
-  void SetSubgraphInfo(std::string id, const DLDataType type, int num_args) {
-    subgraph_info_[id] = std::make_pair(type, num_args);
-  }
-
-  std::pair<DLDataType, int> GetSubgraphInfo(std::string id) {
-    if (subgraph_info_.count(id) == 0) {
-      LOG(FATAL) << "Info of subgraph " << id << " is missing.";
-    }
-    return subgraph_info_[id];
-  }
-
-  template<typename T>
-  void Invoke(void* func_sym, std::vector<T*> data) {
-    try {
-      if (data.size() == 2) {
-        auto func = reinterpret_cast<F2ARGS<T>>(func_sym);
-        (*func)(data[0], data[1]);
-      } else if (data.size() == 3) {
-        auto func = reinterpret_cast<F3ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2]);
-      } else if (data.size() == 4) {
-        auto func = reinterpret_cast<F4ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2], data[3]);
-      } else if (data.size() == 5) {
-        auto func = reinterpret_cast<F5ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2], data[3], data[4]);
-      } else if (data.size() == 6) {
-        auto func = reinterpret_cast<F6ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2], data[3], data[4], data[5]);
-      } else if (data.size() == 7) {
-        auto func = reinterpret_cast<F7ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2], data[3], data[4], data[5], data[6]);
-      } else if (data.size() == 8) {
-        auto func = reinterpret_cast<F8ARGS<T>>(func_sym);
-        (*func)(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-      } else {
-          LOG(FATAL) << "Unsupported argument number: " << data.size();
-      }
-    } catch (const std::exception& e) {
-      LOG(FATAL) << "Execution failure: " << e.what();
-    }
-  }
-
   /*!
    * \brief Get a PackedFunc from module, which is a function ptr can be invoked
    * for execution given some parameters.
@@ -134,50 +76,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  runtime::PackedFunc GetFunction(const std::string& name,
-                                  const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    curr_id_ = GetSubgraphID(name);
-    Open(this->GetExternLibPaths(curr_id_));
-    CHECK(handle_) << "The external module has not been built or failed to open.\n";
-
-    // Generate an external packed function
-    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-      const DLTensor* dptr = ((runtime::NDArray) args[0]).operator->();
-
-      // Check type and argument number
-      auto info = GetSubgraphInfo(curr_id_);
-      CHECK(info.first.code == dptr->dtype.code && info.first.bits == dptr->dtype.bits)
-            << "Data type of subgraph " << curr_id_ << " and input is mismatch";
-      CHECK(info.second == args.size())
-            << "Argument number of subgraph " << curr_id_
-            << " and input data is mismatch: " << info.second
-            << " vs. " << args.size();
-
-      // Get function from the library
-      std::string encoded_name = GetPrefix() + curr_id_;
-      auto func_sym = GetSymbol(encoded_name);
-
-      // Reinterpret data and function to the right type and invoke
-      if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-        std::vector<float *> data;
-        for (int i = 0; i < args.size(); ++i) {
-          runtime::NDArray arg = args[i];
-          data.push_back(reinterpret_cast<float*>(arg->data));
-        }
-        Invoke<float>(func_sym, data);
-      } else if (runtime::TypeMatch(dptr->dtype, kDLFloat, 64)) {
-        std::vector<double*> data;
-        for (int i = 0; i < args.size(); ++i) {
-          runtime::NDArray arg = args[i];
-          data.push_back(reinterpret_cast<double*>(arg->data));
-        }
-        Invoke<double>(func_sym, data);
-      } else {
-        LOG(FATAL) << "Only support float32 and float64 types.";
-      }
-      //*rv = out;
-    });
-  }
+  virtual runtime::PackedFunc GetFunction(
+      const std::string& name, const std::shared_ptr<ModuleNode>& sptr_to_self) override = 0;
 
   /*!
    * \brief Get the source code of the external module.
@@ -226,25 +126,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     return tokens[1];
   }
 
-  bool IsOp(const CallNode* call, std::string op_name) {
-    const auto* op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "Expects a single op.";
-    Op op = GetRef<Op>(op_node);
-    return op == Op::Get(op_name);
-  }
-
  protected:
-  std::vector<int> GetShape(const Expr& expr) const {
-    const auto* ttype = expr->checked_type().as<TensorTypeNode>();
-    CHECK(ttype);
-    std::vector<int> _shape;
-    for (int i = 0; i < ttype->shape.size(); ++i) {
-      auto* val = ttype->shape[i].as<IntImm>();
-      CHECK(val);
-      _shape.push_back(val->value);
-    }
-    return _shape;
-  }
 
   // Platform dependent handlers for opening system lib.
 #if defined(_WIN32)
@@ -306,10 +188,6 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     }
   }
 #endif
-
-private:
-  std::string curr_id_;
-  std::unordered_map<std::string, std::pair<DLDataType, int>> subgraph_info_;
 };
 
 }  // namespace contrib

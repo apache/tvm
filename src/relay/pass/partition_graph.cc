@@ -113,6 +113,10 @@ class Partitioner : public ExprMutator {
   }
 
   void MergeSubgraph(Subgraph* subgraph1, Subgraph* subgraph2) {
+    if (subgraph1 == subgraph2) {
+      return;
+    }
+
     // Merge subgraph 2 to subgraph 1 and erase subgraph 2.
     subgraph1->nodes.insert(subgraph2->nodes.begin(), subgraph2->nodes.end());
     for (auto arg : subgraph2->args) {
@@ -157,7 +161,7 @@ class Partitioner : public ExprMutator {
       // Find the corresponding subgraph and add the argument.
       auto subgraph = GetSubgraph(GetRef<Call>(call));
       if (!subgraph) {
-        throw Error(RELAY_ERROR("Cannot find the corresponding subgraph for end annotation:\n"
+        throw Error(RELAY_ERROR("Cannot find the corresponding subgraph for start annotation:\n"
                                 << AsText(GetRef<Call>(call), false)));
       }
       subgraph->args.push_back({var, input_expr});
@@ -194,19 +198,8 @@ class Partitioner : public ExprMutator {
       auto subgraph_func =
           FunctionNode::make(params, input, call->args[0]->checked_type_, {}, Attrs());
 
-      // FIXME: How to determine the function name?
-      // This is a hack for multiple subgraph test where each subgraph only has
-      // one call node.
-      // We can probably only pass "external" to indicate that this is an
-      // external funciton and leave the processing of the function to codegen.
-      // Otherwise, it's hard to deal with multiple-node subgraphs.
       Expr arg0 = call->args[0];
       std::string name = "subgraph_" + std::to_string(subgraph->id);
-      if (const auto* arg_call = arg0.as<CallNode>()) {
-        if (const auto* op_node = arg_call->op.as<OpNode>()) {
-          name += "_" + op_node->name;
-        }
-      }
       subgraph_func =
           FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, "Primitive", tvm::Integer(1));
