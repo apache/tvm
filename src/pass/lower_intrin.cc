@@ -178,6 +178,24 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, e);
   }
 
+  Expr Mutate_(const EQ* op, const Expr& e) final {
+    using namespace arith;
+    PVar<Expr> x, y;
+    if ((floormod(x, y) == 0).Match(e)) {
+      return Mutate((truncmod(x, y) == 0).Eval());
+    }
+    return IRMutatorWithAnalyzer::Mutate_(op, e);
+  }
+
+  Expr Mutate_(const NE* op, const Expr& e) final {
+    using namespace arith;
+    PVar<Expr> x, y;
+    if ((floormod(x, y) != 0).Match(e)) {
+      return Mutate((truncmod(x, y) == 0).Eval());
+    }
+    return IRMutatorWithAnalyzer::Mutate_(op, e);
+  }
+
  private:
   Expr SwapBroadcastCast(const Expr& e) {
     // Try to change broadcast(cast(x)) to cast(broadcast(x))
