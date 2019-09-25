@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks
+# pylint: disable=invalid-name,unused-argument, len-as-condition
 from __future__ import absolute_import
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 "Definition of classic algorithms"
-# pylint: disable=invalid-name,unused-argument
+# pylint: disable=invalid-name,unused-argument, too-many-nested-blocks
 from __future__ import absolute_import
 import tvm
 from tvm.relay.ty import TensorType
