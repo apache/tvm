@@ -92,10 +92,6 @@ def schedule_dense(cfg, outs):
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     if target.target_name == "cuda" and "cublas" in target.libs:
-        A, B = outs[0].op.input_tensors
-        b, i = get_const_tuple(A.shape)
-        o, _ = get_const_tuple(B.shape)
-        cfg.add_flop(2 * i * b * o)
         return generic.schedule_extern(outs)
 
     s = tvm.create_schedule([x.op for x in outs])
