@@ -434,6 +434,29 @@ def round(x):
     return _make.round(x)
 
 
+def nearbyint(x):
+    """Round elements of the array to the nearest integer.
+    This intrinsic uses llvm.nearbyint instead of llvm.round
+    which is faster but will results different from tvm.round.
+    Notably nearbyint rounds according to the rounding mode,
+    whereas tvm.round (llvm.round) ignores that.
+    For differences between the two see:
+    https://en.cppreference.com/w/cpp/numeric/math/round
+    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.nearbyint(x)
+
+
 def isnan(x):
     """Check if input value is Nan.
 

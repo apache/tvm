@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -58,6 +58,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fabs")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.round")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.nearbyint")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
 .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
