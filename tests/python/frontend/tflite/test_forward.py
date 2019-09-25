@@ -597,6 +597,13 @@ def _test_maximum(data):
 def _test_minimum(data):
     """ One iteration of minimum """
     return _test_elemwise(math_ops.minimum, data)
+#######################################################################
+# Greater
+# -------
+
+def _test_greater(data):
+    """ One iteration of greater """
+    return _test_elemwise(math_ops.greater, data)
 
 def _test_forward_elemwise(testop):
     """ Elewise"""
@@ -623,6 +630,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+    _test_forward_elemwise(_test_greater)
 
 #######################################################################
 # Reduce
