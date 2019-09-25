@@ -50,6 +50,9 @@ TVM_REGISTER_API("make.ceil")
 TVM_REGISTER_API("make.round")
 .set_body_typed(tvm::round);
 
+TVM_REGISTER_API("make.nearbyint")
+.set_body_typed(tvm::nearbyint);
+
 TVM_REGISTER_API("make.trunc")
 .set_body_typed(tvm::trunc);
 
