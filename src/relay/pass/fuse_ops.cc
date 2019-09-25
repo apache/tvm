@@ -550,7 +550,7 @@ class GraphPartitioner {
     /*!
      * \brief The number of nodes belonging to this group
      */
-    uint num_nodes{1};
+    uint32_t num_nodes{1};
   };
   /*!
    * \brief Partition a graph.
