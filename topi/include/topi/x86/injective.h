@@ -43,9 +43,7 @@ namespace x86 {
  * 
  * \return The updated schedule.
  */
-inline Schedule schedule_injective_from_existing(const Target& target,
-                                                 Schedule sch,
-                                                 const Tensor& out) {
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
   auto axis = sch[out]->op.as<ComputeOpNode>()->axis;
   if (axis.size() == 4) {
     auto n = axis[0];
@@ -75,7 +73,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   tvm::schedule::AutoInlineInjective(s);
 
   auto x = outs[0];
-  schedule_injective_from_existing(target, s, x);
+  schedule_injective_from_existing(s, x);
 
   return s;
 }

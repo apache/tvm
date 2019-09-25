@@ -43,9 +43,7 @@ namespace generic {
  * 
  * \return The updated schedule.
  */
-inline Schedule schedule_injective_from_existing(const Target& target,
-                                                 Schedule sch,
-                                                 const Tensor& out) {
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
   detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
   return sch;
 }
@@ -66,7 +64,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   auto x = outs[0];
-  schedule_injective_from_existing(target, s, x);
+  schedule_injective_from_existing(s, x);
 
   return s;
 }

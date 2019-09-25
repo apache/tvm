@@ -43,10 +43,9 @@ namespace cuda {
  * 
  * \return The updated schedule.
  */
-inline Schedule schedule_injective_from_existing(const Target& target,
-                                                 Schedule sch,
-                                                 const Tensor& out) {
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
   auto fused = detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
+  auto target = Target::Current(false);
   auto num_thread = target->max_num_threads;
   IterVar bx, tx;
   sch[out].split(fused, num_thread, &bx, &tx);
@@ -71,7 +70,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   for (auto out : outs) {
-    schedule_injective_from_existing(target, s, out);
+    schedule_injective_from_existing(s, out);
   }
   return s;
 }

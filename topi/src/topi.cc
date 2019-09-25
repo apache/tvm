@@ -587,7 +587,7 @@ TVM_REGISTER_GLOBAL("topi.generic.schedule_injective")
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::schedule_injective_from_existing(args[0], args[1], args[2]);
+  *rv = topi::generic::schedule_injective_from_existing(args[0], args[1]);
  });
 
 /* x86 schedules */
@@ -617,7 +617,7 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::schedule_injective_from_existing(args[0], args[1], args[2]);
+  *rv = topi::x86::schedule_injective_from_existing(args[0], args[1]);
  });
 
 /* ROCm schedules */
@@ -659,7 +659,7 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_injective_from_existing(args[0], args[1], args[2]);
+  *rv = topi::cuda::schedule_injective_from_existing(args[0], args[1]);
  });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_pool")
@@ -763,7 +763,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 
 /*! \brief Builder function for instantiating schedules from existing schedules. */
 using FTVMScheduleFromExistingBuilder = std::function<
-  tvm::Schedule(const Target& target, tvm::Schedule sch, const tvm::Tensor& out)>;
+  tvm::Schedule(tvm::Schedule sch, const tvm::Tensor& out)>;
 
 /*!
  * \brief Helper function for registering generic functions matching the
@@ -776,7 +776,7 @@ using FTVMScheduleFromExistingBuilder = std::function<
  */
 inline PackedFunc WrapScheduleFromExisting(FTVMScheduleFromExistingBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    *ret = builder(args[0], args[1], args[2]);
+    *ret = builder(args[1], args[2]);
   });
 }
 
