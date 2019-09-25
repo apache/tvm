@@ -22,17 +22,18 @@ from tvm.relay.ty import TensorType
 
 import topi
 from topi.util import get_const_int
-from ..op import OpPattern, register_compute, register_schedule, register_pattern
+from . import op as _reg
+from ...hybrid import script
 
 
-@register_schedule("argsort")
+@_reg.register_schedule("argsort")
 def schedule_argsort(_, outs, target):
     """Schedule definition of argsort"""
     with target:
         return topi.generic.schedule_argsort(outs)
 
 
-@register_compute("argsort")
+@_reg.register_compute("argsort")
 def compute_argsort(attrs, inputs, _, target):
     """Compute definition of argsort"""
     axis = get_const_int(attrs.axis)
@@ -41,17 +42,17 @@ def compute_argsort(attrs, inputs, _, target):
     return [topi.argsort(inputs[0], axis=axis, is_ascend=is_ascend, dtype=dtype)]
 
 
-register_pattern("argsort", OpPattern.OPAQUE)
+_reg.register_pattern("argsort", _reg.OpPattern.OPAQUE)
 
 # argwhere
-@register_schedule("argwhere")
+@_reg.register_schedule("argwhere")
 def schedule_argwhere(_, outs, target):
     """Schedule definition of argwhere"""
     with target:
         return topi.generic.schedule_argwhere(outs)
 
 
-@register_compute("argwhere")
+@_reg.register_compute("argwhere")
 def compute_argwhere(attrs, inputs, output_type, _):
     """Compute definition of argwhere"""
     output_shape = []
@@ -64,14 +65,14 @@ def compute_argwhere(attrs, inputs, output_type, _):
     new_output_type = TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]
 
-@register_schedule("topk")
+@_reg.register_schedule("topk")
 def schedule_topk(_, outs, target):
     """Schedule definition of argsort"""
     with target:
         return topi.generic.schedule_topk(outs)
 
 
-@register_compute("topk")
+@_reg.register_compute("topk")
 def compute_topk(attrs, inputs, _, target):
     """Compute definition of argsort"""
     k = get_const_int(attrs.k)
@@ -84,4 +85,69 @@ def compute_topk(attrs, inputs, _, target):
     return out
 
 
-register_pattern("topk", OpPattern.OPAQUE)
+_reg.register_pattern("topk", _reg.OpPattern.OPAQUE)
+
+@script
+def _argwhere_shape_func_2d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(2)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            if condition[i1, i2]:
+                out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_3d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(3)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                if condition[i1, i2, i3]:
+                    out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_4d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(4)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                for i4 in range(condition.shape[3]):
+                    if condition[i1, i2, i3, i4]:
+                        out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_5d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(5)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                for i4 in range(condition.shape[3]):
+                    for i5 in range(condition.shape[4]):
+                        if condition[i1, i2, i3, i4, i5]:
+                            out[0] += int64(1)
+    return out
+
+@_reg.register_shape_func("argwhere", True)
+def argwhere_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape function for argwhere.
+    """
+    if len(inputs[0].shape) == 2:
+        return [_argwhere_shape_func_2d(inputs[0])]
+    elif len(inputs[0].shape) == 3:
+        return [_argwhere_shape_func_3d(inputs[0])]
+    elif len(inputs[0].shape) == 4:
+        return [_argwhere_shape_func_4d(inputs[0])]
+    elif len(inputs[0].shape) == 5:
+        return [_argwhere_shape_func_5d(inputs[0])]
+    return []
