@@ -128,7 +128,7 @@ void ArgBinder::BindBuffer(const Buffer& arg,
     CHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      CHECK(is_one(value->shape[i]))
+      CHECK(is_one(Simplify(value->shape[i])))
           << "Argument " << arg_name << " shape mismatch"
           << arg->shape << " vs " << value->shape;
     }
