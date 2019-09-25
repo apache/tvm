@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name,unused-argument, len-as-condition
+# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks
 from __future__ import absolute_import
 import tvm
 import topi
 from topi.util import get_const_int, get_const_tuple
+from tvm.relay.ty import TensorType
 from . import op as _reg
 from ._reduce import _schedule_reduce
 from .op import OpPattern
 from ...hybrid import script
 from ...api import convert
-from tvm.relay.ty import TensorType
 
 schedule_injective = _reg.schedule_injective
 schedule_broadcast = _reg.schedule_injective
