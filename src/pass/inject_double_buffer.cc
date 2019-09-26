@@ -18,8 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
- *
  * \brief Inject double buffering optimization for data fetch.
  * \file inject_double_buffer.cc
  */
@@ -230,7 +228,7 @@ class DoubleBufferInjector : public IRMutator {
     Expr loop_shift = e.loop->loop_var + one;
     e.switch_write_var = Var(e.loop->loop_var->name_hint + ".db",
                              e.loop->loop_var.type());
-    e.switch_read_var = e.loop->loop_var % two;
+    e.switch_read_var = indexmod(e.loop->loop_var, two);
     in_double_buffer_scope_ = true;
     Stmt body = Mutate(op->body);
     in_double_buffer_scope_ = false;
@@ -239,7 +237,7 @@ class DoubleBufferInjector : public IRMutator {
     vmap[e.loop->loop_var.get()] = zero;
     loop_pre_[e.loop].emplace_back(Substitute(body, vmap));
     vmap[e.loop->loop_var.get()] = loop_shift;
-    vmap[e.switch_write_var.get()] = loop_shift % two;
+    vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
     body = AttrStmt::make(buffer, attr::double_buffer_write, 1, body);
     body = IfThenElse::make(loop_shift < e.loop->extent, body);

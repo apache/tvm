@@ -108,7 +108,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   explicit TypeInferencer(Module mod, GlobalVar current_func)
       : mod_(mod), current_func_(current_func),
-        err_reporter(), solver_(current_func, &this->err_reporter) {
+        err_reporter(), solver_(current_func, mod, &this->err_reporter) {
+    CHECK(mod.defined()) << "internal error: Module must be set in the type inferencer";
   }
 
   // inference the type of expr.
@@ -139,19 +140,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
   Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
-    // TODO(tqchen, jroesch): propagate span to solver
     try {
-      // instantiate higher-order func types when unifying because
-      // we only allow polymorphism at the top level
-      Type first = t1;
-      Type second = t2;
-      if (auto* ft1 = t1.as<FuncTypeNode>()) {
-        first = InstantiateFuncType(ft1);
-      }
-      if (auto* ft2 = t2.as<FuncTypeNode>()) {
-        second = InstantiateFuncType(ft2);
-      }
-      return solver_.Unify(first, second, expr);
+      return solver_.Unify(t1, t2, expr);
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,
@@ -273,6 +263,27 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
     for (size_t i = 0; i < con->constructor->inputs.size(); ++i) {
       VisitPattern(con->patterns[i], Bind(con->constructor->inputs[i], type_var_map_));
+    }
+  }
+
+  void VisitPattern_(const PatternTupleNode* tup, const Type& t) {
+    auto pt = GetRef<PatternTuple>(tup);
+
+    // we can expect a certain number of arguments
+    Array<Type> unknown_args;
+    for (size_t i = 0; i < tup->patterns.size(); i++) {
+      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    Type expected = TupleTypeNode::make(unknown_args);
+    Type unified = Unify(t, expected, GetRef<NodeRef>(tup));
+
+    auto* tt = unified.as<TupleTypeNode>();
+    if (!tt) {
+      this->ReportFatalError(pt, RELAY_ERROR("Expected a tuple type, got " << unified));
+    }
+    CHECK(tup->patterns.size() == tt->fields.size()) << "not enough pattern";
+    for (size_t i = 0; i < tup->patterns.size(); ++i) {
+      VisitPattern(tup->patterns[i], tt->fields[i]);
     }
   }
 
@@ -753,7 +764,6 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   bool update_missing_type_annotation_{true};
 };
 
-
 Expr TypeInferencer::Infer(Expr expr) {
   // Step 1: Populate the constraints.
   GetType(expr);
@@ -781,36 +791,22 @@ void EnsureCheckedType(const Expr& e) {
   AllCheckTypePopulated().VisitExpr(e);
 }
 
-Expr InferType(const Expr& expr, const Module& mod_ref) {
-  if (!mod_ref.defined()) {
-    Module mod = ModuleNode::FromExpr(expr);
-    // NB(@jroesch): By adding the expression to the module we will
-    // type check it anyway; afterwards we can just recover type
-    // from the type-checked function to avoid doing unnecessary work.
-
-    Function func = mod->Lookup("main");
-
-    // FromExpr wraps a naked expression as a function, we will unbox
-    // it here.
-    if (expr.as<FunctionNode>()) {
-      return std::move(func);
-    } else {
-      return func->body;
-    }
-  } else {
-    auto e = TypeInferencer(mod_ref, mod_ref->GetGlobalVar("main")).Infer(expr);
-    CHECK(WellFormed(e));
-    auto free_tvars = FreeTypeVars(e, mod_ref);
-    CHECK(free_tvars.size() == 0)
-      << "Found unbound type variables in " << e << ": " << free_tvars;
-    EnsureCheckedType(e);
-    return e;
-  }
+Expr InferType(const Expr& expr, const Module& mod) {
+  auto main = mod->GetGlobalVar("main");
+  auto inferencer = TypeInferencer(mod, main);
+  auto e = inferencer.Infer(expr);
+  CHECK(WellFormed(e));
+  auto free_tvars = FreeTypeVars(e, mod);
+  CHECK(free_tvars.size() == 0)
+    << "Found unbound type variables in " << e << ": " << free_tvars;
+  EnsureCheckedType(e);
+  return e;
 }
 
 Function InferType(const Function& func,
                    const Module& mod,
                    const GlobalVar& var) {
+  CHECK(mod.defined()) << "internal error: module must be set for type inference";
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
   mod->AddUnchecked(var, func_copy);

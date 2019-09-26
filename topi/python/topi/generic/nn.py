@@ -108,6 +108,25 @@ def schedule_conv2d_NCHWc(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_NCHWc_int8(outs):
+    """Schedule for conv2d_NCHW[x]c_int8
+
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The computation graph description of conv2d_NCHWc_int8
+        in the format of an array of tensors.
+        The number of filter, i.e., the output channel.
+
+    Returns
+    -------
+    sch : Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_winograd_weight_transform(outs):
     """Schedule for weight transformation of winograd
 
@@ -461,6 +480,23 @@ def schedule_binarize_pack(outs):
     outs: Array of Tensor
           The computation graph description of binarize_pack
           in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.override_native_generic_func("schedule_bitpack")
+def schedule_bitpack(outs):
+    """Schedule for bitpack
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of bitpack
+        in the format of an array of tensors.
 
     Returns
     -------

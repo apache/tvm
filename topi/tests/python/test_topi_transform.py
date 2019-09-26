@@ -473,6 +473,31 @@ def verify_where(in_shape):
     for device in get_all_backend():
         check_device(device)
 
+def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
+    indices = tvm.placeholder(shape=indices_shape, name="indices", dtype="int32")
+    on_value_const = tvm.const(on_value, dtype)
+    off_value_const = tvm.const(off_value, dtype)
+    one_hot_result = topi.transform.one_hot(indices, on_value_const, off_value_const, depth, axis, dtype)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(one_hot_result)
+        fn = tvm.build(s, [indices, one_hot_result], device, name="one_hot")
+        indices_npy = np.random.randint(0, depth, size=indices_shape).astype(indices.dtype)
+        out_npy = topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, dtype)
+        indices_nd = tvm.nd.array(indices_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(one_hot_result.dtype), ctx)
+        fn(indices_nd, out_nd)
+        out_topi = out_nd.asnumpy()
+        tvm.testing.assert_allclose(out_topi, out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -770,6 +795,13 @@ def test_where_fusion():
     for backend in get_all_backend():
         check_device(backend)
 
+def test_one_hot():
+    verify_one_hot((3,), 3, 1, 0, -1, "int32")
+    verify_one_hot((3,), 3, 1.0, 0.0, -1, "float32")
+    verify_one_hot((2, 2), 5, 2, -2, 0, "int32")
+    verify_one_hot((2, 2), 5, 0.5, -0.5, 1, "float32")
+    verify_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
+    verify_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__ == "__main__":
     test_strided_slice()
@@ -793,3 +825,4 @@ if __name__ == "__main__":
     test_sequence_mask()
     test_ndarray_size()
     test_where_fusion()
+    test_one_hot()

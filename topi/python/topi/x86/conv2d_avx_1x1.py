@@ -57,6 +57,36 @@ def _fallback_schedule(cfg, wkl):
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
 
 
+def _fallback_schedule_int8(cfg, wkl):
+    simd_width = get_fp32_len()
+    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HSTR, WSTR = wkl.hstride, wkl.wstride
+    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
+    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+
+    oc_bn = 16
+    assert wkl.out_filter % oc_bn == 0
+
+    ic_bn = 1
+    for bn in range(oc_bn, 0, -4):
+        if wkl.in_filter % bn == 0:
+            ic_bn = bn
+            break
+    assert wkl.in_filter % 4 == 0
+
+    for ow_factor in range(out_width, 0, -1):
+        if out_width % ow_factor == 0:
+            for oh_factor in range(out_height, 0, -1):
+                if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
+                    cfg["tile_ic"] = SplitEntity([wkl.in_filter // ic_bn, ic_bn])
+                    cfg["tile_oc"] = SplitEntity([wkl.out_filter // oc_bn, oc_bn])
+                    cfg["tile_oh"] = OtherOptionEntity(oh_factor)
+                    cfg["tile_ow"] = SplitEntity([out_width // ow_factor, ow_factor])
+                    return
+    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+
+
+
 def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):
     # fetch schedule
     ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
@@ -73,7 +103,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     if DOPAD:
         s[A0].compute_inline()
     batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
-    parallel_axis = s[A1].fuse(ic_chunk, ih)
+    parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
 
     # schedule kernel pack
@@ -115,7 +145,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
     s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
-    parallel_axis = s[O].fuse(oc_chunk, oh_outer)
+    parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
     s[C].compute_at(s[O], parallel_axis)
     s[O].vectorize(oc_block)
 

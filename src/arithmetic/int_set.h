@@ -32,6 +32,7 @@
 namespace tvm {
 namespace arith {
 
+// Acknowledgement: IntervalSet design originates from Halide.
 /*!
  * \brief Symbolic interval set.
  *

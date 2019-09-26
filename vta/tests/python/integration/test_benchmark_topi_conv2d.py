@@ -17,11 +17,11 @@
 
 """Testing topi conv2d operator for VTA"""
 
-import os
 import json
-from collections import namedtuple
+import os
 
 import numpy as np
+from collections import namedtuple
 
 import tvm
 from tvm import autotvm
@@ -33,6 +33,7 @@ import vta
 from vta import program_fpga, reconfig_runtime
 import vta.testing
 from vta.testing import simulator
+
 
 Workload = namedtuple("Conv2DWorkload",
                       ['batch', 'height', 'width', 'in_filter', 'out_filter',
@@ -88,7 +89,7 @@ def run_conv2d(env, remote, wl, target,
     b_shape = (wl.batch, wl.out_filter, 1, 1)
     if data_pack:
         data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
-                  wl.height, wl.width, env.BATCH, env.BLOCK_IN)
+                      wl.height, wl.width, env.BATCH, env.BLOCK_IN)
         kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
                         wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
         bias_shape = (wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
@@ -205,7 +206,7 @@ def run_conv2d(env, remote, wl, target,
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
             bias_np = bias_np.transpose(
                 (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, 1, 1)
-        res_ref = res_ref >> 8
+        res_ref = res_ref >> env.WGT_WIDTH
         res_ref += bias_np
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)

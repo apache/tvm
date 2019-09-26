@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from nose.tools import raises
+import pytest
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):
@@ -223,7 +223,51 @@ def test_backward_solving_after_child_update():
     assert solver.Resolve(t4) == tup_concrete
     assert solver.Resolve(t5) == tup_concrete
 
-@raises(tvm._ffi.base.TVMError)
+
+def test_unify_quantified_funcs():
+    solver = make_solver()
+    a, b, c = relay.TypeVar('a'), relay.TypeVar('b'), relay.TypeVar('c')
+    ft1 = relay.FuncType([a, b], c, [a, b, c])
+    ft2 = relay.FuncType([a, a], a, [a])
+    unified = solver.Unify(ft1, ft2)
+    assert unified == ft2
+
+    ft3 = relay.FuncType([a], a, [a])
+    ft4 = relay.FuncType([b], c, [b, c])
+    unified = solver.Unify(ft3, ft4)
+    assert unified == ft3
+
+
+def test_unify_quantified_func_and_concrete():
+    solver = make_solver()
+    a, b = relay.TypeVar('a'), relay.TypeVar('b')
+    ft1 = relay.FuncType([a], b, [a, b])
+    ft2 = relay.FuncType([b], relay.TupleType([]), [b])
+    unified = solver.Unify(ft1, ft2)
+    assert unified == ft2
+
+
+def test_unify_quantified_funcs_nesting():
+    solver = make_solver()
+    a, b, c = relay.TypeVar('a'), relay.TypeVar('b'), relay.TypeVar('c')
+
+    ft1 = relay.FuncType([a, relay.TupleType([b, c])], relay.TupleType([a, b, c]), [a, b, c])
+    ft2 = relay.FuncType([a, relay.TupleType([a, a])], relay.TupleType([a, a, a]), [a])
+    unified = solver.Unify(ft1, ft2)
+    assert unified == ft2
+
+
+def test_unify_quantified_funcs_var_order():
+    solver = make_solver()
+    a, b, c = relay.TypeVar('a'), relay.TypeVar('b'), relay.TypeVar('c')
+
+    ft1 = relay.FuncType([a, relay.TupleType([b, c])], relay.TupleType([a, b, c]), [a, b, c])
+    ft2 = relay.FuncType([a, relay.TupleType([a, c])], relay.TupleType([a, a, c]), [a, c])
+    # unified = solver.Unify(ft1, ft2) # crashes here but it shouldn't
+    # assert unified == ft2
+
+
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_tuple_unification():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
@@ -238,14 +282,14 @@ def test_incompatible_tuple_unification():
     solver.Unify(tup1, tup2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_bad_recursive_unification():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
     solver.Unify(t1, relay.ty.TupleType([t1, t1]))
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_unify_invalid_global_typevars():
     solver = make_solver()
     gtv1 = relay.GlobalTypeVar('gtv1')
@@ -253,7 +297,7 @@ def test_unify_invalid_global_typevars():
     solver.Unify(gtv1, gtv2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_typecall_var_unification():
     solver = make_solver()
     gtv1 = relay.GlobalTypeVar('gtv1')
@@ -267,7 +311,7 @@ def test_incompatible_typecall_var_unification():
     solver.Unify(tc1, tc2)
 
 
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_incompatible_typecall_args_unification():
     solver = make_solver()
     gtv = relay.GlobalTypeVar('gtv1')
@@ -283,6 +327,16 @@ def test_incompatible_typecall_args_unification():
     solver.Unify(tc1, tc2)
 
 
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
+def test_incompatible_quantified_func_unification():
+    solver = make_solver()
+    a, b, c = relay.TypeVar('a'), relay.TypeVar('b'), relay.TypeVar('c')
+
+    ft1 = relay.FuncType([a, b], c, [a, b, c])
+    ft2 = relay.FuncType([b, c], relay.TupleType([a]), [a, b, c])
+    solver.Unify(ft1, ft2)
+
+
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
@@ -293,7 +347,12 @@ if __name__ == "__main__":
     test_unify_vars_under_tuples()
     test_recursive_backward_solving()
     test_backward_solving_after_child_update()
+    test_unify_quantified_funcs()
+    test_unify_quantified_func_and_concrete()
+    test_unify_quantified_funcs_nesting()
+    test_unify_quantified_funcs_var_order()
     test_incompatible_tuple_unification()
     test_bad_recursive_unification()
     test_incompatible_typecall_var_unification()
     test_incompatible_typecall_args_unification()
+    test_incompatible_quantified_func_unification()

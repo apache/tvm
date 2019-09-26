@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from nose.tools import raises
+import pytest
 import tvm
 import pickle as pkl
 
@@ -129,7 +129,7 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_vectorize_commreduce():
     V = tvm.placeholder((128,), name='V')
     ax = tvm.reduce_axis((0, 128), name='ax')

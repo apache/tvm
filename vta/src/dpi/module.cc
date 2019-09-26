@@ -33,6 +33,9 @@
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <fstream>
+
+#include "../vmem/virtual_memory.h"
 
 namespace vta {
 namespace dpi {
@@ -179,12 +182,14 @@ void HostDevice::WaitPopResponse(HostResponse* r) {
 
 void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
   std::lock_guard<std::mutex> lock(mutex_);
+  void * vaddr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(addr);
+
   if (opcode == 1) {
     wlen_ = len + 1;
-    waddr_ = reinterpret_cast<uint64_t*>(addr);
+    waddr_ = reinterpret_cast<uint64_t*>(vaddr);
   } else {
     rlen_ = len + 1;
-    raddr_ = reinterpret_cast<uint64_t*>(addr);
+    raddr_ = reinterpret_cast<uint64_t*>(vaddr);
   }
 }
 

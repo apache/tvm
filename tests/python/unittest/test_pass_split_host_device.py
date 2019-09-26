@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from nose.tools import raises
+import pytest
 import tvm
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_loop_dependent_allocate():
     N = tvm.var("N")
     A = tvm.placeholder((2*N,), "float32", "A")

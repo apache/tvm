@@ -24,18 +24,17 @@ import chisel3.util._
 import vta.util.genericbundle._
 
 case class AXIParams(
-  coherent: Boolean = false,
-  idBits: Int = 1,
-  addrBits: Int = 32,
-  dataBits: Int = 64,
-  lenBits: Int = 8,
-  userBits: Int = 1
-)
-{
-  require (addrBits > 0)
-  require (dataBits >= 8 && dataBits % 2 == 0)
+    coherent: Boolean = false,
+    idBits: Int = 1,
+    addrBits: Int = 32,
+    dataBits: Int = 64,
+    lenBits: Int = 8,
+    userBits: Int = 1
+) {
+  require(addrBits > 0)
+  require(dataBits >= 8 && dataBits % 2 == 0)
 
-  val strbBits = dataBits/8
+  val strbBits = dataBits / 8
   val sizeBits = 3
   val burstBits = 2
   val lockBits = 2
@@ -44,7 +43,7 @@ case class AXIParams(
   val qosBits = 4
   val regionBits = 4
   val respBits = 2
-  val sizeConst = log2Ceil(dataBits/8)
+  val sizeConst = log2Ceil(dataBits / 8)
   val idConst = 0
   val userConst = if (coherent) 1 else 0
   val burstConst = 1
@@ -56,7 +55,7 @@ case class AXIParams(
 }
 
 abstract class AXIBase(params: AXIParams)
-  extends GenericParameterizedBundle(params)
+    extends GenericParameterizedBundle(params)
 
 // AXILite
 

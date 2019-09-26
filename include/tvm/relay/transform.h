@@ -483,6 +483,17 @@ TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip = nullptr);
 TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
 
 /*!
+ * \brief Combine parallel dense ops into a single batch_matmul if the
+ * number of branches of this dense operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branches The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3);
+
+/*!
  * \brief Backward fold axis scaling into weights of conv/dense operators.
  *
  * \return The pass.
@@ -522,10 +533,15 @@ TVM_DLL Pass AlterOpLayout();
 
 /*!
  * \brief Legalizes an expr with another expression.
+ * \param legalize_map_attr_name The Op's attr name which corresponds to the legalize rule function.
+ * One can collect and isolate similar type of legalize transformations using this param. For
+ * example, transformations that only apply to Dialects can be isolated into a FTVMDialectLegalize
+ * string. This pass calls only those transformations that have been registered using the supplied
+ * legalize_map_attr_name.
  *
  * \return The pass.
  */
-TVM_DLL Pass Legalize();
+TVM_DLL Pass Legalize(const std::string& legalize_map_attr_name = "FTVMLegalize");
 
 /*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.

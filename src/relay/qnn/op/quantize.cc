@@ -83,15 +83,15 @@ Expr QuantizeLower(const Expr& input_tensor,
   return clamp_out_dtype;
 }
 
-Expr QuantizeLegalize(const Attrs& attrs,
-                      const Array<Expr>& new_args,
-                      const Array<tvm::relay::Type>& arg_types) {
+Expr QuantizeQnnCanonicalize(const Attrs& attrs,
+                             const Array<Expr>& new_args,
+                             const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   CHECK(quantize_attrs != nullptr);
 
-  CHECK_EQ(arg_types.size(), 1);
+  CHECK_EQ(types.size(), 2);
   return QuantizeLower(data, quantize_attrs);
 }
 
@@ -111,7 +111,7 @@ scale and zero point.
 .add_argument("data", "Tensor", "The tensor to quantize.")
 .set_support_level(11)
 .add_type_rel("Quantize", QuantizeRel)
-.set_attr<FTVMLegalize>("FTVMLegalize", QuantizeLegalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
 
 TVM_REGISTER_API("relay.qnn.op._make.quantize")
 .set_body_typed(MakeQuantize);

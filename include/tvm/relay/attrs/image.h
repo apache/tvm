@@ -37,6 +37,7 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   std::string layout;
   std::string method;
   bool align_corners;
+  DataType out_dtype;
 
   TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >())
@@ -46,12 +47,16 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Resize is applied on the 'H' and"
                   "'W' dimensions.");
-    TVM_ATTR_FIELD(method).set_default("BILINEAR")
+    TVM_ATTR_FIELD(method).set_default("bilinear")
         .describe("Specify the mode to use for scaling."
-                  "NEAREST_NEIGHBOR -  Nearest Neighbor"
-                  "BILINEAR - Bilinear Interpolation");
-    TVM_ATTR_FIELD(align_corners).set_default(false)
+                  "nearest_neighbor -  Nearest Neighbor"
+                  "bilinear - Bilinear Interpolation"
+                  "bicubic - Bicubic Interpolation");
+    TVM_ATTR_FIELD(align_corners).set_default(true)
         .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type.");
   }
 };
 

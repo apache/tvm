@@ -21,8 +21,9 @@ from . import _make
 def resize(data,
            size,
            layout="NCHW",
-           method="BILINEAR",
-           align_corners=False):
+           method="bilinear",
+           align_corners=True,
+           out_dtype=None):
     """Image resize operator.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
@@ -31,7 +32,7 @@ def resize(data,
     out will have a shape (n, c, size[0], size[1])
 
     method indicates the algorithm to be used while calculating ghe out value
-    and method can be one of ("BILINEAR", "NEAREST_NEIGHBOR")
+    and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
 
     Parameters
     ----------
@@ -45,14 +46,17 @@ def resize(data,
         Layout of the input.
 
     method : str, optional
-        Scale method to used [NEAREST_NEIGHBOR, BILINEAR].
+        Scale method to used [nearest_neighbor, bilinear, bicubic].
 
     align_corners : int, optional
         Should be true to preserve the values at the corner pixels
+
+    out_dtype : str, optional
+        Type to return. If left None returns the same type as input.
 
     Returns
     -------
     result: relay.Expr
         The resized result.
     """
-    return _make.resize(data, size, layout, method, align_corners)
+    return _make.resize(data, size, layout, method, align_corners, out_dtype)

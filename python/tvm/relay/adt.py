@@ -90,6 +90,29 @@ class PatternConstructor(Pattern):
 
 
 @register_relay_node
+class PatternTuple(Pattern):
+    """Constructor pattern in Relay: Matches a tuple, binds recursively."""
+
+    def __init__(self, patterns=None):
+        """Construct a tuple pattern.
+
+        Parameters
+        ----------
+        patterns: Optional[List[Pattern]]
+            Optional subpatterns: for each field of the constructor,
+            match to the given subpattern (treated as a variable pattern by default).
+
+        Returns
+        -------
+        wildcard: PatternWildcard
+            a wildcard pattern.
+        """
+        if patterns is None:
+            patterns = []
+        self.__init_handle_by_constructor__(_make.PatternTuple, patterns)
+
+
+@register_relay_node
 class Constructor(Expr):
     """Relay ADT constructor."""
 

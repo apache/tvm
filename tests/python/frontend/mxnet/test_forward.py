@@ -34,7 +34,7 @@ def verify_mxnet_frontend_impl(mx_symbol,
                                gluon_impl=False,
                                name=None,
                                dtype='float32'):
-    """Use name different from test to avoid let nose pick it up"""
+    """Use name different from test to avoid pytest picking it up"""
     if gluon_impl:
         def get_gluon_output(name, x):
             net = vision.get_model(name)
@@ -778,6 +778,106 @@ def test_forward_layer_norm():
     verify((2, 5), axis=0)
     verify((2, 5, 6))
 
+def test_forward_one_hot():
+    def verify(indices_shape, depth, on_value, off_value, dtype):
+        x = np.random.randint(0, 5, size=indices_shape)
+        ref_res = mx.nd.one_hot(mx.nd.array(x), depth, on_value, off_value, dtype)
+        mx_sym = mx.sym.one_hot(mx.sym.var("x"), depth, on_value, off_value, dtype)
+        shape_dict = {"x": x.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x.astype("float32"))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+    verify((3,), 3, 1, 0, "int32")
+    verify((3,), 3, 1.0, 0.0, "float32")
+    verify((2, 2), 5, 2, -2, "int32")
+    verify((2, 2), 5, 0.5, -0.5, "float32")
+    verify((3, 2, 4, 5), 6, 1, 0, "int32")
+    verify((3, 2, 4, 5), 6, 1.0, 0.0, "float32")
+
+def test_forward_pad():
+    def verify(data_shape, out_shape, mode, pad_width, constant_value=0.0):
+        data = mx.sym.var('data')
+        mx_sym = mx.sym.pad(data, mode=mode, pad_width=pad_width, constant_value=constant_value)
+        verify_mxnet_frontend_impl(mx_sym, data_shape=data_shape, out_shape=out_shape)
+
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4), constant_value=3.0)
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="edge",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5), out_shape=(1,1,6,12), mode="reflect",
+           pad_width=(0,0,0,0,1,2,3,4))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="constant",
+           pad_width=(0,0,0,0,1,2,3,4,5,6), constant_value=3.0)
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="edge",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+    verify(data_shape=(1,1,3,5,7), out_shape=(1,1,6,12,18), mode="reflect",
+           pad_width=(0,0,0,0,1,2,3,4,5,6))
+
+
+def test_forward_slice():
+    def verify(data_shape, out_shape, begin, end):
+        data = mx.sym.var('data')
+        mx_sym = mx.sym.slice(data, begin=begin, end=end)
+        verify_mxnet_frontend_impl(mx_sym, data_shape=data_shape, out_shape=out_shape)
+
+    verify(data_shape=(1,1,10), out_shape=(1,1,8), begin=(0, 0, 2), end=(1, 1, 10))
+    verify(data_shape=(1,1,10), out_shape=(1,1,8), begin=(None, None, 2), end=(None, None, None))
+
+
+def test_forward_convolution():
+    def verify(data_shape, kernel_size, stride, pad, num_filter):
+        weight_shape=(num_filter,1,) + kernel_size
+        x = np.random.uniform(size=data_shape).astype("float32")
+        weight = np.random.uniform(size=weight_shape).astype("float32")
+        bias = np.random.uniform(size=num_filter).astype("float32")
+        ref_res = mx.nd.Convolution(data=mx.nd.array(x), weight=mx.nd.array(weight),
+                                    bias=mx.nd.array(bias), kernel=kernel_size, stride=stride,
+                                    pad=pad, num_filter=num_filter)
+        mx_sym = mx.sym.Convolution(mx.sym.var("x"), mx.sym.var("weight"), mx.sym.var("bias"),
+                                    kernel=kernel_size, stride=stride,
+                                    pad=pad, num_filter=num_filter)
+        shape_dict = {"x": x.shape, "weight": weight.shape, "bias": bias.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, weight, bias)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+
+    verify(data_shape=(1,1,1024*16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
+    verify(data_shape=(1, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+
+def test_forward_deconvolution():
+    def verify(data_shape, kernel_size, stride, pad, num_filter):
+        weight_shape=(1, num_filter) + kernel_size
+        x = np.random.uniform(size=data_shape).astype("float32")
+        weight = np.random.uniform(size=weight_shape).astype("float32")
+        bias = np.random.uniform(size=num_filter).astype("float32")
+        ref_res = mx.nd.Deconvolution(data=mx.nd.array(x), weight=mx.nd.array(weight), bias=mx.nd.array(bias),
+                                      kernel=kernel_size, stride=stride,
+                                      pad=pad, num_filter=num_filter, no_bias=False)
+        mx_sym = mx.sym.Deconvolution(mx.sym.var("x"), mx.sym.var("weight"), mx.sym.var("bias"),
+                                      kernel=kernel_size, stride=stride,
+                                      pad=pad, num_filter=num_filter, no_bias=False)
+        shape_dict = {"x": x.shape, "weight": weight.shape, "bias": bias.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x, weight, bias)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+
+    verify(data_shape=(1,1,1024*16), kernel_size=(17,), stride=(2,), pad=(8,), num_filter=4)
+    verify(data_shape=(1, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -791,6 +891,8 @@ if __name__ == '__main__':
     test_forward_split()
     test_forward_split_squeeze()
     test_forward_expand_dims()
+    test_forward_pad()
+    test_forward_slice()
     test_forward_pooling()
     test_forward_adaptive_pooling()
     test_forward_lrn()
@@ -825,3 +927,6 @@ if __name__ == '__main__':
     test_forward_contrib_div_sqrt_dim()
     test_forward_batch_norm()
     test_forward_layer_norm()
+    test_forward_one_hot()
+    test_forward_convolution()
+    test_forward_deconvolution()

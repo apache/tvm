@@ -32,6 +32,7 @@ List of operators
    topi.trunc
    topi.round
    topi.abs
+   topi.isnan
    topi.exp
    topi.tanh
    topi.log
@@ -104,6 +105,7 @@ List of operators
    topi.argsort
    topi.topk
    topi.sequence_mask
+   topi.one_hot
 
 
 List of schedules
@@ -126,6 +128,7 @@ topi
 .. autofunction:: topi.trunc
 .. autofunction:: topi.round
 .. autofunction:: topi.abs
+.. autofunction:: topi.isnan
 .. autofunction:: topi.exp
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log
@@ -173,6 +176,10 @@ topi
 .. autofunction:: topi.argsort
 .. autofunction:: topi.topk
 .. autofunction:: topi.sequence_mask
+.. autofunction:: topi.one_hot
+.. autofunction:: topi.logical_and
+.. autofunction:: topi.logical_or
+.. autofunction:: topi.logical_not
 
 topi.nn
 ~~~~~~~

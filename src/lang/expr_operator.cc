@@ -178,18 +178,41 @@ Expr operator*(Expr a, Expr b) {
   return ir::Mul::make(a, b);
 }
 
-Expr operator/(Expr a, Expr b) {
+Expr div(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Div>(a, b);
   if (ret.defined()) return ret;
   return ir::Div::make(a, b);
 }
 
-Expr operator%(Expr a, Expr b) {
+Expr truncdiv(Expr a, Expr b) {
+  CHECK(a.type().is_int() || a.type().is_uint());
+  CHECK(b.type().is_int() || b.type().is_uint());
+  return div(a, b);
+}
+
+Expr truncmod(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Mod>(a, b);
   if (ret.defined()) return ret;
   return ir::Mod::make(a, b);
+}
+
+Expr operator/(Expr a, Expr b) {
+  return div(a, b);
+}
+
+Expr operator%(Expr a, Expr b) {
+  return truncmod(a, b);
+}
+
+// TODO(tqchen): switch to floordiv
+Expr indexdiv(Expr a, Expr b) {
+  return truncdiv(a, b);
+}
+
+Expr indexmod(Expr a, Expr b) {
+  return truncmod(a, b);
 }
 
 Expr floordiv(Expr a, Expr b) {
@@ -238,7 +261,7 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
   using ir::IntImm;
   using ir::UIntImm;
   CHECK(cond.type() == Bool(1))
-      << "if_then_else only accept a single condition";
+      << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value);
   if (const UIntImm* op = cond.as<UIntImm>()) {
     if (op->value != 0) {
@@ -416,6 +439,30 @@ Expr abs(Expr x) {
   }
 }
 
+Expr isnan(Expr x) {
+  Type t = Bool(x.type().lanes());
+  if (x.type().is_int() || x.type().is_uint()) {
+    return make_const(t, false);
+  } else if (x.type().is_float()) {
+    using ir::FloatImm;
+    const FloatImm* fx = x.as<FloatImm>();
+    if (fx) {
+      return make_const(t, std::isnan(fx->value));
+    }
+    if (x.type().bits() == 16) {
+      return ir::Call::make(t, ir::Call::isnan,
+                               {cast(Float(32, t.lanes()), std::move(x))},
+                               ir::Call::PureIntrinsic);
+    } else {
+      return ir::Call::make(t, ir::Call::isnan, {x}, ir::Call::PureIntrinsic);
+    }
+  } else {
+    LOG(FATAL) << "Data type " << x.type()
+               <<" not supported for isnan op. Skipping isnan op...";
+    return x;
+  }
+}
+
 Expr sum(Expr source, Array<IterVar> rdom) {
   Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Add::make(x, y);
@@ -487,6 +534,13 @@ Expr round(Expr x) {
   const FloatImm* fx = x.as<FloatImm>();
   if (fx) return FloatImm::make(x.type(), std::nearbyint(fx->value));
   return ir::Call::make(x.type(), "round", {x}, ir::Call::PureIntrinsic);
+}
+
+Expr nearbyint(Expr x) {
+  using ir::FloatImm;
+  const FloatImm* fx = x.as<FloatImm>();
+  if (fx) return FloatImm::make(x.type(), std::nearbyint(fx->value));
+  return ir::Call::make(x.type(), "nearbyint", {x}, ir::Call::PureIntrinsic);
 }
 
 Expr trunc(Expr x) {

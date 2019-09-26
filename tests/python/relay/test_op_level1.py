@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import scipy
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
@@ -67,13 +68,15 @@ def test_unary_op():
 
     for opfunc, ref in [(tvm.relay.log, np.log),
                         (tvm.relay.exp, np.exp),
+                        (tvm.relay.erf, scipy.special.erf),
                         (tvm.relay.sqrt, np.sqrt),
                         (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),
                         (tvm.relay.tanh, np.tanh),
                         (relay.nn.relu, relu),
                         (tvm.relay.cos, np.cos),
-                        (tvm.relay.sin, np.sin)]:
+                        (tvm.relay.sin, np.sin),
+                        (tvm.relay.atan, np.arctan)]:
         check_single_op(opfunc, ref)
 
 
@@ -217,6 +220,18 @@ def test_concatenate():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
+    # check shape mismatches (the following case is expected to raise tvm._ffi.base.TVMError.
+    try:
+        x = relay.var('p1', shape=(2, 5))
+        y = relay.var('p2', shape=(2, 3))
+        c = relay.concatenate([x, y], axis=0)
+        func = relay.Function([x, y], c)
+        zz = run_infer_type(func)
+    except tvm._ffi.base.TVMError:
+        pass
+    else:
+        assert False
+
     x = relay.var("x", shape=(10, 5))
     y = relay.var("y", shape=(10, 5))
     t = relay.var("z", shape=())
@@ -299,7 +314,7 @@ def test_dense():
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.TensorType((2, w), "float32"))
     y = relay.nn.dense(x, w, units=2)
-    "units=2" in y.astext()
+    assert "units=2" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
 
@@ -337,6 +352,16 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_bitserial_dense():
+    m, k = tvm.var("m"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((m, k), "int16"))
+    w = relay.var("w", relay.TensorType((k, 32), "int16"))
+    y = relay.nn.bitserial_dense(x, w, units=32)
+    "units=8" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((m, 32), "int16")
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_bias_add()
@@ -349,3 +374,4 @@ if __name__ == "__main__":
     test_dropout()
     test_batch_norm()
     test_dense()
+    test_bitserial_dense()

@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_int, get_const_tuple
+from topi.util import get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
 
@@ -73,7 +73,8 @@ reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 @reg.register_compute("nn.batch_matmul")
 def compute_batch_matmul(attrs, inputs, out_type, target):
     """Compute definition of batch_matmul"""
-    return [topi.nn.batch_matmul(inputs[0], inputs[1])]
+    with target:
+        return [topi.nn.batch_matmul(inputs[0], inputs[1])]
 
 
 @reg.register_schedule("nn.batch_matmul")
@@ -143,19 +144,20 @@ def compute_conv2d(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
+    def _get_out_depth():
+        weight_shape = get_const_tuple(inputs[1].shape)
+        if kernel_layout == "HWOI":
+            return weight_shape[2] * weight_shape[3]
+        return weight_shape[0] * weight_shape[1]
+
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
             dilation, layout, out_dtype)
-    elif layout == "NCHW" and \
-            get_const_int(inputs[1].shape[0]) == groups and \
-            get_const_int(inputs[1].shape[1]) == 1:
+    elif layout == "NCHW" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-    elif layout == "NHWC" and \
-            kernel_layout == "HWOI" and\
-            get_const_int(inputs[1].shape[2]) == groups and \
-            get_const_int(inputs[1].shape[3]) == 1:
+    elif layout == "NHWC" and kernel_layout == "HWOI" and _get_out_depth() == groups:
         out = topi.nn.depthwise_conv2d_nhwc(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout in ['NCHW', 'NCHW4c']:
@@ -205,10 +207,24 @@ def alter_op_layout_conv2d(attrs, inputs, tinfos):
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
 @reg.register_legalize("nn.conv2d")
-def legalize_conv2d(attrs, inputs, arg_dtypes):
-    """Legalize conv2d"""
-    from ... import op
-    return topi.nn.conv2d_legalize(attrs, inputs, arg_dtypes, op)
+def legalize_conv2d(attrs, inputs, types):
+    """Legalize conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -375,6 +391,13 @@ def schedule_upsampling(_, outs, target):
     with target:
         return topi.generic.schedule_injective(outs)
 
+@reg.register_compute("nn.upsampling")
+def compute_upsampling(attrs, inputs, out_dtype, target):
+    scale = attrs.scale
+    layout = attrs.layout
+    method = attrs.method
+    align_corners = attrs.align_corners
+    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -525,6 +548,34 @@ reg.register_pattern("nn.contrib_conv2d_NCHWc",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_compute("nn.contrib_conv2d_NCHWc_int8")
+def compute_contrib_conv2d_NCHWc_int8(attrs, inputs, out_dtype, target):
+    """Compute definition of conv2d NCHWc"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    data_layout = attrs.get_str("data_layout")
+    out_layout = attrs.get_str("out_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+
+    out = topi.nn.conv2d_NCHWc_int8(inputs[0], inputs[1], strides, padding, dilation,
+                                    data_layout, out_layout, out_dtype)
+    return [out]
+
+
+@reg.register_schedule("nn.contrib_conv2d_NCHWc_int8")
+def schedule_contrib_conv2d_NCHWc_int8(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_NCHWc_int8"""
+    with target:
+        return topi.generic.schedule_conv2d_NCHWc_int8(outs)
+
+
+reg.register_pattern("nn.contrib_conv2d_NCHWc_int8",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_compute("nn.contrib_depthwise_conv2d_NCHWc")
 def compute_contrib_depthwise_conv2d_NCHWc(attrs, inputs, out_dtype, target):
     """Compute definition of depthwise conv2d NCHWc"""
@@ -577,3 +628,120 @@ def schedule_deformable_conv2d(attrs, outs, target):
 
 
 reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("nn.bitpack")
+def compute_bitpack(attrs, inputs, out_dtype, target):
+    """Compute definition for bitpack"""
+    bits = attrs.bits
+    pack_axis = attrs.pack_axis
+    bit_axis = attrs.bit_axis
+    pack_type = attrs.pack_type
+    name = attrs.name
+    with target:
+        out = topi.nn.bitpack(inputs[0], bits, pack_axis, bit_axis, pack_type,
+                              name)
+    return [out]
+
+@reg.register_schedule("nn.bitpack")
+def schedule_bitpack(attrs, outs, target):
+    with target:
+        return topi.generic.schedule_bitpack(outs)
+
+reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.bitserial_conv2d")
+def compute_bitserial_conv2d(attrs, inputs, out_dtype, target):
+    """Compute definition for bitserial conv2d."""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    activation_bits = attrs.activation_bits
+    weight_bits = attrs.weight_bits
+    layout = attrs.data_layout
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    unipolar = attrs.unipolar
+    if layout == 'NCHW':
+        with target:
+            out = topi.nn.bitserial_conv2d_nchw(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    elif layout == 'NHWC':
+        with target:
+            out = topi.nn.bitserial_conv2d_nhwc(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    else:
+        raise ValueError("Data layout not supported.")
+
+    return [out]
+
+
+@reg.register_schedule("nn.bitserial_conv2d")
+def schedule_bitserial_conv2d(attrs, outs, target):
+    """Schedule definition for bitserial conv2d."""
+    layout = attrs.data_layout
+    if layout == 'NCHW':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nchw(outs)
+    elif layout == 'NHWC':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nhwc(outs)
+    else:
+        raise ValueError("Data layout not supported.")
+
+@reg.register_legalize("nn.bitserial_conv2d")
+def legalize_bitserial_conv2d(attrs, inputs, types):
+    """Legalize bitserial_conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.bitserial_conv2d_legalize(attrs, inputs, types)
+
+
+reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# bitserial_dense
+@reg.register_compute("nn.bitserial_dense")
+def compute_bitserial_dense(attrs, inputs, out_type, target):
+    """Compute definition of bitserial_dense"""
+    data_bits = attrs.data_bits
+    weight_bits = attrs.weight_bits
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    unipolar = attrs.unipolar
+    return [
+        topi.nn.bitserial_dense(
+            inputs[0],
+            inputs[1],
+            data_bits,
+            weight_bits,
+            pack_dtype,
+            out_dtype,
+            unipolar)
+    ]
+
+
+@reg.register_schedule("nn.bitserial_dense")
+def schedule_bitserial_dense(attrs, outputs, target):
+    """Schedule definition of bitserial_dense"""
+    with target:
+        return topi.generic.schedule_bitserial_dense(outputs)
+
+
+reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)

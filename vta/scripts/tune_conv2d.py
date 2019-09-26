@@ -58,22 +58,28 @@ def my_clip(x, a_min, a_max):
     x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
-def conv2d(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype):
+def conv2d(N, CI, H, W, CO, KH, KW, strides, padding, dilation):
     data_shape = (N//env.BATCH, CI//env.BLOCK_IN, H, W, env.BATCH, env.BLOCK_IN)
     kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, KH, KW, env.BLOCK_OUT, env.BLOCK_IN)
     bias_shape = (N//env.BATCH, CO//env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT)
 
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
 
     with tvm.target.vta():
-        res = topi.nn.conv2d(data, kernel, padding=padding, strides=strides, dilation=dilation,
-                             layout='NCHW%dn%dc' % (env.BATCH, env.BLOCK_IN), out_dtype='int32')
+        res = topi.nn.conv2d(
+            input=data,
+            filter=kernel,
+            padding=padding,
+            strides=strides,
+            dilation=dilation,
+            layout='NCHW%dn%dc' % (env.BATCH, env.BLOCK_IN),
+            out_dtype=env.acc_dtype)
+        res = topi.right_shift(res, env.WGT_WIDTH)
         res = topi.add(res, bias)
-        res = topi.right_shift(res, 8)
-        res = my_clip(res, 0, 127)
-        res = topi.cast(res, "int8")
+        res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
+        res = topi.cast(res, env.out_dtype)
 
     if tvm.target.current_target().device_name == 'vta':
         s = topi.generic.schedule_conv2d_nchw([res])
@@ -103,10 +109,9 @@ if __name__ == '__main__':
         exit()
 
     for idx, (wl_name, wl) in enumerate(resnet_wkls):
-
         prefix = "[Task %2d/%2d] " % (idx, len(resnet_wkls))
 
-        # Workload parameters
+        # Read in workload parameters
         N = wl.batch
         CI = wl.in_filter
         H = wl.height
@@ -117,11 +122,14 @@ if __name__ == '__main__':
         strides = (wl.hstride, wl.wstride)
         padding = (wl.hpad, wl.wpad)
         dilation = (1, 1)
-        in_dtype = 'int8'
-        out_dtype = 'int32'
 
-        task = autotvm.task.create(conv2d, args=(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype),
-                target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
+        # Create task
+        task = autotvm.task.create(
+                conv2d,
+                args=(N, CI, H, W, CO, KH, KW, strides, padding, dilation),
+                target=tvm.target.vta(),
+                target_host=env.target_host,
+                template_key='direct')
         print(task.config_space)
 
         # Tune

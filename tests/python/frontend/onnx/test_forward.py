@@ -28,6 +28,7 @@ from nnvm.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto
 import unittest
+import scipy
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
@@ -1083,8 +1084,11 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    shapes = { '0' : input_size }
-    expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
+    for target, ctx in ctx_list():
+        input_data = np.random.uniform(size=input_size).astype('int32')
+        c2_out = get_caffe2_output(onnx_model, input_data)
+        tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
+        tvm.testing.assert_allclose(c2_out, tvm_out)
 
 def test_resnet():
     check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
@@ -1126,6 +1130,119 @@ def test_sign():
                               'float32',
                               'Sign',
                               {})
+
+
+def verify_not(indata, dtype):
+    x = indata.astype(dtype)
+    outdata = np.logical_not(x)
+
+    node = helper.make_node('Not', inputs=['in'], outputs=['out'],)
+
+    graph = helper.make_graph([node],
+                              'not_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.BOOL, list(x.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='not_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_not():
+    # 2d
+    verify_not(indata=(np.random.randn(3, 4) > 0), dtype=bool)
+    # 3d
+    verify_not(indata=(np.random.randn(3, 4, 5) > 0), dtype=bool)
+    # 4d
+    verify_not(indata=(np.random.randn(3, 4, 5, 6) > 0), dtype=bool)
+
+
+def verify_and(indata, dtype):
+    x = indata[0].astype(dtype)
+    y = indata[1].astype(dtype)
+    outdata = np.logical_and(x, y)
+
+    node = helper.make_node('And', inputs=['in1', 'in2'], outputs=['out'], )
+
+    graph = helper.make_graph([node],
+                              'and_test',
+                              inputs=[helper.make_tensor_value_info("in1", TensorProto.BOOL, list(x.shape)),
+                                      helper.make_tensor_value_info("in2", TensorProto.BOOL, list(y.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='and_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x, y], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_and():
+    # 2d
+    x = (np.random.randn(3, 4) > 0)
+    y = (np.random.randn(3, 4) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(3, 4, 5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 4d
+    x = (np.random.randn(3, 4, 5, 6) > 0)
+    y = (np.random.randn(3, 4, 5, 6) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d vs 1d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+    # 3d vs 2d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(4, 5) > 0)
+    verify_and(indata=[x, y], dtype=bool)
+
+
+def verify_tile(indata, outdata, **kwargs):
+    node = helper.make_node('Tile', inputs=['in'], outputs=['out'], **kwargs)
+    graph = helper.make_graph([node],
+                              'tile_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='tile_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_tile():
+    x = np.random.rand(2, 3, 4, 5).astype(np.float32)
+    repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
+    z = np.tile(x, repeats)
+    verify_tile(x, z, repeats=repeats)
+
+def verify_erf(indata, outdata):
+    node = helper.make_node('Erf', inputs=['in'], outputs=['out'])
+    graph = helper.make_graph([node],
+                              'erf_test',
+                              inputs=[helper.make_tensor_value_info('in', TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info('out', TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='erf_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_erf():
+    x = np.random.rand(2, 3, 4, 6).astype(np.float32)
+    z = scipy.special.erf(x)
+    verify_erf(x, z)
+
 
 if __name__ == '__main__':
     test_flatten()
@@ -1170,3 +1287,7 @@ if __name__ == '__main__':
     test_inception()
     test_densenet()
     test_sign()
+    test_not()
+    test_and()
+    test_tile()
+    test_erf()

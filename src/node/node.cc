@@ -47,7 +47,7 @@ struct TypeManager {
 };
 }  // namespace
 
-TVM_DLL const bool Node::_DerivedFrom(uint32_t tid) const {
+TVM_DLL bool Node::_DerivedFrom(uint32_t tid) const {
   static uint32_t tindex = TypeKey2Index(Node::_type_key);
   return tid == tindex;
 }

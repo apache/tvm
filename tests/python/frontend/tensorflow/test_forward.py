@@ -275,6 +275,7 @@ def test_forward_convolution():
         _test_convolution('depthwise', [4, 19, 17, 17], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution('depthwise', [4, 124, 17, 17], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NCHW')
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NCHW')
 
     _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
@@ -284,6 +285,7 @@ def test_forward_convolution():
     _test_convolution('depthwise', [4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC')
 
 #######################################################################
 # BiasAdd
@@ -1212,7 +1214,7 @@ def test_forward_crop_and_resize():
     _test_forward_crop_and_resize([1, 11, 11, 3], [[0, 0, .9, .9]], [0], [5, 5])
     _test_forward_crop_and_resize([1, 11, 11, 3], [[.1, .2, 1, 1]], [0], [5, 5])
     _test_forward_crop_and_resize([1, 21, 21, 3], [[.2, .3, .7, .9]], [0], [3, 4])
-    _test_forward_crop_and_resize([1, 106, 106, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
+    _test_forward_crop_and_resize([1, 41, 41, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
     _test_forward_crop_and_resize([10, 11, 11, 3],
                                   [[0, 0, 0.9, 0.9], [0.2, 0.2, 0.8, 0.8]],
                                   [0, 1],
@@ -1842,6 +1844,24 @@ def test_forward_zeros_like():
         _test_forward_zeros_like((2, 3, 11), "float32")
         _test_forward_zeros_like((2, 3, 11), "float64")
 
+def test_forward_erf():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.math.erf(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Erf:0')
+
+def test_forward_squared_difference():
+    ishape = (1, 3, 10, 14)
+    inp_array_a = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    inp_array_b = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array_a.shape, dtype=inp_array_a.dtype, name="in1")
+        in2 = tf.placeholder(shape=inp_array_b.shape, dtype=inp_array_b.dtype, name="in2")
+        out = tf.math.squared_difference(in1, in2)
+        compare_tf_with_tvm([inp_array_a, inp_array_b], [in1.name, in2.name], out.name)
+
 def _test_forward_reverse_v2(in_shape, axis, dtype):
     np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
     tf.reset_default_graph()
@@ -2158,6 +2178,24 @@ def test_placeholder():
         compare_tf_with_tvm([in_data1, in_data2], ['place1:0', 'in2:0'], 'out2:0',
                             init_global_variables=True)
 
+#######################################################################
+# OneHot
+# ----------------------
+def _test_forward_one_hot(indices_shape, depth, on_value, off_value, axis, out_dtype):
+    inp_array1 = np.random.randint(0, 5, size=indices_shape)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array1.shape, dtype=inp_array1.dtype)
+        out = tf.one_hot(in1, depth, on_value, off_value, axis, dtype=out_dtype)
+        compare_tf_with_tvm(inp_array1, in1.name, out.name)
+
+def test_forward_one_hot():
+    _test_forward_one_hot((3,), 3, 1, 0, -1, "int32")
+    _test_forward_one_hot((3,), 3, 1.0, 0.0, -1, "float32")
+    _test_forward_one_hot((2, 2), 5, 2, -2, 0, "int32")
+    _test_forward_one_hot((2, 2), 5, 0.5, -0.5, 1, "float32")
+    _test_forward_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
+    _test_forward_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
+
 
 #######################################################################
 # Main
@@ -2193,6 +2231,7 @@ if __name__ == '__main__':
     test_forward_right_shift()
     test_forward_left_shift()
     test_forward_truncatemod()
+    test_forward_one_hot()
 
     # Activations
     test_forward_sigmoid()
@@ -2223,6 +2262,8 @@ if __name__ == '__main__':
     test_forward_log_softmax()
     test_forward_bias_add()
     test_forward_zeros_like()
+    test_forward_erf()
+    test_forward_squared_difference()
 
     # Reductions
     test_forward_argminmax()

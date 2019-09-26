@@ -43,8 +43,8 @@ def benchmark_fc_int8_acc16():
         pc = dot_16x1x16_int8_int8_int16()
         ak = tvm.reduce_axis((0, k), name='k')
 
-        packedW = tvm.placeholder((n/128, 128*(k/2), 2), name='packedW', dtype="int8")
-        t_fc = tvm.compute((m, n), lambda i, j: tvm.sum(X[i, ak].astype("int16") * packedW[j/128, (ak/2)*128+j%128, ak%2].astype("int16"), axis=ak), name="F")
+        packedW = tvm.placeholder((n//128, 128*(k//2), 2), name='packedW', dtype="int8")
+        t_fc = tvm.compute((m, n), lambda i, j: tvm.sum(X[i, ak].astype("int16") * packedW[j//128, (ak//2)*128+j%128, ak%2].astype("int16"), axis=ak), name="F")
 
         t_sch = tvm.create_schedule(t_fc.op)
         a_x, a_y = t_fc.op.axis
@@ -66,12 +66,12 @@ def benchmark_fc_int8_acc16():
         a_ = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
         b_ = np.random.uniform(1, 10,  size=(n, k)).astype("int8")
 
-        packW = np.random.uniform(1, 10,  size=(n/128, 128*(k/2), 2)).astype("int8")
+        packW = np.random.uniform(1, 10,  size=(n//128, 128*(k//2), 2)).astype("int8")
         # This occurs in pre_compute stage
-        for r_idx in range(n/128):
-            for s_idx in range(128*(k/2)):
+        for r_idx in range(n//128):
+            for s_idx in range(128*(k//2)):
                 for t_idx in range(2):
-                    packW[r_idx][s_idx][t_idx] = b_[r_idx*128+s_idx%128][s_idx/128*2+t_idx]
+                    packW[r_idx][s_idx][t_idx] = b_[r_idx*128+s_idx%128][s_idx//128*2+t_idx]
 
         x = tvm.nd.array(a_, ctx)
         w = tvm.nd.array(packW, ctx)
@@ -82,7 +82,7 @@ def benchmark_fc_int8_acc16():
         tvm.testing.assert_allclose(
            y.asnumpy(), np.dot(a_, b_.T), rtol=1e-5)
         print('Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}.'.format(result.mean*1000, gops_per_sec, gops_per_sec/peak))
-        t_func.export_library("gemm_tensorize.o")
+        #t_func.export_library("gemm_tensorize.o")
 
     verify()
 

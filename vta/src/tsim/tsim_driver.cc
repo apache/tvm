@@ -22,6 +22,8 @@
 #include <vta/driver.h>
 #include <vta/dpi/module.h>
 
+#include "../vmem/virtual_memory.h"
+
 namespace vta {
 namespace tsim {
 
@@ -114,20 +116,10 @@ class Device {
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,
-          vta_phy_addr_t uop_phy_addr,
-          vta_phy_addr_t inp_phy_addr,
-          vta_phy_addr_t wgt_phy_addr,
-          vta_phy_addr_t acc_phy_addr,
-          vta_phy_addr_t out_phy_addr,
           uint32_t insn_count,
           uint32_t wait_cycles) {
     this->Init();
     this->Launch(insn_phy_addr,
-                 uop_phy_addr,
-                 inp_phy_addr,
-                 wgt_phy_addr,
-                 acc_phy_addr,
-                 out_phy_addr,
                  insn_count,
                  wait_cycles);
     this->WaitForCompletion(wait_cycles);
@@ -141,27 +133,15 @@ class Device {
   }
 
   void Launch(vta_phy_addr_t insn_phy_addr,
-              vta_phy_addr_t uop_phy_addr,
-              vta_phy_addr_t inp_phy_addr,
-              vta_phy_addr_t wgt_phy_addr,
-              vta_phy_addr_t acc_phy_addr,
-              vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
-    dpi_->WriteReg(0x04, 0);
     dpi_->WriteReg(0x08, insn_count);
     dpi_->WriteReg(0x0c, insn_phy_addr);
-    dpi_->WriteReg(0x10, insn_phy_addr >> 32);
+    dpi_->WriteReg(0x10, 0);
     dpi_->WriteReg(0x14, 0);
-    dpi_->WriteReg(0x18, uop_phy_addr >> 32);
+    dpi_->WriteReg(0x18, 0);
     dpi_->WriteReg(0x1c, 0);
-    dpi_->WriteReg(0x20, inp_phy_addr >> 32);
-    dpi_->WriteReg(0x24, 0);
-    dpi_->WriteReg(0x28, wgt_phy_addr >> 32);
-    dpi_->WriteReg(0x2c, 0);
-    dpi_->WriteReg(0x30, acc_phy_addr >> 32);
-    dpi_->WriteReg(0x34, 0);
-    dpi_->WriteReg(0x38, out_phy_addr >> 32);
+    dpi_->WriteReg(0x20, 0);
     // start
     dpi_->WriteReg(0x00, 0x1);
   }
@@ -208,12 +188,13 @@ TVM_REGISTER_GLOBAL("vta.tsim.profiler_status")
 }  // namespace vta
 
 void* VTAMemAlloc(size_t size, int cached) {
-  void *p = malloc(size);
-  return p;
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->Alloc(size);
+  return reinterpret_cast<void*>(vta::vmem::VirtualMemoryManager::Global()->GetPhyAddr(addr));
 }
 
 void VTAMemFree(void* buf) {
-  free(buf);
+  void * addr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(reinterpret_cast<uint64_t>(buf));
+  vta::vmem::VirtualMemoryManager::Global()->Free(addr);
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
@@ -221,11 +202,11 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
-  memcpy(dst, src, size);
+  vta::vmem::VirtualMemoryManager::Global()->MemCopyFromHost(dst, src, size);
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
-  memcpy(dst, src, size);
+  vta::vmem::VirtualMemoryManager::Global()->MemCopyToHost(dst, src, size);
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
@@ -244,20 +225,10 @@ void VTADeviceFree(VTADeviceHandle handle) {
 
 int VTADeviceRun(VTADeviceHandle handle,
                  vta_phy_addr_t insn_phy_addr,
-                 vta_phy_addr_t uop_phy_addr,
-                 vta_phy_addr_t inp_phy_addr,
-                 vta_phy_addr_t wgt_phy_addr,
-                 vta_phy_addr_t acc_phy_addr,
-                 vta_phy_addr_t out_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles) {
   return static_cast<vta::tsim::Device*>(handle)->Run(
       insn_phy_addr,
-      uop_phy_addr,
-      inp_phy_addr,
-      wgt_phy_addr,
-      acc_phy_addr,
-      out_phy_addr,
       insn_count,
       wait_cycles);
 }

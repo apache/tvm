@@ -93,17 +93,38 @@ inline bool WillOverflow<ir::Mod>(int64_t x,
 }
 
 /*!
+ * \brief Peform trunc division of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t truncdiv(int64_t x, int64_t y) {
+  return x / y;
+}
+
+/*!
+ * \brief Compute the truncdiv remainder of two integers.
+ * \param x The left operand.
+ * \param y The right operand.
+ * \return the result.
+ */
+inline int64_t truncmod(int64_t x, int64_t y) {
+  return x % y;
+}
+
+/*!
  * \brief Peform floor division of two integers.
  * \param x The left operand.
  * \param y The right operand.
  * \return the result.
  */
 inline int64_t floordiv(int64_t x, int64_t y) {
-  bool round_down =
-      (x >= 0 && y >= 0) ||
-      (x <= 0 && y <= 0) ||
-      (x % y == 0);
-  return round_down ? (x / y) : (x / y - 1);
+  int64_t rdiv = x / y;
+  int64_t rmod = x % y;
+  bool is_floor_div =
+      (y >= 0 && rmod >= 0) ||
+      (y < 0 && rmod <= 0);
+  return is_floor_div ? rdiv : (rdiv - 1);
 }
 
 
@@ -114,11 +135,11 @@ inline int64_t floordiv(int64_t x, int64_t y) {
  * \return the result.
  */
 inline int64_t floormod(int64_t x, int64_t y) {
-  bool round_down =
-      (x >= 0 && y >= 0) ||
-      (x <= 0 && y <= 0) ||
-      (x % y == 0);
-  return round_down ? (x % y) : (x % y + y);
+  int64_t rmod = x % y;
+  bool is_floor_div =
+      (y >= 0 && rmod >= 0) ||
+      (y < 0 && rmod <= 0);
+  return is_floor_div ? rmod : rmod + y;
 }
 
 }  // namespace arith

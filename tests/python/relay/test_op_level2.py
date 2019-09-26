@@ -105,8 +105,8 @@ def test_conv2d_run():
                         except_targets=None,
                         **attrs):
         if except_targets is None:
-          except_targets = []
-          
+            except_targets = []
+
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
@@ -233,13 +233,13 @@ def test_conv2d_transpose_run():
 def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h*2, w*2), "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
@@ -502,7 +502,7 @@ def test_batch_flatten():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
-def _test_upsampling(layout, method):
+def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
     scale = 2
     dtype = "float32"
@@ -513,15 +513,17 @@ def _test_upsampling(layout, method):
             return (h, w, c), (h*scale, w*scale, c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    if method == "NEAREST_NEIGHBOR":
+    if method == "nearest_neighbor":
         ref = topi.testing.upsampling_python(data, (scale, scale), layout)
     else:
         ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
@@ -532,25 +534,42 @@ def _test_upsampling(layout, method):
 
 
 def test_upsampling():
-    _test_upsampling("NCHW", "NEAREST_NEIGHBOR")
-    _test_upsampling("NCHW", "BILINEAR")
-    _test_upsampling("NHWC", "NEAREST_NEIGHBOR")
-    _test_upsampling("NHWC", "BILINEAR")
+    _test_upsampling("NCHW", "nearest_neighbor")
+    _test_upsampling("NCHW", "bilinear", True)
+    _test_upsampling("NHWC", "nearest_neighbor")
+    _test_upsampling("NHWC", "bilinear", True)
 
 
 def test_conv2d_int8_intrinsics():
-    def _compile(input_dtype, weight_dtype, output_dtype, target):
-        n, ic, h, w, oc, ch, cw = 1, 16, 224, 224, 32, 3, 3
-        x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
-        w = relay.var("w", relay.TensorType((oc, ic, ch, cw), weight_dtype))
+    def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
+        input_dtype, weight_dtype, output_dtype = dtypes
+
+        n, h, w, ch, cw = 1, 64, 64, 3, 3
+        if data_layout == 'NCHW':
+            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+        elif data_layout == 'NHWC':
+            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+        else:
+            raise ValueError('Not supported')
+
+        if kernel_layout == 'OIHW':
+            kernel_shape = (oc, ic, ch, cw)
+        elif kernel_layout == 'HWIO':
+            kernel_shape = (ch, cw, ic, oc)
+        else:
+            raise ValueError('Not supported')
+
+        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
         y = relay.nn.conv2d(x, w,
                             kernel_size=(ch, cw),
                             channels=oc,
                             padding=(1, 1),
                             dilation=(1, 1),
+                            data_layout=data_layout,
+                            kernel_layout=kernel_layout,
                             out_dtype=output_dtype)
         func = relay.Function([x, w], y)
-        wdata = np.random.rand(oc, ic, ch, cw) * 10
+        wdata = np.random.rand(*kernel_shape) * 10
         parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
@@ -562,39 +581,83 @@ def test_conv2d_int8_intrinsics():
     name = "llvm.x86.avx512.pmaddubs.w.512"
     llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
     if llvm_id != 0:
-        # Intel Int8 instruction need uint8 data and int8 kernel
-        asm = _compile(input_dtype="uint8",
-                       weight_dtype="int8",
-                       output_dtype="int32",
-                       target=target)
-        # Check that intrinisic is present in the assembly.
+        fast_int8_dtypes = ('uint8', 'int8', 'int32')
+        # Sweep the input channels to check int8 robustness
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+
+        # Sweep the output channels to check int8 robustness
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        # Check that both non-divisible oc and ic work
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                       dtypes=fast_int8_dtypes)
+        assert "pmaddubs" in asm
+
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=fast_int8_dtypes)
         assert "pmaddubs" in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
-        asm = _compile(input_dtype="int8",
-                       weight_dtype="int8",
-                       output_dtype="int32",
-                       target=target)
+        dtypes = ('int8', 'int8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
         # Check that intrinisic is not present in the assembly.
         assert "pmaddubs" not in asm
 
         # Ensure that code is generated when datatypes are not HW supported.
-        asm = _compile(input_dtype="uint8",
-                       weight_dtype="uint8",
-                       output_dtype="int32",
-                       target=target)
+        dtypes = ('uint8', 'uint8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
         # Check that intrinisic is not present in the assembly.
         assert "pmaddubs" not in asm
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
     target = "llvm -mcpu=core-avx2"
-    asm = _compile(input_dtype="int8",
-                  weight_dtype="int8",
-                  output_dtype="int32",
-                  target=target)
+    fast_int8_dtypes = ('uint8', 'int8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                   dtypes=fast_int8_dtypes)
     # Check that vector int mult and add instructions are generated.
     assert "vpmulld" in asm and "vpadd" in asm
+
+
+def test_bitserial_conv2d_infer_type():
+    # Basic shape test with ambiguous batch.
+    n, c, h, w = tvm.var("n"), 32, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, h, w), "int16"))
+    w = relay.var("w", relay.ty.TensorType((32, 32, 3, 3), "int16"))
+    y = relay.nn.bitserial_conv2d(
+        x, w, kernel_size=(3, 3), padding=(0, 0), channels=32)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 32, 222, 222), "int16")
+
+
+def test_bitpack_infer_type():
+    # Test axis packing shape inference.
+    o, i, h, w = 32, 32, 128, 128
+    x = relay.var("x", relay.ty.TensorType((o, i, h, w), "int16"))
+    y = relay.nn.bitpack(x, bit_axis=4, pack_axis=1, pack_type='uint16', bits=1)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (32, 2, 128, 128, 1), "uint16")
 
 
 if __name__ == "__main__":
@@ -603,6 +666,7 @@ if __name__ == "__main__":
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
+    test_bitpack_infer_type()
     test_upsampling_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
@@ -610,6 +674,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
+    test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
     test_conv2d_int8_intrinsics()

@@ -425,7 +425,7 @@ def _test_upsample_bilinear():
     y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW", align_corners=False)
 
     graph = helper.make_graph([y],
                               'upsample_bilinear_test',
@@ -445,7 +445,7 @@ def _test_upsample_bilinear_opset9():
     y = helper.make_node("Upsample", ['in','scales'], ['out'], mode='linear')
     scales=[1.0, 1.0, 2.0, 2.0]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW", align_corners=False)
 
     ref_array = np.array(scales)
     ref_node = helper.make_node('Constant',

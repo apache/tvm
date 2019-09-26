@@ -75,7 +75,8 @@ class VTAMemDPI extends BlackBox with HasBlackBoxResource {
   setResource("/verilog/VTAMemDPI.v")
 }
 
-class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAMemDPIMaster
     val axi = new AXIClient(p(ShellKey).memParams)
@@ -83,56 +84,57 @@ class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val opcode = RegInit(false.B)
   val len = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.len)))
   val addr = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.addr)))
-  val sIdle :: sReadAddress :: sReadData :: sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(6)
+  val sIdle :: sReadAddress :: sReadData :: sWriteAddress :: sWriteData :: sWriteResponse :: Nil =
+    Enum(6)
   val state = RegInit(sIdle)
 
-  switch (state) {
-    is (sIdle) {
-      when (io.axi.ar.valid) {
+  switch(state) {
+    is(sIdle) {
+      when(io.axi.ar.valid) {
         state := sReadAddress
-      } .elsewhen (io.axi.aw.valid) {
+      }.elsewhen(io.axi.aw.valid) {
         state := sWriteAddress
       }
     }
-    is (sReadAddress) {
-      when (io.axi.ar.valid) {
+    is(sReadAddress) {
+      when(io.axi.ar.valid) {
         state := sReadData
       }
     }
-    is (sReadData) {
-      when (io.axi.r.ready && io.dpi.rd.valid && len === 0.U) {
+    is(sReadData) {
+      when(io.axi.r.ready && io.dpi.rd.valid && len === 0.U) {
         state := sIdle
       }
     }
-    is (sWriteAddress) {
-      when (io.axi.aw.valid) {
+    is(sWriteAddress) {
+      when(io.axi.aw.valid) {
         state := sWriteData
       }
     }
-    is (sWriteData) {
-      when (io.axi.w.valid && io.axi.w.bits.last) {
+    is(sWriteData) {
+      when(io.axi.w.valid && io.axi.w.bits.last) {
         state := sWriteResponse
       }
     }
-    is (sWriteResponse) {
-      when (io.axi.b.ready) {
+    is(sWriteResponse) {
+      when(io.axi.b.ready) {
         state := sIdle
       }
     }
   }
 
-  when (state === sIdle) {
-    when (io.axi.ar.valid) {
+  when(state === sIdle) {
+    when(io.axi.ar.valid) {
       opcode := false.B
       len := io.axi.ar.bits.len
       addr := io.axi.ar.bits.addr
-    } .elsewhen (io.axi.aw.valid) {
+    }.elsewhen(io.axi.aw.valid) {
       opcode := true.B
       len := io.axi.aw.bits.len
       addr := io.axi.aw.bits.addr
     }
-  } .elsewhen (state === sReadData) {
-    when (io.axi.r.ready && io.dpi.rd.valid && len =/= 0.U) {
+  }.elsewhen(state === sReadData) {
+    when(io.axi.r.ready && io.dpi.rd.valid && len =/= 0.U) {
       len := len - 1.U
     }
   }
@@ -163,9 +165,21 @@ class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Mod
   io.axi.b.bits.id := 0.U
 
   if (debug) {
-    when (state === sReadAddress && io.axi.ar.valid) { printf("[VTAMemDPIToAXI] [AR] addr:%x len:%x\n", addr, len) }
-    when (state === sWriteAddress && io.axi.aw.valid) { printf("[VTAMemDPIToAXI] [AW] addr:%x len:%x\n", addr, len) }
-    when (io.axi.r.fire()) { printf("[VTAMemDPIToAXI] [R] last:%x data:%x\n", io.axi.r.bits.last, io.axi.r.bits.data) }
-    when (io.axi.w.fire()) { printf("[VTAMemDPIToAXI] [W] last:%x data:%x\n", io.axi.w.bits.last, io.axi.w.bits.data) }
+    when(state === sReadAddress && io.axi.ar.valid) {
+      printf("[VTAMemDPIToAXI] [AR] addr:%x len:%x\n", addr, len)
+    }
+    when(state === sWriteAddress && io.axi.aw.valid) {
+      printf("[VTAMemDPIToAXI] [AW] addr:%x len:%x\n", addr, len)
+    }
+    when(io.axi.r.fire()) {
+      printf("[VTAMemDPIToAXI] [R] last:%x data:%x\n",
+             io.axi.r.bits.last,
+             io.axi.r.bits.data)
+    }
+    when(io.axi.w.fire()) {
+      printf("[VTAMemDPIToAXI] [W] last:%x data:%x\n",
+             io.axi.w.bits.last,
+             io.axi.w.bits.data)
+    }
   }
 }

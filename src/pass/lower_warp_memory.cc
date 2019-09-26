@@ -264,14 +264,15 @@ class WarpAccessRewriter : protected IRMutator {
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
-      Expr x = analyzer_->canonical_simplify(index % m);
-      Expr z = analyzer_->canonical_simplify(index / m);
+      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
+      Expr z = analyzer_->canonical_simplify(indexdiv(index, m));
       return std::make_pair(x, z);
     } else {
-      Expr x = analyzer_->canonical_simplify(index % m);
+      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
       Expr y = index / make_const(index.type(), warp_coeff_ * warp_size_);
       y = y * m + x;
-      Expr z = index % make_const(index.type(), warp_coeff_ * warp_size_) / m;
+      Expr z = indexdiv(indexmod(index, make_const(index.type(), warp_coeff_ * warp_size_)),
+                        m);
       return std::make_pair(analyzer_->canonical_simplify(y),
                             analyzer_->canonical_simplify(z));
     }

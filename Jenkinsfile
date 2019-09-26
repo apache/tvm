@@ -147,6 +147,7 @@ stage('Build') {
            echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(USE_BLAS openblas\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
@@ -164,6 +165,7 @@ stage('Build') {
            echo set\\(USE_VULKAN ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER clang-7\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
@@ -182,6 +184,7 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
@@ -193,7 +196,6 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
@@ -213,6 +215,7 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake

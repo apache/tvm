@@ -222,6 +222,8 @@ class ConvTranspose(OnnxOpConverter):
 
 
 class Div(Elemwise):
+    """ Operator converter for Divide.
+    """
     name = 'divide'
 
 
@@ -307,6 +309,8 @@ class MaxPool(Pool):
             custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
+    """ Operator converter for Multiply.
+    """
     name = 'multiply'
 
 
@@ -495,6 +499,8 @@ class Softsign(OnnxOpConverter):
 
 
 class Sub(Elemwise):
+    """ Operator converter for Subtract.
+    """
     name = 'subtract'
 
 
@@ -559,13 +565,13 @@ class Upsample(OnnxOpConverter):
         assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
         mode = attr.get('mode')
         if mode == b'nearest':
-            method = "NEAREST_NEIGHBOR"
+            method = "nearest_neighbor"
         elif mode == b'linear':
-            method = "BILINEAR"
+            method = "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW'}
+        attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW', 'align_corners':True}
         return AttrCvt('upsampling')(inputs, attr)
 
 
@@ -768,27 +774,27 @@ class Reduce(OnnxOpConverter):
         return AttrCvt(cls.name)(inputs, attr)
 
 class ReduceMax(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMax.
     """
     name = 'max'
 
 class ReduceMin(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMin.
     """
     name = 'min'
 
 class ReduceSum(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceSum.
     """
     name = 'sum'
 
 class ReduceMean(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceMean.
     """
     name = 'mean'
 
 class ReduceProd(Reduce):
-    """ Operator converter for ArgMax.
+    """ Operator converter for ReduceProd.
     """
     name = 'prod'
 
@@ -861,6 +867,42 @@ class Equal(Elemwise):
     """ Operator converter for Equal.
     """
     name = 'equal'
+
+
+class Not(Elemwise):
+    """ Operator converter for Not.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.logical_not(inputs[0])
+
+
+class And(Elemwise):
+    """ Operator converter for And.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.logical_and(inputs[0], inputs[1])
+
+
+class Tile(Elemwise):
+    """Operator converter for Tile
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'repeats' not in attr:
+            raise tvm.error.OpAttributeInvalid('Attribute "repeats" should be set '
+                                               'for operator Tile.')
+        reps = attr.pop('repeats')  # The number of times repeating the tensor data.
+        return _op.tile(inputs[0], reps)
+
+class Erf(OnnxOpConverter):
+    """Operator converter for Erf
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.erf(inputs[0])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -977,7 +1019,11 @@ def _get_convert_map(opset):
         'Pad': Pad.get_converter(opset),
         'Shape': Shape.get_converter(opset),
         'Sign': Sign.get_converter(opset),
-        'Equal': Equal.get_converter(opset)
+        'Equal': Equal.get_converter(opset),
+        'Not': Not.get_converter(opset),
+        'And': And.get_converter(opset),
+        'Tile': Tile.get_converter(opset),
+        'Erf': Erf.get_converter(opset)
     }
 
 

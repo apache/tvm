@@ -471,6 +471,11 @@ class IntSetAnalyzer {
  */
 class Analyzer {
  public:
+  /*
+   * Disable copy constructor.
+   */
+  Analyzer(const Analyzer&) = delete;
+  Analyzer& operator=(const Analyzer&) = delete;
   /*! \brief sub-analyzer: const integer bound */
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */

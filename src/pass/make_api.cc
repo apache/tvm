@@ -102,6 +102,10 @@ LoweredFunc MakeAPI(Stmt body,
     seq_init.emplace_back(
         MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
+
+  // Save the input variables and buffers that will be bound later.
+  std::vector<std::pair<Var, Var> > var_defs;
+  std::vector<std::pair<Buffer, Var> > buf_defs;
   for (int i = 0; i < static_cast<int>(api_args.size()); ++i) {
     Var v_arg = f_arg_decl(i);
     if (i < num_packed_args) {
@@ -139,15 +143,29 @@ LoweredFunc MakeAPI(Stmt body,
     }
     // add checks for functions.
     if (api_args[i].as<Variable>()) {
-      binder.Bind(Var(api_args[i].node_), v_arg, v_arg->name_hint, true);
+      var_defs.emplace_back(std::make_pair(Var(api_args[i].node_), v_arg));
     } else {
       // Buffer checks
       CHECK(api_args[i].as<BufferNode>())
           << "api_args can only be Buffer or Var";
-      Buffer buf(api_args[i].node_);
-      binder.BindDLTensor(
-          buf, device_type, device_id, v_arg, v_arg->name_hint);
+      buf_defs.emplace_back(std::make_pair(Buffer(api_args[i].node_), v_arg));
     }
+  }
+
+  // Arg definitions are defined before buffer binding to avoid the use before
+  // def errors.
+  //
+  // For example, for auto broadcasting, checks are required to guarantee that
+  // either 0 or the original stride will be correctly used. Checks here have
+  // to use the args that may have no let bining yet. Therefore, hoisting let
+  // binding for args before buffer declaration is needed.
+  for (const auto& arg : var_defs) {
+    binder.Bind(arg.first, arg.second, arg.second->name_hint, true);
+  }
+
+  for (const auto& buf_arg : buf_defs) {
+    binder.BindDLTensor(buf_arg.first, device_type, device_id,
+                        buf_arg.second, buf_arg.second->name_hint);
   }
 
   NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();

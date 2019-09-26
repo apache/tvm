@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -55,8 +55,8 @@ bool YoloReorgRel(const Array<Type>& types,
   CHECK(data->shape.size() == 4) << "Yolo reorg supports only 4 dimension.";
   std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
   oshape[1] = oshape[1] * param->stride * param->stride;
-  oshape[2] = oshape[2] / param->stride;
-  oshape[3] = oshape[3] / param->stride;
+  oshape[2] = indexdiv(oshape[2], param->stride);
+  oshape[3] = indexdiv(oshape[3], param->stride);
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }

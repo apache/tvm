@@ -73,18 +73,18 @@ inline Tensor pool_impl(const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = kernel_size[0];
-  auto kernel_width = kernel_size[1];
-  auto stride_height = stride_size[0];
-  auto stride_width = stride_size[1];
+  auto kernel_height = cast(Int(32), kernel_size[0]);
+  auto kernel_width = cast(Int(32), kernel_size[1]);
+  auto stride_height = cast(Int(32), stride_size[0]);
+  auto stride_width = cast(Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = padding_size[0];
-  auto pad_left = padding_size[1];
-  auto pad_bottom = padding_size[2];
-  auto pad_right = padding_size[3];
+  auto pad_top = cast(Int(32), padding_size[0]);
+  auto pad_left = cast(Int(32), padding_size[1]);
+  auto pad_bottom = cast(Int(32), padding_size[2]);
+  auto pad_right = cast(Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -102,9 +102,9 @@ inline Tensor pool_impl(const Tensor& x,
   pad_after.Set(width_axis, pad_right);
 
   auto out_height = tvm::ir::Simplify(
-    (height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
+      indexdiv(height - kernel_height + pad_top + pad_bottom, stride_height) + 1);
   auto out_width = tvm::ir::Simplify(
-    (width - kernel_width + pad_left + pad_right) / stride_width + 1);
+      indexdiv(width - kernel_width + pad_left + pad_right, stride_width) + 1);
 
   auto dheight = tvm::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
@@ -149,7 +149,7 @@ inline Tensor pool_impl(const Tensor& x,
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
       if (count_include_pad) {
-        return pool_sum(indices) / (kernel_height * kernel_width);
+        return div(pool_sum(indices), (kernel_height * kernel_width));
       } else {
         Expr h_start = output[height_axis] * stride_height - pad_top;
         Expr w_start = output[width_axis] * stride_width - pad_left;
@@ -159,7 +159,7 @@ inline Tensor pool_impl(const Tensor& x,
         w_start = ir::Max::make(w_start, make_const(Int(32), 0));
         Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
                                            make_const(Int(32), 1));
-        return pool_sum(indices) / divide_factor;
+        return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);
   } else {
@@ -179,18 +179,18 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = kernel_size[0];
-  auto kernel_width = kernel_size[1];
-  auto stride_height = stride_size[0];
-  auto stride_width = stride_size[1];
+  auto kernel_height = cast(Int(32), kernel_size[0]);
+  auto kernel_width = cast(Int(32), kernel_size[1]);
+  auto stride_height = cast(Int(32), stride_size[0]);
+  auto stride_width = cast(Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = padding_size[0];
-  auto pad_left = padding_size[1];
-  auto pad_bottom = padding_size[2];
-  auto pad_right = padding_size[3];
+  auto pad_top = cast(Int(32), padding_size[0]);
+  auto pad_left = cast(Int(32), padding_size[1]);
+  auto pad_bottom = cast(Int(32), padding_size[2]);
+  auto pad_right = cast(Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -439,14 +439,14 @@ inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x, const Array<Exp
 inline Expr start_index(const Var& out_index,
                         const Expr& odim,
                         const Expr& idim) {
-  return out_index * idim / odim;
+  return indexdiv(out_index * idim, odim);
 }
 
 inline Expr end_index(const Var& out_index,
                       const Expr& odim,
                       const Expr& idim) {
-  Expr tmp = (out_index + 1) * idim / odim;
-  return tvm::ir::Select::make((out_index + 1) * idim % odim == 0,
+  Expr tmp = indexdiv((out_index + 1) * idim, odim);
+  return tvm::ir::Select::make(indexmod((out_index + 1) * idim, odim) == 0,
                                tmp, tmp + 1);
 }
 
@@ -471,8 +471,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto out_height = output_size[0];
-  auto out_width = output_size[1];
+  auto out_height = cast(Int(32), output_size[0]);
+  auto out_width = cast(Int(32), output_size[1]);
   Array<Expr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
@@ -505,7 +505,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
       indices.Set(height_axis, i_start_h + dheight);
       indices.Set(width_axis, i_start_w + dwidth);
-      return tvm::sum(x(indices) / divide_factor, { dheight, dwidth });
+      return tvm::sum(div(x(indices), divide_factor), { dheight, dwidth });
     }, "tensor", "adaptive_pool_avg");
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;

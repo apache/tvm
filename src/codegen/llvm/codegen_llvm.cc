@@ -423,8 +423,13 @@ void CodeGenLLVM::GetAlignment(Type t,
 
 std::unique_ptr<CodeGenLLVM::DebugInfo>
 CodeGenLLVM::CreateDebugInfo(llvm::Module* module) {
+#if TVM_LLVM_VERSION >= 100
+  auto debug_info = std::make_unique<CodeGenLLVM::DebugInfo>();
+  debug_info->di_builder_ = std::make_unique<llvm::DIBuilder>(*module);
+#else
   auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
+#endif
   // TODO(tulloch): pass this information through relay::Span classes to the LoweredFunc instance?
   debug_info->file_ = debug_info->di_builder_->createFile("model.tvm", "/tmp/");
   debug_info->compilation_unit_ = debug_info->di_builder_->createCompileUnit(
@@ -741,6 +746,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(Call::reinterpret)) {
     llvm::Type * target = LLVMType(op->type);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+  } else if (op->is_intrinsic(Call::isnan)) {
+    // TODO(hgt312): set fast math flag
+    llvm::Value* a = MakeValue(op->args[0]);
+    return builder_->CreateFCmpUNO(a, a);
   } else if (op->is_intrinsic("vectorlow")) {
     llvm::Value *v = MakeValue(op->args[0]);
     int l = v->getType()->getVectorNumElements();

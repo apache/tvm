@@ -70,7 +70,6 @@ struct TVMOpParam {
 class GraphRuntime : public ModuleNode {
   struct OpArgs {
     std::vector<DLTensor> args;
-    std::unordered_map<uint32_t, std::vector<uint32_t> > input_entry_ids;
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
@@ -399,6 +398,10 @@ class GraphRuntime : public ModuleNode {
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
+  /*! \brief Map of input names to input indices. */
+  std::unordered_map<std::string, uint32_t> input_map_;
+  /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
+  std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */
@@ -417,8 +420,6 @@ class GraphRuntime : public ModuleNode {
   std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
-  /*! \brief Arg info of TVM ops */
-  std::vector<std::shared_ptr<OpArgs> > op_args_;
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args);

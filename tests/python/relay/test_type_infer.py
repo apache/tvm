@@ -19,6 +19,7 @@
 """
 from tvm import relay
 from tvm.relay import op, transform, analysis
+from tvm.relay.analysis import assert_alpha_equal
 
 
 def run_infer_type(expr, mod=None):
@@ -349,6 +350,17 @@ def test_adt_match_type_annotations():
     assert ft.checked_type == relay.FuncType([tt], relay.TupleType([]))
 
 
+def test_let_polymorphism():
+    id = relay.Var("id")
+    xt = relay.TypeVar("xt")
+    x = relay.Var("x", xt)
+    body = relay.Tuple([id(relay.const(1)), id(relay.Tuple([]))])
+    body = relay.Let(id, relay.Function([x], x, xt, [xt]), body)
+    body = run_infer_type(body)
+    int32 = relay.TensorType((), "int32")
+    assert_alpha_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
+
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -366,3 +378,4 @@ if __name__ == "__main__":
     test_constructor_type()
     test_constructor_call()
     test_adt_match()
+    test_let_polymorphism()

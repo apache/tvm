@@ -26,6 +26,7 @@ from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
+from .common import infer_shape as _infer_shape
 
 __all__ = ['from_tflite']
 
@@ -73,6 +74,7 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
+            'GREATER': self.convert_greater,
             'REDUCE_MIN': self._convert_reduce_min,
             'REDUCE_MAX': self._convert_reduce_max,
             'MEAN': self._convert_reduce_mean,
@@ -81,7 +83,12 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
-            'SPLIT': self.convert_split
+            'TANH':self.convert_tanh,
+            'SPLIT': self.convert_split,
+            'TRANSPOSE': self.convert_transpose,
+            'TILE': self.convert_tile,
+            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd
         }
 
     def check_unsupported_ops(self):
@@ -261,7 +268,7 @@ class OperatorConverter(object):
         # Options - align_corners (bool)
         resize_options = None
         align_corners = False
-        if method == "BILINEAR":
+        if method == "bilinear":
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
@@ -279,11 +286,11 @@ class OperatorConverter(object):
 
     def convert_resize_bilinear(self, op):
         """Convert TFLite RESIZE_BILINEAR"""
-        return self._convert_resize("BILINEAR", op)
+        return self._convert_resize("bilinear", op)
 
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
-        return self._convert_resize("NEAREST_NEIGHBOR", op)
+        return self._convert_resize("nearest_neighbor", op)
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
@@ -318,6 +325,23 @@ class OperatorConverter(object):
         params = {'axis': 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.nn.softmax(in_expr, **params)
+
+        return out
+
+    def convert_tanh(self, op):
+        """Convert TFLite TANH"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.tanh(in_expr)
 
         return out
 
@@ -432,6 +456,9 @@ class OperatorConverter(object):
 
     def convert_minimum(self, op):
         return self._convert_elemwise(_op.minimum, op)
+
+    def convert_greater(self, op):
+        return self._convert_elemwise(_op.greater, op)
 
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
@@ -621,8 +648,6 @@ class OperatorConverter(object):
             conv_options = DepthwiseConv2DOptions()
             conv_options.Init(op_options.Bytes, op_options.Pos)
             depth_multiplier = conv_options.DepthMultiplier()
-            assert depth_multiplier == 1, "TF frontend transforms it to be 1 regardless of what " \
-                                          "original value is set to 0.25, 0.5 or anything else"
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(conv_type))
@@ -634,11 +659,13 @@ class OperatorConverter(object):
         padding = conv_options.Padding()
         fused_activation_fn = conv_options.FusedActivationFunction()
 
-        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, input_c = input_tensor.tensor.ShapeAsNumpy()
 
         if is_depthwise_conv:
-            multiplier, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
-            assert multiplier == depth_multiplier
+            # TFLite depthwise convolution kernel layout is:
+            # 1 KH KW C(input_c * depth_multiplier)
+            _, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
+            assert in_channels == input_c * depth_multiplier
         else:
             output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
 
@@ -652,7 +679,7 @@ class OperatorConverter(object):
                   'data_layout': 'NHWC'}
 
         if is_depthwise_conv:
-            params['channels'] = int(in_channels * multiplier)
+            params['channels'] = int(in_channels)
             params['groups'] = int(in_channels)
             params['kernel_layout'] = 'HWOI'
         else:
@@ -667,9 +694,16 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         weight_value = self.get_tensor_value(weight_tensor)
 
-        # TFLite is OC/M KH KW IC, we require KH KW IC OC/M
-        # M means multiplier in depthwise convolution
-        weight_value = weight_value.transpose((1, 2, 3, 0))
+        # TFLite kernel layout:
+        # convolution:
+        # OC KH KW IC, we require KH KW IC OC (HWIO)
+        # depthwise convolution:
+        # 1 KH KW C(input_c * depth_multiplier), we require
+        # KH KW IC M (depth_multiplier) (HWOI)
+        if is_depthwise_conv:
+            weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+        else:
+            weight_value = weight_value.transpose((1, 2, 3, 0))
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
@@ -740,6 +774,53 @@ class OperatorConverter(object):
         if isinstance(out, _expr.TupleWrapper):
             if out.size == 1:
                 out = out[0]
+
+        return out
+
+    def convert_transpose(self, op):
+        """transpose implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # axis
+        in_axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        if not in_axis:
+            out = _op.transpose(in_expr)
+        else:
+            out = _op.transpose(in_expr, in_axis)
+
+        return out
+
+    def convert_tile(self, op):
+        """tile implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        in_expr = self.get_expr(input_tensor_idx)
+
+        # reps (tuple of int) – The number of times repeating the tensor data.
+        reps = tuple(self.get_tensor_value(input_tensors[1]))
+
+        out = _op.tile(in_expr, reps)
 
         return out
 
@@ -854,6 +935,116 @@ class OperatorConverter(object):
         in_exprs_reshaped = [_op.expand_dims(i, axis=pack_axis, num_newaxis=1) for i in in_exprs]
         out = _op.concatenate(in_exprs_reshaped, pack_axis)
         return out
+
+    def convert_batch_to_space_nd(self, op):
+        """batch_to_space_nd implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        input_shape = list(input_tensor.tensor.ShapeAsNumpy())
+        batch = input_shape[0]
+
+        block_shape = list(self.get_tensor_value(input_tensors[1]))
+        M = len(block_shape)
+
+        crops = list(self.get_tensor_value(input_tensors[2]))
+
+        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d:
+        # Reshape input to reshaped of shape
+        shape1 = block_shape + [batch // np.prod(block_shape)] + input_shape[1:]
+        reshaped = _op.reshape(in_expr, newshape=shape1)
+
+        # Permute dimensions of reshaped to produce permuted of shape
+        axes = [M] + [axis for i in range(M) for axis in [M + i + 1, i]] + \
+            list(range(2 * M + 1, len(shape1)))
+        permuted = _op.transpose(reshaped, axes=axes)
+
+        # Reshape permuted to produce reshaped_permuted of shape
+        shape2 = [0] + [-3] * M + [-2]
+        reshaped_permuted = _op.reshape(permuted, newshape=shape2)
+
+        # Crop the start and end of dimensions [1, ..., M] of reshaped_permuted according to crops
+        # to produce the output of shape:
+        reshaped_permuted_shape = _infer_shape(reshaped_permuted)
+        cropped = reshaped_permuted
+        for axis in range(1, M + 1):
+            crop = crops[axis - 1]
+            if (crop != [0, 0]).all():
+                indices = _op.arange(
+                    _expr.const(crop[0]),
+                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
+                    dtype='int32'
+                )
+                cropped = _op.take(cropped, indices=indices, axis=axis)
+
+        return cropped
+
+    def convert_space_to_batch_nd(self, op):
+        """space_to_batch_nd implementation."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        input_shape = list(input_tensor.tensor.ShapeAsNumpy())
+        batch = input_shape[0]
+        N = len(input_shape)
+
+        block_shape = list(self.get_tensor_value(input_tensors[1]))
+        M = len(block_shape)
+
+        paddings = list(self.get_tensor_value(input_tensors[2]))
+
+        # From https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd:
+        # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
+        # to produce padded of shape padded_shape.
+        remaining_shape_length = N - M - 1
+        padded_list = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
+
+        padded_shape = []
+        for element in padded_list:
+            if isinstance(element, np.ndarray):
+                element = element.tolist()
+
+            padded_shape.append(element)
+
+        padded_shape = tuple(padded_shape)
+        padded = _op.nn.pad(in_expr, pad_width=tuple(padded_shape))
+
+        # Reshape padded to reshaped_padded of shape:
+        shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
+        reshaped_padded = _op.reshape(padded, newshape=shape1)
+
+        # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
+        axes = [2 * i + 2 for i in range(M)] + [0] + [2 * i + 1 for i in range(M)] + \
+            list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
+        permuted_reshaped_padded = _op.transpose(reshaped_padded, axes=axes)
+        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
+
+        # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
+        # producing an output tensor of shape:
+        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1:]
+        reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
+
+        return reshaped_permuted_reshaped_padded
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))

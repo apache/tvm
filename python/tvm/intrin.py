@@ -211,6 +211,22 @@ def exp(x):
     return call_pure_intrin(x.dtype, "exp", x)
 
 
+def erf(x):
+    """Take gauss error function of the input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "erf", x)
+
+
 def tanh(x):
     """Take hyperbolic tanh of input x.
 
@@ -287,6 +303,21 @@ def sin(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "sin", x)
+
+def atan(x):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "atan", x)
 
 def sqrt(x):
     """Take square root of input x.
@@ -403,6 +434,45 @@ def round(x):
     return _make.round(x)
 
 
+def nearbyint(x):
+    """Round elements of the array to the nearest integer.
+    This intrinsic uses llvm.nearbyint instead of llvm.round
+    which is faster but will results different from tvm.round.
+    Notably nearbyint rounds according to the rounding mode,
+    whereas tvm.round (llvm.round) ignores that.
+    For differences between the two see:
+    https://en.cppreference.com/w/cpp/numeric/math/round
+    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.nearbyint(x)
+
+
+def isnan(x):
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.isnan(x)
+
+
 def power(x, y):
     """x power y
 
@@ -419,7 +489,7 @@ def power(x, y):
     z : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "pow", x, y)
+    return _make._OpPow(convert(x), convert(y))
 
 
 def popcount(x):
@@ -482,12 +552,7 @@ def if_then_else(cond, t, f):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    t = convert(t)
-    f = convert(f)
-    cond = convert(cond)
-    if cond.dtype != "bool":
-        raise TypeError("The condition's data type has to be bool")
-    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+    return _make._OpIfThenElse(convert(cond), convert(t), convert(f))
 
 
 # Intrinsic rule related code

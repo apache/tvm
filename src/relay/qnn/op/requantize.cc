@@ -109,7 +109,7 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplie
  *       7) Cast to the out_dtype.
  */
 Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
-                     const Array<IndexExpr>& input_shape) {
+                     const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
   double double_multiplier = param->input_scale / param->output_scale;
 
   // Choose high precision datatype to be int64. This is for avoiding overflow
@@ -129,54 +129,61 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
     tensor = Subtract(tensor, input_zp);
   }
 
-  // 3) Multiply the integer multiplier
-  if (left_shift != 0) {
-    tensor = Multiply(tensor, MakeConstantScalar(hp_dtype, 1 << left_shift));
+  // If the input and output scales are same, we can skip the fixed point multiplication.
+  auto scaled_int64_t = tensor;
+  if (param->input_scale != param->output_scale) {
+    // 3) Multiply the integer multiplier
+    if (left_shift != 0) {
+      tensor = Multiply(tensor, MakeConstantScalar(hp_dtype, 1 << left_shift));
+    }
+    // Perform the multiplication in higher precision.
+    // The scalar is a fixed point value of int32 where the decimal point is
+    // between bits 31 and 30. After multiplying with input_tensor, the result is
+    // in int64 where the decimal point is sitting between bits 31 and 30 (from
+    // the right, rightmost bit is bit 0). The computation is performed in higher
+    // precision to avoid overflow in multiplying two int32 values.
+    Expr scalar = MakeConstantScalar(hp_dtype, fixed_point_multiplier);
+    auto multiplied_t = Multiply(tensor, scalar);
+
+    // 4) Find the rounding scalar. This depends on where the final decimal point
+    // sits. As we will be right shifting the multiplied_t, we need to first
+    // calculate the total_right_shift.
+    int total_right_shift = right_shift + 31;
+    int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
+
+    tensor = multiplied_t;
+    Expr round_scalar;
+    if (param->rounding == "UPWARD") {
+      round_scalar = MakeConstantScalar(hp_dtype, pos_rounding_value);
+    } else if (param->rounding == "TONEAREST") {
+      auto pos_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value);
+      auto neg_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value - 1);
+      auto pos_rounder_t = Full(pos_rounder, input_shape, hp_dtype);
+      auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
+
+      auto zero = MakeConstantScalar(hp_dtype, 0);
+      auto zero_t = Full(zero, input_shape, hp_dtype);
+      round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
+    }
+    // Add the rounding scalar.
+    tensor = Add(tensor, round_scalar);
+
+    // 5) Simply right shift the result to get the final output.
+    scaled_int64_t = RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
   }
-  // Perform the multiplication in higher precision.
-  // The scalar is a fixed point value of int32 where the decimal point is
-  // between bits 31 and 30. After multiplying with input_tensor, the result is
-  // in int64 where the decimal point is sitting between bits 31 and 30 (from
-  // the right, rightmost bit is bit 0). The computation is performed in higher
-  // precision to avoid overflow in multiplying two int32 values.
-  Expr scalar = MakeConstantScalar(hp_dtype, fixed_point_multiplier);
-  auto multiplied_t = Multiply(tensor, scalar);
-
-  // 4) Find the rounding scalar. This depends on where the final decimal point
-  // sits. As we will be right shifting the multiplied_t, we need to first
-  // calculate the total_right_shift.
-  int total_right_shift = right_shift + 31;
-  int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
-
-  tensor = multiplied_t;
-  Expr round_scalar;
-  if (param->rounding == "UPWARD") {
-    round_scalar = MakeConstantScalar(hp_dtype, pos_rounding_value);
-  } else if (param->rounding == "TONEAREST") {
-    auto pos_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value);
-    auto neg_rounder = MakeConstantScalar(hp_dtype, pos_rounding_value - 1);
-    auto pos_rounder_t = Full(pos_rounder, input_shape, hp_dtype);
-    auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
-
-    auto zero = MakeConstantScalar(hp_dtype, 0);
-    auto zero_t = Full(zero, input_shape, hp_dtype);
-    round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
-  }
-  // Add the rounding scalar.
-  tensor = Add(tensor, round_scalar);
-
-  // 5) Simply right shift the result to get the final output.
-  auto scaled_int64_t = RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
 
   // 6) Add the output zero point.
-  auto output_zp = MakeConstantScalar(hp_dtype, param->output_zero_point);
-  auto shifted_int64_t = Add(output_zp, scaled_int64_t);
+  auto shifted_int64_t = scaled_int64_t;
+  if (param->output_zero_point != 0) {
+    auto output_zp = MakeConstantScalar(hp_dtype, param->output_zero_point);
+    shifted_int64_t = Add(output_zp, scaled_int64_t);
+  }
 
   // 7) Clip to the out_dtype min/max.
-  auto q_min = GetQmin(param->out_dtype);
-  auto q_max = GetQmax(param->out_dtype);
+  auto q_min = GetQmin(out_dtype);
+  auto q_max = GetQmax(out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
-  return Cast(clipped_t, param->out_dtype);
+  return Cast(clipped_t, out_dtype);
 }
 
 /*
@@ -192,26 +199,33 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
  *
  * Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
  */
-Expr RequantizeLegalize(const Attrs& attrs, const Array<Expr>& new_args,
-                        const Array<tvm::relay::Type>& arg_types) {
+Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
+                               const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& quantized_data = new_args[0];
   const auto* param = attrs.as<RequantizeAttrs>();
   CHECK(param != nullptr);
 
   // Find input shape.
-  CHECK_EQ(arg_types.size(), 1);
-  auto input_dtype = arg_types[0];
-  auto input_tensor_type = input_dtype.as<TensorTypeNode>();
-  CHECK(input_tensor_type != nullptr) << "Type information missing."
-                                      << " Please run infer_type pass.";
-  Array<IndexExpr> input_shape = input_tensor_type->shape;
+  CHECK_EQ(types.size(), 2);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  CHECK(in_tensor_type != nullptr) << "Type information missing."
+                                   << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
+
+  // Find the output dtype.
+  auto out_type = types[1];
+  auto out_tensor_type = out_type.as<TensorTypeNode>();
+  CHECK(out_tensor_type != nullptr) << "Type information missing."
+                                    << " Please run infer_type pass.";
+  auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
   CHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
       << "TONEAREST";
-  return RequantizeLower(quantized_data, param, input_shape);
+  return RequantizeLower(quantized_data, param, input_shape, out_dtype);
 }
 
 /*
@@ -261,7 +275,7 @@ The requantize operator converts one quantized tensor to another quantized
 tensor. For the output tensor, we are provided with output scale and zero
 point. The computation looks like this
 
-Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
+Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.RequantizeAttrs")
@@ -269,7 +283,7 @@ Q_output = zp_output +  (scale_input)/(scale_ouptut) * (Q_input - zp_input)
 .add_argument("data", "Tensor", "The quantized input tensor.")
 .set_support_level(11)
 .add_type_rel("Requantize", RequantizeRel)
-.set_attr<FTVMLegalize>("FTVMLegalize", RequantizeLegalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize);
 
 TVM_REGISTER_API("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);

@@ -46,6 +46,7 @@ using namespace tvm;
   }
 
 TOPI_DECLARE_UNARY_OP(exp);
+TOPI_DECLARE_UNARY_OP(erf);
 TOPI_DECLARE_UNARY_OP(sigmoid);
 TOPI_DECLARE_UNARY_OP(sqrt);
 TOPI_DECLARE_UNARY_OP(log);
@@ -56,6 +57,8 @@ TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
 TOPI_DECLARE_UNARY_OP(cos);
 TOPI_DECLARE_UNARY_OP(sin);
+TOPI_DECLARE_UNARY_OP(atan);
+TOPI_DECLARE_UNARY_OP(isnan);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen

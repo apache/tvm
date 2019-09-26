@@ -381,6 +381,7 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   int scale;
   std::string layout;
   std::string method;
+  bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
     TVM_ATTR_FIELD(scale)
@@ -390,10 +391,13 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Upsampling is applied on the 'H' and"
                   "'W' dimensions.");
-    TVM_ATTR_FIELD(method).set_default("NEAREST_NEIGHBOR")
+    TVM_ATTR_FIELD(method).set_default("nearest_neighbor")
         .describe("Specify the mode to use for scaling."
-                  "NEAREST_NEIGHBOR -  Nearest Neighbor"
-                  "BILINEAR - Bilinear Interpolation");
+                  "nearest_neighbor -  Nearest Neighbor"
+                  "bilinear - Bilinear Interpolation"
+                  "bicubic - Bicubic Interpolation");
+    TVM_ATTR_FIELD(align_corners).set_default(false)
+        .describe("Should be true to preserve the values at the corner pixels");
   }
 };
 
@@ -401,13 +405,18 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   double pad_value;
   Array<Array<IndexExpr> > pad_width;
+  std::string pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
     TVM_ATTR_FIELD(pad_value).set_default(0.0)
-      .describe("Specifies the strides of the convolution.");
+      .describe("The value used for padding when mode is 'constant'.");
     TVM_ATTR_FIELD(pad_width)
       .describe("Number of values padded to the edges of each axis, "
                 "in the format of ((before_1, after_1), ..., (before_N, after_N))");
+    TVM_ATTR_FIELD(pad_mode).set_default("constant")
+      .describe("Padding type to use. \"constant\" pads with constant_value, "
+                "\"edge\" pads using the edge values of the input array, "
+                "\"reflect\" pads by reflecting values with respect to the edges.");
   }
 };
 

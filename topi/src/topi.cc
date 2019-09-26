@@ -56,7 +56,6 @@
 #include <topi/generic/injective.h>
 
 #include <topi/cuda/dense.h>
-#include <topi/cuda/extern.h>
 #include <topi/cuda/injective.h>
 #include <topi/cuda/pooling.h>
 #include <topi/cuda/reduction.h>
@@ -118,11 +117,6 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
       }                                                                 \
     });                                                                 \
 
-TVM_REGISTER_GLOBAL("topi.broadcast_to")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = broadcast_to(args[0], args[1]);
-  });
-
 TOPI_REGISTER_BCAST_OP("topi.add", topi::add);
 TOPI_REGISTER_BCAST_OP("topi.subtract", topi::subtract);
 TOPI_REGISTER_BCAST_OP("topi.multiply", topi::multiply);
@@ -142,10 +136,25 @@ TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
+TVM_REGISTER_GLOBAL("topi.broadcast_to")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = broadcast_to(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.logical_not")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = logical_not(args[0]);
+  });
+
 /* Ops from elemwise.h */
 TVM_REGISTER_GLOBAL("topi.exp")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = exp(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.erf")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = erf(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cos")
@@ -157,10 +166,14 @@ TVM_REGISTER_GLOBAL("topi.sin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = sin(args[0]);
   });
-
 TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.atan")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = atan(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.sigmoid")
@@ -417,6 +430,14 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
   });
 
+TVM_REGISTER_GLOBAL("topi.one_hot")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  int depth = args[3];
+  int axis = args[4];
+  DataType dtype = args[5];
+  *rv = one_hot(args[0], args[1], args[2], depth, axis, dtype);
+  });
+
 /* Ops from nn/upsampling.h */
 TVM_REGISTER_GLOBAL("topi.nn.upsampling")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -564,6 +585,11 @@ TVM_REGISTER_GLOBAL("topi.generic.schedule_injective")
   *rv = topi::generic::schedule_injective(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.generic.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::generic::schedule_injective_from_existing(args[0], args[1]);
+ });
+
 /* x86 schedules */
 TVM_REGISTER_GLOBAL("topi.x86.schedule_binarize_pack")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -588,6 +614,11 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::x86::schedule_injective(args[0], args[1]);
   });
+
+TVM_REGISTER_GLOBAL("topi.x86.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::x86::schedule_injective_from_existing(args[0], args[1]);
+ });
 
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
@@ -621,15 +652,15 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
   *rv = topi::cuda::schedule_dense(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.cuda.schedule_extern")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_extern(args[0], args[1]);
-  });
-
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_injective(args[0], args[1]);
   });
+
+TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::cuda::schedule_injective_from_existing(args[0], args[1]);
+ });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -729,6 +760,30 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binarize_pack)
 TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 .set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::schedule_binary_dense));
+
+/*! \brief Builder function for instantiating schedules from existing schedules. */
+using FTVMScheduleFromExistingBuilder = std::function<
+  tvm::Schedule(tvm::Schedule sch, const tvm::Tensor& out)>;
+
+/*!
+ * \brief Helper function for registering generic functions matching the
+ * FTVMScheduleFromExistingBuilder signature. The schedule builder function is wrapped
+ * with a PackedFunc suitable for passing to a tvm::GenericFunc.
+ *
+ * \param builder The schedule builder to wrap.
+ *
+ * \return The wrapped schedule builder
+ */
+inline PackedFunc WrapScheduleFromExisting(FTVMScheduleFromExistingBuilder builder) {
+  return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
+    *ret = builder(args[0], args[1]);
+  });
+}
+
+TVM_REGISTER_GENERIC_FUNC(schedule_injective_from_existing)
+.set_default(WrapScheduleFromExisting(topi::generic::schedule_injective_from_existing))
+.register_func({ "cpu" }, WrapScheduleFromExisting(topi::x86::schedule_injective_from_existing))
+.register_func({ "cuda", "gpu" }, WrapScheduleFromExisting(topi::cuda::schedule_injective_from_existing));
 
 /*! \brief Builder function for instantiating dense ops. */
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,

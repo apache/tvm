@@ -41,7 +41,7 @@ case class AccelConfig() {
   val nVals = 2
   val nPtrs = 2
   val regBits = 32
-  val ptrBits = 2*regBits
+  val ptrBits = 2 * regBits
 }
 
 class Accel extends Module {

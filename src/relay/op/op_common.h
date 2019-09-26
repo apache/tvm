@@ -30,6 +30,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <vector>
+#include "type_relations.h"
 #include "../pass/alter_op_layout.h"
 
 namespace tvm {

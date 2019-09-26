@@ -17,7 +17,20 @@
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
-from ..op import  register_schedule, schedule_injective
+
+import topi
+from .. import op as reg
+from ..op import schedule_injective
 
 # resize
-register_schedule("image.resize", schedule_injective)
+reg.register_schedule("image.resize", schedule_injective)
+
+
+@reg.register_compute("image.resize")
+def compute_resize(attrs, inputs, out_type, target):
+    size = attrs.size
+    layout = attrs.layout
+    method = attrs.method
+    align_corners = attrs.align_corners
+    out_dtype = attrs.out_dtype
+    return [topi.image.resize(inputs[0], size, layout, method, align_corners, out_dtype)]

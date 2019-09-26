@@ -41,6 +41,7 @@ from .space import FallbackConfigEntity
 
 logger = logging.getLogger('autotvm')
 
+
 class DispatchContext(object):
     """
     Base class of dispatch context.
@@ -281,7 +282,11 @@ class ApplyHistoryBest(DispatchContext):
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
         """
+        from pathlib import Path
         from ..record import load_from_file
+
+        if isinstance(records, Path):
+            records = str(records)
 
         if isinstance(records, str):
             records = load_from_file(records)
@@ -404,7 +409,9 @@ class FallbackContext(DispatchContext):
         key = (str(target), workload)
         self.memory[key] = cfg
 
+
 DispatchContext.current = FallbackContext()
+
 
 def clear_fallback_cache(target, workload):
     """Clear fallback cache. Pass the same argument as _query_inside to this function
@@ -425,6 +432,7 @@ def clear_fallback_cache(target, workload):
     while not isinstance(context, FallbackContext):
         context = context._old_ctx
     context.clear_cache(target, workload)
+
 
 class ApplyGraphBest(DispatchContext):
     """Load the graph level tuning optimal schedules.
