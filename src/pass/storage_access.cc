@@ -184,7 +184,7 @@ void StorageAccessVisitor::Visit_(const IfThenElse* op) {
 void StorageAccessVisitor::Visit_(const Call* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
-    IRVisitor::Visit_(l);
+    Visit_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
     Type dtype = op->args[0].type();

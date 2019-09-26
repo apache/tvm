@@ -74,6 +74,10 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <math_constants.h>\n";
   }
 
+  if (need_mma_h_) {
+    decl_stream << "#include <mma.h>\n";
+  }
+
   return CodeGenC::Finish();
 }
 
@@ -290,6 +294,100 @@ void CodeGenCUDA::PrintStorageScope(
   }
 }
 
+void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
+  if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 3U);
+    os << "nvcuda::wmma::fill_fragment(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[1], os);
+    os << "], ";
+    this->PrintExpr(op->args[2], os);
+    os << ")";
+  } else if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync)) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 4U);
+    os << "nvcuda::wmma::load_matrix_sync(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[1], os);
+    os << "], ";
+    this->PrintExpr(op->args[2], os);
+    os << ", ";
+    this->PrintExpr(op->args[3], os);
+    os << ")";
+  } else if (op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 5U);
+    os << "nvcuda::wmma::store_matrix_sync(";
+    this->PrintExpr(op->args[2], os);
+    os << ", ";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[1], os);
+    os << "], ";
+    this->PrintExpr(op->args[3], os);
+    if (const StringImm *str = op->args[4].as<StringImm>()) {
+      os << ", nvcuda::wmma::" << str->value;
+    } else {
+      LOG(FATAL) << "Invalid parameters";
+    }
+    os << ")";
+  } else if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::mma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", ": ")");
+    }
+  } else {
+    CodeGenC::VisitExpr_(op, os);
+  }
+}
+
+void CodeGenCUDA::VisitStmt_(const Allocate* op) {
+  CHECK(!is_zero(op->condition));
+  std::string vid = AllocVarID(op->buffer_var.get());
+  if (op->new_expr.defined()) {
+    // Prefer global static allocation for the program
+    CHECK_EQ(op->free_function, "nop");
+    std::string new_data = PrintExpr(op->new_expr);
+    this->PrintIndent();
+    PrintType(op->type, stream);
+    stream << "* "<< vid << '=' << new_data << ";\n";
+  } else {
+    this->PrintIndent();
+    int32_t constant_size = op->constant_allocation_size();
+    CHECK_GT(constant_size, 0)
+      << "Can only handle constant size stack allocation for now";
+    const Variable* buffer = op->buffer_var.as<Variable>();
+    std::string scope = alloc_storage_scope_.at(buffer);
+    if (scope.find("wmma.") == 0) {
+      if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+        CHECK(op->type.is_float() && op->type.bits() == 16)
+          << "Matrix_a and matrix_b only support half type for now";
+      } else {
+        CHECK(op->type.is_float() && (op->type.bits() == 16 || op->type.bits() == 32))
+          << "Accumulator only support half and float type for now";
+      }
+      constant_size /= 256;
+      PrintWmmaScope(scope, op->type, stream);
+    } else {
+      PrintStorageScope(scope, stream);
+      stream << ' ';
+      PrintType(op->type, stream);
+    }
+    stream << ' '<< vid << '['
+           << constant_size << "];\n";
+  }
+  RegisterHandleType(op->buffer_var.get(), op->type);
+  this->PrintStmt(op->body);
+}
+
 void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   if (is_const(op->value)) return;
   const Call* call = op->value.as<Call>();
@@ -390,6 +488,21 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { /
 
 void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
+}
+
+void CodeGenCUDA::PrintWmmaScope(const std::string &scope, Type t, std::ostream &os) {
+  std::stringstream type;
+  PrintType(t, type);
+  if (scope == "wmma.matrix_a") {
+    need_mma_h_ = true;
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, 16, 16, 16, " << type.str() << ", nvcuda::wmma::row_major>";
+  } else if (scope == "wmma.matrix_b") {
+    need_mma_h_ = true;
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, 16, 16, 16, "<< type.str() << ", nvcuda::wmma::row_major>";
+  } else if (scope == "wmma.accumulator") {
+    need_mma_h_ = true;
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, 16, 16, 16, "<< type.str() << ">";
+  }
 }
 
 }  // namespace codegen

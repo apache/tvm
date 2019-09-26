@@ -60,7 +60,9 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const Shuffle* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final;
+  void VisitExpr_(const Call *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
+  void VisitStmt_(const Allocate *op) final;
 
  private:
   // Whether global barrier is needed.
@@ -75,7 +77,10 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_int8_{false};
   // whether need math_constants.h
   bool need_math_constants_h_{false};
+  // whether need mma.h
+  bool need_mma_h_{false};
   friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
+  void PrintWmmaScope(const std::string& scope, Type t, std::ostream& os);
 };
 
 }  // namespace codegen

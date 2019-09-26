@@ -1552,6 +1552,14 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
+/*!
+ * \brief tvm intrinsic for tensor core opeartors.
+ */
+constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
+constexpr const char* tvm_mma_sync = "tvm_mma_sync";
+constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
+constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
+constexpr const char* tvm_access_fragement = "tvm_access_fragement";
 
 }   // namespace intrinsic
 
