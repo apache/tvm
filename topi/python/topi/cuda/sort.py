@@ -42,10 +42,10 @@ def _schedule_sort(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    from .injective import _schedule_injective
+    from .injective import schedule_injective_from_existing
     def traverse(op):
         if tag.is_injective(op.tag):
-            _schedule_injective(op, s)
+            schedule_injective_from_existing(s, op.output(0))
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)
