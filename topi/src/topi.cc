@@ -776,7 +776,7 @@ using FTVMScheduleFromExistingBuilder = std::function<
  */
 inline PackedFunc WrapScheduleFromExisting(FTVMScheduleFromExistingBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    *ret = builder(args[1], args[2]);
+    *ret = builder(args[0], args[1]);
   });
 }
 
