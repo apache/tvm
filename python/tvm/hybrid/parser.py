@@ -31,7 +31,6 @@ from . import util
 from .preprocessor import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
-from ..api import floordiv as _floordiv, floormod as _floormod
 
 from ..container import Array
 from ..tensor import Tensor, Operation
@@ -78,6 +77,18 @@ class Symbol(Enum):
     LoopVar = 8
     ConstLoopVar = 9
     ThreadBind = 10
+
+
+def _floordiv(x, y):
+    if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
+        return _api.floordiv(x, y)
+    return operator.floordiv(x, y)
+
+
+def _floormod(x, y):
+    if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
+        return _api.floormod(x, y)
+    return operator.mod(x, y)
 
 
 class HybridParser(ast.NodeVisitor):

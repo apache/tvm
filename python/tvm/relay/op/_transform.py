@@ -67,7 +67,7 @@ _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 @script
 def _arange_shape_func(start, stop, step):
     out = output_tensor((1,), "int64")
-    out[0] = int64(ceil_div((float32(stop[0]) - float32(start[0])), float32(step[0])))
+    out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
     return out
 
 @_reg.register_shape_func("arange", True)
@@ -131,12 +131,12 @@ def _reshape_shape_func(data_shape, newshape, ndim):
             assert len(newshape) - i > 2, "Not enough dims in new shape for -4"
             if newshape[i+1] == -1:
                 assert newshape[i+2] != -1, "Split dims cannot both be -1."
-                out[dst_idx] = data_shape[src_idx] / int64(newshape[i+2])
+                out[dst_idx] = data_shape[src_idx] // int64(newshape[i+2])
                 out[dst_idx+1] = int64(newshape[i+2])
             else:
                 out[dst_idx] = int64(newshape[i+1])
                 if newshape[i+2] == -1:
-                    out[dst_idx+1] = data_shape[src_idx] / int64(newshape[i+1])
+                    out[dst_idx+1] = data_shape[src_idx] // int64(newshape[i+1])
                 else:
                     out[dst_idx+1] = int64(newshape[i+2])
             assert data_shape[src_idx] == out[dst_idx] * out[dst_idx+1],\
@@ -159,7 +159,7 @@ def _reshape_shape_func(data_shape, newshape, ndim):
             new_size = int64(1)
             for i in const_range(out.shape[0]):
                 new_size *= out[i]
-            out[infer_idx] = old_size / new_size
+            out[infer_idx] = old_size // new_size
     return out
 
 @_reg.register_shape_func("reshape", False)
