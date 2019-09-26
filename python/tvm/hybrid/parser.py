@@ -31,6 +31,8 @@ from . import util
 from .preprocessor import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
+from ..api import floordiv as _floordiv, floormod as _floormod
+
 from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import _api_internal as _tvm_internal
@@ -87,8 +89,8 @@ class HybridParser(ast.NodeVisitor):
         ast.Sub     : operator.sub,
         ast.Mult    : operator.mul,
         ast.Div     : operator.div if sys.version_info[0] == 2 else operator.truediv,
-        ast.FloorDiv: operator.div if sys.version_info[0] == 2 else operator.truediv,
-        ast.Mod     : operator.mod,
+        ast.FloorDiv: _floordiv,
+        ast.Mod     : _floormod,
         ast.BitOr   : operator.or_,
         ast.BitAnd  : operator.and_,
         ast.BitXor  : operator.xor,

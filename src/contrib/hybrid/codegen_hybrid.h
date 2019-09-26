@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -100,6 +100,8 @@ class CodeGenHybrid :
   void VisitExpr_(const Mul* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Div* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Mod* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloorDiv* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloorMod* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Min* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Max* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const EQ* op, std::ostream& os) override;  // NOLINT(*)
@@ -161,12 +163,12 @@ class CodeGenHybrid :
   std::string GetUniqueName(std::string prefix);
   /*! \brief The output code string builder. */
   std::stringstream stream;
-  /*! 
+  /*!
    * \brief Get or allocate the ID for the given variable.
    * \param v The given variable.
    */
   std::string GetVarID(const Variable *v);
-  /*! 
+  /*!
    * \brief Get or allocate the ID for the given tensor.
    * \param func The tensor to allocate a name.
    * \param value_index The value index of the given tensor.

@@ -94,24 +94,31 @@ def test_buffer_index_merge_mult_mod():
     def assert_simplified_equal(index_simplified, index_direct):
         assert tvm.ir_pass.Equal(index_simplified, index_direct),\
         "index_simplified=%s, index_direct=%s" %(index_simplified, index_direct)
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     # Test Case1
-    index_simplified = A_stride.vload(((k0 % k1) / s, (k0 % k1) % s + (k0 / k1) * k1))
+    index_simplified = A_stride.vload(
+        (idxdiv(idxmod(k0, k1), s), idxmod(idxmod(k0, k1), s) + idxdiv(k0, k1) * k1))
     index_direct = A_stride.vload((0, k0))
     assert_simplified_equal(index_simplified, index_direct)
+
     # Test Case2
-    index_simplified = A.vload(((k0 % (k1 / s)) / n,
-                                (k0 % (k1 / s)) % n + (k0 % k1)))
-    index_direct = A.vload((0, k0 % k1 + k0 % (k1 / s)))
+    index_simplified = A.vload((idxdiv(idxmod(k0, idxdiv(k1, s)), n),
+                                idxmod(idxmod(k0, idxdiv(k1, s)), n) + idxmod(k0, k1)))
+    index_direct = A.vload((0, idxmod(k0, k1) + idxmod(k0, idxdiv(k1, s))))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case3
-    index_simplified = A.vload((((k0 / (k1 / s)) * (k1 / s)) / n + (k0 % (k1 / s)) / n,
-                                ((k0 / (k1 / s)) * (k1 / s)) % n + (k0 % (k1 / s)) % n))
+    index_simplified = A.vload((idxdiv((idxdiv(k0, idxdiv(k1, s)) * idxdiv(k1, s)), n) +
+                                idxdiv(idxmod(k0, idxdiv(k1, s)), n),
+                                idxmod((idxdiv(k0, idxdiv(k1, s)) * idxdiv(k1, s)), n) +
+                                idxmod(idxmod(k0, idxdiv(k1, s)), n)))
     index_direct = A.vload((0, k0))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case4 (not able to simplify)
-    index_simplified = A.vload(((k0 % (k1 / s)) / n,
-                                (k0 % (k1 / n)) % n + (k0 % k1)))
-    index_direct = A.vload((0, ((k0 % (k1 / s)) / n) * n + ((k0 % (k1 / n)) % n + (k0 % k1))))
+    index_simplified = A.vload((idxdiv(idxmod(k0, idxdiv(k1, s)), n),
+                                idxmod(idxmod(k0, idxdiv(k1, n)), n) + idxmod(k0, k1)))
+    index_direct = A.vload((0, idxdiv(idxmod(k0, idxdiv(k1, s)), n) * n +
+                            (idxmod(idxmod(k0, idxdiv(k1, n)), n) + idxmod(k0, k1))))
     assert_simplified_equal(index_simplified, index_direct)
 
 
@@ -143,14 +150,14 @@ def test_buffer_broadcast():
     check()
 
 
-def test_bbuffer_roadcast_expr():
+def test_buffer_broadcast_expr():
     n0, m0, x = tvm.var('n0'), tvm.var('m0'), tvm.var('x')
     n1, m1 = tvm.var('n1'), tvm.var('m1')
     o0, o1 = tvm.var('o0'), tvm.var('o1')
 
     A = tvm.placeholder((m0, n0), name='A')
     B = tvm.placeholder((m1, n1), name='B')
-    C = tvm.compute((o0, o1/x), lambda i, j: A[i, j] + B[i, j], name='C')
+    C = tvm.compute((o0, o1//x), lambda i, j: A[i, j] + B[i, j], name='C')
 
     Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
     Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
