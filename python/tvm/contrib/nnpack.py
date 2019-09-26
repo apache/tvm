@@ -156,7 +156,7 @@ def convolution_inference_without_weight_transform(
     batch, _, input_height, input_width = data.shape
     output_channels, _, _, _ = transformed_kernel.shape
     kernel_height, kernel_width = (3, 3)
-    idxdiv = tvm.indexdiv
+    idxdiv = _api.indexdiv
     output_height = idxdiv(input_height + padding[0] + padding[1] - kernel_height, stride[0]) + 1
     output_width = idxdiv(input_width + padding[0] + padding[1] - kernel_width, stride[1]) + 1
 
