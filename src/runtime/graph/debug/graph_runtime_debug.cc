@@ -136,29 +136,63 @@ class GraphRuntimeDebug : public GraphRuntime {
     }
     LOG(FATAL) << "cannot find " << name << " among nodex";
     return -1;
-}
-
-/*!
- * \brief Copy index-th node to data_out.
- *
- * This method will do a partial run of the the graph
- * from begining upto the index-th node and return output of index-th node.
- * This is costly operation and suggest to use only for debug porpose.
- *
- * \param index: The  index of the node.
- * \param data_out the node data.
- */
-void DebugGetNodeOutput(int index, DLTensor* data_out) {
-  CHECK_LT(static_cast<size_t>(index), op_execs_.size());
-  uint32_t eid = index;
-
-  for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) op_execs_[i]();
-    if (static_cast<int>(i) == index) break;
   }
 
-  data_entry_[eid].CopyTo(data_out);
-}
+  /*!
+   * \brief Copy index-th node to data_out.
+   *
+   * This method will do a partial run of the the graph
+   * from begining upto the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The  index of the node.
+   * \param data_out the node data.
+   */
+  void DebugGetNodeOutput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), op_execs_.size());
+    uint32_t eid = index;
+
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
+    }
+
+    data_entry_[eid].CopyTo(data_out);
+  }
+
+  /*!
+   * \brief Prints the memory footprint breakdown.
+   */
+  void GetMemoryFootprintBreakdown() {
+    // Calculat total size.
+    uint32_t total_size = 0;
+    for (const auto& t : storage_pool_) {
+      total_size += GetDataSize(*(t.operator->()));
+    }
+
+    // Calculate primary inputs size.
+    uint32_t primary_inputs_size = 0;
+    std::unordered_set<uint32_t> input_node_eids;
+    for (size_t i = 0; i < input_nodes_.size(); i++) {
+      auto nid = input_nodes_[i];
+      auto eid = entry_id(nid, 0);
+      auto storage_id = attrs_.storage_id[eid];
+      primary_inputs_size += GetDataSize(*(storage_pool_[storage_id].operator->()));
+    }
+    float percent_primary_inputs =
+        std::round(static_cast<float>(primary_inputs_size) / total_size * 100);
+
+    // Calculate intermediate feature map size.
+    uint32_t inter_size = total_size - primary_inputs_size;
+    float percent_inter = std::round(static_cast<float>(inter_size) / total_size * 100);
+
+    // Print the breakdown.
+    LOG(INFO) << "Total memory allocation = " << total_size << " Bytes";
+    LOG(INFO) << "Primary inputs (params + data) memory allocation = " << primary_inputs_size
+              << " (" << percent_primary_inputs << "%) Bytes";
+    LOG(INFO) << "Intermediate feature maps memory allocation = " << inter_size
+              << " (" << percent_inter << "%) Bytes";
+  }
 };
 
 
@@ -191,6 +225,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
       CHECK_GT(number, 0);
       CHECK_GT(repeat, 0);
       CHECK_GE(min_repeat_ms, 0);
+      this->GetMemoryFootprintBreakdown();
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else {
