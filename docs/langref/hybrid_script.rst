@@ -130,7 +130,7 @@ Users can access containers by either constants or constants loops annotated.
 Variables
 ~~~~~~~~~
 
-All the mutatable variables will be lowered to an array with size 1.
+All the mutable variables will be lowered to an array with size 1.
 It regards the first store of a variable as its declaration.
 
 .. note::
@@ -158,7 +158,7 @@ Attributes
 ~~~~~~~~~~
 
 So far, ONLY tensors' ``shape`` and ``dtype`` attribute are supported!
-The ``shape`` atrribute is essentailly a tuple, so you MUST access it as an array.
+The ``shape`` attribute is essentially a tuple, so you MUST access it as an array.
 Currently, only constant-indexed access is supported.
 
 .. code-block:: python

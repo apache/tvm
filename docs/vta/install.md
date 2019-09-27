@@ -202,7 +202,7 @@ Before powering up the device, we need to flash the microSD card image with late
 #### Flash SD Card and Boot Angstrom Linux
 
 To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
-After registeration and login on the webpage, the prebuild Angstrom Linux image would be available for downloading and flashing.
+After registration and login on the webpage, the prebuilt Angstrom Linux image would be available for downloading and flashing.
 Specifically, to flash the downloaded Linux SD card image into your physical SD card:
 
 First, extract the gzipped archive file.

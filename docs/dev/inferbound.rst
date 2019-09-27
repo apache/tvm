@@ -71,7 +71,7 @@ A TVM schedule is composed of Stages. Each stage has exactly one Operation, e.g.
    		Array<Operation> outputs;
    		Array<Stage> stages;
    		Map<Operation, Stage> stage_map;
-   		// remainder ommitted
+   		// remainder omitted
    	};
 
    	class StageNode : public Node {
@@ -81,14 +81,14 @@ A TVM schedule is composed of Stages. Each stage has exactly one Operation, e.g.
    		Array<IterVar> all_iter_vars;
    		Array<IterVar> leaf_iter_vars;
    		Array<IterVarRelation> relations;
-   		// remainder ommitted
+   		// remainder omitted
    	};
    	
    	class OperationNode : public Node {
    	public:
    		virtual Array<IterVar> root_iter_vars();
    		virtual Array<Tensor> InputTensors();
-   		// remainder ommitted
+   		// remainder omitted
    	};
    	
    	class ComputeOpNode : public OperationNode {
@@ -97,7 +97,7 @@ A TVM schedule is composed of Stages. Each stage has exactly one Operation, e.g.
    		Array<IterVar> reduce_axis;
    		Array<Expr> body;
    		Array<IterVar> root_iter_vars();
-   		// remainder ommitted
+   		// remainder omitted
    	};
    }
 
