@@ -245,7 +245,7 @@ def get_valid_counts_downsweep(data, idx_in, partial, idx):
     new_range = num_anchors // elem_per_thread + 1
     # Scan: Downsweep:
     with ib. if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
+        i = tid // num_anchors # number of batches
         j = tid % num_anchors # number of anchors
         with ib.if_scope(j < elem_per_thread):
             idx[tid] = idx_in[tid]
@@ -304,7 +304,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors
+        i = tid // num_anchors
         j = tid % num_anchors
         base_idx = i * num_anchors * elem_length
         with ib.if_scope(flag[tid] > 0):

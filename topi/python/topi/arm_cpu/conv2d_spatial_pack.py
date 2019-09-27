@@ -128,8 +128,13 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
                     kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
                     axis=[ci, kh, kw]), name='conv')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
+                         conv[n,
+                              idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
+                              idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
                          name='output_unpack', tag='spatial_conv2d_output')
     return output
 
