@@ -32,10 +32,11 @@ def test_const_fold():
         if not isinstance(x, (tvm.expr.IntImm, tvm.expr.UIntImm)) or x.value != int(y):
             raise ValueError("check error: %s vs %s " % (x, y))
 
+    tmod = tvm.truncmod
     check(lambda x, y: x + y, 3, 4)
     check(lambda x, y: x * y, 3, 12)
     check(lambda x, y: x * y - 10, 3, 12)
-    check(lambda x, y: x - y % 10, 3, 12)
+    check(lambda x, y: x - tmod(y, 10), 3, 12)
     check(lambda x, y: x // y + 10, 100, 12)
     check(lambda x, y: x & y + 10, 112, 128)
     check(lambda x, y: x > y, 112, 128)
@@ -47,13 +48,15 @@ def test_const_fold():
 
 def test_const_fold2():
     x = tvm.var("x")
+    tmod = tvm.truncmod
+    tdiv = tvm.truncdiv
     assert (x + 0).same_as(x)
     assert (0 + x).same_as(x)
     assert (x - 0).same_as(x)
-    assert (x % 1).value == 0
+    assert tmod(x, 1).value == 0
     assert (x * 1).same_as(x)
     assert (1 * x).same_as(x)
-    assert isinstance((1 / x), tvm.expr.Div)
+    assert isinstance(tdiv(1, x), tvm.expr.Div)
 
 def test_const_fold3():
     # Test that using ints with logic operations is forbidden
@@ -88,8 +91,9 @@ def test_const_fold3():
 def test_const_fold4():
     x1 = tvm.const(4, "int32")
     x2 = x1 + 5
+    tdiv = tvm.truncdiv
     assert isinstance(x2, tvm.expr.IntImm) and x2.value == 9
-    x3 = x2 / 3
+    x3 = tdiv(x2, 3)
     assert isinstance(x3, tvm.expr.IntImm) and x3.value == 3
     x4 = x3 + 0.55
     assert isinstance(x4, tvm.expr.FloatImm) and abs(x4.value - 3.55) < 1e-6

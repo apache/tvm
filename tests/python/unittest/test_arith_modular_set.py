@@ -54,7 +54,8 @@ def test_div_shift():
     analyzer = tvm.arith.Analyzer()
     x, y = tvm.var("x"), tvm.var("y")
     # not sure if x is non-negative
-    m = analyzer.modular_set((x * 4 + 2) / 2)
+    tdiv = tvm.truncdiv
+    m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
     assert m.coeff == 1
     assert m.base == 0
     # right shift always round down so it is fine
@@ -67,7 +68,7 @@ def test_div_shift():
     assert m.base == 1
     # x is non-negative
     analyzer.update(x, tvm.arith.ConstIntBound(0, 100))
-    m = analyzer.modular_set((x * 4 + 2) / 2)
+    m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
     assert m.coeff == 2
     assert m.base == 1
 
@@ -92,6 +93,7 @@ def test_mix_index():
     a = tvm.var("a")
     b = tvm.var("b")
     analyzer = tvm.arith.Analyzer()
+    tdiv = tvm.truncdiv
     m = analyzer.modular_set(a * 4 + b * 6 + 7)
     assert m.coeff == 2
     assert m.base == 1
@@ -100,11 +102,11 @@ def test_mix_index():
     assert m.coeff == 4
     assert m.base == 3
 
-    m = analyzer.modular_set((a * 4 + 1) / (b * 8 + 3))
+    m = analyzer.modular_set(tdiv(a * 4 + 1, b * 8 + 3))
     assert m.coeff == 1
     assert m.base == 0
 
-    m = analyzer.modular_set((a * 4 + 1) * (b * 8 / 4))
+    m = analyzer.modular_set((a * 4 + 1) * tdiv(b * 8, 4))
     assert m.coeff == 2
     assert m.base == 0
 
@@ -121,11 +123,13 @@ def test_constraint_scope():
     a = tvm.var("a")
     b = tvm.var("b")
     analyzer = tvm.arith.Analyzer()
-    with analyzer.constraint_scope(b % 4 == 2):
+    tmod = tvm.truncmod
+
+    with analyzer.constraint_scope(tmod(b, 4) == 2):
         m = analyzer.modular_set(b + 1)
         assert m.coeff == 4
         assert m.base == 3
-        with analyzer.constraint_scope(a % 2 == 1):
+        with analyzer.constraint_scope(tmod(a, 2) == 1):
             m = analyzer.modular_set(b + a * 2)
             assert m.coeff == 4
             assert m.base == 0
@@ -140,15 +144,16 @@ def test_constraint_scope():
 def test_intersect():
     a = tvm.var("a")
     analyzer = tvm.arith.Analyzer()
-    with analyzer.constraint_scope(a % 4 == 1):
-        with analyzer.constraint_scope(a % 3 == 1):
+    tmod = tvm.truncmod
+    with analyzer.constraint_scope(tmod(a, 4) == 1):
+        with analyzer.constraint_scope(tmod(a, 3) == 1):
             m = analyzer.modular_set(a)
             assert m.coeff == 12
             assert m.base == 1
 
-    with analyzer.constraint_scope(a % 3 == 2):
-        with analyzer.constraint_scope(a % 5 == 3):
-            with analyzer.constraint_scope(a % 7 == 2):
+    with analyzer.constraint_scope(tmod(a, 3) == 2):
+        with analyzer.constraint_scope(tmod(a, 5) == 3):
+            with analyzer.constraint_scope(tmod(a, 7) == 2):
                 m = analyzer.modular_set(a)
                 assert m.coeff == 105
                 assert m.base == 23
