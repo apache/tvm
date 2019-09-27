@@ -70,6 +70,9 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
     OW = (PAD_W - KW) // WSTR + 1
     oshape = (1, OH, OW, CO)
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     # Pad input channels of weights and data when it is not a multiple of 8
     if CI_packed % 8 != 0:
         CI_PAD = CI_packed % 8
@@ -106,7 +109,8 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
     data_q = bitpack(data, activation_bits, pack_axis=3, bit_axis=3, pack_type='uint8')
 
     kernel_vec = _kernel_vec_spatial_pack_nhwc(kernel, weight_bits, VC, len(kernel.shape) == 4)
-    if kernel_vec.shape[-1] % 8 != 0 and CI_PAD != 0:
+    idxm = tvm.indexmod
+    if idxm(kernel_vec.shape[-1], 8) != 0 and CI_PAD != 0:
         kernel_vec = pad(kernel_vec, [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, CI_PAD])
 
     N, H, W, IB, CI = data_q.shape
@@ -147,8 +151,12 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
     else:
         conv_vec = tvm.compute(ovshape, _bipolar_conv, name='conv_vec', tag='bipolar')
 
-    conv = tvm.compute(oshape, lambda n, h, w, co:
-                       conv_vec[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC].astype(out_dtype),
+
+    conv = tvm.compute(oshape,
+                       lambda n, h, w, co:
+                       conv_vec[n,
+                                idxd(h, VH), idxd(w, VW), idxd(co, VC),
+                                idxm(h, VH), idxm(w, VW), idxm(co, VC)].astype(out_dtype),
                        name='conv', tag='spatial_bitserial_conv_nhwc')
 
     return conv

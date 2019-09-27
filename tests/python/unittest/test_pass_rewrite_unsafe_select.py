@@ -28,7 +28,7 @@ def test_rewrite_Select():
         tvm.expr.Select(i > 1, A[i-1], 1.0) > 0.0, A[i], 0.1)
     zz = tvm.ir_pass.RewriteUnsafeSelect(tvm.make.Evaluate(z)).value
 
-    a = tvm.expr.Select(i>10, y, z)
+    a = tvm.expr.Select(tvm.floordiv(i, 4) > 10, y, z)
     aa = tvm.ir_pass.RewriteUnsafeSelect(tvm.make.Evaluate(a)).value
     assert yy.name == "tvm_if_then_else"
     assert zz.name == "tvm_if_then_else"
