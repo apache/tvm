@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,7 +23,10 @@ set -o pipefail
 cd /usr
 git clone --depth=1 https://github.com/dmlc/tvm --recursive
 cd /usr/tvm
-echo set\(USE_LLVM llvm-config-6.0\) >> config.cmake
+# checkout a hash-tag
+git checkout 4b13bf668edc7099b38d463e5db94ebc96c80470
+
+echo set\(USE_LLVM llvm-config-8\) >> config.cmake
 echo set\(USE_CUDA ON\) >> config.cmake
 echo set\(USE_CUDNN ON\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
