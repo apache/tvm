@@ -37,7 +37,7 @@ def hybrid_argwhere_1d(output_shape, condition):
     a1 = condition.shape[0]
     valid_index = 0
     for i1 in range(a1):
-        if condition[i1]:
+        if condition[i1] != 0:
             a[valid_index, 0] = i1
             valid_index += 1
     return a
@@ -62,7 +62,7 @@ def hybrid_argwhere_2d(output_shape, condition):
     valid_index = 0
     for i1 in range(a1):
         for i2 in range(a2):
-            if condition[i1, i2]:
+            if condition[i1, i2] != 0:
                 a[valid_index, 0] = i1
                 a[valid_index, 1] = i2
                 valid_index += 1
@@ -90,7 +90,7 @@ def hybrid_argwhere_3d(output_shape, condition):
     for i1 in range(a1):
         for i2 in range(a2):
             for i3 in range(a3):
-                if condition[i1, i2, i3]:
+                if condition[i1, i2, i3] != 0:
                     a[valid_index, 0] = i1
                     a[valid_index, 1] = i2
                     a[valid_index, 2] = i3
@@ -121,7 +121,7 @@ def hybrid_argwhere_4d(output_shape, condition):
         for i2 in range(a2):
             for i3 in range(a3):
                 for i4 in range(a4):
-                    if condition[i1, i2, i3, i4]:
+                    if condition[i1, i2, i3, i4] != 0:
                         a[valid_index, 0] = i1
                         a[valid_index, 1] = i2
                         a[valid_index, 2] = i3
@@ -155,7 +155,7 @@ def hybrid_argwhere_5d(output_shape, condition):
             for i3 in range(a3):
                 for i4 in range(a4):
                     for i5 in range(a5):
-                        if condition[i1, i2, i3, i4, i5]:
+                        if condition[i1, i2, i3, i4, i5] != 0:
                             a[valid_index, 0] = i1
                             a[valid_index, 1] = i2
                             a[valid_index, 2] = i3

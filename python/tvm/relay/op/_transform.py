@@ -213,7 +213,7 @@ def _argwhere_shape_func_1d(condition):
     out[0] = int64(0)
     out[1] = int64(1)
     for i1 in range(condition.shape[0]):
-        if condition[i1]:
+        if condition[i1] != 0:
             out[0] += int64(1)
     return out
 
@@ -224,7 +224,7 @@ def _argwhere_shape_func_2d(condition):
     out[1] = int64(2)
     for i1 in range(condition.shape[0]):
         for i2 in range(condition.shape[1]):
-            if condition[i1, i2]:
+            if condition[i1, i2] != 0:
                 out[0] += int64(1)
     return out
 
@@ -236,7 +236,7 @@ def _argwhere_shape_func_3d(condition):
     for i1 in range(condition.shape[0]):
         for i2 in range(condition.shape[1]):
             for i3 in range(condition.shape[2]):
-                if condition[i1, i2, i3]:
+                if condition[i1, i2, i3] != 0:
                     out[0] += int64(1)
     return out
 
@@ -249,7 +249,7 @@ def _argwhere_shape_func_4d(condition):
         for i2 in range(condition.shape[1]):
             for i3 in range(condition.shape[2]):
                 for i4 in range(condition.shape[3]):
-                    if condition[i1, i2, i3, i4]:
+                    if condition[i1, i2, i3, i4] != 0:
                         out[0] += int64(1)
     return out
 
@@ -263,7 +263,7 @@ def _argwhere_shape_func_5d(condition):
             for i3 in range(condition.shape[2]):
                 for i4 in range(condition.shape[3]):
                     for i5 in range(condition.shape[4]):
-                        if condition[i1, i2, i3, i4, i5]:
+                        if condition[i1, i2, i3, i4, i5] != 0:
                             out[0] += int64(1)
     return out
 
