@@ -16,29 +16,12 @@
 # under the License.
 
 # Minimum docker image for demo purposes
-# prebuilt-image: tvmai/demo-gpu
-FROM nvidia/cuda:9.0-cudnn7-devel
-
-RUN apt-get update --fix-missing
-
-COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
-RUN bash /install/ubuntu_install_core.sh
-
-# Python: basic dependencies
-RUN apt-get update && apt-get install -y python3-dev python3-pip
-RUN pip3 install numpy pytest cython decorator scipy
-
-# LLVM
-RUN echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main \
-     >> /etc/apt/sources.list.d/llvm.list && \
-     wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add - && \
-     apt-get update && apt-get install -y --force-yes llvm-6.0
+# CI docker GPU env
+# tag: v0.54
+FROM tvmai/ci-gpu:v0.54
 
 # Jupyter notebook.
 RUN pip3 install matplotlib Image Pillow jupyter[notebook]
-
-# Deep learning frameworks
-RUN pip3 install mxnet tensorflow keras gluoncv dgl
 
 # Build TVM
 COPY install/install_tvm_gpu.sh /install/install_tvm_gpu.sh
