@@ -647,6 +647,17 @@ class PrettyPrinter :
     return doc;
   }
 
+  Doc VisitPattern_(const PatternTupleNode* pt) final {
+    Doc doc;
+    doc << "(";
+    std::vector<Doc> pats;
+    for (const auto& pat : pt->patterns) {
+      pats.push_back(Print(pat));
+    }
+    doc << PrintSep(pats) << ")";
+    return doc;
+  }
+
   Doc VisitPattern_(const PatternWildcardNode* pw) final {
     return Doc("_");
   }

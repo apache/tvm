@@ -250,20 +250,19 @@ Constructor ModuleNode::LookupTag(const int32_t tag) {
 }
 
 void ModuleNode::Update(const Module& mod) {
-  // add type defs. we add them unchecked first, so all definitions can
-  // reference each other, independent of the order in which they were defined.
-  for (auto pair : mod->type_definitions) {
-    this->AddDefUnchecked(pair.first, pair.second);
-  }
-  for (auto pair : mod->type_definitions) {
-    this->UpdateDef(pair.first, pair.second);
-  }
-  // then add func defs in a similar fashion
+  // add functions and type defs. we add them unchecked first, so all definitions
+  // can reference each other, independent of the order in which they were defined.
   for (auto pair : mod->functions) {
     this->AddUnchecked(pair.first, pair.second);
   }
+  for (auto pair : mod->type_definitions) {
+    this->AddDefUnchecked(pair.first, pair.second);
+  }
   for (auto pair : mod->functions) {
     this->Update(pair.first, pair.second);
+  }
+  for (auto pair : mod->type_definitions) {
+    this->UpdateDef(pair.first, pair.second);
   }
 }
 

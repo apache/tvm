@@ -159,7 +159,12 @@ def @sum(%xs: List[Tensor[(), int32]]) {
  * Concatenates two lists.
  */
 def @concat[A](%xs: List[A], %ys: List[A]) -> List[A] {
-  @foldr(Cons, %ys, %xs)
+  let %updater = fn(%x: A, %xss: List[A]) -> List[A] {
+    Cons(%x, %xss)
+  };
+  @foldr(%updater, %ys, %xs)
+  // TODO(weberlo): write it like below, once VM constructor compilation is fixed
+  // @foldr(Cons, %ys, %xs)
 }
 
 /*
@@ -194,7 +199,12 @@ def @zip[A, B](%xs: List[A], %ys: List[B]) -> List[(A, B)] {
  * Reverses a list.
  */
 def @rev[A](%xs: List[A]) -> List[A] {
-  @foldl(@flip(Cons), Nil, %xs)
+  let %updater = fn(%xss: List[A], %x: A) -> List[A] {
+    Cons(%x, %xss)
+  };
+  @foldl(%updater, Nil, %xs)
+  // TODO(weberlo): write it like below, once VM constructor compilation is fixed
+  // @foldl(@flip(Cons), Nil, %xs)
 }
 
 /*
