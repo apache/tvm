@@ -297,16 +297,19 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype,
     idxmod = tvm.indexmod
 
     if dilation_h != 1 or dilation_w != 1:
-        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-                          tvm.sum(data_vec[n, h, w, (co * VC + vc) // M, kh, kw, vh, vw]
-                                  .astype(out_dtype) *
-                                  kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
-                                  axis=[kh, kw]), name='depthwise_conv')
+        conv = tvm.compute(
+            ovshape, lambda n, co, h, w, vh, vw, vc: \
+            tvm.sum(data_vec[n, h, w, idxdiv(co * VC + vc, M), kh, kw, vh, vw]
+                    .astype(out_dtype) *
+                    kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
+                    axis=[kh, kw]), name='depthwise_conv')
     else:
         conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
                            tvm.sum(data_vec[n, h, w, idxdiv((co * VC + vc), M), vh * HSTR + kh,
                                             vw * WSTR + kw].astype(out_dtype) *
-                                   kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
+                                   kernel_vec[idxdiv(co, M),
+                                              idxmod(co, M),
+                                              kh, kw, vc].astype(out_dtype),
                                    axis=[kh, kw]), name='depthwise_conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:

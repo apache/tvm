@@ -72,7 +72,7 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
     idxdiv = tvm.indexdiv
     idxmod = tvm.indexmod
     # remove extra padding introduced by dilatation
-    border_h = idxmod(stride_h - idxmod(bpad_top, stride_h),  stride_h)
+    border_h = idxmod(stride_h - idxmod(bpad_top, stride_h), stride_h)
     border_w = idxmod(stride_w - idxmod(bpad_left, stride_w), stride_w)
 
     # dilation stage
