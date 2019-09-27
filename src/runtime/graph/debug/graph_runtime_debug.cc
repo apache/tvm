@@ -184,7 +184,7 @@ class GraphRuntimeDebug : public GraphRuntime {
 
     // Calculate intermediate feature map size.
     uint32_t inter_size = total_size - primary_inputs_size;
-    float percent_inter = std::round(static_cast<float>(inter_size) / total_size * 100);
+    float percent_inter = 100.0 - percent_primary_inputs;
 
     // Print the breakdown.
     LOG(INFO) << "Total memory allocation = " << total_size << " Bytes";
