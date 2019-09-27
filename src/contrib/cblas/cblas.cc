@@ -41,6 +41,13 @@ using namespace runtime;
 
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
+template <typename T>
+void ResizeVectorIfNecessary(std::vector<T>& vector, int desired_size) {
+  if (vector.size() < static_cast<size_t>(desired_size)) {
+    vector.resize(desired_size);
+  }
+}
+
 struct CblasSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
@@ -67,9 +74,12 @@ struct CblasSgemmBatchOp {
     CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
     CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
 #if USE_MKL_BLAS == 1
-    std::vector<const float*> A_array(batch_size);
-    std::vector<const float*> B_array(batch_size);
-    std::vector<float*> C_array(batch_size);
+    static std::vector<const float*> A_array;
+    static std::vector<const float*> B_array;
+    static std::vector<float*> C_array;
+    ResizeVectorIfNecessary(A_array, batch_size);
+    ResizeVectorIfNecessary(B_array, batch_size);
+    ResizeVectorIfNecessary(C_array, batch_size);
     for (int i = 0; i < batch_size; ++i) {
       A_array[i] = A + i * a_stride;
       B_array[i] = B + i * b_stride;
@@ -112,9 +122,12 @@ struct CblasDgemmBatchOp {
     CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
     CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
 #if USE_MKL_BLAS == 1
-    std::vector<const double*> A_array(batch_size);
-    std::vector<const double*> B_array(batch_size);
-    std::vector<double*> C_array(batch_size);
+    static std::vector<const double*> A_array;
+    static std::vector<const double*> B_array;
+    static std::vector<double*> C_array;
+    ResizeVectorIfNecessary(A_array, batch_size);
+    ResizeVectorIfNecessary(B_array, batch_size);
+    ResizeVectorIfNecessary(C_array, batch_size);
     for (int i = 0; i < batch_size; ++i) {
       A_array[i] = A + i * a_stride;
       B_array[i] = B + i * b_stride;
