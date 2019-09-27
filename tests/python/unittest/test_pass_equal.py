@@ -24,7 +24,7 @@ def test_equal_expr():
         return x + y + 1
 
     def func2():
-        return tvm.exp((x + y + 1) * y / 4)
+        return tvm.exp(tvm.truncdiv((x + y + 1) * y, 4))
 
     assert tvm.ir_pass.Equal(func1(), func1())
     assert tvm.ir_pass.Equal(func2(), func2())

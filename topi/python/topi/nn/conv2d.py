@@ -480,17 +480,20 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
     kh = tvm.reduce_axis((0, kernel_height), name='kh')
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n,
-                                        ic // ic_bn,
+                                        idxdiv(ic, ic_bn),
                                         oh * HSTR + kh * dilation_h,
                                         ow * WSTR + kw * dilation_w,
-                                        ic % ic_bn].astype(out_dtype)
+                                        idxmod(ic, ic_bn)].astype(out_dtype)
                                * kernel[oc_chunk,
-                                        ic // ic_bn,
+                                        idxdiv(ic, ic_bn),
                                         kh,
                                         kw,
-                                        ic % ic_bn,
+                                        idxmod(ic, ic_bn),
                                         oc_block],
                                axis=[ic, kh, kw]),
                        name='conv2d_NCHWc', tag="conv2d_NCHWc")

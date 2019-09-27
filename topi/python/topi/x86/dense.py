@@ -64,11 +64,13 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     packw = tvm.compute(packw_shape,
                         lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight")
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     k = tvm.reduce_axis((0, K), name="k")
     C = tvm.compute((M, N),
                     lambda y, x: tvm.sum(
                         data[y, k].astype(out_dtype) *
-                        packw[x // packw_bn, k, x % packw_bn].astype(out_dtype),
+                        packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
                         axis=k),
                     tag="dense_pack")
     if bias is not None:

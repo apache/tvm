@@ -315,7 +315,7 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors
+        i = tid // num_anchors
         j = tid % num_anchors
         with ib.if_scope(cls_id[tid] > 0):
             with ib.if_scope(tid == 0):

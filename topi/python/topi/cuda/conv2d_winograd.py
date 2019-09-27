@@ -85,10 +85,12 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
     else:
         kernel_pack = kernel
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     # pack input tile
     input_tile = tvm.compute((CI, P, alpha, alpha), lambda c, p, eps, nu:
-                             data_pad[p // (nH * nW)][c][p // nW % nH * m + eps]
-                             [p % nW * m + nu], name='d')
+                             data_pad[idxdiv(p, (nH * nW))][c][idxmod(idxdiv(p, nW), nH) * m + eps]
+                             [idxmod(p, nW) * m + nu], name='d')
 
     # transform data
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
@@ -113,7 +115,10 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     # output
     output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
-                         inverse[co][n * nH * nW + (h // m) * nW + w // m][h % m][w % m],
+                         inverse[co,
+                                 n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
+                                 idxmod(h, m),
+                                 idxmod(w, m)],
                          name='output', tag='conv2d_nchw_winograd')
     cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
 

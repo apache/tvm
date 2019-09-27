@@ -175,16 +175,20 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
     ic = tvm.reduce_axis((0, in_channel), name='ic')
     kh = tvm.reduce_axis((0, kernel_height), name='kh')
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
+    idxmod = tvm.indexmod
+    idxdiv = tvm.indexdiv
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_vec[n, ic//ic_bn, oh*HSTR+kh*dilation_h, ic%ic_bn,
+                       tvm.sum(data_vec[n, idxdiv(ic, ic_bn), oh*HSTR+kh*dilation_h,
+                                        idxmod(ic, ic_bn),
                                         ow*WSTR+kw*dilation_w].astype(out_dtype) *
-                               kernel_vec[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn,
+                               kernel_vec[oc_chunk, idxdiv(ic, ic_bn), kh, kw,
+                                          idxmod(ic, ic_bn),
                                           oc_block].astype(out_dtype),
                                axis=[ic, kh, kw]), name='conv')
 
     unpack = tvm.compute(unpack_shape,
-                         lambda n, c, h, w: conv[n, c // oc_bn, h, w, c % oc_bn]
+                         lambda n, c, h, w: conv[n, idxdiv(c, oc_bn), h, w, idxmod(c, oc_bn)]
                          .astype(out_dtype),
                          name='output_unpack',
                          tag='conv2d_nchw')
@@ -311,14 +315,17 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     cfg = get_config()
     _create_tuning_space(cfg, data, kernel, strides, padding, dilation, origin_layout)
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                            cfg["tile_ow"].size[-1])
-    new_data_shape = (raw_data_shape[0], raw_data_shape[1] // ic_bn,
+    new_data_shape = (raw_data_shape[0], idxdiv(raw_data_shape[1], ic_bn),
                       raw_data_shape[2], raw_data_shape[3], ic_bn)
     data_layout = "NCHW%dc" % ic_bn
     out_layout = "NCHW%dc" % oc_bn
-    new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
+    new_kernel_shape = (idxdiv(raw_kernel_shape[0], oc_bn),
+                        idxdiv(raw_kernel_shape[1], ic_bn),
                         raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
@@ -334,12 +341,14 @@ def _conv2d_infer_layout(workload, cfg):
     _, data, kernel, strides, padding, dilation, layout, dtype = workload
     batch_size, in_channel, in_height, in_width = data[:-1]
     out_channel, _, k_height, k_width = kernel[:-1]
-    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
-    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    idxdiv = tvm.indexdiv
+
+    out_height = idxdiv(in_height + 2 * padding[0] - k_height, strides[0]) + 1
+    out_width = idxdiv(in_width + 2 * padding[1] - k_width, strides[1]) + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
+    in_shape = (batch_size, idxdiv(in_channel, tile_ic), in_height, in_width, tile_ic)
     in_layout = "NCHW%dc" % tile_ic
-    out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
+    out_shape = (batch_size, idxdiv(out_channel, tile_oc), out_height, out_width, tile_oc)
     out_layout = "NCHW%dc" % tile_oc
     return ((in_shape, in_layout),), ((out_shape, out_layout),)
 

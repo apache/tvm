@@ -74,9 +74,6 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     int shift;
     const DataType& dtype = op->type;
-    if (dtype.is_float()) {
-      return floor(Div::make(op->a, op->b));
-    }
     CHECK(dtype.is_int() || !dtype.is_uint());
 
     if (is_const_power_of_two_integer(op->b, &shift)) {

@@ -117,14 +117,19 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
         data_pad = data
 
     # depthconv stage
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     kh = tvm.reduce_axis((0, filter_height), name='kh')
     kw = tvm.reduce_axis((0, filter_width), name='kw')
     Output = tvm.compute(
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
         lambda b, oco, oh, ow, oci: tvm.sum(
-            (data_pad[b, (oco * out_channel_block + oci) // channel_multiplier // in_channel_block,
-                      oh*HSTR+kh, ow*WSTR+kw,
-                      ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
+            (data_pad[
+                b,
+                idxdiv(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block),
+                oh*HSTR+kh, ow*WSTR+kw,
+                idxmod(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block)]
              .astype(out_dtype) *
              kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
             axis=[kh, kw]),

@@ -35,6 +35,13 @@ The user facing API for computation declaration.
    tvm.thread_axis
    tvm.comm_reducer
    tvm.sum
+   tvm.div
+   tvm.indexdiv
+   tvm.indexmod
+   tvm.truncdiv
+   tvm.truncmod
+   tvm.floordiv
+   tvm.floormod
    tvm.min
    tvm.max
    tvm.tag_scope
@@ -53,6 +60,13 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.thread_axis
 .. autofunction:: tvm.comm_reducer
 .. autofunction:: tvm.sum
+.. autofunction:: tvm.div
+.. autofunction:: tvm.indexdiv
+.. autofunction:: tvm.indexmod
+.. autofunction:: tvm.truncdiv
+.. autofunction:: tvm.truncmod
+.. autofunction:: tvm.floordiv
+.. autofunction:: tvm.floormod
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
 .. autofunction:: tvm.tag_scope

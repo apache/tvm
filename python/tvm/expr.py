@@ -33,9 +33,23 @@ For example, you can use addexp.a to get the left operand of an Add node.
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
 from ._ffi.node import NodeBase, NodeGeneric, register_node
+from ._ffi.runtime_ctypes import TVMType, TypeCode
 from . import make as _make
 from . import generic as _generic
 from . import _api_internal
+
+
+def div_ambiguity_error():
+    return RuntimeError(
+        "TVM supports multiple types of integer divisions, " +
+        "please call div, indexdiv/indexmod, floordiv/floormod " +
+        " or truncdiv/truncmod directly to avoid ambiguity in the code.")
+
+def _dtype_is_int(value):
+    if isinstance(value, int):
+        return True
+    return (isinstance(value, ExprOp) and
+            TVMType(value.dtype).type_code == TypeCode.INT)
 
 
 class ExprOp(object):
@@ -58,24 +72,35 @@ class ExprOp(object):
         return _generic.multiply(other, self)
 
     def __div__(self, other):
+        # if _dtype_is_int(self) and _dtype_is_int(other):
+        #     raise div_ambiguity_error()
         return _generic.divide(self, other)
 
     def __rdiv__(self, other):
+        # if _dtype_is_int(self) and _dtype_is_int(other):
+        #     raise div_ambiguity_error()
         return _generic.divide(other, self)
 
     def __truediv__(self, other):
-        return self.__div__(other)
+        # if _dtype_is_int(self) and _dtype_is_int(other):
+        #     raise div_ambiguity_error()
+        return _generic.divide(self, other)
 
     def __rtruediv__(self, other):
-        return self.__rdiv__(other)
+        # if _dtype_is_int(self) and _dtype_is_int(other):
+        #     raise div_ambiguity_error()
+        return _generic.divide(other, self)
 
     def __floordiv__(self, other):
-        return self.__div__(other)
+        # return _generic.floordiv(self, other)
+        return _generic.divide(self, other)
 
     def __rfloordiv__(self, other):
-        return self.__rdiv__(other)
+        # return _generic.floordiv(other, self)
+        return _generic.divide(other, self)
 
     def __mod__(self, other):
+        # raise div_ambiguity_error()
         return _make._OpMod(self, other)
 
     def __neg__(self):

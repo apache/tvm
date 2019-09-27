@@ -52,10 +52,12 @@ def dilate(data, strides, name="DilatedInput"):
     def _dilate(*indices):
         not_zero = []
         index_tuple = []
+        idxdiv = tvm.indexdiv
+        idxmod = tvm.indexmod
         for i in range(n):
             if not util.equal_const_int(strides[i], 1):
-                index_tuple.append(indices[i] / strides[i])
-                not_zero.append((indices[i] % strides[i]).equal(0))
+                index_tuple.append(idxdiv(indices[i], strides[i]))
+                not_zero.append(idxmod(indices[i], strides[i]).equal(0))
             else:
                 index_tuple.append(indices[i])
         if not_zero:
