@@ -42,9 +42,9 @@ using namespace runtime;
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
 template <typename T>
-void ResizeVectorIfNecessary(std::vector<T>& vector, int desired_size) {
-  if (vector.size() < static_cast<size_t>(desired_size)) {
-    vector.resize(desired_size);
+void ResizeVectorIfNecessary(std::vector<T>* vector, int desired_size) {
+  if (vector->size() < static_cast<size_t>(desired_size)) {
+    vector->resize(desired_size);
   }
 }
 
@@ -77,9 +77,9 @@ struct CblasSgemmBatchOp {
     static std::vector<const float*> A_array;
     static std::vector<const float*> B_array;
     static std::vector<float*> C_array;
-    ResizeVectorIfNecessary(A_array, batch_size);
-    ResizeVectorIfNecessary(B_array, batch_size);
-    ResizeVectorIfNecessary(C_array, batch_size);
+    ResizeVectorIfNecessary(&A_array, batch_size);
+    ResizeVectorIfNecessary(&B_array, batch_size);
+    ResizeVectorIfNecessary(&C_array, batch_size);
     for (int i = 0; i < batch_size; ++i) {
       A_array[i] = A + i * a_stride;
       B_array[i] = B + i * b_stride;
@@ -125,9 +125,9 @@ struct CblasDgemmBatchOp {
     static std::vector<const double*> A_array;
     static std::vector<const double*> B_array;
     static std::vector<double*> C_array;
-    ResizeVectorIfNecessary(A_array, batch_size);
-    ResizeVectorIfNecessary(B_array, batch_size);
-    ResizeVectorIfNecessary(C_array, batch_size);
+    ResizeVectorIfNecessary(&A_array, batch_size);
+    ResizeVectorIfNecessary(&B_array, batch_size);
+    ResizeVectorIfNecessary(&C_array, batch_size);
     for (int i = 0; i < batch_size; ++i) {
       A_array[i] = A + i * a_stride;
       B_array[i] = B + i * b_stride;
