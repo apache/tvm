@@ -293,21 +293,29 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype,
     kh = tvm.reduce_axis((0, KH), name='kh')
     kw = tvm.reduce_axis((0, KW), name='kw')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     if dilation_h != 1 or dilation_w != 1:
-        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-                          tvm.sum(data_vec[n, h, w, (co * VC + vc) // M, kh, kw, vh, vw]
-                                  .astype(out_dtype) *
-                                  kernel_vec[co // M, co % M, kh, kw, vc].astype(out_dtype),
-                                  axis=[kh, kw]), name='depthwise_conv')
+        conv = tvm.compute(
+            ovshape, lambda n, co, h, w, vh, vw, vc: \
+            tvm.sum(data_vec[n, h, w, idxdiv(co * VC + vc, M), kh, kw, vh, vw]
+                    .astype(out_dtype) *
+                    kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
+                    axis=[kh, kw]), name='depthwise_conv')
     else:
         conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-                           tvm.sum(data_vec[n, h, w, (co * VC + vc) // M, vh * HSTR + kh,
+                           tvm.sum(data_vec[n, h, w, idxdiv((co * VC + vc), M), vh * HSTR + kh,
                                             vw * WSTR + kw].astype(out_dtype) *
-                                   kernel_vec[co // M, co % M, kh, kw, vc].astype(out_dtype),
+                                   kernel_vec[idxdiv(co, M),
+                                              idxmod(co, M),
+                                              kh, kw, vc].astype(out_dtype),
                                    axis=[kh, kw]), name='depthwise_conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
+                         conv[n,
+                              idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
+                              idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
                          name='output_unpack', tag='spatial_depthwise_conv_nchw_output')
     return output
 

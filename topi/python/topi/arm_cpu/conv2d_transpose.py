@@ -123,8 +123,13 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
                 kernel_vec[co, ci, KH - 1 - kh, KW - 1 - kw, vc].astype(out_dtype),
                 axis=[ci, kh, kw]), name='conv')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
+                         conv[n,
+                              idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
+                              idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
                          name='output_unpack', tag='spatial_conv2d_transpose_output')
     return output
 

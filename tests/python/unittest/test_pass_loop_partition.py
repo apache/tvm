@@ -162,7 +162,7 @@ def test_condition():
     ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
-    with ib.for_range(0, ((n+3)/4), 'i') as i:
+    with ib.for_range(0, tvm.truncdiv(n+3,4), 'i') as i:
       with ib.for_range(0, 4, 'j') as j:
         ib.emit(tvm.make.Evaluate(
           tvm.make.Select(ib.likely(i*4+j<n), m, n)))
@@ -206,7 +206,7 @@ def test_everything_during_deduction():
     ib = tvm.ir_builder.create()
     with ib.for_range(0, n, 'i') as i:
         with ib.for_range(0, 32, 'j') as j:
-            with ib.if_scope(ib.likely(i/j < m)):
+            with ib.if_scope(ib.likely(tvm.truncdiv(i,j) < m)):
                 # this guard will produce everything during deduction
                 ib.emit(tvm.make.Evaluate(m))
     stmt = ib.get()

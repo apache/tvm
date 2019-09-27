@@ -33,9 +33,11 @@ def test_mul_sum_simplify():
               x * 13 + z * 4 + y * 4 +6)
     ck.verify(x * 3 - 4 * x + 1, 1 - x)
     ck.verify(y + x * 3 - 5 * x + 1 + y, y * 2 + 1 - x * 2)
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # trucdiv
-    ck.verify((x + y + x + y * 3) / 2, y * 2 + x)
-    ck.verify((x + y + x + y * 3) % 2, 0)
+    ck.verify(tdiv(x + y + x + y * 3, 2), y * 2 + x)
+    ck.verify(tmod(x + y + x + y * 3, 2), 0)
 
     # floordiv
     fld = tvm.floordiv
@@ -51,28 +53,31 @@ def test_split_index_simplify():
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
 
     # trucdiv
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
+
     # split div const
-    ck.verify((x/3) *3 + x % 3, x)
-    ck.verify((x/6) * 6 + ((x/3) % 2) * 3 + x % 3, x)
-    ck.verify(((x % 16) / 2) * 2 / 4, (x % 16) / 4)
-    ck.verify((x % 2) / 8, 0)
-    ck.verify((x % 2) / 7, 0)
-    ck.verify(((x % 16) / 2) * 2 / 6, (x % 16) / 6)
+    ck.verify(tdiv(x, 3) *3 + tmod(x, 3), x)
+    ck.verify(tdiv(x, 6) * 6 + tmod(tdiv(x, 3), 2) * 3 + tmod(x, 3), x)
+    ck.verify(tdiv(tdiv(tmod(x, 16), 2) * 2, 4), tdiv(tmod(x, 16), 4))
+    ck.verify(tdiv(tmod(x, 2), 8), 0)
+    ck.verify(tdiv(tmod(x, 2), 7), 0)
+    ck.verify(tdiv(tdiv(tmod(x, 16), 2) * 2, 6), tdiv(tmod(x, 16), 6))
 
     # split mod const
-    ck.verify((x * 8) % 16, (x % 2) * 8)
-    ck.verify((x * 8) % 2, 0)
+    ck.verify(tmod((x * 8), 16), tmod(x, 2) * 8)
+    ck.verify(tmod(x * 8, 2), 0)
 
     # simplify then fold
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000))
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1000))
-    ck.verify((x * 4 + y) / 2 * 2 + (x * 4 + y) % 2, x * 4 + y)
+    ck.verify(tdiv(x * 4 + y, 2) * 2 + tmod(x * 4 + y, 2), x * 4 + y)
     # complex fold
-    ck.verify((z * 9 + y) / 2 * 2 + (z * 9 + y) % 2, z * 9 + y)
+    ck.verify(tdiv(z * 9 + y, 2) * 2 + tmod(z * 9 + y, 2), z * 9 + y)
 
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-100, 1000), True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(-100, 1000), True)
-    ck.verify((x * 4 + y) / 2 * 2 + (x * 4 + y) % 2, x * 4 + y)
+    ck.verify(tdiv(x * 4 + y, 2) * 2 + tmod(x * 4 + y, 2), x * 4 + y)
 
     # floordiv
     fld = tvm.floordiv
@@ -85,23 +90,24 @@ def test_split_index_simplify():
     ck.verify(fld(fld(flm(x, 16), 2) * 2, 6), fld(flm(x, 16), 6))
 
     # cannot simplify mixed case, unless we canonicalize into one mode.
-    ck.verify((x/6) * 2 + fld(x,3) % 2, (x/6) * 2 + fld(x,3) % 2)
+    ck.verify(tdiv(x,6) * 2 + tmod(fld(x,3), 2), tdiv(x,6) * 2 + tmod(fld(x,3), 2))
 
 
 def test_div_simplify():
     ck = CanonicalChecker()
     x = tvm.var("x")
+    tdiv = tvm.truncdiv
 
     # truc div
-    ck.verify((16+48*x)/16, x*3 + 1)
+    ck.verify(tdiv(16+48*x,16), x*3 + 1)
     # (17+48*x)/16 is not simplifiable for arbitrary x because when 17+48*x<0
     # (17+48*x)/16 != 1+3*x
-    ck.verify((17+48*x)/16, (x * 48 + 17) / 16)
+    ck.verify(tdiv(17 + 48 * x, 16), tdiv(x * 48 + 17, 16))
     # However, when x >= 0, then 17+48*x >= 0 and (17+48*x)/16 can be simplified
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 10))
-    ck.verify((17+48*x)/16, x * 3 + 1)
+    ck.verify(tdiv(17 + 48 * x, 16), x * 3 + 1)
     # Trying expressions that are not simplifiable for any values of the variables
-    ck.verify((17+47*x)/16, (x * 47 + 17) / 16)
+    ck.verify(tdiv(17 + 47 * x, 16), tdiv(x * 47 + 17, 16))
 
     # floordiv
     fld = tvm.floordiv
@@ -124,8 +130,10 @@ def test_canonical_mixed():
     ck = CanonicalChecker()
     x = tvm.var("x")
     z = tvm.const(3, "int32")
-    ck.verify(x / (z*z) - x / (z*z), 0)
-    ck.verify(x / (z+z) - x / (z+z), 0)
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
+    ck.verify(tdiv(x, (z*z)) - tdiv(x, (z*z)), 0)
+    ck.verify(tdiv(x, (z+z)) - tdiv(x, (z+z)), 0)
     ck.verify(x - 2 < 3, x < 5)
     ck.verify(tvm.max(x, 1) - tvm.max(x, 1), 0)
     ck.verify(tvm.min(x, 1) - tvm.min(x, 1), 0)
@@ -207,42 +215,44 @@ def test_reduce_simplify():
               tvm.sum(k + j, [k, j]))
     ck.verify(tvm.sum(A[3], []), A[3])
     # The rule below is not typical, removed for now
-    ck.verify(tvm.sum(k / 10, k), tvm.sum(tvm.const(0, "int32"), k))
+    ck.verify(tvm.sum(tvm.div(k, 10), k), tvm.sum(tvm.const(0, "int32"), k))
 
 
 def test_simplify_if_then_else():
     ck = CanonicalChecker()
     x = tvm.var("x")
     y = tvm.var("y")
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
     # simplification that takes condition into account.
     res = tvm.if_then_else((x * 4 + y) >= 466036,
-                           tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
-                                            (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
+                           tvm.if_then_else(24512 <= tmod(((x*4) + y) - 466036, 24528),
+                                            tmod(tmod(((x*4) + y)  - 466036, 24528) -24512, 16),
                                             x), y)
 
     res2 = tvm.if_then_else((x * 4) >= 466036 - y,
-                           tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
-                                            (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
+                           tvm.if_then_else(24512 <= tmod(((x*4) + y) - 466036, 24528),
+                                            tmod(tmod(((x*4) + y)  - 466036, 24528) -24512, 16),
                                             x), y)
     expected = tvm.if_then_else(
         tvm.expr.LE(466036, (x * 4 + y)),
-        tvm.if_then_else(tvm.expr.LE(24512, ((((x*4) + y) - 4) % 24528)),
-                         (((x*4) + y)  - 4) % 16,
+        tvm.if_then_else(tvm.expr.LE(24512, tmod(((x*4) + y) - 4, 24528)),
+                                     tmod(((x*4) + y)  - 4, 16),
                          x), y)
     ck.verify(res, expected)
     ck.verify(res2, expected)
     # can only simplify if condition
-    res = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 100) % 3, (x + 100) % 3)
-    expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 1) % 3, (x + 100) % 3)
+    res = tvm.expr.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3))
+    expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3))
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
     res = tvm.expr.Select(x >= 10,
-                          tvm.if_then_else(x / 3 > 2, x, 0), 0)
+                          tvm.if_then_else(tdiv(x, 3) > 2, x, 0), 0)
     expected = tvm.expr.Select(x >= 10, x, 0)
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
     res = tvm.expr.Select(x >= 10,
-                          tvm.if_then_else(x / 3 < 2, x, 0), 0)
+                          tvm.if_then_else(tdiv(x, 3) < 2, x, 0), 0)
     ck.verify(res, 0)
 
 
@@ -250,20 +260,20 @@ def test_complex_cases():
     ck = CanonicalChecker()
     x = tvm.var("x")
     y = tvm.var("y")
-    res2 = (((((((((((x*128) + y) % 1296)/36)*2) + 1)/2)*36) +
-              ((((((x*128) + y) % 36)*2) + 1)/2))
-             - (((x*128) + y) % 1296)) + 1)
+    tdiv = tvm.truncdiv
+    tmod = tvm.truncmod
+    res2 = (tdiv(tdiv(tmod(x*128 + y, 1296),36)*2 + 1,2)*36 +
+            tdiv(tmod((x*128) + y, 36)*2 + 1,2)
+            - tmod((x*128) + y, 1296) + 1)
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 5))
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 127))
     ck.verify(res2, 1)
 
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1024), True)
-    res3 = ((((((((((x*1024) + y)/65536) + ((((x*1024) + y) % 65536)/256))
-                 + ((((x*1024) + y) % 256)/16)) + (((x*1024) + y) % 16)) - (y/256)) -
-              ((y % 256)/16))  - (y % 16)) - (x*4))
-    ck.verify(res3, ((((x*1024) + y)/256) - (y/256)) - (x*4))
-
-
+    res3 = (tdiv(x*1024 + y,65536) + tdiv(tmod(x*1024 + y, 65536),256)
+            + tdiv(tmod(x*1024 + y, 256),16) + tmod(x*1024 + y, 16) - tdiv(y,256) -
+            tdiv(tmod(y, 256),16) - tmod(y, 16) - (x*4))
+    ck.verify(res3, tdiv((x*1024) + y, 256) - tdiv(y,256) - (x*4))
 
 
 if __name__ == "__main__":

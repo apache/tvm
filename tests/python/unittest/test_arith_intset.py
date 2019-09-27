@@ -60,13 +60,14 @@ def test_add_sub():
 def test_mul_div():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
+    tdiv = tvm.truncdiv
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(x * y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 * y))
     ck.verify(x * 2, {x : tvm.arith.IntervalSet(1, 10)}, (2, 20))
     ck.verify(x * -2, {x : tvm.arith.IntervalSet(1, 10)}, (-20, -2))
 
-    ck.verify(x / y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 / y))
-    ck.verify(x / 2, {x : tvm.arith.IntervalSet(1, 10)}, (0, 5))
+    ck.verify(tdiv(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, tdiv(10, y)))
+    ck.verify(tdiv(x, 2), {x : tvm.arith.IntervalSet(1, 10)}, (0, 5))
 
     fld = tvm.floordiv
     ck.verify(fld(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, fld(10, y)))
@@ -76,9 +77,10 @@ def test_mul_div():
 def test_mod():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
+    tmod = tvm.truncmod
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
-    ck.verify(x % y, {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
-    ck.verify(x % 10, {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
+    ck.verify(tmod(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
+    ck.verify(tmod(x, 10), {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
 
     flm = tvm.floormod
     ck.verify(flm(x, 10), {x : tvm.arith.IntervalSet(-10, 10)}, (0, 9))

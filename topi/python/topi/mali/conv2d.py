@@ -293,11 +293,14 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                     tvm.sum(input_tile[ci][p][r_a][r_b][vp] * B[r_a][eps] * B[r_b][nu],
                             axis=[r_a, r_b]), name='V')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     # batch gemm
     ci = tvm.reduce_axis((0, CI), name='c')
     M = tvm.compute((alpha, alpha, CO, P_round), lambda eps, nu, co, p:
-                    tvm.sum(U[eps][nu][co // bna][ci][co % bna] *
-                            V[eps][nu][p // bnb][ci][p % bnb], axis=ci), name='M')
+                    tvm.sum(U[eps][nu][idxdiv(co, bna)][ci][idxmod(co, bna)] *
+                            V[eps][nu][idxdiv(p, bnb)][ci][idxmod(p, bnb)], axis=ci), name='M')
 
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
     r_b = tvm.reduce_axis((0, alpha), 'r_b')
@@ -307,7 +310,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     # unpack output
     output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
-                         Y[co][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
+                         Y[co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
+                           idxmod(h, m), idxmod(w, m)]
                          # The following hack term is used to make the padding in batch gemm ("M")
                          # effective, otherwise the padding will be eliminated by bound inference.
                          # Use `tvm.expr.Mul` instead of `*` to avoid issues in const folding.
