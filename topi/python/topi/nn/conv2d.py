@@ -481,7 +481,7 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
     idxdiv = tvm.indexdiv
-    idxdiv = tvm.indexmod
+    idxmod = tvm.indexmod
 
     return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n,
