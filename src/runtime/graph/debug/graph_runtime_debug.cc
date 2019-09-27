@@ -145,7 +145,7 @@ class GraphRuntimeDebug : public GraphRuntime {
    * from begining upto the index-th node and return output of index-th node.
    * This is costly operation and suggest to use only for debug porpose.
    *
-   * \param index: The  index of the node.
+   * \param index: The index of the node.
    * \param data_out the node data.
    */
   void DebugGetNodeOutput(int index, DLTensor* data_out) {
