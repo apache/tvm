@@ -623,8 +623,9 @@ class GraphPartitioner {
    * \param parent The parent group.
    */
   void MergeFromTo(Group* child, Group* parent) {
-    // refuse the fusion if too many ops are fused together
-    if (parent->num_nodes > kMaxFusedOps) return;
+    // refuse the fusion if too many ops are going to be fused together
+    if (child->num_nodes + parent->num_nodes > kMaxFusedOps)
+      return;
     parent->num_nodes += child->num_nodes;
     child = child->FindRoot();
     parent = parent->FindRoot();
