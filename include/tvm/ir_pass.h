@@ -360,15 +360,6 @@ Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
 Stmt RewriteUnsafeSelect(Stmt stmt);
 
 /*!
- * \brief Lower attached storage access information.
- * Do this pass after all storage access analysis finish.
- *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
- */
-Stmt LowerStorageAccessInfo(Stmt stmt);
-
-/*!
  * \brief Decorate the stmt with a device scope, this is helpful for
  * hardware accelerator without thread blocks.
  *
@@ -512,6 +503,15 @@ LoweredFunc CombineContextCall(LoweredFunc f);
  * \return Transformed function.
  */
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
+
+/*!
+ * \brief Lower attached storage access information.
+ * Do this pass after all storage access analysis finish.
+ *
+ * \param stmt The stmt to be transformed
+ * \return Transformed stmt.
+ */
+LoweredFunc LowerStorageAccessInfo(LoweredFunc func);
 
 /*!
  * \brief Lower intrinsic function calls.

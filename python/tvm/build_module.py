@@ -413,7 +413,6 @@ def lower(sch,
 
     # Phase 3
     stmt = ir_pass.Simplify(stmt)
-    stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
     if not cfg.disable_select_rewriting:
         stmt = ir_pass.RewriteUnsafeSelect(stmt)
@@ -494,6 +493,8 @@ def _build_for_device(flist, target, target_host):
         assert not fdevice
 
     target_host = _target.create(target_host)
+    fdevice = [ir_pass.LowerStorageAccessInfo(x) for x in fdevice]
+    fhost = [ir_pass.LowerStorageAccessInfo(x) for x in fhost]
     fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]

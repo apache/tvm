@@ -184,7 +184,7 @@ void StorageAccessVisitor::Visit_(const IfThenElse* op) {
 void StorageAccessVisitor::Visit_(const Call* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
-    Visit_(l);
+    IRVisitor::Visit_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
     Type dtype = op->args[0].type();
@@ -339,6 +339,12 @@ class StorageAccessInfoLower : public IRMutator {
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower().Mutate(stmt);
+}
+
+LoweredFunc LowerStorageAccessInfo(LoweredFunc f) {
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  n->body = LowerStorageAccessInfo(f->body);
+  return LoweredFunc(n);
 }
 
 }  // namespace ir

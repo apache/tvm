@@ -422,7 +422,6 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 2
   stmt = ir::Simplify(stmt);
-  stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
@@ -517,6 +516,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerStorageAccessInfo(func);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -524,6 +524,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerStorageAccessInfo(func);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }

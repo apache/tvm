@@ -263,6 +263,28 @@ class ThreadSyncInserter : public IRMutator {
     }
   }
 
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      Expr expr = IRMutator::Mutate_(op, e);
+      op = expr.as<Call>();
+      CHECK_EQ(op->args.size(), 5U);
+      const Variable* buffer_var = op->args[1].as<Variable>();
+      Var var(buffer_var->GetNodePtr());
+      const IntImm* flag = op->args[4].as<IntImm>();
+      if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].read_count;
+      }
+      if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].write_count;
+      }
+      return expr;
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+
  private:
   // RW statistics about data
   struct Entry {

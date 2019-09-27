@@ -87,8 +87,8 @@ def intrin_wmma_store_matrix():
 
     return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
-def test_tensor_core_float():
-    n = 1024
+def test_tensor_core_gemm():
+    n = 4096
     m, l = n, n
     nn, mm, ll = n // 16, m // 16, l // 16
     A = tvm.placeholder((n, l), name='A', dtype='float16')
@@ -109,8 +109,8 @@ def test_tensor_core_float():
     block_row_warps = 2
     block_col_warps = 4
     warp_row_tiles = 2
-    warp_col_tiles = 1
-    chunk = 4
+    warp_col_tiles = 2
+    chunk = 8
 
     block_x = tvm.thread_axis('blockIdx.x')
     block_y = tvm.thread_axis('blockIdx.y')
@@ -192,10 +192,10 @@ def test_tensor_core_float():
     c = tvm.nd.array(np.zeros((n, n), dtype=C.dtype), ctx)
     func(a, b, c)
     c_np = c.asnumpy()
-    np.testing.assert_allclose(c_np, np.dot(a_np, b_np).astype(C.dtype), rtol=0.001, atol=0.001)
+    np.testing.assert_allclose(c_np, np.dot(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=5)
     print('gemm with tensor core: %f ms' % (evaluator(a, b, c).mean * 1e3))
 
 
 if __name__ == '__main__':
-    test_tensor_core_float()
+    test_tensor_core_gemm()
