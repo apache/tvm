@@ -111,6 +111,10 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct")
 def _schedule_dense(cfg, outs):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):

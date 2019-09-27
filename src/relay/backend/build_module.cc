@@ -143,6 +143,10 @@ class RelayBuildModule : public runtime::ModuleNode {
           this->SetParam(kv.first, kv.second->data);
         }
       });
+    } else if (name == "get_lowered_funcs") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetLoweredFunc();
+      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
