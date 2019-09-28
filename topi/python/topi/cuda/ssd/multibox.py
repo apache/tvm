@@ -95,8 +95,8 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
 
             for k in range(num_sizes + num_ratios - 1):
                 w = if_then_else(k < num_sizes,
-                                 float32(size_ratio_concat[k]) * in_height / in_width / 2.0,
-                                 float32(size_ratio_concat[0]) * in_height / in_width *
+                                 float(size_ratio_concat[k]) * in_height / in_width / 2.0,
+                                 float(size_ratio_concat[0]) * in_height / in_width *
                                  math.sqrt(size_ratio_concat[k + 1]) / 2.0)
                 h = if_then_else(
                     k < num_sizes, size_ratio_concat[k] / 2.0,
