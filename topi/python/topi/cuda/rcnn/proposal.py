@@ -89,8 +89,8 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
 
         for k in range(num_anchors):
             out_index = tid * num_anchors + k
-            ratio = ratios[idxd(k, len(scales))]
-            scale = scales[idxm(k, len(scales))]
+            ratio = ratios[k // len(scales)]
+            scale = scales[k % len(scales)]
             anchor = generate_anchor(ratio, scale, feature_stride)
             im_height = p_im_info[b * 3]
             im_width = p_im_info[b * 3 + 1]
