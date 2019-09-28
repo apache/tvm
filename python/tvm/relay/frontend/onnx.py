@@ -329,7 +329,7 @@ class Pad(OnnxOpConverter):
         pad_mode = attr.get('mode', 'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
-            attr.pop('mode')
+            attr.pop('mode', None)
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
@@ -352,7 +352,7 @@ class Pad(OnnxOpConverter):
         pad_mode = attr.get('mode', 'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
-            attr.pop('mode')
+            attr.pop('mode', None)
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
