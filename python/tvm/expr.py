@@ -72,23 +72,23 @@ class ExprOp(object):
         return _generic.multiply(other, self)
 
     def __div__(self, other):
-        # if _dtype_is_int(self) and _dtype_is_int(other):
-        #     raise div_ambiguity_error()
+        if _dtype_is_int(self) and _dtype_is_int(other):
+            raise div_ambiguity_error()
         return _generic.divide(self, other)
 
     def __rdiv__(self, other):
-        # if _dtype_is_int(self) and _dtype_is_int(other):
-        #     raise div_ambiguity_error()
+        if _dtype_is_int(self) and _dtype_is_int(other):
+            raise div_ambiguity_error()
         return _generic.divide(other, self)
 
     def __truediv__(self, other):
-        # if _dtype_is_int(self) and _dtype_is_int(other):
-        #     raise div_ambiguity_error()
+        if _dtype_is_int(self) and _dtype_is_int(other):
+            raise div_ambiguity_error()
         return _generic.divide(self, other)
 
     def __rtruediv__(self, other):
-        # if _dtype_is_int(self) and _dtype_is_int(other):
-        #     raise div_ambiguity_error()
+        if _dtype_is_int(self) and _dtype_is_int(other):
+            raise div_ambiguity_error()
         return _generic.divide(other, self)
 
     def __floordiv__(self, other):
@@ -100,8 +100,8 @@ class ExprOp(object):
         return _generic.divide(other, self)
 
     def __mod__(self, other):
-        # raise div_ambiguity_error()
-        return _make._OpMod(self, other)
+        raise div_ambiguity_error()
+        # return _make._OpMod(self, other)
 
     def __neg__(self):
         neg_one = _api_internal._const(-1, self.dtype)
