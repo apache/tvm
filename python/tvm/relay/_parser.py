@@ -231,7 +231,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_typ(self, name: str, kind: ty.Kind) -> ty.TypeVar:
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.TypeVar(name, kind)
-        self.type_var_scopes[0].appendleft((name, typ))
+        self.type_var_scopes[0].append((name, typ))
         return typ
 
     def mk_global_typ_var(self, name, kind):

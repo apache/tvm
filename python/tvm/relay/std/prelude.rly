@@ -122,12 +122,12 @@ def @foldl[A, B](%f: fn(A, B) -> A, %acc: A, %xs: List[B]) -> A {
 /*
  * A right-way fold over a list.
  *
- * `foldr(f, cons(a1, cons(a2, cons(..., cons(an, nil)))), z)`
+ * `foldr(f, z, cons(a1, cons(a2, cons(..., cons(an, nil)))))`
  * evaluates to `f(a1, f(a2, f(..., f(an, z)))...)`.
  */
-def @foldr[A, B](%f: fn(A, B) -> B, %xs: List[A], %acc: B) -> B {
+def @foldr[A, B](%f: fn(A, B) -> B, %acc: B, %xs: List[A]) -> B {
   match (%xs) {
-    Cons(%x, %rest) => %f(%x, @foldr(%f, %rest, %acc)),
+    Cons(%x, %rest) => %f(%x, @foldr(%f, %acc, %rest)),
     Nil => %acc,
   }
 }
@@ -218,7 +218,7 @@ def @map_accumr[A, B, C](%f: fn(A, B) -> (A, C), %init: A, %xs: List[B]) -> (A, 
     let %f_out = %f(%acc.0, %x);
     (%f_out.0, Cons(%f_out.1, %acc.1))
   };
-  @foldr(%updater, %xs, (%init, Nil))
+  @foldr(%updater, (%init, Nil), %xs)
 }
 
 /*
