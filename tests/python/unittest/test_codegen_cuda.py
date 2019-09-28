@@ -37,7 +37,7 @@ def test_cuda_vectorize_add():
             print("skip because gpu does not support int8")
             return
         A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.compute((n,), lambda i: A[i]+tvm.const(1, A.dtype), name='B')
+        B = tvm.compute((n,), lambda i: A[i] + tvm.const(1, A.dtype), name='B')
         s = tvm.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
@@ -165,9 +165,10 @@ def test_cuda_shuffle():
         print("skip because cuda is not enabled..")
         return
 
+    idxm = tvm.indexmod
     a = tvm.placeholder((64, ), 'int32')
     b = tvm.placeholder((64, ), 'int32')
-    c = tvm.compute((64, ), lambda x: a[x] + b[x - (x % 4) + (3 - x % 4)])
+    c = tvm.compute((64, ), lambda x: a[x] + b[x - idxm(x, 4) + (3 - idxm(x, 4))])
     sch = tvm.create_schedule(c.op)
     x = c.op.axis[0]
     xo, xi = sch[c].split(x, 4)

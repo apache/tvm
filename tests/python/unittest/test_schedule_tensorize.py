@@ -221,14 +221,15 @@ def test_tensorize_matmul():
 # This tests whether algorithm and intrinsics expressions are simplified
 # as much as possible first and then checked for equality. See Issue #696
 def test_tensorize_op():
-    tdiv = tvm.truncdiv
-    tmod = tvm.truncmod
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     def op_intrin():
         bh = 9
         bw = 9
         x = tvm.placeholder((5, 5), name='A')
         y = tvm.compute((bh, bw),
-                        lambda i, j: x[tdiv(j,3) + tmod(i,3), tmod(j,3)+ tdiv(i,3)])
+                        lambda i, j: x[idxd(j,3) + idxm(i,3), idxm(j,3)+ idxd(i,3)])
 
         def intrin_func(ins, outs):
             xx, = ins
@@ -239,7 +240,7 @@ def test_tensorize_op():
             return tvm.decl_tensor_intrin(y.op, intrin_func)
 
     A = tvm.placeholder((5, 5), name='A')
-    B = tvm.compute((9,9), lambda i, j: A[tdiv(j,3) + tmod(i,3), tmod(j,3) + tdiv(i,3)])
+    B = tvm.compute((9,9), lambda i, j: A[idxd(j,3) + idxm(i,3), idxm(j,3) + idxd(i,3)])
     bt = op_intrin()
     s = tvm.create_schedule(B.op)
 

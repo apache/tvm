@@ -79,10 +79,13 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
     p_im_info = ib.buffer_ptr(im_info_buf)
     p_out = ib.buffer_ptr(out_buf)
 
+    idxm = tvm.indexmod
+    idxd = tvm.indexdiv
+
     with ib.if_scope(tid < batch * height * width):
-        w = tid % width
-        h = (tid // width) % height
-        b = tid // width // height
+        w = idxm(tid, width)
+        h = idxm(idxd(tid, width), height)
+        b = idxd(idxd(tid, width), height)
 
         for k in range(num_anchors):
             out_index = tid * num_anchors + k
@@ -163,6 +166,8 @@ def argsort_ir(data_buf, out_index_buf):
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
 
+    idxm = tvm.indexmod
+
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_bbox
         for i in range(2):
@@ -170,7 +175,7 @@ def argsort_ir(data_buf, out_index_buf):
             with ib.if_scope(bbox_id < num_bbox):
                 index_out[start + bbox_id] = bbox_id
         with ib.for_range(0, num_bbox) as k:
-            offset = start + 2 * tid + (k % 2)
+            offset = start + 2 * tid + idxm(k, 2)
             with ib.if_scope(
                 tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
                 temp_data[0] = p_data[offset]

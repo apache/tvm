@@ -109,14 +109,15 @@ def test_gpu():
     dtype = "float32"
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
-    fld = tvm.floordiv
+    idxd = tvm.indexdiv
+
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 32
         ib = tvm.ir_builder.create()
         bx = tvm.thread_axis("blockIdx.x")
         tx = tvm.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", fld(n+max_threads-1, max_threads))
+        ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         Aptr = ib.buffer_ptr(A)

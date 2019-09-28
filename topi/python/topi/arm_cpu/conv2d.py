@@ -171,6 +171,9 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
     data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     r = KW
     m = tile_size
     alpha = m + r - 1
@@ -190,10 +193,11 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     VK = cfg['tile_k'].size[-1]
 
     # pack input tile
-    input_tile = tvm.compute((C, P // VP, alpha, alpha, VP),
+    input_tile = tvm.compute((C, idxd(P, VP), alpha, alpha, VP),
                              lambda c, b, eps, nu, bb:
-                             data_pad[(b*VP+bb) // (nH*nW)][c][(b*VP+bb) // nW % nH * m + eps]
-                             [(b*VP+bb) % nW * m + nu],
+                             data_pad[idxd(b*VP + bb, nH*nW), c,
+                                      idxm(idxd(b*VP + bb, nW), nH) * m + eps,
+                                      idxm(b*VP + bb, nW) * m + nu],
                              name='d')
 
     # transform kernel
@@ -202,22 +206,22 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     else:
         r_kh = tvm.reduce_axis((0, KH), 'r_kh')
         r_kw = tvm.reduce_axis((0, KW), 'r_kw')
-        U = tvm.compute((alpha, alpha, K // VK, C, VK), lambda eps, nu, k, c, kk:
+        U = tvm.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
                         tvm.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
                                 G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
     r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    V = tvm.compute((alpha, alpha, P // VP, C, VP), lambda eps, nu, b, c, bb:
+    V = tvm.compute((alpha, alpha, idxd(P, VP), C, VP), lambda eps, nu, b, c, bb:
                     tvm.sum(input_tile[c][b][r_eps][r_nu][bb].astype(out_dtype) *
                             B[r_eps][eps] * B[r_nu][nu], axis=[r_eps, r_nu]), name='V')
 
     # batch gemm
     c = tvm.reduce_axis((0, C), name='c')
     M = tvm.compute((alpha, alpha, K, P), lambda eps, nu, k, b:
-                    tvm.sum(U[eps][nu][k // VK][c][k % VK] *
-                            V[eps][nu][b // VP][c][b % VP], axis=c), name='M')
+                    tvm.sum(U[eps][nu][idxd(k, VK)][c][idxm(k, VK)] *
+                            V[eps][nu][idxd(b, VP)][c][idxm(b, VP)], axis=c), name='M')
 
     # inverse transform
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
@@ -228,7 +232,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     # unpack output
     output = tvm.compute((N, K, H, W), lambda n, k, h, w:
-                         Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m],
+                         Y[k][n * nH * nW + idxd(h, m) * nW + idxd(w, m),
+                              idxm(h, m), idxm(w, m)],
                          name='output', tag='winograd_conv2d_output')
 
     # we have to manually assign effective GFLOP for winograd
@@ -517,6 +522,8 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
     N, CI, H, W = get_const_tuple(data.shape)
     CO, _, KH, KW = get_const_tuple(kernel.shape)
 
+    idxd = tvm.indexdiv
+
     if groups == 1:
         # query config of this workload
         workload = autotvm.task.args_to_workload(
@@ -535,7 +542,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
             # Store the same config for the altered operator (workload)
             new_data = data
-            new_kernel = tvm.placeholder((CO // VC, CI, KH, KW, VC), dtype=kernel.dtype)
+            new_kernel = tvm.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, strides, padding, dilation, 'NCHW', out_dtype], conv2d)
             dispatch_ctx.update(target, new_workload, cfg)
@@ -553,7 +560,9 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
                                                                    tile_size=tile_size)
             weight = F.reshape(weight,
-                               newshape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
+                               newshape=(KH + tile_size - 1,
+                                         KW + tile_size - 1,
+                                         idxd(CO, VC), VC, CI))
             weight = F.transpose(weight, axes=[0, 1, 2, 4, 3])
 
             copy_inputs[1] = weight
@@ -561,7 +570,9 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
             # Store the same config for the altered operator (workload)
             new_data = data
-            new_weight = tvm.placeholder((KH + tile_size - 1, KH + tile_size -1, CO // VC, CI, VC),
+            new_weight = tvm.placeholder((KH + tile_size - 1,
+                                          KH + tile_size -1,
+                                          idxd(CO, VC), CI, VC),
                                          kernel.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_weight, strides, padding, dilation,
@@ -612,7 +623,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             # Store the same config for the altered operator (workload)
             new_data = data
             CO, M, KH, KW = get_const_tuple(kernel.shape)
-            new_kernel = tvm.placeholder((CO // VC, M, KH, KW, VC), dtype=kernel.dtype)
+            new_kernel = tvm.placeholder((idxd(CO, VC), M, KH, KW, VC), dtype=kernel.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, strides, padding, dilation, out_dtype],
                 depthwise_conv2d_nchw)
