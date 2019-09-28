@@ -84,6 +84,7 @@ class OperatorConverter(object):
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
             'TANH':self.convert_tanh,
+            'RELU':self.convert_relu,
             'SPLIT': self.convert_split,
             'TRANSPOSE': self.convert_transpose,
             'TILE': self.convert_tile,
@@ -342,6 +343,23 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.tanh(in_expr)
+
+        return out
+
+    def convert_relu(self, op):
+        """Convert TFLite ReLU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.nn.relu(in_expr)
 
         return out
 

@@ -837,6 +837,21 @@ def test_forward_tanh():
     _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
 #######################################################################
+# ReLu
+# --------
+
+def _test_relu(data):
+    """ One iteration of ReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_ops.relu(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_relu():
+    """ ReLU """
+    _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+#######################################################################
 # Fully Connected
 # -------
 
@@ -999,6 +1014,7 @@ if __name__ == '__main__':
     test_forward_pooling()
     test_forward_softmax()
     test_forward_tanh()
+    test_forward_relu()
     test_forward_fully_connected()
 
     # Elemwise
