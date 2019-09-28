@@ -37,10 +37,9 @@ import tvm.contrib.graph_runtime as runtime
 # Define network
 # --------------
 # First we need to define the network in relay frontend API.
-# We can load some pre-defined network from :code:`relay.testing`.
+# We can either load some pre-defined network from :code:`relay.testing`
+# or building :any:`relay.testing.resnet` with relay.
 # We can also load models from MXNet, ONNX and TensorFlow.
-# Alternatively, we can `build a Graph Convolutional Network (GCN) with Relay
-# <https://docs.tvm.ai/tutorials/frontend/build_gcn.html#building-a-graph-convolutional-network>`
 #
 # In this tutorial, we choose resnet-18 as tuning example.
 
