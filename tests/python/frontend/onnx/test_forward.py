@@ -781,21 +781,31 @@ def test_constantfill():
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
 
-def verify_pad(indata, pads, value=0.0):
+def verify_pad(indata, pads, mode='constant', value=0.0):
     indata = np.array(indata).astype(np.float32)
     #  numpy expect result
     len_dim = len(pads) // 2
     np_pads = [(pads[i], pads[i+len_dim]) for i in range(len_dim)]
-    outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
     #  onnx graph
-    node = helper.make_node(
-        'Pad',
-        inputs=['input'],
-        outputs=['output'],
-        mode='constant',
-        pads=pads,
-        value=value
-    )
+    if mode in ['edge', 'reflect']:
+        outdata = np.pad(indata, pad_width=np_pads, mode=mode)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input'],
+            outputs=['output'],
+            mode=mode,
+            pads=pads,
+        )
+    else:
+        outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input'],
+            outputs=['output'],
+            mode='constant',
+            pads=pads,
+            value=value
+        )
     graph = helper.make_graph([node],
                               'pad_test',
                               inputs = [helper.make_tensor_value_info("input",
@@ -809,9 +819,11 @@ def verify_pad(indata, pads, value=0.0):
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_pad():
-    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 0.0)
-    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 0.0)
-    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 5.0)
+    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 'constant', 0.0)
+    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 'constant', 0.0)
+    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 'constant', 5.0)
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
 
 def verify_reduce_x(name, indata, axis, keepdims):
     indata = np.array(indata).astype(np.float32)
@@ -1266,7 +1278,6 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantfill()
-    test_pad()
     test_reduce_max()
     test_reduce_min()
     test_reduce_sum()

@@ -326,15 +326,20 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
+        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        if pad_mode in ['constant', 'edge', 'reflect']:
+            attr['pad_mode'] = pad_mode
+            attr.pop('mode', None)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
 
         return AttrCvt(
             _op.nn.pad,
             transforms={
                 'value': 'pad_value',
             },
-            ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
-                          'split mode != constant'))(inputs, attr, params)
+            )(inputs, attr, params)
 
     @classmethod
     def _impl_v2(cls, inputs, attr, params):
@@ -344,15 +349,20 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
+        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        if pad_mode in ['constant', 'edge', 'reflect']:
+            attr['pad_mode'] = pad_mode
+            attr.pop('mode', None)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
 
         return AttrCvt(
             'pad',
             transforms={
                 'value': 'pad_value',
             },
-            ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
-                          'split mode != constant'))(inputs, attr, params)
+            )(inputs, attr, params)
 
 
 class ParametricSoftPlus(OnnxOpConverter):
