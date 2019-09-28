@@ -19,16 +19,18 @@
 
 import tvm
 
-def dot_2x1x2_uint8_uint8_uint32():
+def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     """
     Int8 dot product by every 4 elements using ARM v8.2 udot.
     This function takes two arrays of int8 datatype -- data[4] and
-    kernel[2][4] -- and computes a dot product of data[4] with every
-    4 elements of kernels, resulting in output[2] of uint32 datatype.
+    kernel[int32_lanes][4] -- and computes a dot product of data[4] with every
+    4 elements of kernels, resulting in output[int32_lanes] of uint32 datatype.
     The pseudo code is as follows.
+
     .. code-block:: c
-        void dot_2x1x2_uint8_uint8_uint32(int8 data[4], int8 kernel[16][4], uint32 output[16]){
-            for (int i = 0; i < 2; i++){
+
+        void dot_int8_int8_int32(int8 data[4], int8 kernel[16][4], int32 output[16]){
+            for (int i = 0; i < int32_lanes; i++){
                 out[i] = 0;
                 for (int k = 0; k < 4; k++){
                     out[i] += data[k] * kernel[i][k]
@@ -41,27 +43,33 @@ def dot_2x1x2_uint8_uint8_uint32():
     function returns a TensorIntrin that can be used to tensorize
     a schedule.
 
+    Parameters
+    ----------
+    int32_lanes: int
+        How many int32/uint32 to produce
+    dtype: str, optional, {"uint", "int"}
+        Whether it works on unsigned int or signed int
+
     Returns
     -------
     intrin : TensorIntrin
         The ARM uint8 TensorIntrin that can be used in tensorizing schedule
     """
-    int32_lanes = 2  # 2 uint32 lanes
     num_int8_elements = 4  # 4 uint8 elements in int32
 
-    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='uint8', name='kernel')
+    data = tvm.placeholder((num_int8_elements,), dtype='%s8' % dtype, name='data')
+    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='%s8' % dtype, name='kernel')
 
     k = tvm.reduce_axis((0, num_int8_elements), name='k')
     C = tvm.compute((int32_lanes,),
-                    lambda i: tvm.sum(data[k].astype('uint32') *
-                                      kernel[i, k].astype('uint32'),
+                    lambda i: tvm.sum(data[k].astype('%s32' % dtype) *
+                                      kernel[i, k].astype('%s32' % dtype),
                                       axis=k), name="C")
 
-    a_buffer = tvm.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
+    a_buffer = tvm.decl_buffer(data.shape, dtype='%s8' % dtype, name="a_buffer",
                                offset_factor=1,
                                strides=[1])
-    b_buffer = tvm.decl_buffer(kernel.shape, dtype='uint8', name="b_buffer",
+    b_buffer = tvm.decl_buffer(kernel.shape, dtype='%s8' % dtype, name="b_buffer",
                                offset_factor=1,
                                strides=[tvm.var('s'), 1])
 
@@ -69,25 +77,29 @@ def dot_2x1x2_uint8_uint8_uint32():
         def _instr(index):
             ib = tvm.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.const(0, 'uint32x2')))
+                ib.emit(outs[0].vstore(0, tvm.const(0, '%s32x%d' % (dtype, int32_lanes))))
                 return ib.get()
 
-            a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.call_pure_intrin('uint32', 'reinterpret', a_int8)
-            vec_ai32 = re_int32.astype('uint32x2')
+            dtype_a = '%s8x%d' % (dtype, num_int8_elements)
+            dtype_b = '%s8x%d' % (dtype, int32_lanes * num_int8_elements)
+            dtype_c = '%s32x%d' % (dtype, int32_lanes)
 
-            vec_a = tvm.call_pure_intrin('uint8x8', 'reinterpret', vec_ai32)
-            vec_b = ins[1].vload([0, 0], "uint8x8")
-            vec_c = tvm.const(0, 'uint32x2')
+            a_int8 = ins[0].vload([0], dtype_a)
+            re_int32 = tvm.call_pure_intrin('%s32' % dtype, 'reinterpret', a_int8)
+            # broadcast a
+            vec_ai32 = re_int32.astype(dtype_c)
 
-            vdot = tvm.call_llvm_intrin('uint32x2',
-                                        'llvm.aarch64.neon.udot.v2i32.v8i8',
+            vec_a = tvm.call_pure_intrin(dtype_b, 'reinterpret', vec_ai32)
+            vec_b = ins[1].vload([0, 0], dtype_b)
+            vec_c = outs[0].vload([0], dtype_c)
+
+            inst = 'udot' if dtype == 'uint' else 'sdot'
+            inst = 'llvm.aarch64.neon.%s.v%di32.v%di8' % (inst, int32_lanes, int32_lanes * num_int8_elements)
+            vdot = tvm.call_llvm_intrin(dtype_c,
+                                        inst,
                                         tvm.const(2, 'uint32'),
                                         vec_c, vec_a, vec_b)
-            if index == 0:
-                ib.emit(outs[0].vstore(0, vdot))
-            else:
-                ib.emit(outs[0].vstore(0, vdot + outs[0].vload([0], 'uint32x2')))
+            ib.emit(outs[0].vstore(0, vdot))
             return ib.get()
 
         # body, reset, update

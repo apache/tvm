@@ -146,12 +146,13 @@ if __name__ == "__main__":
     LOGGER.info("Workload, Kernel_size, FP32_time, INT8_time, Speedup")
     SPEEDUP_ARRAY = []
     for i, wkl in enumerate(WORKLOADS):
-        fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
-        int8_time = run_inference('uint8', 'uint8', 'uint32', *wkl)
-        kernel_h = wkl[4]
-        kernel_w = wkl[5]
-        LOGGER.info("Workload#" + str(i) + ", " + str(kernel_h) + "x" + str(kernel_w) + ", "
-                    + str(fp32_time) + ", " + str(int8_time) + ", " + str(fp32_time/int8_time))
+        for dtype in ["uint", "int"]:
+            fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
+            int8_time = run_inference('%s8' % dtype, '%s8' % dtype, '%s32' % dtype, *wkl)
+            kernel_h = wkl[4]
+            kernel_w = wkl[5]
+            LOGGER.info("[%s] Workload#" % dtype + str(i) + ", " + str(kernel_h) + "x" + str(kernel_w) + ", "
+                        + str(fp32_time) + ", " + str(int8_time) + ", " + str(fp32_time/int8_time))
 
-        SPEEDUP_ARRAY.append(fp32_time/int8_time)
+            SPEEDUP_ARRAY.append(fp32_time/int8_time)
     LOGGER.info("Average speedup --> %s" % str(sum(SPEEDUP_ARRAY)/float(len(SPEEDUP_ARRAY))))

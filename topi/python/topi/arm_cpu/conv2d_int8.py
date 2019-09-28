@@ -25,7 +25,7 @@ from ..nn.conv2d import conv2d_NCHWc_int8
 from ..generic import conv2d as conv2d_generic
 from .. import nn
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
-from .tensor_intrin import dot_2x1x2_uint8_uint8_uint32
+from .tensor_intrin import dot_int8_int8_int32
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
@@ -98,12 +98,13 @@ def _schedule_conv2d_NCHWc_int8(cfg, outs):
             args = [s, cfg, data_vec, conv_out, outs[0]]
             # int8 conv kernel is 7-dim
             _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+            dtype = "uint" if data.dtype == "uint8" else "int"
             if kh == 1 and kw == 1:
                 conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(
-                    *args, int32_lanes=2, intrin=dot_2x1x2_uint8_uint8_uint32())
+                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype))
             else:
                 conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
-                    *args, int32_lanes=2, intrin=dot_2x1x2_uint8_uint8_uint32())
+                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype))
 
         scheduled_ops.append(op)
 

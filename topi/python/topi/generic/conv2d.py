@@ -27,6 +27,7 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
     Normally the inner most pattern takes two int8/uint8 tensors
     data[num_int8_elements] and kernel[int32_lanes, num_int8_elements],
     produces a dot product int32/uint32 output[int32_lanes].
+
     Parameters
     ----------
     int32_lanes : int
@@ -69,6 +70,7 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     Normally the inner most pattern takes two int8/uint8 tensors
     data[num_int8_elements] and kernel[int32_lanes, num_int8_elements],
     produces a dot product int32/uint32 output[int32_lanes].
+
     Parameters
     ----------
     int32_lanes : int
