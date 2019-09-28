@@ -60,14 +60,14 @@ def test_pack_gemm():
         k = tvm.reduce_axis((0, L))
 
         bn = 4
-        fld = tvm.floordiv
-        flm = tvm.floormod
+        idxd = tvm.indexdiv
+        idxm = tvm.indexmod
 
         A_pack = tvm.compute((N // bn, L, bn), lambda i, j, k: A[i * bn + k][j])
         B_pack = tvm.compute((M // bn, L, bn), lambda i, j, k: B[i * bn + k][j])
         C_pack = tvm.compute((N // bn, M // bn, bn, bn), lambda i, j, ii, jj:
         tvm.sum(A_pack[i, k, ii].astype(acc_dtype) * B_pack[j, k, jj].astype(acc_dtype), axis=[k]))
-        C = tvm.compute((N, M), lambda i, j: C_pack[fld(i, bn)][fld(j, bn)][flm(i, bn)][flm(j, bn)])
+        C = tvm.compute((N, M), lambda i, j: C_pack[idxd(i, bn)][idxd(j, bn)][idxm(i, bn)][idxm(j, bn)])
 
         s = tvm.create_schedule([C.op])
         assert compute_flop(s) == 2 * N * L * M

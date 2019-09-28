@@ -309,8 +309,15 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
 
     # packing the Filter to let memory access be consecutive for AVX512 intrinsic
     # Done in pre-compute stage
-    packw_shape = (kernel_h, kernel_w, num_filter/16, 16*(channel/4), 4)
-    PackW = tvm.compute(packw_shape, lambda a, b, c, d, e: Filter[a][b][c*16+d%16][d/16*4+e],
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
+    packw_shape = (kernel_h, kernel_w, idxd(num_filter, 16), 16 * idxd(channel, 4), 4)
+    PackW = tvm.compute(packw_shape,
+                        lambda a, b, c, d, e:
+                        Filter[a, b,
+                               c*16 + idxm(d, 16),
+                               idxd(d, 16) * 4 + e],
                         name="packed_filter")
 
     rc = tvm.reduce_axis((0, in_channel), name='rc')
@@ -321,7 +328,9 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
         lambda nn, yy, xx, ff: tvm.sum(
             PaddedInput[nn, yy * stride_h + ry * dilation_h,
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
-            PackW[ry, rx, ff/16, (rc/4)*16+ff%16, rc%4].astype(out_dtype), axis=[ry, rx, rc]),
+            PackW[ry, rx, idxd(ff, 16),
+                  idxd(rc, 4) * 16 + idxm(ff, 16),
+                  idxm(rc, 4)].astype(out_dtype), axis=[ry, rx, rc]),
         name="Conv2d_1x1_Output_int8", tag="conv2d_nhwc_pack_int8")
     return Output
 
