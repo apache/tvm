@@ -247,7 +247,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # We have to re-write the algorithm slightly.
 packedB = tvm.compute((N / bn, K, bn), lambda x, y, z: B[y, x * bn + z], name='packedB')
 C = tvm.compute((M, N),
-                lambda x, y: tvm.sum(A[x, k] * packedB[y / bn, k, y % bn], axis=k),
+                lambda x, y: tvm.sum(A[x, k] * packedB[y // bn, k, tvm.indexmod(y, bn)], axis=k),
                 name = 'C')
 
 s = tvm.create_schedule(C.op)
