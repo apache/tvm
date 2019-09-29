@@ -96,7 +96,7 @@ class Module(RelayNode):
             assert isinstance(val, _ty.Type)
             if isinstance(var, _base.string_types):
                 var = _ty.GlobalTypeVar(var)
-            _module.Module_AddDef(self, var, val)
+            _module.Module_AddDef(self, var, val, update)
 
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
@@ -148,6 +148,26 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global var.
         """
         return _module.Module_GetGlobalVar(self, name)
+
+    def get_global_vars(self):
+        """Collect all global vars defined in this module.
+
+        Returns
+        -------
+        global_vars: tvm.Array[GlobalVar]
+            An array of global vars.
+        """
+        return _module.Module_GetGlobalVars(self)
+
+    def get_global_type_vars(self):
+        """Collect all global type vars defined in this module.
+
+        Returns
+        -------
+        global_type_vars: tvm.Array[GlobalTypeVar]
+            An array of global type vars.
+        """
+        return _module.Module_GetGlobalTypeVars(self)
 
     def get_global_type_var(self, name):
         """Get a global type variable in the function by name.
