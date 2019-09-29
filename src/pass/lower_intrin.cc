@@ -46,6 +46,9 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     patterns_.push_back("tvm.intrin.rule." + starget + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
     fma_ = runtime::Registry::Get(patterns_[0] + "fma");
+    if (target == "stackvm") {
+      support_bitwise_op_ = false;
+    }
   }
 
   Expr Mutate_(const Call* op, const Expr& e) final {
@@ -76,7 +79,8 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     const DataType& dtype = op->type;
     CHECK(dtype.is_int() || !dtype.is_uint());
 
-    if (is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ &&
+        is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
       return op->a >> make_const(dtype, shift);
     }
@@ -122,7 +126,8 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     const DataType& dtype = op->type;
     CHECK(dtype.is_int() || !dtype.is_uint());
 
-    if (is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ &&
+        is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
       int64_t mask = (
           static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
@@ -268,6 +273,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
   // patterns
   std::vector<std::string> patterns_;
   const PackedFunc* fma_{nullptr};
+  bool support_bitwise_op_{true};
 };
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
