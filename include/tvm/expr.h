@@ -92,7 +92,7 @@ class Var;
 /*!
  * \brief A variable node in the IR.
  *
- * A vraible is uniquely identified by its address.
+ * A variable is uniquely identified by its address.
  *
  * Each variable is only binded once in the following nodes:
  * - Allocate
