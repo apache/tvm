@@ -522,7 +522,7 @@ TVM_REGISTER_API("test.op.MatchTensorizeBody")
     CHECK(stage->op.as<ComputeOpNode>());
     *ret = MatchTensorizeBody(stage->op.as<ComputeOpNode>(),
                               stage,
-                              {},
+                              {{}},
                               as_unordered_map(out_dom),
                               as_unordered_map(in_region),
                               intrin,
