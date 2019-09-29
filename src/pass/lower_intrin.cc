@@ -97,7 +97,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         // condition on b >= 0.
         // truncmod(a, b) < 0 will implies ceildiv,
         // So we need to correct these cases.
-        if (dtype == Int(32) || dtype == Int(64)) {
+        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
@@ -145,7 +145,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         // mod(a, b) < 0 will imply we are doing ceildiv,
         // So we need to correct these cases.
         Expr rmod = truncmod(op->a, op->b);
-        if (dtype == Int(32) || dtype == Int(64)) {
+        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
           // (rmod >> shift) & b
           // -> (rmod >= 0 ? 0: -1) & b
           // -> rmod >= 0 ? 0 : b
