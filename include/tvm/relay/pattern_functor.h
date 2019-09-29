@@ -103,7 +103,8 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
   virtual R VisitPattern_(const PatternTupleNode* op,
                           Args... args) PATTERN_FUNCTOR_DEFAULT;
   virtual R VisitPatternDefault_(const Node* op, Args...) {
-    throw Error(std::string("Do not have a default for ") + op->type_key());
+    LOG(FATAL) << "Do not have a default for " << op->type_key();
+    throw;
   }
 
  private:
