@@ -74,6 +74,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
+- [Animesh Jain](https://github.com/anijain2305): @anijain2305
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Zhi Chen](https://github.com/zhiics): @zhiics
