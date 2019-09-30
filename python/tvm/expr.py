@@ -92,16 +92,13 @@ class ExprOp(object):
         return _generic.divide(other, self)
 
     def __floordiv__(self, other):
-        # return _generic.floordiv(self, other)
-        return _generic.divide(self, other)
+        return _generic.floordiv(self, other)
 
     def __rfloordiv__(self, other):
-        # return _generic.floordiv(other, self)
-        return _generic.divide(other, self)
+        return _generic.floordiv(other, self)
 
     def __mod__(self, other):
-        raise div_ambiguity_error()
-        # return _make._OpMod(self, other)
+        return _make._OpFloorMod(self, other)
 
     def __neg__(self):
         neg_one = _api_internal._const(-1, self.dtype)
