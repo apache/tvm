@@ -313,12 +313,12 @@ def add(lhs,
                      output_scale, output_zero_point)
 
 
-def quantized_dense(data,
-                    weight,
-                    input_zero_point,
-                    kernel_zero_point,
-                    units=None,
-                    out_dtype="int32"):
+def dense(data,
+          weight,
+          input_zero_point,
+          kernel_zero_point,
+          units=None,
+          out_dtype="int32"):
     """Qnn Dense operator.
     Applies a quantized linear transformation
 
