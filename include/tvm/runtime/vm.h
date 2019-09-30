@@ -719,20 +719,6 @@ class VirtualMachine : public runtime::ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self);
 
-  /*!
-   * \brief Invoke an external function.
-   *
-   * \param external_index The offset of the external function in all functions.
-   * \param func The external function to be invoked.
-   * \param arg_count The number of arguments to the external function.
-   * \param output_size The number of outputs of the external function.
-   * \param args Arguments to the external function.
-   *
-   * \note The return value will be stored in the last output_size slots of args.
-   */
-  virtual void InvokeExternal(Index External_index, const relay::Function& func, Index arg_count,
-                              Index output_size, const std::vector<Object>& args);
-
   virtual ~VirtualMachine() {}
 
   const char* type_key() const final {
@@ -752,6 +738,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<PackedFunc> packed_funcs_;
   /*! \brief The virtual machine's external function table. */
   std::vector<relay::Function> external_funcs;
+  /*! \brief The external module/library. */
+  std::vector<runtime::Module> ext_libs;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */
@@ -844,6 +832,12 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
+
+  std::unordered_map<Index, Index> external_map;
+
+  /*! \brief A mapping from the subgraph id to the external function name.
+   */
+  std::unordered_map<Index, std::string> external_func_map;
 
  private:
   /*!

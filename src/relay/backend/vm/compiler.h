@@ -81,7 +81,6 @@ struct VMCompilerContext {
   std::vector<Function> external_funcs;
 };
 
-
 class VMCompiler : public runtime::ModuleNode {
  public:
   virtual ~VMCompiler() {}
@@ -132,7 +131,11 @@ class VMCompiler : public runtime::ModuleNode {
 
   void PopulateGlobalMap();
 
-  void LibraryCodegen();
+  /* \brief Use TVM codegen to generat code for primitive functions. */
+  void PrimitiveFuncCodegen();
+  
+  /* \brief Use TVM codegen to generat code for external functions. */
+  void ExternalFuncCodegen();
 
  protected:
   /*! \brief Target devices. */

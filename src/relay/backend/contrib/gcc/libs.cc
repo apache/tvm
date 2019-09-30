@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <string.h>
 
 #define GCC_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)           \
   extern "C" void p_ID_(float* a, float* b, float* out) { \

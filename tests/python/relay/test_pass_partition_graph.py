@@ -178,22 +178,41 @@ def test_multi_node_subgraph():
              x_data + w_data[6] - w_data[7]),
             axis=0))
 
-def test_extern_gcc():
-    x = relay.var('x', shape=(10, 10))
-    y = relay.var('y', shape=(10, 10))
-    z = x + x
-    p = y * y
-    f = relay.Function([x, y], p - z)
-    x_data = np.random.rand(10, 10).astype('float32')
-    y_data = np.random.rand(10, 10).astype('float32')
+def test_extern_gcc_single_op():
+    x = relay.var('x', shape=(8, 8))
+    y = relay.var('y', shape=(8, 8))
+    z = x + y
+    f = relay.Function([x, y], z)
+    x_data = np.random.rand(8, 8).astype('float32')
+    y_data = np.random.rand(8, 8).astype('float32')
     mod = relay.Module()
     mod["main"] = f
     mod = relay.transform.ExternOp("gcc")(mod)
     mod = relay.transform.PartitionGraph()(mod)
 
-    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
-    res = ex.evaluate()(x_data, y_data)
-    tvm.testing.assert_allclose(res.asnumpy(), (y_data * y_data) - (x_data + x_data))
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        res = ex.evaluate()(x_data, y_data)
+        tvm.testing.assert_allclose(res.asnumpy(), (x_data + y_data))
+
+def test_extern_gcc():
+    x = relay.var('x', shape=(2, 2))
+    y = relay.var('y', shape=(2, 2))
+    z = x + x
+    p = y * y
+    f = relay.Function([x, y], p - z)
+    x_data = np.random.rand(2, 2).astype('float32')
+    y_data = np.random.rand(2, 2).astype('float32')
+    mod = relay.Module()
+    mod["main"] = f
+    mod = relay.transform.ExternOp("gcc")(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        res = ex.evaluate()(x_data, y_data)
+        tvm.testing.assert_allclose(res.asnumpy(),
+                                    (y_data * y_data) - (x_data + x_data))
 
 def test_extern_dnnl():
     dtype = 'float32'
@@ -225,13 +244,14 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
-    res = ex.evaluate()(i_data, w1_data)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu())
+        res = ex.evaluate()(i_data, w1_data)
 
-    ref_ex = relay.create_executor("debug", mod=ref_mod, ctx=tvm.cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, w1_data)
+        ref_ex = relay.create_executor(kind, mod=ref_mod, ctx=tvm.cpu(0))
+        ref_res = ref_ex.evaluate()(i_data, w1_data)
 
-    tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+        tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
 def test_extern_dnnl_mobilenet():
@@ -246,8 +266,9 @@ def test_extern_dnnl_mobilenet():
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
-    res = ex.evaluate()(i_data, **params)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(0))
+        res = ex.evaluate()(i_data, **params)
 
     # FIXME: When subgraph has only one op, Relay executor will use the cache value instead
     # of re-computing, so the following checking logic does not work.
@@ -260,6 +281,7 @@ def test_extern_dnnl_mobilenet():
 
 if __name__ == "__main__":
     test_multi_node_subgraph()
+    test_extern_gcc_single_op()
     test_extern_gcc()
     test_extern_dnnl()
     #test_extern_dnnl_mobilenet()

@@ -17,6 +17,8 @@
  */
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <random>
+#include <sstream>
 #include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -36,7 +38,7 @@ typedef void (*GccSubgraphFunc)(GccPackedArgs in, float* out);
 // and make a base claaa such as ExternBuilder for users to implement.
 class GccBuilder : public ExprVisitor {
  public:
-  GccBuilder(std::string id) { this->_subgraph_id = id; }
+  GccBuilder(const std::string& id) { this->_subgraph_id = id; }
 
   void VisitExpr_(const VarNode* node) {
     _subgraph_args.push_back(node->name_hint());
@@ -117,19 +119,19 @@ class GccBuilder : public ExprVisitor {
 
     // Unpack inputs
     for (int i = 0; i < _subgraph_args.size(); ++i) {
-      code += "float* " + _subgraph_args[i] + " = args.data[" + std::to_string(i) + "];";
+      code += "  float* " + _subgraph_args[i] + " = args.data[" + std::to_string(i) + "];\n";
     }
     // Function body
     for (auto decl : _buf_decl) {
-      code += decl + "\n";
+      code += "  " + decl + "\n";
     }
     for (auto stmt : _subgraph_body) {
-      code += stmt + "\n";
+      code += "  " + stmt + "\n";
     }
 
     // Copy output
     CHECK(_out.size() == 1) << "Internal error";
-    code += "memcpy(out, " + _out[0].first + ", 4 *" + std::to_string(_out[0].second) + ");\n";
+    code += "  memcpy(out, " + _out[0].first + ", 4 *" + std::to_string(_out[0].second) + ");\n";
 
     code += "}\n";
     return code;
@@ -160,8 +162,10 @@ class GccBuilder : public ExprVisitor {
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths(std::string id = "") const override {
-    return {"/tmp/relay_gcc_lib_" + id + ".so"};
+  const std::vector<std::string> GetExternLibPaths(const std::string& id = "") const override {
+    CHECK_GT(src_lib_path_.count(id), 0U);
+    const auto& pair = src_lib_path_.at(id);
+    return {pair.second};
   }
 
   const std::string GetPrefix() const override {
@@ -185,18 +189,19 @@ class GccModuleNode : public ExternModuleNodeBase {
 
   runtime::PackedFunc GetFunction(const std::string& name,
                                   const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    _curr_id = GetSubgraphID(name);
-    Open(this->GetExternLibPaths(_curr_id));
-    CHECK(handle_) << "The external module has not been built or failed to open.\n";
-
+    std::string curr_id = GetSubgraphID(name);
+    if (!IsOpen()) {
+      Open(this->GetExternLibPaths(curr_id));
+    }
+    CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
     // Generate an external packed function
-    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       const DLTensor* dptr = ((runtime::NDArray)args[0]).operator->();
       runtime::NDArray out_arg = args[args.size() - 1];
       auto out = reinterpret_cast<float*>(out_arg->data);
 
       // Get function from the library
-      std::string encoded_name = GetPrefix() + _curr_id;
+      std::string encoded_name = GetPrefix() + curr_id;
       auto func_s = reinterpret_cast<GccSubgraphFunc>(GetSymbol(encoded_name));
 
       // Reinterpret data and function to the right type and invoke
@@ -215,51 +220,83 @@ class GccModuleNode : public ExternModuleNodeBase {
     });
   }
 
-  void Build(const Expr& expr) override {
-    Function func = Downcast<Function>(expr);
+  void CreateExternSignature (const Function& func, bool update) {
     CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "Unknown error";  // comaniac: Don't know in what case this will fail.
 
     // Record subgraph ID for runtime invoke.
-    auto id = GetSubgraphID(func);
-    auto builder = GccBuilder(GetPrefix() + id);
+    auto sid = GetSubgraphID(func);
+
+    // Prepare library source
+    if (update) {
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      std::uniform_int_distribution<uint64_t> distr;
+      std::stringstream ss;
+      ss << std::hex << distr(gen);
+      src_path_ = "/tmp/relay_gcc_lib_" + ss.str() + ".cc";
+      lib_path_ = "/tmp/relay_gcc_lib_" + ss.str() + ".so";
+      std::string cmd = "cp src/relay/backend/contrib/gcc/libs.cc " + src_path_;
+      std::system(cmd.c_str());
+      std::system("cp src/relay/backend/contrib/gcc/libs.h /tmp/");
+    }
+    // Save the src and lib path.
+    src_lib_path_.emplace(sid, std::make_pair(src_path_, lib_path_));
+
+    auto builder = GccBuilder(GetPrefix() + sid);
     builder.VisitExpr(func->body);
     std::string code = builder.build();
 
-    // Prepare library source
-    std::string lib_src_name = "/tmp/relay_gcc_lib_" + id + ".cc";
-    std::string lib_name = "/tmp/relay_gcc_lib_" + id + ".so";
-    std::string cmd = "cp src/relay/backend/contrib/gcc/libs.cc " + lib_src_name;
+    // Append the signature.
+    auto cmd = "echo \"" + code + "\" >> " + src_path_;
     std::system(cmd.c_str());
-    std::system("cp src/relay/backend/contrib/gcc/libs.h /tmp/");
+  }
 
-    cmd = "echo \"" + code + "\" >> " + lib_src_name;
-    std::system(cmd.c_str());
-
-    cmd = "g++ -std=c++11 -shared -fPIC -ldl " + lib_src_name + " -o " + lib_name;
+  void CompileExternLib() override {
+    std::string cmd =
+        "g++ -std=c++11 -shared -fPIC -ldl " + src_path_ + " -o " + lib_path_;
     int ret = std::system(cmd.c_str());
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
   }
 
+  void Build(const NodeRef& ref) override {
+    if (ref->derived_from<FunctionNode>()) {
+      CreateExternSignature(Downcast<Function>(ref), true);
+      CompileExternLib();
+    } else if (ref->derived_from<relay::ModuleNode>()) {
+      relay::Module mod = Downcast<relay::Module>(ref);
+      bool update = true;
+      for (const auto& it : mod->functions) {
+        CreateExternSignature(Downcast<Function>(it.second), update);
+        update = false;
+      }
+      CompileExternLib();
+    } else {
+      LOG(FATAL) << "The input ref is expected to be a Relay function or module" << "\n";
+    }
+  }
+
  private:
-  std::string _curr_id;
+  std::string src_path_;
+  std::string lib_path_;
+  std::unordered_map<std::string, std::pair<std::string, std::string> > src_lib_path_;
 };
 
 
 /*!
- * \brief The external compiler/codegen tool. It takes a Relay expression and
+ * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  *
  * The external codegen tool should have been registered similiarly to LLVM,
  * CUDA, etc, under TVM so the generated code could be packed in a runtime
  * module. This module simplifies code serialization and invocation.
  */
-runtime::Module GccCompiler(const Expr& expr) {
+runtime::Module GccCompiler(const NodeRef& ref) {
   std::shared_ptr<GccModuleNode> n = std::make_shared<GccModuleNode>();
-  n->Build(expr);
+  n->Build(ref);
   return runtime::Module(n);
 }
 

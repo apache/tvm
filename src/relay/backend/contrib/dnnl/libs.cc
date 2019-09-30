@@ -22,6 +22,7 @@
 #include <iostream>
 #include <numeric>
 #include <string>
+#include <string.h>
 
 #include "dnnl.hpp"
 #include "libs.h"

@@ -50,7 +50,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return An array of strings of the library paths.
    */
-  virtual const std::vector<std::string> GetExternLibPaths(std::string id = "") const = 0;
+  virtual const std::vector<std::string> GetExternLibPaths(const std::string& id = "") const = 0;
 
   /*!
    * \brief Get the function prefix of this compiler.
@@ -60,12 +60,17 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   virtual const std::string GetPrefix() const = 0;
 
   /*!
+   * \brief Compile the external library.
+   */
+  virtual void CompileExternLib() = 0;
+
+  /*!
    * \brief Build the shared library of external ops.
    *
-   * \param expr The subgraph Relay expression to be executed using extern ops.
+   * \param ref The subgraph Relay expression/module to be executed using extern ops.
    *
    */
-  virtual void Build(const Expr& expr) = 0;
+  virtual void Build(const NodeRef& ref) = 0;
 
   /*!
    * \brief Get a PackedFunc from module, which is a function ptr can be invoked
@@ -101,14 +106,14 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return a vector of tokenized function name splitted by "_".
    */
-  std::string GetSubgraphID(Function& func) {
+  std::string GetSubgraphID(const Function& func) const {
     const auto name_node = FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
     CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
     std::string name = name_node->value;
     return GetSubgraphID(name);
   }
   
-  std::string GetSubgraphID(std::string name) {
+  std::string GetSubgraphID(const std::string& name) const {
     std::string temp = name;
     std::vector<std::string> tokens;
     std::string delimiter = "_";
@@ -133,7 +138,12 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   // The handle.
   HMODULE handle_{nullptr};
 
-  // Open the library
+  // Check if the handle_ is open.
+  bool IsOpen() const {
+    return handle_ != nullptr;
+  }
+
+  // Open the library.
   virtual void Open(const std::string& name) {
     std::wstring wname(name.begin(), name.end());
     handle_ = LoadLibraryW(wname.c_str());
@@ -155,9 +165,13 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   // The handle.
   void* handle_{nullptr};
 
-  // load the library
+  // Check if the handle_ is open.
+  bool IsOpen() const {
+    return handle_ != nullptr;
+  }
+
+  // load the library.
   virtual void Open(const std::vector<std::string> lib_names) {
-    Close();
     CHECK(lib_names.size() == 1) << "Default library loader only loads one library. "
                                  << "Please override the loader if multiple libraries are used";
     handle_ = dlopen(lib_names[0].c_str(), RTLD_LAZY | RTLD_LOCAL);

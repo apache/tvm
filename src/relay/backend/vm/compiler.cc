@@ -451,14 +451,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                           size_t arity,
                           size_t return_count) {
     CHECK(func->IsExternal());
-    auto comp = FunctionGetAttr(func, "External");
-    const auto* comp_name = comp.as<tvm::ir::StringImm>();
-    CHECK(comp_name);
     // Append all subgraphs to a list, and then perform codegen for each
     // category (i.e. the ones that use the same codegen should be compiled
     // together.)
-    context_->external_funcs.push_back(func);
     size_t subgraph_id = context_->external_funcs.size();
+    context_->external_funcs.push_back(func);
     // Emit an instruction to invoke the external function/subgraph.
     Emit(Instruction::InvokeExternal(subgraph_id, arity, return_count, unpacked_arg_regs));
   }
@@ -884,11 +881,13 @@ void VMCompiler::Compile(Module mod,
     exec_->constants.push_back(vm::Tensor(data));
   }
 
-  LibraryCodegen();
+  PrimitiveFuncCodegen();
 
   for (auto gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
   }
+  
+  ExternalFuncCodegen();
 }
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
@@ -974,7 +973,7 @@ void VMCompiler::PopulateGlobalMap() {
   }
 }
 
-void VMCompiler::LibraryCodegen() {
+void VMCompiler::PrimitiveFuncCodegen() {
   auto const &cached_funcs = context_.cached_funcs;
   if (cached_funcs.size() == 0) {
     return;
@@ -1005,6 +1004,48 @@ void VMCompiler::LibraryCodegen() {
   size_t primitive_index = 0;
   for (auto cfunc : cached_funcs) {
     exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+  }
+}
+
+void VMCompiler::ExternalFuncCodegen() {
+  // The codegen tool/compiler to the list of function mapping.
+  std::unordered_map<std::string, Module > comp_module;
+  // The codegen tool to lib index mapping.
+  std::unordered_map<std::string, size_t> comp_map;
+  // The function index to the external function and codegen tool mapping.
+  std::unordered_map<int, std::pair<std::string, std::string> > func_codgen;
+  for (size_t i = 0; i < context_.external_funcs.size(); i++) {
+    const auto& it = context_.external_funcs[i];
+    auto func_name = FunctionGetAttr(it, "func_name");
+    CHECK(func_name.defined()) << "Cannot find func_name attribute";
+    const auto* func_name_str = func_name.as<tvm::ir::StringImm>();
+    CHECK(func_name_str);
+    CHECK(it->IsExternal());
+    auto comp = FunctionGetAttr(it, "External");
+    const auto* comp_name = comp.as<tvm::ir::StringImm>();
+    CHECK(comp_name);
+    if (comp_module.count(comp_name->value) == 0) {
+      comp_module.emplace(comp_name->value, relay::ModuleNode::make({}, {}));
+    }
+    CHECK(it->checked_type_.defined())
+        << "Please perform type inference on the external function first."
+        << "\n";
+    comp_module[comp_name->value]->Add(GlobalVarNode::make(func_name_str->value), it);
+    func_codgen[i] = std::make_pair(func_name_str->value, comp_name->value);
+  }
+
+
+  for (const auto& it : comp_module) {
+    const auto *cg = runtime::Registry::Get("relay.ext." + it.first);
+    CHECK(cg) << "relay.ext." << it.first << " is not registered";
+    runtime::Module mod = (*cg)(it.second);
+    comp_map.emplace(it.first, vm_->ext_libs.size());
+    vm_->ext_libs.push_back(mod);
+  }
+
+  for (size_t i = 0; i < context_.external_funcs.size(); i++) {
+    vm_->external_func_map.emplace(i, std::get<0>(func_codgen[i]));
+    vm_->external_map.emplace(i, comp_map[std::get<1>(func_codgen[i])]);
   }
 }
 

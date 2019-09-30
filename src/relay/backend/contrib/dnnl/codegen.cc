@@ -184,19 +184,19 @@ class DnnlBuilder : public ExprVisitor {
 
     // Unpack inputs
     for (int i = 0; i < _subgraph_args.size(); ++i) {
-      code += "float* " + _subgraph_args[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
+      code += "  float* " + _subgraph_args[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
     }
     // Function body
     for (auto decl : _buf_decl) {
-      code += decl + "\n";
+      code += "  " + decl + "\n";
     }
     for (auto stmt : _subgraph_body) {
-      code += stmt + "\n";
+      code += "  " + stmt + "\n";
     }
 
     // Copy output
     CHECK(_out.size() == 1) << "Internal error";
-    code += "memcpy(out, " + _out[0].first + ", 4 *" + std::to_string(_out[0].second) + ");\n";
+    code += "  memcpy(out, " + _out[0].first + ", 4 *" + std::to_string(_out[0].second) + ");\n";
 
     code += "}\n";
     return code;
@@ -234,8 +234,10 @@ class DnnlBuilder : public ExprVisitor {
 
 class DNNLModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths(std::string id) const override {
-    return {"/tmp/relay_dnnl_lib_" + id + ".so"};
+  const std::vector<std::string> GetExternLibPaths(const std::string& id = "") const override {
+    CHECK_GT(src_lib_path_.count(id), 0U);
+    const auto& pair = src_lib_path_.at(id);
+    return {pair.second};
   }
 
   const std::string GetPrefix() const override {
@@ -264,17 +266,19 @@ class DNNLModuleNode : public ExternModuleNodeBase {
    */
   runtime::PackedFunc GetFunction(const std::string& name,
                                   const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    curr_id_ = GetSubgraphID(name);
-    Open(this->GetExternLibPaths(curr_id_));
-    CHECK(handle_) << "The external module has not been built or failed to open.\n";
+    std::string curr_id = GetSubgraphID(name);
+    if (!IsOpen()) {
+      Open(this->GetExternLibPaths(curr_id));
+    }
+    CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
 
-    return PackedFunc([sptr_to_self, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       const DLTensor* dptr = ((runtime::NDArray)args[0]).operator->();
       runtime::NDArray out_arg = args[args.size() - 1];
       auto out = reinterpret_cast<float*>(out_arg->data);
 
       // Get function from the library
-      std::string encoded_name = GetPrefix() + curr_id_;
+      std::string encoded_name = GetPrefix() + curr_id;
       auto func_s = reinterpret_cast<DnnlSubgraphFunc>(GetSymbol(encoded_name));
 
       // Reinterpret data and function to the right type and invoke
@@ -293,48 +297,77 @@ class DNNLModuleNode : public ExternModuleNodeBase {
     });
   }
 
-  void Build(const Expr& expr) override {
-    Function func = Downcast<Function>(expr);
+  void CreateExternSignature(const Function& func, bool update) {
     CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "DNNL expects a single convolution or dense op";
 
     // Record subgraph ID for runtime invoke.
-    auto id = GetSubgraphID(func);
-    auto builder = DnnlBuilder(GetPrefix() + id);
+    auto sid = GetSubgraphID(func);
+
+    if (update) {
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      std::uniform_int_distribution<uint64_t> distr;
+      std::stringstream ss;
+      ss << std::hex << distr(gen);
+      src_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".cc";
+      lib_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".so";
+      std::string cmd = "cp src/relay/backend/contrib/dnnl/libs.cc " + src_path_;
+      std::system(cmd.c_str());
+      std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/");
+    }
+
+    // Save the src and lib path.
+    src_lib_path_.emplace(sid, std::make_pair(src_path_, lib_path_));
+
+    auto builder = DnnlBuilder(GetPrefix() + sid);
     builder.VisitExpr(func->body);
     std::string code = builder.build();
 
-    // Prepare library source
-    // FIXME: Now we compile N libraries for N subgraphs, but we should merge them to one.
-    std::string lib_src_name = "/tmp/relay_dnnl_lib_" + id + ".cc";
-    std::string lib_name = "/tmp/relay_dnnl_lib_" + id + ".so";
-    std::string cmd = "cp src/relay/backend/contrib/dnnl/libs.cc " + lib_src_name;
+    std::string cmd = "echo \"" + code + "\" >> " + src_path_;
     std::system(cmd.c_str());
-    std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/");
+  }
 
-    cmd = "echo \"" + code + "\" >> " + lib_src_name;
-    std::system(cmd.c_str());
-
-    cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + lib_src_name + " -o " + lib_name +
-          " -ldl -lpthread -lm -ldnnl";
+  void CompileExternLib() override {
+    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + src_path_ + " -o " + lib_path_ +
+                      " -ldl -lpthread -lm -ldnnl";
     int ret = std::system(cmd.c_str());
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile DNNL library. Error code: " << ret;
     }
   }
 
+  void Build(const NodeRef& ref) override {
+    if (ref->derived_from<FunctionNode>()) {
+      CreateExternSignature(Downcast<Function>(ref), true);
+      CompileExternLib();
+    } else if (ref->derived_from<relay::ModuleNode>()) {
+      relay::Module mod = Downcast<relay::Module>(ref);
+      bool update = true;
+      for (const auto& it : mod->functions) {
+        CreateExternSignature(Downcast<Function>(it.second), update);
+        update = false;
+      }
+      CompileExternLib();
+    } else {
+      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
+                 << "\n";
+    }
+  }
  private:
-  std::string curr_id_;
+  std::string src_path_;
+  std::string lib_path_;
+  std::unordered_map<std::string, std::pair<std::string, std::string> > src_lib_path_;
 };
 
 /*!
- * \brief The external compiler/codegen tool. It takes a Relay expression and
+ * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  */
-runtime::Module DNNLCompiler(const Expr& expr) {
+runtime::Module DNNLCompiler(const NodeRef& ref) {
   std::shared_ptr<DNNLModuleNode> n = std::make_shared<DNNLModuleNode>();
-  n->Build(expr);
+  n->Build(ref);
   return runtime::Module(n);
 }
 
