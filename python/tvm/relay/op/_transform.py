@@ -282,7 +282,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
         return [_argwhere_shape_func_4d(inputs[0])]
     elif len(inputs[0].shape) == 5:
         return [_argwhere_shape_func_5d(inputs[0])]
-    return []
+    return ValueError("Does not support rank higher than 5 in argwhere")
 
 @_reg.register_schedule("argwhere")
 def schedule_argwhere(_, outs, target):
