@@ -153,7 +153,7 @@ def qnn_dense_driver(test_configuration):
     quantized_kernel = relay.var(quantized_kernel_name,
                                  shape=test_configuration['kernel_shape'],
                                  dtype=in_dtype)
-    mod = relay.qnn.op.quantized_dense(
+    mod = relay.qnn.op.dense(
         quantized_data,
         quantized_kernel,
         test_configuration['input_zero_point'],
