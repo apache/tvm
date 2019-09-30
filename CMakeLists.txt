@@ -367,6 +367,11 @@ if (INSTALL_DEV)
     PATTERN "*.h"
     )
   install(
+    DIRECTORY "3rdparty/dmlc-core/include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+    )
+  install(
     DIRECTORY "nnvm/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
