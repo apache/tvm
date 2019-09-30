@@ -20,4 +20,4 @@ from .injective import *
 from .extern import *
 from .vision import *
 from .sort import *
-from .where import *
+from .search import *
