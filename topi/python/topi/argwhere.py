@@ -188,4 +188,4 @@ def argwhere(output_shape, condition):
         return hybrid_argwhere_4d(output_shape.shape, condition)
     if len(condition.shape) == 5:
         return hybrid_argwhere_5d(output_shape.shape, condition)
-    raise ValueError("Does not support rank higher than 5")
+    raise ValueError("Does not support rank higher than 5 in argwhere")
