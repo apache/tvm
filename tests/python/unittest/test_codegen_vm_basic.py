@@ -37,6 +37,7 @@ def test_stack_vm_basic():
     stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
     fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.ir_pass.LowerIntrin(fapi, "stackvm")
     run_jit(fapi, lambda f: f(a))
 
 

@@ -208,11 +208,11 @@ Expr operator%(Expr a, Expr b) {
 
 // TODO(tqchen): switch to floordiv
 Expr indexdiv(Expr a, Expr b) {
-  return truncdiv(a, b);
+  return floordiv(a, b);
 }
 
 Expr indexmod(Expr a, Expr b) {
-  return truncmod(a, b);
+  return floormod(a, b);
 }
 
 Expr floordiv(Expr a, Expr b) {
