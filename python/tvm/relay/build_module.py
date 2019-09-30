@@ -138,7 +138,7 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None, enable_tophub=True):
+def build(mod, target=None, target_host=None, params=None):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
@@ -164,10 +164,6 @@ def build(mod, target=None, target_host=None, params=None, enable_tophub=True):
     params : dict of str to NDArray
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
-
-    enable_tophub : bool
-        True to download pre-tuned parameters from TopHub.
-        False to disable.
 
     Returns
     -------
@@ -201,7 +197,7 @@ def build(mod, target=None, target_host=None, params=None, enable_tophub=True):
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
-    if enable_tophub and isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
     else:
         tophub_context = autotvm.util.EmptyContext()
