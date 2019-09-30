@@ -185,7 +185,7 @@ def get_valid_counts_scan(data, partial_in, partial):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     var = tvm.make.node("FloatImm", dtype="float32", value=2)
     new_range = num_anchors // elem_per_thread + 1
-    iteration = log(cast(new_range, "float32")) // math.log(2)
+    iteration = cast(log(cast(new_range, "float32")) / math.log(2), "int32")
     # Scan: Kogge-Stone adder
     with ib.if_scope(tvm.all(bx < batch_size, tx < tvm.min(new_range, num_anchors))):
         with ib.for_range(0, iteration) as k:
