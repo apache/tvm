@@ -33,13 +33,13 @@ from .record import load_from_file
 from .util import EmptyContext
 
 # environment variable to read TopHub location
-AUTOTVM_TOPHUB_LOCATION_VAR = "TOPHUB_LOCATION"
+AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"
 
 # default location of TopHub
-AUTOTVM_TOPHUB_DEFAULT_LOCATION = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
+AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
 
-# value of AUTOTVM_TOPHUB_LOCATION_VAR to specify to not read from TopHub
-AUTOTVM_TOPHUB_NONE_LOCATION = "NONE"
+# value of AUTOTVM_TOPHUB_LOC_VAR to specify to not read from TopHub
+AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
 # root path to store TopHub files
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
@@ -72,8 +72,8 @@ def _alias(name):
     return table.get(name, name)
 
 def _get_tophub_location():
-    location = os.getenv(AUTOTVM_TOPHUB_LOCATION_VAR, None)
-    return AUTOTVM_TOPHUB_DEFAULT_LOCATION if location is None else location
+    location = os.getenv(AUTOTVM_TOPHUB_LOC_VAR, None)
+    return AUTOTVM_TOPHUB_DEFAULT_LOC if location is None else location
 
 def context(target, extra_files=None):
     """Return the dispatch context with pre-tuned parameters.
@@ -89,7 +89,7 @@ def context(target, extra_files=None):
         Extra log files to load
     """
     tophub_location = _get_tophub_location()
-    if tophub_location == AUTOTVM_TOPHUB_NONE_LOCATION:
+    if tophub_location == AUTOTVM_TOPHUB_NONE_LOC:
         return EmptyContext()
 
     best_context = ApplyHistoryBest([])
