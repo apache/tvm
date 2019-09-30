@@ -376,6 +376,15 @@ struct SparseTransposeAttrs : public tvm::AttrsNode<SparseTransposeAttrs> {
   TVM_DECLARE_ATTRS(SparseTransposeAttrs, "relay.attrs.SparseTransposeAttrs") {}
 };
 
+/*! \brief Attributes for FIFO buffer operator */
+struct FIFOBufferAttrs : public tvm::AttrsNode<FIFOBufferAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(FIFOBufferAttrs, "relay.attrs.FIFOBufferAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0);
+  }
+};
+
 /*! \brief Attributes for upsampling operator */
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   int scale;
