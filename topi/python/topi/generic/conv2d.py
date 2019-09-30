@@ -144,8 +144,8 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last, int32_lane
 
     ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
 
-    # Skylake and future processors have 16 vector lanes
     assert oc_bn % int32_lanes == 0
+    assert ic_bn % 4 == 0  # 4 (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
@@ -209,6 +209,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last, int32_lanes=1
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     assert oc_bn % int32_lanes == 0
+    assert ic_bn % 4 == 0  # 4 (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 

@@ -55,7 +55,7 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     intrin : TensorIntrin
         The ARM uint8 TensorIntrin that can be used in tensorizing schedule
     """
-    num_int8_elements = 4  # 4 uint8 elements in int32
+    num_int8_elements = 4  # 4 int8 elements in int32
 
     data = tvm.placeholder((num_int8_elements,), dtype='%s8' % dtype, name='data')
     kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='%s8' % dtype, name='kernel')
