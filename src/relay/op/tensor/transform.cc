@@ -819,9 +819,9 @@ the input array into an output array with the same shape as the second input arr
 
 // ArgWhere
 bool ArgWhereRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
-                  const TypeReporter& reporter) {
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
   CHECK(tt != nullptr);
