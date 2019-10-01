@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name,unused-argument, len-as-condition
+# pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks
 from __future__ import absolute_import
+import tvm
+import topi
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from ._reduce import _schedule_reduce
@@ -204,3 +206,100 @@ def take_shape_func(attrs, inputs, out_ndims):
             axis += data_ndim
         assert 0 <= axis < data_ndim
         return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
+
+@script
+def _argwhere_shape_func_1d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(1)
+    for i1 in range(condition.shape[0]):
+        if condition[i1] != 0:
+            out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_2d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(2)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            if condition[i1, i2] != 0:
+                out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_3d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(3)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                if condition[i1, i2, i3] != 0:
+                    out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_4d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(4)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                for i4 in range(condition.shape[3]):
+                    if condition[i1, i2, i3, i4] != 0:
+                        out[0] += int64(1)
+    return out
+
+@script
+def _argwhere_shape_func_5d(condition):
+    out = output_tensor((2, ), "int64")
+    out[0] = int64(0)
+    out[1] = int64(5)
+    for i1 in range(condition.shape[0]):
+        for i2 in range(condition.shape[1]):
+            for i3 in range(condition.shape[2]):
+                for i4 in range(condition.shape[3]):
+                    for i5 in range(condition.shape[4]):
+                        if condition[i1, i2, i3, i4, i5] != 0:
+                            out[0] += int64(1)
+    return out
+
+@_reg.register_shape_func("argwhere", True)
+def argwhere_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape function for argwhere.
+    """
+    if len(inputs[0].shape) == 1:
+        return [_argwhere_shape_func_1d(inputs[0])]
+    elif len(inputs[0].shape) == 2:
+        return [_argwhere_shape_func_2d(inputs[0])]
+    elif len(inputs[0].shape) == 3:
+        return [_argwhere_shape_func_3d(inputs[0])]
+    elif len(inputs[0].shape) == 4:
+        return [_argwhere_shape_func_4d(inputs[0])]
+    elif len(inputs[0].shape) == 5:
+        return [_argwhere_shape_func_5d(inputs[0])]
+    return ValueError("Does not support rank higher than 5 in argwhere")
+
+@_reg.register_schedule("argwhere")
+def schedule_argwhere(_, outs, target):
+    """Schedule definition of argwhere"""
+    with target:
+        return topi.generic.schedule_argwhere(outs)
+
+
+@_reg.register_compute("argwhere")
+def compute_argwhere(attrs, inputs, output_type, _):
+    """Compute definition of argwhere"""
+    output_shape = []
+    for s in output_type.shape:
+        if hasattr(s, "value"):
+            output_shape.append(s)
+        else:
+            # see Any, replace it with a var
+            output_shape.append(tvm.var("any_dim", "int32"))
+    new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
+    return [topi.argwhere(new_output_type, inputs[0])]
