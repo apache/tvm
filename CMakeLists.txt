@@ -294,6 +294,17 @@ target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS}
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(nnvm_compiler tvm)
 
+if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
+  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
+  # but it's not available until CMake 3.13. Switch to 'target_link_options'
+  # once minimum CMake version is bumped up to 3.13 or above.
+  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(nnvm_compiler ${HIDE_SYMBOLS_LINKER_FLAGS})
+endif()
+
 # Related headers
 target_include_directories(
   tvm
