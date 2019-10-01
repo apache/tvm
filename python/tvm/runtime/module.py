@@ -109,7 +109,6 @@ class Module(object):
         # pylint: disable=not-callable
         return self.entry_func(*args)
 
-
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
 
@@ -212,6 +211,7 @@ class Module(object):
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
+                print('[Module.time_evaluator.evaluator]')
                 # Wrap feval so we can add more stats in future.
                 blob = feval(*args)
                 fmt = "@" + ("d" * repeat)

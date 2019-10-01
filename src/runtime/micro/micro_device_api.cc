@@ -74,8 +74,10 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMContext ctx_to,
                       DLDataType type_hint,
                       TVMStreamHandle stream) final {
+    std::cout << "[MicroDeviceAPI::CopyDataFromTo]" << std::endl;
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
     if (type_from_to == std::make_tuple(kDLMicroDev, kDLMicroDev)) {
+      std::cout << "  device to device" << std::endl;
       // Copying from the device to the device.
 
       MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
@@ -87,6 +89,8 @@ class MicroDeviceAPI final : public DeviceAPI {
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
       ObjectPtr<MicroSession>& session = from_space->session;
+      // flush all pending tasks to ensure data is consistent
+      session->FlushTaskQueue();
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       DevPtr from_dev_addr = GetDevLoc(from_space, from_offset);
@@ -96,20 +100,27 @@ class MicroDeviceAPI final : public DeviceAPI {
       lld->Read(from_dev_addr, static_cast<void*>(buffer.data()), size);
       lld->Write(to_dev_addr, static_cast<void*>(buffer.data()), size);
     } else if (type_from_to == std::make_tuple(kDLMicroDev, kDLCPU)) {
+      std::cout << "  reading from device" << std::endl;
+      std::cout << "    num_bytes: " << size << std::endl;
       // Reading from the device.
 
       MicroDevSpace* from_space = static_cast<MicroDevSpace*>(const_cast<void*>(from));
       ObjectPtr<MicroSession>& session = from_space->session;
+      // flush all pending tasks to ensure data is consistent
+      session->FlushTaskQueue();
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       DevPtr from_dev_addr = GetDevLoc(from_space, from_offset);
-      void* to_host_ptr = GetHostLoc(to, to_offset);
       lld->Read(from_dev_addr, to_host_ptr, size);
     } else if (type_from_to == std::make_tuple(kDLCPU, kDLMicroDev)) {
+      std::cout << "  writing to device" << std::endl;
+      std::cout << "    num_bytes: " << size << std::endl;
       // Writing to the device.
 
       MicroDevSpace* to_space = static_cast<MicroDevSpace*>(const_cast<void*>(to));
       ObjectPtr<MicroSession>& session = to_space->session;
+      // flush all pending tasks to ensure data is consistent
+      session->FlushTaskQueue();
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       void* from_host_ptr = GetHostLoc(from, from_offset);
@@ -121,9 +132,12 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
+    std::cout << "[MicroDeviceAPI::StreamSync]" << std::endl;
+    MicroSession::Current()->FlushTaskQueue();
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
+    CHECK(false) << "the on-device workspace allocator isn't aware of this function";
     ObjectPtr<MicroSession>& session = MicroSession::Current();
 
     void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
@@ -135,6 +149,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
+    CHECK(false) << "the on-device workspace allocator isn't aware of this function";
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(data);
     ObjectPtr<MicroSession>& session = dev_space->session;
     session->FreeInSection(SectionKind::kWorkspace,

@@ -145,6 +145,7 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
+        # TODO why they choose a queue size of 2? add a comment
         queue = Queue(2)
         process = Process(target=call_with_timeout,
                           args=(queue, self.timeout, func, args, kwargs))

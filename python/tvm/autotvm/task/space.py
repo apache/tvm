@@ -544,8 +544,10 @@ class AnnotateEntity(object):
                 if ann == 'none':
                     pass
                 elif ann == 'unroll':
-                    if max_unroll and axis_lens[i] > max_unroll:
-                        cfg.raise_error("Too large factor for unrolling")
+                    #if max_unroll and axis_lens[i] > max_unroll:
+                    #    cfg.raise_error("Too large factor for unrolling")
+                    #if max_unroll and axis_lens[i] < max_unroll:
+                    #    cfg.raise_error("Too large factor for unrolling")
                     sch[op].unroll(axes[i])
                 elif ann == 'vec':
                     if vec_size and axis_lens[i] not in vec_size:

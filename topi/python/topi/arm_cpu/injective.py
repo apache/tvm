@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from ..util import is_empty_shape
 
+@generic.schedule_injective_from_existing.register(["arm_cpu", "micro_dev"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -45,6 +46,7 @@ def schedule_injective_from_existing(sch, out):
         sch[out].parallel(sch[out].op.axis[0])
     return sch
 
+@generic.schedule_injective.register(["arm_cpu", "micro_dev"])
 def schedule_injective(outs):
     """ARM CPU schedule for injective op.
 
@@ -72,6 +74,7 @@ def schedule_injective(outs):
         schedule_injective_from_existing(s, x)
     return s
 
+@generic.schedule_concatenate.register(["arm_cpu", "micro_dev"])
 def schedule_concatenate(outs):
     """Schedule for concatenate op.
 

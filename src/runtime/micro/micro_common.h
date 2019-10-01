@@ -60,20 +60,21 @@ union TargetVal {
   uint64_t val64;
 };
 
+// TODO just get rid of `DevPtr`.
 /*! \brief absolute device address */
-class DevPtr {
+class TargetPtr {
  public:
   /*! \brief construct a device address with value `value` */
-  explicit DevPtr(std::uintptr_t value) : value_(TargetVal { .val64 = value }) {}
+  explicit TargetPtr(std::uintptr_t value) : value_(TargetVal { .val64 = value }) {}
 
   /*! \brief default constructor */
-  DevPtr() : value_(TargetVal { .val64 = 0 }) {}
+  TargetPtr() : value_(TargetVal { .val64 = 0 }) {}
 
   /*! \brief construct a null address */
-  explicit DevPtr(std::nullptr_t value) : value_(TargetVal { .val64 = 0 }) {}
+  explicit TargetPtr(std::nullptr_t value) : value_(TargetVal { .val64 = 0 }) {}
 
   /*! \brief destructor */
-  ~DevPtr() {}
+  ~TargetPtr() {}
 
   /*!
    * \brief get value of pointer
@@ -95,23 +96,23 @@ class DevPtr {
   bool operator!=(std::nullptr_t) const { return value_.val64 != 0; }
 
   /*! \brief add an integer to this absolute address to get a larger absolute address */
-  DevPtr operator+(size_t n) const {
-    return DevPtr(value_.val64 + n);
+  TargetPtr operator+(size_t n) const {
+    return TargetPtr(value_.val64 + n);
   }
 
   /*! \brief mutably add an integer to this absolute address */
-  DevPtr& operator+=(size_t n) {
+  TargetPtr& operator+=(size_t n) {
     value_.val64 += n;
     return *this;
   }
 
   /*! \brief subtract an integer from this absolute address to get a smaller absolute address */
-  DevPtr operator-(size_t n) const {
-    return DevPtr(value_.val64 - n);
+  TargetPtr operator-(size_t n) const {
+    return TargetPtr(value_.val64 - n);
   }
 
   /*! \brief mutably subtract an integer from this absolute address */
-  DevPtr& operator-=(size_t n) {
+  TargetPtr& operator-=(size_t n) {
     value_.val64 -= n;
     return *this;
   }
@@ -152,7 +153,7 @@ class SymbolMap {
     stream >> name;
     stream >> std::hex >> addr;
     while (stream) {
-      map_[name] = DevPtr(addr);
+      map_[name] = TargetPtr(addr);
       stream >> name;
       stream >> std::hex >> addr;
     }
@@ -163,7 +164,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  DevPtr operator[](const std::string& name) const {
+  TargetPtr operator[](const std::string& name) const {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;
@@ -175,13 +176,13 @@ class SymbolMap {
 
  private:
   /*! \brief backing map */
-  std::unordered_map<std::string, DevPtr> map_;
+  std::unordered_map<std::string, TargetPtr> map_;
 };
 
 /*! \brief struct containing start and size of a device memory region */
 struct DevMemRegion {
   /*! \brief section start offset */
-  DevPtr start;
+  TargetPtr start;
   /*! \brief size of section */
   size_t size;
 };
@@ -240,11 +241,11 @@ const char* SectionToString(SectionKind section);
 std::string RelocateBinarySections(
     const std::string& binary_path,
     size_t word_size,
-    DevPtr text_start,
-    DevPtr rodata_start,
-    DevPtr data_start,
-    DevPtr bss_start,
-    DevPtr stack_end,
+    TargetPtr text_start,
+    TargetPtr rodata_start,
+    TargetPtr data_start,
+    TargetPtr bss_start,
+    TargetPtr stack_end,
     const std::string& toolchain_prefix);
 
 /*!

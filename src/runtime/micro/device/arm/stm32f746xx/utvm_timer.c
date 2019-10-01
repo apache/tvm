@@ -18,6 +18,7 @@
  */
 
 /*!
+ *  Copyright (c) 2019 by Contributors
  * \file utvm_timer.c
  * \brief uTVM timer API definitions for STM32F746XX-series boards
  */
@@ -51,34 +52,31 @@ extern "C" {
 #define SYST_CALIB_NOREF  31
 #define SYST_CALIB_SKEW   30
 
-uint32_t start_time = 0;
-uint32_t stop_time = 0;
+volatile uint32_t start_time = 0;
+volatile uint32_t stop_time = 0;
 
 int32_t UTVMTimerStart() {
-  SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
-  // wait until timer starts
-  while (SYST_CVR == 0) {}
-  start_time = SYST_CVR;
-  return 0;
-}
-
-void UTVMTimerStop() {
-  SYST_CSR = 0;
-  stop_time = SYST_CVR;
-}
-
-void UTVMTimerReset() {
   SYST_CSR = 0;
   // maximum reload value (24-bit)
   SYST_RVR = (~((uint32_t) 0)) >> 8;
   SYST_CVR = 0;
+
+  SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
+  // wait until timer starts
+  while (SYST_CVR == 0) {}
+  start_time = SYST_CVR;
+  return UTVM_ERR_OK;
 }
 
-uint32_t UTVMTimerRead() {
-  if (SYST_CSR & SYST_COUNTFLAG) {
+uint32_t UTVMTimerStop(int32_t *err) {
+  SYST_CSR &= ~((uint32_t) 1);
+  stop_time = SYST_CVR;
+  if (SYST_CSR & (1 << SYST_COUNTFLAG)) {
     TVMAPISetLastError("timer overflowed");
-    return -1;
+    *err = UTVM_ERR_TIMER_OVERFLOW;
+    return 0;
   } else {
+    *err = UTVM_ERR_OK;
     return start_time - stop_time;
   }
 }
@@ -91,33 +89,33 @@ uint32_t UTVMTimerRead() {
 #define DWT_CTRL_NOCYCCNT   25
 #define DWT_CTRL_CYCCNTENA  0
 
-uint32_t start_time = 0;
-uint32_t stop_time = 0;
-
-void UTVMTimerReset() {
-  DWT_CYCCNT = 0;
-}
+volatile uint32_t start_time = 0;
+volatile uint32_t stop_time = 0;
 
 int32_t UTVMTimerStart() {
-  if (DWT_CTRL & DWT_CTRL_NOCYCCNT) {
+  DWT_CTRL &= ~(1 << DWT_CTRL_CYCCNTENA);
+  DWT_CYCCNT = 0;
+
+  if (DWT_CTRL & (1 << DWT_CTRL_NOCYCCNT)) {
     TVMAPISetLastError("cycle counter not implemented on device");
-    return -1;
+    return UTVM_ERR_TIMER_NOT_IMPLEMENTED;
   }
   start_time = DWT_CYCCNT;
   DWT_CTRL |= (1 << DWT_CTRL_CYCCNTENA);
+  return UTVM_ERR_OK;
 }
 
-void UTVMTimerStop() {
+uint32_t UTVMTimerStop(int32_t* err) {
   stop_time = DWT_CYCCNT;
   DWT_CTRL &= ~(1 << DWT_CTRL_CYCCNTENA);
-}
-
-int32_t UTVMTimerRead() {
-  if (stop_time > stop_time) {
+  // even with this check, we can't know for sure if the timer has overflowed
+  // (it may have overflowed and gone past `start_time`).
+  if (stop_time > start_time) {
+    *err = UTVM_ERR_OK;
     return stop_time - start_time;
   } else {
-    uint32_t largest = ~0;
-    return (largest - start_time) + stop_time;
+    *err = UTVM_ERR_TIMER_OVERFLOW;
+    return 0;
   }
 }
 

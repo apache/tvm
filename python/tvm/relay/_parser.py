@@ -151,7 +151,9 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
-    "cast": op.cast
+    "cast": op.cast,
+    "clip": op.clip,
+    "right_shift": op.right_shift,
 }
 
 TYPE_PREFIXES = [
@@ -340,7 +342,10 @@ class ParseTreeToRelayIR(RelayVisitor):
         return local_var
 
     def visitGraphVar(self, ctx):
-        return self.graph_expr[int(ctx.NAT().getText())]
+        graph_var_idx = int(ctx.NAT().getText())
+        if graph_var_idx >= len(self.graph_expr):
+            raise ParseError(f"graph var `%{graph_var_idx}` is unbound")
+        return self.graph_expr[graph_var_idx]
 
     def visit_list(self, ctx_list) -> List[Any]:
         """"Visit a list of contexts."""
@@ -625,6 +630,12 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
+            #if hasattr(func.operator, '__name__') and func.operator.__name__ == 'clip':
+            #    # TODO(wbelrlo) this big fucking hack yes
+            #    import copy
+            #    args = copy.deepcopy(args)
+            #    args[1] = float(args[1].data.asnumpy())
+            #    args[2] = float(args[2].data.asnumpy())
             return func(args, attrs, type_args)
         if isinstance(func, adt.Constructor):
             return func(*args)

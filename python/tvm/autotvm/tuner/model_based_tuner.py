@@ -263,6 +263,7 @@ class ModelBasedTuner(Tuner):
         # if we have enough new training samples
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) \
                 and self.flops_max > 1e-6:
+            import pdb; pdb.set_trace()
             self.cost_model.fit(self.xs, self.ys, self.plan_size)
             if self.diversity_filter_ratio:
                 candidate = self.model_optimizer.find_maximums(

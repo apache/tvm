@@ -249,6 +249,7 @@ class RPCRunner(Runner):
         return kwargs
 
     def run(self, measure_inputs, build_results):
+        print('[RPCRunner.run]')
         results = []
         remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
 
@@ -273,7 +274,9 @@ class RPCRunner(Runner):
                 if isinstance(res, Exception):   # executor error or timeout
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
                                                  self.timeout, time.time()))
+                    #raise Exception(f'encountered exception during measurement: {results}')
                 else:
+                    print(f'  got a result: {res}')
                     results.append(res)
 
         return results
@@ -508,7 +511,8 @@ def run_through_rpc(measure_input, build_result,
             msg = msg[:msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
             msg = msg[:msg.index("CUDA Source")]
-        costs = (RuntimeError(msg[:1024]),)
+        #costs = (RuntimeError(msg[:1024]),)
+        costs = (RuntimeError(msg),)
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)

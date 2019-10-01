@@ -52,6 +52,8 @@
 namespace tvm {
 namespace runtime {
 
+struct DevTask;
+
 /*!
  * \brief session for facilitating micro device interaction
  */
@@ -65,6 +67,9 @@ class MicroSession : public ModuleNode {
    */
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self);
+
+  // todo having this decoupled from the value in utvm_runtime.c gives me stress dreams
+  static const size_t kTaskQueueCapacity = 20;
 
   /*!
    * \return The type key of the executor.
@@ -121,6 +126,7 @@ class MicroSession : public ModuleNode {
       size_t stack_size,
       size_t word_size,
       bool thumb_mode,
+      bool use_device_timer,
       const std::string& server_addr,
       int port);
 
@@ -137,7 +143,19 @@ class MicroSession : public ModuleNode {
    * \param args args to the packed function
    * \return elapsed time during function execution on the device
    */
-  double PushToExecQueue(DevPtr func, const TVMArgs& args);
+  double PushToTaskQueue(DevPtr func, const TVMArgs& args);
+
+  /*!
+   * \brief serialize runtime metadata to the device for enqueued tasks and execute
+   * \return elapsed time during function execution on the device
+   */
+  void FlushTaskQueue();
+
+  /*!
+   * \brief TODO
+   */
+  template <typename T>
+  void FlushTaskQueuePriv();
 
   /*!
    * \brief loads binary onto device
@@ -196,6 +214,18 @@ class MicroSession : public ModuleNode {
     return low_level_device_;
   }
 
+  const double GetLastBatchTime() {
+    double result = last_batch_time_;
+    last_batch_time_ = 0.0;
+    return result;
+  }
+
+  const double GetLastBatchCycles() {
+    double result = last_batch_cycles_;
+    last_batch_cycles_ = 0.0;
+    return result;
+  }
+
  private:
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
@@ -204,6 +234,8 @@ class MicroSession : public ModuleNode {
   /*! \brief array of memory allocators for each on-device section */
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
+  /*! \brief total number of bytes of usable device memory for this session */
+  size_t memory_size_;
   /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
   /*! \brief whether the target device requires a thumb-mode bit on function addresses
@@ -213,8 +245,20 @@ class MicroSession : public ModuleNode {
    * results in more compact binaries.
    */
   bool thumb_mode_;
+  /*! \brief TODO */
+  bool use_device_timer_;
   /*! \brief symbol map for the device runtime */
   SymbolMap runtime_symbol_map_;
+  /*! \brief TODO */
+  std::vector<DevTask> task_queue_;
+  // TODO(weberlo): we don't even need an allocator mechanism for the args
+  // section. there's only ever one allocation.
+  /*! \brief TODO fukn hack */
+  TargetDataLayoutEncoder batch_args_encoder_;
+  /*! \brief TODO fukn hack */
+  double last_batch_time_;
+  /*! \brief TODO fukn hack */
+  double last_batch_cycles_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation
@@ -237,7 +281,7 @@ class MicroSession : public ModuleNode {
    * \return device address of the allocated `DLTensor`
    */
   template <typename T>
-  DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr);
+  TargetPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr);
 
   /*!
    * \brief checks and logs if there was an error during the device's most recent execution
@@ -302,7 +346,11 @@ struct TVMArray32 {
       byte_offset(byte_offset.val32),
       pad2(0) { }
 
-  /*! \brief opaque pointer to the allocated data */
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint32_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
@@ -345,8 +393,11 @@ struct TVMArray64 {
       shape(shape.val64),
       strides(strides.val64),
       byte_offset(byte_offset.val64) { }
-
-  /*! \brief opaque pointer to the allocated data */
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint64_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
@@ -367,8 +418,26 @@ struct TVMArray64 {
   uint64_t byte_offset;
 };
 
+/*! \brief MicroTVM task to store in task queue before specializing to word size */
+struct DevTask {
+  /*! \brief Pointer to function to call for this task */
+  DevVal func;
+  /*! \brief Array of argument values */
+  DevVal arg_values;
+  /*! \brief Array of type codes for each argument value */
+  DevVal arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+};
+
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {
+  StructUTVMTask32(DevTask task)
+    : func(task.func.val32),
+      arg_values(task.arg_values.val32),
+      arg_type_codes(task.arg_type_codes.val32),
+      num_args(task.num_args) { }
+
   /*! \brief Pointer to function to call for this task */
   uint32_t func;
   /*! \brief Array of argument values */
@@ -377,10 +446,16 @@ typedef struct StructUTVMTask32 {
   uint32_t arg_type_codes;
   /*! \brief Number of arguments */
   int32_t num_args;
-} UTVMTask32;
+} StructUTVMTask32;
 
 /*! \brief MicroTVM task for serialization to 64-bit devices */
 typedef struct StructUTVMTask64 {
+  StructUTVMTask64(DevTask task)
+    : func(task.func.val64),
+      arg_values(task.arg_values.val64),
+      arg_type_codes(task.arg_type_codes.val64),
+      num_args(task.num_args) { }
+
   /*! \brief Pointer to function to call for this task */
   uint64_t func;
   /*! \brief Array of argument values */
@@ -389,7 +464,7 @@ typedef struct StructUTVMTask64 {
   uint64_t arg_type_codes;
   /*! \brief Number of arguments */
   int32_t num_args;
-} UTVMTask64;
+} StructUTVMTask64;
 
 }  // namespace runtime
 }  // namespace tvm

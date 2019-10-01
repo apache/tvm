@@ -23,6 +23,7 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <chrono>
 #include <memory>
 #include <stack>
 #include <tuple>
@@ -79,11 +80,14 @@ MicroSession::MicroSession(
     size_t stack_size,
     size_t word_size,
     bool thumb_mode,
+    bool use_device_timer,
     const std::string& server_addr,
     int port)
-    : toolchain_prefix_(toolchain_prefix)
-    , word_size_(word_size)
-    , thumb_mode_(thumb_mode) {
+    : toolchain_prefix_(toolchain_prefix),
+      word_size_(word_size),
+      thumb_mode_(thumb_mode),
+      use_device_timer_(use_device_timer),
+      batch_args_encoder_(args_size, word_size) {
   CHECK(word_size_ == 4 || word_size_ == 8) << "unsupported word size " << word_size_;
   if (comms_method == "host") {
     // TODO(weberlo): move checks to python
@@ -105,83 +109,128 @@ MicroSession::MicroSession(
       << "base address not aligned to " << word_size_ << " bytes";
     DevPtr curr_addr = DevPtr(reinterpret_cast<std::uintptr_t>(base_addr));
 
-    section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
+      "text",
+      DevMemRegion {
       .start = curr_addr,
       .size = text_size,
-    }, word_size_);
+      }, word_size_);
     curr_addr += text_size;
-    section_allocators_[1] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = rodata_size,
-    }, word_size_);
+    section_allocators_[1] = std::make_shared<MicroSectionAllocator>(
+      "rodata",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = rodata_size,
+      }, word_size_);
     curr_addr += rodata_size;
-    section_allocators_[2] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = data_size,
-    }, word_size_);
+    section_allocators_[2] = std::make_shared<MicroSectionAllocator>(
+      "data",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = data_size,
+      }, word_size_);
     curr_addr += data_size;
-    section_allocators_[3] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = bss_size,
-    }, word_size_);
+    section_allocators_[3] = std::make_shared<MicroSectionAllocator>(
+      "bss",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = bss_size,
+      }, word_size_);
     curr_addr += bss_size;
-    section_allocators_[4] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = args_size,
-    }, word_size_);
+    section_allocators_[4] = std::make_shared<MicroSectionAllocator>(
+      "args",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = args_size,
+      }, word_size_);
     curr_addr += args_size;
-    section_allocators_[5] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = heap_size,
-    }, word_size_);
+    section_allocators_[5] = std::make_shared<MicroSectionAllocator>(
+      "heap",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = heap_size,
+      }, word_size_);
     curr_addr += heap_size;
-    section_allocators_[6] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = workspace_size,
-    }, word_size_);
+    section_allocators_[6] = std::make_shared<MicroSectionAllocator>(
+      "workspace",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = workspace_size,
+      }, word_size_);
     curr_addr += workspace_size;
-    section_allocators_[7] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_addr,
-      .size = stack_size,
-    }, word_size_);
+    section_allocators_[7] = std::make_shared<MicroSectionAllocator>(
+      "stack",
+      DevMemRegion {
+        .start = curr_addr,
+        .size = stack_size,
+      }, word_size_);
     curr_addr += stack_size;
   } else if (comms_method == "openocd") {
     low_level_device_ = OpenOCDLowLevelDeviceCreate(server_addr, port);
-    section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(text_start),
-      .size = text_size,
-    }, word_size_);
-    section_allocators_[1] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(rodata_start),
-      .size = rodata_size,
-    }, word_size_);
-    section_allocators_[2] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(data_start),
-      .size = data_size,
-    }, word_size_);
-    section_allocators_[3] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(bss_start),
-      .size = bss_size,
-    }, word_size_);
-    section_allocators_[4] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(args_start),
-      .size = args_size,
-    }, word_size_);
-    section_allocators_[5] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(heap_start),
-      .size = heap_size,
-    }, word_size_);
-    section_allocators_[6] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(workspace_start),
-      .size = workspace_size,
-    }, word_size_);
-    section_allocators_[7] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevPtr(stack_start),
-      .size = stack_size,
-    }, word_size_);
+    section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
+      "text",
+      DevMemRegion {
+        .start = DevPtr(text_start),
+        .size = text_size,
+      }, word_size_);
+    section_allocators_[1] = std::make_shared<MicroSectionAllocator>(
+      "rodata",
+      DevMemRegion {
+        .start = DevPtr(rodata_start),
+        .size = rodata_size,
+      }, word_size_);
+    section_allocators_[2] = std::make_shared<MicroSectionAllocator>(
+      "data",
+      DevMemRegion {
+        .start = DevPtr(data_start),
+        .size = data_size,
+      }, word_size_);
+    section_allocators_[3] = std::make_shared<MicroSectionAllocator>(
+      "bss",
+      DevMemRegion {
+        .start = DevPtr(bss_start),
+        .size = bss_size,
+      }, word_size_);
+    section_allocators_[4] = std::make_shared<MicroSectionAllocator>(
+      "args",
+      DevMemRegion {
+        .start = DevPtr(args_start),
+        .size = args_size,
+      }, word_size_);
+    section_allocators_[5] = std::make_shared<MicroSectionAllocator>(
+      "heap",
+      DevMemRegion {
+        .start = DevPtr(heap_start),
+        .size = heap_size,
+      }, word_size_);
+    section_allocators_[6] = std::make_shared<MicroSectionAllocator>(
+      "workspace",
+      DevMemRegion {
+        .start = DevPtr(workspace_start),
+        .size = workspace_size,
+      }, word_size_);
+    section_allocators_[7] = std::make_shared<MicroSectionAllocator>(
+      "stack",
+      DevMemRegion {
+        .start = DevPtr(stack_start),
+        .size = stack_size,
+      }, word_size_);
   } else {
     LOG(FATAL) << "unsupported micro low-level device";
   }
+
+  std::cout << "[Memory Layout]" << std::endl;
+  std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  rodata (size = " << (section_allocators_[1]->capacity() / 1000.0) << " KB): " << section_allocators_[1]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  data (size = " << (section_allocators_[2]->capacity() / 1000.0) << " KB): " << section_allocators_[2]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  bss (size = " << (section_allocators_[3]->capacity() / 1000.0) << " KB): " << section_allocators_[3]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  args (size = " << (section_allocators_[4]->capacity() / 1000.0) << " KB): " << section_allocators_[4]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  heap (size = " << (section_allocators_[5]->capacity() / 1000.0) << " KB): " << section_allocators_[5]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  workspace (size = " << (section_allocators_[6]->capacity() / 1000.0) << " KB): " << section_allocators_[6]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  stack (size = " << (section_allocators_[7]->capacity() / 1000.0) << " KB): " << section_allocators_[7]->start_addr().cast_to<void*>() << std::endl;
+
+  DevPtr args_start_addr = GetAllocator(SectionKind::kArgs)->start_addr();
+  batch_args_encoder_.set_start_addr(args_start_addr);
 
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
 
@@ -209,54 +258,80 @@ MicroSession::~MicroSession() {
   low_level_device_ = nullptr;
 }
 
-double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
+void MicroSession::PushToTaskQueue(DevPtr func_ptr, const TVMArgs& args) {
+  std::cout << "[MicroSession::PushToTaskQueue]" << std::endl;
+  std::cout << "  pushed func ptr: " << func_ptr.cast_to<void*>() << std::endl;
   if (thumb_mode_) {
-    func_ptr += 1;
+    func_ptr |= 1;
   }
+  DevVal func_dev_addr = func_ptr.value();
 
-  // Create an allocator stream for the memory region after the most recent
-  // allocation in the args section.
-  DevPtr args_addr = GetAllocator(SectionKind::kArgs)->curr_end_addr();
-  TargetDataLayoutEncoder encoder(args_addr, word_size_);
+  std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&batch_args_encoder_, args);
+  DevVal arg_values_dev_addr = { .val64 = std::get<0>(arg_field_addrs).value() };
+  DevVal arg_type_codes_dev_addr = { .val64 = std::get<1>(arg_field_addrs).value() };
 
-  std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&encoder, args);
+  task_queue_.push_back(
+      DevTask {
+        .func = func_dev_addr,
+        .arg_values = arg_values_dev_addr,
+        .arg_type_codes = arg_type_codes_dev_addr,
+        .num_args = args.num_args
+      });
 
-  // Flush `stream` to device memory.
-  DevPtr stream_dev_addr =
-      GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
-  low_level_device()->Write(stream_dev_addr,
-                            reinterpret_cast<void*>(encoder.data()),
-                            encoder.buf_size());
+  if (task_queue_.size() == MicroSession::kTaskQueueCapacity) {
+    FlushTaskQueue();
+  }
+}
 
-  TargetVal arg_values_dev_addr = std::get<0>(arg_field_addrs).value();
-  TargetVal arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).value();
+void MicroSession::FlushTaskQueue() {
+  if (task_queue_.size() == 0) {
+    // nothing to run
+    return;
+  }
   if (word_size_ == 4) {
-    UTVMTask32 task = {
-      .func = func_ptr.value().val32,
-      .arg_values = arg_values_dev_addr.val32,
-      .arg_type_codes = arg_type_codes_dev_addr.val32,
-      .num_args = args.num_args,
-    };
-    // Write the task.
-    DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+    FlushTaskQueuePriv<UTVMTask32>();
   } else if (word_size_ == 8) {
-    UTVMTask64 task = {
-      .func = func_ptr.value().val64,
-      .arg_values = arg_values_dev_addr.val64,
-      .arg_type_codes = arg_type_codes_dev_addr.val64,
-      .num_args = args.num_args,
-    };
-    // Write the task.
-    DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+    FlushTaskQueuePriv<UTVMTask64>();
   }
+}
+
+template <typename T>
+void MicroSession::FlushTaskQueuePriv() {
+  std::cout << "[MicroSession::FlushTaskQueue]" << std::endl;
+  std::vector<T> prepped_tasks;
+  for (const auto& task : task_queue_) {
+    prepped_tasks.push_back(T(task));
+  }
+
+  // Flush `args` to device memory.
+  low_level_device()->Write(
+      batch_args_encoder_.start_addr(),
+      reinterpret_cast<void*>(batch_args_encoder_.data()),
+      batch_args_encoder_.buf_size());
+
+  // Flush `tasks` to device memory.
+  DevPtr dev_tasks_addr = runtime_symbol_map_["utvm_tasks"];
+  low_level_device()->Write(
+      dev_tasks_addr,
+      reinterpret_cast<void*>(prepped_tasks.data()),
+      prepped_tasks.size() * sizeof(T));
+  DevSymbolWrite<uint32_t>(runtime_symbol_map_, "utvm_num_tasks", prepped_tasks.size());
 
   DevPtr utvm_init_addr = runtime_symbol_map_["UTVMInit"];
   DevPtr utvm_done_addr = runtime_symbol_map_["UTVMDone"];
   if (thumb_mode_) {
-    utvm_init_addr += 1;
+    utvm_init_addr |= 1;
   }
 
+  std::chrono::time_point<
+    std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
+  tbegin = std::chrono::high_resolution_clock::now();
+  // std::cout << "  do execution things: ";
+  // char tmp;
+  // std::cin >> tmp;
   low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
+  tend = std::chrono::high_resolution_clock::now();
+
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
   uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
@@ -314,6 +389,88 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
     PatchImplHole(symbol_map, "TVMAPISetLastError");
   }
 
+  if (use_device_timer_) {
+    uint64_t sum = 0;
+    std::vector<uint32_t> times;
+    times.resize(task_queue_.size());
+    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"], times.data(), task_queue_.size() * sizeof(uint32_t));
+    for (uint32_t time : times) {
+      sum += time;
+    }
+    last_batch_time_ += static_cast<double>(sum);
+  } else {
+    last_batch_time_ += std::chrono::duration_cast<std::chrono::duration<double> >
+        (tend - tbegin).count() * 1000;
+    // TODO fukn hack
+    uint64_t sum = 0;
+    std::vector<uint32_t> times;
+    times.resize(task_queue_.size());
+    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"], times.data(), task_queue_.size() * sizeof(uint32_t));
+    for (uint32_t time : times) {
+      sum += time;
+    }
+    last_batch_cycles_ += static_cast<double>(sum);
+  }
+
+  batch_args_encoder_.Clear();
+  task_queue_.clear();
+}
+
+BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {
+  std::cout << "[MicroSession::LoadBinary]" << std::endl;
+  DevMemRegion text_section;
+  DevMemRegion rodata_section;
+  DevMemRegion data_section;
+  DevMemRegion bss_section;
+
+  text_section.size = GetSectionSize(
+      binary_path, SectionKind::kText, toolchain_prefix_, word_size_);
+  rodata_section.size = GetSectionSize(
+      binary_path, SectionKind::kRodata, toolchain_prefix_, word_size_);
+  data_section.size = GetSectionSize(
+      binary_path, SectionKind::kData, toolchain_prefix_, word_size_);
+  bss_section.size = GetSectionSize(
+      binary_path, SectionKind::kBss, toolchain_prefix_, word_size_);
+  std::cout << "  text_section.size: " << text_section.size << std::endl;
+  std::cout << "  rodata_section.size: " << rodata_section.size << std::endl;
+  std::cout << "  data_section.size: " << data_section.size << std::endl;
+  std::cout << "  bss_section.size: " << bss_section.size << std::endl;
+
+  text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
+  rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
+  data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
+  bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
+  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
+        data_section.start != nullptr && bss_section.start != nullptr)
+      << "not enough space to load module on device";
+
+  std::string relocated_bin = RelocateBinarySections(
+      binary_path,
+      word_size_,
+      text_section.start,
+      rodata_section.start,
+      data_section.start,
+      bss_section.start,
+      GetAllocator(SectionKind::kStack)->max_addr(),
+      toolchain_prefix_);
+  std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);
+  std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
+  std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
+  std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
+
+  low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
+  low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
+  low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
+  low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
+  SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
+
+  if (patch_dylib_pointers) {
+    // Patch device lib pointers.
+    PatchImplHole(symbol_map, "TVMBackendAllocWorkspace");
+    PatchImplHole(symbol_map, "TVMBackendFreeWorkspace");
+    PatchImplHole(symbol_map, "TVMAPISetLastError");
+  }
+
   return BinaryInfo {
       .text_section = text_section,
       .rodata_section = rodata_section,
@@ -325,6 +482,7 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
 
 std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
     TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
+  std::cout << "[MicroSession::EncoderAppend(TVMArgs)]" << std::endl;
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
@@ -404,21 +562,56 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTen
   return tvm_arr_slot.start_addr();
 }
 
+// TODO(weberlo): switch over entirely to error codes that expand to error
+// messages on the host side.
 void MicroSession::CheckDeviceError() {
-  int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
+  int32_t last_error = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_last_error");
 
-  if (return_code) {
-    std::uintptr_t last_error =
-        DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
-    std::string last_error_str;
-    if (last_error) {
-      DevPtr last_err_addr = DevPtr(last_error);
-      last_error_str = ReadString(last_err_addr);
+  if (last_error) {
+    if (!use_device_timer_ &&
+        (last_error == UTVM_ERR_TIMER_OVERFLOW ||
+         last_error == UTVM_ERR_TIMER_NOT_IMPLEMENTED)) {
+      // these errors don't matter if we're not using the on-device timer
+      return;
+    }
+    std::string err_msg;
+    switch(last_error) {
+      case UTVM_ERR_NOT_FINISHED:
+        err_msg = "execution timed out";
+        break;
+      case UTVM_ERR_TIMER_NOT_IMPLEMENTED:
+        err_msg = "timer is not implemented for the target device";
+        break;
+      case UTVM_ERR_TIMER_OVERFLOW:
+        // TODO this should be remedied by using interrupts to accumulate the
+        // timer into a larger datatype (ARM timers are only 24 bits)
+        err_msg = "timer overflowed during execution";
+        break;
+      case UTVM_ERR_WS_DOUBLE_FREE:
+        err_msg = "free called with no active workspace allocations";
+        break;
+      case UTVM_ERR_WS_OUT_OF_SPACE:
+        err_msg = "ran out of space in workspace section";
+        break;
+      case UTVM_ERR_WS_TOO_MANY_ALLOCS:
+        err_msg = "exceeded number of allocs the runtime can keep track of";
+        break;
+      case UTVM_ERR_WS_ZERO_SIZE_ALLOC:
+        err_msg = "attempt to allocate scratchpad of size zero";
+        break;
+      case UTVM_ERR_WS_UNALIGNED_START:
+        err_msg = "start of workspace section is not word-aligned";
+        break;
+      case UTVM_ERR_WS_UNALIGNED_ALLOC_SIZE:
+        err_msg = "scratchpad allocation size is not a multiple of the word size";
+        break;
+      default:
+        err_msg = "unknown error code";
+        break;
     }
     LOG(FATAL) << "error during micro function execution:\n"
-               << "  return code: " << std::dec << return_code << "\n"
-               << "  dev str addr: 0x" << std::hex << last_error << "\n"
-               << "  dev str data: " << last_error_str << std::endl;
+               << "  error ID: " << std::dec << last_error << std::endl
+               << "  error message: " << err_msg;
   }
 }
 
@@ -455,10 +648,22 @@ std::string MicroSession::ReadString(DevPtr str_addr) {
 }
 
 DevPtr MicroSession::AllocateInSection(SectionKind type, size_t size) {
-  return GetAllocator(type)->Allocate(size);
+  if (type == SectionKind::kHeap) {
+    std::cout << "[MicroSession::AllocateInSection(Heap)]" << std::endl;
+    std::cout << "  allocating " << std::dec << size << " hex=" << (void*) size << " bytes" << std::endl;
+  }
+  DevPtr result = GetAllocator(type)->Allocate(size);
+  if (type == SectionKind::kHeap) {
+    std::cout << "  allocated at addr " << result.cast_to<void*>() << std::endl;
+  }
+  return result;
 }
 
 void MicroSession::FreeInSection(SectionKind type, DevPtr addr) {
+  if (type == SectionKind::kHeap) {
+    std::cout << "[MicroSession::FreeInSection]" << std::endl;
+    std::cout << "  freeing alloc at addr " << addr.cast_to<void*>() << std::endl;
+  }
   return GetAllocator(type)->Free(addr);
 }
 
@@ -489,6 +694,16 @@ PackedFunc MicroSession::GetFunction(
     return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
       MicroSession::ExitWithScope();
     });
+    // TODO add a `clear_batch_timer` func
+  } else if (name == "get_last_batch_time") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetLastBatchTime();
+    });
+    // TODO remove this func
+  } else if (name == "get_last_batch_cycles") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetLastBatchCycles();
+    });
   } else {
     return PackedFunc();
   }
@@ -518,8 +733,9 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     size_t stack_size = args[18];
     size_t word_size = args[19];
     bool thumb_mode = args[20];
-    const std::string& server_addr = args[21];
-    int port = args[22];
+    bool use_device_timer = args[21];
+    const std::string& server_addr = args[22];
+    int port = args[23];
     ObjectPtr<MicroSession> session = make_object<MicroSession>(
         comms_method,
         binary_path,
@@ -542,6 +758,7 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
         stack_size,
         word_size,
         thumb_mode,
+        use_device_timer,
         server_addr,
         port);
     *rv = Module(session);

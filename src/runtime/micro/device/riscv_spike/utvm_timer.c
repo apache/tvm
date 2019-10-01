@@ -19,8 +19,8 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file utvm_init.c
- * \brief uTVM init definition for the host emulated device
+ * \file utvm_timer.c
+ * \brief uTVM timer API stubs for Spike
  */
 
 #ifdef __cplusplus
@@ -29,9 +29,13 @@ extern "C" {
 
 #include "utvm_runtime.h"
 
-void UTVMInit() {
-  // no init required for the host
-  UTVMMain();
+int32_t UTVMTimerStart() {
+  return UTVM_ERR_OK;
+}
+
+uint32_t UTVMTimerStop(int32_t* err) {
+  *err = UTVM_ERR_OK;
+  return 0;
 }
 
 #ifdef __cplusplus

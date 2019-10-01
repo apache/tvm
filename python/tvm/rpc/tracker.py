@@ -297,8 +297,11 @@ class TrackerServerHandler(object):
     def _on_event(self, _):
         while True:
             try:
+                print('waiting for connection!')
                 conn, addr = self._sock.accept()
+                print(f'got new conn: {conn}, {addr}')
                 TCPEventHandler(self, conn, addr)
+                print(f'made event handler')
             except socket.error as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break

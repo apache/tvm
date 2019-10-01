@@ -18,6 +18,7 @@
  */
 
 /*!
+ *  Copyright (c) 2019 by Contributors
  * \file utvm_runtime.h
  * \brief uTVM runtime headers
  */
@@ -33,6 +34,22 @@ extern "C" {
 #include <tvm/runtime/c_backend_api.h>
 
 /*!
+ * \brief TODO
+ */
+enum UTVMReturnCode {
+  UTVM_ERR_OK = 0,
+  UTVM_ERR_NOT_FINISHED = -1,
+  UTVM_ERR_TIMER_NOT_IMPLEMENTED = -2,
+  UTVM_ERR_TIMER_OVERFLOW = -3,
+  UTVM_ERR_WS_DOUBLE_FREE = -4,
+  UTVM_ERR_WS_OUT_OF_SPACE = -5,
+  UTVM_ERR_WS_TOO_MANY_ALLOCS = -6,
+  UTVM_ERR_WS_ZERO_SIZE_ALLOC = -7,
+  UTVM_ERR_WS_UNALIGNED_START = -8,
+  UTVM_ERR_WS_UNALIGNED_ALLOC_SIZE = -9,
+};
+
+/*!
  * \brief Task structure for uTVM
  */
 typedef struct {
@@ -46,19 +63,37 @@ typedef struct {
   int32_t num_args;
 } UTVMTask;
 
+/*!
+ * \brief TODO
+ */
 extern void UTVMInit();
 
-extern void UTVMTimerReset();
-
+/*!
+ * \brief TODO
+ */
 extern int32_t UTVMTimerStart();
 
-extern void UTVMTimerStop();
+/*!
+ * \brief TODO
+ */
+extern uint32_t UTVMTimerStop(int32_t* err);
 
-extern uint32_t UTVMTimerRead();
-
+/*!
+ * \brief TODO
+ */
 void UTVMMain();
 
+/*!
+ * \brief TODO
+ */
 void UTVMDone();
+
+// GCC -O3 begins to inject memset and memmove calls, so we provide impls in
+// the runtime for this case and for general usage.
+
+void *memset(void *s, int c, size_t n);
+
+void *memmove(void *to, const void *from, size_t n);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

@@ -38,8 +38,9 @@ class MicroSectionAllocator {
    * \brief constructor that specifies section boundaries
    * \param region location and size of the section on the device
    */
-  explicit MicroSectionAllocator(DevMemRegion region, size_t word_size)
-    : start_addr_(region.start),
+  explicit MicroSectionAllocator(std::string section_name, DevMemRegion region, size_t word_size)
+    : section_name_(section_name),
+      start_addr_(region.start),
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
@@ -56,7 +57,7 @@ class MicroSectionAllocator {
 
   /*!
    * \brief memory allocator
-   * \param size size of allocated memory in bytes
+   * \param alloc_size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   DevPtr Allocate(size_t size) {
@@ -110,6 +111,8 @@ class MicroSectionAllocator {
   size_t capacity() const { return capacity_; }
 
  private:
+  /*! \brief name of the section (for debugging) */
+  std::string section_name_;
   /*! \brief start address of the section */
   DevPtr start_addr_;
   /*! \brief current size of the section */
