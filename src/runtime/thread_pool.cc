@@ -39,6 +39,7 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
+#include <omp.h>
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -46,7 +47,8 @@ namespace tvm {
 namespace runtime {
 namespace {
 
-constexpr uint32_t kDefaultSpinCount = 300000;
+//constexpr uint32_t kDefaultSpinCount = 300000;
+constexpr uint32_t kDefaultSpinCount = 0;
 
 uint32_t GetSpinCount() {
   const char* val = getenv("TVM_THREAD_POOL_SPIN_COUNT");
@@ -394,9 +396,43 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
+#ifndef USE_OMP
   int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(
       flambda, cdata, num_task, 1);
   return res;
+#else
+  const char *val = getenv("TVM_NUM_THREADS");
+  int num_workers;
+  if (val == nullptr) {
+    val = getenv("OMP_NUM_THREADS");
+  }
+  if (val != nullptr) {
+    num_workers = atoi(val);
+  } else {
+#if defined(_M_X64) || defined(__x86_64__)
+  // Half to not count hyper threading.
+  num_workers = std::thread::hardware_concurrency() / 2;
+#else
+  num_workers = std::thread::hardware_concurrency();
+#endif
+  }
+  num_workers = std::max(num_workers, 1);
+  if (num_task ==0) num_task = num_workers;
+  omp_set_num_threads(num_workers);
+  #pragma omp parallel num_threads(num_workers)
+  {
+    TVMParallelGroupEnv env;
+    env.num_task = num_task;
+    std::atomic<int32_t>* sync_counter = new std::atomic<int>[num_task * tvm::runtime::kSyncStride];
+    for (int i = 0; i < num_task; ++i) {
+        sync_counter[i * tvm::runtime::kSyncStride].store(
+            0, std::memory_order_relaxed);
+      }
+    env.sync_handle = sync_counter;
+    (*flambda)(omp_get_thread_num(), &env, cdata);
+  }
+  return 0;
+#endif
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
@@ -410,7 +446,11 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(
                  std::memory_order_relaxed) <= old_counter) {
+#ifdef USE_OMP
+        #pragma omp taskyield
+#else
         tvm::runtime::threading::Yield();
+#endif
       }
     }
   }
