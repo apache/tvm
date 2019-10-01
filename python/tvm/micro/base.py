@@ -64,23 +64,117 @@ class Session:
     def __init__(self, device_type, toolchain_prefix, **kwargs):
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
-        self._check_system()
-        self._check_args(device_type, kwargs)
+        #self._check_system()
+        #self._check_args(device_type, kwargs)
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
-        tmp_dir = _util.tempdir()
-        runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
-        create_micro_lib(
-            runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
+        #tmp_dir = _util.tempdir()
+        #runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
+        #create_micro_lib(
+        #    runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
-        base_addr = kwargs.get("base_addr", 0)
-        server_addr = kwargs.get("server_addr", "")
-        port = kwargs.get("port", 0)
+        self.op_modules = []
+
+        self.device_type = device_type
+        self.toolchain_prefix = toolchain_prefix
+        self.base_addr = kwargs.get("base_addr", 0)
+        self.server_addr = kwargs.get("server_addr", "")
+        self.port = kwargs.get("port", 0)
+
         self.module = _CreateSession(
-            device_type, runtime_obj_path, toolchain_prefix, base_addr, server_addr, port)
+            self.device_type, "", self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
+
+    def add_module(self, c_mod):
+        self.op_modules.append(c_mod)
+
+    def bake(self):
+        import subprocess
+        import os
+        import copy
+        from shutil import copyfile
+
+        from tvm._ffi.libinfo import find_include_path
+        from tvm.micro import _get_micro_device_dir
+        from tvm.contrib import binutil
+
+        op_srcs = []
+        for op_module in self.op_modules:
+            op_src = op_module.get_source()
+            op_src = op_src[op_src.index("TVM_DLL"):]
+            op_srcs.append(op_src)
+        op_srcs = "\n".join(op_srcs)
+
+        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
+        with open(runtime_src_path) as f:
+            runtime_src = f.read()
+
+        include_str = "#include \"utvm_runtime.h\""
+        split_idx = runtime_src.index(include_str) + len(include_str) + 2
+        merged_src = (runtime_src[:split_idx] \
+                + "#include \"stm32f7xx_nucleo_144.h\"\n" \
+                + op_srcs \
+                + runtime_src[split_idx:] \
+                # TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
+                + "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n")
+
+        print(merged_src)
+
+        # TODO: We need to somehow prevent the utvm funcs from being optimized
+        # away. we can either call all of them in `main`, or we can instruct
+        # the compiler to leave them in.
+        #
+        # can't use __attribute__((used)) because arm's compiler ignores it.
+
+        nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
+        with open(f"{nucleo_path}/src/main.c", "w") as f:
+            f.write(merged_src)
+        print(merged_src)
+
+        paths = [path for path in find_include_path()]
+        paths += ["/home/pratyush/Code/tvm/src/runtime/micro/device"]
+        print(paths)
+        child_env = copy.deepcopy(os.environ)
+        child_env["LD_LIBRARY_PATH"] += ":" + ":".join(paths)
+
+        print("[FLASHING]")
+        proc = subprocess.Popen(
+                ["make", "flash"],
+                cwd=nucleo_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+        if proc.returncode != 0:
+            msg = "Compilation error:\n"
+            msg += out.decode("utf-8")
+            raise RuntimeError(msg)
+
+        result_binary_path = f"{nucleo_path}/blinky.elf"
+
+        print(binutil.tvm_callback_get_section_size(result_binary_path, "text", self.toolchain_prefix))
+        print(binutil.tvm_callback_get_section_size(result_binary_path, "rodata", self.toolchain_prefix))
+        print(binutil.tvm_callback_get_section_size(result_binary_path, "data", self.toolchain_prefix))
+        print(binutil.tvm_callback_get_section_size(result_binary_path, "bss", self.toolchain_prefix))
+
+        with open(result_binary_path, "rb") as f:
+            result_binary_contents = bytearray(f.read())
+
+        sym_map_str = binutil.tvm_callback_get_symbol_map(result_binary_contents, self.toolchain_prefix)
+        sym_map_lines = list(filter(lambda s: len(s) != 0, sym_map_str.split('\n')))
+
+        sym_map_iter = iter(sym_map_lines)
+        sym_map = {}
+        for sym_name in sym_map_iter:
+            sym_loc = next(sym_map_iter)
+            sym_map[sym_name] = sym_loc
+
+        print('UTVMMain: ' + sym_map['UTVMMain'])
+        print('UTVMDone: ' + sym_map['UTVMDone'])
+        print('fadd: ' + sym_map['fadd'])
+        print('TVMBackendAllocWorkspace: ' + sym_map['TVMBackendAllocWorkspace'])
+        print('TVMBackendFreeWorkspace: ' + sym_map['TVMBackendFreeWorkspace'])
+        print('TVMAPISetLastError: ' + sym_map['TVMAPISetLastError'])
 
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
@@ -88,11 +182,11 @@ class Session:
         Raises error if not supported.
         """
         if not sys.platform.startswith("linux"):
-            raise RuntimeError("microTVM is currently only supported on Linux")
+            raise RuntimeError("MicroTVM is currently only supported on Linux")
         # TODO(weberlo): Add 32-bit support.
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
-            raise RuntimeError("microTVM is currently only supported on 64-bit platforms")
+            raise RuntimeError("MicroTVM is currently only supported on 64-bit platforms")
 
     def _check_args(self, device_type, args):
         """Check if the given configuration is valid."""
@@ -105,6 +199,7 @@ class Session:
 
     def __enter__(self):
         self._enter()
+        return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self._exit()

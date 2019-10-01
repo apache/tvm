@@ -38,6 +38,17 @@ namespace runtime {
  */
 class MicroModuleNode final : public ModuleNode {
  public:
+  // TODO(weberlo): enqueue each loaded module into a vector of bin contents.
+  // then concatenate the contents, build it, and flush it once a function call
+  // is attempted.
+  //
+  // We might not be able to flush *all* sections.  Depends how st-flash works.
+  // it only asks to specify the start of the flash section, so does it also
+  // flash the RAM sections? It's also weird that it asks for the start of the
+  // flash section, because that should already be encoded in the binary. check
+  // the .bin files to see if symbol addrs are assigned. also, check the
+  // st-flash docs, because the arg could just be for the address of `main`.
+
   MicroModuleNode() {}
 
   ~MicroModuleNode() {}
@@ -55,8 +66,10 @@ class MicroModuleNode final : public ModuleNode {
    */
   void InitMicroModule(const std::string& binary_path) {
     session_ = MicroSession::Current();
-    binary_path_ = binary_path;
-    binary_info_ = session_->LoadBinary(binary_path_);
+    //binary_path_ = binary_path;
+    std::cout << "AYY" << std::endl;
+    //binary_info_ = session_->EnqueueBinary(binary_path_);
+    std::cout << "LMAO" << std::endl;
   }
 
   /*!
@@ -70,10 +83,11 @@ class MicroModuleNode final : public ModuleNode {
   }
 
  private:
-  /*! \brief module binary info */
-  BinaryInfo binary_info_;
-  /*! \brief path to module binary */
-  std::string binary_path_;
+  BinaryContents binary_contents_;
+  ///*! \brief module binary info */
+  //BinaryInfo binary_info_;
+  ///*! \brief path to module binary */
+  //std::string binary_path_;
   /*! \brief global session pointer */
   ObjectPtr<MicroSession> session_;
 };
@@ -109,7 +123,7 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
   DevBaseOffset func_offset =
-      session_->low_level_device()->ToDevOffset(binary_info_.symbol_map[name]);
+      session_->low_level_device()->ToDevOffset(binary_contents_.binary_info.symbol_map[name]);
   MicroWrappedFunc f(this, session_, name, func_offset);
   return PackedFunc(f);
 }

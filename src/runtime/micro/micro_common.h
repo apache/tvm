@@ -239,6 +239,14 @@ struct BinaryInfo {
   SymbolMap symbol_map;
 };
 
+struct BinaryContents {
+  BinaryInfo binary_info;
+  std::string text_contents;
+  std::string rodata_contents;
+  std::string data_contents;
+  std::string bss_contents;
+};
+
 // TODO(weberlo): should this be here?
 /*! \brief number of bytes in each page */
 constexpr int kPageSize = 4096;

@@ -25,8 +25,10 @@ import tvm.micro as micro
 from tvm.relay.testing import resnet
 
 # Use the host emulated micro device.
-DEVICE_TYPE = "host"
-TOOLCHAIN_PREFIX = ""
+DEVICE_TYPE = "openocd"
+TOOLCHAIN_PREFIX = "arm-none-eabi-"
+#DEVICE_TYPE = "host"
+#TOOLCHAIN_PREFIX = ""
 
 def create_micro_mod(c_mod, toolchain_prefix):
     """Produces a micro module from a given module.
@@ -49,7 +51,9 @@ def create_micro_mod(c_mod, toolchain_prefix):
     c_mod.export_library(
             lib_obj_path,
             fcompile=tvm.micro.cross_compiler(toolchain_prefix=toolchain_prefix))
+    print("BEFORE")
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
+    print("AFTER")
     return micro_mod
 
 
@@ -113,13 +117,18 @@ def test_add():
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+        print("A")
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+        print("B")
         micro_func = micro_mod[func_name]
+        print("C")
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        print("D")
         micro_func(a, b, c)
+        print("E")
 
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + b.asnumpy())
@@ -299,12 +308,59 @@ def test_inactive_session_use():
                 add_result, np_tensor_a + 1.0)
 
 
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+
+
+def test_arm_add():
+    """Test a module which performs addition."""
+    import tvm
+    if not tvm.module.enabled("micro_dev"):
+        return
+    shape = (1024,)
+    dtype = "float32"
+
+    import subprocess
+    import os
+    import copy
+    from shutil import copyfile
+
+    from tvm._ffi.libinfo import find_include_path
+    from tvm.micro import _get_micro_device_dir
+    from tvm.contrib import binutil
+
+    # Construct TVM expression.
+    tvm_shape = tvm.convert(shape)
+    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
+    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
+    s = tvm.create_schedule(C.op)
+
+    func_name = "fadd"
+    c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
+
+    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX) as sess:
+        sess.add_module(c_mod)
+        sess.bake()
+
+        #ctx = tvm.micro_dev(0)
+        #a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        #b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        #c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        #micro_func(a, b, c)
+
+        #tvm.testing.assert_allclose(
+        #        c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+
 if __name__ == "__main__":
-    test_alloc()
-    test_add()
-    test_workspace_add()
-    test_graph_runtime()
-    test_multiple_modules()
-    test_interleave_sessions()
-    test_nested_sessions()
-    test_inactive_session_use()
+    #test_alloc()
+    #test_add()
+    #test_workspace_add()
+    #test_graph_runtime()
+    #test_multiple_modules()
+    #test_interleave_sessions()
+    #test_nested_sessions()
+    #test_inactive_session_use()
+    test_arm_add()

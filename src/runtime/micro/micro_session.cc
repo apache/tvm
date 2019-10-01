@@ -57,16 +57,80 @@ void MicroSession::ExitWithScope() {
 }
 
 MicroSession::MicroSession() {
-  DevBaseOffset curr_start_offset = kDeviceStart;
-  for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
-    size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
-    section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = section_size,
-    });
-    curr_start_offset += section_size;
-  }
-  memory_size_ = curr_start_offset.cast_to<size_t>();
+  //DevBaseOffset curr_start_offset = kDeviceStart;
+  //for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
+  //  size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
+  //  section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+  //    .start = curr_start_offset,
+  //    .size = section_size,
+  //  });
+  //  curr_start_offset += section_size;
+  //}
+  //memory_size_ = curr_start_offset.cast_to<size_t>();
+
+  /* Linker script sample
+   * #if !defined(MBED_APP_START)
+   *   #define MBED_APP_START 0x08000000
+   * #endif
+   *
+   * #if !defined(MBED_APP_SIZE)
+   *   #define MBED_APP_SIZE 1024K
+   * #endif
+   *
+   * MEMORY
+   * {
+   *   FLASH (rx) : ORIGIN = MBED_APP_START, LENGTH = MBED_APP_SIZE
+   *   RAM (rwx)  : ORIGIN = 0x200001C8, LENGTH = 320K - 0x1C8
+   * }
+   */
+
+  size_t half_flash_size = 512000;  // 0.5 MB
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x08000000);
+  section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = half_flash_size,
+  });
+  curr_start_offset += half_flash_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kRodata)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = half_flash_size,
+  });
+  curr_start_offset += half_flash_size;
+
+  curr_start_offset = DevBaseOffset(0x200001C8);
+  size_t one_sixth_ram_size = 53256;
+  section_allocators_[static_cast<size_t>(SectionKind::kData)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kBss)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kArgs)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kStack)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kHeap)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+  section_allocators_[static_cast<size_t>(SectionKind::kWorkspace)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = curr_start_offset,
+    .size = one_sixth_ram_size,
+  });
+  curr_start_offset += one_sixth_ram_size;
+
+  memory_size_ = 0;
 }
 
 MicroSession::~MicroSession() {
@@ -88,32 +152,36 @@ void MicroSession::CreateSession(const std::string& device_type,
     low_level_device_ = HostLowLevelDeviceCreate(memory_size_);
   } else if (device_type == "openocd") {
     // TODO(weberlo): We need a better way of configuring devices.
+    std::cout << "BEFORE OPENOCD CREATE" << std::endl;
     low_level_device_ = OpenOCDLowLevelDeviceCreate(base_addr, server_addr, port);
+    std::cout << "AFTER OPENOCD CREATE" << std::endl;
   } else {
     LOG(FATAL) << "unsupported micro low-level device";
   }
 
-  SetRuntimeBinaryPath(binary_path);
-  CHECK(!runtime_binary_path_.empty()) << "uTVM runtime not initialized";
-  runtime_bin_info_ = LoadBinary(runtime_binary_path_, /* patch_dylib_pointers */ false);
-  utvm_main_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMMain"]);
-  utvm_done_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMDone"]);
+  //CHECK(!binary_path.empty()) << "uTVM runtime not initialized";
+  //runtime_bin_info_ = LoadBinary(binary_path, /* patch_dylib_pointers */ false);
+  //utvm_main_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMMain"]);
+  //utvm_done_symbol_ = low_level_device()->ToDevOffset(runtime_symbol_map()["UTVMDone"]);
 
-  if (device_type == "openocd") {
-    // Set OpenOCD device's stack pointer.
-    auto stack_section = GetAllocator(SectionKind::kStack);
-    low_level_device_->SetStackTop(stack_section->max_end_offset());
-  }
+  //if (device_type == "openocd") {
+  //  // Set OpenOCD device's stack pointer.
+  //  auto stack_section = GetAllocator(SectionKind::kStack);
+  //  low_level_device_->SetStackTop(stack_section->max_end_offset());
+  //}
 
   // Patch workspace pointers to the start of the workspace section.
-  DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
-  DevBaseOffset workspace_end_offset = GetAllocator(SectionKind::kWorkspace)->max_end_offset();
-  void* workspace_start_addr =
-      low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
-  void* workspace_end_addr =
-      low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
-  DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_begin", workspace_start_addr);
-  DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_end", workspace_end_addr);
+  //DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
+  //DevBaseOffset workspace_end_offset = GetAllocator(SectionKind::kWorkspace)->max_end_offset();
+  //void* workspace_start_addr =
+  //    low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
+  //void* workspace_end_addr =
+  //    low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
+  // TODO(weberlo): A lot of these symbol writes can be converted into symbols
+  // in the C source, where the symbols are created by the linker script we
+  // generate in python.
+  //DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_begin", workspace_start_addr);
+  //DevSymbolWrite(runtime_symbol_map(), "utvm_workspace_end", workspace_end_addr);
 }
 
 void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
@@ -246,7 +314,7 @@ void MicroSession::CheckDeviceError() {
   }
 }
 
-BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {
+void MicroSession::EnqueueBinary(const std::string& binary_path) {
   DevMemRegion text_section;
   DevMemRegion rodata_section;
   DevMemRegion data_section;
@@ -276,26 +344,47 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
   std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
   std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
-  low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
-  low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
-  low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
-  low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
   SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
 
-  if (patch_dylib_pointers) {
-    // Patch device lib pointers.
-    PatchImplHole(symbol_map, "TVMBackendAllocWorkspace");
-    PatchImplHole(symbol_map, "TVMBackendFreeWorkspace");
-    PatchImplHole(symbol_map, "TVMAPISetLastError");
-  }
-
-  return BinaryInfo {
+  bin_queue_.push_back(BinaryContents {
+    .binary_info = BinaryInfo {
       .text_section = text_section,
       .rodata_section = rodata_section,
       .data_section = data_section,
       .bss_section = bss_section,
       .symbol_map = symbol_map,
-  };
+    },
+    .text_contents = text_contents,
+    .rodata_contents = rodata_contents,
+    .data_contents = data_contents,
+    .bss_contents = bss_contents,
+  });
+}
+
+// TODO: Do experiment where you check if any data is flushed into RAM from st-flash.
+
+/*
+void MicroSession::FlushAllBinaries() {
+  int i = 0;
+  // TODO: If we have all of the binaries available at once, we can patch the
+  // pointers before we even load them on the board.
+  for (const auto& bin_contents : bin_queue_) {
+    if (i == 0) {
+      // Load runtime
+    } else {
+      // Load function
+    }
+    i++
+  }
+  // FlushBinary(merged_bin_contents);
+}
+*/
+
+void MicroSession::FlushBinary(const BinaryContents& bin_contents) {
+  //// Patch device lib pointers.
+  //PatchImplHole(bin_contents.symbol_map, "TVMBackendAllocWorkspace");
+  //PatchImplHole(bin_contents.symbol_map, "TVMBackendFreeWorkspace");
+  //PatchImplHole(bin_contents.symbol_map, "TVMAPISetLastError");
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
@@ -303,10 +392,6 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
-}
-
-void MicroSession::SetRuntimeBinaryPath(std::string path) {
-  runtime_binary_path_ = path;
 }
 
 std::string MicroSession::ReadString(DevBaseOffset str_offset) {
@@ -377,8 +462,10 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     const std::string& server_addr = args[4];
     int port = args[5];
     ObjectPtr<MicroSession> session = make_object<MicroSession>();
+    //session->CreateSession(
+    //    device_type, binary_path, toolchain_prefix, base_addr, server_addr, port);
     session->CreateSession(
-        device_type, binary_path, toolchain_prefix, base_addr, server_addr, port);
+        "openocd", binary_path, "arm-none-eabi-", 0, "127.0.0.1", 6666);
     *rv = Module(session);
     });
 

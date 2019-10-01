@@ -131,13 +131,9 @@ class MicroSession : public ModuleNode {
    */
   void PushToExecQueue(DevBaseOffset func, const TVMArgs& args);
 
-  /*!
-   * \brief loads binary onto device
-   * \param binary_path path to binary object file
-   * \param patch_dylib_pointers whether runtime API function pointer patching is needed
-   * \return info about loaded binary
-   */
-  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers = true);
+  void EnqueueBinary(const std::string& binary_path);
+
+  void FlushBinary(const BinaryContents& bin_contents);
 
   /*!
   * \brief read value of symbol from device memory
@@ -184,6 +180,8 @@ class MicroSession : public ModuleNode {
   DevBaseOffset utvm_main_symbol_;
   /*! \brief offset of the runtime exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
+
+  std::vector<BinaryContents> bin_queue_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation

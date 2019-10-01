@@ -44,11 +44,16 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   explicit OpenOCDLowLevelDevice(std::uintptr_t base_addr,
                                  const std::string& server_addr,
                                  int port) : socket_() {
-      socket_.Connect(tvm::common::SockAddr(server_addr.c_str(), port));
-      socket_.cmd_builder() << "reset halt";
-      socket_.SendCommand();
+      server_addr_ = server_addr;
+      port_ = port;
       base_addr_ = base_addr;
       CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
+  }
+
+  void Connect() {
+      socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
+      socket_.cmd_builder() << "reset halt";
+      socket_.SendCommand();
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
@@ -228,6 +233,9 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   DevPtr stack_top_;
   /*! \brief socket used to communicate with the device through Tcl */
   TclSocket socket_;
+
+  std::string server_addr_;
+  int port_;
 
   /*! \brief number of bytes in a word on the target device (64-bit) */
   static const constexpr ssize_t kWordSize = 8;
