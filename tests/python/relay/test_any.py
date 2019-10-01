@@ -92,6 +92,36 @@ def test_any_reshape():
     verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
 
+def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
+    x = relay.var('x', shape=x_shape, dtype=dtype)
+    y = relay.argwhere(x)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], y)
+    data = np.random.choice([0, 1, 2, 3], size=x_np_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data).asnumpy()
+        expected = np.argwhere(data)
+        assert result.shape == expected.shape
+        tvm.testing.assert_allclose(result.flatten(), expected.flatten())
+
+def test_any_argwhere():
+    verify_any_argwhere(any_dims(1), (5,))
+    verify_any_argwhere(any_dims(2), (5, 5))
+    verify_any_argwhere(any_dims(3), (5, 5, 5))
+    verify_any_argwhere(any_dims(4), (5, 5, 5, 5))
+    verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5))
+    verify_any_argwhere(any_dims(1), (5,), "int32")
+    verify_any_argwhere(any_dims(2), (5, 5), "int32")
+    verify_any_argwhere(any_dims(3), (5, 5, 5), "int32")
+    verify_any_argwhere(any_dims(4), (5, 5, 5, 5), "int32")
+    verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int32")
+    verify_any_argwhere(any_dims(1), (5,), "int8")
+    verify_any_argwhere(any_dims(2), (5, 5), "int8")
+    verify_any_argwhere(any_dims(3), (5, 5, 5), "int8")
+    verify_any_argwhere(any_dims(4), (5, 5, 5, 5), "int8")
+    verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int8")
+
 def verify_any_take(data_shape, indices_shape, axis, data_np_shape, indices_np_shape):
     mod = relay.Module()
     data = relay.var('data', shape=data_shape, dtype='float32')

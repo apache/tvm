@@ -314,6 +314,12 @@ struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   }
 };  // struct OneHotAttrs
 
+/*! \brief Attributes for ArgWhere operator */
+struct ArgWhereAttrs : public tvm::AttrsNode<ArgWhereAttrs> {
+  TVM_DECLARE_ATTRS(ArgWhereAttrs, "relay.attrs.ArgWhereAttrs") {
+  }
+};  // struct ArgWhereAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
