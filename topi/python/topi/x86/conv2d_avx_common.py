@@ -21,6 +21,7 @@ import tvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.util import infer_pad
+from ..generic import conv2d as conv2d_generic
 from ..util import get_const_tuple
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .util import get_fp32_len
@@ -56,7 +57,6 @@ def _fallback_schedule(cfg, wkl):
 
 
 def _fallback_schedule_int8(cfg, wkl):
-    simd_width = get_fp32_len()
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
@@ -207,68 +207,6 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
 
 
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
-    """
-    Defines the schedule for INT8 for intel machines
-    Uses the Intel intrinsics to use INT8 operations
-    More details - https://software.intel.com/en-us/articles/
-    lower-numerical-precision-deep-learning-inference-and-training
-    """
-    int32_lanes = 16
-
-    reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
-    _, _, _, _, ic_bn = get_const_tuple(data.shape)
-    _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
-
-    A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, _ = s[A].op.axis
-        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
-        s[A].parallel(parallel_axis)
-
-    # schedule 5-D NCHW[x]c conv
-    C, O = conv_out, last
-    CC = s.cache_write(C, 'global')
-
-    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
-    s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    parallel_axis = s[C].fuse(batch, oc_chunk, oh)
-    s[C].vectorize(oc_block)
-    if C == O:
-        s[C].parallel(parallel_axis)
-
-    s[CC].compute_at(s[C], ow_chunk)
-    _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
-    kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
-
-    ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
-
-    # Skylake and future processors have 16 vector lanes
-    assert oc_bn % int32_lanes == 0
-
-    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
-
-    if unroll_kw:
-        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, ic_f_inner, kw,
-                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
-        s[CC].unroll(kw)
-    else:
-        s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, kw, ic_f_inner,
-                      ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
-
-
-    pc = dot_16x1x16_int8_int8_int32()
-    s[CC].tensorize(oc_s_inner, pc)
-    s[CC].unroll(ow_block)
-    s[CC].unroll(oc_f_inner)
-
-    if C != O:
-        batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
-        s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-        s[C].compute_at(s[O], parallel_axis)
-        s[O].vectorize(oc_block)
-        s[O].parallel(parallel_axis)
-
-    return s
+    return conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last,
+                                                              int32_lanes=16,
+                                                              intrin=dot_16x1x16_int8_int8_int32())
