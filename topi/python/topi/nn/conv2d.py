@@ -595,18 +595,10 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    target = tvm.target.current_target(allow_none=False)
     oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn, _ = \
         get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn
     groups = ic_chunk // ic_chunk_group
-
-    # Since the weight is 7-D and the last element size is 4, we have to
-    # check ic_bn should be a multiple of 4.
-    # Similary, oc_bn has to be a multiple of 4.
-
-    assert ic_bn % 4 == 0
-    assert oc_bn % 16 == 0
 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
