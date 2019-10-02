@@ -108,8 +108,11 @@ class CalcDep : private ExprVisitor {
   explicit CalcDep(const VarMap<Expr>& expr_map) : expr_map_(expr_map) { }
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
+  std::unordered_set<const Node*> visited_;
 
   void VisitExpr(const Expr& e) final {
+    if (visited_.count(e.get())) return;
+    visited_.insert(e.get());
     return ExprFunctor<void(const Expr& e)>::VisitExpr(e);
   }
 
