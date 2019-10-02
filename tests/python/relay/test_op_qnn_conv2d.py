@@ -77,7 +77,6 @@ def get_qnn_func(data,
 
     mod = relay.Function(relay.analysis.free_vars(func), func)
     mod = relay.Module.from_expr(mod)
-    mod = relay.qnn.transform.CanonicalizeOps()(mod)
     return mod
 
 def get_funcs(data_shape,

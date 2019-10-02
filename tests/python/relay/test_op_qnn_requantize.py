@@ -49,7 +49,6 @@ def test_requantize():
 
         mod = relay.Function(relay.analysis.free_vars(mod), mod)
         mod = relay.Module.from_expr(mod)
-        mod = relay.qnn.transform.CanonicalizeOps()(mod)
         return mod
 
     def same_scale_test():
