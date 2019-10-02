@@ -17,6 +17,15 @@
 
 VTA in Chisel 
 ===================================================
+To test the design in simulation
+ - `make` and the output files are in `pynq/out`
+ - you can add customized test by specifying `make TEST_NAME=your_test`
+    but you need to change the mem files accordingly in `pynq/scripts/vivado.tcl` 
+
+To generate bitstream for PYNQ
+ - `make VTA_TARGET=hw` wil generate the VTA bitstream, and the gernerated bitstream
+    can be found under `pynq/out/export/vta.bit`  
+
 For contributors who wants to test a chisel module:
 	
  - You can add your test files in  `src/test/scala/unitttest`
