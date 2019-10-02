@@ -828,16 +828,16 @@ bool CrossEntropyRel(const Array<Type>& types,
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 2 && y->shape.size() == 2)
     << "CrossEntropy: shapes of x and y is inconsistent, "
-    << "x shape=, " << x->shape
-    << "y shape=" << y->shape;
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
     << "CrossEntropy: shapes of x and y is inconsistent, "
-    << "x shape=, " << x->shape
-    << "y shape=" << y->shape;
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
   CHECK(reporter->AssertEQ(x->shape[1], y->shape[1]))
     << "CrossEntropy: shapes of x and y is inconsistent, "
-    << "x shape=, " << x->shape
-    << "y shape=" << y->shape;
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
   // assign output type
   reporter->Assign(types[2], TensorTypeNode::make({}, x->dtype));
   return true;
@@ -855,7 +855,7 @@ TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
 
 
 RELAY_REGISTER_OP("nn.cross_entropy")
-.describe(R"code(Computes cross entropy given preditions and targets.)code" TVM_ADD_FILELINE)
+.describe(R"code(Computes cross entropy given predictions and targets.)code" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .add_argument("x", "1D Tensor", "Predictions.")
 .add_argument("y", "1D Tensor", "Targets.")
