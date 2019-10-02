@@ -937,6 +937,8 @@ def _transpose():
 
 def _where():
     def _impl(inputs, attr, params):
+        if len(inputs) == 1:
+            return AttrCvt(op_name="argwhere")(inputs, attr)
         return AttrCvt(op_name="where")(inputs, attr)
     return _impl
 
@@ -1354,6 +1356,7 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'TruncateMod'                       : _elemwise('mod'),
     'Unpack'                            : _unpack(),
+    'Where'                             : _where(),
     'ZerosLike'                         : AttrCvt('zeros_like'),
 
 }
