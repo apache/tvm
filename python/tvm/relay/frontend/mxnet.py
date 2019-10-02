@@ -615,12 +615,17 @@ def _mx_arange(inputs, attrs):
     if attrs.get_int("repeat", 1) != 1:
         raise tvm.error.OpAttributeUnimplemented(
             'Attribute "repeat" is not supported in operator arange.')
-    new_attrs = {}
-    new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
+    dtype = attrs.get_str("dtype", "float32")
     stop = attrs.get_str("stop", "None")
-    new_attrs["stop"] = None if stop == "None" else _expr.const(float(stop))
-    new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
-    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    if stop == "None":
+        stop = None
+    else:
+        stop = _expr.const(float(stop), dtype=dtype)
+    new_attrs = {}
+    new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0), dtype=dtype)
+    new_attrs["stop"] = stop
+    new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0), dtype=dtype)
+    new_attrs["dtype"] = dtype
     return _op.arange(**new_attrs)
 
 
@@ -863,7 +868,8 @@ def _mx_contrib_div_sqrt_dim(inputs, _):
     assert len(inputs) == 1
     ndim = len(_infer_type(inputs[0]).checked_type.shape)
     dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
-    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    dtype = _infer_type(inputs[0]).checked_type.dtype
+    sqrt_dim = _op.sqrt(dim.astype(dtype))
     out = inputs[0] / sqrt_dim
     return out
 
