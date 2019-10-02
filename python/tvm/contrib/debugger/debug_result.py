@@ -204,9 +204,8 @@ class DebugResult(object):
         with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
             json.dump(graph, outfile, indent=4, sort_keys=False)
 
-    def display_debug_result(self, sort_by_time=True):
-        """Displays the debugger result"
-        """
+    def get_debug_result(self, sort_by_time=True):
+        """Return the debugger result"""
         header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
         lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
         eid = 0
@@ -244,10 +243,15 @@ class DebugResult(object):
                 if item_len > max_len:
                     max_len = item_len
             fmt = fmt + "{:<" + str(max_len + 2) + "}"
-        print(fmt.format(*header))
-        print(fmt.format(*lines))
+        log = [fmt.format(*header)]
+        log.append(fmt.format(*lines))
         for row in data:
-            print(fmt.format(*row))
+            log.append(fmt.format(*row))
+        return '\n'.join(log)
+
+    def display_debug_result(self, sort_by_time=True):
+        """Displays the debugger result"""
+        print(self.get_debug_result(sort_by_time))
 
 def save_tensors(params):
     """Save parameter dictionary to binary bytes.
