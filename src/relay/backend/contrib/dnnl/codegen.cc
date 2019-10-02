@@ -16,7 +16,6 @@
  * under the License.
  */
 #include <dlpack/dlpack.h>
-#include <stdlib.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
@@ -25,6 +24,11 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/util.h>
+
+#include <random>
+#include <sstream>
+#include <stdlib.h>
+#include <unordered_map>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -41,15 +45,15 @@ namespace contrib {
 typedef void (*DnnlSubgraphFunc)(DnnlPackedArgs in, float* out);
 
 // FIXME: This is an experimental implementation. We should implement all utilities
-// and make a base claaa such as ExternBuilder for users to implement.
+// and make a base class such as ExternBuilder for users to implement.
 class DnnlBuilder : public ExprVisitor {
  public:
-  DnnlBuilder(std::string id) { this->_subgraph_id = id; }
+  DnnlBuilder(std::string id) { this->subgraph_id_ = id; }
 
   void VisitExpr_(const VarNode* node) final {
-    _subgraph_args.push_back(node->name_hint());
-    _out.clear();
-    _out.push_back({node->name_hint(), 0});
+    subgraph_args_.push_back(node->name_hint());
+    out_.clear();
+    out_.push_back({node->name_hint(), 0});
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
@@ -57,7 +61,7 @@ class DnnlBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    std::string func_name = _subgraph_id + "_" + std::to_string(_func_idx++);
+    std::string func_name = subgraph_id_ + "_" + std::to_string(func_idx_++);
 
     // Make function declaration
     std::string decl = "";
@@ -130,18 +134,18 @@ class DnnlBuilder : public ExprVisitor {
     }
 
     decl = macro + "(" + func_name;
-    for (int i = 0; i < args.size(); ++i) {
+    for (size_t i = 0; i < args.size(); ++i) {
       decl += ", " + args[i];
     }
     decl += ");";
-    _func_decl.push_back(decl);
+    func_decl_.push_back(decl);
 
     // Make function call when visiting arguments
     bool first = true;
     std::string func_call = func_name + "(";
-    for (int i = 0; i < call->args.size(); ++i) {
+    for (size_t i = 0; i < call->args.size(); ++i) {
       VisitExpr(call->args[i]);
-      for (auto out : _out) {
+      for (auto out : out_) {
         if (!first) {
           func_call += ", ";
         }
@@ -153,75 +157,75 @@ class DnnlBuilder : public ExprVisitor {
     auto type_node = call->checked_type().as<TensorTypeNode>();
     CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
         << "Only support single output tensor with float type";
-    std::string out = "buf_" + std::to_string(_buf_idx++);
+    std::string out = "buf_" + std::to_string(buf_idx_++);
     auto out_shape = GetShape(call->checked_type());
     int out_size = 1;
-    for (int i = 0; i < out_shape.size(); ++i) {
+    for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
     std::string buf_decl =
         "float* " + out + " = (float*)malloc(4 * " + std::to_string(out_size) + ");";
-    _buf_decl.push_back(buf_decl);
+    buf_decl_.push_back(buf_decl);
 
     func_call += ", " + out + ");";
-    _subgraph_body.push_back(func_call);
+    subgraph_body.push_back(func_call);
 
     // Update output buffer
-    _out.clear();
-    _out.push_back({out, out_size});
+    out_.clear();
+    out_.push_back({out, out_size});
   }
 
   std::string build() {
     std::string code = "";
 
     // Write function macros
-    for (auto decl : _func_decl) {
+    for (auto decl : func_decl_) {
       code += decl + "\n";
     }
 
     // Write subgraph function declaration
-    code += "extern \\\"C\\\" void " + _subgraph_id + "(DnnlPackedArgs args, float* out) {\n";
+    code += "extern \\\"C\\\" void " + subgraph_id_ + "(DnnlPackedArgs args, float* out) {\n";
 
     // Unpack inputs
-    for (int i = 0; i < _subgraph_args.size(); ++i) {
-      code += "  float* " + _subgraph_args[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
+    for (size_t i = 0; i < subgraph_args_.size(); ++i) {
+      code += "  float* " + subgraph_args_[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
     }
     // Function body
-    for (auto decl : _buf_decl) {
+    for (auto decl : buf_decl_) {
       code += "  " + decl + "\n";
     }
-    for (auto stmt : _subgraph_body) {
+    for (auto stmt : subgraph_body) {
       code += "  " + stmt + "\n";
     }
 
     // Copy output
-    CHECK(_out.size() == 1) << "Internal error";
-    code += "  memcpy(out, " + _out[0].first + ", 4 *" + std::to_string(_out[0].second) + ");\n";
+    CHECK(out_.size() == 1) << "Internal error";
+    code += "  memcpy(out, " + out_[0].first + ", 4 *" + std::to_string(out_[0].second) + ");\n";
 
     code += "}\n";
     return code;
   }
 
  private:
-  std::string _subgraph_id = "";
-  int _func_idx = 0;
-  int _buf_idx = 0;
-  std::vector<std::string> _subgraph_args;
-  std::vector<std::string> _subgraph_body;
-  std::vector<std::string> _func_decl;
-  std::vector<std::string> _buf_decl;
-  std::vector<std::pair<std::string, int>> _out;
+  std::string subgraph_id_ = "";
+  int func_idx_ = 0;
+  int buf_idx_ = 0;
+  std::vector<std::string> subgraph_args_;
+  std::vector<std::string> subgraph_body;
+  std::vector<std::string> func_decl_;
+  std::vector<std::string> buf_decl_;
+  std::vector<std::pair<std::string, int>> out_;
 
   std::vector<int> GetShape(const Type& type) const {
     const auto* ttype = type.as<TensorTypeNode>();
     CHECK(ttype);
-    std::vector<int> _shape;
-    for (int i = 0; i < ttype->shape.size(); ++i) {
+    std::vector<int> shape;
+    for (size_t i = 0; i < ttype->shape.size(); ++i) {
       auto* val = ttype->shape[i].as<IntImm>();
       CHECK(val);
-      _shape.push_back(val->value);
+      shape.push_back(val->value);
     }
-    return _shape;
+    return shape;
   }
 
   bool IsOp(const CallNode* call, std::string op_name) {
@@ -234,7 +238,8 @@ class DnnlBuilder : public ExprVisitor {
 
 class DNNLModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths(const std::string& id = "") const override {
+  const std::vector<std::string> GetExternLibPaths(
+      const std::string& id = "") const override {
     CHECK_GT(src_lib_path_.count(id), 0U);
     const auto& pair = src_lib_path_.at(id);
     return {pair.second};
@@ -251,7 +256,9 @@ class DNNLModuleNode : public ExternModuleNodeBase {
    *
    * \return The source code of the external library module in the text form.
    */
-  TVM_DLL std::string GetSource(const std::string& format = "") override { return ""; }
+  TVM_DLL std::string GetSource(const std::string& format = "") override {
+    return "";
+  }
 
   const char* type_key() const override { return "DNNLModule"; }
 
@@ -264,15 +271,17 @@ class DNNLModuleNode : public ExternModuleNodeBase {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  runtime::PackedFunc GetFunction(const std::string& name,
-                                  const std::shared_ptr<ModuleNode>& sptr_to_self) override {
+  runtime::PackedFunc GetFunction(
+      const std::string& name,
+      const std::shared_ptr<ModuleNode>& sptr_to_self) override {
     std::string curr_id = GetSubgraphID(name);
     if (!IsOpen()) {
       Open(this->GetExternLibPaths(curr_id));
     }
     CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
 
-    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args,
+                                                    tvm::TVMRetValue* rv) {
       const DLTensor* dptr = ((runtime::NDArray)args[0]).operator->();
       runtime::NDArray out_arg = args[args.size() - 1];
       auto out = reinterpret_cast<float*>(out_arg->data);
@@ -298,7 +307,8 @@ class DNNLModuleNode : public ExternModuleNodeBase {
   }
 
   void CreateExternSignature(const Function& func, bool update) {
-    CHECK(func.defined()) << "Input error: external codegen expects a Relay function.";
+    CHECK(func.defined())
+        << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "DNNL expects a single convolution or dense op";
 
@@ -314,8 +324,8 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       src_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".cc";
       lib_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".so";
       std::string cmd = "cp src/relay/backend/contrib/dnnl/libs.cc " + src_path_;
-      std::system(cmd.c_str());
-      std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/");
+      CHECK_GE(std::system(cmd.c_str()), 0);
+      CHECK_GE(std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/"), 0);
     }
 
     // Save the src and lib path.
@@ -326,14 +336,14 @@ class DNNLModuleNode : public ExternModuleNodeBase {
     std::string code = builder.build();
 
     std::string cmd = "echo \"" + code + "\" >> " + src_path_;
-    std::system(cmd.c_str());
+    CHECK_GE(std::system(cmd.c_str()), 0);
   }
 
   void CompileExternLib() override {
-    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + src_path_ + " -o " + lib_path_ +
-                      " -ldl -lpthread -lm -ldnnl";
+    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + src_path_ +
+                      " -o " + lib_path_ + " -ldl -lpthread -lm -ldnnl";
     int ret = std::system(cmd.c_str());
-    if (ret != 0) {
+    if (ret < 0) {
       LOG(FATAL) << "Failed to compile DNNL library. Error code: " << ret;
     }
   }

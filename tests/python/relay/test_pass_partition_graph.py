@@ -75,6 +75,7 @@ class GCCAnnotator(ExprMutator):
             return op
         return super().visit_call(call)
 
+
 class WholeGraphAnnotator(ExprMutator):
     """
     An annotator that creates a subgraph for an entire graph.
@@ -100,6 +101,7 @@ class WholeGraphAnnotator(ExprMutator):
         if curr_last:
             new_call = subgraph_end(new_call, self.compiler)
         return new_call
+
 
 class MobileNetAnnotator(ExprMutator):
     """
@@ -128,6 +130,7 @@ class MobileNetAnnotator(ExprMutator):
 
         new_call = relay.Call(call.op, params, call.attrs)
         return new_call
+
 
 def test_multi_node_subgraph():
     x = relay.var('x', shape=(10, 10))
@@ -162,21 +165,23 @@ def test_multi_node_subgraph():
     mod["main"] = ann.visit(f)
     mod = relay.transform.PartitionGraph()(mod)
     mod = relay.transform.InferType()(mod)
-    print(mod['main'])
 
     x_data = np.random.rand(10, 10).astype('float32')
     w_data = []
     for _ in range(8):
         w_data.append(np.random.rand(10, 10).astype('float32'))
-    ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
-    res = ex.evaluate()(x_data, *w_data)
-    tvm.testing.assert_allclose(
-        res.asnumpy(),
-        np.concatenate(
-            (((x_data + w_data[0]) - w_data[1]) * w_data[2],
-             ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-             x_data + w_data[6] - w_data[7]),
-            axis=0))
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(0))
+        res = ex.evaluate()(x_data, *w_data)
+        tvm.testing.assert_allclose(
+            res.asnumpy(),
+            np.concatenate(
+                (((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                 ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                 x_data + w_data[6] - w_data[7]),
+                axis=0))
+
 
 def test_extern_gcc_single_op():
     x = relay.var('x', shape=(8, 8))
@@ -194,6 +199,7 @@ def test_extern_gcc_single_op():
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         res = ex.evaluate()(x_data, y_data)
         tvm.testing.assert_allclose(res.asnumpy(), (x_data + y_data))
+
 
 def test_extern_gcc():
     x = relay.var('x', shape=(2, 2))
@@ -213,6 +219,7 @@ def test_extern_gcc():
         res = ex.evaluate()(x_data, y_data)
         tvm.testing.assert_allclose(res.asnumpy(),
                                     (y_data * y_data) - (x_data + x_data))
+
 
 def test_extern_dnnl():
     dtype = 'float32'

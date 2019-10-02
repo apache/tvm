@@ -50,7 +50,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return An array of strings of the library paths.
    */
-  virtual const std::vector<std::string> GetExternLibPaths(const std::string& id = "") const = 0;
+  virtual const std::vector<std::string> GetExternLibPaths(
+      const std::string& id = "") const = 0;
 
   /*!
    * \brief Get the function prefix of this compiler.
@@ -82,7 +83,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    * \return PackedFunc(nullptr) when it is not available.
    */
   virtual runtime::PackedFunc GetFunction(
-      const std::string& name, const std::shared_ptr<ModuleNode>& sptr_to_self) override = 0;
+      const std::string& name,
+      const std::shared_ptr<ModuleNode>& sptr_to_self) override = 0;
 
   /*!
    * \brief Get the source code of the external module.
@@ -107,7 +109,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    * \return a vector of tokenized function name splitted by "_".
    */
   std::string GetSubgraphID(const Function& func) const {
-    const auto name_node = FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
+    const auto name_node =
+        FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
     CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
     std::string name = name_node->value;
     return GetSubgraphID(name);
@@ -127,7 +130,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     tokens.push_back(temp);
 
     CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
-    CHECK(tokens[0] == "subgraph") << "Function name does not start with \"subgraph\": " << name;
+    CHECK(tokens[0] == "subgraph")
+        << "Function name does not start with \"subgraph\": " << name;
     return tokens[1];
   }
 
@@ -147,12 +151,14 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   virtual void Open(const std::string& name) {
     std::wstring wname(name.begin(), name.end());
     handle_ = LoadLibraryW(wname.c_str());
-    CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library " << name;
+    CHECK(handle_ != nullptr)
+        << "Failed to open the dynamic shared library " << name;
   }
 
   // Retrieve a symbol.
   virtual void* GetSymbol(const std::string& name) {
-    return reinterpret_cast<void*>(GetProcAddress(handle_, (LPCSTR)name.c_str()));  // NOLINT(*)
+    return reinterpret_cast<void*>(
+        GetProcAddress(handle_, (LPCSTR)name.c_str()));  // NOLINT(*)
   }
 
   // Close the handle.
@@ -172,11 +178,12 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
 
   // load the library.
   virtual void Open(const std::vector<std::string> lib_names) {
-    CHECK(lib_names.size() == 1) << "Default library loader only loads one library. "
-                                 << "Please override the loader if multiple libraries are used";
+    CHECK(lib_names.size() == 1)
+        << "Default library loader only loads one library. "
+        << "Please override the loader if multiple libraries are used";
     handle_ = dlopen(lib_names[0].c_str(), RTLD_LAZY | RTLD_LOCAL);
-    CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library " << lib_names[0] << " "
-                              << dlerror();
+    CHECK(handle_ != nullptr) << "Failed to open the dynamic shared library "
+                              << lib_names[0] << " " << dlerror();
   }
 
   /*!
