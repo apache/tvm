@@ -31,7 +31,6 @@ def test_quantize_op():
                                                  output_zero_point=output_zero_point,out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = relay.Module.from_expr(mod)
-        mod = relay.qnn.transform.CanonicalizeOps()(mod)
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
