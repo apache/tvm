@@ -1018,6 +1018,12 @@ def _mx_one_hot(inputs, attrs):
     return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
 
 
+def _mx_contrib_fifo_buffer(inputs, attrs):
+    new_attrs = {}
+    new_attrs['axis'] = attrs.get_int('axis')
+    return _op.nn.fifo_buffer(*inputs, **new_attrs)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -1189,6 +1195,7 @@ _convert_map = {
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
+    "contrib_fifo_buffer" : _mx_contrib_fifo_buffer,
 }
 
 # set identity list
