@@ -89,8 +89,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    if mode == 'interp':
-        ex = relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
+    if mode in ['debug', 'vm']:
+        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
             inputs.append(tvm.nd.array(params[param.name_hint]))
@@ -365,7 +365,8 @@ def _test_forward_where(input_shape):
         t = tf.constant(np.random.choice([0, 1, -2, 3, -1, 0.1, -0.2],
                                          size=input_shape).astype(dtype.name))
         out = tf.where(t)
-        compare_tf_with_tvm([], [], out.name, mode='interp')
+        compare_tf_with_tvm([], [], out.name, mode='debug')
+        compare_tf_with_tvm([], [], out.name, mode='vm')
 
 def test_forward_argwhere():
     _test_forward_where((5,))
