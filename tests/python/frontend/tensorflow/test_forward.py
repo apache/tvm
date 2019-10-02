@@ -362,11 +362,13 @@ def test_forward_biasadd():
 def _test_forward_where(input_shape):
     with tf.Graph().as_default():
         dtype =  tf.float32
-        t = tf.constant(np.random.choice([0, 1, 2, 3], size=input_shape).astype(dtype.name))
+        t = tf.constant(np.random.choice([0, 1, -2, 3, -1, 0.1, -0.2],
+                                         size=input_shape).astype(dtype.name))
         out = tf.where(t)
         compare_tf_with_tvm([], [], out.name, mode='interp')
 
 def test_forward_argwhere():
+    _test_forward_where((5,))
     _test_forward_where((5, 5))
     _test_forward_where((5, 5, 5))
     _test_forward_where((5, 5, 5, 5))
