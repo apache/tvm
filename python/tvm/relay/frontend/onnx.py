@@ -176,6 +176,15 @@ class BatchNorm(OnnxOpConverter):
         return out[0]
 
 
+class InstanceNorm(OnnxOpConverter):
+    """ Operator converter for BatchNorm.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return AttrCvt(op_name='instance_norm')(inputs, attr, params)
+
+
 class Conv(OnnxOpConverter):
     """ Operator converter for Conv.
     """
@@ -999,7 +1008,7 @@ def _get_convert_map(opset):
         'GlobalAveragePool': Renamer('global_avg_pool2d'),
         'GlobalMaxPool': Renamer('global_max_pool2d'),
         'BatchNormalization': BatchNorm.get_converter(opset),
-        # 'InstanceNormalization'
+        'InstanceNormalization': InstanceNorm.get_converter(opset),
         # 'LpNormalization'
         'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
         'Flatten': Flatten.get_converter(opset),
