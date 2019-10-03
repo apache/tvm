@@ -106,14 +106,22 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
-      case 16: os << "half";
+      case 16:
         enable_fp16_ = true;
+        if (lanes == 1) {
+          os << "half";
+        } else if (lanes <= 8) {
+          CHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
+          os << "float" << lanes / 2;
+        } else {
+          fail = true;
+        }
         break;
       case 32: os << "float"; break;
       case 64: os << "double"; break;
       default: fail = true; break;
     }
-    if (!fail && lanes == 1) return;
+    if (!fail && (lanes == 1 || t.bits() == 16)) return;
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes; return;
     }
