@@ -607,6 +607,38 @@ def tflite_anistropic_strides():
     golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
     np.testing.assert_equal(qnn_output, golden_output)
 
+def broadcast_layout_test():
+    # Test broadcast support for NHWC layout.
+    data_shape = (1, 229, 229, 3) # NHWC
+    data_dtype = 'uint8'
+    kernel_shape = (7, 7, 3, 64) # HWIO
+    kernel_dtype = 'int8'
+    _, qnn_func = get_funcs(data_shape=data_shape,
+                            data_dtype=data_dtype,
+                            kernel_shape=kernel_shape,
+                            kernel_dtype=kernel_dtype,
+                            input_zero_point=8,
+                            kernel_zero_point=3,
+                            kernel_size=(7, 7),
+                            padding=(1, 1),
+                            strides=(1, 1),
+                            dilation=(1, 1),
+                            data_layout="NHWC",
+                            kernel_layout="HWIO",
+                            out_dtype="int32")
+    func = qnn_func['main'].body
+    bias = relay.var("bias", shape=(64,), dtype="int32")
+
+    # Check broadcast support on both lhs and rhs
+    func = relay.nn.bias_add(func, bias, axis=3)
+    # func = relay.nn.bias_add(bias, func)
+
+    func = relay.Function(relay.analysis.free_vars(func), func)
+    mod = relay.Module.from_expr(func)
+    mod = transform.CanonicalizeOps()(mod)
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
+
 if __name__ == "__main__":
     no_zero_point_test()
     input_zero_point_test()
@@ -620,3 +652,4 @@ if __name__ == "__main__":
     tflite_large_irregular_test()
     tflite_output_multiplier_greater_than_one()
     tflite_anistropic_strides()
+    broadcast_layout_test()

@@ -51,11 +51,12 @@ def test_fold_fwd_simple():
         args = [x, conv_weight, in_bias]
         in_bias = relay.expand_dims(in_bias, axis=1, num_newaxis=2)
         squeezed_scale = relay.squeeze(in_scale, axis=[1,2])
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2)
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=0, num_newaxis=1)
         x = relay.nn.relu(x)
-        in_bias = relay.divide(in_bias, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2))
+        in_bias = relay.divide(in_bias, squeezed_scale)
         x = relay.add(x, in_bias)
-        conv_weight = relay.multiply(
-            conv_weight , relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2))
+        conv_weight = relay.multiply(conv_weight, squeezed_scale)
         y = relay.nn.conv2d(x, conv_weight,
                             channels=channels,
                             kernel_size=(3, 3),
@@ -109,10 +110,13 @@ def test_fold_fwd_dual_path():
     def expected(x, conv_weight, in_bias, in_scale, channels):
         args = [x, conv_weight, in_bias]
         x = relay.nn.relu(x)
-        in_bias = relay.divide(in_bias, in_scale)
+        in_scale1 = relay.expand_dims(in_scale, 0, 3)
+        in_scale2 = relay.expand_dims(in_scale, 0, 3)
+        in_scale3 = relay.expand_dims(in_scale, 0, 3)
+        in_bias = relay.divide(in_bias, in_scale1)
         x = relay.subtract(x, in_bias)
         y1 = relay.nn.conv2d(x,
-                             relay.multiply(conv_weight, in_scale),
+                             relay.multiply(conv_weight, in_scale2),
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
@@ -120,7 +124,7 @@ def test_fold_fwd_dual_path():
                              groups=channels,
                              padding=(1, 1))
         y2 = relay.nn.conv2d(x,
-                             relay.multiply(conv_weight, in_scale),
+                             relay.multiply(conv_weight, in_scale3),
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
@@ -225,8 +229,9 @@ def test_fold_fwd_negative_scale():
         # use a fixed order of args so alpha equal check can pass
         args = [x, conv_weight]
         squeezed_scale = relay.squeeze(in_scale, axis=[1,2])
-        conv_weight = relay.multiply(
-            conv_weight , relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2))
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2)
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=0, num_newaxis=1)
+        conv_weight = relay.multiply(conv_weight, squeezed_scale)
         y = relay.nn.conv2d(x,
                              conv_weight,
                              channels=channels,
@@ -271,14 +276,15 @@ def test_fold_bwd_simple():
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         squeezed_scale = relay.squeeze(out_scale, axis=[1,2])
         conv_weight = relay.multiply(
-            conv_weight , relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3))
+            conv_weight, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3))
 
         y = relay.nn.conv2d(x, conv_weight,
                             channels=channels,
                             kernel_size=(3, 3),
                             padding=(1, 1))
-        out_bias = relay.multiply(out_bias,
-                                  relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2))
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=1, num_newaxis=2)
+        squeezed_scale = relay.expand_dims(squeezed_scale, axis=0, num_newaxis=1)
+        out_bias = relay.multiply(out_bias, squeezed_scale)
         y = relay.add(y, out_bias)
         y = relay.nn.relu(y)
         return relay.Function(args, y)

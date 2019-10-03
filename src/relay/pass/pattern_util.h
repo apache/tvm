@@ -148,12 +148,22 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
   static const Op& expand_dims = Op::Get("expand_dims");
   for (size_t i = axes.size(); i != 0; --i) {
     if (i == axes.size()) {
-      int64_t num_pad_axis = target_ndim - axes[i - 1]->value - 1;
-      if (num_pad_axis > 0) {
+      // The idea is to make the shape of the operand same as target_ndim.
+      // Therefore, there are 2 expand dims, one before the axis and one after
+      // the axis.
+      int64_t num_pad_axis_inner = target_ndim - axes[i - 1]->value - 1;
+      int64_t num_pad_axis_outer = target_ndim - num_pad_axis_inner - 1;
+      if (num_pad_axis_inner > 0) {
         auto attrs = make_node<ExpandDimsAttrs>();
         attrs->axis = i;
-        attrs->num_newaxis = static_cast<int>(num_pad_axis);
+        attrs->num_newaxis = static_cast<int>(num_pad_axis_inner);
         bias = CallNode::make(expand_dims, {bias}, Attrs(attrs), {});
+      }
+      if (num_pad_axis_outer > 0) {
+        auto new_attrs = make_node<ExpandDimsAttrs>();
+        new_attrs->axis = 0;
+        new_attrs->num_newaxis = static_cast<int>(num_pad_axis_outer);
+        bias = CallNode::make(expand_dims, {bias}, Attrs(new_attrs), {});
       }
     } else {
       int64_t diff = axes[i]->value - axes[i - 1]->value;

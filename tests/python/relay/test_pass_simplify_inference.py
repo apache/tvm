@@ -29,6 +29,9 @@ def test_simplify_batchnorm(dtype='float32'):
         if num_newaxis:
             scale = rly.expand_dims(scale, axis=1, num_newaxis=num_newaxis)
             shift = rly.expand_dims(shift, axis=1, num_newaxis=num_newaxis)
+        if num_newaxis != 3:
+            shift = rly.expand_dims(shift, axis=0, num_newaxis=1)
+            scale = rly.expand_dims(scale, axis=0, num_newaxis=1)
         return x * scale + shift
 
     def check(dim, axis, nstep):
