@@ -21,14 +21,21 @@ Task can be constructed from tuple of func, args, and kwargs.
 func is a state-less function, or a string that
 registers the standard task.
 """
+import logging
 
 import numpy as np
+from sklearn import cluster
+from sklearn.preprocessing import LabelEncoder
 
-from ... import tensor, expr, container, target as _target
-
+from ... import container, expr
+from ... import target as _target
+from ... import tensor
 from ..util import get_const_int, get_const_tuple, get_func_name
-from .dispatcher import DispatchContext, ApplyConfig, dispatcher
+from .dispatcher import ApplyConfig, DispatchContext, dispatcher
 from .space import ConfigSpace
+
+logger = logging.getLogger('autotvm')
+
 
 def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
     raise RuntimeError("The function of this task is not found. Possibly the function "
@@ -54,11 +61,17 @@ class Task(object):
         self.config_space = None
         self.func = TASK_TABLE.get(name, _raise_error)
 
+        # the dependent task for this task. default is itself
+        self.depend = self
+
         # auxiliary info, available after `init_space` is called
         self.workload = None
         self.flop = None
         self.target = None
         self.target_host = None
+
+        # tuned configs of this task. available after tuning
+        self.tuned_configs = []
 
     def instantiate(self, config):
         """Instantiate this task function (template) with a config.
@@ -408,3 +421,121 @@ def compute_flop(sch):
                            "Please use `cfg.add_flop` to manually set "
                            "FLOP for this operator")
     return ret
+
+
+def mark_depend(tasks, num=0):
+    """Mark the dependency of some tasks to other representative tasks.
+
+    Parameters
+    ----------
+    tasks: List[tvm.autotvm.task.Task]
+        the tasks to be analyzed and marked.
+
+    num: int
+        the number of representatives (centroids).
+        when default value is used, mean shift is leveraged to determine the cluster number.
+    """
+    def featurize(workloads):
+        """Process task workload to be clustable features
+
+        Parameters
+        ----------
+        workloads: List[Tuple[Any]]
+            a list of workloads from all tasks.
+
+        Returns
+        -------
+        features: List[List[Float]]
+            a 2-D list of [task index, feature].
+        """
+        features = []
+
+        def flat(workload):
+            """Flat a workload to an 1-D list"""
+            ret = []
+            for elt in workload:
+                if isinstance(elt, tuple):
+                    ret += flat(elt)
+                else:
+                    ret.append(elt)
+            return ret
+
+        features = np.array([flat(workload) for workload in workloads])
+
+        # Encode string type workload elements (e.g., dtype, layout) to integers
+        for idx, elt in enumerate(features[0]):
+            try:
+                int(elt)
+            except:
+                le = LabelEncoder()
+                col = features[:, idx]
+                le.fit(col)
+                features[:, idx] = le.transform(col)
+        features = features.astype('float32').tolist()
+        return features
+
+    def find_selective(centers, labels, features):
+        """Find the representative configs
+
+        Parameters
+        ----------
+        centers: List[List[Float]]
+            cluster center coordinates.
+
+        labels: List[int]
+            the cluster index each task belongs to.
+
+        features: List[List[Float]]
+            coordinate (features) of tasks. 
+
+        Returns
+        -------
+        selected_idx: Dict[int, int]
+            a dict of (cluster index -> task index) to indicate the selected task for each cluster.
+        """
+        selected = {}
+        for idx, label in enumerate(labels):
+            # Outliers may not be labeled by MeanShift.
+            if label != -1:
+                # Compute distance between task feature and cluter center and find the closest one.
+                dis = np.linalg.norm(np.array(centers[label]) - np.array(features[idx]))
+                if label not in selected or dis < selected[label][0]:
+                    selected[label] = (dis, idx)
+
+        return {label: idx for label, (_, idx) in selected.items()}
+
+    assert all([t.workload is not None
+                for t in tasks]), "One or more tasks have undefined workload"
+
+    # Group tasks by their op
+    tasks_by_op = {}
+    for task in tasks:
+        if task.name not in tasks_by_op:
+            tasks_by_op[task.name] = []
+        tasks_by_op[task.name].append(task)
+
+    # Use clustering to find representative tasks for each group
+    for name, task_group in tasks_by_op.items():
+        # Do nothing if there are too few tasks to be selected.
+        if num > 0 and len(task_group) < num:
+            logger.warning('%s has too few tasks (%d) to select %d' %
+                           (name, len(task_group), num))
+            continue
+        features = featurize([t.workload for t in task_group])
+
+        if num > 0:
+            clusters = cluster.KMeans(n_clusters=num).fit(features)
+        else: # Use mean shift that determines cluster number
+            clusters = cluster.MeanShift(cluster_all=False).fit(features)
+        labels = clusters.labels_
+        selected_tasks = find_selective(clusters.cluster_centers_, labels, features)
+
+        for idx, task in enumerate(task_group):
+            if labels[idx] != -1:
+                task.depend = task_group[selected_tasks[labels[idx]]]
+            else: # Outliers depend on itself to guarantee the performance
+                logger.debug('task %s does not have dependent' % str(task))
+
+        logger.info('%s has %d tasks and %d representatives' %
+                    (name, len(task_group),
+                    sum([1 if t.depend == t else 0 for t in task_group])))

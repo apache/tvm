@@ -86,7 +86,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             conv2d)
 
     cfg = dispatch_ctx.query(target, workload)
-    if cfg.is_fallback:
+    if cfg.is_fallback or any([e not in cfg for e in ['tile_ic', 'tile_oc']]):
+        cfg = autotvm.task.space.FallbackConfigEntity()
         if _is_int8_hw_support(data_dtype, kernel_dtype):
             _get_default_config_int8(cfg, data_tensor, kernel_tensor, strides, padding, out_dtype,
                                      is_depthwise, data_layout)
@@ -96,6 +97,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     # Get the tiling parameters to set the layout names.
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    assert in_channel % ic_bn == 0, "{0} % {1} != 0".format(in_channel, ic_bn)
+    assert out_channel % oc_bn == 0, "{0} % {1} != 0".format(out_channel, oc_bn)
     new_attrs[layout_name] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
     new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),

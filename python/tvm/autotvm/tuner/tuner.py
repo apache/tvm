@@ -20,9 +20,8 @@ import logging
 
 import numpy as np
 
-from ..measure import MeasureInput, create_measure_batch
-
 from ..env import GLOBAL_SCOPE
+from ..measure import MeasureInput, create_measure_batch
 
 logger = logging.getLogger('autotvm')
 
@@ -42,7 +41,7 @@ class Tuner(object):
         self.task = task
 
         # keep the current best
-        self.best_config = None
+        self.record_cache = []
         self.best_flops = 0
         self.best_measure_pair = None
         self.best_iter = 0
@@ -51,6 +50,11 @@ class Tuner(object):
         self.ttl = None
         self.n_trial = None
         self.early_stopping = None
+
+        # set up dependency if available
+        self.tune_depend_only = self.task.depend != self.task and self.task.depend.tuned_configs
+        if self.tune_depend_only:
+            logger.debug('Reduced the tuning space to the best ones from the dependent task')
 
     def has_next(self):
         """Whether has next untried config in the space
@@ -86,8 +90,35 @@ class Tuner(object):
             result for measurement
         """
 
+    def parse_depend_mode(self, mode, total):
+        """Parse the mode of using best configs from the dependent task.
 
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
+        Parameters
+        ----------
+        mode: str
+            It can be either one of the following two formats.
+            "topN", where N is a positive integer: Keep the top N best schedules.
+            "N%", where 0 < N < 1: Keep the schedules with top N% performance.
+
+        total: int
+            The total number of configs from the dependent task.
+
+        Returns
+        -------
+        a number of the top-N configs this task should depend.
+        """
+        try:
+            if mode.startswith('top'):
+                return int(mode[3:])
+            elif mode.find('%') != 0:
+                return min(1, int(total * (float(mode[:-1]) / 100)))
+            else:
+                raise ValueError
+        except ValueError:
+            logger.warning('Unknown mode of using the dependent best configs: %s', mode)
+        return 1
+
+    def tune(self, n_trial, measure_option, depend_mode='top1', early_stopping=None, callbacks=()):
         """Begin tuning
 
         Parameters
@@ -97,6 +128,11 @@ class Tuner(object):
         measure_option: dict
             The options for how to measure generated code.
             You should use the return value ot autotvm.measure_option for this argument.
+        depend_mode: str
+            The mode of using best configs from the dependent task. It can be in either
+            one of the following two formats.
+            "topN", where N is a positive integer: Keep the top N best schedules.
+            "N%", where 0 < N < 1: Keep the schedules with top N% performance.
         early_stopping: int, optional
             Early stop the tuning when not finding better configs in this number of trials
         callbacks: List of callable
@@ -114,12 +150,32 @@ class Tuner(object):
         old_level = logger.level
 
         GLOBAL_SCOPE.in_tuning = True
+        self.depend_num = self.parse_depend_mode(depend_mode, len(self.task.depend.tuned_configs))
+        depend_configs = iter(self.task.depend.tuned_configs)
         i = error_ct = 0
-        while i < n_trial:
+        while i < n_trial or self.best_flops == 0:
             if not self.has_next():
                 break
 
-            configs = self.next_batch(min(n_parallel, n_trial - i))
+            # take configs from the dependent task
+            configs = []
+            if self.tune_depend_only:
+                for _ in range(min(n_parallel, n_trial - i, self.depend_num - i)):
+                    try:
+                        configs.append(next(depend_configs))
+                    except StopIteration:
+                        break
+
+            # fallback to normal search if no dependent task or configs from it are
+            # running out
+            if not configs:
+                if self.tune_depend_only:
+                    i = 0  # Reset the trial
+                    logger.debug(
+                        'Fallback to normal tuning because all dependent configs are not working'
+                    )
+                self.tune_depend_only = False
+                configs = self.next_batch(min(n_parallel, n_trial - i))
 
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
             results = measure_batch(inputs)
@@ -134,9 +190,12 @@ class Tuner(object):
                     flops = 0
                     error_ct += 1
 
+                # maintain the tuned cache
+                if res.error_no == 0:
+                    self.record_cache.append((inp, res))
+
                 if flops > self.best_flops:
                     self.best_flops = flops
-                    self.best_config = config
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
@@ -162,17 +221,23 @@ class Tuner(object):
             else:
                 logger.setLevel(old_level)
 
+            if self.tune_depend_only and self.best_flops > 0 and i >= self.depend_num:
+                break
+
+        # sort the tuned configs
+        for record in sorted(self.record_cache, key=lambda r: np.mean(r[1].costs)):
+            self.task.tuned_configs.append(record[0].config)
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
     def reset(self):
         """reset the status of tuner"""
-        self.best_config = None
+        self.record_cache = []
         self.best_flops = 0
         self.best_measure_pair = None
 
     def load_history(self, data_set):
-        """load history data for transfer learning
+        """Load history data for transfer learning
 
         Parameters
         ----------

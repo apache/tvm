@@ -239,6 +239,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     ic_bn = cfg["tile_ic"].val if hasattr(cfg["tile_ic"], "val") else cfg["tile_ic"].size[-1]
     oc_bn = cfg["tile_oc"].val if hasattr(cfg["tile_oc"], "val") else cfg["tile_oc"].size[-1]
+    assert in_channel % ic_bn == 0, "tile_ic {0} must be a factor of input channel {1}".format(
+        ic_bn, in_channel)
+    assert out_channel % oc_bn == 0, "tile_oc {0} must be a factor of output channel {1}".format(
+        oc_bn, out_channel)
 
     new_attrs[layout_name] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
@@ -313,6 +317,10 @@ def _conv2d_infer_layout(workload, cfg):
     out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
     out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    assert in_channel % tile_ic == 0, "tile_ic {0} must be a factor of input channel {1}".format(
+        tile_ic, in_channel)
+    assert out_channel % tile_oc == 0, "tile_oc {0} must be a factor of output channel {1}".format(
+        tile_oc, out_channel)
     in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
     in_layout = "NCHW%dc" % tile_ic
     out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)

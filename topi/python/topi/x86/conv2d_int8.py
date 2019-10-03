@@ -132,6 +132,8 @@ def _topi_nn_conv2d_NCHWc_int8(*args, **kwargs):
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                            cfg["tile_ow"].size[-1])
+    assert raw_data_shape[1] % ic_bn == 0, "{0} % {1} != 0".format(raw_data_shape[1], ic_bn)
+    assert raw_kernel_shape[0] % oc_bn == 0, "{0} % {1} != 0".format(raw_kernel_shape[0], oc_bn)
 
     data_layout = "NCHW%dc" % ic_bn
     out_layout = "NCHW%dc" % oc_bn

@@ -157,6 +157,10 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
 
     # fetch schedule
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    assert in_channel % ic_bn == 0, "tile_ic {0} must be a factor of input channel {1}".format(
+        ic_bn, in_channel)
+    assert num_filter % oc_bn == 0, "tile_oc {0} must be a factor of output channel {1}".format(
+        oc_bn, num_filter)
 
     shape = (batch_size, in_channel // ic_bn, pad_height, ic_bn, pad_width)
     data_vec = tvm.compute(shape,
@@ -323,6 +327,8 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
                            cfg["tile_ow"].size[-1])
+    assert raw_data_shape[1] % ic_bn == 0, "{0} % {1} != 0".format(raw_data_shape[1], ic_bn)
+    assert raw_kernel_shape[0] % oc_bn == 0, "{0} % {1} != 0".format(raw_kernel_shape[0], oc_bn)
     new_data_shape = (raw_data_shape[0], idxdiv(raw_data_shape[1], ic_bn),
                       raw_data_shape[2], raw_data_shape[3], ic_bn)
     data_layout = "NCHW%dc" % ic_bn
@@ -349,6 +355,8 @@ def _conv2d_infer_layout(workload, cfg):
     out_height = idxdiv(in_height + 2 * padding[0] - k_height, strides[0]) + 1
     out_width = idxdiv(in_width + 2 * padding[1] - k_width, strides[1]) + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    assert in_channel % tile_ic == 0, "{0} % {1} != 0".format(in_channel, tile_ic)
+    assert out_channel % tile_oc == 0, "{0} % {1} != 0".format(out_channel, tile_oc)
     in_shape = (batch_size, idxdiv(in_channel, tile_ic), in_height, in_width, tile_ic)
     in_layout = "NCHW%dc" % tile_ic
     out_shape = (batch_size, idxdiv(out_channel, tile_oc), out_height, out_width, tile_oc)

@@ -22,8 +22,8 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.util import infer_pad
 from ..generic import conv2d as conv2d_generic
-from ..util import get_const_tuple
-from .tensor_intrin import dot_16x1x16_uint8_int8_int32
+from ..util import get_const_int, get_const_tuple
+from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -150,6 +150,13 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     s[O].vectorize(oc_block)
 
     s[O].parallel(parallel_axis)
+
+    ic_length = get_const_int(ic.dom.extent)
+    oc_length = get_const_int(oc.dom.extent)
+    assert ic_length % ic_bn == 0, "tile_ic {0} must be a factor of input channel {1}".format(
+        ic_bn, ic_length)
+    assert oc_length % oc_bn == 0, "tile_oc {0} must be a factor of output channel {1}".format(
+        oc_bn, oc_length)
 
     return s
 
