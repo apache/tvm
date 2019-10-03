@@ -68,14 +68,17 @@ def schedule_dense(attrs, outputs, target):
 
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
 @reg.register_compute('nn.fifo_buffer')
 def compute_fifo_buffer(attrs, inputs, out_type, target):
     return [topi.nn.fifo_buffer(inputs[0], inputs[1], axis=attrs.get_int('axis'))]
+
 
 @reg.register_schedule('nn.fifo_buffer')
 def schedule_fifo_buffer(attrs, outputs, target):
     with target:
         return topi.generic.schedule_injective(outputs)
+
 
 reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
 

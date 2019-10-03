@@ -124,16 +124,17 @@ bool FIFOBufferRel(const Array<Type>& types,
   CHECK(param != nullptr);
   CHECK_EQ(input->shape.size(), buffer->shape.size());
 
-  const size_t bufferAxis = static_cast<size_t>(param->axis < 0
-      ? static_cast<int>(buffer->shape.size()) + param->axis : param->axis);
+  const size_t buffer_axis
+    = static_cast<size_t>(param->axis < 0 ? static_cast<int>(buffer->shape.size()) + param->axis
+                                          : param->axis);
 
-  reporter->Assert(bufferAxis < buffer->shape.size());
+  reporter->Assert(buffer_axis < buffer->shape.size());
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
-    if (i != bufferAxis) {
+    if (i != buffer_axis) {
       reporter->AssertEQ(input->shape[i], buffer->shape[i]);
     }
   }
-  reporter->Assert(input->shape[bufferAxis] < buffer->shape[bufferAxis]);
+  reporter->Assert(input->shape[buffer_axis] < buffer->shape[buffer_axis]);
 
   Array<tvm::Expr> oshape = buffer->shape;
 
@@ -162,7 +163,7 @@ Useful for
 .add_argument("data", "Tensor", "Latest input")
 .add_argument("buffer", "Tensor",
               "Buffer storing latest [length_buffer] inputs")
-.set_support_level(1)
+.set_support_level(3)
 .add_type_rel("FIFOBuffer", FIFOBufferRel);
 
 

@@ -64,11 +64,13 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     for device in get_all_backend():
         check_device(device)
 
-def verify_conv2d_integration():
+def verify_conv1d_integration():
     batch_size = 1
     num_channel = 1
     num_filter = 1
 
+    # Note: TVM doesn't have a separate op for 1D convolution, so we use conv2d instead.
+    # We set height=1 to indicate that convolution is really 1D.
     stride = (1, 1)
     dilate = (1, 1)
     padding = (0, 0)
@@ -102,7 +104,7 @@ def verify_conv2d_integration():
     output_window = tvm.placeholder(output_window_shape, name='output_window', dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
-    @memoize('topi.tests.test_fifo_buffer_conv2d_integration')
+    @memoize('topi.tests.test_fifo_buffer_conv1d_integration')
     def get_data():
         # Generate [num_iteration] slices of input
         inc_input_np = np.random.uniform(size=tuple([num_iteration] + list(inc_input_shape)))\
@@ -191,10 +193,10 @@ def test_fifo_buffer():
                   .format(buffer_shape, data_shape, axis))
             verify_fifo_buffer(buffer_shape, data_shape, axis)
 
-def test_conv2d_integration():
+def test_conv1d_integration():
     print('Testing FIFO buffer with 1D convolution')
-    verify_conv2d_integration()
+    verify_conv1d_integration()
 
 if __name__ == '__main__':
     test_fifo_buffer()
-    test_conv2d_integration()
+    test_conv1d_integration()
