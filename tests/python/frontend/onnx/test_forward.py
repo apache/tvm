@@ -416,6 +416,50 @@ def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
 
+
+def verify_instance_norm(shape, axis=1):
+
+    def _get_python_instance_norm(x, gamma, beta, epsilon=1e-5):
+        dims_x = len(x.shape)
+        axis = tuple(range(2, dims_x))
+        mean = np.mean(x, axis=axis, keepdims=True)
+        var = np.var(x, axis=axis, keepdims=True)
+        dim_ones = (1,) * (dims_x - 2)
+        gamma = gamma.reshape(-1, *dim_ones)
+        beta = beta.reshape(-1, *dim_ones)
+        return gamma * (x - mean) / np.sqrt(var + epsilon) + beta
+
+    x = np.random.randn(*shape).astype(np.float32)
+    gamma = np.random.randn(shape[1]).astype(np.float32)
+    beta = np.random.randn(shape[1]).astype(np.float32)
+    epsilon = 1e-5
+    y = _get_python_instance_norm(x, gamma, beta, epsilon).astype(np.float32)
+
+    node = onnx.helper.make_node(
+            'InstanceNormalization',
+            inputs=['x', 'gamma', 'beta'],
+            outputs=['y'],
+            epsilon=epsilon,
+        )
+    graph = helper.make_graph([node],
+                              "instance_norm_test",
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(shape)),
+                                      helper.make_tensor_value_info("gamma", TensorProto.FLOAT, (shape[1],)),
+                                      helper.make_tensor_value_info("beta", TensorProto.FLOAT, (shape[1],))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(shape))])
+    model = helper.make_model(graph, producer_name='instance_norm_test')
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x, gamma, beta], target, ctx, shape, 'float32')
+        tvm.testing.assert_allclose(y, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_instance_norm():
+    verify_instance_norm((2, 3, 4, 5))
+    verify_instance_norm((32, 64, 80, 64))
+    verify_instance_norm((8, 6, 5))
+    verify_instance_norm((8, 7, 6, 5, 4))
+
+
 def _test_upsample_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3)
@@ -1270,6 +1314,7 @@ if __name__ == '__main__':
     test_matmul()
     test_gather()
     test_lrn()
+    test_instance_norm()
     test_upsample()
     test_forward_min()
     test_forward_max()

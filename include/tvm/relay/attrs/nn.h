@@ -492,6 +492,29 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
 };  // struct BatchNormAttrs
 
 
+/*! \brief Attributes used in instance_norm operator */
+struct InstanceNormAttrs : public tvm::AttrsNode<InstanceNormAttrs> {
+  int axis;
+  double epsilon;
+  bool center;
+  bool scale;
+
+  TVM_DECLARE_ATTRS(InstanceNormAttrs, "relay.attrs.InstanceNormAttrs") {
+    TVM_ATTR_FIELD(axis)
+      .describe("Specify which shape axis denotes the channel.")
+      .set_default(1);
+    TVM_ATTR_FIELD(epsilon)
+      .describe("Small float added to variance to avoid dividing by zero")
+      .set_default(1e-5);
+    TVM_ATTR_FIELD(center).set_default(true)
+      .describe("If true, add offset of beta to normalized tensor; "
+                "otherwise, beta is ignored.");
+    TVM_ATTR_FIELD(scale).set_default(true)
+      .describe("If true, multiply by gamma; otherwise, gamma is ignored.");
+  }
+};  // struct InstanceNormAttrs
+
+
 /*! \brief Attributes used in layer_norm operator */
 struct LayerNormAttrs : public tvm::AttrsNode<LayerNormAttrs> {
   int axis;

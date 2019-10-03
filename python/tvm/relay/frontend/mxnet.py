@@ -324,6 +324,14 @@ def _mx_batch_norm(inputs, attrs):
     return _op.nn.batch_norm(*inputs, **new_attrs)
 
 
+def _mx_instance_norm(inputs, attrs):
+    assert len(inputs) == 3
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", 1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.instance_norm(*inputs, **new_attrs)
+
+
 def _mx_layer_norm(inputs, attrs):
     assert len(inputs) == 3
     if attrs.get_bool("output_mean_var", False):
@@ -1133,6 +1141,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "InstanceNorm"  : _mx_instance_norm,
     "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
