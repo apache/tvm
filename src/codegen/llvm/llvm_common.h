@@ -55,6 +55,9 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/IPO.h>
 
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
