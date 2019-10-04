@@ -236,7 +236,11 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   llvm::GlobalVariable *global = new llvm::GlobalVariable(
       *module_, type, true, llvm::GlobalValue::WeakAnyLinkage, 0,
       runtime::symbol::tvm_module_main);
+#if TVM_LLVM_VERSION >= 100
+  global->setAlignment(llvm::Align(1));
+#else
   global->setAlignment(1);
+#endif
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
 }
 
@@ -350,7 +354,11 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(
       *module_, p_type, false,
       llvm::GlobalValue::LinkOnceAnyLinkage, 0,
       name);
+#if TVM_LLVM_VERSION >= 100
+  gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
+#else
   gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
+#endif
   gv->setInitializer(llvm::Constant::getNullValue(p_type));
   gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   return gv;
@@ -550,7 +558,11 @@ llvm::Value* CodeGenCPU::CreateStaticHandle() {
       *module_, t_void_p_, false,
       llvm::GlobalValue::PrivateLinkage, 0,
       "__tvm_static_handle");
+#if TVM_LLVM_VERSION >= 100
+  gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(t_void_p_)));
+#else
   gv->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
+#endif
   gv->setInitializer(llvm::Constant::getNullValue(t_void_p_));
   return gv;
 }
@@ -610,7 +622,11 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
         llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
+#if TVM_LLVM_VERSION >= 100
+    hptr->setAlignment(llvm::Align(align));
+#else
     hptr->setAlignment(align);
+#endif
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
   } else {
