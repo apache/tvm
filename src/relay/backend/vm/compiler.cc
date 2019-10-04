@@ -846,7 +846,6 @@ void VMCompiler::Compile(const Module& mod_ref,
 }
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
-  // TODO(@icemelon9): check number of targets and build config
   Array<Pass> pass_seqs;
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -894,7 +893,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   pass_seqs.push_back(transform::InlinePrimitives());
 
   transform::Sequential seq(pass_seqs);
-  auto pass_ctx = transform::PassContext::Create();
+  transform::PassContext pass_ctx = PassContext::Current();
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     for (const auto& kv : targets) {
