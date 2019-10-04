@@ -185,6 +185,7 @@ class VMCompiler(object):
                     break
         if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
+        target_host = tvm.target.create(target_host)
         self._compile(mod, target, target_host)
         return VirtualMachine(self._get_vm())
 
