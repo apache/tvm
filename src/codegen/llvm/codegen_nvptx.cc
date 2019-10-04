@@ -73,7 +73,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
                 LLVMType(op->type), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+          alloca->setAlignment(llvm::Align(info.alignment));
+#else
           alloca->setAlignment(info.alignment);
+#endif
         }
         buf = alloca;
       } else {
@@ -86,7 +90,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
             nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
+#if TVM_LLVM_VERSION >= 100
+        global->setAlignment(llvm::Align(info.alignment));
+#else
         global->setAlignment(info.alignment);
+#endif
         buf = global;
       }
     }
