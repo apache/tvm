@@ -1149,9 +1149,12 @@ double ToScalar(const runtime::NDArray& array) {
       return reinterpret_cast<uint64_t*>(array->data)[0];
     }
   } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
     if (array->dtype.bits == 16) {
       return reinterpret_cast<__fp16*>(array->data)[0];
-    } else if (array->dtype.bits == 32) {
+    }
+#endif
+    if (array->dtype.bits == 32) {
       return reinterpret_cast<float*>(array->data)[0];
     } else if (array->dtype.bits == 64) {
       return reinterpret_cast<double*>(array->data)[0];
