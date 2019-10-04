@@ -90,18 +90,17 @@ def GraphConv(layer_name,
     norm: relay.Expr,
     Norm passed to this layer to normalize features before and after Convolution.
 
+    bias: bool
+    Set bias to True to add bias when doing gcn layer
+
     activation: <function relay.op.nn>,
     Activation function applies to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
-
 
     Returns
     ----------
     output: tvm.relay.Expr
     The Output Tensor for this layer [num_nodes, output_dim]
     """
-    if bias is True:
-        _bias = relay.var(layer_name + ".bias", shape=(output_dim, 1))
-
     if norm is not None:
         input = relay.multiply(input, norm)
 
@@ -113,6 +112,7 @@ def GraphConv(layer_name,
     if norm is not None:
         output_t = relay.multiply(output_t, norm)
     if bias is True:
+        _bias = relay.var(layer_name + ".bias", shape=(output_dim, 1))
         output_t = relay.nn.bias_add(output_t, _bias, axis=-1)
     if activation is not None:
         output_t = activation(output_t)
@@ -273,6 +273,7 @@ outval = m.get_output(0).asnumpy()
 pred = outval.argmax(axis=1)
 accuracy = ((pred == labels) * test_mask).sum() / test_mask.sum()
 print("Test accuracy {:.2%}".format(accuracy))
+print(outval[:5])
 
 # Evaluate the runtime
 print("Evaluate inference time cost...")
