@@ -1761,4 +1761,19 @@ def bitserial_dense(data,
 
 
 def cross_entropy(predictions, targets):
+    """CrossEntropy without logits.
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The targets.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
     return _make.cross_entropy(predictions, targets)

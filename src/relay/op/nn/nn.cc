@@ -855,7 +855,10 @@ TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
 
 
 RELAY_REGISTER_OP("nn.cross_entropy")
-.describe(R"code(Computes cross entropy given predictions and targets.)code" TVM_ADD_FILELINE)
+.describe(R"code(
+Computes cross entropy given predictions and targets.
+Do log on the data - do not accept logits.
+)code" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .add_argument("x", "1D Tensor", "Predictions.")
 .add_argument("y", "1D Tensor", "Targets.")
