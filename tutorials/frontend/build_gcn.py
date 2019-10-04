@@ -158,14 +158,14 @@ Parameters
 num_hidden: int
     number of hidden layers
 
-hidden_dim: int
+hidden_dim: list of int
     input dimension of hidden layers
 
 num_classes: int
     dimension of model output (Number of classes)
 
 target: str
-    currently only support llvm, GPU support will be added in next few weeks
+    currently only support llvm
 
 activation: <function relay.op.nn>,
     Activation function applied to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
@@ -180,7 +180,6 @@ data, params = load_dataset(dataset)
 num_hidden = 1
 hidden_dim = [16]
 num_classes = data.num_labels
-bias = True
 test_mask = data.test_mask
 labels = data.labels
 target = 'llvm'
@@ -273,7 +272,6 @@ outval = m.get_output(0).asnumpy()
 pred = outval.argmax(axis=1)
 accuracy = ((pred == labels) * test_mask).sum() / test_mask.sum()
 print("Test accuracy {:.2%}".format(accuracy))
-print(outval[:5])
 
 # Evaluate the runtime
 print("Evaluate inference time cost...")
