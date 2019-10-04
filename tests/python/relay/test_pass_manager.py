@@ -17,6 +17,7 @@
 """Unit tests for relay pass manager."""
 import numpy as np
 import pytest
+import re
 
 import tvm
 from tvm import relay
@@ -505,7 +506,7 @@ def test_sequential_with_scoping():
     assert analysis.alpha_equal(zz, zexpected)
 
 
-def test_print_ir(capfd):
+def test_print_ir_pass(capfd):
     shape = (1, 2, 3)
     tp = relay.TensorType(shape, "float32")
     x = relay.var("x", tp)
@@ -529,6 +530,75 @@ def test_print_ir(capfd):
     assert "Dumping the module IR" in out
     assert "multiply" in out
 
+
+def test_print_ir_flag(capfd):
+    # Utility function that runs the given passes on ir that encodes "x + 2*3".
+    def run_passes(passes, print_ir=True):
+        shape = (1, 2, 3)
+        tp = relay.TensorType(shape, "float32")
+        x = relay.var("x", tp)
+        two = relay.const(2, "float32")
+        three = relay.const(3, "float32")
+        six = relay.multiply(two, three)
+        x_plus_six = relay.add(x, six)
+        func = relay.Function([x], x_plus_six)
+        mod = relay.Module({"main": func})
+
+        seq = relay.transform.Sequential(passes)
+        with relay.build_config(opt_level=3, print_ir=print_ir):
+           seq(mod = relay.Module({"main": func}))
+           return capfd.readouterr().err
+
+    def test_print_ir_disabled():
+        out = run_passes([
+            relay.transform.InferType()
+        ], print_ir=False)
+        assert out == ""
+
+    def test_empty_sequence():
+        out = run_passes([])
+        assert re.search("IR before", out, re.DOTALL)
+        assert len(re.findall("IR", out)) == 1
+      
+    def test_infer_type_idempotent():
+        out = run_passes([
+            relay.transform.InferType(),
+            relay.transform.InferType()
+        ])
+        assert re.search("InferType changed.*"
+                         "InferType unchanged", out, re.DOTALL)
+        assert len(re.findall("InferType", out)) == 2
+        assert len(re.findall("IR", out)) == 3
+
+    def test_dead_code_elimination_unchanged():
+        out = run_passes([
+            relay.transform.InferType(),     
+            relay.transform.DeadCodeElimination()
+        ])
+        assert re.search("DeadCodeElimination unchanged", out, re.DOTALL)
+        assert len(re.findall("IR", out)) == 3
+
+    def test_required():
+        out = run_passes([
+            relay.transform.FuseOps(),     
+        ])
+        assert re.search(r"InferType \(required by FuseOps\)", out, re.DOTALL)
+        assert len(re.findall("IR", out)) == 3
+
+    def test_constant_folding():
+        out = run_passes([
+            relay.transform.FoldConstant(),
+        ])
+        assert re.search(r"multiply\(2f, 3f\).* 6f ", out, re.DOTALL)
+        assert re.search(r"FoldConstant changed", out, re.DOTALL)
+
+    test_print_ir_disabled()
+    test_empty_sequence()
+    test_infer_type_idempotent()
+    test_dead_code_elimination_unchanged()
+    test_required()
+    test_constant_folding()
+    
 
 if __name__ == "__main__":
     pytest.main()

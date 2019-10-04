@@ -73,12 +73,16 @@ class PassContext(RelayNode):
 
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
+
+    print_ir: Optional[bool]
+        Whether to print the IR between passes.
     """
     def __init__(self,
                  opt_level=2,
                  fallback_device=_nd.cpu(),
                  required_pass=None,
-                 disabled_pass=None):
+                 disabled_pass=None,
+                 print_ir=False):
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device).device_type
         elif isinstance(fallback_device, TVMContext):
@@ -97,9 +101,12 @@ class PassContext(RelayNode):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
 
+        if not isinstance(print_ir, bool):
+            raise TypeError("print_ir is expected to be of type bool.")
+
         self.__init_handle_by_constructor__(_transform.PassContext, opt_level,
                                             fallback_device, required,
-                                            disabled)
+                                            disabled, print_ir)
 
     def __enter__(self):
         _transform.EnterPassContext(self)
@@ -117,7 +124,8 @@ class PassContext(RelayNode):
 def build_config(opt_level=2,
                  fallback_device=_nd.cpu(),
                  required_pass=None,
-                 disabled_pass=None):
+                 disabled_pass=None,
+                 print_ir=False):
     """Configure the build behavior by setting config variables.
 
     Parameters
@@ -151,13 +159,16 @@ def build_config(opt_level=2,
     disabled_pass: set of str, optional
         Optimization passes to be disabled during optimization.
 
+    print_ir: bool, optional
+        Whether to print the IR between passes.
+
     Returns
     -------
     pass_context: PassContext
         The pass context for optimizations.
     """
     return PassContext(opt_level, fallback_device, required_pass,
-                       disabled_pass)
+                       disabled_pass, print_ir)
 
 
 @register_relay_node

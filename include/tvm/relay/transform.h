@@ -96,8 +96,15 @@ class PassContextNode : public RelayNode {
 
   /*! \brief The list of required passes. */
   tvm::Array<tvm::Expr> required_pass;
+
   /*! \brief The list of disabled passes. */
   tvm::Array<tvm::Expr> disabled_pass;
+
+  /*! \brief Whether to print the IR before the first pass in a sequence. */
+  bool print_ir_before_first{false};
+
+  /*! \brief Whether to print the IR after each pass. */
+  bool print_ir_after_all{false};
 
   PassContextNode() = default;
 
@@ -106,6 +113,8 @@ class PassContextNode : public RelayNode {
     v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
+    v->Visit("print_ir_before_first", &print_ir_before_first);
+    v->Visit("print_ir_after_all", &print_ir_after_all);
   }
 
   static constexpr const char* _type_key = "relay.PassContext";

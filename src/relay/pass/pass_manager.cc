@@ -396,7 +396,7 @@ Pass GetPass(const std::string& pass_name) {
   std::string fpass_name = "relay._transform." + pass_name;
   const auto* f = Registry::Get(fpass_name);
   CHECK(f != nullptr) << "Cannot find " << fpass_name
-                      << "to create the pass " << pass_name;
+                      << " to create the pass " << pass_name;
   return (*f)();
 }
 
@@ -404,8 +404,47 @@ Pass GetPass(const std::string& pass_name) {
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 Module SequentialNode::operator()(const Module& module,
-                                  const PassContext& pass_ctx) const {
+                                  const PassContext& original_pass_ctx) const {
+  PassContext pass_ctx = original_pass_ctx;
+
+  // When printing IR between passes, keep track of the previous
+  // string printed to avoid printing the same IR repeatedly for
+  // passes that did not change the IR.
+  std::string previous_ir;
+  if (pass_ctx->print_ir_before_first || pass_ctx->print_ir_after_all) {
+    previous_ir = AsText(module);
+    if (pass_ctx->print_ir_before_first) {
+      LOG(INFO) << "IR before first pass in sequence:\n"
+                << previous_ir;
+
+      // We already printed the IR before the first pass, so any
+      // nested sequences should not do it again.
+      pass_ctx->print_ir_before_first = false;
+    }
+  }
+
+  // run_pass will run the pass while keeping track of printing the IR.
   Module mod = module;
+  const auto run_pass = [&](const Pass& pass, const std::string required_by = "") {
+    mod = pass(mod, pass_ctx);
+
+    if (pass_ctx->print_ir_after_all) {
+      std::string new_ir = AsText(mod);
+      std::string pass_name = pass->Info()->name;
+      if (!required_by.empty()) {
+        pass_name += " (required by " + required_by + ")";
+      }
+      if (new_ir == previous_ir) {
+        LOG(INFO) << "IR after " << pass_name << " unchanged.";
+      } else {
+        LOG(INFO) << "IR after " << pass_name << " changed:\n"
+                  << new_ir << '\n';
+        previous_ir = std::move(new_ir);
+      }
+    }
+  };
+
+  // Run the passes.
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
@@ -414,10 +453,11 @@ Module SequentialNode::operator()(const Module& module,
     for (const auto& it : pass_info->required) {
       const auto* name = it.as<tvm::ir::StringImm>();
       CHECK(name);
-      mod = GetPass(name->value)(mod, pass_ctx);
+      run_pass(GetPass(name->value), pass_info->name);
     }
-    mod = pass(mod, pass_ctx);
+    run_pass(pass);
   }
+
   return mod;
 }
 
@@ -532,10 +572,17 @@ TVM_REGISTER_API("relay._transform.PassContext")
   int fallback_device = args[1];
   tvm::Array<tvm::Expr> required = args[2];
   tvm::Array<tvm::Expr> disabled = args[3];
+  bool print_ir = args[4];
   pctx->opt_level = opt_level;
   pctx->fallback_device = fallback_device;
   pctx->required_pass = std::move(required);
   pctx->disabled_pass = std::move(disabled);
+
+  // Printing before the first pass and after every other pass amounts
+  // to printing all the IR, which is what print_ir does.
+  pctx->print_ir_before_first = print_ir;
+  pctx->print_ir_after_all = print_ir;
+
   *ret = pctx;
 });
 
@@ -548,17 +595,20 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << runtime::DeviceName(node->fallback_device)
             << "\n";
 
-  p->stream << "\trequired passes: [" << node->opt_level;
+  p->stream << "\trequired passes: [";
   for (const auto& it : node->required_pass) {
     p->stream << it << " ";
   }
   p->stream << "]\n";
 
-  p->stream << "\tdisabled passes: [" << node->opt_level;
+  p->stream << "\tdisabled passes: [";
   for (const auto& it : node->disabled_pass) {
     p->stream << it << " ";
   }
   p->stream << "]";
+
+  p->stream << "\nPrint ir before first pass: " << node->print_ir_before_first;
+  p->stream << "\nPrint ir after each pass: " << node->print_ir_after_all;
 });
 
 class PassContext::Internal {
