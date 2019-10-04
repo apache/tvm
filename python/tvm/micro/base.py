@@ -81,10 +81,12 @@ class Session:
         self.server_addr = kwargs.get("server_addr", "")
         self.port = kwargs.get("port", 0)
 
+        print('creating session')
         self.module = _CreateSession(
             self.device_type, "", self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
+        print('finished session init')
 
     def add_module(self, c_mod):
         self.op_modules.append(c_mod)
@@ -96,7 +98,6 @@ class Session:
         from shutil import copyfile
 
         from tvm._ffi.libinfo import find_include_path
-        from tvm.micro import _get_micro_device_dir
         from tvm.contrib import binutil
 
         op_srcs = []
@@ -104,7 +105,7 @@ class Session:
             op_src = op_module.get_source()
             op_src = op_src[op_src.index("TVM_DLL"):]
             op_srcs.append(op_src)
-        op_srcs = "\n".join(op_srcs)
+        op_srcs = "\n\n".join(op_srcs)
 
         runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
         with open(runtime_src_path) as f:
@@ -119,26 +120,17 @@ class Session:
                 # TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
                 + "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n")
 
-        print(merged_src)
-
-        # TODO: We need to somehow prevent the utvm funcs from being optimized
-        # away. we can either call all of them in `main`, or we can instruct
-        # the compiler to leave them in.
-        #
-        # can't use __attribute__((used)) because arm's compiler ignores it.
-
+        print('writing src to main.c')
         nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
         with open(f"{nucleo_path}/src/main.c", "w") as f:
             f.write(merged_src)
-        print(merged_src)
 
         paths = [path for path in find_include_path()]
         paths += ["/home/pratyush/Code/tvm/src/runtime/micro/device"]
-        print(paths)
         child_env = copy.deepcopy(os.environ)
         child_env["LD_LIBRARY_PATH"] += ":" + ":".join(paths)
 
-        print("[FLASHING]")
+        print('flashing to device')
         proc = subprocess.Popen(
                 ["make", "flash"],
                 cwd=nucleo_path,
@@ -149,32 +141,55 @@ class Session:
             msg = "Compilation error:\n"
             msg += out.decode("utf-8")
             raise RuntimeError(msg)
+        print('finished')
 
         result_binary_path = f"{nucleo_path}/blinky.elf"
-
-        print(binutil.tvm_callback_get_section_size(result_binary_path, "text", self.toolchain_prefix))
-        print(binutil.tvm_callback_get_section_size(result_binary_path, "rodata", self.toolchain_prefix))
-        print(binutil.tvm_callback_get_section_size(result_binary_path, "data", self.toolchain_prefix))
-        print(binutil.tvm_callback_get_section_size(result_binary_path, "bss", self.toolchain_prefix))
-
         with open(result_binary_path, "rb") as f:
             result_binary_contents = bytearray(f.read())
 
-        sym_map_str = binutil.tvm_callback_get_symbol_map(result_binary_contents, self.toolchain_prefix)
-        sym_map_lines = list(filter(lambda s: len(s) != 0, sym_map_str.split('\n')))
+        #sym_map_str = binutil.tvm_callback_get_symbol_map(result_binary_contents, self.toolchain_prefix)
+        #sym_map_lines = list(filter(lambda s: len(s) != 0, sym_map_str.split('\n')))
 
-        sym_map_iter = iter(sym_map_lines)
-        sym_map = {}
-        for sym_name in sym_map_iter:
-            sym_loc = next(sym_map_iter)
-            sym_map[sym_name] = sym_loc
+        #sym_map_iter = iter(sym_map_lines)
+        #sym_map = {}
+        #for sym_name in sym_map_iter:
+        #    sym_loc = next(sym_map_iter)
+        #    sym_map[sym_name] = sym_loc
 
-        print('UTVMMain: ' + sym_map['UTVMMain'])
-        print('UTVMDone: ' + sym_map['UTVMDone'])
-        print('fadd: ' + sym_map['fadd'])
-        print('TVMBackendAllocWorkspace: ' + sym_map['TVMBackendAllocWorkspace'])
-        print('TVMBackendFreeWorkspace: ' + sym_map['TVMBackendFreeWorkspace'])
-        print('TVMAPISetLastError: ' + sym_map['TVMAPISetLastError'])
+        #print('UTVMMain: ' + sym_map['UTVMMain'])
+        #print('UTVMDone: ' + sym_map['UTVMDone'])
+        #print('fadd: ' + sym_map['fadd'])
+        #print('TVMBackendAllocWorkspace: ' + sym_map['TVMBackendAllocWorkspace'])
+        #print('TVMBackendFreeWorkspace: ' + sym_map['TVMBackendFreeWorkspace'])
+        #print('TVMAPISetLastError: ' + sym_map['TVMAPISetLastError'])
+
+        # TODO: we might need to start OpenOCD in a separate process
+        input('start openocd! ')
+        # wait until the server has started up until attempting to connect in C++
+        #openocd_script_dir = '/usr/share/openocd/scripts'
+        #cmd = [
+        #        'openocd',
+        #        '-f', f'{openocd_script_dir}/interface/stlink-v2-1.cfg',
+        #        '-f', f'{openocd_script_dir}/target/stm32f7x.cfg'
+        #]
+        #self.openocd_process = subprocess.Popen(
+        #        cmd,
+        #        stdout=subprocess.PIPE,
+        #        stderr=subprocess.STDOUT)
+        #print('waiting for OpenOCD to start up')
+        #while True:
+        #    output = self.openocd_process.stdout.readline()
+        #    if 'stm32f7x.cpu: hardware has 8 breakpoints, 4 watchpoints' in output.decode('utf-8'):
+        #        break
+        #    if output:
+        #        print(output.strip())
+        #    rc = self.openocd_process.poll()
+        #print('finished starting up')
+
+        _BakeSession(result_binary_contents);
+
+    def get_func(self, func_name):
+        return _GetFunction(func_name);
 
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
@@ -203,6 +218,7 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self._exit()
+        #self.openocd_process.kill()
 
 
 def _get_micro_device_dir():

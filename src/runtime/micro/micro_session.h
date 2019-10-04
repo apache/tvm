@@ -97,6 +97,8 @@ class MicroSession : public ModuleNode {
                      const std::string& server_addr,
                      int port);
 
+  void BakeSession(const std::string& binary);
+
   /*!
    * \brief ends the session by destructing the low-level device and its allocators
    */
@@ -129,11 +131,15 @@ class MicroSession : public ModuleNode {
    * \param func address of the function to be executed
    * \param args args to the packed function
    */
-  void PushToExecQueue(DevBaseOffset func, const TVMArgs& args);
+  void PushToExecQueue(DevPtr func, const TVMArgs& args);
 
-  void EnqueueBinary(const std::string& binary_path);
+  DevPtr GetSymbolLoc(const std::string& sym_name) {
+    return symbol_map_[sym_name];
+  }
 
-  void FlushBinary(const BinaryContents& bin_contents);
+  //void EnqueueBinary(const std::string& binary_path);
+
+  //void FlushBinary(const BinaryContents& bin_contents);
 
   /*!
   * \brief read value of symbol from device memory
@@ -172,8 +178,8 @@ class MicroSession : public ModuleNode {
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief total number of bytes of usable device memory for this session */
   size_t memory_size_;
-  /*! \brief uTVM runtime binary info */
-  BinaryInfo runtime_bin_info_;
+  ///*! \brief uTVM runtime binary info */
+  //BinaryInfo runtime_bin_info_;
   /*! \brief path to uTVM runtime source code */
   std::string runtime_binary_path_;
   /*! \brief offset of the runtime entry function */
@@ -181,7 +187,7 @@ class MicroSession : public ModuleNode {
   /*! \brief offset of the runtime exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
 
-  std::vector<BinaryContents> bin_queue_;
+  SymbolMap symbol_map_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation
@@ -223,14 +229,6 @@ class MicroSession : public ModuleNode {
    */
   std::shared_ptr<MicroSectionAllocator> GetAllocator(SectionKind kind) {
     return section_allocators_[static_cast<size_t>(kind)];
-  }
-
-  /*!
-   * \brief returns the symbol map for the uTVM runtime
-   * \return reference to symbol map
-   */
-  const SymbolMap& runtime_symbol_map() {
-    return runtime_bin_info_.symbol_map;
   }
 
   /*!

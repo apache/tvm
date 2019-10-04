@@ -52,7 +52,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
   void Connect() {
       socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
-      socket_.cmd_builder() << "reset halt";
+      socket_.cmd_builder() << "reset ahalt";
       socket_.SendCommand();
   }
 
@@ -185,10 +185,10 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
 
-    // Set up the stack pointer.
-    DevPtr stack_end = stack_top() - 8;
-    socket_.cmd_builder() << "reg sp " << stack_end.cast_to<void*>();
-    socket_.SendCommand();
+    //// Set up the stack pointer.
+    //DevPtr stack_end = stack_top() - 8;
+    //socket_.cmd_builder() << "reg sp " << stack_end.cast_to<void*>();
+    //socket_.SendCommand();
 
     // Set a breakpoint at the beginning of `UTVMDone`.
     socket_.cmd_builder() << "bp " << ToDevPtr(breakpoint).cast_to<void*>() << " 2";

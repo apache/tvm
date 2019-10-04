@@ -35,7 +35,7 @@ extern "C" {
 #include "utvm_runtime.h"
 
 // Task pointers must be patched before calling a function.
-UTVMTask task;
+UTVMTask utvm_task;
 
 // These pointers are patched at load time to point to the workspace section.
 char* utvm_workspace_begin = NULL;  // NOLINT(*)
@@ -56,8 +56,8 @@ void UTVMMain() {
   utvm_num_active_allocs = 0;
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
-  utvm_return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
-                               task.num_args);
+  utvm_return_code = utvm_task.func((void*) utvm_task.arg_values, (void*) utvm_task.arg_type_codes,  // NOLINT(*)
+                               utvm_task.num_args);
   UTVMDone();
 }
 

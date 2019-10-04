@@ -72,6 +72,8 @@ class HostLowLevelDevice final : public LowLevelDevice {
     reinterpret_cast<void (*)(void)>(func_addr.value())();
   }
 
+  void Connect() {}
+
   std::uintptr_t base_addr() const final {
     return base_addr_;
   }

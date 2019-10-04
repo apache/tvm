@@ -315,21 +315,22 @@ def test_inactive_session_use():
 
 def test_arm_add():
     """Test a module which performs addition."""
-    import tvm
+    #import tvm
     if not tvm.module.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
 
-    import subprocess
-    import os
-    import copy
-    from shutil import copyfile
+    #import subprocess
+    #import os
+    #import copy
+    #from shutil import copyfile
 
-    from tvm._ffi.libinfo import find_include_path
-    from tvm.micro import _get_micro_device_dir
-    from tvm.contrib import binutil
+    #from tvm._ffi.libinfo import find_include_path
+    #from tvm.micro import _get_micro_device_dir
+    #from tvm.contrib import binutil
 
+    print('constructing tvm expr')
     # Construct TVM expression.
     tvm_shape = tvm.convert(shape)
     A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
@@ -340,15 +341,35 @@ def test_arm_add():
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
+    print('starting session')
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX) as sess:
-        sess.add_module(c_mod)
-        sess.bake()
+        # TODO: since we're adding modules with `sess.add_module`, we're not
+        # creating micro modules (like below). how do we get packed funcs from
+        # the session though? we might need to do the enqueueing in C++ and
+        # call into a Python function that does all of the baking. If that's
+        # the case, then we'll need to create all of the micro mods we want,
+        # *then* call sess.bake, which should just execute the same Python code
+        # as in micro/base.py, but with a trip to C++ in between.
+        #micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+        #micro_func = micro_mod[func_name]
 
-        #ctx = tvm.micro_dev(0)
-        #a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-        #b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-        #c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        #micro_func(a, b, c)
+        sess.add_module(c_mod)
+        print('baking session')
+        sess.bake()
+        print(f'grabbing {func_name} from session')
+        micro_func = sess.get_func(func_name)
+        print(f'grabbed it')
+
+        ctx = tvm.micro_dev(0)
+        a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        print(a)
+        print(b)
+        print(c)
+        micro_func(a, b, c)
+        print('--------------------------------------------------------------------------------')
+        print(c)
 
         #tvm.testing.assert_allclose(
         #        c.asnumpy(), a.asnumpy() + b.asnumpy())
