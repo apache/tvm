@@ -23,6 +23,7 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
+from tvm import autotvm
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from . import _vm
 from . import vmobj as _obj
@@ -186,7 +187,16 @@ class VMCompiler(object):
         if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
         target_host = tvm.target.create(target_host)
-        self._compile(mod, target, target_host)
+
+        # If current dispatch context is fallback context (the default root context),
+        # then load pre-tuned parameters from TopHub
+        if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+            tophub_context = autotvm.tophub.context(list(target.values()))
+        else:
+            tophub_context = autotvm.util.EmptyContext()
+
+        with tophub_context:
+            self._compile(mod, target, target_host)
         return VirtualMachine(self._get_vm())
 
 
