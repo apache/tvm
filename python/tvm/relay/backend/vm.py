@@ -179,6 +179,11 @@ class VMCompiler(object):
         target = _update_target(target)
         target_host = None if target_host == "" else target_host
         if not target_host:
+            for device_type, tgt in target.items():
+                if device_type.value == tvm.nd.cpu(0).device_type:
+                    target_host = tgt
+                    break
+        if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
         target_host = tvm.target.create(target_host)
         self._compile(mod, target, target_host)
