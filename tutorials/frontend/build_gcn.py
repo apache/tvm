@@ -219,7 +219,6 @@ layers.append(GraphConv(
     adj=adj,
     input=infeats,
     norm=norm,
-    bias=bias,
     activation=activation
 ))
 
@@ -230,7 +229,6 @@ layers.append(GraphConv(
     adj=adj,
     input=layers[-1],
     norm=norm,
-    bias=bias,
     activation=activation
 ))
 
