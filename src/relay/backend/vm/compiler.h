@@ -105,7 +105,7 @@ class VMCompiler : public runtime::ModuleNode {
                const tvm::Target& target_host);
 
  protected:
-  Module OptimizeModule(const Module& mod);
+  Module OptimizeModule(const Module& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
 
