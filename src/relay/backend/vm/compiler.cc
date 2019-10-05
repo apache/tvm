@@ -894,6 +894,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();
+  // TODO(wweic): Support heterogenous execution
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     for (const auto& kv : targets) {
