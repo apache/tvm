@@ -817,5 +817,54 @@ are data in batch.
 .add_type_rel("BatchMatmul", BatchMatmulRel);
 
 
+// relay.nn.cross_entropy
+bool CrossEntropyRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+  CHECK(x->shape.size() == 2 && y->shape.size() == 2)
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[1], y->shape[1]))
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make({}, x->dtype));
+  return true;
+}
+
+// Positional relay function to create batch_matmul operator used by frontend FFI.
+Expr MakeCrossEntropy(Expr predictions, Expr targets) {
+  static const Op& op = Op::Get("nn.cross_entropy");
+  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
+.set_body_typed(MakeCrossEntropy);
+
+
+RELAY_REGISTER_OP("nn.cross_entropy")
+.describe(R"code(
+Computes cross entropy given predictions and targets.
+Do log on the data - do not accept logits.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "1D Tensor", "Predictions.")
+.add_argument("y", "1D Tensor", "Targets.")
+.set_support_level(10)
+.add_type_rel("CrossEntropy", CrossEntropyRel);
+
+
 }  // namespace relay
 }  // namespace tvm
