@@ -505,6 +505,8 @@ Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
+Expr MakeLayoutTransform(Expr data, std::string src_layout, std::string dst_layout);
+
 Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);

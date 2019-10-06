@@ -242,19 +242,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnC
   if (param->kernel_zero_point != 1) {
     multiplied_t2 = Multiply(zp_kernel, reduced_t2);
   }
-
-  // Replicate to go back to NHWC/NCHW. This is not necessarily needed, but it fails AlterOpLayout.
-  // We can remove this once AlterOpLayout refactoring completes -
-  // https://github.com/dmlc/tvm/issues/3670
-  Array<Integer> reps;
-  if (param->data_layout == "NCHW") {
-    reps = {1, out_channels, 1, 1};
-  } else if (param->data_layout == "NHWC") {
-    reps = {1, 1, 1, out_channels};
-  } else {
-    LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
-  }
-  return Tile(multiplied_t2, reps);
+  return multiplied_t2;
 }
 
 /*
