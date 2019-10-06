@@ -44,16 +44,22 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   explicit OpenOCDLowLevelDevice(std::uintptr_t base_addr,
                                  const std::string& server_addr,
                                  int port) : socket_() {
-      server_addr_ = server_addr;
-      port_ = port;
-      base_addr_ = base_addr;
-      CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
+    server_addr_ = server_addr;
+    port_ = port;
+    base_addr_ = base_addr;
+    CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
   }
 
   void Connect() {
-      socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
-      socket_.cmd_builder() << "reset halt";
-      socket_.SendCommand();
+    socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
+
+    // run through system init once
+    socket_.cmd_builder() << "reset run";
+    socket_.SendCommand();
+    socket_.cmd_builder() << "wait_halt " << kWaitTime;
+    socket_.SendCommand();
+    socket_.cmd_builder() << "halt 0";
+    socket_.SendCommand();
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
