@@ -134,7 +134,8 @@ def test_alter_layout():
                             kernel_layout="OIHW16i",
                             data_layout="NCHW16c")
         b = relay.expand_dims(bias, axis=1, num_newaxis=2)
-        b = relay.layout_transform(b, "CHW", "CHW16c")
+        b = relay.expand_dims(b, axis=0, num_newaxis=1)
+        b = relay.layout_transform(b, "NCHW", "NCHW16c")
         y = relay.add(y, b)
 
         y = relay.nn.relu(y)
@@ -304,8 +305,10 @@ def test_alter_layout_broadcast_op():
         weight = relay.var("weight")
         x = relay.layout_transform(x, "NCHW", "NCHW16c")
         bias = relay.expand_dims(bias, 1, 2)
-        bias = relay.layout_transform(bias, "CHW", "CHW16c")
-        scale = relay.layout_transform(scale, "CHW", "CHW16c")
+        bias = relay.expand_dims(bias, 0, 1)
+        bias = relay.layout_transform(bias, "NCHW", "NCHW16c")
+        scale = relay.expand_dims(scale, 0, 1)
+        scale = relay.layout_transform(scale, "NCHW", "NCHW16c")
         y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
                             data_layout="NCHW16c")
         y = relay.add(y, bias)          # test broadcasting to lhs
