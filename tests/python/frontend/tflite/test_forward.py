@@ -31,6 +31,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import variables
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -633,6 +634,21 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_greater)
 
 #######################################################################
+# Zeros like
+# --------
+
+def _test_zeros_like(data):
+    """ One iteration of ZEROS LIKE """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = gen_array_ops.zeros_like(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_zeros_like():
+    """ ZEROS LIKE """
+    _test_zeros_like(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+#######################################################################
 # Reduce
 # ------
 
@@ -1019,6 +1035,9 @@ if __name__ == '__main__':
 
     # Elemwise
     test_all_elemwise()
+
+    # Zeros Like
+    test_forward_zeros_like()
 
     # Reduce
     test_all_reduce()
