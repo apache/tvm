@@ -32,6 +32,9 @@ namespace runtime {
 
 // TODO(weberlo): Handle endianness.
 
+// TODO: make this parameterizable
+static const int kWordSize = 4;
+
 /*!
  * \brief data encoder for uTVM that builds a host-side buffer
  */
@@ -98,7 +101,7 @@ class TargetDataLayoutEncoder {
    */
   explicit TargetDataLayoutEncoder(DevPtr start_addr)
       : buf_(std::vector<uint8_t>()), curr_offset_(0) {
-    start_addr_ = DevPtr(UpperAlignValue(start_addr.value(), 8));
+    start_addr_ = DevPtr(UpperAlignValue(start_addr.value(), kWordSize));
   }
 
   /*!
@@ -108,7 +111,7 @@ class TargetDataLayoutEncoder {
    */
   template <typename T>
   Slot<T> Alloc(size_t num_elems = 1) {
-    curr_offset_ = UpperAlignValue(curr_offset_, 8);
+    curr_offset_ = UpperAlignValue(curr_offset_, kWordSize);
     size_t size = sizeof(T) * num_elems;
     if (curr_offset_ + size > buf_.size()) {
       buf_.resize(curr_offset_ + size);

@@ -367,9 +367,15 @@ def test_arm_add():
         print(a)
         print(b)
         print(c)
+        # TODO: the fadd example is leaving the C vector with all zeros. the
+        # device must not be executing the fadd. do a GDB stepthrough. could
+        # also try loading in the original blinky program (or some slight
+        # variant of it) to see if we're loading shit onto the device
+        # correctly.
         micro_func(a, b, c)
         print('--------------------------------------------------------------------------------')
         print(c)
+
 
         #tvm.testing.assert_allclose(
         #        c.asnumpy(), a.asnumpy() + b.asnumpy())

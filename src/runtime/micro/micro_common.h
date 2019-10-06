@@ -53,7 +53,6 @@ enum class SectionKind : size_t {
 };
 
 /*! \brief default size alignment */
-constexpr int kDefaultSizeAlignment = 8;
 
 /*! \brief Base class for interfacing with device locations (pointers/offsets) */
 class DeviceLocation {
@@ -314,7 +313,7 @@ std::string ReadSection(const std::string& binary,
 size_t GetSectionSize(const std::string& binary_name,
                       SectionKind section,
                       const std::string& toolchain_prefix,
-                      size_t align = kDefaultSizeAlignment);
+                      size_t align);
 
 }  // namespace runtime
 }  // namespace tvm

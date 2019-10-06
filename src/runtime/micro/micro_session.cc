@@ -57,6 +57,9 @@ void MicroSession::ExitWithScope() {
 }
 
 MicroSession::MicroSession() {
+   std::cout << "sizeof(TVMArray): " << sizeof(TVMArray) << std::endl;
+   std::cout << "sizeof(TVMValue): " << sizeof(TVMValue) << std::endl;
+
   //DevBaseOffset curr_start_offset = kDeviceStart;
   //for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
   //  size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
@@ -189,9 +192,16 @@ void MicroSession::BakeSession(const std::string& binary) {
   low_level_device()->Connect();
 }
 
+// ARM and other manufacturers use the LSB of a function address to determine
+// whether it's a "thumb mode" function (TODO: figure out what that means).
+const bool kRequiresThumbModeBit = true;
 void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   int32_t (*func_dev_addr)(void*, void*, int32_t) =
       reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(func_ptr.value());
+  // TODO: make this a parameter.
+  if (kRequiresThumbModeBit) {
+    func_dev_addr += 1;
+  }
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
@@ -207,16 +217,38 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
 
-  UTVMTask task = {
-      .func = func_dev_addr,
-      .arg_values = std::get<0>(arg_field_addrs).cast_to<TVMValue*>(),
-      .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
-      .num_args = args.num_args,
+  //UTVMTask task = {
+  //  .func = func_dev_addr,
+  //  .arg_values = std::get<0>(arg_field_addrs).cast_to<TVMValue*>(),
+  //  .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
+  //  .num_args = args.num_args,
+  //};
+  typedef struct StructARMUTVMTask {
+    /*! \brief Pointer to function to call for this task */
+    uint32_t func;
+    /*! \brief Array of argument values */
+    uint32_t arg_values;
+    /*! \brief Array of type codes for each argument value */
+    uint32_t arg_type_codes;
+    /*! \brief Number of arguments */
+    uint32_t num_args;
+  } ARMUTVMTask;
+  TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
+  int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
+  ARMUTVMTask task = {
+    .func = *((uint32_t*) &func_dev_addr),
+    .arg_values = *((uint32_t*) &arg_values_dev_addr),
+    .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),
+    .num_args = (uint32_t) args.num_args,
   };
   // Write the task.
+  std::cout << "utvm_task loc: " << GetSymbolLoc("utvm_task").value() << std::endl;
   DevSymbolWrite(symbol_map_, "utvm_task", task);
 
-  low_level_device()->Execute(utvm_main_symbol_, utvm_done_symbol_);
+  //low_level_device()->Execute(utvm_main_symbol_, utvm_done_symbol_);
+  std::cout << "do execution things: ";
+  char tmp;
+  std::cin >> tmp;
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
 
@@ -267,7 +299,20 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 }
 
 DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
-  auto tvm_arr_slot = encoder->Alloc<TVMArray>();
+  typedef struct StructARMTVMArray {
+    uint32_t data;
+    DLContext ctx;
+    int ndim;
+    DLDataType dtype;
+    uint32_t shape;
+    uint32_t strides;
+    uint32_t pad1;
+    uint32_t byte_offset;
+    uint32_t pad2;
+  } ARMTVMArray;
+
+  //auto tvm_arr_slot = encoder->Alloc<TVMArray>();
+  auto tvm_arr_slot = encoder->Alloc<ARMTVMArray>();
   auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
   // `shape` and `strides` are stored on the host, so we need to write them to
@@ -282,9 +327,33 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     strides_addr = stride_slot.start_addr();
   }
 
+  int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
+  int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
+  std::cout << "writing byte_offset " << arr.byte_offset << std::endl;
+  ARMTVMArray dev_arr = {
+    .data = *((uint32_t*) &arr.data),
+    .ctx = arr.ctx,
+    .ndim = arr.ndim,
+    .dtype = arr.dtype,
+    .shape = *((uint32_t*) &dev_shape),
+    .strides = *((uint32_t*) &dev_strides),
+    .pad1 = 0,
+    .byte_offset = *((uint32_t*) &arr.byte_offset),
+    .pad2 = 0,
+  };
+
+  std::cout << "sizeof(ARMTVMArray): " << sizeof(ARMTVMArray) << std::endl;
+  std::cout << "data offs: " << (((uintptr_t) &(dev_arr.data)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "ctx offs: " << (((uintptr_t) &(dev_arr.ctx)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "ndim offs: " << (((uintptr_t) &(dev_arr.ndim)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "dtype offs: " << (((uintptr_t) &(dev_arr.dtype)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "strides offs: " << (((uintptr_t) &(dev_arr.strides)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "byte_offset offs: " << (((uintptr_t) &(dev_arr.byte_offset)) - ((uintptr_t) &dev_arr)) << std::endl;
+
+
   // Copy `arr`, update the copy's pointers to be device pointers, then
   // write the copy to `tvm_arr_slot`.
-  TVMArray dev_arr = arr;
+  //TVMArray dev_arr = arr;
   // Update the device type to look like a host, because codegen generates
   // checks that it is a host array.
   CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
@@ -292,10 +361,10 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
   dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
   // Add the base address of the device to the array's data's device offset to
   // get a device address.
-  DevBaseOffset arr_offset(reinterpret_cast<std::uintptr_t>(arr.data));
-  dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
-  dev_arr.shape = shape_addr.cast_to<int64_t*>();
-  dev_arr.strides = strides_addr.cast_to<int64_t*>();
+  //DevBaseOffset arr_offset(reinterpret_cast<std::uintptr_t>(arr.data));
+  //dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
+  //dev_arr.shape = shape_addr.cast_to<int64_t*>();
+  //dev_arr.strides = strides_addr.cast_to<int64_t*>();
   tvm_arr_slot.WriteValue(dev_arr);
   return tvm_arr_slot.start_addr();
 }

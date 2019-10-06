@@ -118,12 +118,16 @@ class Session:
                 + op_srcs \
                 + runtime_src[split_idx:] \
                 # TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
+                # TODO: splice `main` in *before* the end of the `extern C` block
                 + "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n")
 
         print('writing src to main.c')
         nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
         with open(f"{nucleo_path}/src/main.c", "w") as f:
             f.write(merged_src)
+        print('[BEGIN SRC]')
+        print(merged_src)
+        print('[END SRC]')
 
         paths = [path for path in find_include_path()]
         paths += ["/home/pratyush/Code/tvm/src/runtime/micro/device"]
