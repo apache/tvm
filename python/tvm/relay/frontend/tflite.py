@@ -75,6 +75,7 @@ class OperatorConverter(object):
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
             'GREATER': self.convert_greater,
+            'ZEROS_LIKE': self.convert_zeros_like,
             'REDUCE_MIN': self._convert_reduce_min,
             'REDUCE_MAX': self._convert_reduce_max,
             'MEAN': self._convert_reduce_mean,
@@ -477,6 +478,23 @@ class OperatorConverter(object):
 
     def convert_greater(self, op):
         return self._convert_elemwise(_op.greater, op)
+
+    def convert_zeros_like(self, op):
+        """Convert TFLite ZEROS LIKE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.zeros_like(in_expr)
+
+        return out
 
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
