@@ -760,6 +760,6 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
 
 @reg.register_compute("nn.cross_entropy_with_logits")
-def compute_cross_entropy(attrs, inputs, out_dtype, target):
+def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
