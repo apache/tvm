@@ -27,6 +27,7 @@
 
 #include <tvm/expr.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/qnn/attrs.h>
 #include <limits>
 #include <string>
 #include <utility>
@@ -91,6 +92,32 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
   CHECK(value_ptr) << "Expr is not a constant int";
   return value_ptr[0];
 }
+
+/*
+ * \brief Fixed point multiplication between integer tensor with floating point
+ scalar.
+ * \param tensor The quantized input tensor of dtype int64.
+ * \param multiplier The scalar multiplier.
+ * \param input_shape Shape of the input tensor.
+ * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
+ is midway between" "two representable values.
+ * \return The sequence of Relay ops for fixed point multiplication.
+
+ * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ *       integer computation, the multiplication with fp32 scalar can be
+ *       replaced by multiplication with an int value and then right shifting
+ *       the result. This approximates the floating point computation with a
+ *       fixed point computation.
+ *
+ *       Computation of fixed point multiplication is consist of following
+ steps:
+ *       1) Multiply the fixed point multiplier with quantized tensor.
+ *       2) Round the result.
+ *       3) Right shift the result
+ */
+Expr FixedPointMuliply(Expr tensor, double multiplier,
+                       const Array<IndexExpr>& input_shape,
+                       const std::string& rounding);
 
 }  // namespace qnn
 }  // namespace relay
