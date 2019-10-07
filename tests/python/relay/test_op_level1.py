@@ -62,6 +62,8 @@ def test_unary_op():
             for target, ctx in ctx_list():
                 # use graph by execuor default for testing, as we need
                 # create function explicitly to avoid constant-folding.
+                if dtype ==  'float16' and target == 'cuda' and not have_fp16(tvm.gpu(0).compute_version):
+                    continue
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data)
                 np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
@@ -79,8 +81,6 @@ def test_unary_op():
                         (tvm.relay.sin, np.sin),
                         (tvm.relay.atan, np.arctan)]:
         for dtype in ['float16', 'float32']:
-            if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-                continue
             check_single_op(opfunc, ref, dtype)
 
 
@@ -117,6 +117,8 @@ def test_binary_op():
             for target, ctx in ctx_list():
                 # use graph by execuor default for testing, as we need
                 # create function explicitly to avoid constant-folding.
+                if dtype ==  'float16' and target == 'cuda' and not have_fp16(tvm.gpu(0).compute_version):
+                    continue
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
@@ -126,8 +128,6 @@ def test_binary_op():
                         (relay.multiply, np.multiply),
                         (relay.divide, np.divide)]:
         for dtype in ['float16', 'float32']:
-            if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-                continue
             check_binary_op(opfunc, ref, dtype)
 
 
@@ -137,6 +137,8 @@ def test_expand_dims():
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         func = relay.Function([x], relay.expand_dims(x, axis, num_newaxis))
         for target, ctx in ctx_list():
+            if dtype ==  'float16' and target == 'cuda' and not have_fp16(tvm.gpu(0).compute_version):
+                continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
@@ -149,8 +151,6 @@ def test_expand_dims():
 
 def test_bias_add():
     for dtype in ['float16', 'float32']:
-        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-            continue
         xshape=(10, 2, 3, 4)
         bshape=(2,)
         rtol = 1e-2 if dtype is 'float16' else 1e-5
@@ -166,6 +166,8 @@ def test_bias_add():
         y_data = np.random.uniform(size=bshape).astype(dtype)
         ref_res = x_data + y_data.reshape((2, 1, 1))
         for target, ctx in ctx_list():
+            if dtype ==  'float16' and target == 'cuda' and not have_fp16(tvm.gpu(0).compute_version):
+                continue
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data, y_data)
             np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=rtol)
@@ -173,8 +175,6 @@ def test_bias_add():
 
 def test_expand_dims_infer_type():
     for dtype in ['float16', 'float32']:
-        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-            continue
         n, t, d = tvm.var("n"), tvm.var("t"), 100
         x = relay.var("x", shape=(n, t, d), dtype=dtype)
         y = relay.expand_dims(x, axis=2)
@@ -225,8 +225,6 @@ def test_log_softmax():
 
 def test_concatenate():
     for dtype in ['float16', 'float32']:
-        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-            continue
         n, t, d = tvm.var("n"), tvm.var("t"), 100
         x = relay.var("x", shape=(n, t, d))
         y = relay.var("y", shape=(n, t, d))
@@ -269,6 +267,8 @@ def test_concatenate():
         ref_res = np.concatenate((x_data, y_data), axis=1) + t_data
     
         for target, ctx in ctx_list():
+            if dtype ==  'float16' and target == 'cuda' and not have_fp16(tvm.gpu(0).compute_version):
+                continue
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x_data, y_data, t_data)
@@ -278,8 +278,6 @@ def test_concatenate():
 
 def test_dropout():
     for dtype in ['float16', 'float32']:
-        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-            continue
         n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
         input_ty = relay.TensorType((n, t, d), dtype)
         x = relay.var("x", input_ty)
@@ -291,8 +289,6 @@ def test_dropout():
 
 def test_batch_norm():
     for dtype in ['float16', 'float32']:
-        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
-            continue
         # beta and gamma ignored
         data = relay.var("data", relay.TensorType((3, 2, 1), dtype))
         beta = relay.var("beta", relay.TensorType((2,), dtype))
