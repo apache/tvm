@@ -77,7 +77,25 @@ class VMCompilerProfiler(vm.VMCompiler):
             The profile VM runtime.
         """
         target = _update_target(target)
-        self._compile(mod, target, target_host)
+        target_host = None if target_host == "" else target_host
+        if not target_host:
+            for device_type, tgt in target.items():
+                if device_type.value == tvm.nd.cpu(0).device_type:
+                    target_host = tgt
+                    break
+        if not target_host:
+            target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
+        target_host = tvm.target.create(target_host)
+
+        # If current dispatch context is fallback context (the default root context),
+        # then load pre-tuned parameters from TopHub
+        if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+            tophub_context = autotvm.tophub.context(list(target.values()))
+        else:
+            tophub_context = autotvm.util.EmptyContext()
+
+        with tophub_context:
+            self._compile(mod, target, target_host)
         return VirtualMachineProfiler(self._get_vm())
 
 class VirtualMachineProfiler(vm.VirtualMachine):
