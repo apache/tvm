@@ -305,6 +305,15 @@ def softmax_grad(orig, grad):
     return [(grad - _sum(grad * orig, orig.attrs.axis, True)) * orig]
 
 
+@register_gradient("nn.log_softmax")
+def log_softmax_grad(orig, grad):
+    """Gradient of log_softmax"""
+    x = orig.args[0]
+    sm = _nn.softmax(x, axis=orig.attrs.axis)
+    grad = grad / sm
+    return softmax_grad(sm, grad)
+
+
 @register_gradient("nn.bias_add")
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
