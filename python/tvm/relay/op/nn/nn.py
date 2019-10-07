@@ -1777,3 +1777,22 @@ def cross_entropy(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy(predictions, targets)
+
+
+def cross_entropy_with_logits(predictions, targets):
+    """CrossEntropy with logits.
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The targets.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.cross_entropy_with_logits(predictions, targets)
