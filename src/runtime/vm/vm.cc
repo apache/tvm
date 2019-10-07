@@ -602,7 +602,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         Object obj = CopyTo(args[i], ctx);
         func_args[empty_slots[i - 1]] = obj;
       }
-      
+
       *rv = this->Invoke(vm_func, func_args);
     });
   } else if (name == "init") {
