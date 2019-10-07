@@ -21,6 +21,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
 import topi.testing
+from tvm.contrib.nvcc import have_fp16
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -78,6 +79,8 @@ def test_unary_op():
                         (tvm.relay.sin, np.sin),
                         (tvm.relay.atan, np.arctan)]:
         for dtype in ['float16', 'float32']:
+            if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+                continue
             check_single_op(opfunc, ref, dtype)
 
 
@@ -123,6 +126,8 @@ def test_binary_op():
                         (relay.multiply, np.multiply),
                         (relay.divide, np.divide)]:
         for dtype in ['float16', 'float32']:
+            if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+                continue
             check_binary_op(opfunc, ref, dtype)
 
 
@@ -144,6 +149,8 @@ def test_expand_dims():
 
 def test_bias_add():
     for dtype in ['float16', 'float32']:
+        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+            continue
         xshape=(10, 2, 3, 4)
         bshape=(2,)
         rtol = 1e-2 if dtype is 'float16' else 1e-5
@@ -166,6 +173,8 @@ def test_bias_add():
 
 def test_expand_dims_infer_type():
     for dtype in ['float16', 'float32']:
+        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+            continue
         n, t, d = tvm.var("n"), tvm.var("t"), 100
         x = relay.var("x", shape=(n, t, d), dtype=dtype)
         y = relay.expand_dims(x, axis=2)
@@ -216,6 +225,8 @@ def test_log_softmax():
 
 def test_concatenate():
     for dtype in ['float16', 'float32']:
+        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+            continue
         n, t, d = tvm.var("n"), tvm.var("t"), 100
         x = relay.var("x", shape=(n, t, d))
         y = relay.var("y", shape=(n, t, d))
@@ -267,6 +278,8 @@ def test_concatenate():
 
 def test_dropout():
     for dtype in ['float16', 'float32']:
+        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+            continue
         n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
         input_ty = relay.TensorType((n, t, d), dtype)
         x = relay.var("x", input_ty)
@@ -278,6 +291,8 @@ def test_dropout():
 
 def test_batch_norm():
     for dtype in ['float16', 'float32']:
+        if dtype ==  'float16' and not have_fp16(tvm.gpu(0).compute_version):
+            continue
         # beta and gamma ignored
         data = relay.var("data", relay.TensorType((3, 2, 1), dtype))
         beta = relay.var("beta", relay.TensorType((2,), dtype))
