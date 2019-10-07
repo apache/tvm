@@ -780,11 +780,19 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
   if (name == "compile") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
-      this->Compile(args[0], args[1], args[2]);
+      Module mod = args[0];
+      this->Compile(mod, args[1], args[2]);
     });
   } else if (name == "get_vm") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = runtime::Module(vm_);
+    });
+  } else if (name == "set_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Map<std::string, Constant> params = args[0];
+      for (const auto& kv : params) {
+        this->SetParam(kv.first, kv.second->data);
+      }
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -792,11 +800,53 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
   }
 }
 
-void VMCompiler::Compile(const Module& mod_ref,
+void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
+  params_[name] = data_in;
+}
+
+relay::Function VMCompiler::BindParamsByName(
+    relay::Function func,
+    const std::unordered_map<std::string, runtime::NDArray>& params) {
+  std::unordered_map<std::string, relay::Var> name_dict;
+  std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+  for (auto arg : func->params) {
+    const auto &name = arg->name_hint();
+    if (name_dict.count(name)) {
+      repeat_var.insert(arg);
+    } else {
+      name_dict[name] = arg;
+    }
+  }
+  std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+  for (auto &kv : params) {
+    if (name_dict.count(kv.first) == 0) {
+      continue;
+    }
+    auto arg = name_dict.at(kv.first);
+    if (repeat_var.count(arg)) {
+      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+    }
+    bind_dict[arg] = ConstantNode::make(kv.second);
+  }
+  Expr bound_expr = relay::Bind(func, bind_dict);
+  Function ret = Downcast<Function>(bound_expr);
+  CHECK(ret.defined())
+      << "The returning type is expected to be a Relay Function."
+      << "\n";
+  return ret;
+}
+
+
+void VMCompiler::Compile(Module mod,
                          const TargetsMap& targets,
                          const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
+  if (params_.size()) {
+    auto f = BindParamsByName(mod->Lookup("main"), params_);
+    auto gvar = mod->GetGlobalVar("main");
+    mod->Add(gvar, f);
+  }
 
   InitVM();
   targets_ = targets;
@@ -804,7 +854,7 @@ void VMCompiler::Compile(const Module& mod_ref,
 
   // Run some optimizations first, this code should
   // be moved to pass manager.
-  context_.module = OptimizeModule(mod_ref, targets_);
+  context_.module = OptimizeModule(mod, targets_);
 
   // Populate the global map.
   //

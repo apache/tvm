@@ -100,11 +100,29 @@ class VMCompiler : public runtime::ModuleNode {
     vm_ = std::make_shared<VirtualMachine>();
   }
 
-  void Compile(const Module& mod_ref,
+  /*!
+   * \brief Set the parameters
+   *
+   * \param name name of parameter
+   * \param data_in input DLTensor
+   */
+  void SetParam(const std::string& name, runtime::NDArray data_in);
+
+  void Compile(Module mod,
                const TargetsMap& targets,
                const tvm::Target& target_host);
 
  protected:
+  /*!
+   * \brief Bind params to function by using name
+   * \param func Relay function
+   * \param params params dict
+   * \return relay::Function
+   */
+  relay::Function BindParamsByName(
+      relay::Function func,
+      const std::unordered_map<std::string, runtime::NDArray>& params);
+
   Module OptimizeModule(const Module& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
@@ -120,6 +138,8 @@ class VMCompiler : public runtime::ModuleNode {
   VMCompilerContext context_;
   /*! \brief Compiled virtual machine. */
   std::shared_ptr<VirtualMachine> vm_;
+  /*! \brief parameters */
+  std::unordered_map<std::string, runtime::NDArray> params_;
 };
 
 }  // namespace vm

@@ -49,8 +49,9 @@ class VMCompilerProfiler(vm.VMCompiler):
         self.mod = _vm._VMCompilerProfiler()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
+        self._set_params_func = self.mod["set_params"]
 
-    def compile(self, mod, target=None, target_host=None):
+    def compile(self, mod, target=None, target_host=None, params=None):
         """
         Parameters
         ----------
@@ -71,13 +72,25 @@ class VMCompilerProfiler(vm.VMCompiler):
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.
 
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+
         Returns
         -------
         vm : VirtualMachineProfiler
             The profile VM runtime.
         """
         target = _update_target(target)
-        self._compile(mod, target, target_host)
+        target_host = self.update_target_host(target, target_host)
+
+        if params:
+            self.set_params(params)
+
+        tophub_context = self.tophub_context(target)
+
+        with tophub_context:
+            self._compile(mod, target, target_host)
         return VirtualMachineProfiler(self._get_vm())
 
 class VirtualMachineProfiler(vm.VirtualMachine):
