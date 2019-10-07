@@ -136,7 +136,7 @@ class Session:
 
         print('flashing to device')
         proc = subprocess.Popen(
-                ["make", "flash"],
+                ["make", "blinky.elf"],
                 cwd=nucleo_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT)
@@ -168,7 +168,6 @@ class Session:
         #print('TVMAPISetLastError: ' + sym_map['TVMAPISetLastError'])
 
         # TODO: we might need to start OpenOCD in a separate process
-        input('start openocd! ')
         # wait until the server has started up until attempting to connect in C++
         #openocd_script_dir = '/usr/share/openocd/scripts'
         #cmd = [

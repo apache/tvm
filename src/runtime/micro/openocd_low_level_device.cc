@@ -52,14 +52,12 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
   void Connect() {
     socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
-
-    // run through system init once
-    socket_.cmd_builder() << "reset run";
+    socket_.cmd_builder() << "halt";
     socket_.SendCommand();
-    socket_.cmd_builder() << "wait_halt " << kWaitTime;
+    std::cout << "LOADING BINARY" << std::endl;
+    socket_.cmd_builder() << "load_image /home/pratyush/Code/nucleo-interaction-from-scratch/blinky.elf";
     socket_.SendCommand();
-    socket_.cmd_builder() << "halt 0";
-    socket_.SendCommand();
+    std::cout << "FINISHED LOADING BINARY" << std::endl;
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
