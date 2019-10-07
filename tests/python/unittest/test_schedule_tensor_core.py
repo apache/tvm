@@ -98,20 +98,21 @@ def intrin_wmma_store_matrix():
     return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
-def test_tensor_core_gemm():
-    n = 4096
+def test_tensor_core_batch_matmal():
+    batch_size = 20
+    n = 2048
     m, l = n, n
     assert (n % 16 == 0)
     assert (m % 16 == 0)
     assert (l % 16 == 0)
     nn, mm, ll = n // 16, m // 16, l // 16
-    A = tvm.placeholder((nn, ll, 16, 16), name='A', dtype='float16')
-    B = tvm.placeholder((ll, mm, 16, 16), name='B', dtype='float16')
+    A = tvm.placeholder((batch_size, nn, ll, 16, 16), name='A', dtype='float16')
+    B = tvm.placeholder((batch_size, ll, mm, 16, 16), name='B', dtype='float16')
     k1 = tvm.reduce_axis((0, ll), name='k1')
     k2 = tvm.reduce_axis((0, 16), name='k2')
-    C = tvm.compute((nn, mm, 16, 16),
-                    lambda i, j, ii, jj:
-                    tvm.sum(A[i, k1, ii, k2].astype('float') * B[k1, j, k2, jj].astype('float'), axis=[k1, k2]),
+    C = tvm.compute((batch_size, nn, mm, 16, 16),
+                    lambda b, i, j, ii, jj:
+                    tvm.sum(A[b, i, k1, ii, k2].astype('float') * B[b, k1, j, k2, jj].astype('float'), axis=[k1, k2]),
                     name='Fragment_C')
     s = tvm.create_schedule(C.op)
 
@@ -125,6 +126,7 @@ def test_tensor_core_gemm():
 
     block_x = tvm.thread_axis('blockIdx.x')
     block_y = tvm.thread_axis('blockIdx.y')
+    block_z = tvm.thread_axis('blockIdx.z')
     thread_x = tvm.thread_axis('threadIdx.x')
     thread_y = tvm.thread_axis('threadIdx.y')
     thread_z = tvm.thread_axis('threadIdx.z')
@@ -135,19 +137,20 @@ def test_tensor_core_gemm():
     BF = s.cache_read(BS, 'wmma.matrix_b', [C])
     CF = s.cache_write(C, 'wmma.accumulator')
 
-    i, j, kernel_i, kernel_j = s[C].op.axis
+    b, i, j, kernel_i, kernel_j = s[C].op.axis
     i, ii = s[C].split(i, factor=warp_row_tiles)
     block_i, i = s[C].split(i, factor=block_row_warps)
     j, jj = s[C].split(j, factor=warp_col_tiles)
     block_j, j = s[C].split(j, factor=block_col_warps)
     s[C].reorder(block_i, block_j, i, j, ii, jj, kernel_i, kernel_j)
+    s[C].bind(b, block_z)
     s[C].bind(block_i, block_x)
     s[C].bind(block_j, block_y)
     s[C].bind(i, thread_y)
     s[C].bind(j, thread_z)
 
     s[CF].compute_at(s[C], j)
-    warp_i, warp_j, _i, _j = s[CF].op.axis
+    b, warp_i, warp_j, _i, _j = s[CF].op.axis
     k, _k = CF.op.reduce_axis
     ko, ki = s[CF].split(k, factor=chunk)
     s[CF].reorder(ko, ki, warp_i, warp_j, _i, _j, _k)
@@ -156,7 +159,7 @@ def test_tensor_core_gemm():
     s[BF].compute_at(s[CF], ki)
 
     s[AS].compute_at(s[CF], ko)
-    xo, yo, xi, yi = AS.op.axis
+    b, xo, yo, xi, yi = AS.op.axis
     tx, xo = s[AS].split(xo, nparts=block_row_warps)
     ty, yo = s[AS].split(yo, nparts=block_col_warps)
     t = s[AS].fuse(xi, yi)
@@ -167,7 +170,7 @@ def test_tensor_core_gemm():
     s[AS].vectorize(ti)
 
     s[BS].compute_at(s[CF], ko)
-    xo, yo, xi, yi = BS.op.axis
+    b, xo, yo, xi, yi = BS.op.axis
     tx, xo = s[BS].split(xo, nparts=block_row_warps)
     ty, yo = s[BS].split(yo, nparts=block_col_warps)
     t = s[BS].fuse(xi, yi)
@@ -184,23 +187,23 @@ def test_tensor_core_gemm():
     func = tvm.build(s, [A, B, C], 'cuda')
 
     ctx = tvm.gpu(0)
-    a_np = np.random.uniform(size=(nn, nn, 16, 16)).astype(A.dtype)
-    b_np = np.random.uniform(size=(nn, nn, 16, 16)).astype(B.dtype)
+    a_np = np.random.uniform(size=(batch_size, nn, nn, 16, 16)).astype(A.dtype)
+    b_np = np.random.uniform(size=(batch_size, nn, nn, 16, 16)).astype(B.dtype)
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(b_np, ctx)
-    c = tvm.nd.array(np.zeros((nn, nn, 16, 16), dtype=C.dtype), ctx)
+    c = tvm.nd.array(np.zeros((batch_size, nn, nn, 16, 16), dtype=C.dtype), ctx)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
     print('gemm with tensor core: %f ms' % (evaluator(a, b, c).mean * 1e3))
 
     if VERIFY:
         func(a, b, c)
-        a_np = a_np.transpose(0, 2, 1, 3).reshape(n, n)
-        b_np = b_np.transpose(0, 2, 1, 3).reshape(n, n)
-        c_np = c.asnumpy().transpose(0, 2, 1, 3).reshape(n, n)
-        np.testing.assert_allclose(c_np, np.dot(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4)
+        a_np = a_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
+        b_np = b_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
+        c_np = c.asnumpy().transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
+        np.testing.assert_allclose(c_np, np.matmul(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4)
 
 
-def test_tensor_core_conv():
+def test_tensor_core_batch_conv():
     # The sizes of inputs and filters
     batch_size = 256
     height = 14
@@ -364,5 +367,5 @@ if __name__ == '__main__':
     if not nvcc.have_tensorcore(ctx.compute_version):
         print("skip because gpu does not support tensor core")
     else:
-        test_tensor_core_gemm()
-        test_tensor_core_conv()
+        test_tensor_core_batch_matmal()
+        test_tensor_core_batch_conv()
