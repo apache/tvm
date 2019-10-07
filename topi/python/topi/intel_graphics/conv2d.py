@@ -155,8 +155,12 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     s[tensor].bind(xi, thread_x)
     return xi, thread_z, thread_y, thread_x
 
+# Define template function for autotvm task
+# We define schedule template in this function instead of
+# declaration function since actual input arguments need
+# to be altered by the schedule selected.
 @autotvm.task.register("topi_intel_graphics_conv2d_NCHWc")
-def topi_nn_conv2d_NCHWc(*args, **kwargs):
+def __topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
     data, kernel, strides, padding, dilation, layout, dtype = deserialize_args(args)
     raw_data_shape = get_const_tuple(data.shape)
