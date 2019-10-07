@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -100,7 +101,13 @@ def test_binary_op():
 def test_softmax_grad():
     data = relay.var("data", relay.TensorType((1, 16), "float64"))
     fwd_func = relay.Function([data], relay.nn.softmax(data))
-    check_grad(fwd_func)
+    check_grad(fwd_func, scale=1)
+
+
+def test_log_softmax_grad():
+    data = relay.var("data", relay.TensorType((2, 16), "float64"))
+    fwd_func = relay.Function([data], relay.nn.log_softmax(data))
+    check_grad(fwd_func, scale=1)
 
 
 def test_bias_add_grad():
@@ -111,6 +118,4 @@ def test_bias_add_grad():
 
 
 if __name__ == "__main__":
-    test_unary_op()
-    test_binary_op()
-    test_bias_add_grad()
+    pytest.main([__file__])
