@@ -19,7 +19,9 @@ from tvm import relay
 from tvm.relay import Function, transform
 from tvm.relay.analysis import alpha_equal, graph_equal, free_vars, assert_alpha_equal
 from tvm.relay.op import log, add, equal, subtract
+from tvm.relay.testing import inception_v3
 
+import pytest
 
 class env:
     def __init__(self):
@@ -129,6 +131,12 @@ def test_tuple_get_item():
     assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
 
 
+@pytest.mark.timeout(timeout=10, method="thread")
+def test_complexity():
+    g = inception_v3.get_net(1, 1000, (3, 299, 299), 'float32')
+    run_opt_pass(g, transform.DeadCodeElimination())
+
+
 if __name__ == "__main__":
     test_let()
     test_used_let()
@@ -138,3 +146,4 @@ if __name__ == "__main__":
     test_recursion_dead()
     test_op_let()
     test_tuple_get_item()
+    test_complexity()
