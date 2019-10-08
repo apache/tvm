@@ -21,6 +21,7 @@ Prior to this application, please take a look at `<tvm-root>/vta/apps/tsim_examp
 This is an application that performs Bit Serial Multiplication for GEMM utilizing TSIM.
 
 Bit Serial Multiplication for GEMM:
+
 General Matrix Multiplications (GEMM), are mostly calculated by repeatly calculating the dot product for each pair of vectors.
 The dot product is calculated by summing every product of the vector pair.
 We approach this operation with slicing and shifting, like how basic multiplication works, each vector elements before we accumulate them.
