@@ -336,6 +336,14 @@ inline Expr ZerosLike(Expr e) {
   return CallNode::make(op, {e});
 }
 
+inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
+  auto attrs = make_node<InitOpAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("zeros");
+  return CallNode::make(op, {}, Attrs(attrs), {});
+}
+
 inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
   return CallNode::make(op, {e});
