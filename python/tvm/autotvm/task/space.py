@@ -72,6 +72,7 @@ class TransformSpace(object):
         self.ins = []
         self.num_output = 0
         self.entities = []
+        self.entity_hash_set = set()
 
     def __len__(self):
         return len(self.entities)
@@ -88,6 +89,50 @@ class TransformSpace(object):
         transform entity
         """
         return self.entities[index]
+
+    def similar(self, other):
+        """Compute the similarity between this space and the other.
+
+        Parameters
+        ----------
+        other: TransformSpace
+            the other space to be computed.
+
+        Returns
+        -------
+        rate: float
+            return the similarity rate between two spaces.
+        """
+        if not isinstance(other, self.__class__):
+            return 0
+
+        if not self.entity_hash_set:
+            self.entity_hash_set = set([self.hash_entity(cfg) for cfg in self.entities])
+
+        overlap = 0
+        diff = 0
+        for config in other.entities:
+            hash_key = self.hash_entity(config)
+            if hash_key in self.entity_hash_set:
+                overlap += 1
+            else:
+                diff += 1
+        return overlap / (len(self.entity_hash_set) + diff)
+
+    @staticmethod
+    def hash_entity(entity):
+        """Hash the entity to a hashtable value.
+
+        Parameters
+        ----------
+        entity: Entity
+            an entity object to be hashed.
+
+        Returns
+        -------
+        the hashed object.
+        """
+        raise NotImplementedError()
 
     @staticmethod
     def get_num_output():
@@ -188,6 +233,7 @@ class SplitSpace(TransformSpace):
 
         self.policy = policy
         self.entities = []
+        self.entity_hash_set = set()
 
         max_factor = kwargs.get("max_factor", 1 << 31)
         fil = kwargs.get("filter", lambda x: True)
@@ -233,6 +279,10 @@ class SplitSpace(TransformSpace):
             for factor in self.factors:
                 tmp_stack[now] = factor
                 self._generate_space(now + 1, tmp_stack, enforce_no_tail)
+
+    @staticmethod
+    def hash_entity(entity):
+        return tuple(entity.size)
 
     @staticmethod
     def get_num_output(axes, policy, **kwargs):
@@ -336,6 +386,10 @@ class ReorderSpace(TransformSpace):
                     self.entities.append(ReorderEntity(o + r + inner_merged))
         else:
             raise RuntimeError("Invalid policy: " + policy)
+
+    @staticmethod
+    def hash_entity(entity):
+        return tuple(entity.perm)
 
     @staticmethod
     def get_num_output(axes, policy, **kwargs):
@@ -486,6 +540,10 @@ class AnnotateSpace(TransformSpace):
                 self._generate_space(now + 1, tmp_stack)
 
     @staticmethod
+    def hash_entity(entity):
+        return tuple(entity.anns)
+
+    @staticmethod
     def get_num_output(axes, policy, **kwargs):
         return len(axes)
 
@@ -580,6 +638,10 @@ class OtherOptionSpace(TransformSpace):
 
         candidate = kwargs["candidate"]
         self.entities = [OtherOptionEntity(x) for x in candidate]
+
+    @staticmethod
+    def hash_entity(entity):
+        return entity.val
 
     @staticmethod
     def get_num_output(axes, policy, **kwargs):

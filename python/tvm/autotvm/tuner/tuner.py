@@ -170,11 +170,8 @@ class Tuner(object):
             # running out
             if not configs:
                 if self.tune_depend_only:
-                    i = 0  # Reset the trial
-                    logger.debug(
-                        'Fallback to normal tuning because all dependent configs are not working'
-                    )
-                self.tune_depend_only = False
+                    logger.warning('Fallback because all dependent configs are not working')
+                    return
                 configs = self.next_batch(min(n_parallel, n_trial - i))
 
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
