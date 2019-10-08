@@ -28,14 +28,132 @@ Cora dataset is a common benchmark for Graph Neural Networks (GNN) and framework
 
 We directly load the dataset from DGL library to do the apples to apples comparison against DGL.
 
-Please refer to DGL tutorial on installation at
+Please refer to DGL doc for DGL installation at
 https://docs.dgl.ai/install/index.html
 
-GPU support and more sparse operators will soon follow.
+and refer to PyTorch guide for PyTorch installation at
+https://pytorch.org/get-started/locally/
 """
 
+
 ######################################################################
-# Define Graph Convolution Layer
+# Define GCN in DGL with PyTorch backend
+# ------------------
+#
+# DGL example: https://github.com/dmlc/dgl/tree/master/examples/pytorch/gcn
+# This part reuses the code from the above example
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dgl.nn.pytorch import GraphConv
+
+class GCN(nn.Module):
+    def __init__(self,
+                 g,
+                 n_infeat,
+                 n_hidden,
+                 n_classes,
+                 n_layers,
+                 activation):
+        super(GCN, self).__init__()
+        self.g = g
+        self.layers = nn.ModuleList()
+        self.layers.append(GraphConv(n_infeat, n_hidden, activation=activation))
+        for i in range(n_layers - 1):
+            self.layers.append(GraphConv(n_hidden, n_hidden, activation=activation))
+        self.layers.append(GraphConv(n_hidden, n_classes))
+
+    def forward(self, features):
+        h = features
+        for i, layer in enumerate(self.layers):
+            h = layer(self.g, h)
+        return h
+
+
+######################################################################
+# Load the dataset with DGL utilities
+# ------------------
+# You may substitute this part with your own dataset, here we load data from DGL
+
+from dgl import DGLGraph
+from dgl.data import load_data
+from collections import namedtuple
+
+def load_dataset(dataset="cora"):
+    args = namedtuple("args", ["dataset"])
+    data = load_data(args(dataset))
+
+    # Remove self-loops to avoid duplicate passing of a node's feature to itself
+    g = data.graph
+    g.remove_edges_from(g.selfloop_edges())
+    g.add_edges_from(zip(g.nodes, g.nodes))
+
+    return g, data
+
+######################################################################
+# Set up model Parameters
+# ------------------
+"""
+Parameters
+----------
+dataset: str
+    Name of dataset. You can choose from ['cora', 'citeseer', 'pubmed']. 
+
+num_layer: int
+    number of hidden layers
+
+num_hidden: int
+    number of the hidden units in the hidden layer
+
+infeat_dim: int
+    dimension of the input features
+
+num_classes: int
+    dimension of model output (Number of classes)
+"""
+dataset = "cora"
+
+g, data = load_dataset(dataset)
+
+num_layers = 1
+num_hidden = 16
+infeat_dim = data.features.shape[1]
+num_classes = data.num_labels
+
+######################################################################
+# Set up the DGL-PyTorch model and get the golden results
+# ------------------
+#
+# The weights are trained with https://github.com/dmlc/dgl/blob/master/examples/pytorch/gcn/train.py
+from tvm.contrib.download import download_testdata
+
+
+features = torch.FloatTensor(data.features)
+dgl_g = DGLGraph(g)
+
+torch_model = GCN(dgl_g,
+                  infeat_dim,
+                  num_hidden,
+                  num_classes,
+                  num_layers,
+                  F.relu)
+
+# Download the pretrained weights
+model_url = "https://homes.cs.washington.edu/~cyulin/media/gcn_%s.torch"%(dataset)
+model_path = download_testdata(model_url, "gcn_%s.pickle"%(dataset), module='gcn_model')
+
+# Load the weights into the model
+torch_model.load_state_dict(torch.load(model_path))
+
+# Run the DGL model
+torch_model.eval()
+with torch.no_grad():
+    logits_torch = torch_model(features)
+print("Print the first five outputs from DGL-PyTorch execution\n", logits_torch[:5])
+
+######################################################################
+# Define Graph Convolution Layer in Relay
 # ----------------------------
 # To run GCN on TVM, we first need to implement Graph Convolution Layer.
 #
@@ -51,14 +169,7 @@ GPU support and more sparse operators will soon follow.
 #                                        = ((W^t * H^t) * A^t)^t
 from tvm import relay
 from tvm.contrib import graph_runtime
-import tvm, dgl, scipy
-import numpy as np
-import networkx as nx
-from collections import namedtuple
-from dgl.data import load_data
-
-from tvm.contrib.download import download_testdata
-import pickle
+import tvm
 
 def GraphConv(layer_name,
               input_dim,
@@ -91,7 +202,7 @@ def GraphConv(layer_name,
     Norm passed to this layer to normalize features before and after Convolution.
 
     bias: bool
-    Set bias to True to add bias when doing gcn layer
+    Set bias to True to add bias when doing GCN layer
 
     activation: <function relay.op.nn>,
     Activation function applies to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
@@ -119,25 +230,19 @@ def GraphConv(layer_name,
     return output_t
 
 ######################################################################
-# Load the dataset
+# Prepare the parameters needed in the GraphConv layers
 # ------------------
-# You may substitute this part with your own dataset, here we load data from DGL to benchmark
+# 
+import numpy as np
+import networkx as nx
 
-def load_dataset(dataset="cora"):
-    args = namedtuple("args", ["dataset"])
-    data = load_data(args(dataset))
-
+def prepare_params(g, data):
     params = {}
     params['infeats'] = data.features.astype('float32') # Only support float32 as feature for now
 
-    # Remove self-loops to avoid duplicate passing of a node's feature to itself
-    g = data.graph
-    g.remove_edges_from(g.selfloop_edges())
-    g.add_edges_from(zip(g.nodes, g.nodes))
-
     # Generate adjacency matrix
     adjacency = nx.to_scipy_sparse_matrix(g)
-    params['data'] = adjacency.data.astype('float32')
+    params['g_data'] = adjacency.data.astype('float32')
     params['indices'] = adjacency.indices.astype('int32')
     params['indptr'] = adjacency.indptr.astype('int32')
 
@@ -146,136 +251,84 @@ def load_dataset(dataset="cora"):
     params['norm'] = np.power(degs, -0.5).astype('float32')
     params['norm'] = params['norm'].reshape((params['norm'].shape[0], 1))
 
-    return data, params
+    return params
 
-######################################################################
-# Set up model Parameters
-# ------------------
+params = prepare_params(g, data)
 
-"""
-Parameters
-----------
-num_hidden: int
-    number of hidden layers
-
-hidden_dim: list of int
-    input dimension of hidden layers
-
-num_classes: int
-    dimension of model output (Number of classes)
-
-target: str
-    currently only support llvm
-
-activation: <function relay.op.nn>,
-    Activation function applied to the output. e.g. relay.nn.{relu, sigmoid, log_softmax, softmax, leaky_relu}
-
-dataset: str
-    Name of dataset. You can pick from ['cora', 'citeseer', 'pubmed'] or you can use your own.
-"""
-
-dataset = "cora"
-data, params = load_dataset(dataset)
-
-num_hidden = 1
-hidden_dim = [16]
-num_classes = data.num_labels
-test_mask = data.test_mask
-labels = data.labels
-target = 'llvm'
-activation = relay.nn.relu
-
-# Check shape of features
+# Check shape of features and the validity of adjacency matrix
 assert len(params['infeats'].shape) == 2
-nnodes, input_dim = params['infeats'].shape
-
-# Check validity of adjacency matrix
-assert params['data'] is not None and params['indices'] is not None and params['indptr'] is not None
-assert nnodes == params['indptr'].shape[0] - 1
+assert params['g_data'] is not None and params['indices'] is not None and params['indptr'] is not None
+assert params['infeats'].shape[0] == params['indptr'].shape[0] - 1
 
 ######################################################################
 # Put layers together
 # ------------------
 
-# Define input features, norms, adjacency matrix
-infeats = relay.var("infeats", shape=(nnodes, input_dim))
-
+# Define input features, norms, adjacency matrix in Relay
+infeats = relay.var("infeats", shape=data.features.shape)
 norm = relay.Constant(tvm.nd.array(params['norm']))
-
-data = relay.Constant(tvm.nd.array(params['data']))
+g_data = relay.Constant(tvm.nd.array(params['g_data']))
 indices = relay.Constant(tvm.nd.array(params['indices']))
 indptr = relay.Constant(tvm.nd.array(params['indptr']))
 
 Adjacency = namedtuple('Adjacency', ['data', 'indices', 'indptr'])
-adj = Adjacency(data, indices, indptr)
+adj = Adjacency(g_data, indices, indptr)
 
-# Construct a 2-layer GCN
+# Construct the 2-layer GCN
 layers = []
-
 layers.append(GraphConv(
     layer_name="layers.0",
-    input_dim=input_dim,
-    output_dim=hidden_dim[0],
+    input_dim=infeat_dim,
+    output_dim=num_hidden,
     adj=adj,
     input=infeats,
     norm=norm,
-    activation=activation
+    activation=relay.nn.relu
 ))
-
 layers.append(GraphConv(
     layer_name="layers.1",
-    input_dim=hidden_dim[0],
+    input_dim=num_hidden,
     output_dim=num_classes,
     adj=adj,
     input=layers[-1],
     norm=norm,
-    activation=activation
+    activation=None
 ))
 
+# Analyze free variables and generate Relay function
 output = layers[-1]
-
-# Analyze free variables and generate function
 func = relay.Function(relay.analysis.free_vars(output), output)
 
 ######################################################################
-# Compile and run
+# Compile and run with TVM
 # ------------------
 #
-# DGL version: https://github.com/dmlc/dgl/blob/master/examples/mxnet/gcn/gcn.py
 
-# Download pretrained GCN model
-model_url = "https://homes.cs.washington.edu/~cyulin/media/gcn_%s.pickle"%(dataset)
-model_path = download_testdata(model_url, 'gcn.pickle', module='gcn_model')
+# Export the weigths from PyTorch model to Python Dict
+model_params = {}
+for param_tensor in torch_model.state_dict():
+    model_params[param_tensor] = torch_model.state_dict()[param_tensor].numpy()
 
-with open(model_path, 'rb') as fp:
-    model_params = pickle.load(fp)
-
-for i in range(num_hidden+1):
+for i in range(num_layers+1):
     params["layers.%d.weight"%(i)] = model_params["layers.%d.weight"%(i)]
     params["layers.%d.bias"%(i)] = model_params["layers.%d.bias"%(i)]
 
-# Build with relay
+# Set the TVM build target
+target = 'llvm' # Currently only support `llvm` as target
+
+# Build with Relay
 with relay.build_config(opt_level=0): # Currently only support opt_level=0
     graph, lib, params = relay.build(func, target, params=params)
-    lib.save("lib.o")
 
 # Generate graph runtime
 ctx = tvm.context(target, 0)
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input(**params)
 
-# Run the model for one time and test for accuracy
+# Run the model
 m.run()
-outval = m.get_output(0).asnumpy()
-pred = outval.argmax(axis=1)
-accuracy = ((pred == labels) * test_mask).sum() / test_mask.sum()
-print("Test accuracy {:.2%}".format(accuracy))
+logits_tvm = m.get_output(0).asnumpy()
+print("Print the first five outputs from TVM execution\n", logits_tvm[:5])
 
-# Evaluate the runtime
-print("Evaluate inference time cost...")
-timer = m.module.time_evaluator("run", ctx, number=1, repeat=10)
-tcost = timer()
-prof_res = tcost.results
-prof_res = np.array(tcost.results) * 1000  # convert to millisecond
-print("Mean inference time (std dev): %.6f ms (%.6f ms)" %
-      (np.mean(prof_res), np.std(prof_res)))
+# Verify the results with DGL-PyTorch
+tvm.testing.assert_allclose(logits_torch, logits_tvm, atol=1e-3)
