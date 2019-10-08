@@ -18,6 +18,7 @@
 import tvm
 import numpy as np
 import tsim
+import sys
 
 # bit slice
 def slice(A, slice_width):
@@ -124,8 +125,8 @@ def test_accel(A, B, w_width, a_width):
 # top_test
 #   paramters:
 #     dtype: String, datatype generated (supports only uint)
-#     w_width: weight bit slice width (needs to be less than actual bit width)
-#     a_width: activation bit slice width (needs to be less than actual bit width)
+#     w_width: weight bit slices(needs to be less than actual bit width)
+#     a_width: activation bit slices(needs to be less than actual bit width)
 
 def top_test(dtype, w_width, a_width):
 
@@ -149,5 +150,10 @@ def top_test(dtype, w_width, a_width):
 if __name__ == "__main__":
     tsim.init("chisel")
     for i in range(1):
-        # any uint with any slices less than actual bit length
-        top_test("uint8",4, 2)
+        # reg1 and reg2 bits in Compute.scala must be modified for slices greater than 8 bits
+        if sys.argv[1] == 'serial':
+          # generates a random uint8 GEMM with 2-bit(8/4) weight and 4-bit(8/2) activation 
+          top_test("uint8",4, 2)
+        elif sys.argv[1] == 'parallel':
+          # generates a random uint8 GEMM with 8-bit weight and 8-bit activation (bit parallel) 
+          top_test('uint8', 1, 1)

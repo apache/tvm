@@ -21,10 +21,13 @@ BUILD_NAME = build
 build_dir = $(abspath .)/$(BUILD_NAME)
 
 default: chisel driver
-	python3 tests/python/chisel_accel.py
+	python3 tests/python/chisel_accel.py serial
 
-test:  
-	python3 tests/python/chisel_accel.py
+serial:  
+	python3 tests/python/chisel_accel.py serial
+
+parallel:
+	python3 tests/python/chisel_accel.py parallel
 
 driver: | $(build_dir)
 	cd $(build_dir) && cmake .. && make
