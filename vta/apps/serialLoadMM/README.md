@@ -31,9 +31,9 @@ This is an application that performs Bit Serial Multiplication for GEMM utilizin
     * Go to `<tvm-root>/vta/apps/serialLoadMM`
     * Create custom circuit within `./hardware/chisel/src/scala.main/accel/Compute.scala`
     * Map the according Registers in `./hardware/chisel/src/scala.main/accel/RegFile.scala`
-    * Map the registers in `./src/driver.cc` and link it with the python test script
-    * Create your python test script
-    * Understanding of `<tvm-root>/vta/apps/tsim_example`, which performs add by one to a vector, is essential to create a more complex application
+    * Create your test script
+    * Map the registers in `./src/driver.cc` and link it with both `RegFile.scala` and the test script
+    * Understanding of `<tvm-root>/vta/apps/tsim_example`, which performs add by one to a vector, is highly encouraged to create a more complex application
 
 * Some pointers
     * Chisel3 tests in `<tvm-root>/vta/apps/serialLoadMM/tests/python`
