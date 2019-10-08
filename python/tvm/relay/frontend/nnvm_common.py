@@ -127,7 +127,6 @@ def _binop_scalar(new_op):
     def _impl(inputs, attrs):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
         dtype = _infer_type(inputs[0]).checked_type.dtype
         scalar = _expr.const(scalar, dtype=dtype)
         return new_op(inputs[0], scalar)
@@ -138,7 +137,6 @@ def _rbinop_scalar(new_op):
     def _impl(inputs, attrs):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
         dtype = _infer_type(inputs[0]).checked_type.dtype
         scalar = _expr.const(scalar, dtype=dtype)
         return new_op(scalar, inputs[0])
