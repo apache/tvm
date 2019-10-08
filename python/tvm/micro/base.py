@@ -114,7 +114,6 @@ class Session:
         include_str = "#include \"utvm_runtime.h\""
         split_idx = runtime_src.index(include_str) + len(include_str) + 2
         merged_src = (runtime_src[:split_idx] \
-                + "#include \"stm32f7xx_nucleo_144.h\"\n" \
                 + op_srcs \
                 + runtime_src[split_idx:] \
                 # TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
