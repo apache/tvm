@@ -27,12 +27,13 @@ The dot product is calculated by summing every product of the vector pair.
 We approach this operation with slicing and shifting, like how basic multiplication works, each vector elements before we accumulate them.
 We can sufficiently reduce the cycles required to perform a gemm given that the data bit width is small. This GEMM application uses TSIM for future accerlerator prototypes.
 
-* Test Chisel3 backend
+* Test Chisel3 backend with bit serial GEMM
     * Go to `<tvm-root>/vta/apps/gemm`
     * Run `make`
 
-* Testing on compiled backend
-    * If you have already compile chisel backend and want test with another input set, run `make test`
+* If you have already compiled chisel backend (i.e. ran `make`) 
+    * Bit Serial test with another input set, run `make serial`
+    * Bit parallel test with another input set, run `make parallel`
 
 * Some steps for creating your own custom TSIM application
     * Go to `<tvm-root>/vta/apps/gemm`
