@@ -72,7 +72,7 @@ class GCN(nn.Module):
 
 
 ######################################################################
-# Load the dataset with DGL utilities
+# Define the functions to load dataset and evaluate accuracy
 # ------------------
 # You may substitute this part with your own dataset, here we load data from DGL
 
@@ -91,8 +91,16 @@ def load_dataset(dataset="cora"):
 
     return g, data
 
+def evaluate(data, logits):
+    test_mask = data.test_mask # the test set which isn't included in the training phase
+
+    pred = logits.argmax(axis=1)
+    acc = ((pred == data.labels) * test_mask).sum() / test_mask.sum()
+
+    return acc
+
 ######################################################################
-# Set up model Parameters
+# Load the data and set up model parameters
 # ------------------
 """
 Parameters
@@ -146,11 +154,16 @@ model_path = download_testdata(model_url, "gcn_%s.pickle"%(dataset), module='gcn
 # Load the weights into the model
 torch_model.load_state_dict(torch.load(model_path))
 
-# Run the DGL model
+######################################################################
+# Run the DGL model and test for accuracy
+# ------------------
 torch_model.eval()
 with torch.no_grad():
     logits_torch = torch_model(features)
 print("Print the first five outputs from DGL-PyTorch execution\n", logits_torch[:5])
+
+acc = evaluate(data, logits_torch.numpy())
+print("Test accuracy of DGL results: {:.2%}".format(acc))
 
 ######################################################################
 # Define Graph Convolution Layer in Relay
@@ -325,10 +338,18 @@ ctx = tvm.context(target, 0)
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input(**params)
 
-# Run the model
+######################################################################
+# Run the TVM model, test for accuracy and verify with DGL
+# ------------------
 m.run()
 logits_tvm = m.get_output(0).asnumpy()
 print("Print the first five outputs from TVM execution\n", logits_tvm[:5])
 
-# Verify the results with DGL-PyTorch
+labels = data.labels
+test_mask = data.test_mask
+
+acc = evaluate(data, logits_tvm)
+print("Test accuracy of TVM results: {:.2%}".format(acc))
+
+# Verify the results with the DGL model
 tvm.testing.assert_allclose(logits_torch, logits_tvm, atol=1e-3)
