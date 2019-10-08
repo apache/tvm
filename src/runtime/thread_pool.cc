@@ -47,8 +47,7 @@ namespace tvm {
 namespace runtime {
 namespace {
 
-//constexpr uint32_t kDefaultSpinCount = 300000;
-constexpr uint32_t kDefaultSpinCount = 0;
+constexpr uint32_t kDefaultSpinCount = 300000;
 
 uint32_t GetSpinCount() {
   const char* val = getenv("TVM_THREAD_POOL_SPIN_COUNT");
