@@ -100,6 +100,9 @@ void ParseLLVMTargetOptions(const std::string& target_str,
       *mattr = value;
     } else if (key == "-mfloat-abi") {
       if (value == "hard") {
+#if TVM_LLVM_VERSION < 60
+        LOG(FATAL) << "-mfloat-abi hard is only supported for LLVM > 6.0";
+#endif
         soft_float_abi = false;
       } else if (value == "soft") {
         soft_float_abi = true;
