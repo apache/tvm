@@ -1161,6 +1161,8 @@ double ToScalar(const runtime::NDArray& array) {
     }
   }
   LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
 }
 
 bool ArangeRel(const Array<Type>& types,
