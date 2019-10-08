@@ -580,8 +580,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto gvit = this->global_map.find(func_name);
       CHECK(gvit != this->global_map.end()) << "Cannot find function " << func_name;
       auto func_index = gvit->second;
-      auto const& vm_func = this->functions[func_index];
-      auto const& param_names = vm_func.params;
+      const auto& vm_func = this->functions[func_index];
+      const auto& param_names = vm_func.params;
       auto ctx = this->GetParamsContext();
 
       // Prepare the func args
