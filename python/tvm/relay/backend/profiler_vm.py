@@ -23,25 +23,6 @@ Provides extra APIs for profiling vm execution.
 import tvm
 from . import vm, _vm
 
-def _update_target(target):
-    target = target if target else tvm.target.current_target()
-    if target is None:
-        raise ValueError("Target is not set in env or passed as argument.")
-
-    tgts = {}
-    if isinstance(target, (str, tvm.target.Target)):
-        dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
-        tgts[dev_type] = tvm.target.create(target)
-    elif isinstance(target, dict):
-        for dev, tgt in target.items():
-            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
-            tgts[dev_type] = tvm.target.create(tgt)
-    else:
-        raise TypeError("target is expected to be str, tvm.target.Target, " +
-                        "or dict of str to str/tvm.target.Target, but received " +
-                        "{}".format(type(target)))
-    return tgts
-
 class VMCompilerProfiler(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
@@ -81,7 +62,7 @@ class VMCompilerProfiler(vm.VMCompiler):
         vm : VirtualMachineProfiler
             The profile VM runtime.
         """
-        target = _update_target(target)
+        target = self.update_target(target)
         target_host = self.update_target_host(target, target_host)
 
         if params:
