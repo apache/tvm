@@ -29,6 +29,9 @@
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
+#ifdef USE_OMP
+#include <omp.h>
+#endif
 #include <thread>
 #include <condition_variable>
 #include <mutex>
@@ -39,7 +42,6 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#include <omp.h>
 
 const constexpr int kL1CacheBytes = 64;
 
@@ -410,9 +412,9 @@ int TVMBackendParallelLaunch(
   } else {
 #if defined(_M_X64) || defined(__x86_64__)
   // Half to not count hyper threading.
-  num_workers = std::thread::hardware_concurrency() / 2;
+    num_workers = std::thread::hardware_concurrency() / 2;
 #else
-  num_workers = std::thread::hardware_concurrency();
+    num_workers = std::thread::hardware_concurrency();
 #endif
   }
   num_workers = std::max(num_workers, 1);
@@ -424,9 +426,9 @@ int TVMBackendParallelLaunch(
     env.num_task = num_task;
     std::atomic<int32_t>* sync_counter = new std::atomic<int>[num_task * tvm::runtime::kSyncStride];
     for (int i = 0; i < num_task; ++i) {
-        sync_counter[i * tvm::runtime::kSyncStride].store(
-            0, std::memory_order_relaxed);
-      }
+      sync_counter[i * tvm::runtime::kSyncStride].store(
+          0, std::memory_order_relaxed);
+    }
     env.sync_handle = sync_counter;
     (*flambda)(omp_get_thread_num(), &env, cdata);
   }
