@@ -20,7 +20,6 @@ The Relay Virtual Machine profiler.
 
 Provides extra APIs for profiling vm execution.
 """
-import tvm
 from . import vm, _vm
 
 class VMCompilerProfiler(vm.VMCompiler):
