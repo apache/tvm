@@ -98,6 +98,13 @@ def schedule_pool(outs, layout):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
+            # Average pool accumulation and division happens in different for loops (#3607).
+            # To ensure good parallel support, apply multi-threading on the second loop.
+            if OP != outs[0].op:
+                output = outs[0]
+                output_fused = s[output].fuse(output.op.axis[0], output.op.axis[1])
+                s[output].parallel(output_fused)
+
             PaddedInput = OP.input_tensors[0]
             Pool = OP.output(0)
             _schedule(PaddedInput, Pool)
