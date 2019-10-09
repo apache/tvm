@@ -165,13 +165,6 @@ class GccBuilder : public ExprVisitor {
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths(
-      const std::string& id = "") const override {
-    CHECK_GT(src_lib_path_.count(id), 0U);
-    const auto& pair = src_lib_path_.at(id);
-    return {pair.second};
-  }
-
   const std::string GetPrefix() const override {
     return "gcc_";
   }
@@ -195,9 +188,7 @@ class GccModuleNode : public ExternModuleNodeBase {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
     std::string curr_id = GetSubgraphID(name);
-    if (!IsOpen()) {
-      Open(this->GetExternLibPaths(curr_id));
-    }
+
     CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
     // Generate an external packed function
     return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args,
@@ -248,8 +239,6 @@ class GccModuleNode : public ExternModuleNodeBase {
       CHECK_GE(std::system(cmd.c_str()), 0);
       CHECK_GE(std::system("cp src/relay/backend/contrib/gcc/libs.h /tmp/"), 0);
     }
-    // Save the src and lib path.
-    src_lib_path_.emplace(sid, std::make_pair(src_path_, lib_path_));
 
     auto builder = GccBuilder(GetPrefix() + sid);
     builder.VisitExpr(func->body);
@@ -267,12 +256,12 @@ class GccModuleNode : public ExternModuleNodeBase {
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
+    Open({lib_path_});
   }
 
   void Build(const NodeRef& ref) override {
     if (ref->derived_from<FunctionNode>()) {
       CreateExternSignature(Downcast<Function>(ref), true);
-      CompileExternLib();
     } else if (ref->derived_from<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
       bool update = true;
@@ -280,17 +269,16 @@ class GccModuleNode : public ExternModuleNodeBase {
         CreateExternSignature(Downcast<Function>(it.second), update);
         update = false;
       }
-      CompileExternLib();
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
+    CompileExternLib();
   }
 
  private:
   std::string src_path_;
   std::string lib_path_;
-  std::unordered_map<std::string, std::pair<std::string, std::string> > src_lib_path_;
 };
 
 

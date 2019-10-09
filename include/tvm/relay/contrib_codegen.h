@@ -48,14 +48,6 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
   /*!
-   * \brief Get the full path of compiled external shared libraries of this compiler.
-   *
-   * \return An array of strings of the library paths.
-   */
-  virtual const std::vector<std::string> GetExternLibPaths(
-      const std::string& id = "") const = 0;
-
-  /*!
    * \brief Get the function prefix of this compiler.
    *
    * \return A string of the function name prefix in the library.

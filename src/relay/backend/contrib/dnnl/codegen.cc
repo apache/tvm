@@ -239,12 +239,6 @@ class DnnlBuilder : public ExprVisitor {
 
 class DNNLModuleNode : public ExternModuleNodeBase {
  public:
-  const std::vector<std::string> GetExternLibPaths(
-      const std::string& id = "") const override {
-    CHECK_GT(src_lib_path_.count(id), 0U);
-    const auto& pair = src_lib_path_.at(id);
-    return {pair.second};
-  }
 
   const std::string GetPrefix() const override {
     return "dnnl_";
@@ -276,9 +270,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) override {
     std::string curr_id = GetSubgraphID(name);
-    if (!IsOpen()) {
-      Open(this->GetExternLibPaths(curr_id));
-    }
+
     CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
 
     return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args,
@@ -329,9 +321,6 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       CHECK_GE(std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/"), 0);
     }
 
-    // Save the src and lib path.
-    src_lib_path_.emplace(sid, std::make_pair(src_path_, lib_path_));
-
     auto builder = DnnlBuilder(GetPrefix() + sid);
     builder.VisitExpr(func->body);
     std::string code = builder.build();
@@ -347,6 +336,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
     if (ret < 0) {
       LOG(FATAL) << "Failed to compile DNNL library. Error code: " << ret;
     }
+    Open({lib_path_});
   }
 
   void Build(const NodeRef& ref) override {
@@ -370,7 +360,6 @@ class DNNLModuleNode : public ExternModuleNodeBase {
  private:
   std::string src_path_;
   std::string lib_path_;
-  std::unordered_map<std::string, std::pair<std::string, std::string> > src_lib_path_;
 };
 
 /*!
