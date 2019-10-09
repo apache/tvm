@@ -62,8 +62,6 @@ class VMCompilerProfiler(vm.VMCompiler):
         vm : VirtualMachineProfiler
             The profile VM runtime.
 
-        params : dict
-            The parameters of the final graph.
         """
         target = self.update_target(target)
         target_host = self.update_target_host(target, target_host)
@@ -75,8 +73,7 @@ class VMCompilerProfiler(vm.VMCompiler):
 
         with tophub_context:
             self._compile(mod, target, target_host)
-        params = self.get_params()
-        return VirtualMachineProfiler(self._get_vm()), params
+        return VirtualMachineProfiler(self._get_vm())
 
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""

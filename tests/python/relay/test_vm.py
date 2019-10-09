@@ -48,14 +48,14 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         mod = relay.Module()
         mod["main"] = f
         compiler = relay.vm.VMCompiler()
-        vm, _ = compiler.compile(mod, target)
+        vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
         return vm.invoke("main", *args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
         compiler = relay.vm.VMCompiler()
-        vm, _ = compiler.compile(mod, target)
+        vm = compiler.compile(mod, target)
         vm.init(tvm.cpu())
         ret = vm.invoke("main", *args)
         return ret
@@ -583,7 +583,7 @@ def test_set_params():
     y = relay.nn.bias_add(relay.nn.dense(x, w), b)
     mod["main"] = relay.Function([x, w, b], y)
     compiler = relay.vm.VMCompiler()
-    vm, params = compiler.compile(mod, 'llvm')
+    vm = compiler.compile(mod, 'llvm')
     vm.init(tvm.cpu())
     
     x_np = np.random.uniform(size=(10, 5)).astype('float32')

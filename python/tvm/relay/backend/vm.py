@@ -221,8 +221,6 @@ class VMCompiler(object):
         vm : VirtualMachine
             The VM runtime.
 
-        params : dict
-            The parameters of the final graph.
         """
         target = self.update_target(target)
         target_host = self.update_target_host(target, target_host)
@@ -234,8 +232,7 @@ class VMCompiler(object):
 
         with tophub_context:
             self._compile(mod, target, target_host)
-        params = self.get_params()
-        return VirtualMachine(self._get_vm()), params
+        return VirtualMachine(self._get_vm())
 
 class VMExecutor(Executor):
     """
@@ -264,7 +261,7 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         compiler = VMCompiler()
-        self.vm, _ = compiler.compile(mod, target)
+        self.vm = compiler.compile(mod, target)
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):
