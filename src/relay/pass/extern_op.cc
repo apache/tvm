@@ -65,8 +65,7 @@ class ExternOpWrapper : public ExprMutator {
         Expr end = (*end_op)(update_call, compiler_);
         return end;
       }
-    }
-    else {
+    } else {
       LOG(WARNING) << op.operator->()->name << " in " << compiler_ << " is not registered";
     }
     return new_e;

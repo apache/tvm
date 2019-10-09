@@ -133,7 +133,7 @@ class VMCompiler : public runtime::ModuleNode {
 
   /* \brief Use TVM codegen to generat code for primitive functions. */
   void PrimitiveFuncCodegen();
-  
+
   /* \brief Use TVM codegen to generat code for external functions. */
   void ExternalFuncCodegen();
 

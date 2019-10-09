@@ -18,15 +18,17 @@
 #ifndef TVM_RELAY_CONTRIB_CODEGEN_H_
 #define TVM_RELAY_CONTRIB_CODEGEN_H_
 
-#include <dlpack/dlpack.h>
 #include <stdlib.h>
+#include <dlpack/dlpack.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/util.h>
+
 #include <string>
+#include <vector>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -82,7 +84,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
    *
    * \return PackedFunc(nullptr) when it is not available.
    */
-  virtual runtime::PackedFunc GetFunction(
+  runtime::PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) override = 0;
 
@@ -115,7 +117,7 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     std::string name = name_node->value;
     return GetSubgraphID(name);
   }
-  
+
   std::string GetSubgraphID(const std::string& name) const {
     std::string temp = name;
     std::vector<std::string> tokens;
@@ -136,7 +138,6 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
  protected:
-
   // Platform dependent handlers for opening system lib.
 #if defined(_WIN32)
   // The handle.

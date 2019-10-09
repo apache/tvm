@@ -15,6 +15,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <dlfcn.h>
+#include <stdlib.h>
+
 #include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -22,8 +25,6 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
-#include <dlfcn.h>
-#include <stdlib.h>
 #include <random>
 #include <sstream>
 #include <unordered_map>
@@ -40,14 +41,14 @@ typedef void (*GccSubgraphFunc)(GccPackedArgs in, float* out);
 // and make a base claaa such as ExternBuilder for users to implement.
 class GccBuilder : public ExprVisitor {
  public:
-  GccBuilder(const std::string& id) { this->subgraph_id_ = id; }
+  explicit GccBuilder(const std::string& id) { this->subgraph_id_ = id; }
 
   void VisitExpr_(const VarNode* node) {
     subgraph_args_.push_back(node->name_hint());
     out_.clear();
     out_.push_back({node->name_hint(), 0});
   }
- 
+
   void VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
     std::string func_name = subgraph_id_ + "_" + std::to_string(func_idx++);
@@ -212,7 +213,7 @@ class GccModuleNode : public ExternModuleNodeBase {
       // Reinterpret data and function to the right type and invoke
       if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
         GccPackedArgs packed_args;
-        packed_args.data = (float**)malloc(sizeof(float*) * args.size());
+        packed_args.data = reinterpret_cast<float**>(malloc(sizeof(float*) * args.size()));
         for (int i = 0; i < args.size() - 1; ++i) {
           runtime::NDArray arg = args[i];
           packed_args.data[i] = reinterpret_cast<float*>(arg->data);
@@ -225,7 +226,7 @@ class GccModuleNode : public ExternModuleNodeBase {
     });
   }
 
-  void CreateExternSignature (const Function& func, bool update) {
+  void CreateExternSignature(const Function& func, bool update) {
     CHECK(func.defined())
         << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();

@@ -16,25 +16,28 @@
  * under the License.
  */
 
+#include "libs.h"
+
+#include <string.h>
 #include <assert.h>
 #include <stdlib.h>
+
 #include <algorithm>
 #include <iostream>
 #include <numeric>
 #include <string>
-#include <string.h>
+#include <vector>
 
 #include "dnnl.hpp"
-#include "libs.h"
 
 using namespace dnnl;
 
 // Read from memory, write to handle
-inline void read_from_dnnl_memory(void* handle, memory& mem) {
+inline void read_from_dnnl_memory(void* handle, const memory& mem) {
   size_t bytes = mem.get_desc().get_size();
 
   uint8_t* src = static_cast<uint8_t*>(mem.get_data_handle());
-  std::copy(src, src + bytes, (uint8_t*)handle);
+  std::copy(src, src + bytes, reinterpret_cast<uint8_t*>(handle));
 }
 
 #define CONV2D(p_ID_, p_N_, p_C_, p_H_, p_W_, p_O_, p_G_, p_Ph_, p_Pw_, p_Kh_, p_Kw_, p_Sh_,       \
@@ -172,7 +175,7 @@ inline void read_from_dnnl_memory(void* handle, memory& mem) {
     auto bn_prim_desc = batch_normalization_forward::primitive_desc(bn_desc, eng);            \
     assert(data_md == bn_prim_desc.dst_desc());                                               \
                                                                                               \
-    float* weight = (float*)malloc(sizeof(float) * 2 * p_C_);                                 \
+    float* weight = reinterpret_cast<float*>(malloc(sizeof(float) * 2 * p_C_));               \
     memcpy(weight, gamma, sizeof(float) * p_C_);                                              \
     memcpy(weight + p_C_, beta, sizeof(float) * p_C_);                                        \
                                                                                               \

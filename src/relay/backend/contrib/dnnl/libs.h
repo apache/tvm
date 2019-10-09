@@ -16,9 +16,14 @@
  * under the License.
  */
 
+#ifndef TVM_RELAY_BACKEND_CONTRIB_DNNL_LIBS_H_
+#define TVM_RELAY_BACKEND_CONTRIB_DNNL_LIBS_H_
+
 #include <cstdint>
 #include <iostream>
 
 typedef struct {
   void** data;
 } DnnlPackedArgs;
+
+#endif  // TVM_RELAY_BACKEND_CONTRIB_DNNL_LIBS_H_

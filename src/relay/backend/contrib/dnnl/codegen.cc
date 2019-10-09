@@ -15,6 +15,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <stdlib.h>
 #include <dlpack/dlpack.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/contrib_codegen.h>
@@ -27,7 +28,6 @@
 
 #include <random>
 #include <sstream>
-#include <stdlib.h>
 #include <unordered_map>
 
 #if defined(_WIN32)
@@ -48,7 +48,7 @@ typedef void (*DnnlSubgraphFunc)(DnnlPackedArgs in, float* out);
 // and make a base class such as ExternBuilder for users to implement.
 class DnnlBuilder : public ExprVisitor {
  public:
-  DnnlBuilder(std::string id) { this->subgraph_id_ = id; }
+  explicit DnnlBuilder(const std::string& id) { this->subgraph_id_ = id; }
 
   void VisitExpr_(const VarNode* node) final {
     subgraph_args_.push_back(node->name_hint());
@@ -57,7 +57,7 @@ class DnnlBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
-    ; // Do nothing
+    // Do nothing
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -188,7 +188,8 @@ class DnnlBuilder : public ExprVisitor {
 
     // Unpack inputs
     for (size_t i = 0; i < subgraph_args_.size(); ++i) {
-      code += "  float* " + subgraph_args_[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
+      code +=
+          "  float* " + subgraph_args_[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
     }
     // Function body
     for (auto decl : buf_decl_) {
@@ -293,7 +294,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       // Reinterpret data and function to the right type and invoke
       if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
         DnnlPackedArgs packed_args;
-        packed_args.data = (void**)malloc(sizeof(float*) * args.size());
+        packed_args.data = reinterpret_cast<void**>(malloc(sizeof(float*) * args.size()));
         for (int i = 0; i < args.size() - 1; ++i) {
           runtime::NDArray arg = args[i];
           packed_args.data[i] = reinterpret_cast<float*>(arg->data);
@@ -365,6 +366,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
                  << "\n";
     }
   }
+
  private:
   std::string src_path_;
   std::string lib_path_;

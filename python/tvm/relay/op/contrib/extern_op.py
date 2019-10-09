@@ -39,7 +39,9 @@ logger = logging.getLogger('ExternOp')
 # Load available contrib compilers
 compilers = {}
 for _, name, _ in pkgutil.iter_modules([Path(__file__).parent]):
-    compilers[name] = import_module('.%s' % name, package='.'.join(__name__.split('.')[:-1]))
+    compilers[name] = import_module(
+        '.%s' % name, package='.'.join(__name__.split('.')[:-1]))
+
 
 def get_extern_op(compiler, op_name):
     """Get the extern op function from the registered compiler
@@ -50,8 +52,10 @@ def get_extern_op(compiler, op_name):
             if hasattr(extern_op, op_name):
                 return getattr(extern_op, op_name)
 
-    logger.warning("%s in %s is not registered. Fallback to CPU" % (op_name, compiler))
+    logger.warning("%s in %s is not registered. Fallback to CPU", op_name,
+                   compiler)
     return lambda x, y: False
+
 
 @reg.register_extern_op("nn.conv2d")
 def external_conv2d(attrs, args, compiler):
@@ -66,11 +70,13 @@ def external_dense(attrs, args, compiler):
     """
     return get_extern_op(compiler, 'dense')(attrs, args)
 
+
 @reg.register_extern_op("nn.relu")
 def external_relu(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
     return get_extern_op(compiler, 'relu')(attrs, args)
+
 
 @reg.register_extern_op("nn.batch_norm")
 def external_batch_norm(attrs, args, compiler):
@@ -78,17 +84,20 @@ def external_batch_norm(attrs, args, compiler):
     """
     return get_extern_op(compiler, 'batch_norm')(attrs, args)
 
+
 @reg.register_extern_op("subtract")
 def external_subtract(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
     return get_extern_op(compiler, 'subtract')(attrs, args)
 
+
 @reg.register_extern_op("add")
 def external_add(attrs, args, compiler):
     """Check if the external compiler should be used.
     """
     return get_extern_op(compiler, 'add')(attrs, args)
+
 
 @reg.register_extern_op("multiply")
 def external_multiply(attrs, args, compiler):

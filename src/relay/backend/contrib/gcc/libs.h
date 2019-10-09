@@ -15,6 +15,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_RELAY_BACKEND_CONTRIB_GCC_LIBS_H_
+#define TVM_RELAY_BACKEND_CONTRIB_GCC_LIBS_H_
 
 #include <cstdint>
 #include <iostream>
@@ -22,3 +24,5 @@
 typedef struct {
   float** data;
 } GccPackedArgs;
+
+#endif  // TVM_RELAY_BACKEND_CONTRIB_GCC_LIBS_H_
