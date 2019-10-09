@@ -230,7 +230,7 @@ def test_ops_same_function(src_dtype, dst_dtype):
                                    atol=0.001)
 
     for op in [
-            #relay.add,
+            relay.add,
             relay.subtract,
             relay.divide,
             relay.multiply,
