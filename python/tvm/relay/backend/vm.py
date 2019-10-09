@@ -264,7 +264,7 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         compiler = VMCompiler()
-        self.vm = compiler.compile(mod, target)
+        self.vm, _ = compiler.compile(mod, target)
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):
