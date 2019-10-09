@@ -24,99 +24,34 @@ import tvm
 from . import _vm
 from . import vm as rly_vm
 
-def _create_serializer(vm):
+def _create_serializer(executable):
     """Create a VM serializer.
 
     Parameters
     ----------
-    vm : Union[VirtualMachine, :py:class:`~tvm.module.Module`]
-        The virtual machine to be serialized.
+    executable : Union[Executable, :py:class:`~tvm.module.Module`]
+        The virtual machine executable to be serialized.
 
     Returns
     -------
     ret : Serializer
-        The created virtual machine serializer.
+        The created virtual machine executable serializer.
     """
-    if isinstance(vm, rly_vm.VirtualMachine):
-        vm = vm.module
-    elif not isinstance(vm, tvm.module.Module):
-        raise TypeError("vm is expected to be the type of VirtualMachine or " +
-                        "tvm.Module, but received {}".format(type(vm)))
+    if isinstance(executable, rly_vm.Executable):
+        executable = executable.module
+    elif not isinstance(executable, tvm.module.Module):
+        raise TypeError("executable is expected to be an Executable or " +
+                        "tvm.Module, but received {}".format(type(executable)))
 
-    return _vm._Serializer(vm)
+    return _vm._Serializer(executable)
 
 
 class Serializer:
     """Relay VM serializer."""
-    def __init__(self, vm):
-        self.mod = _create_serializer(vm)
+    def __init__(self, executable):
+        self.mod = _create_serializer(executable)
         self._get_lib = self.mod["get_lib"]
-        self._get_bytecode = self.mod["get_bytecode"]
-        self._get_globals = self.mod["get_globals"]
-        self._get_stats = self.mod["get_stats"]
-        self._get_primitive_ops = self.mod["get_primitive_ops"]
         self._serialize = self.mod["serialize"]
-
-    @property
-    def stats(self):
-        """Get the statistics of the Relay VM.
-
-        Returns
-        -------
-        ret : String
-            The serialized statistic information.
-        """
-        return self._get_stats()
-
-    @property
-    def primitive_ops(self):
-        """Get the name of the primitive ops that are executed in the VM.
-
-        Returns
-        -------
-        ret : List[:py:class:`~tvm.expr.StringImm`]
-            The list of primitive ops.
-        """
-        return [prim_op.value for prim_op in self._get_primitive_ops()]
-
-    @property
-    def bytecode(self):
-        """Get the bytecode of the Relay VM.
-
-        Returns
-        -------
-        ret : String
-            The serialized bytecode.
-
-        Notes
-        -----
-        The bytecode is in the following format:
-          func_name reg_file_size num_instructions
-          param1 param2 ... paramM
-          instruction1
-          instruction2
-          ...
-          instructionN
-
-        Each instruction is printed in the following format:
-          hash opcode field1 ... fieldX # The text format.
-
-        The part starting from # is only used for visualization and debugging.
-        The real serialized code doesn't contain it, therefore the deserializer
-        doesn't need to deal with it as well.
-        """
-        return self._get_bytecode()
-
-    @property
-    def globals(self):
-        """Get the globals used by the Relay VM.
-
-        Returns
-        -------
-        ret : List[:py:class:`~tvm.expr.StringImm`]
-            The serialized globals.
-        """
-        return [glb.value for glb in self._get_globals()]
 
     def serialize(self):
         """Serialize the Relay VM.
@@ -160,31 +95,31 @@ class Serializer:
             # create a Relay VM.
             ctx = tvm.cpu()
             target = "llvm"
-            compiler = relay.vm.VMCompiler()
-            vm = compiler.compile(mod, target)
-            vm.init(ctx)
+            executable = relay.vm..compile(mod, target)
+            executable.set_context(ctx)
 
             # serialize.
-            ser = relay.serializer.Serializer(vm)
+            ser = relay.serializer.Serializer(executable)
             code, lib = ser.serialize()
 
             # save and load the code and lib file.
             tmp = tvm.contrib.util.tempdir()
             path_lib = tmp.relpath("lib.so")
             lib.export_library(path_lib)
-            with open(tmp.relpath("code.bc"), "wb") as fo:
+            with open(tmp.relpath("code.ro"), "wb") as fo:
                 fo.write(code)
 
             loaded_lib = tvm.module.load(path_lib)
-            loaded_code = bytearray(open(tmp.relpath("code.bc"), "rb").read())
+            loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
 
             # deserialize.
             deser = relay.deserializer.Deserializer(loaded_code, loaded_lib)
-            des_vm = deser.deserialize()
+            des_exec = deser.deserialize()
 
-            # execute the deserialized vm.
-            des_vm.init(ctx)
+            # execute the deserialized executable.
+            des_exec.set_context(ctx)
             x_data = np.random.rand(10, 10).astype('float32')
+            des_vm = relay.vm.VirtualMachine(des_exec)
             res = des_vm.run(x_data)
             print(res.asnumpy())
         """

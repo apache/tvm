@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -430,15 +431,101 @@ struct VMFrame {
         caller_return_register(0) {}
 };
 
+/*! \brief The executable emitted by the VM compiler.
+ *
+ * The executable contains information (e.g. data in different memory regions)
+ * to create a virtual machine.
+ */
+class Executable : public ModuleNode {
+ public:
+  /*!
+   * \brief Get a PackedFunc from an executable module.
+   *
+   * \param name the name of the function.
+   * \param sptr_to_self The shared_ptr that points to this module node.
+   *
+   * \return PackedFunc or nullptr when it is not available.
+   */
+  PackedFunc GetFunction(const std::string& name,
+                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+
+  /*!
+   * \brief Get the serialized form of the `functions` in `vm_`. This is
+   * essentially bytecode serialization.
+   *
+   * \return The serialized vm bytecode.
+   *
+   * \note The bytecode is in the following format:
+   *   func_name reg_file_size num_instructions
+   *   param1 param2 ... paramM
+   *   instruction1
+   *   instruction2
+   *   ...
+   *   instructionN
+   *
+   * Each instruction is printed in the following format:
+   *   opcode num_fields field1 ... fieldX # The text format.
+   *
+   * The field starting from # is only used for debugging. The serialized code
+   * doesn't contain it, therefore the deserializer doens't need to handle it.
+   */
+  std::string GetBytecode() const;
+
+/*!
+   * \brief Print the detailed statistics of the given code, i.e. number of
+   * globls and constants, etc.
+   */
+  std::string Stats() const;
+
+  /*! \brief Get the `lib` module in an executable. Users have the flexibility to call
+   * `export_library` from the frontend to save the library to disk.
+   *
+   * \return The runtime module that contains the hardwre dependent code.
+   */
+  runtime::Module GetLib() const { return lib; }
+
+  /*!
+   * \brief Set the execution context for the executable.
+   *
+   * \param ctxs The list of TVMContext.
+   */
+  void SetContext(const std::vector<TVMContext>& ctxs);
+
+  /*! \brief Get device context for params.
+   */
+  TVMContext GetParamsContext() const;
+
+  virtual ~Executable() {}
+
+  const char* type_key() const final {
+    return "VMExecutable";
+  }
+
+  /*! \brief The runtime module/library that contains hardware dependent code. */
+  runtime::Module lib;
+  /*! \brief The global constant pool. */
+  std::vector<ObjectRef> constants;
+  /*! \brief A map from globals (as strings) to their index in the function map. */
+  std::unordered_map<std::string, Index> global_map;
+  /*! \brief A mapping from the packed function (as string) to the index that
+   * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
+   */
+  std::unordered_map<std::string, Index> primitive_map;
+  /*! \brief The virtual machine's function table. */
+  std::vector<VMFunction> functions;
+
+  /*! \brief The set of TVM contexts the VM is currently executing on. */
+  std::vector<TVMContext> ctxs;
+};
+
 /*! \brief The virtual machine.
  *
  * The virtual machine contains all the current execution state,
- * as well as the global view of functions, the global constant
- * table, the compiled operators.
+ * as well as the executable.
  *
  * The goal is to have a single self-contained object,
  * enabling one to easily pass around VMs, execute them on
- * multiple threads, or serialized them to disk or over the
+ * multiple threads, or serialize them to disk or over the
  * wire.
  */
 class VirtualMachine : public runtime::ModuleNode {
@@ -486,16 +573,10 @@ class VirtualMachine : public runtime::ModuleNode {
     return "VirtualMachine";
   }
 
-  /*! \brief The runtime module/library that contains generated code. */
-  runtime::Module lib;
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs;
-  /*! \brief The virtual machine's function table. */
-  std::vector<VMFunction> functions;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames;
-  /*! \brief The global constant pool. */
-  std::vector<ObjectRef> constants;
   /*! \brief The fuction table index of the current function. */
   Index func_index;
   /*! \brief The current pointer to the code section. */
@@ -506,8 +587,8 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief The special return register. */
   ObjectRef return_register;
 
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs;
+  /*! \brief The executable the VM will operate on. */
+  const Executable* exec;
 
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
@@ -550,35 +631,16 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
 
-  VirtualMachine() : functions(), frames(), func_index(0), code(nullptr), pc(0) {}
+  VirtualMachine() : frames(), func_index(0), code(nullptr), pc(0), exec(nullptr) {}
 
-  /*! \brief Initialize the virtual machine for a set of contexts.
-   *  \param contexts The set of TVM contexts.
+  /*! \brief Initialize the virtual machine using an executable.
+   *  \param exec The executable.
    */
-  void Init(const std::vector<TVMContext>& contexts);
+  void Init(const Executable* exec);
 
   /*! \brief Run VM dispatch loop.
    */
   void RunLoop();
-
-  /*! \brief Get device context for params.
-   */
-  TVMContext GetParamsContext() const;
-
-  /*!
-   * \brief Load parameters from the parameter bytearray.
-   * \param params The binary file that contains parameters.
-   */
-  void LoadParams(const std::string& params);
-
-  /*! \brief A map from globals (as strings) to their index in the function map.
-   */
-  std::unordered_map<std::string, Index> global_map;
-
-  /*! \brief A mapping from the packed function (as string) to the index that
-   * corresponds to the position of the `packed_funcs` list.
-   */
-  std::unordered_map<std::string, Index> primitive_map;
 
  private:
   /*! \brief Invoke a global setting up the VM state to execute.

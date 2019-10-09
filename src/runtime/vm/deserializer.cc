@@ -19,8 +19,8 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/deserializer.cc
- * \brief Implementation of APIs to deserialize the serialized VM bytecode.
+ * \file src/runtime/vm/deserializer.cc
+ * \brief Implementation of APIs to deserialize the serialized VM executable.
  */
 
 #include "deserializer.h"
@@ -32,17 +32,17 @@
 #include "serialize_util.h"
 
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace vm {
 
 #define STREAM_CHECK(val, section)                                         \
   CHECK(val) << "Invalid VM file format in the " << section << " section." \
              << "\n";
 
-void Deserializer::Init(const std::string& code, const runtime::Module& lib) {
+inline void Deserializer::Init(const std::string& code, const runtime::Module& lib) {
   code_ = code;
-  vm_ = std::make_shared<VirtualMachine>();
-  vm_->lib = lib;
+  exec_ = std::make_shared<Executable>();
+  exec_->lib = lib;
   strm_ = new dmlc::MemoryStringStream(&code_);
 }
 
@@ -52,7 +52,7 @@ runtime::PackedFunc Deserializer::GetFunction(
   if (name == "deserialize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       this->Deserialize();
-      *rv = runtime::Module(vm_);
+      *rv = runtime::Module(exec_);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -82,13 +82,16 @@ void Deserializer::Deserialize() {
 
   // Code section.
   DeserializeCodeSection();
+
+  // Context section.
+  DeserializeContextSection();
 }
 
 void Deserializer::DeserializeGlobalSection() {
   std::vector<std::string> globals;
   STREAM_CHECK(strm_->Read(&globals), "global");
   for (size_t i = 0; i < globals.size(); i++) {
-    vm_->global_map.insert({globals[i], i});
+    exec_->global_map.insert({globals[i], i});
   }
 }
 
@@ -103,7 +106,7 @@ void Deserializer::DeserializeConstantSection() {
     runtime::NDArray constant;
     STREAM_CHECK(constant.Load(strm_), "constant");
     runtime::ObjectRef obj = runtime::vm::Tensor(constant);
-    vm_->constants.push_back(obj);
+    exec_->constants.push_back(obj);
   }
 }
 
@@ -111,7 +114,7 @@ void Deserializer::DeserializePrimitiveOpNames() {
   std::vector<std::string> primitive_names;
   STREAM_CHECK(strm_->Read(&primitive_names), "primitive name");
   for (size_t i = 0; i < primitive_names.size(); i++) {
-    vm_->primitive_map.insert({primitive_names[i], i});
+    exec_->primitive_map.insert({primitive_names[i], i});
   }
 }
 
@@ -283,7 +286,7 @@ void Deserializer::DeserializeCodeSection() {
   STREAM_CHECK(strm_->Read(&sz, sizeof(sz)), "code");
 
   size_t num_funcs = static_cast<size_t>(sz);
-  vm_->functions.resize(num_funcs);
+  exec_->functions.resize(num_funcs);
   for (size_t i = 0; i < num_funcs; i++) {
     // Load the function info.
     VMFunctionSerializer loaded_func;
@@ -303,10 +306,22 @@ void Deserializer::DeserializeCodeSection() {
                                     loaded_func.params,
                                     instructions,
                                     loaded_func.register_file_size);
-    auto it = vm_->global_map.find(loaded_func.name);
-    CHECK(it != vm_->global_map.end());
-    CHECK_LE(it->second, vm_->global_map.size());
-    vm_->functions[it->second] = vm_func;
+    auto it = exec_->global_map.find(loaded_func.name);
+    CHECK(it != exec_->global_map.end());
+    CHECK_LE(it->second, exec_->global_map.size());
+    exec_->functions[it->second] = vm_func;
+  }
+}
+
+void Deserializer::DeserializeContextSection() {
+  std::vector<uint64_t> ctxs;
+  STREAM_CHECK(strm_->Read(&ctxs), "context");
+  CHECK_EQ(ctxs.size() % 2, 0U);
+  for (size_t i = 0; i < ctxs.size(); i += 2) {
+    TVMContext ctx;
+    ctx.device_type = DLDeviceType(ctxs[i]);
+    ctx.device_id = static_cast<int>(ctxs[i + 1]);
+    exec_->ctxs.push_back(ctx);
   }
 }
 
@@ -320,5 +335,5 @@ TVM_REGISTER_GLOBAL("relay._vm._Deserializer")
 .set_body_typed(CreateDeserializer);
 
 }  // namespace vm
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm

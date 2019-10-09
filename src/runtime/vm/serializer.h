@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/serializer.h
+ * \file src/runtime/vm/serializer.h
  * \brief Define a serializer for the Relay VM.
  *
  * The following components of a Relay VM will be serialized:
@@ -32,6 +32,8 @@
  *  - The `primitive_map` that contains the name of individual primitive operators.
  *  - The `functions`, e.g., the `VMFunction`. Each `VMFunction` is composed of
  *  a list of instructions/bytecode.
+ *  - The `ctxs` that contains the device context used to execute the hardware
+ *  dependent code.
  *
  * Note that only the library is returned as a separate module. All othere parts
  * are stored in a single serialized code that is organized with the following
@@ -41,6 +43,7 @@
  *  - Primitive name section, containing the function name of the primitive ops
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
+ *  - Context section, saving the context information.
  *
  * The code section is again organized as follows for each VM function:
  *   func_name, register_file_size, num_instructions (N)
@@ -63,14 +66,11 @@
  * the shape of a tensor, the args used by an `InvokPacked` instruction, etc.
  */
 
-#ifndef TVM_RELAY_BACKEND_VM_SERIALIZER_H_
-#define TVM_RELAY_BACKEND_VM_SERIALIZER_H_
+#ifndef TVM_RUNTIME_VM_SERIALIZER_H_
+#define TVM_RUNTIME_VM_SERIALIZER_H_
 
 #include <dmlc/io.h>
 #include <dmlc/memory_io.h>
-#include <tvm/ir.h>
-#include <tvm/node/container.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/vm.h>
 
@@ -79,8 +79,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "serialize_util.h"
+
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace vm {
 
 using namespace tvm::runtime;
@@ -92,11 +94,11 @@ using namespace tvm::runtime::vm;
 class Serializer : public runtime::ModuleNode {
  public:
   /*!
-   * \brief Initialize the serializer for a virtual machine.
+   * \brief Initialize the serializer for an executable.
    *
-   *  \param vm The Relay virtual machine.
+   *  \param vm The Relay virtual machine executable.
    */
-  inline void Init(const VirtualMachine* vm);
+  void Init(const Executable* exec);
 
   /*!
    * \brief Return the member function to the frontend.
@@ -112,81 +114,33 @@ class Serializer : public runtime::ModuleNode {
   const char* type_key() const final { return "Serializer"; }
 
   /*!
-   * \brief Print the detailed statistics of the given code, i.e. number of
-   * globls and constants, etc.
-   */
-  std::string Stats() const;
-
-  /*!
-   * \brief Serialize the `vm_` into global section, constant section, and code
+   * \brief Serialize the `exec_` into global section, constant section, and code
    * section.
    *
    * \return The binary representation of the VM.
    */
   TVMByteArray Serialize();
 
-  /*!
-   * \brief Get a list of the globals used by the `_vm`.
-   *
-   * \return The global map in the form a list.
-   */
-  tvm::Array<tvm::Expr> GetGlobals() const;
-
-  /*!
-   * \brief Get the primitive operators that are contained in the Relay VM.
-   *
-   * \return The list of primitve operators.
-   */
-  tvm::Array<tvm::Expr> GetPrimitiveOps() const;
-
-  /*!
-   * \brief Get the serialized form of the `functions` in `vm_`. This is
-   * essentially bytecode serialization.
-   *
-   * \return The serialized vm bytecode.
-   *
-   * \note The bytecode is in the following format:
-   *   func_name reg_file_size num_instructions
-   *   param1 param2 ... paramM
-   *   instruction1
-   *   instruction2
-   *   ...
-   *   instructionN
-   *
-   * Each instruction is printed in the following format:
-   *   opcode num_fields field1 ... fieldX # The text format.
-   *
-   * The field starting from # is only used for debugging. The serialized code
-   * doesn't contain it, therefore the deserializer doens't need to handle it.
-   */
-  std::string GetBytecode() const;
-
-  /*! \brief Get the `lib` module in vm_. Serialization of `runtime::module`
-   * has already been supported by TVM. Therefore, we only return the runtime
-   * module and let users have the flexibility to call `export_library` from
-   * the frontend to save the library to disk.
-   *
-   * \return The runtime module that contains the hardwre dependent code.
-   */
-  inline runtime::Module GetLib() const;
-
   virtual ~Serializer() { delete strm_; }
 
  private:
-  /*! \brief Serialize the globals in vm_. */
+  /*! \brief Serialize the globals in exec_. */
   void SerializeGlobalSection();
 
-  /*! \brief Serialize the constant pool in vm_. */
+  /*! \brief Serialize the constant pool in exec_. */
   void SerializeConstantSection();
 
-  /*! \brief Serialize primitive op names in vm_. */
+  /*! \brief Serialize primitive op names in exec_. */
   void SerializePrimitiveOpNames();
 
-  /*! \brief Serialize the vm functions in vm_. */
+  /*! \brief Serialize the vm functions in exec_. */
   void SerializeCodeSection();
 
-  /*! \brief The Relay virtual machine for to be serialized. */
-  const VirtualMachine* vm_;
+  /*! \brief Serialize the context in exec_. */
+  void SerializeContextSection();
+
+  /*! \brief The Relay virtual machine executable to be serialized. */
+  const Executable* exec_;
 
   /*! \brief The stream used for serialization. */
   dmlc::Stream* strm_;
@@ -195,8 +149,10 @@ class Serializer : public runtime::ModuleNode {
   std::string code_;
 };
 
+VMInstructionSerializer SerializeInstruction(const Instruction& instr);
+
 }  // namespace vm
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_VM_SERIALIZER_H_
+#endif  // TVM_RUNTIME_VM_SERIALIZER_H_

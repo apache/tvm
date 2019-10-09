@@ -575,13 +575,14 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) {
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(exec) << "The executable is not created yet.";
       std::string func_name = args[0];
-      auto gvit = this->global_map.find(func_name);
-      CHECK(gvit != this->global_map.end()) << "Cannot find function " << func_name;
+      auto gvit = exec->global_map.find(func_name);
+      CHECK(gvit != exec->global_map.end()) << "Cannot find function " << func_name;
       auto func_index = gvit->second;
-      const auto& vm_func = this->functions[func_index];
+      const auto& vm_func = exec->functions[func_index];
       const auto& param_names = vm_func.params;
-      auto ctx = this->GetParamsContext();
+      auto ctx = exec->GetParamsContext();
 
       // Prepare the func args
       std::vector<ObjectRef> func_args(param_names.size());
@@ -604,64 +605,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 
       *rv = this->Invoke(vm_func, func_args);
     });
-  } else if (name == "init") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size() % 2, 0);
-      std::vector<TVMContext> contexts;
-      for (int i = 0; i < args.size() / 2; ++i) {
-        TVMContext ctx;
-        int device_type = args[i * 2];
-        ctx.device_type = DLDeviceType(device_type);
-        ctx.device_id = args[i * 2 + 1];
-        contexts.push_back(ctx);
-      }
-      this->Init(contexts);
-    });
-  } else if (name == "load_params") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->LoadParams(args[0].operator std::string());
-    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
-  }
-}
-
-TVMContext VirtualMachine::GetParamsContext() const {
-  // Use the fallback device if no device index is available.
-  int fallback_device_type = static_cast<int>(ctxs[0].device_type);
-  // TODO(wweic): For heterogeneous execution, get device information from byte
-
-  const auto& cit =
-    std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
-      return fallback_device_type == static_cast<int>(c.device_type);
-    });
-  return (cit == ctxs.end() ? ctxs[0] : *cit);
-}
-
-void VirtualMachine::LoadParams(const std::string& params) {
-  dmlc::MemoryStringStream mss(const_cast<std::string*>(&params));
-  dmlc::Stream* strm = &mss;
-  uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid parameter file";
-  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameter file";
-  CHECK(strm->Read(&reserved)) << "Invalid parameter file";
-
-  std::vector<std::string> names;
-  CHECK(strm->Read(&names)) << "Invalid parameter file";
-
-  uint64_t sz;
-  strm->Read(&sz);
-  size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size()) << "Invalid parameter file";
-
-  auto ctx = GetParamsContext();
-  for (size_t i = 0; i < size; i++) {
-    NDArray arr;
-    CHECK(arr.Load(strm)) << "Invalid parameter file";
-    ObjectRef obj = Tensor(arr);
-    auto copy = CopyTo(obj, ctx);
-    params_.emplace(std::make_pair(names[i], copy));
   }
 }
 
@@ -699,15 +645,17 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
 
   InvokeGlobal(func, args);
   RunLoop();
-  auto alloc = MemoryManager::Global()->GetAllocator(ctxs[0]);
+  // TODO(wweic) ctx could be obtained from the ctxs list.
+  auto alloc = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
   DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B";
   return return_register;
 }
 
 ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
-  auto func_index = this->global_map[name];
+  CHECK(exec) << "The executable has not been created yet.";
+  auto func_index = exec->global_map.at(name);
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index;
-  return Invoke(this->functions[func_index], args);
+  return Invoke(exec->functions[func_index], args);
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
@@ -744,14 +692,16 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
-void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
-  this->ctxs = ctxs;
+void VirtualMachine::Init(const Executable* exec) {
+  CHECK(exec) << "The executable is not created yet.";
+  this->exec = exec;
 
+  runtime::Module lib = this->exec->lib;
   // Get the list of packed functions.
-  CHECK(primitive_map.empty() || lib.operator->())
+  CHECK(exec->primitive_map.empty() || lib.operator->())
       << "runtime module should have been built for primitive functions"
       << "\n";
-  for (const auto& it : primitive_map) {
+  for (const auto& it : this->exec->primitive_map) {
     const auto& packed_name = it.first;
     auto packed_index = static_cast<size_t>(it.second);
     if (packed_funcs.size() <= packed_index) {
@@ -788,6 +738,7 @@ inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
 
 void VirtualMachine::RunLoop() {
   CHECK(this->code);
+  CHECK(this->exec);
   this->pc = 0;
   Index frame_start = frames.size();
   while (true) {
@@ -810,8 +761,9 @@ void VirtualMachine::RunLoop() {
         throw std::runtime_error("VM encountered fatal error");
       }
       case Opcode::LoadConst: {
-        auto constant_obj = this->constants[instr.const_index];
-        auto device_obj = CopyTo(constant_obj, ctxs[0]);
+        auto constant_obj = exec->constants[instr.const_index];
+        // TODO(wweic) ctx could be obtained from the ctxs list.
+        auto device_obj = CopyTo(constant_obj, exec->ctxs[0]);
         WriteRegister(instr.dst, device_obj);
         pc++;
         goto main_loop;
@@ -828,7 +780,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_args; ++i) {
           args.push_back(ReadRegister(instr.invoke_args_registers[i]));
         }
-        InvokeGlobal(this->functions[instr.func_index], args);
+        InvokeGlobal(exec->functions[instr.func_index], args);
         frames.back().caller_return_register = instr.dst;
         goto main_loop;
       }
@@ -858,7 +810,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_closure_args; ++i) {
           args.push_back(ReadRegister(instr.closure_args[i]));
         }
-        InvokeGlobal(this->functions[closure->func_index], args);
+        InvokeGlobal(exec->functions[closure->func_index], args);
         frames.back().caller_return_register = instr.dst;
         goto main_loop;
       }
@@ -910,8 +862,9 @@ void VirtualMachine::RunLoop() {
         for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
           shape[i] = instr.alloc_tensor.shape[i];
         }
-        auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
-        auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, ctxs[0]);
+        // TODO(wweic) ctx could be obtained from the ctxs list.
+        auto allocator = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, exec->ctxs[0]);
         auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
@@ -931,8 +884,9 @@ void VirtualMachine::RunLoop() {
         auto num_dims = shape_tensor->shape[0];
         auto shape = std::vector<int64_t>(shape_tensor->shape[0]);
         shape.assign(dims, dims + num_dims);
-        auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
-        auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, ctxs[0]);
+        // TODO(wweic) ctx could be obtained from the ctxs list.
+        auto allocator = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, exec->ctxs[0]);
         auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
@@ -975,6 +929,21 @@ void VirtualMachine::RunLoop() {
     }
   }
 }
+
+runtime::Module CreateVirtualMachine(const Executable* exec) {
+  std::shared_ptr<VirtualMachine> vm = std::make_shared<VirtualMachine>();
+  vm->Init(exec);
+  return runtime::Module(vm);
+}
+
+TVM_REGISTER_GLOBAL("relay._vm._VirtualMachine")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  runtime::Module mod = args[0];
+  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  CHECK(exec) << "The virtual machine executable has not been defined yet."
+              << "\n";
+  *rv = CreateVirtualMachine(exec);
+});
 
 }  // namespace vm
 }  // namespace runtime

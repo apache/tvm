@@ -26,9 +26,9 @@ def test_basic():
     mod, params = resnet.get_workload()
     target = 'llvm'
     ctx = tvm.cpu()
-    vm = relay.profiler_vm.compile(mod, target)
-    vm.init(ctx)
-    vm.load_params(params)
+    exe = relay.profiler_vm.compile(mod, target, params=params)
+    exe.set_context(ctx)
+    vm = relay.profiler_vm.VirtualMachineProfiler(exe)
 
     data = np.random.rand(1, 3, 224, 224).astype('float32')
     res = vm.invoke("main", [data])

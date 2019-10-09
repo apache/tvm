@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import autotvm
-from tvm._ffi.runtime_ctypes import TVMByteArray
+from tvm import TVMContext
 from tvm.relay import expr as _expr
 from . import _vm
 from . import vmobj as _obj
@@ -44,6 +44,7 @@ def _convert(arg, cargs):
     else:
         raise "unsupported type"
 
+
 def convert(args):
     cargs = []
     for arg in args:
@@ -52,41 +53,136 @@ def convert(args):
     return cargs
 
 
+class Executable(object):
+    """Relay VM executable"""
+    def __init__(self, mod):
+        self.mod = mod
+        self._set_context = self.mod["set_context"]
+        self._get_lib = self.mod["get_lib"]
+        self._get_bytecode = self.mod["get_bytecode"]
+        self._get_stats = self.mod["get_stats"]
+
+    def set_context(self, ctx):
+        """Initialize the context of the VM executable.
+
+        Parameters
+        ----------
+        ctx : Union[:py:class:`tvm.TVMContext`, List[py:class:`tvm.TVMContext`]]
+            The runtime context to run the code on.
+        """
+
+        if isinstance(ctx, TVMContext):
+            ctx = [ctx]
+        elif not isinstance(ctx, (list, tuple)):
+            raise ValueError("ctx has to be the type of TVMContext or a list of "
+                             "TVMContext")
+        # args[0], args[1] are used as the primary/fallback context type and id
+        # for heterogeneous execution.
+        args = []
+        for cur_ctx in ctx:
+            if not isinstance(cur_ctx, TVMContext):
+                raise ValueError("ctx has to be the type of TVMContext or a list "
+                                 "of TVMContext")
+            args.append(cur_ctx.device_type)
+            args.append(cur_ctx.device_id)
+
+        self._set_context(*args)
+
+    @property
+    def lib(self):
+        """Get the library that contains hardware dependent code.
+
+        Returns
+        -------
+        ret : :py:class:`~tvm.Module`
+            The runtime module that contains hardware dependent code.
+        """
+        return self._get_lib()
+
+    @property
+    def stats(self):
+        """Get the statistics of the Relay VM executable.
+
+        Returns
+        -------
+        ret : String
+            The statistic information of the VM executable.
+        """
+        return self._get_stats()
+
+    @property
+    def primitive_ops(self):
+        """Get the name of the primitive ops contained in the executable.
+
+        Returns
+        -------
+        ret : List[String]
+            The list of primitive ops.
+        """
+        ret = []
+        num_primitives = _vm.GetNumOfPrimitives(self.module)
+        for i in range(num_primitives):
+            ret.append(_vm.GetPrimitiveFields(self.module, i))
+        return ret
+
+    @property
+    def bytecode(self):
+        """Get the bytecode of the Relay VM executable.
+
+        Returns
+        -------
+        ret : String
+            The bytecode of the executable.
+
+        Notes
+        -----
+        The bytecode is in the following format:
+          func_name reg_file_size num_instructions
+          param1 param2 ... paramM
+          instruction1
+          instruction2
+          ...
+          instructionN
+
+        Each instruction is printed in the following format:
+          hash opcode field1 ... fieldX # The text format.
+
+        The part starting from # is only used for visualization and debugging.
+        The real serialized code doesn't contain it, therefore the deserializer
+        doesn't need to deal with it as well.
+        """
+        return self._get_bytecode()
+
+    @property
+    def globals(self):
+        """Get the globals used by the Relay VM executable.
+
+        Returns
+        -------
+        ret : List[String]
+            The globals contained in the executable.
+        """
+        ret = []
+        num_globals = _vm.GetNumOfGlobals(self.module)
+        for i in range(num_globals):
+            ret.append(_vm.GetGlobalFields(self.module, i))
+        return ret
+
+    @property
+    def module(self):
+        """Return the runtime module contained in a virtual machine executable."""
+        return self.mod
+
+
 class VirtualMachine(object):
     """Relay VM runtime."""
     def __init__(self, mod):
-        self.mod = mod
-        self._init = self.mod["init"]
-        self._load_params = self.mod["load_params"]
+        if not isinstance(mod, (Executable, tvm.module.Module)):
+            raise TypeError("mod is expected to be the type of Executable or " +
+                            "tvm.Module, but received {}".format(type(mod)))
+        m = mod.module if isinstance(mod, Executable) else mod
+        self.mod = _vm._VirtualMachine(m)
         self._invoke = self.mod["invoke"]
-
-    def init(self, ctx):
-        """Initialize the context in the VM.
-
-        Parameters
-        ----------
-        ctx : :py:class:`TVMContext`
-            The runtime context to run the code on.
-        """
-        args = [ctx.device_type, ctx.device_id]
-        self._init(*args)
-
-    def load_params(self, params):
-        """Load parameters for the VM.
-
-        Parameters
-        ----------
-        params : Union[bytearray, Dict]
-            The dictionary that contains serialized parameters.
-        """
-        if isinstance(params, dict):
-            params = tvm.relay.save_param_dict(params)
-        elif isinstance(params, (bytes, str)):
-            params = bytearray(params)
-        if not isinstance(params, (bytearray, TVMByteArray)):
-            raise TypeError("params must be a bytearray")
-
-        self._load_params(bytearray(params))
 
     def invoke(self, func_name, *args):
         """Invoke a function.
@@ -122,11 +218,6 @@ class VirtualMachine(object):
         """
         return self.invoke("main", *args)
 
-    @property
-    def module(self):
-        """Return the runtime module contained in a virtual machine."""
-        return self.mod
-
 
 def compile(mod, target=None, target_host=None, params=None):
     """
@@ -155,8 +246,8 @@ def compile(mod, target=None, target_host=None, params=None):
 
     Returns
     -------
-    vm : VirtualMachine
-        The VM runtime.
+    exec : Executable
+        The VM executable that contains both library code and bytecode.
     """
     compiler = VMCompiler()
 
@@ -167,14 +258,14 @@ def compile(mod, target=None, target_host=None, params=None):
     tophub_context = compiler.tophub_context(target)
     with tophub_context:
         compiler._compile(mod, target, target_host)
-    return VirtualMachine(compiler._get_vm())
+    return Executable(compiler._get_exec())
 
 class VMCompiler(object):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._compile = self.mod["compile"]
-        self._get_vm = self.mod["get_vm"]
+        self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
 
     def set_params(self, params):
@@ -240,7 +331,7 @@ class VMExecutor(Executor):
     mod : :py:class:`~tvm.relay.module.Module`
         The module to support the execution.
 
-    ctx : :py:class:`TVMContext`
+    ctx : :py:class:`~tvm.TVMContext`
         The runtime context to run the code on.
 
     target : :py:class:`Target`
@@ -252,8 +343,9 @@ class VMExecutor(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        self.vm = compile(mod, target)
-        self.vm.init(ctx)
+        self.executable = compile(mod, target)
+        self.executable.set_context(ctx)
+        self.vm = VirtualMachine(self.executable)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

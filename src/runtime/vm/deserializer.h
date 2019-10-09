@@ -19,15 +19,14 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/deserializer.h
- * \brief Define a deserializer for the serialized Relay VM.
+ * \file src/runtime/vm/deserializer.h
+ * \brief Define a deserializer for the serialized Relay VM executable.
  */
 
-#ifndef TVM_RELAY_BACKEND_VM_DESERIALIZER_H_
-#define TVM_RELAY_BACKEND_VM_DESERIALIZER_H_
+#ifndef TVM_RUNTIME_VM_DESERIALIZER_H_
+#define TVM_RUNTIME_VM_DESERIALIZER_H_
 
 #include <dmlc/memory_io.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/vm.h>
 
@@ -37,7 +36,7 @@
 #include <vector>
 
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace vm {
 
 using namespace tvm::runtime::vm;
@@ -46,13 +45,14 @@ namespace runtime = tvm::runtime;
 class Deserializer : public runtime::ModuleNode {
  public:
   /*!
-   * \brief Initialize the deserializer for creating a virtual machine object.
+   * \brief Initialize the deserializer for creating a virtual machine
+   * executable object.
    *
    * \param code The serialized code.
    * \param lib The serialized runtime module/library that contains the
    * hardware dependent code.
    */
-  inline void Init(const std::string& code, const runtime::Module& lib);
+  void Init(const std::string& code, const runtime::Module& lib);
 
   /*!
    * \brief Return the member function to the frontend.
@@ -67,23 +67,26 @@ class Deserializer : public runtime::ModuleNode {
 
   const char* type_key() const final { return "Deserializer"; }
 
-  /*! \brief Deserialize the serialized VM. */
+  /*! \brief Deserialize the serialized VM executable. */
   void Deserialize();
 
   virtual ~Deserializer() { delete strm_; }
 
  private:
-  /*! \brief Deserialize the globals in `vm_`. */
+  /*! \brief Deserialize the globals in `exec_`. */
   void DeserializeGlobalSection();
 
-  /*! \brief Deserialize the constant pool in `vm_`. */
+  /*! \brief Deserialize the constant pool in `exec_`. */
   void DeserializeConstantSection();
 
-  /*! \brief Deserialize primitive op names in `vm_`. */
+  /*! \brief Deserialize primitive op names in `exec_`. */
   void DeserializePrimitiveOpNames();
 
-  /*! \brief Deserialize the vm functions in `vm_`. */
+  /*! \brief Deserialize the vm functions in `exec_`. */
   void DeserializeCodeSection();
+
+  /*! \brief Deserialize the context in `exec_`. */
+  void DeserializeContextSection();
 
   /*! \brief The code to be serialized. */
   std::string code_;
@@ -91,12 +94,12 @@ class Deserializer : public runtime::ModuleNode {
   /*! \brief The stream used for serialization. */
   dmlc::Stream* strm_;
 
-  /*! \brief The VM to be created. */
-  std::shared_ptr<VirtualMachine> vm_;
+  /*! \brief The VM executable to be created. */
+  std::shared_ptr<Executable> exec_;
 };
 
 }  // namespace vm
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_VM_DESERIALIZER_H_
+#endif  // TVM_RUNTIME_VM_DESERIALIZER_H_

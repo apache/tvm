@@ -19,8 +19,8 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/serializer.cc
- * \brief Implementation of serializing APIs for the Relay VM.
+ * \file src/runtime/vm/serializer.cc
+ * \brief Implementation of serializing APIs for the Relay VM executable.
  */
 #include "serializer.h"
 
@@ -36,11 +36,12 @@
 #include "serialize_util.h"
 
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace vm {
 
-void Serializer::Init(const VirtualMachine* vm) {
-  vm_ = vm;
+inline void Serializer::Init(const Executable* exec) {
+  CHECK(exec);
+  exec_ = exec;
   // Initialize the stream object.
   strm_ = new dmlc::MemoryStringStream(&code_);
 }
@@ -50,23 +51,7 @@ runtime::PackedFunc Serializer::GetFunction(
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetLib();
-    });
-  } else if (name == "get_primitive_ops") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetPrimitiveOps();
-    });
-  } else if (name == "get_bytecode") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetBytecode();
-    });
-  } else if (name == "get_globals") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetGlobals();
-    });
-  } else if (name == "get_stats") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->Stats();
+      *rv = this->exec_->GetLib();
     });
   } else if (name == "serialize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -76,67 +61,6 @@ runtime::PackedFunc Serializer::GetFunction(
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
-}
-
-tvm::Array<tvm::Expr> Serializer::GetPrimitiveOps() const {
-  std::vector<tvm::Expr> ret;
-  for (const auto& it : vm_->primitive_map) {
-    auto packed_name = tvm::ir::StringImm::make(it.first);
-    auto packed_index = static_cast<size_t>(it.second);
-    if (ret.size() <= packed_index) {
-      ret.resize(packed_index + 1);
-    }
-    ret[packed_index] = packed_name;
-  }
-  return ret;
-}
-
-std::string Serializer::Stats() const {
-  std::ostringstream oss;
-  oss << "Relay VM statistics:" << std::endl;
-
-  // Get the number of constants and the shape of each of them.
-  oss << "  Constant shapes (# " << vm_->constants.size() << "): [";
-  for (const auto& it : vm_->constants) {
-    auto* cell = it.as<runtime::vm::TensorObj>();
-    CHECK(cell != nullptr);
-    runtime::NDArray data = cell->data;
-    const auto& shape = data.Shape();
-
-    // Scalar
-    if (shape.empty()) {
-      oss << "scalar, ";
-      continue;
-    }
-
-    oss << "[";
-    for (auto s : shape) {
-      oss << s << ", ";
-    }
-    oss.seekp(-2, oss.cur);
-    oss << "], " << std::endl;
-  }
-  if (!vm_->constants.empty()) oss.seekp(-2, oss.cur);
-  oss << "]" << std::endl;
-
-  // Get the number of globals and the name of each of them.
-  oss << "  Globals (#" << vm_->global_map.size() << "): [";
-  for (const auto& it : vm_->global_map) {
-    oss << "(\"" << it.first << "\", " << it.second << ")" << ", ";
-  }
-  if (!vm_->global_map.empty()) oss.seekp(-2, oss.cur);
-  oss << "]" << std::endl;
-
-  // Get the number of primitive ops and the name of each of them.
-  oss << "  Primitive ops (#" << vm_->primitive_map.size() << "): [";
-  const auto& prim_ops = GetPrimitiveOps();
-  for (const auto& it : prim_ops) {
-    oss << it << ", ";
-  }
-  if (!prim_ops.empty()) oss.seekp(-2, oss.cur);
-  oss << "]" << std::endl;
-
-  return oss.str();
 }
 
 TVMByteArray Serializer::Serialize() {
@@ -157,6 +81,9 @@ TVMByteArray Serializer::Serialize() {
   // Code section.
   SerializeCodeSection();
 
+  // Context section.
+  SerializeContextSection();
+
   TVMByteArray arr;
   arr.data = code_.c_str();
   arr.size = code_.length();
@@ -164,33 +91,43 @@ TVMByteArray Serializer::Serialize() {
 }
 
 void Serializer::SerializeGlobalSection() {
-  auto globals = GetGlobals();
+  std::vector<std::pair<std::string, Index> > globals(exec_->global_map.begin(),
+                                                      exec_->global_map.end());
+  auto comp = [](const std::pair<std::string, Index>& a,
+                 const std::pair<std::string, Index>& b) {
+    return a.second < b.second;
+  };
+  std::sort(globals.begin(), globals.end(), comp);
+
   std::vector<std::string> glbs;
   for (const auto& it : globals) {
-    glbs.push_back(it.as<tvm::ir::StringImm>()->value);
+    glbs.push_back(it.first);
   }
   strm_->Write(glbs);
 }
 
 void Serializer::SerializeConstantSection() {
   std::vector<DLTensor*> arrays;
-  for (const auto& obj : vm_->constants) {
+  for (const auto& obj : exec_->constants) {
     const auto* cell = obj.as<runtime::vm::TensorObj>();
     CHECK(cell != nullptr);
     runtime::NDArray data = cell->data;
     arrays.push_back(const_cast<DLTensor*>(data.operator->()));
   }
-  strm_->Write(static_cast<uint64_t>(vm_->constants.size()));
+  strm_->Write(static_cast<uint64_t>(exec_->constants.size()));
   for (const auto& it : arrays) {
     runtime::SaveDLTensor(strm_, it);
   }
 }
 
 void Serializer::SerializePrimitiveOpNames() {
-  auto names = GetPrimitiveOps();
   std::vector<std::string> primitive_names;
-  for (const auto& it : names) {
-    primitive_names.push_back(it.as<tvm::ir::StringImm>()->value);
+  for (const auto& it : exec_->primitive_map) {
+    auto packed_index = static_cast<size_t>(it.second);
+    if (primitive_names.size() <= packed_index) {
+      primitive_names.resize(packed_index + 1);
+    }
+    primitive_names[packed_index] = it.first;
   }
   strm_->Write(primitive_names);
 }
@@ -346,8 +283,8 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
 
 void Serializer::SerializeCodeSection() {
   // Save the number of functions.
-  strm_->Write(static_cast<uint64_t>(vm_->functions.size()));
-  for (const auto& func : vm_->functions) {
+  strm_->Write(static_cast<uint64_t>(exec_->functions.size()));
+  for (const auto& func : exec_->functions) {
     // Serialize the function info.
     VMFunctionSerializer func_format(func.name,
                                      func.register_file_size,
@@ -363,77 +300,31 @@ void Serializer::SerializeCodeSection() {
   }
 }
 
-tvm::Array<tvm::Expr> Serializer::GetGlobals() const {
-  tvm::Array<tvm::Expr> ret;
-  std::vector<std::pair<std::string, Index> > globals(vm_->global_map.begin(),
-                                                      vm_->global_map.end());
-  auto comp = [](const std::pair<std::string, Index>& a,
-                 const std::pair<std::string, Index>& b) {
-    return a.second < b.second;
-  };
-  std::sort(globals.begin(), globals.end(), comp);
-  for (const auto& it : globals) {
-    ret.push_back(tvm::ir::StringImm::make(it.first));
+void Serializer::SerializeContextSection() {
+  CHECK(!exec_->ctxs.empty());
+  std::vector<uint64_t> serialized_ctx;
+  for (const auto& ctx : exec_->ctxs) {
+    serialized_ctx.push_back(static_cast<uint64_t>(ctx.device_type));
+    serialized_ctx.push_back(static_cast<uint64_t>(ctx.device_id));
   }
-  return ret;
+  strm_->Write(serialized_ctx);
 }
 
-std::string Serializer::GetBytecode() const {
-  std::ostringstream oss;
-
-  for (const auto& func : vm_->functions) {
-    // Print the header of the function format.
-    oss << "# func name, reg file size, param count, inst count:"
-        << std::endl;
-    oss << func.name << " "
-        << func.register_file_size << " "
-        << func.params.size() << " "
-        << func.instructions.size() << std::endl;
-
-    // Print pramams of a `VMFunction`.
-    oss << "# Parameters:"<< std::endl;
-    for (const auto& param : func.params) {
-      oss << param << " ";
-    }
-    oss << std::endl;
-
-    // Print the instructions of a `VMFunction`.
-    // The part after ";" is the instruction in text format.
-    oss << "hash, opcode, fields # inst(text):"<< std::endl;
-    for (const auto& instr : func.instructions) {
-      const auto& serialized_instr = SerializeInstruction(instr);
-      oss << std::hex << "0x" << serialized_instr.Hash() << " "
-          << std::dec << serialized_instr.opcode << " ";
-      for (auto it : serialized_instr.fields) {
-        oss << it << " ";
-      }
-      oss << "  # " << instr;
-      if (oss.str().back() != '\n') oss << std::endl;
-    }
-  }
-
-  return oss.str();
-}
-
-runtime::Module Serializer::GetLib() const {
-  return vm_->lib;
-}
-
-runtime::Module CreateSerializer(const VirtualMachine* vm) {
-  std::shared_ptr<Serializer> exec = std::make_shared<Serializer>();
-  exec->Init(vm);
-  return runtime::Module(exec);
+runtime::Module CreateSerializer(const Executable* exec) {
+  std::shared_ptr<Serializer> serializer = std::make_shared<Serializer>();
+  serializer->Init(exec);
+  return runtime::Module(serializer);
 }
 
 TVM_REGISTER_GLOBAL("relay._vm._Serializer")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
-  const auto* vm = dynamic_cast<VirtualMachine*>(mod.operator->());
-  CHECK(vm) << "Virtual machine has not been defined yet."
+  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  CHECK(exec) << "Virtual machine has not been defined yet."
             << "\n";
-  *rv = CreateSerializer(vm);
+  *rv = CreateSerializer(exec);
 });
 
 }  // namespace vm
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm

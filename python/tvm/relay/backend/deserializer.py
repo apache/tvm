@@ -31,7 +31,7 @@ def _create_deserializer(code, lib):
     Parameters
     ----------
     code : bytearray
-        The serialized virtual machine code.
+        The serialized virtual machine bytecode.
 
     lib : :py:class:`~tvm.module.Module`
         The serialized runtime module/library that contains the hardware
@@ -40,7 +40,7 @@ def _create_deserializer(code, lib):
     Returns
     -------
     ret : Deserializer
-        The created virtual machine deserializer.
+        The created virtual machine executable deserializer.
     """
     if isinstance(code, (bytes, str)):
         code = bytearray(code)
@@ -55,12 +55,12 @@ def _create_deserializer(code, lib):
 
 
 class Deserializer:
-    """Relay VM deserializer.
+    """Relay VM executable deserializer.
 
     Parameters
     ----------
     code : bytearray
-        The serialized virtual machine code.
+        The serialized virtual machine bytecode.
 
     lib : :py:class:`~tvm.module.Module`
         The serialized runtime module/library that contains the hardware
@@ -71,11 +71,11 @@ class Deserializer:
         self._deserialize = self.mod["deserialize"]
 
     def deserialize(self):
-        """Deserialize the serialized bytecode into a Relay VM.
+        """Deserialize the serialized bytecode into a Relay VM executable.
 
         Returns
         -------
-        ret : VirtualMachine
-            The deserialized Relay VM.
+        ret : Executable
+            The deserialized Relay VM executable.
         """
-        return rly_vm.VirtualMachine(self._deserialize())
+        return rly_vm.Executable(self._deserialize())

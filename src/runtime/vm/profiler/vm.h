@@ -47,11 +47,11 @@ class VirtualMachineDebug : public VirtualMachine {
   void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
                     Index output_size, const std::vector<ObjectRef>& args) final;
 
+  void Init(const Executable* exec);
+
   ~VirtualMachineDebug() {}
 
  private:
-  void Init(const std::vector<TVMContext>& ctxs);
-
   std::unordered_map<Index, std::string> packed_index_map;
   std::unordered_map<Index, std::vector<double>> op_durations;
   std::unordered_map<Index, int> op_invokes;
