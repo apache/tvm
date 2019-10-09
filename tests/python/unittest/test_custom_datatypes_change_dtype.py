@@ -23,6 +23,7 @@ from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite
+from nose.tools import nottest
 
 tgt = "llvm"
 
@@ -165,7 +166,7 @@ def setup():
                 intrinsic_name="exp")
     register_min_func(lambda num_bits: -3.38953139e38, "posit")
 
-def test_ops_same_function(src_dtype, dst_dtype):
+def run_ops(src_dtype, dst_dtype):
     """Run the same op, but with two different datatypes"""
 
     def check_unary_op(op, src_dtype, dst_dtype):
@@ -244,7 +245,7 @@ def test_ops_same_function(src_dtype, dst_dtype):
         check_binary_op(op, src_dtype, dst_dtype)
 
 
-def test_model(get_workload, input_shape, src_dtype, dst_dtype):
+def run_model(get_workload, input_shape, src_dtype, dst_dtype):
     module, params = get_workload()
 
     # Convert the input into the correct format.
@@ -271,7 +272,7 @@ def test_model(get_workload, input_shape, src_dtype, dst_dtype):
                                 atol=0.001)
 
 
-def test_conv2d():
+def run_conv2d(src_dtype, dst_dtype):
     def run_test_conv2d(src_dtype,
                         dst_dtype,
                         scale,
@@ -397,11 +398,25 @@ def test_conv2d():
                     dilation=(3, 3))
 
 
+
+def test_ops():
+    run_ops('float32', 'custom[posit]32')
+
+# disabled for now, because it's slow
+@nottest
+def test_conv2d():
+    run_conv2d('float32', 'custom[posit]32')
+
+# disabled for now, because it's slow
+@nottest
+def test_models():
+    run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
+    run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
+    run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
+
 if __name__ == "__main__":
     setup()
-    test_ops('float32', 'custom[posit]32')
+    test_ops()
     # These all run very slowly:
-    #test_conv2d('float32', 'custom[posit]32')
-    #test_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
-    #test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
-    #test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # test_conv2d()
+    # test_models()
