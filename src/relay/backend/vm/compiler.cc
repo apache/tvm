@@ -897,10 +897,9 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   // TODO(wweic): Support heterogenous execution
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
-    for (const auto& kv : targets) {
-      With<Target> tctx(kv.second);
-      return seq(mod);
-    }
+    const auto& it = targets.begin();
+    With<Target> tctx((*it).second);
+    return seq(mod);
   }
   return seq(mod);
 }
