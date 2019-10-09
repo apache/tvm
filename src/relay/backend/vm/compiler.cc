@@ -266,7 +266,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const ConstantNode* const_node) {
     size_t konst_idx = context_->constants.size();
-    std::string name = "p" + std::to_string(konst_idx);
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
   }
@@ -396,7 +395,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         }
       }
       size_t konst_idx = context_->constants.size();
-      std::string name = "p" + std::to_string(konst_idx);
       context_->constants.push_back(shape_tensor);
       Emit(Instruction::LoadConst(konst_idx, NewRegister()));
       return last_register_;
