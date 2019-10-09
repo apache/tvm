@@ -165,6 +165,8 @@ html_theme_options = {
 
 html_logo = "_static/img/tvm-logo-small.png"
 
+html_favicon = "_static/img/tvm-logo-square.png"
+
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
@@ -213,7 +215,10 @@ subsection_order = ExplicitOrder(
      '../tutorials/autotvm',
      '../tutorials/dev',
      '../tutorials/topi',
-     '../tutorials/deployment'])
+     '../tutorials/deployment',
+     '../vta/tutorials/frontend',
+     '../vta/tutorials/optimize',
+     '../vta/tutorials/autotvm'])
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -130,6 +130,7 @@ REGISTER_PASS(RewriteUnsafeSelect);
 REGISTER_PASS(Inline);
 REGISTER_PASS(IRTransform);
 REGISTER_PASS(VectorizeLoop);
+REGISTER_PASS(SkipVectorize);
 REGISTER_PASS(UnrollLoop);
 REGISTER_PASS(InjectCopyIntrin);
 REGISTER_PASS(ThreadSync);
@@ -151,6 +152,7 @@ REGISTER_PASS(LowerThreadAllreduce);
 REGISTER_PASS(LowerWarpMemory);
 REGISTER_PASS(RemapThreadAxis);
 REGISTER_PASS(LowerIntrin);
+REGISTER_PASS(LowerCustomDatatypes);
 REGISTER_PASS(LowerTVMBuiltin);
 REGISTER_PASS(CombineContextCall);
 REGISTER_PASS(VerifyMemory);

@@ -117,7 +117,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
-    throw Error(std::string("Do not have a default for ") + op->type_key());
+    LOG(FATAL) << "Do not have a default for " << op->type_key();
+    throw;
   }
 
  private:
@@ -236,17 +237,6 @@ class ExprMutator
  * \param fvisit The visitor function to be applied.
  */
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
-
-/*
- * \brief Bind function parameters or free variables.
- *
- * Parameter binding can only happen if expr is a Function.
- * binds cannot change internal arguments of internal functions.
- *
- * \param expr The function to be binded.
- * \param binds The map of arguments to
- */
-Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 }  // namespace relay
 }  // namespace tvm

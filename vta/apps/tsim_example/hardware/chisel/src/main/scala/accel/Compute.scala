@@ -35,53 +35,68 @@ import vta.dpi._
   * 6. Check if counter (cnt) is equal to length to assert finish,
   *    otherwise go to step 2.
   */
-class Compute extends Module {
+class Compute(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Input(Bool())
     val finish = Output(Bool())
-    val length = Input(UInt(32.W))
-    val inp_baddr = Input(UInt(64.W))
-    val out_baddr = Input(UInt(64.W))
+    val ecnt = Vec(config.nECnt, ValidIO(UInt(config.regBits.W)))
+    val vals = Input(Vec(config.nVals, UInt(config.regBits.W)))
+    val ptrs = Input(Vec(config.nPtrs, UInt(config.ptrBits.W)))
     val mem = new VTAMemDPIMaster
   })
   val sIdle :: sReadReq :: sReadData :: sWriteReq :: sWriteData :: Nil = Enum(5)
   val state = RegInit(sIdle)
+  val const = io.vals(0)
+  val length = io.vals(1)
+  val cycles = RegInit(0.U(config.regBits.W))
   val reg = Reg(chiselTypeOf(io.mem.rd.bits))
-  val cnt = Reg(chiselTypeOf(io.length))
-  val raddr = Reg(chiselTypeOf(io.inp_baddr))
-  val waddr = Reg(chiselTypeOf(io.out_baddr))
+  val cnt = Reg(UInt(config.regBits.W))
+  val raddr = Reg(UInt(config.ptrBits.W))
+  val waddr = Reg(UInt(config.ptrBits.W))
 
-  switch (state) {
-    is (sIdle) {
-      when (io.launch) {
+  switch(state) {
+    is(sIdle) {
+      when(io.launch) {
         state := sReadReq
       }
     }
-    is (sReadReq) {
+    is(sReadReq) {
       state := sReadData
     }
-    is (sReadData) {
-      when (io.mem.rd.valid) {
+    is(sReadData) {
+      when(io.mem.rd.valid) {
         state := sWriteReq
       }
     }
-    is (sWriteReq) {
+    is(sWriteReq) {
       state := sWriteData
     }
-    is (sWriteData) {
-      when (cnt === (io.length - 1.U)) {
+    is(sWriteData) {
+      when(cnt === (length - 1.U)) {
         state := sIdle
-      } .otherwise {
+      }.otherwise {
         state := sReadReq
       }
     }
   }
 
+  val last = state === sWriteData && cnt === (length - 1.U)
+
+  // cycle counter
+  when(state === sIdle) {
+    cycles := 0.U
+  }.otherwise {
+    cycles := cycles + 1.U
+  }
+
+  io.ecnt(0).valid := last
+  io.ecnt(0).bits := cycles
+
   // calculate next address
-  when (state === sIdle) {
-    raddr := io.inp_baddr
-    waddr := io.out_baddr
-  } .elsewhen (state === sWriteData) { // increment by 8-bytes
+  when(state === sIdle) {
+    raddr := io.ptrs(0)
+    waddr := io.ptrs(1)
+  }.elsewhen(state === sWriteData) { // increment by 8-bytes
     raddr := raddr + 8.U
     waddr := waddr + 8.U
   }
@@ -93,8 +108,8 @@ class Compute extends Module {
   io.mem.req.addr := Mux(state === sReadReq, raddr, waddr)
 
   // read
-  when (state === sReadData && io.mem.rd.valid) {
-    reg := io.mem.rd.bits + 1.U
+  when(state === sReadData && io.mem.rd.valid) {
+    reg := io.mem.rd.bits + const
   }
   io.mem.rd.ready := state === sReadData
 
@@ -103,12 +118,12 @@ class Compute extends Module {
   io.mem.wr.bits := reg
 
   // count read/write
-  when (state === sIdle) {
+  when(state === sIdle) {
     cnt := 0.U
-  } .elsewhen (state === sWriteData) {
+  }.elsewhen(state === sWriteData) {
     cnt := cnt + 1.U
   }
 
   // done when read/write are equal to length
-  io.finish := state === sWriteData && cnt === (io.length - 1.U)
+  io.finish := last
 }

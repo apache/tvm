@@ -16,25 +16,35 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Upsampling in python"""
+import math
 import numpy as np
 
 def upsample_nearest(arr, scale):
     """ Populate the array by scale factor"""
-    return arr.repeat(scale, axis=0).repeat(scale, axis=1)
+    h, w = arr.shape
+    out_h = math.floor(h * scale[0])
+    out_w = math.floor(w * scale[1])
+    out = np.empty((out_h, out_w))
+    for y in range(out_h):
+        for x in range(out_w):
+            in_y = math.floor(y / scale[0])
+            in_x = math.floor(x / scale[1])
+            out[y, x] = arr[in_y, in_x]
+    return out
 
 def upsampling_python(data, scale, layout='NCHW'):
     """ Python version of scaling using nearest neighbour """
 
     ishape = data.shape
     if layout == 'NCHW':
-        oshape = (ishape[0], ishape[1], ishape[2]*scale, ishape[3]*scale)
+        oshape = (ishape[0], ishape[1], math.floor(ishape[2]*scale[0]), math.floor(ishape[3]*scale[1]))
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[1]):
                 output_np[b, c, :, :] = upsample_nearest(data[b, c, :, :], scale)
         return output_np
     if layout == 'NHWC':
-        oshape = (ishape[0], ishape[1]*scale, ishape[1]*scale, ishape[3])
+        oshape = (ishape[0], math.floor(ishape[1]*scale[0]), math.floor(ishape[1]*scale[1]), ishape[3])
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[3]):

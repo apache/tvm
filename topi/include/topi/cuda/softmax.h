@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,16 +18,15 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file cuda/injective.h
-* \brief CUDA schedule for injective operations
-*/
+ * \file cuda/injective.h
+ * \brief CUDA schedule for injective operations
+ */
 #ifndef TOPI_CUDA_SOFTMAX_H_
 #define TOPI_CUDA_SOFTMAX_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
@@ -51,12 +50,31 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   auto s = create_schedule(out_ops);
 
   auto softmax = outs[0];
-  auto max_elem = softmax->op->InputTensors()[1];
-  auto expsum = softmax->op->InputTensors()[2];
+  tvm::Tensor max_elem;
+  tvm::Tensor expsum;
+  tvm::Tensor exp;
+  bool has_exp = false;
+
+  auto tag = softmax->op.as<ComputeOpNode>()->tag;
+  if (tag == "softmax_output") {
+    expsum = softmax->op->InputTensors()[1];
+    exp = softmax->op->InputTensors()[0];
+    max_elem = s[exp]->op->InputTensors()[1];
+    has_exp = true;
+  } else if (tag == "log_softmax_output") {
+    max_elem = softmax->op->InputTensors()[1];
+    expsum = softmax->op->InputTensors()[2];
+  } else {
+    LOG(ERROR) << "Tag is expected to be softmax_output or log_softmax_output. Got " << tag;
+  }
 
   int num_thread = 64;
   auto block_x = tvm::thread_axis(Range(), "blockIdx.x");
   auto thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
+
+  if (has_exp) {
+    s[exp].bind(exp->op.as<ComputeOpNode>()->axis[0], block_x);
+  }
 
   s[max_elem].bind(max_elem->op.as<ComputeOpNode>()->axis[0], block_x);
 

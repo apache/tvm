@@ -14,12 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import math
-import tvm
 import numpy as np
+import tvm
+import scipy
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
 import topi.testing
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -44,7 +51,8 @@ def test_unary_op():
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
         # test type inference
-        assert relay.ir_pass.infer_type(y).checked_type == tp
+        yy = run_infer_type(y)
+        assert yy.checked_type == tp
 
         if ref is not None:
             data = np.random.rand(*shape).astype(dtype)
@@ -60,11 +68,15 @@ def test_unary_op():
 
     for opfunc, ref in [(tvm.relay.log, np.log),
                         (tvm.relay.exp, np.exp),
+                        (tvm.relay.erf, scipy.special.erf),
                         (tvm.relay.sqrt, np.sqrt),
                         (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),
                         (tvm.relay.tanh, np.tanh),
-                        (relay.nn.relu, relu)]:
+                        (relay.nn.relu, relu),
+                        (tvm.relay.cos, np.cos),
+                        (tvm.relay.sin, np.sin),
+                        (tvm.relay.atan, np.arctan)]:
         check_single_op(opfunc, ref)
 
 
@@ -84,7 +96,8 @@ def test_binary_op():
         z = opfunc(x, y)
         # test printer
         assert ("{}(%x, %y)".format(z.op.name)) in z.astext()
-        assert relay.ir_pass.infer_type(z).checked_type == t1
+        zz = run_infer_type(z)
+        assert zz.checked_type == t1
 
         if ref is not None:
             t1 = relay.TensorType((5, 10, 5))
@@ -134,7 +147,7 @@ def test_bias_add():
     x = relay.var("x", shape=xshape)
     bias = relay.var("bias")
     z = relay.nn.bias_add(x, bias)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert "axis=" not in zz.astext()
     assert zz.args[1].checked_type == relay.TensorType(bshape)
 
@@ -153,8 +166,8 @@ def test_expand_dims_infer_type():
     x = relay.var("x", shape=(n, t, d))
     y = relay.expand_dims(x, axis=2)
     assert "axis=2" in y.astext()
-    checked = relay.ir_pass.infer_type(y)
-    assert checked.checked_type == relay.TensorType((n, t, 1, 100))
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, t, 1, 100))
 
 
 def test_softmax():
@@ -162,7 +175,7 @@ def test_softmax():
     x = relay.var("x", shape=shape)
     y = relay.nn.softmax(x, axis=1)
     assert "nn.softmax" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType(shape)
     func = relay.Function([x], y)
     x_data = np.random.uniform(size=shape).astype("float32")
@@ -178,7 +191,7 @@ def test_log_softmax():
     x = relay.var("x", shape=shape)
     y = relay.nn.log_softmax(x, axis=1)
     assert "nn.log_softmax" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType(shape)
     func = relay.Function([x], y)
     x_data = np.random.uniform(size=shape).astype("float32")
@@ -195,17 +208,29 @@ def test_concatenate():
     y = relay.var("y", shape=(n, t, d))
     z = relay.concatenate((x, y), axis=-1)
     assert "axis=" in z.astext()
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t, 200))
 
     x = relay.exp(x)
     z = relay.concatenate((x, y), axis=2)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t, 200))
 
     z = relay.concatenate((x, y), axis=1)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
+
+    # check shape mismatches (the following case is expected to raise tvm._ffi.base.TVMError.
+    try:
+        x = relay.var('p1', shape=(2, 5))
+        y = relay.var('p2', shape=(2, 3))
+        c = relay.concatenate([x, y], axis=0)
+        func = relay.Function([x, y], c)
+        zz = run_infer_type(func)
+    except tvm._ffi.base.TVMError:
+        pass
+    else:
+        assert False
 
     x = relay.var("x", shape=(10, 5))
     y = relay.var("y", shape=(10, 5))
@@ -233,7 +258,7 @@ def test_dropout():
     x = relay.var("x", input_ty)
     y = relay.nn.dropout(x, rate=0.75)
     assert "rate=" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == input_ty
 
 
@@ -246,7 +271,7 @@ def test_batch_norm():
     moving_var = relay.var("moving_var", relay.TensorType((2,)))
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y.astuple())
+    yy = run_infer_type(y.astuple())
     assert "center=" in yy.astext()
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.TensorType((3, 2, 1), "float32"),
@@ -261,7 +286,7 @@ def test_batch_norm():
 
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             axis=0, center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y.astuple())
+    yy = run_infer_type(y.astuple())
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.ty.TensorType((3, 2, 1), "float32"),
         relay.ty.TensorType((3,), "float32"),
@@ -276,7 +301,7 @@ def test_batch_norm():
     moving_var = relay.var("moving_var", relay.TensorType((3,)))
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             axis=-1, center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y.astuple())
+    yy = run_infer_type(y.astuple())
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.ty.TensorType((1, 2, 3), "float32"),
         relay.ty.TensorType((3,), "float32"),
@@ -289,8 +314,8 @@ def test_dense():
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.TensorType((2, w), "float32"))
     y = relay.nn.dense(x, w, units=2)
-    "units=2" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    assert "units=2" in y.astext()
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
 
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
@@ -298,14 +323,14 @@ def test_dense():
     wh, ww = tvm.var("wh"), tvm.var("ww")
     w = relay.var("w", relay.TensorType((ww, wh), "float32"))
     y = relay.nn.dense(x, w)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, ww), "float32")
 
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.IncompleteType())
     y = relay.nn.dense(x, w, units=2)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
 
     x = relay.var("x", shape=(10, 5))
@@ -327,6 +352,16 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_bitserial_dense():
+    m, k = tvm.var("m"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((m, k), "int16"))
+    w = relay.var("w", relay.TensorType((k, 32), "int16"))
+    y = relay.nn.bitserial_dense(x, w, units=32)
+    "units=8" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((m, 32), "int16")
+
+
 if __name__ == "__main__":
     test_concatenate()
     test_bias_add()
@@ -339,3 +374,4 @@ if __name__ == "__main__":
     test_dropout()
     test_batch_norm()
     test_dense()
+    test_bitserial_dense()

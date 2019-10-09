@@ -21,6 +21,7 @@ import tvm
 from . import tag
 from . import cpp
 
+
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def identity(x):
     """Take identity of input x.
@@ -75,6 +76,23 @@ def exp(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def erf(x):
+    """Take gauss error function of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.erf(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.
 
@@ -90,6 +108,56 @@ def tanh(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.tanh(x(*i)))
 
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def cos(x):
+    """Take cos of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.cos(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def sin(x):
+    """Take sin of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.sin(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def atan(x):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.atan(x(*i)))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
@@ -124,6 +192,7 @@ def ceil(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
 
+
 def sign(x):
     """Returns -1, 0, 1 based on sign of x.
 
@@ -138,6 +207,7 @@ def sign(x):
         The result.
     """
     return cpp.sign(x)
+
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def trunc(x):
@@ -171,6 +241,23 @@ def abs(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.abs(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def isnan(x):
+    """Check if value of x is NaN, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.isnan(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -342,4 +429,23 @@ def cast(x, dtype):
     if isinstance(x, tvm.tensor.Tensor):
         return tvm.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
-    return tvm.make.static_cast(dtype, x)
+    return tvm.make._cast(dtype, x)
+
+
+def reinterpret(x, dtype):
+    """Reinterpret input to specified data type.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    dtype : str
+        Data type.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return cpp.reinterpret(x, dtype)

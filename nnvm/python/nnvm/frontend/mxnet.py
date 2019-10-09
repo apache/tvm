@@ -32,7 +32,7 @@ def _rename(new_name):
 def _pooling(inputs, attrs):
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'pooling'))
     if len(kernel) != 2:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Non-2D kernels are not supported for Pool2D.')
     global_pool = 'global' if parse_bool_str(attrs, 'global_pool') else ''
     pool_type = required_attr(attrs, 'pool_type', 'pooling')
@@ -52,7 +52,7 @@ def _pooling(inputs, attrs):
 
 def _batch_norm(inputs, attrs):
     if parse_bool_str(attrs, 'output_mean_var'):
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "output_mean_var" is not supported in operator batch_norm.')
     # if parse_bool_str(attrs, 'fix_gamma'):
     #     _warn_not_used('fix_gamma', 'batch_norm')
@@ -269,7 +269,7 @@ def _crop_like(inputs, attrs):
         raise tvm.error.OpAttributeUnimplemented(
             'Center crop is not supported in operator crop_like.')
     if len(inputs) < 2:
-        raise RuntimeError("Only support crop_like pattern.")
+        raise tvm.error.OpAttributeUnimplemented("Only support crop_like pattern.")
     new_attrs["axis"] = [2, 3]
     return get_nnvm_op('slice_like')(inputs[0], inputs[1], **new_attrs)
 

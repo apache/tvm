@@ -39,21 +39,24 @@
 // - Periodically cleanup the old versions on local workers
 //
 ci_lint = "tvmai/ci-lint:v0.51"
-ci_gpu = "tvmai/ci-gpu:v0.51"
-ci_cpu = "tvmai/ci-cpu:v0.50"
-ci_i386 = "tvmai/ci-i386:v0.50"
+ci_gpu = "tvmai/ci-gpu:v0.54"
+ci_cpu = "tvmai/ci-cpu:v0.52"
+ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
-             "build/libvta.so, build/libtvm_topi.so, build/libnnvm_compiler.so, " + tvm_runtime
+               "build/libvta_tsim.so, " +
+               "build/libvta_fsim.so, " +
+               "build/libtvm_topi.so, " +
+               "build/libnnvm_compiler.so, " + tvm_runtime
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 60
+max_time = 120
 
 // initialize source codes
 def init_git() {
@@ -135,7 +138,8 @@ stage('Build') {
            echo set\\(USE_CUDNN ON\\) >> config.cmake
            echo set\\(USE_CUDA ON\\) >> config.cmake
            echo set\\(USE_OPENGL ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-6.0\\) >> config.cmake
+           echo set\\(USE_MICRO ON\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-7\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
@@ -143,6 +147,7 @@ stage('Build') {
            echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(USE_BLAS openblas\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
@@ -158,8 +163,10 @@ stage('Build') {
            echo set\\(USE_OPENCL ON\\) >> config.cmake
            echo set\\(USE_ROCM ON\\) >> config.cmake
            echo set\\(USE_VULKAN ON\\) >> config.cmake
+           echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(CMAKE_CXX_COMPILER clang-7\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
         make(ci_gpu, 'build2', '-j2')
@@ -175,22 +182,24 @@ stage('Build') {
            cd build
            cp ../cmake/config.cmake .
            echo set\\(USE_SORT ON\\) >> config.cmake
+           echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
+           echo set\\(HIDE_PRIVATE_SYMBOLS ON\\) >> config.cmake
            """
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
         }
       }
     }
@@ -206,7 +215,8 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-5.0\\) >> config.cmake
+           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
@@ -279,6 +289,17 @@ stage('Integration Test') {
       }
     }
   },
+  'legacy: GPU': {
+    node('GPU') {
+      ws('workspace/tvm/legacy-python-gpu') {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_legacy.sh"
+        }
+      }
+    }
+  },
   'docs: GPU': {
     node('GPU') {
       ws('workspace/tvm/docs-python-gpu') {
@@ -292,6 +313,24 @@ stage('Integration Test') {
     }
   }
 }
+
+/*
+stage('Build packages') {
+  parallel 'conda CPU': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cpu ./conda/build_cpu.sh
+    }
+  },
+  'conda cuda': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cuda90 ./conda/build_cuda.sh
+      sh "${docker_run} tvmai/conda-cuda100 ./conda/build_cuda.sh
+    }
+  }
+  // Here we could upload the packages to anaconda for releases
+  // and/or the master branch
+}
+*/
 
 stage('Deploy') {
     node('doc') {

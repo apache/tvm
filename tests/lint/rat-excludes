@@ -1,6 +1,8 @@
 # subdirectories
-3rdparty/*
-.github/*
+3rdparty
+.github
+jvm
+tutorials
 
 # Binary or data files
 .*\.css
@@ -23,20 +25,31 @@
 .*\.csv
 .*\.mk
 .*\.log
+.*\.interp
+.*\.tokens
 
 # Generated modules
-.*gen_modules/*
+.*\.egg-info
+.*gen_modules
 .*doxygen
 core.cpp
 build
 _static
 _build
 .*~
+\#..*\#
+\.#.*
+
+# Relay parser
+RelayLexer.py
+RelayParser.py
+RelayVisitor.py
 
 # Specific files
 package-list
 MANIFEST
 .gitignore
+.gitattributes
 .gitmodules
 .clang-format
 .bash_history
@@ -44,3 +57,4 @@ rat-excludes
 __init__.py
 pylintrc
 config.cmake
+Cargo.lock

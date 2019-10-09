@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,14 +23,13 @@
 #include <tvm/expr_operator.h>
 
 namespace {
+using namespace tvm;
 using namespace tvm::ir;
-using namespace HalideIR::Internal;
-using namespace HalideIR;
 
 // replace variable to constant
 class IRVar2Const : public IRMutator {
  public:
-  VarExpr var;
+  Var var;
   int int_val;
   Expr Mutate(Expr expr) final {
     static const FMutateExpr& f = IRVar2Const::vtable_expr();
@@ -49,7 +48,7 @@ TVM_STATIC_IR_FUNCTOR(IRVar2Const, vtable_expr)
 .set_dispatch<Variable>([](const Variable* op, const Expr &e, IRMutator* m) {
     IRVar2Const* vm = static_cast<IRVar2Const*>(m);
     if (e.same_as(vm->var)) {
-      return IntImm::make(Int(32), vm->int_val);
+      return Expr(IntImm::make(Int(32), vm->int_val));
     } else {
       return e;
     }
@@ -58,7 +57,7 @@ TVM_STATIC_IR_FUNCTOR(IRVar2Const, vtable_expr)
 }  // namespace
 
 TEST(IRMutator, Basic) {
-  using namespace HalideIR::Internal;
+  using namespace tvm::ir;
   using namespace tvm;
   Var x("x"), y;
   auto z = x + y;

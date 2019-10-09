@@ -1,3 +1,4 @@
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,156 +20,37 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 
-import logging
 import warnings
 from collections import defaultdict
 # Numpy support
 import numpy as np
 
 import tvm
-from topi.util import get_const_tuple
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
+from .. import module as _module
+from .common import AttrCvt, get_relay_op
+from .common import infer_type as _infer_type
+from .common import infer_shape as _infer_shape
+from .common import infer_channels as _infer_channels
 
 __all__ = ['from_tensorflow']
 
-def _get_relay_op(op_name):
-    try:
-        op = getattr(_op, op_name)
-    except AttributeError:
-        try:
-            op = getattr(_op.nn, op_name)
-        except AttributeError:
-            op = getattr(_op.image, op_name)
-
-    if not op:
-        raise tvm.error.OpNotImplemented(
-            'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
-    return op
-
-class AttrCvt(object):
-    """Common attribute conveter. An AttrConverter instance is a callable:
-    ```
-    attr_converter = AttrConverter(op_name, transforms={'a':'b', 'c':('d', 1)})
-    new_op_name, new_attr = attr_converter(attrs)
-    ```
-
-    Parameters
-    ----------
-    op_name : str or callable
-        If set as str, returned operator name is the str.
-        If set as callable, returned operator is the str returned by calling:
-        `op_name = func(attr)`
-    transforms : dict of `new_name, or (new_name, default_value, transform function)`
-        If only a new_name is provided, it's like renaming the attribute name.
-        If default_value if provded, then the attribute is considered as optional.
-        If transform function is provided, the original attribute value is handled
-        by transform function.
-    excludes : list
-        A list of excluded attributes that should `NOT` appear.
-        Raise NotImplementedError if occured.
-    disables : list
-        A list of attributes that is disabled in relay. Log warnings.
-    ignores : list
-        A list of attributes that is ignored in relay. Debug level logging.
-    extras : dict
-        A series of additional attributes should be added anyway to the returned
-        attribute dict.
-    custom_check : callable
-        A custom function takes attribute, and return True/False.
-        Raise RuntimeError if not bool(True) returned.
-    """
-
-    def __init__(self, op_name, transforms=None,
-                 excludes=None, disables=None, ignores=None,
-                 extras=None, custom_check=None):
-        self._op_name = op_name
-        self._transforms = transforms if transforms else {}
-        self._excludes = excludes if excludes else []
-        self._disables = disables if disables else []
-        self._ignores = ignores if ignores else []
-        self._extras = extras if extras else {}
-        self._custom_check = custom_check
-
-    def __call__(self, inputs, attrs, *args):
-        self._ignores.append('_output_shapes')
-        self._ignores.append('_input_shapes')
-        self._ignores.append('T')
-        self._ignores.append('use_cudnn_on_gpu')
-        self._ignores.append('_node_name')
-        self._ignores.append('is_training')
-        self._ignores.append('_target_layout')
-
-        # apply custom check
-        if self._custom_check:
-            func, msg = self._custom_check
-            if not func(attrs):
-                raise RuntimeError("Check failed: {}".format(msg))
-        # get new op_name
-        if isinstance(self._op_name, str):
-            op_name = self._op_name
-        else:
-            assert callable(self._op_name), "op_name can either be string or callable"
-            op_name = self._op_name(attrs)
-        # convert attributes
-        new_attrs = {}
-        for k in attrs.keys():
-            if k in self._excludes:
-                raise tvm.error.OpAttributeUnimplemented(
-                    'Attribute {} in operator {} is not supported.'.format(k, op_name))
-            elif k in self._disables:
-                logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
-            elif k in self._ignores:
-                logging.debug("Attribute %s is ignored in relay.%s", k, op_name)
-            elif k in self._transforms:
-                new_name, defaults, transform = self._parse_default(self._transforms[k])
-                if defaults is None:
-                    new_attr = self._required_attr(attrs, k)
-                else:
-                    new_attr = attrs.get(k, None)
-                if new_attr is None:
-                    new_attrs[new_name] = defaults
-                else:
-                    new_attrs[new_name] = transform(new_attr)
-            else:
-                # copy
-                new_attrs[k] = attrs[k]
-        # add extras
-        new_attrs.update(self._extras)
-        return _get_relay_op(op_name)(*inputs, **new_attrs)
-
-    def _parse_default(self, target):
-        """Helper function to parse default values."""
-        if not isinstance(target, (list, tuple)):
-            k, v, t = target, None, lambda x: x
-        elif len(target) == 1:
-            k, v, t = target[0], None, lambda x: x
-        elif len(target) == 2:
-            k, v, t = target[0], target[1], lambda x: x
-        elif len(target) > 2:
-            k, v, t = target[0], target[1], target[2]
-        else:
-            k = None  # should raise
-        if not isinstance(k, str):
-            msg = "{} is not a valid target, (name, default) expected.".format(target)
-            raise ValueError(msg)
-        return k, v, t
-
-    def _parse_bool(self, value):
-        """Helper function to parse default boolean values."""
-        if isinstance(value, str):
-            return value.strip().lower() in ['true', '1', 't', 'y', 'yes']
-        return bool(value)
-
-    def _required_attr(self, attr, key):
-        """Wrapper for getting required attributes."""
-        assert isinstance(attr, dict)
-        if key not in attr:
-            raise tvm.error.OpAttributeRequired(
-                'Attribute {} not found in operator {}'.format(key, self._op_name))
-        return attr[key]
+def _infer_value(input_val, params):
+    from tvm.contrib import graph_runtime
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+        input_val)), "All inputs to infer must be available in params."
+    func = _expr.Function(analysis.free_vars(input_val), input_val)
+    with tvm.relay.build_config(opt_level=0):
+        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+    ctx = tvm.context("llvm", 0)
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+    m.run()
+    return m.get_output(0)
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
@@ -180,12 +62,6 @@ def _get_pad_pair(input1d, kernel1d, stride1d):
     pad_after = pad - pad_before
 
     return [pad_before, pad_after]
-
-def _get_name_hint(node):
-    name = ''
-    if hasattr(node, "name_hint"):
-        name = node.name_hint
-    return name
 
 def _math_name_picker(surfix):
     def _impl(attr):
@@ -208,17 +84,22 @@ def _dimension_constraint():
         return False
     return _dim_check, "Only 2d kernel supported."
 
-def _infer_channels(inputs, params, transpose=False):
-    """A hack for getting 'channles' or 'units' since tensorflow don't provide
-    these attributes. We check the shape of weights provided to get the number.
-    """
-    out_type = ir_pass.infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
-    return channels
+def _get_param(params, input_node):
+    if isinstance(input_node, _expr.Constant):
+        return np.atleast_1d(input_node.data.asnumpy())
+    return params.pop(input_node.name_hint).asnumpy()
+
+def _get_num_param(params, input_node):
+    return _get_param(params, input_node).item()
+
+def _get_list_param(params, input_node):
+    return _get_param(params, input_node).tolist()
+
+def _get_tuple_param(params, input_node):
+    return tuple(_get_param(params, input_node))
 
 def _rsqrt():
-    def _impl(inputs, attr, *args):
+    def _impl(inputs, attr, params):
         inputs.append(tvm.relay.const(-0.5, attr['T'].name))
         return AttrCvt(op_name="power")(inputs, attr)
     return _impl
@@ -229,18 +110,17 @@ def _argx(func, func_name):
         try:
             # In Tensorflow, `axis` argument is a Tensor, not attribute. We
             # support the case where it inputs from a scalar constant.
-            axis_input_name = inputs[1].name_hint
-            axis_input_vlaue = [params[axis_input_name].asnumpy()[0]]
+            axis_input_value = [_get_num_param(params, inputs[1])]
         except (IndexError, KeyError):
             raise TypeError( \
                 "Unsupported argument for `{}` : `axis` should be a constant".format(func_name))
-        return func(inputs[0], axis=axis_input_vlaue, keepdims=False)
+        return func(inputs[0], axis=axis_input_value, keepdims=False)
     return _impl
 
 def _elemwise(name):
-    def _impl(inputs, attr, *args):
+    def _impl(inputs, attr, params):
         assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
-        return _get_relay_op(name)(*inputs)
+        return get_relay_op(name)(*inputs)
     return _impl
 
 def _pooling(name):
@@ -260,7 +140,7 @@ def _pooling(name):
         else:
             msg = 'Value {} of attribute "data_format" of operator Pooling ' \
                   'is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(attrs['data_format']))
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             tmp_shape = attr['_input_shapes'][inputs[0]]
@@ -319,8 +199,12 @@ def _conv(opname):
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
             tmp_shape = attr['_input_shapes'][inputs[1]]
-            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
-            inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            if opname == 'conv':
+                tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
+            else:
+                tmp_shape = [tmp_shape[ii] for ii in (2, 3, 0, 1)]
+                inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
             attr['_input_shapes'][inputs[1]] = tmp_shape
 
         input_shape = attr['_input_shapes'][inputs[0]]
@@ -352,12 +236,12 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
-            depth_mult, _, kernel_h, kernel_w = weights_shape
+            _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
                 attr['channels'] = weights_shape[0]
             else:
-                attr['channels'] = input_shape[0] * depth_mult
+                attr['channels'] = input_shape[1] * depth_mult
                 if attr['channels'] < 0:
                     attr['channels'] *= -1
 
@@ -368,7 +252,6 @@ def _conv(opname):
             msg = 'Value {} in attribute "data_format" of operator Conv is ' \
                   'not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
-
 
         if opname == 'depthwise':
             attr['groups'] = attr['channels']
@@ -450,6 +333,54 @@ def _decode_image():
         return inputs[0]
     return _impl
 
+def _crop_and_resize():
+    def _impl(inputs, attr, params):
+        # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
+        # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
+        try:
+            boxes = _get_list_param(params, inputs[1])
+            box_ind = _get_list_param(params, inputs[2])
+            crop_size = _get_list_param(params, inputs[3])
+        except (IndexError, KeyError):
+            boxes = _infer_value(inputs[1], params).asnumpy().tolist()
+            box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
+            crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
+
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape)
+        method = attr['method'].decode()
+
+        attrs = {}
+        attrs['size'] = crop_size
+        attrs['layout'] = 'NHWC'
+        if method.lower() == 'nearest':
+            raise tvm.error.OpAttributeUnImplemented(
+                'Attribute method=nearest is not supported')
+        else:
+            attrs['align_corners'] = True
+            attrs['method'] = 'bilinear'
+
+        out = None
+        begin = [0] * data_dim
+        size = data_shape[:]
+        for idx in box_ind:
+            # 1) Crop
+            # y is mapped to the image coordinate at y * (image_height - 1)
+            # x is mapped to the image coordinate at x * (image_width - 1)
+            begin[0] = idx
+            begin[1] = int(round(boxes[idx][0] * (data_shape[1] - 1)))
+            begin[2] = int(round(boxes[idx][1] * (data_shape[2] - 1)))
+            size[0] = idx + 1
+            size[1] = int(round((data_shape[1] - 1) * boxes[idx][2])) + 1
+            size[2] = int(round((data_shape[2] - 1) * boxes[idx][3])) + 1
+            res_crop = _op.strided_slice(inputs[0], begin=begin, end=size)
+
+            # 2) Resize
+            res_resize = get_relay_op('resize')(res_crop, **attrs)
+            out = _op.concatenate([out, res_resize], axis=0) if out else res_resize
+        return out
+    return _impl
+
 def _cast():
     def _impl(inputs, attr, params):
         return inputs[0].astype(attr['DstT'].name)
@@ -458,21 +389,41 @@ def _cast():
 def _expand_dims():
     def _impl(inputs, attr, params):
         dim_input = inputs.pop(1)
-        axis = params.pop(_get_name_hint(dim_input)).asnumpy()[0]
+        axis = _get_num_param(params, dim_input)
         return AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
                        extras={'axis': int(axis), 'num_newaxis': 1})(inputs, attr)
     return _impl
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        attr['size'] = attr['_output_shapes'][0][1:3]
+        size = attr['_output_shapes'][0][1:3]
+        # Important that the size is defined. If an axis is not, we need to infer what
+        # the shape should be.
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
 
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
-                       extras={'method': "BILINEAR"})(inputs, attr)
+                       extras={'method': "bilinear"})(inputs, attr)
+    return _impl
+
+def _resize_nearest_neighbor():
+    def _impl(inputs, attr, params):
+        size = attr['_output_shapes'][0][1:3]
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
+        inputs.pop(1)
+        # NHWC
+        attr['layout'] = 'NHWC'
+
+        return AttrCvt(op_name="resize",
+                       ignores=['Tdim'],
+                       extras={'method': "nearest_neighbor"})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -484,7 +435,7 @@ def _check_numerics():
 
 def _matmul():
     def _impl(inputs, attr, params):
-        channels = _infer_channels(inputs[1], params, not attr['transpose_b'])
+        channels = _infer_channels(inputs[1], not attr['transpose_b'])
         if attr['transpose_a']:
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not attr['transpose_b']:
@@ -495,9 +446,36 @@ def _matmul():
 
     return _impl
 
-def _undef():
+def _batch_matmul():
     def _impl(inputs, attr, params):
-        return _sym.__undef__()
+        input_x = inputs[0]
+        input_y = inputs[1]
+        orig_shape_x = attr['_input_shapes'][input_x]
+        orig_shape_y = attr['_input_shapes'][input_y]
+
+        # reshape n-dimensional batch matmul into 3d
+        if len(orig_shape_x) > 3:
+            outer_dims = [orig_shape_x[i] for i in range(0, len(orig_shape_x) - 2)]
+            num_outer_elts = np.prod(outer_dims)
+            new_shape_x = (num_outer_elts, orig_shape_x[-2], orig_shape_x[-1])
+            new_shape_y = (num_outer_elts, orig_shape_y[-2], orig_shape_y[-1])
+            input_x = _op.reshape(input_x, newshape=new_shape_x)
+            input_y = _op.reshape(input_y, newshape=new_shape_y)
+
+        adj_x = attr['adj_x']
+        adj_y = attr['adj_y']
+        input_x = _op.transpose(input_x, axes=[0, 2, 1]) if adj_x else input_x
+        input_y = _op.transpose(input_y, axes=[0, 2, 1]) if not adj_y else input_y
+        ret = get_relay_op('batch_matmul')(input_x, input_y)
+
+        # reshape result back to n-dimensional
+        if len(orig_shape_x) > 3:
+            final_shape = list(orig_shape_x)
+            final_shape[-2] = orig_shape_x[-1] if adj_x else orig_shape_x[-2]
+            final_shape[-1] = orig_shape_y[-2] if adj_y else orig_shape_y[-1]
+            ret = _op.reshape(ret, newshape=final_shape)
+
+        return ret
     return _impl
 
 def _identity():
@@ -508,21 +486,19 @@ def _identity():
 def _concatV2():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(len(inputs)-1)
-        axis = params[pop_node.name_hint]
-        params.pop(pop_node.name_hint)
+        axis = int(_get_num_param(params, pop_node))
         return AttrCvt(
             op_name="concatenate", ignores=['T', 'N', 'Tidx'],
-            extras={'axis': int(axis.asnumpy()[0])})([inputs], attr)
+            extras={'axis': axis})([inputs], attr)
     return _impl
 
 def _concat():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(0)
-        axis = params[pop_node.name_hint]
-        params.pop(pop_node.name_hint)
+        axis = int(_get_num_param(params, pop_node))
         return AttrCvt(
             op_name="concatenate", ignores=['N'],
-            extras={'axis': int(axis.asnumpy()[0])})([inputs], attr)
+            extras={'axis': axis})([inputs], attr)
     return _impl
 
 def _pack():
@@ -534,7 +510,7 @@ def _pack():
 
 def _tile():
     def _impl(inputs, attr, params):
-        reps = params[inputs.pop().name_hint].asnumpy()
+        reps = _get_list_param(params, inputs.pop())
         new_input = []
         new_input.append(inputs.pop(0))
 
@@ -546,8 +522,8 @@ def _tile():
 
 def _slice():
     def _impl(inputs, attr, params):
-        begin = params.pop(_get_name_hint(inputs[1])).asnumpy().tolist()
-        size = params.pop(_get_name_hint(inputs[2])).asnumpy().tolist()
+        begin = _get_list_param(params, inputs[1])
+        size = _get_list_param(params, inputs[2])
         data_shape = attr['_input_shapes'][inputs[0]]
         data_dim = len(data_shape)
         end = size
@@ -556,43 +532,121 @@ def _slice():
                 end[i] = data_shape[i] - begin[i]
             else:
                 end[i] += begin[i]
-        return _op.strided_slice(inputs[0], begin=begin, end=size)
+        return _op.strided_slice(inputs[0], begin=begin, end=end)
     return _impl
 
 
 def _reshape():
     def _impl(inputs, attr, params):
+        pop_node = inputs.pop(1)
         try:
-            pop_node = inputs[1]
-            shape_arg = params.pop(pop_node.name_hint)
-            inputs.pop(1)
-
-            return AttrCvt(
-                op_name="reshape",
-                extras={'newshape':tuple(shape_arg.asnumpy())},
-                ignores=['Tshape'])(inputs, attr)
+            shape_arg = _get_tuple_param(params, pop_node)
         except AttributeError:
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
-            func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
-            with tvm.relay.build_config(opt_level=0):
-                graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-            ctx = tvm.context("llvm", 0)
-            from tvm.contrib import graph_runtime
-            m = graph_runtime.create(graph, lib, ctx)
-            m.set_input(**params)
-            m.run()
-            params_new = m.get_output(0)
-            inputs.pop(1)
-            return AttrCvt(
-                op_name="reshape",
-                extras={'newshape':tuple(params_new.asnumpy().astype('int64').flatten())},
-                ignores=['Tshape'])(inputs, attr)
+            params_new = _infer_value(pop_node, params)
+            shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': shape_arg},
+            ignores=['Tshape'])(inputs, attr)
     return _impl
+
+
+def _depth_to_space():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else: # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
+
+    return _impl
+
+
+def _space_to_depth():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_c = in_c * block_size * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else:  # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+            new_c = int(in_c * block_size * block_size)
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
+
+    return _impl
+
 
 def _bias_add():
     def _impl(inputs, attr, params):
-        return _op.add(inputs[0], inputs[1])
+        # Must expand for proper broadcasting in NCHW.
+        if attr['data_format'].decode("utf-8") == 'NCHW':
+            bias = _op.reshape(inputs[1], newshape=(1, -1, 1, 1))
+        else:
+            bias = inputs[1]
+        return _op.add(inputs[0], bias)
+    return _impl
+
+def _broadcast_to():
+    def _impl(inputs, attr, params):
+        if isinstance(inputs[1], _expr.Var):
+            shape = params[inputs[1].name_hint]
+        else:
+            shape = _infer_value(inputs[1], params)
+        shape = list(shape.asnumpy().reshape([-1]))
+        return _op.broadcast_to(inputs[0], shape)
     return _impl
 
 def _squeeze():
@@ -666,9 +720,16 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params):
-        fill_arg = params.pop(inputs.pop(1).name_hint)
-        return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
-                        attr['_output_shapes'][0], attr['T'].name)
+        output_shape = attr['_output_shapes'][0]
+        # Output shape must be defined to avoid errors. If any axis is not, we must
+        # try to compute its shape.
+        if output_shape is None or -1 in output_shape:
+            output_shape = _infer_value(inputs[0], params).asnumpy().reshape([-1]).tolist()
+
+        fill_arg = _get_num_param(params, inputs.pop(1))
+        dtype = attr['T'].name
+        return _op.full(tvm.relay.const(fill_arg, dtype),
+                        output_shape, dtype)
     return _impl
 
 def _lrn():
@@ -686,11 +747,20 @@ def _lrn():
 
 def _sum():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()
-        # convert to tuple for preventing invalid parameter format error
-        axis = tuple(axis)
+        axis = _get_tuple_param(params, inputs[1])
         return AttrCvt(
             op_name='sum',
+            extras={'axis': axis},
+            transforms={'keep_dims':'keepdims'},
+            ignores=['name', 'Tidx'])([inputs[0]], attr)
+    return _impl
+
+def _reduce(op):
+    def _impl(inputs, attr, params):
+        axis = _get_list_param(params, inputs[1])
+        axis = tuple(axis)
+        return AttrCvt(
+            op_name=op,
             extras={'axis': axis},
             transforms={'keep_dims':'keepdims'},
             ignores=['name', 'Tidx'])([inputs[0]], attr)
@@ -704,24 +774,24 @@ def _square():
 def _gather():
     "GatherV2, Gather"
     def _impl(inputs, attr, params):
-
-        axis = 0
         if len(inputs) > 2:
-            axis = params[inputs.pop(2).name_hint].asnumpy()[0]
-        new_input = []
-        new_input.append(inputs.pop(0))
-        new_input.append(inputs.pop(0))
+            axis = _get_num_param(params, inputs.pop(2))
+        else:
+            axis = 0
+        new_input = inputs[0:2]
         return AttrCvt(op_name="take",
                        extras={'axis': tvm.const(axis, 'int32')},
-                       ignores=['Tindices', 'Tparams', 'validate_indices', \
+                       ignores=['Tindices', 'Tparams', 'validate_indices',
                                 'Taxis', '_class'])(new_input, attr)
     return _impl
 
-def _infer_out_shapes(inputs, params):
-    """A method to get the output shape of an intermediate node in the relay graph."""
-    out_type = ir_pass.infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-    return out_shapes
+def _gather_nd():
+    """GatherNd"""
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name="gather_nd",
+                       ignores=['Tindices', 'Tparams',\
+                                'Taxis', '_class'])(inputs, attr)
+    return _impl
 
 def _stridedSlice():
     def _impl(inputs, attr, params):
@@ -730,9 +800,9 @@ def _stridedSlice():
         Tensorflow mask validation: https://github.com/tensorflow/tensorflow/blob/master/
         tensorflow/core/util/strided_slice_op.cc#L147-L368
         """
-        begin = params.pop(inputs[1].name_hint).asnumpy().tolist()
-        end = params.pop(inputs[2].name_hint).asnumpy().tolist()
-        stride = params.pop(inputs[3].name_hint).asnumpy().tolist()
+        begin = _get_list_param(params, inputs[1])
+        end = _get_list_param(params, inputs[2])
+        stride = _get_list_param(params, inputs[3])
         begin_mask = int(attr.get('begin_mask', 0))
         end_mask = int(attr.get('end_mask', 0))
         ellipsis_mask = int(attr.get('ellipsis_mask', 0))
@@ -807,7 +877,7 @@ def _stridedSlice():
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
         out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
-        out_shape = _infer_out_shapes(out, params)[0]
+        out_shape = _infer_shape(out)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -828,21 +898,29 @@ def _stridedSlice():
 
 def _pad(name):
     def _impl(inputs, attr, params):
-        padlist_key = inputs[1].name_hint
-        if padlist_key in params:
-            padlist = params.pop(padlist_key).asnumpy()
-        else:
-            raise tvm.error.OpAttributeRequired(
-                'Attribute {} not found in operator Pad.'.format(padlist_key))
-        paddings = tuple([tuple(l) for l in padlist])
+        padlist = _get_param(params, inputs[1])
+        paddings = tuple(tuple(l) for l in padlist)
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
         new_inputs = [inputs[0]]
         if name == 'PadV2':
-            constant_values = params.pop(inputs[2].name_hint).asnumpy()
-            attr['pad_value'] = constant_values[0]
+            constant_values = _get_num_param(params, inputs[2])
+            attr['pad_value'] = constant_values
         return AttrCvt(
             op_name='pad',
+            ignores=['Tpaddings'],)(new_inputs, attr)
+    return _impl
+
+def _mirror_pad():
+    def _impl(inputs, attr, params):
+        padlist = _get_param(params, inputs[1])
+        paddings = tuple(tuple(l) for l in padlist)
+        attr['pad_width'] = paddings
+        mode = attr['mode'].decode('utf-8')
+        attr['mode'] = mode
+        new_inputs = [inputs[0]]
+        return AttrCvt(
+            op_name='mirror_pad',
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
@@ -850,22 +928,30 @@ def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
         # otherwise its value is get from params
-        param_name = _get_name_hint(inputs[1])
-        if param_name in params:
-            axes = tuple(params.get(param_name).asnumpy())
-        else:
+        try:
+            axes = _get_list_param(params, inputs[1])
+        except (IndexError, KeyError):
             axes = None
         return _op.transpose(inputs[0], axes=axes)
     return _impl
 
 def _where():
     def _impl(inputs, attr, params):
+        if len(inputs) == 1:
+            return AttrCvt(op_name="argwhere")(inputs, attr)
         return AttrCvt(op_name="where")(inputs, attr)
+    return _impl
+
+def _clip_by_value():
+    def _impl(inputs, attr, params):
+        a_min = _get_num_param(params, inputs[1])
+        a_max = _get_num_param(params, inputs[2])
+        return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
     return _impl
 
 def _reverse_v2():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        axis = _get_num_param(params, inputs[1])
         return AttrCvt(
             op_name="reverse",
             ignores=['Tidx'],
@@ -886,38 +972,44 @@ def _rank():
 
 def _range():
     def _impl(inputs, attr, params):
-        start = params.pop(inputs[0].name_hint).asnumpy()[0]
-        limit = params.pop(inputs[1].name_hint).asnumpy()[0]
-        delta = params.pop(inputs[2].name_hint).asnumpy()[0]
-
-        name = attr["_node_name"]
-        params[name] = tvm.nd.array([start, limit, delta])
-        return [_expr.var(name,
-                          shape=params[name].shape,
-                          dtype='int32')]
+        start = _get_param(params, inputs[0])[0]
+        limit = _get_param(params, inputs[1])[0] \
+            if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
+            else params.pop('Rank').asnumpy()[0]
+        delta = _get_param(params, inputs[2])[0]
+        dtype = attr['dtype'].name if 'dtype' in attr else "int32"
+        return AttrCvt(
+            op_name="arange",
+            ignores=['Tidx'],
+            extras={'start': _expr.const(start),
+                    "stop": _expr.const(limit),
+                    'step': _expr.const(delta),
+                    'dtype': dtype})([], attr)
     return _impl
 
 def _elu():
     def _impl(inputs, attr, params):
-        alpha = tvm.relay.const(-1.0, attr['T'].name)
-        return alpha * _op.nn.relu(tvm.relay.const(1, attr['T'].name) \
+        dtype = attr['T'].name
+        alpha = tvm.relay.const(-1.0, dtype)
+        return alpha * _op.nn.relu(tvm.relay.const(1, dtype) \
                                    - _op.exp(inputs[0])) + _op.nn.relu(inputs[0])
     return _impl
 
 def _selu():
     def _impl(inputs, attr, params):
-        alpha = tvm.relay.const(-1.6732632423543772848170429916717, attr['T'].name)
-        gamma = tvm.relay.const(1.0507009873554804934193349852946, attr['T'].name)
-        return gamma * (alpha * _op.nn.relu(tvm.relay.const(1, attr['T'].name) \
+        dtype = attr['T'].name
+        alpha = tvm.relay.const(-1.6732632423543772848170429916717, dtype)
+        gamma = tvm.relay.const(1.0507009873554804934193349852946, dtype)
+        return gamma * (alpha * _op.nn.relu(tvm.relay.const(1, dtype) \
                                             - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
 
 def _mean():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint)
+        axis = _get_tuple_param(params, inputs[1])
         return AttrCvt(op_name="mean", ignores=['Tdim', 'Tidx'],
                        transforms={'keep_dims': 'keepdims'},
-                       extras={'axis': tuple(axis.asnumpy())})([inputs[0]], attr)
+                       extras={'axis': axis})([inputs[0]], attr)
     return _impl
 
 def _broadcast(name):
@@ -943,8 +1035,7 @@ def _split(has_size_vector):
             if has_size_vector:
                 input_node_index = 0
                 input_axis_index = 2
-                size_splits_input_name = _get_name_hint(inputs[1])
-                size_splits = params[size_splits_input_name].asnumpy()
+                size_splits = _get_param(params, inputs[1])
                 section_beginnings = np.cumsum(size_splits)[:-1]
                 indices_or_sections = tuple(section_beginnings)
             else:
@@ -952,8 +1043,7 @@ def _split(has_size_vector):
                 input_axis_index = 0
                 indices_or_sections = attr['num_split']
             input_node = inputs[input_node_index]
-            axis_input_name = _get_name_hint(inputs[input_axis_index])
-            axis_input_value = params[axis_input_name].asnumpy()[0]
+            axis_input_value = _get_num_param(params, inputs[input_axis_index])
         except (IndexError, KeyError):
             raise TypeError( \
                 "Unsupported argument for split: `axis` and `num_or_size_splits` " \
@@ -990,6 +1080,37 @@ def _softmax():
                        transforms={'axis': ('axis', 1)})([inputs[0]], attr)
     return _impl
 
+def _softplus():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/softplus
+    def _impl(inputs, attr, params):
+        exp_out = AttrCvt('exp')(inputs, attr)
+        inputs.append(tvm.relay.const(1, attr['T'].name))
+        rh = tvm.relay.const(1, attr['T'].name)
+        add_out = get_relay_op('add')(exp_out, rh)
+        return get_relay_op('log')(add_out)
+    return _impl
+
+def _topk():
+    def _impl(inputs, attr, params):
+        k = int(_get_num_param(params, inputs.pop(1)))
+        if k < 1:
+            raise tvm.error.OpAttributeInvalid(
+                'Attribute k must be positive in operator TopKV2')
+        if attr['sorted'] is False:
+            raise tvm.error.OpAttributeUnimplemented(
+                'Attribute sorted=False is not supported in operator TopKV2')
+        return AttrCvt(op_name='topk',
+                       ignores=['sorted'],
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
+    return _impl
+
+def _floordiv():
+    def _impl(inputs, attr, params):
+        assert len(inputs) == 2
+        div = AttrCvt('divide')(inputs, attr)
+        return get_relay_op('floor')(div)
+    return _impl
+
 def _logical(name):
     def _impl(inputs, attr, params):
         return AttrCvt(op_name=name)(inputs, attr)
@@ -999,8 +1120,8 @@ def _space_to_batch_nd():
     def _impl(inputs, attr, params):
         input_node = inputs[0]
         input_shape = attr['_input_shapes'][input_node]
-        block_shape = params.pop(inputs[1].name_hint).asnumpy().tolist()
-        paddings = params.pop(inputs[2].name_hint).asnumpy().tolist()
+        block_shape = _get_list_param(params, inputs[1])
+        paddings = _get_list_param(params, inputs[2])
         N = len(input_shape)
         M = len(block_shape)
         batch = input_shape[0]
@@ -1021,7 +1142,7 @@ def _space_to_batch_nd():
         axes = [2 * i + 2 for i in range(M)] + [0] + [2 * i + 1 for i in range(M)] + \
                list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
         permuted_reshaped_padded = tvm.relay.transpose(reshaped_padded, axes=axes)
-        permuted_reshaped_padded_shape = _infer_out_shapes(permuted_reshaped_padded, params)[0]
+        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
         # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
         # producing an output tensor of shape:
         # [batch * prod(block_shape)] + [padded_shape[1] / block_shape[0], ...,
@@ -1038,8 +1159,8 @@ def _batch_to_space_nd():
     def _impl(inputs, attr, params):
         input_node = inputs[0]
         input_shape = attr['_input_shapes'][input_node]
-        block_shape = params.pop(inputs[1].name_hint).asnumpy().tolist()
-        crops = params.pop(inputs[2].name_hint).asnumpy().tolist()
+        block_shape = _get_list_param(params, inputs[1])
+        crops = _get_list_param(params, inputs[2])
         M = len(block_shape)
         batch = input_shape[0]
         # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d:
@@ -1064,14 +1185,14 @@ def _batch_to_space_nd():
         # [batch / prod(block_shape), input_shape[1] * block_shape[0] - crops[0,0] - crops[0,1],
         #  ..., input_shape[M] * block_shape[M-1] - crops[M-1,0] - crops[M-1,1],
         #  input_shape[M+1], ..., input_shape[N-1]]
-        reshaped_permuted_shape = _infer_out_shapes(reshaped_permuted, params)[0]
+        reshaped_permuted_shape = _infer_shape(reshaped_permuted)
         cropped = reshaped_permuted
         for axis in range(1, M+1):
             crop = crops[axis - 1]
             if crop != [0, 0]:
                 indices = tvm.relay.arange(
-                    crop[0],
-                    reshaped_permuted_shape[axis] - crop[1],
+                    _expr.const(crop[0]),
+                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
                     dtype='int32'
                 )
                 cropped = tvm.relay.take(cropped, indices=indices, axis=axis)
@@ -1083,11 +1204,39 @@ def _batch_to_space_nd():
 
 def _prod():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        axis = _get_num_param(params, inputs[1])
         keepdims = attr['keep_dims']
         return _op.prod(inputs[0], int(axis), keepdims=keepdims)
     return _impl
 
+def _log1p():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/log1p
+    def _impl(inputs, attr, params):
+        one = tvm.relay.const(1, attr['T'].name)
+        add_out = get_relay_op('add')(inputs[0], one)
+        return get_relay_op('log')(add_out)
+    return _impl
+
+def _one_hot():
+    def _impl(inputs, attr, params):
+        depth = int(_get_num_param(params, inputs[1]))
+        dtype = attr['T'].name
+
+        on_value = _get_num_param(params, inputs[2])
+        off_value = _get_num_param(params, inputs[3])
+        new_inputs = [inputs[0], \
+                      tvm.relay.const(on_value, dtype), \
+                      tvm.relay.const(off_value, dtype)]
+        return AttrCvt('one_hot',
+                       ignores=['TI'],
+                       extras={'depth' : depth, 'dtype' : dtype})(new_inputs, attr)
+    return _impl
+
+def _squared_difference():
+    def _impl(inputs, attr, params):
+        difference = _op.subtract(inputs[0], inputs[1])
+        return _op.multiply(difference, difference)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1098,49 +1247,71 @@ _identity_list = []
 # for 1 to N mapping(composed), use custom callable functions
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
+    'Abs'                               : AttrCvt('abs'),
     'Add'                               : _elemwise('add'),
+    'All'                               : _reduce('all'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),
+    'BatchMatMul'                       : _batch_matmul(),
+    'BatchMatMulV2'                     : _batch_matmul(),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
+    'BroadcastTo'                       : _broadcast_to(),
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
+    'ClipByValue'                       : _clip_by_value(),
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
+    'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
+    'DepthToSpace'                      : _depth_to_space(),
     'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
+    'Erf'                               : AttrCvt('erf'),
     'Exp'                               : AttrCvt('exp'),
     'ExpandDims'                        : _expand_dims(),
     'Fill'                              : _fill(),
     'Floor'                             : AttrCvt('floor'),
+    'FloorDiv'                          : _floordiv(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
     'FusedBatchNormV2'                  : _fused_batch_norm(),
     'Gather'                            : _gather(),
+    'GatherNd'                          : _gather_nd(),
     'GatherV2'                          : _gather(),
     'Greater'                           : _broadcast('greater'),
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Identity'                          : _identity(),
     'LeakyRelu'                         : AttrCvt('leaky_relu'),
+    'LeftShift'                         : AttrCvt('left_shift'),
     'Less'                              : _broadcast('less'),
     'LessEqual'                         : _broadcast('less_equal'),
     'Log'                               : AttrCvt('log'),
+    'Log1p'                             : _log1p(),
+    'Cos'                               : AttrCvt('cos'),
+    'Sin'                               : AttrCvt('sin'),
     'LogicalAnd'                        : _logical('logical_and'),
     'LogicalOr'                         : _logical('logical_or'),
     'LogicalNot'                        : _logical('logical_not'),
+    'LogSoftmax'                        : AttrCvt('log_softmax'),
     'LRN'                               : _lrn(),
     'MatMul'                            : _matmul(),
+    'Max'                               : _reduce('max'),
     'MaxPool'                           : _pooling('max_pool'),
     'Maximum'                           : _elemwise('maximum'),
     'Mean'                              : _mean(),
+    'Min'                               : _reduce('min'),
     'Minimum'                           : _elemwise('minimum'),
+    'MirrorPad'                         : _mirror_pad(),
+    'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
+    'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
@@ -1148,12 +1319,15 @@ _convert_map = {
     'Prod'                              : _prod(),
     'Range'                             : _range(),
     'Rank'                              : _rank(),
-    'RealDiv'                           : _elemwise('div'),
+    'RealDiv'                           : _elemwise('divide'),
     'Relu'                              : AttrCvt('relu'),
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
+    'ResizeBicubic'                     : _resize_bilinear(),
+    'ResizeNearestNeighbor'             : _resize_nearest_neighbor(),
     'ReverseV2'                         : _reverse_v2(),
+    'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),
     'Rsqrt'                             : _rsqrt(),
     'Select'                            : _where(),
@@ -1161,20 +1335,29 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
+    'Size'                              : AttrCvt('ndarray_size'),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
+    'Softplus'                          : _softplus(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
+    'SpaceToDepth'                      : _space_to_depth(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
+    'Sqrt'                              : AttrCvt('sqrt'),
     'Square'                            : _square(),
+    'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),
     'Sum'                               : _sum(),
     'Tanh'                              : AttrCvt('tanh'),
     'Tile'                              : _tile(),
+    'TopKV2'                            : _topk(),
     'Transpose'                         : _transpose(),
+    'TruncateMod'                       : _elemwise('mod'),
     'Unpack'                            : _unpack(),
+    'Where'                             : _where(),
+    'ZerosLike'                         : AttrCvt('zeros_like'),
 
 }
 
@@ -1224,9 +1407,8 @@ def _LSTMBlockCell():
         gate_list = _op.split(gates_bias, indices_or_sections=4, axis=1)
         in_gate = _op.sigmoid(gate_list[0])
         in_transform = _op.tanh(gate_list[1])
-        forget_gate = _op.sigmoid(gate_list[2])
-        forget_gate = _op.add(forget_gate,
-                              tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.add(gate_list[2], tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.sigmoid(forget_gate)
         out_gate = _op.sigmoid(gate_list[3])
         next_c = _op.add(_op.multiply(forget_gate, in_state_c),
                          _op.multiply(in_gate, in_transform))
@@ -1458,7 +1640,7 @@ def _in_while_loop(control_flow_node_map, op_name):
     Parameters
     ----------
     control_flow_node_map : Dict[str, Set[str]]
-        A dictionay contains the unqiue control flow execution frame name to
+        A dictionay contains the unique control flow execution frame name to
         a set of primitive operators mapping.
 
     op_name : str
@@ -1510,7 +1692,7 @@ class Branch:
                 return tf.add(4, 23)
             r = tf.cond(tf.less(i, j), f1, f2)
 
-    This condition statement should be coverted into Relay in the following
+    This condition statement should be converted into Relay in the following
     form:
 
     .. code-block:: python
@@ -1618,7 +1800,7 @@ class Loop:
         self._loop = None
 
     def _while_loop(self):
-        """An internal API to create a Relay recurisve call for a matched TF
+        """An internal API to create a Relay recursive call for a matched TF
         `while_loop` construct.
         """
         wl = tvm.relay.var('while_loop')
@@ -1629,7 +1811,8 @@ class Loop:
         bind_map = {}
         for i, var in enumerate(self.loop_vars):
             if not isinstance(var, _expr.Var):
-                var_type = ir_pass.infer_type(var).checked_type
+                var_chk = _infer_type(var)
+                var_type = var_chk.checked_type
             else:
                 var_type = var.type_annotation
 
@@ -1676,9 +1859,10 @@ class GraphProto(object):
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
+        self._mod = _module.Module({})
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """Construct relay nodes from tensorflow  graph definition - GraphDef.
+        """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
         Some of the assumptions listed below.
@@ -1687,7 +1871,7 @@ class GraphProto(object):
             -> All Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Graph should be frozen with add_shapes=True.
-                                Or user can pass input shape dictionaly optionally.
+                                Or user can pass input shape dictionary optionally.
             -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
@@ -1704,10 +1888,14 @@ class GraphProto(object):
         shape : Dictionary of input dimensions (Optional)
             Graph level input shape dictionary.
 
+        outputs : List of output tensor names (Optional)
+            if not specified then the last node is assumed as graph output.
+
         Returns
         -------
-        sym : relay.op
-            The returned relay operator
+        mod : tvm.relay.Module
+            The module that optimizations will be performed on.
+
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -1728,7 +1916,7 @@ class GraphProto(object):
         for node in graph.node:
             node_name_prefix = node.name.rsplit('/', 1)[0]
             control_flow_node_map[node_name_prefix].add(node.op)
-            if node.op == 'Placeholder':
+            if node.op == 'Placeholder' or node.op == 'PlaceholderWithDefault':
                 # Give priority to user argument.
                 if shape and node.name in shape:
                     self._input_shapes[node.name] = list(shape[node.name])
@@ -1788,7 +1976,7 @@ class GraphProto(object):
 
                 attr = self._parse_attr(node.attr)
 
-            elif node.op != "Placeholder":
+            elif node.op != "Placeholder" and node.op != 'PlaceholderWithDefault':
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
@@ -1797,15 +1985,6 @@ class GraphProto(object):
 
                 # Pass the target layout
                 attr["_target_layout"] = layout
-
-                #ToDo: Some of the tensorflow operators internaly maintain
-                #execution layers and its output name will the layer number along with
-                #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                #the digit has to be ignored.
-                if ":" in node.input[0]:
-                    in_name, _ = node.input[0].split(':')
-                    node.input[0] = in_name
 
                 # Fill shapes for all inputs in a list
                 inputs = []
@@ -1858,23 +2037,17 @@ class GraphProto(object):
 
                 # Infer shapes even without specifying "add_shapes=True"
                 if output_shapes == [None]:
-                    out_shapes = []
-                    for node_item in self._nodes[node.name]:
-                        out_type = ir_pass.infer_type(node_item)
-                        out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                    out_shapes = [_infer_shape(node_item) for node_item in self._nodes[node.name]]
                     self._output_shapes[node.name] = out_shapes
 
                 if self._output_shapes[node.name] and shape and node.name in shape:
                     assert self._output_shapes[node.name] == list(shape[node.name])
 
-            # Infer shapes if passed explicitely
+            # Infer shapes if passed explicitly
             node_output = self._nodes[node.name]
             if shape and (not self._output_shapes[node.name][0]
                           or -1 in self._output_shapes[node.name][0]):
-                out_shapes = []
-                for node_item in node_output:
-                    out_type = ir_pass.infer_type(node_item)
-                    out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                out_shapes = [_infer_shape(node_item) for node_item in node_output]
                 self._output_shapes[node.name] = out_shapes
 
         out = []
@@ -1901,9 +2074,9 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        func = _expr.Function(ir_pass.free_vars(out), out)
-
-        return func, self._params
+        func = _expr.Function(analysis.free_vars(out), out)
+        self._mod["main"] = func
+        return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
@@ -1913,7 +2086,7 @@ class GraphProto(object):
         """
         missing_operators = set()
         for node in graph.node:
-            if node.op == "Placeholder":
+            if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
                 pass
@@ -1948,13 +2121,12 @@ class GraphProto(object):
             if array_ndim == 0:
                 new_array = np.empty([1], dtype=np_array.dtype)
                 new_array[0] = np_array
-                self._params[name] = tvm.nd.array(new_array)
+                self._nodes[name] = [tvm.relay.const(new_array)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
-
-            self._nodes[name] = [_expr.var(name,
-                                           shape=self._params[name].shape,
-                                           dtype=self._params[name].dtype)]
+                self._nodes[name] = [_expr.var(name,
+                                               shape=self._params[name].shape,
+                                               dtype=self._params[name].dtype)]
         else:
             if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
@@ -2118,7 +2290,8 @@ class GraphProto(object):
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                self._branches[node_name_prefix].cond = ir_pass.infer_type(op[0])
+                chk_op = _infer_type(op[0])
+                self._branches[node_name_prefix].cond = chk_op
         elif node.op == "NextIteration":
             op = self._nodes[node.input[0]]
             assert len(op) == 1
@@ -2133,7 +2306,7 @@ class GraphProto(object):
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
         """Convert from Tensorflow operator to relay operator.
-        The converter must specify conversions explicity for incompatible name, and
+        The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
 
         Parameters
@@ -2160,7 +2333,7 @@ class GraphProto(object):
         convert_map = convert_map if convert_map else _convert_map
         convert_map_rnn = _convert_map_rnn
         if op_name in identity_list:
-            sym = _get_relay_op(op_name)(*inputs, **attrs)
+            sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         elif op_name in convert_map_rnn:
@@ -2173,7 +2346,7 @@ class GraphProto(object):
 
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
-    """  Load tensorflow graph which is a python tensorflow graph object into relay.
+    """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
     Parameters
@@ -2181,14 +2354,23 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     graph : GraphDef object
         Tensorflow GraphDef
 
+    layout : target layout to be used (Optional)
+        NCHW only supported now to enable NHWC models on GPU.
+
+    shape : Dictionary of input dimensions (Optional)
+        Graph level input shape dictionary.
+
+    outputs : List of output tensor names (Optional)
+        if not specified then the last node is assumed as graph output.
+
     Returns
     -------
-    sym : relay.op
-        Compatible relay operator
+    mod : tvm.relay.Module
+        The module that optimizations will be performed on.
 
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph, layout, shape, outputs)
-    return sym, params
+    mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    return mod, params

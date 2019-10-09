@@ -78,7 +78,7 @@ reg.register_pattern("log_softmax", OpPattern.OPAQUE)
 def compute_dense(attrs, inputs, _):
     """Compute definition of dense"""
     if attrs.get_bool("use_bias"):
-        return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
+        return topi.nn.dense(inputs[0], inputs[1], inputs[2])
     return topi.nn.dense(inputs[0], inputs[1])
 
 @reg.register_schedule("dense")
@@ -114,25 +114,25 @@ def compute_conv2d(attrs, inputs, _):
     if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
         # pylint: disable=assignment-from-no-return
         out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding,
-                             dilation, layout, out_dtype=out_dtype)
+                             dilation, layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     elif groups == 1:
         out = topi.nn.conv2d(
-            inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
     elif layout == "NCHW" and \
          groups == get_const_int(inputs[0].shape[1]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout in ["NCHW", "NCHW4c"]:
         out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups,
-                                        out_dtype=out_dtype)
+                                        out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nhwc(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
 

@@ -81,6 +81,7 @@ typedef enum {
   kDLAOCL = 5,
   kDLSDAccel = 6,
   kOpenGL = 11,
+  kDLMicroDev = 13,
   // AddExtraTVMType which is not in DLPack here
 } TVMDeviceExtType;
 
@@ -103,7 +104,7 @@ typedef enum {
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
-  kObject = 14U,
+  kObjectCell = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -114,6 +115,8 @@ typedef enum {
   // The following section of code is used for non-reserved types.
   kExtReserveEnd = 64U,
   kExtEnd = 128U,
+  // The rest of the space is used for custom, user-supplied datatypes
+  kCustomBegin = 129U,
 } TVMTypeCode;
 
 /*!
@@ -174,6 +177,8 @@ typedef void* TVMRetValueHandle;
  * can be NULL, which indicates the default one.
  */
 typedef void* TVMStreamHandle;
+/*! \brief Handle to Object. */
+typedef void* TVMObjectHandle;
 
 /*!
  * \brief Used for implementing C API function.
@@ -185,7 +190,7 @@ TVM_DLL void TVMAPISetLastError(const char* msg);
 /*!
  * \brief return str message of the last error
  *  all function in this file will return 0 when success
- *  and -1 when an error occured,
+ *  and -1 when an error occurred,
  *  TVMGetLastError can be called to retrieve the error
  *
  *  this function is threadsafe and can be called by different thread
@@ -542,6 +547,15 @@ TVM_DLL int TVMStreamStreamSynchronize(int device_type,
                                        int device_id,
                                        TVMStreamHandle src,
                                        TVMStreamHandle dst);
+
+/*!
+ * \brief Get the tag from an object.
+ *
+ * \param obj The object handle.
+ * \param tag The tag of object.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMGetObjectTag(TVMObjectHandle obj, int* tag);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

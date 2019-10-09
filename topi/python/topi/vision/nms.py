@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements
+# pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 import tvm
 
@@ -22,7 +22,7 @@ from tvm import hybrid
 from ..sort import argsort
 
 @hybrid.script
-def hybrid_rearrange_out(data):
+def hybrid_rearrange_out(data, one):
     """Hybrid routine to rearrange nms output to
     move all valid entries to top.
 
@@ -31,6 +31,9 @@ def hybrid_rearrange_out(data):
     data : tvm.Tensor or numpy NDArray
         NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
+
+    one: tvm.const
+        Constant one with the same dtype as data.
 
     Returns
     -------
@@ -55,12 +58,12 @@ def hybrid_rearrange_out(data):
                 valid_idx += 1
             if j >= valid_idx:
                 for k in range(elem_length):
-                    output[i, j, k] = -1.0
+                    output[i, j, k] = -one
     return output
 
 
 @hybrid.script
-def hybrid_get_valid_counts(data, score_threshold):
+def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
     """Hybrid routine to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -68,10 +71,20 @@ def hybrid_get_valid_counts(data, score_threshold):
     Parameters
     ----------
     data : tvm.Tensor or numpy NDArray
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
 
     score_threshold : tvm.const
         Lower limit of score for valid bounding boxes.
+
+    id_index : tvm.const
+        index of the class categories, -1 to disable.
+
+    score_index: tvm.const
+        Index of the scores/confidence of boxes.
+
+    one: tvm.const
+        Constant one with the same dtype as data.
 
     Returns
     -------
@@ -92,28 +105,36 @@ def hybrid_get_valid_counts(data, score_threshold):
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
-            score = data[i, j, 1]
-            if score > score_threshold:
+            score = data[i, j, score_index]
+            if score > score_threshold and \
+                    (id_index < 0 or data[i, j, id_index] >= 0):
                 for k in range(box_data_length):
                     out_tensor[i, valid_count[i], k] = data[i, j, k]
                 valid_count[i] += 1
             if j >= valid_count[i]:
                 for k in range(box_data_length):
-                    out_tensor[i, j, k] = -1.0
+                    out_tensor[i, j, k] = -one
     return valid_count, out_tensor
 
 @tvm.target.generic_func
-def get_valid_counts(data, score_threshold=0):
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
     Parameters
     ----------
     data : tvm.Tensor
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
 
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
 
     Returns
     -------
@@ -123,14 +144,18 @@ def get_valid_counts(data, score_threshold=0):
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
     """
-    score_threshold_const = tvm.const(score_threshold, "float")
-    return hybrid_get_valid_counts(data, score_threshold_const)
+    score_threshold_const = tvm.const(score_threshold, data.dtype)
+    id_index_const = tvm.const(id_index, "int32")
+    score_index_const = tvm.const(score_index, "int32")
+    return hybrid_get_valid_counts(data, score_threshold_const,
+                                   id_index_const, score_index_const,
+                                   tvm.const(1, data.dtype))
 
 
 @hybrid.script
 def hybrid_nms(data, sorted_index, valid_count,
                max_output_size, iou_threshold, force_suppress,
-               top_k, coord_start, id_index):
+               top_k, coord_start, id_index, score_index, zero, one):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -165,6 +190,15 @@ def hybrid_nms(data, sorted_index, valid_count,
     id_index : tvm.const
         index of the class categories, -1 to disable.
 
+    score_index: tvm.const
+        Index of the scores/confidence of boxes.
+
+    zero: tvm.const
+        Constant zero with the same dtype as data.
+
+    one: tvm.const
+        Constant one with the same dtype as data.
+
     Returns
     -------
     output : tvm.Tensor
@@ -179,74 +213,76 @@ def hybrid_nms(data, sorted_index, valid_count,
     box_indices = output_tensor((batch_size, num_anchors), "int32")
     output = output_tensor((batch_size,
                             num_anchors,
-                            box_data_length,),
-                           data.dtype)
+                            box_data_length,), data.dtype)
 
-    for i in parallel(batch_size):
+    for i in range(batch_size):
         if iou_threshold > 0:
             if valid_count[i] > 0:
                 # Reorder output
                 nkeep = valid_count[i]
                 if 0 < top_k < nkeep:
                     nkeep = top_k
-                for j in range(nkeep):
+                for j in parallel(nkeep):
                     for k in range(box_data_length):
                         output[i, j, k] = data[i, sorted_index[i, j], k]
                     box_indices[i, j] = sorted_index[i, j]
                 if 0 < top_k < valid_count[i]:
-                    for j in range(valid_count[i] - nkeep):
+                    for j in parallel(valid_count[i] - nkeep):
                         for k in range(box_data_length):
-                            output[i, j + nkeep, k] = -1.0
+                            output[i, j + nkeep, k] = -one
                         box_indices[i, j + nkeep] = -1
             # Apply nms
+            box_start_idx = coord_start
+            batch_idx = i
             for j in range(valid_count[i]):
-                if output[i, j, 0] >= 0:
-                    for k in range(valid_count[i]):
+                if output[i, j, score_index] > 0 and (id_index < 0 or output[i, j, id_index] >= 0):
+                    box_a_idx = j
+                    for k in parallel(valid_count[i]):
                         check_iou = 0
-                        if k > j and output[i, k, 0] >= 0:
+                        if k > j and output[i, k, score_index] > 0 \
+                                and (id_index < 0 or output[i, k, id_index] >= 0):
                             if force_suppress:
                                 check_iou = 1
-                            elif id_index < 0 or output[i, j, 0] == output[i, k, 0]:
+                            elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
                                 check_iou = 1
                         if check_iou > 0:
-                            batch_idx = i
-                            box_a_idx = j
-                            box_b_idx = k
-                            box_start_idx = coord_start
-                            a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
-                            a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
                             a_l = output[batch_idx, box_a_idx, box_start_idx]
+                            a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
                             a_r = output[batch_idx, box_a_idx, box_start_idx + 2]
+                            a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
+                            box_b_idx = k
                             b_t = output[batch_idx, box_b_idx, box_start_idx + 1]
                             b_b = output[batch_idx, box_b_idx, box_start_idx + 3]
                             b_l = output[batch_idx, box_b_idx, box_start_idx]
                             b_r = output[batch_idx, box_b_idx, box_start_idx + 2]
-                            w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
-                            h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
+                            w = max(zero, min(a_r, b_r) - max(a_l, b_l))
+                            h = max(zero, min(a_b, b_b) - max(a_t, b_t))
                             area = h * w
                             u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-                            iou = 0.0 if u <= 0.0 else area / u
+                            iou = zero if u <= zero else area / u
                             if iou >= iou_threshold:
-                                output[i, k, 0] = -1.0
+                                output[i, k, score_index] = -one
+                                if id_index >= 0:
+                                    output[i, k, id_index] = -one
                                 box_indices[i, k] = -1
         else:
-            for j in range(valid_count[i]):
+            for j in parallel(valid_count[i]):
                 for k in range(box_data_length):
                     output[i, j, k] = data[i, j, k]
                 box_indices[i, j] = j
         # Set invalid entry to be -1
-        for j in range(num_anchors - valid_count[i]):
+        for j in parallel(num_anchors - valid_count[i]):
             for k in range(box_data_length):
-                output[i, j + valid_count[i], k] = -1.0
+                output[i, j + valid_count[i], k] = -one
             box_indices[i, j + valid_count[i]] = -1
         # Only return max_output_size valid boxes
         num_valid_boxes = 0
         if max_output_size > 0:
-            for j in range(valid_count[i]):
-                if output[i, j, 0] >= 0:
+            for j in parallel(valid_count[i]):
+                if output[i, j, 0] >= zero:
                     if num_valid_boxes == max_output_size:
                         for k in range(box_data_length):
-                            output[i, j, k] = -1.0
+                            output[i, j, k] = -one
                         box_indices[i, j] = -1
                     else:
                         num_valid_boxes += 1
@@ -263,9 +299,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     Parameters
     ----------
     data : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
-        The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom].
+        3-D tensor with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
 
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
@@ -331,15 +365,18 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False, flag=True)
+    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
     out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
                                   tvm.const(max_output_size, dtype="int32"),
-                                  tvm.const(iou_threshold, dtype="float32"),
+                                  tvm.const(iou_threshold, dtype=data.dtype),
                                   tvm.const(force_suppress, dtype="bool"),
                                   tvm.const(top_k, dtype="int32"),
                                   tvm.const(coord_start, dtype="int32"),
-                                  tvm.const(id_index, dtype="int32"))
+                                  tvm.const(id_index, dtype="int32"),
+                                  tvm.const(score_index, dtype="int32"),
+                                  zero=tvm.const(0, dtype=data.dtype),
+                                  one=tvm.const(1, dtype=data.dtype))
     if not return_indices and invalid_to_bottom:
-        out = hybrid_rearrange_out(out)
+        out = hybrid_rearrange_out(out, one=tvm.const(1, dtype=data.dtype))
 
     return box_indices if return_indices else out

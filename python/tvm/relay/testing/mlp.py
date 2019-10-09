@@ -58,7 +58,7 @@ def get_net(batch_size,
     fc3 = relay.nn.dense(act2, relay.var("fc3_weight"), units=num_classes)
     fc3 = relay.nn.bias_add(fc3, relay.var("fc3_bias"), axis=-1)
     mlp = relay.nn.softmax(data=fc3)
-    args = relay.ir_pass.free_vars(mlp)
+    args = relay.analysis.free_vars(mlp)
     return relay.Function(args, mlp)
 
 
@@ -84,8 +84,8 @@ def get_workload(batch_size,
 
     Returns
     -------
-    net : relay.Function
-        The dataflow.
+    mod : tvm.relay.Module
+        The relay module that contains a mlp network.
 
     params : dict of str to NDArray
         The parameters.

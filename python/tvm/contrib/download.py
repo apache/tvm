@@ -119,9 +119,12 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
                       .format(repr(err), retries, 's' if retries > 1 else ''))
 
 
-TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser('~'), '.tvm_test_data')
-if not os.path.exists(TEST_DATA_ROOT_PATH):
-    os.mkdir(TEST_DATA_ROOT_PATH)
+if "TEST_DATA_ROOT_PATH" in os.environ:
+    TEST_DATA_ROOT_PATH = os.environ.get("TEST_DATA_ROOT_PATH")
+else:
+    TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser('~'), '.tvm_test_data')
+os.makedirs(TEST_DATA_ROOT_PATH, exist_ok=True)
+
 
 def download_testdata(url, relpath, module=None):
     """Downloads the test data from the internet.

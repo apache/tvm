@@ -22,10 +22,12 @@ from tvm.autotvm.task import get_config
 from tvm.autotvm.task.space import SplitEntity
 from tvm.autotvm.task.topi_integration import deserialize_args
 from .. import generic, tag
+from ..generic import schedule_depthwise_conv2d_nchw
 from ..nn.pad import pad
 from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
-from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, _get_workload
+from ..nn.depthwise_conv2d import depthwise_conv2d_nchw, depthwise_conv2d_NCHWc, \
+    _get_workload, depthwise_conv2d_infer_layout
 
 from .util import get_fp32_len
 
@@ -69,6 +71,12 @@ def _fallback_schedule(cfg, wkl):
     cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
 
 
+autotvm.register_topi_compute(depthwise_conv2d_nchw, 'cpu', 'direct',
+                              depthwise_conv2d_nchw.fdefault)
+autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'cpu', 'direct',
+                               schedule_depthwise_conv2d_nchw.fdefault)
+
+
 @autotvm.register_topi_compute(depthwise_conv2d_NCHWc, 'cpu', 'direct')
 def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                                 layout, out_layout, out_dtype=None):
@@ -109,14 +117,19 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
         data_pad = data
 
     # depthconv stage
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     kh = tvm.reduce_axis((0, filter_height), name='kh')
     kw = tvm.reduce_axis((0, filter_width), name='kw')
     Output = tvm.compute(
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
         lambda b, oco, oh, ow, oci: tvm.sum(
-            (data_pad[b, (oco * out_channel_block + oci) // channel_multiplier // in_channel_block,
-                      oh*HSTR+kh, ow*WSTR+kw,
-                      ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
+            (data_pad[
+                b,
+                idxdiv(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block),
+                oh*HSTR+kh, ow*WSTR+kw,
+                idxmod(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block)]
              .astype(out_dtype) *
              kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
             axis=[kh, kw]),
@@ -136,7 +149,7 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         if 'depthwise_conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
@@ -206,7 +219,7 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
     # change shape with the value in config
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_data_shape = (batch, in_channel // ic_bn, height, width, ic_bn)
-    new_kernel_shape = (out_channel // oc_bn, kh, kw, oc_bn)
+    new_kernel_shape = (out_channel // oc_bn, 1, kh, kw, 1, oc_bn)
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
@@ -217,3 +230,18 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
                                     data_layout, out_layout, dtype)
     s = schedule_depthwise_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
+
+@depthwise_conv2d_infer_layout.register("cpu")
+def _depthwise_conv2d_infer_layout(workload, cfg):
+    _, data, kernel, strides, padding, dilation, dtype = workload
+    batch_size, in_channel, in_height, in_width = data[:-1]
+    filter_channel, channel_multiplier, k_height, k_width = kernel[:-1]
+    out_channel = filter_channel * channel_multiplier
+    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
+    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
+    in_layout = "NCHW%dc" % tile_ic
+    out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
+    out_layout = "NCHW%dc" % tile_oc
+    return ((in_shape, in_layout),), ((out_shape, out_layout),)

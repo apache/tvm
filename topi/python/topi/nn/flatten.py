@@ -38,12 +38,14 @@ def flatten(data):
     for i in range(1, len(ishape)):
         dim = dim * ishape[i]
     oshape = [ishape[0], dim]
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
 
     def unwrap(idx, shape):
         index = []
         for s in reversed(shape):
-            index.append(idx % s)
-            idx = idx / s
+            index.append(idxmod(idx, s))
+            idx = idxdiv(idx, s)
         return list(reversed(index))
 
     return tvm.compute(oshape, lambda i, j: data(i, *unwrap(j, ishape[1:])))

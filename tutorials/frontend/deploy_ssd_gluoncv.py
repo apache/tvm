@@ -38,18 +38,24 @@ from gluoncv import model_zoo, data, utils
 # ------------------------------
 # .. note::
 #
-#   We support compiling SSD on bot CPUs and GPUs now.
+#   We support compiling SSD on both CPUs and GPUs now.
 #
 #   To get best inference performance on CPU, change
 #   target argument according to your device and
 #   follow the :ref:`tune_relay_x86` to tune x86 CPU and
 #   :ref:`tune_relay_arm` for arm CPU.
 #
-#   To get best performance fo SSD on Intel graphics,
-#   change target argument to 'opencl -device=intel_graphics'
+#   To get best inference performance on Intel graphics,
+#   change target argument to :code:`opencl -device=intel_graphics`.
+#   But when using Intel graphics on Mac, target needs to 
+#   be set to `opencl` only for the reason that Intel subgroup
+#   extension is not supported on Mac.
 #
-#   SSD with VGG as body network is not supported yet since
-#   x86 conv2d schedule doesn't support dilation.
+#   To get best inference performance on CUDA-based GPUs,
+#   change the target argument to :code:`cuda`; and for
+#   OPENCL-based GPUs, change target argument to
+#   :code:`opencl` followed by device argument according
+#   to your device.
 
 supported_model = [
     'ssd_512_resnet50_v1_voc',
@@ -57,6 +63,8 @@ supported_model = [
     'ssd_512_resnet101_v2_voc',
     'ssd_512_mobilenet1.0_voc',
     'ssd_512_mobilenet1.0_coco',
+    'ssd_300_vgg16_atrous_voc'
+    'ssd_512_vgg16_atrous_coco',
 ]
 
 model_name = supported_model[0]
@@ -77,9 +85,9 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
-    net, params = relay.frontend.from_mxnet(block, {"data": dshape})
+    mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(net, target, params=params)
+        graph, lib, params = relay.build(mod, target, params=params)
     return graph, lib, params
 
 ######################################################################

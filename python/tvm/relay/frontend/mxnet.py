@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, len-as-condition
+# pylint: disable=invalid-name, import-self, len-as-condition, no-else-return
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 
 import json
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
+from .. import module as _module
 from ... import nd as _nd
 
 from .common import StrAttrsDict
+from .common import infer_type as _infer_type
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
 from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
 from .nnvm_common import _clip, _transpose, _upsampling
@@ -53,10 +55,17 @@ def _mx_fully_connected(inputs, attrs):
     use_flatten = attrs.get_bool("flatten", True)
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
+    data_shape = _infer_type(inputs[0]).checked_type.shape
+    if len(data_shape) > 2:
+        inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=-1)
+    if len(data_shape) > 2:
+        new_shape = data_shape[:-1]
+        new_shape.append(units)
+        res = _op.reshape(res, new_shape)
     return res
 
 
@@ -88,16 +97,70 @@ def _mx_activations(inputs, attrs):
 
 def _mx_compare(new_op, wrapper):
     def impl(inputs, attrs):
-        dtype = ir_pass.infer_type(inputs[0]).checked_type.dtype
+        expr = _infer_type(inputs[0])
+        dtype = expr.checked_type.dtype
         return wrapper(new_op)(inputs, attrs).astype(dtype)
     return impl
+
+
+def _mx_zeros(inputs, attrs):
+    assert len(inputs) == 0
+    shape = attrs.get_int_tuple("shape")
+    dtype = attrs.get_str("dtype", "float32")
+    if 0 in shape:
+        return None
+    return _op.zeros(shape=shape, dtype=dtype)
+
+
+def _mx_conv(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+def _mx_conv1d(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) != 1:
+        raise tvm.error.OpAttributeInvalid(
+            'Non 1D or 2D kernels are not supported for operator Convolution')
+    data_layout = attrs.get_str("layout", "NCW")
+    # MXNet Conv1D only supports ‘NCW’ layout for now.
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + kernel_size
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", False)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d(data, kernel, **new_attrs)
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
+    return res
 
 
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
         raise tvm.error.OpAttributeInvalid(
-            'Non-2D kernels are not supported for operator Conv2D.')
+            'Non 1D or 2D kernels are not supported for operator Convolution')
     data_layout = attrs.get_str("layout", "NCHW")
     channel_axis = _get_channel_axis(data_layout, "conv2d")
 
@@ -123,9 +186,54 @@ def _mx_conv2d(inputs, attrs):
     return res
 
 
+def _mx_conv_transpose(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d_transpose(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d_transpose(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+
+def _mx_conv1d_transpose(inputs, attrs):
+    if "target_shape" in attrs.attrs:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
+    data_layout = attrs.get_str("layout", "NCW")
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["output_padding"] = (0,) + attrs.get_int_tuple("adj", (0,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", True)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d_transpose(data, kernel, **new_attrs)
+
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
+    return res
+
+
 def _mx_conv2d_transpose(inputs, attrs):
     if "target_shape" in attrs.attrs:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -149,7 +257,7 @@ def _mx_conv2d_transpose(inputs, attrs):
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
     new_attrs["kernel_layout"] = kernel_layout
-    use_bias = not attrs.get_bool("no_bias", False)
+    use_bias = not attrs.get_bool("no_bias", True)
     res = _op.nn.conv2d_transpose(inputs[0], inputs[1], **new_attrs)
 
     if use_bias:
@@ -204,7 +312,7 @@ def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
 
 def _mx_batch_norm(inputs, attrs):
     if attrs.get_bool("output_mean_var", False):
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Attribute "output_mean_var" is not supported for operator Batch Norm.')
     if attrs.get_bool("use_global_stats", False):
         _warn_not_used("use_global_stats", "batch_norm")
@@ -212,14 +320,33 @@ def _mx_batch_norm(inputs, attrs):
     new_attrs["axis"] = attrs.get_int("axis", 1)
     new_attrs["epsilon"] = attrs.get_float("eps", 0.001)
     new_attrs["center"] = True
-    new_attrs["scale"] = not attrs.get_bool("fix_gamma", False)
+    new_attrs["scale"] = not attrs.get_bool("fix_gamma", True)
     return _op.nn.batch_norm(*inputs, **new_attrs)
+
+
+def _mx_instance_norm(inputs, attrs):
+    assert len(inputs) == 3
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", 1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.instance_norm(*inputs, **new_attrs)
+
+
+def _mx_layer_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Layer Norm.')
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
 def _mx_slice(inputs, attrs):
     new_attrs = {}
-    begin = attrs.get_int_tuple('begin', None)
-    end = attrs.get_int_tuple('end', None)
+    begin = list(attrs.get_int_tuple('begin', None))
+    end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
     if begin is None:
         raise tvm.error.OpAttributeRequired(
@@ -227,12 +354,7 @@ def _mx_slice(inputs, attrs):
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    if None in begin:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "begin" of operator Slice is not valid.')
-    if None in end:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "end" of operator Slice is not valid.')
+    begin = tuple(x if x is not None else 0 for x in begin)
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -248,7 +370,8 @@ def _mx_slice_like(inputs, attrs):
 
 def _mx_slice_axis(inputs, attrs):
     assert len(inputs) == 1
-    shape = ir_pass.infer_type(inputs[0]).checked_type.shape
+    expr = _infer_type(inputs[0])
+    shape = expr.checked_type.shape
     axis = attrs.get_int("axis")
     ax_beg = attrs.get_int("begin")
     ax_end = attrs.get_str("end")
@@ -277,6 +400,29 @@ def _mx_slice_axis(inputs, attrs):
     return _op.strided_slice(inputs[0], begin, end)
 
 
+def _mx_crop_like(inputs, attrs):
+    if len(inputs) < 2:
+        raise tvm.error.OpAttributeUnimplemented(
+            "Only support crop_like pattern for operator Crop.")
+    if attrs.get_bool("center_crop", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Center crop is not supported in operator Crop.")
+    if attrs.get_int_tuple("h_w", (0, 0)) != (0, 0):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Doesn't support h_w in operator Crop.")
+    offset = attrs.get_int_tuple("offset", (0, 0))
+    new_attrs = {}
+    if offset == (0, 0):
+        new_attrs["axes"] = (2, 3)
+        return _op.slice_like(*inputs, **new_attrs)
+    expr = _infer_type(inputs[1])
+    like_shape = expr.checked_type.shape
+    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
+    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                        offset[1]+like_shape[3]]
+    return _op.strided_slice(inputs[0], **new_attrs)
+
+
 def _mx_split(inputs, attrs):
     axis = attrs.get_int("axis", 1)
     new_attrs = {}
@@ -300,6 +446,10 @@ def _mx_softmax_output(inputs, attrs):
     return _op.nn.softmax(inputs[0])
 
 
+def _mx_linear_regression_output(inputs, _):
+    return inputs[0]
+
+
 def _mx_concat(inputs, attrs):
     axis = attrs.get_int("dim", 1)
     return _op.concatenate(tuple(inputs), axis=axis)
@@ -314,6 +464,27 @@ def _mx_expand_dims(inputs, attrs):
     axis = attrs.get_int("axis")
     return _op.expand_dims(inputs[0], axis=axis)
 
+def _mx_pad(inputs, attrs):
+    pad_mode = attrs.get_str('mode', None)
+    if pad_mode is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "mode" not found in operator pad.')
+    if pad_mode not in ['constant', 'edge', 'reflect']:
+        raise tvm.error.OpAttributeInvalid(
+            'Value ' + mode + ' in attribute "mode" is not valid')
+    pad_width = attrs.get_int_tuple('pad_width', None)
+    if pad_width is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "pad_width" not found in operator pad.')
+    if None in pad_width:
+        raise tvm.error.OpAttributeInvalid(
+            'Value None in attribute "pad_width" of operator Slice is not valid.')
+    constant_value = attrs.get_float('constant_value', 0.0)
+    padding = tuple(tuple((b, a)) for b, a in zip(pad_width[::2], pad_width[1::2]))
+    return _op.nn.pad(data=inputs[0],
+                      pad_width=padding,
+                      pad_value=constant_value,
+                      pad_mode=pad_mode)
 
 def _mx_leaky_relu(inputs, attrs):
     act_type = attrs.get_str("act_type")
@@ -445,9 +616,10 @@ def _mx_arange(inputs, attrs):
         raise tvm.error.OpAttributeUnimplemented(
             'Attribute "repeat" is not supported in operator arange.')
     new_attrs = {}
-    new_attrs["start"] = attrs.get_float("start", 0)
-    new_attrs["stop"] = attrs.get_float("stop")
-    new_attrs["step"] = attrs.get_float("step", 1)
+    new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
+    stop = attrs.get_str("stop", "None")
+    new_attrs["stop"] = None if stop == "None" else _expr.const(float(stop))
+    new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
     new_attrs["dtype"] = attrs.get_str("dtype", "float32")
     return _op.arange(**new_attrs)
 
@@ -496,7 +668,8 @@ def _mx_resize(inputs, attrs):
     scale_width = attrs.get_float("scale_width", None)
     height = attrs.get_int("height", 1)
     width = attrs.get_int("width", 1)
-    shape = ir_pass.infer_type(inputs[0]).checked_type.shape
+    expr = _infer_type(inputs[0])
+    shape = expr.checked_type.shape
     if scale_height is not None:
         height = (scale_height * shape[2]).astype("int32")
     if scale_width is not None:
@@ -543,7 +716,8 @@ def _mx_box_nms(inputs, attrs):
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "out_format" must equal "corner" for operator box_nms.')
 
-    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh,
+                                      id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
                                              iou_threshold=iou_thresh,
@@ -602,7 +776,8 @@ def _mx_broadcast_axis(inputs, attrs):
     assert len(axis) == len(size)
     if len(axis) == 0:
         return inputs[0]
-    src_shape = ir_pass.infer_type(inputs[0])._checked_type_.shape
+    expr = _infer_type(inputs[0])
+    src_shape = expr.checked_type.shape
     tgt_shape = []
     for i, dim in enumerate(src_shape):
         if i not in axis:
@@ -657,6 +832,42 @@ def _mx_argsort(inputs, attrs):
     return _op.argsort(inputs[0], **new_attrs)
 
 
+def _mx_topk(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["k"] = attrs.get_int("k", 1)
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    ret_type = attrs.get_str("ret_typ", "indices")
+    if ret_type == "mask":
+        raise tvm.error.OpAttributeUnimplemented(
+            "Attribute ret_type=mask is not supported in topk operator")
+    new_attrs["ret_type"] = "values" if ret_type == "value" else ret_type
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.topk(inputs[0], **new_attrs)
+
+
+def _mx_sequence_mask(inputs, attrs):
+    assert len(inputs) == 1 or len(inputs) == 2
+    new_attrs = {}
+    use_sequence_length = attrs.get_bool('use_sequence_length', False)
+    new_attrs['mask_value'] = attrs.get_float('value', 0.0)
+    new_attrs['axis'] = attrs.get_int('axis', 0)
+    if use_sequence_length:
+        return _op.sequence_mask(*inputs, **new_attrs)
+    else:
+        return inputs[0]
+
+
+def _mx_contrib_div_sqrt_dim(inputs, _):
+    assert len(inputs) == 1
+    ndim = len(_infer_type(inputs[0]).checked_type.shape)
+    dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
+    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    out = inputs[0] / sqrt_dim
+    return out
+
+
 def _mx_rnn_param_concat(inputs, _):
     # We don't need to concatenate RNN params because we will unravel the RNN op
     return [inputs]
@@ -670,7 +881,8 @@ def _mx_rnn_layer(inputs, attrs):
         return out, [out]
 
     def _gru_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias):
-        dtype = ir_pass.infer_type(data).checked_type.dtype
+        expr = _infer_type(data)
+        dtype = expr.checked_type.dtype
         i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
         h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
         i2h_r, i2h_z, i2h = _op.split(i2h, indices_or_sections=3, axis=1)
@@ -696,13 +908,12 @@ def _mx_rnn_layer(inputs, attrs):
 
     num_layers = attrs.get_int("num_layers", 1)
     mode = attrs.get_str("mode")
+    output_states = attrs.get_bool("state_outputs", False)
     if mode.startswith("rnn"):
         mode, activation = mode.split('_')
     assert mode in ["rnn", "gru", "lstm"]
     bidirectional = attrs.get_bool("bidirectional", False)
-    if bidirectional:
-        raise tvm.error.OpAttributeUnimplemented(
-            "Bidirectional RNN op is not supported yet")
+    direct = 2 if bidirectional else 1
     layout = attrs.get_str("layout", "TNC")
     if layout != "TNC":
         raise tvm.error.OpAttributeUnimplemented(
@@ -712,44 +923,107 @@ def _mx_rnn_layer(inputs, attrs):
 
     seq_data = inputs[0]
     concat_weight = inputs[1]
-    concat_states = inputs[2:]
-    seq_len = int(ir_pass.infer_type(seq_data).checked_type.shape[0])
-    assert len(concat_weight) == num_layers * 4
+    init_states = inputs[2:]
+    expr = _infer_type(seq_data)
+    data_shape = expr.checked_type.shape
+    seq_len = int(data_shape[0])
+    assert len(concat_weight) == num_layers * 4 * direct
+
+    for idx, state in enumerate(init_states[:]):
+        if isinstance(state, dict):
+            node = state
+            attrs = StrAttrsDict(node.get("attrs", {}))
+            op_name = node["op"]
+            # by default, RNN layer uses zeros to initialize states
+            assert op_name == "_zeros"
+            shape = attrs.get_int_tuple("shape")
+            dtype = attrs.get_str("dtype", "float32")
+            init_layout = attrs.get_str("__layout__")
+            new_shape = list(shape)
+            for i, dim in enumerate(shape):
+                if dim == 0:
+                    axis = layout.find(init_layout[i])
+                    assert axis >= 0
+                    new_shape[i] = int(data_shape[axis])
+            init_states[idx] = _op.zeros(new_shape, dtype)
 
     weights = []
     bias = []
     states = []
+    back_weights = []
+    back_bias = []
+    back_states = []
     for i in range(num_layers):
-        w = []
-        b = []
+        weights.append([concat_weight[i*2*direct].args[0],
+                        concat_weight[i*2*direct + 1].args[0]])
+        bias.append([concat_weight[(num_layers+i)*2*direct].args[0],
+                     concat_weight[(num_layers+i)*2*direct + 1].args[0]])
         s = []
-        for j in range(2):
-            w.append(concat_weight[i*2 + j].args[0])
-            b.append(concat_weight[num_layers*2 + i*2 + j].args[0])
-        for state in concat_states:
-            s.append(_op.take(state, _expr.const(i, "int32"), axis=0))
-        weights.append(w)
-        bias.append(b)
+        for state in init_states:
+            s.append(_op.take(state, _expr.const(i*direct, "int32"), axis=0))
         states.append(s)
+        if bidirectional:
+            back_weights.append([concat_weight[i*2*direct + 2].args[0],
+                                 concat_weight[i*2*direct + 3].args[0]])
+            back_bias.append([concat_weight[(num_layers+i)*2*direct + 2].args[0],
+                              concat_weight[(num_layers+i)*2*direct + 3].args[0]])
+            s = []
+            for state in init_states:
+                s.append(_op.take(state, _expr.const(i*direct+1, "int32"), axis=0))
+            back_states.append(s)
 
-    seq_output = []
-    for t in range(seq_len):
-        data = _op.take(seq_data, _expr.const(t, "int32"), axis=0)
-        for l in range(num_layers):
+    xs = [_op.take(seq_data, _expr.const(t, "int32"), axis=0) for t in range(seq_len)]
+    for l in range(num_layers):
+        outputs = []
+        back_outputs = []
+        for x in xs:
             if mode == "rnn":
-                out, new_states = _rnn_cell(data, states[l], *weights[l], *bias[l], activation)
+                out, new_states = _rnn_cell(x, states[l], *weights[l], *bias[l], activation)
             elif mode == "gru":
-                out, new_states = _gru_cell(data, states[l], *weights[l], *bias[l])
+                out, new_states = _gru_cell(x, states[l], *weights[l], *bias[l])
             else: # mode == "lstm"
-                out, new_states = _lstm_cell(data, states[l], *weights[l], *bias[l])
+                out, new_states = _lstm_cell(x, states[l], *weights[l], *bias[l])
             states[l] = new_states
-            data = out
-        seq_output.append(out)
+            outputs.append(out)
+        if bidirectional:
+            for x in reversed(xs):
+                if mode == "rnn":
+                    out, new_states = _rnn_cell(
+                        x, back_states[l], *back_weights[l], *back_bias[l], activation)
+                elif mode == "gru":
+                    out, new_states = _gru_cell(
+                        x, back_states[l], *back_weights[l], *back_bias[l])
+                else: # mode == "lstm"
+                    out, new_states = _lstm_cell(
+                        x, back_states[l], *back_weights[l], *back_bias[l])
+                back_states[l] = new_states
+                back_outputs.append(out)
+            back_outputs.reverse()
+            concat_outputs = []
+            for t, out in enumerate(outputs):
+                new_out = _op.concatenate([out, back_outputs[t]], axis=-1)
+                concat_outputs.append(new_out)
+            outputs = concat_outputs
+        xs = outputs
 
-    outputs = [_op.stack(seq_output, axis=0)]
-    for i in range(num_states):
-        outputs.append(_op.stack([s[i] for s in states], axis=0))
-    return outputs
+    ret = [_op.stack(outputs, axis=0)]
+    if output_states:
+        for i in range(num_states):
+            inputs = []
+            for l, s in enumerate(states):
+                inputs.append(s[i])
+                if bidirectional:
+                    inputs.append(back_states[l][i])
+            ret.append(_op.stack(inputs, axis=0))
+    return ret
+
+def _mx_one_hot(inputs, attrs):
+    indices = inputs[0].astype('int32')
+    depth = attrs.get_int('depth', 0)
+    dtype = attrs.get_str('dtype', 'int32')
+    on_value = tvm.relay.const(attrs.get_float('on_value', 1.0), dtype)
+    off_value = tvm.relay.const(attrs.get_float('off_value', 0.0), dtype)
+    return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
 
 
 # Note: due to attribute conversion constraint
@@ -757,6 +1031,7 @@ def _mx_rnn_layer(inputs, attrs):
 _identity_list = [
     "log",
     "exp",
+    "erf",
     "sqrt",
     "floor",
     "ceil",
@@ -768,6 +1043,8 @@ _identity_list = [
     "ones_like",
     "where",
     "gather_nd",
+    "cos",
+    "sin"
 ]
 
 _convert_map = {
@@ -780,6 +1057,7 @@ _convert_map = {
     "broadcast_mod"          : _rename(_op.mod),
     "broadcast_maximum"      : _rename(_op.maximum),
     "broadcast_minimum"      : _rename(_op.minimum),
+    "arctan"                 : _rename(_op.atan),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),
@@ -839,7 +1117,6 @@ _convert_map = {
     "argmin"        : _arg_reduce(_op.argmin),
     # init ops
     "_ones"         : _init_op(_op.ones),
-    "_zeros"        : _init_op(_op.zeros),
     # softmax
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
@@ -853,16 +1130,19 @@ _convert_map = {
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
+    "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
     "Activation"    : _mx_activations,
-    "Convolution"   : _mx_conv2d,
+    "Convolution"   : _mx_conv,
     "Convolution_v1": _mx_conv2d,
-    "Deconvolution" : _mx_conv2d_transpose,
+    "Deconvolution" : _mx_conv_transpose,
     "Pooling"       : _mx_pooling,
     "Pooling_v1"    : _mx_pooling,
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "InstanceNorm"  : _mx_instance_norm,
+    "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
     "slice"         : _mx_slice,
@@ -880,6 +1160,8 @@ _convert_map = {
     "_full"         : _mx_full,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
+    "pad"           : _mx_pad,
+    "Pad"           : _mx_pad,
     "take"          : _mx_take,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
@@ -888,9 +1170,14 @@ _convert_map = {
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
+    "topk"          : _mx_topk,
+    "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "one_hot"           : _mx_one_hot,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -905,18 +1192,20 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    # Depricated:
+    "Crop"              : _mx_crop_like,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    # "Crop"          : _crop_like,
 }
 
 # set identity list
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
-def _from_mxnet_impl(symbol, shape_dict, dtype_info):
+def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
+    #pylint: disable=unused-argument
     """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
@@ -932,6 +1221,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
 
     dtype_info : dict or str.
         Known parameter dtypes
+
+    mod : tvm.relay.Module
+        The module that contains global information. It will be used for
+        converting ops that need global information, e.g. control-flow ops.
 
     Returns:
     -------
@@ -957,7 +1250,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
         elif op_name in _convert_map:
             res = _convert_map[op_name](children, attrs)
-            if isinstance(res, (_expr.TupleWrapper, tuple, list)):
+            if res is None:
+                # defer conversion, used in RNN state initialization
+                res = [node]
+            elif isinstance(res, (_expr.TupleWrapper, tuple, list)):
                 pass
             elif isinstance(res, _expr.Expr):
                 res = [res]
@@ -970,7 +1266,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
 
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+    func = _expr.Function(analysis.free_vars(outputs), outputs)
     return func
 
 
@@ -1018,8 +1314,8 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    sym : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm
@@ -1029,6 +1325,7 @@ def from_mxnet(symbol,
     except ImportError as e:
         raise ImportError("{}. MXNet is required to parse symbols.".format(e))
 
+    mod = _module.Module()
     if isinstance(symbol, mx.sym.Symbol):
         params = {}
         arg_params = arg_params if arg_params else {}
@@ -1038,22 +1335,25 @@ def from_mxnet(symbol,
         for k, v in aux_params.items():
             params[k] = _nd.array(v.asnumpy())
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(symbol, shape, dtype)
+        func = _from_mxnet_impl(symbol, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.HybridBlock):
         if arg_params is not None or aux_params is not None:
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
         params = {}
         for k, v in symbol.collect_params().items():
             params[k] = _nd.array(v.data().asnumpy())
-        data = mx.sym.Variable("data")
-        sym = symbol(data)
+        inputs = []
+        for name in shape:
+            inputs.append(mx.sym.Variable(name))
+        sym = symbol(*inputs)
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(sym, shape, dtype)
+        func = _from_mxnet_impl(sym, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.Block):
         raise NotImplementedError("Only Hybrid Blocks are supported now.")
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
-    return sym, params
+    mod["main"] = func
+    return mod, params

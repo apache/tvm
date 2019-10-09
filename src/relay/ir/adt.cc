@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/ir/adt.cc
  * \brief AST nodes for Relay algebraic data types (ADTs).
  */
@@ -79,6 +79,23 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                                          tvm::IRPrinter* p) {
   p->stream << "PatternConstructorNode(" << node->constructor
             << ", " << node->patterns << ")";
+});
+
+PatternTuple PatternTupleNode::make(tvm::Array<Pattern> patterns) {
+  NodePtr<PatternTupleNode> n = make_node<PatternTupleNode>();
+  n->patterns = std::move(patterns);
+  return PatternTuple(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PatternTupleNode);
+
+TVM_REGISTER_API("relay._make.PatternTuple")
+.set_body_typed(PatternTupleNode::make);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<PatternTupleNode>([](const PatternTupleNode* node,
+                                   tvm::IRPrinter* p) {
+  p->stream << "PatternTupleNode(" << node->patterns << ")";
 });
 
 Constructor ConstructorNode::make(std::string name_hint,
@@ -144,10 +161,11 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << node->rhs << ")";
   });
 
-Match MatchNode::make(Expr data, tvm::Array<Clause> clauses) {
+Match MatchNode::make(Expr data, tvm::Array<Clause> clauses, bool complete) {
   NodePtr<MatchNode> n = make_node<MatchNode>();
   n->data = std::move(data);
   n->clauses = std::move(clauses);
+  n->complete = complete;
   return Match(n);
 }
 
@@ -160,7 +178,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<MatchNode>([](const MatchNode* node,
                             tvm::IRPrinter* p) {
   p->stream << "MatchNode(" << node->data << ", "
-            << node->clauses << ")";
+            << node->clauses << ", " << node->complete << ")";
 });
 
 }  // namespace relay

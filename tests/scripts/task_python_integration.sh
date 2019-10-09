@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -33,13 +33,13 @@ rm -rf lib
 make
 cd ../..
 
-python3 -m nose -v apps/extension/tests
+python3 -m pytest -v apps/extension/tests
 
-TVM_FFI=ctypes python3 -m nose -v tests/python/integration
-TVM_FFI=ctypes python3 -m nose -v tests/python/contrib
+TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
+TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
 
-TVM_FFI=ctypes python3 -m nose -v tests/python/relay
+TVM_FFI=ctypes python3 -m pytest -v tests/python/relay
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m nose -v tests/webgl
-# TVM_FFI=ctypes python3 -m nose -v tests/webgl
+# TVM_FFI=cython python -m pytest -v tests/webgl
+# TVM_FFI=ctypes python3 -m pytest -v tests/webgl

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -139,6 +139,8 @@ DEFINE_BINOP_VISIT_(Sub)
 DEFINE_BINOP_VISIT_(Mul)
 DEFINE_BINOP_VISIT_(Div)
 DEFINE_BINOP_VISIT_(Mod)
+DEFINE_BINOP_VISIT_(FloorDiv)
+DEFINE_BINOP_VISIT_(FloorMod)
 DEFINE_BINOP_VISIT_(Min)
 DEFINE_BINOP_VISIT_(Max)
 DEFINE_BINOP_VISIT_(EQ)
@@ -173,6 +175,13 @@ void IRVisitor::Visit_(const Select* op) {
 void IRVisitor::Visit_(const Ramp *op) {
   this->Visit(op->base);
   this->Visit(op->stride);
+}
+
+void IRVisitor::Visit_(const Shuffle *op) {
+  for (const auto &elem : op->indices)
+    this->Visit(elem);
+  for (const auto &elem : op->vectors)
+    this->Visit(elem);
 }
 
 void IRVisitor::Visit_(const Broadcast *op) {
@@ -250,6 +259,8 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Mul)
 .DISPATCH_TO_VISIT(Div)
 .DISPATCH_TO_VISIT(Mod)
+.DISPATCH_TO_VISIT(FloorDiv)
+.DISPATCH_TO_VISIT(FloorMod)
 .DISPATCH_TO_VISIT(Min)
 .DISPATCH_TO_VISIT(Max)
 .DISPATCH_TO_VISIT(EQ)
@@ -265,6 +276,7 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Not)
 .DISPATCH_TO_VISIT(Select)
 .DISPATCH_TO_VISIT(Ramp)
+.DISPATCH_TO_VISIT(Shuffle)
 .DISPATCH_TO_VISIT(Broadcast)
 .DISPATCH_TO_VISIT(AssertStmt)
 .DISPATCH_TO_VISIT(ProducerConsumer)

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,13 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file rocm/dense.h
-* \brief rocm schedule for dense operation
-*/
+ * \file rocm/dense.h
+ * \brief rocm schedule for dense operation
+ */
 #ifndef TOPI_ROCM_DENSE_H_
 #define TOPI_ROCM_DENSE_H_
 
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/build_module.h"
 #include "topi/tags.h"
 #include "topi/detail/array_utils.h"
@@ -100,4 +99,3 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
 }  // namespace rocm
 }  // namespace topi
 #endif  // TOPI_ROCM_DENSE_H_
-

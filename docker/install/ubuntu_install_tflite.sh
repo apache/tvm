@@ -35,7 +35,7 @@ pip2 install flatbuffers
 # Setup tflite from schema
 mkdir tflite
 cd tflite
-wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r1.12/tensorflow/contrib/lite/schema/schema.fbs
+wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
 flatc --python schema.fbs
 
 cat <<EOM >setup.py
@@ -43,7 +43,7 @@ import setuptools
 
 setuptools.setup(
     name="tflite",
-    version="0.0.1",
+    version="1.13.1",
     author="google",
     author_email="google@google.com",
     description="TFLite",

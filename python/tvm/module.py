@@ -107,6 +107,10 @@ class Module(ModuleBase):
         kwargs : dict, optional
             Additional arguments passed to fcompile
         """
+        from pathlib import Path
+        if isinstance(file_name, Path):
+            file_name = str(file_name)
+
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
                 raise ValueError("Module[%s]: can only be saved as stackvm format."
@@ -251,7 +255,7 @@ def load(path, fmt=""):
         _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
-        tar_temp = _util.tempdir()
+        tar_temp = _util.tempdir(custom_path=path.replace('.tar', ''))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files)

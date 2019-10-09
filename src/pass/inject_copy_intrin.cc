@@ -160,7 +160,7 @@ class CopyIntrinInjector : public IRMutator {
         store_strides[loop_var_size],
         store->buffer_var->name_hint,
         GetStorageScope(store->buffer_var.get()),
-        0, 0);
+        0, 0, kDefault);
     Buffer src = BufferNode::make(
         Var(load->buffer_var.node_),
         load->type,
@@ -169,7 +169,7 @@ class CopyIntrinInjector : public IRMutator {
         src_elem_offset,
         load->buffer_var->name_hint,
         GetStorageScope(load->buffer_var.get()),
-        0, 0);
+        0, 0, kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     CHECK(out->defined()) << "flower function did not return correct stmt";
     return true;

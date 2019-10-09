@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.6.dev" %}
+{% set version = "0.6.dev1" %}
 
 package:
   name: tvm
@@ -36,18 +36,29 @@ requirements:
     - numpy
     - setuptools
     - decorator
-    - tvm-libs =={{ version }}
+    - tvm-libs {{ version }}
   run:
-    - python
+    - python {{ python }}
     - {{ pin_compatible('numpy') }}
     - decorator
-    - tvm-libs =={{ version }}
+    - tvm-libs {{ version }}
+    - psutil
 
 test:
   imports:
     - tvm
+    - topi
+    - nnvm
+  requires:
+    - pytest
+    - scipy
+  source_files:
+    - tests/python
+  commands:
+    - python -m pytest -v tests/python/integration
 
 about:
   home: https://github.com/dmlc/tvm
-  license: Apache2
+  license: Apache-2.0
+  license_family: Apache
   summary: a low level domain specific language for compiling tensor computation pipelines

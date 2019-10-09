@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file modular_set.cc
  * \brief Modular set analysis
  */
@@ -26,6 +25,8 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>
+#include <utility>
+#include <unordered_map>
 #include "pattern_match.h"
 
 namespace tvm {
@@ -35,11 +36,12 @@ using namespace ir;
 
 TVM_REGISTER_NODE_TYPE(ModularSetNode);
 
-ModularSet ModularSetNode::make(int64_t coeff, int64_t base) {
+ModularSet::ModularSet(int64_t coeff, int64_t base) {
   auto node = make_node<ModularSetNode>();
   node->coeff = coeff;
   node->base = base;
-  return ModularSet(node);
+  // finish construction.
+  node_ = std::move(node);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -70,6 +72,15 @@ struct ModularSetAnalyzer::Entry {
   bool is_const() const {
     return coeff == 0;
   }
+
+  bool operator==(const Entry& other) const {
+    return coeff == other.coeff && base == other.base;
+  }
+
+  bool operator==(const ModularSet& other) const {
+    return other.defined() &&
+        coeff == other->coeff && base == other->base;
+  }
 };
 
 class ModularSetAnalyzer::Impl :
@@ -82,7 +93,14 @@ class ModularSetAnalyzer::Impl :
               const ModularSet& info,
               bool override) {
     if (!override) {
-      CHECK(!var_map_.count(var));
+      auto it = var_map_.find(var);
+      if (it != var_map_.end()) {
+        CHECK(it->second == info)
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ModularSet(it->second.coeff, it->second.base)
+            << ", new=" << info;
+      }
     }
     var_map_[var] = Entry(info->coeff, info->base);
   }
@@ -92,7 +110,8 @@ class ModularSetAnalyzer::Impl :
     PVar<Var> var;
     PVar<Integer> coeff, base;
     // pattern match interesting constraints
-    if (((var % coeff) == base).Match(constraint)) {
+    if ((truncmod(var, coeff) == base).Match(constraint) ||
+        (floormod(var, coeff) == base).Match(constraint)) {
       Entry entry(coeff.Eval()->value, base.Eval()->value);
       return UpdateByIntersect(var.Eval(), entry);
     }
@@ -172,6 +191,14 @@ class ModularSetAnalyzer::Impl :
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);
+    }
+    return Everything();
+  }
+
+  Entry VisitExpr_(const FloorDiv* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      return DivByConst(op->a, b.base, true);
     }
     return Everything();
   }
@@ -366,13 +393,13 @@ class ModularSetAnalyzer::Impl :
    * \return Bound that represent everything dtype can represent.
    */
   static Entry Nothing() {
-      return Entry(0, 1);
+    return Entry(0, 1);
   }
 };
 
 ModularSet ModularSetAnalyzer::operator()(const Expr& expr) {
   Entry ret = impl_->VisitExpr(expr);
-  return ModularSetNode::make(ret.coeff, ret.base);
+  return ModularSet(ret.coeff, ret.base);
 }
 
 void ModularSetAnalyzer::Update(const Var& var,

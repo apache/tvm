@@ -16,12 +16,21 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
 """A global module storing everything needed to interpret or compile a Relay program."""
+import os
 from .base import register_relay_node, RelayNode
+from .. import register_func
 from .._ffi import base as _base
 from . import _make
 from . import _module
 from . import expr as _expr
 from . import ty as _ty
+
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
+@register_func("tvm.relay.std_path")
+def _std_path():
+    global __STD_PATH__
+    return __STD_PATH__
 
 @register_relay_node
 class Module(RelayNode):
@@ -33,7 +42,7 @@ class Module(RelayNode):
 
     Parameters
     ----------
-    functions : dict, optional.
+    functions: Optional[dict].
         Map of global var to Function
     """
     def __init__(self, functions=None, type_definitions=None):
@@ -78,29 +87,23 @@ class Module(RelayNode):
     def _add(self, var, val, update=False):
         if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
-                var = _expr.GlobalVar(var)
-
-            # TODO(@jroesch): Port this logic to C++.
-            if not isinstance(val, _expr.Function):
-                if isinstance(val, _expr.GlobalVar):
-                    val = ir_pass.eta_expand(val, self)
+                if _module.Module_ContainGlobalVar(self, var):
+                    var = _module.Module_GetGlobalVar(self, var)
                 else:
-                    val = _expr.Function([], val)
-
-
-            _make.Module_Add(self, var, val, update)
+                    var = _expr.GlobalVar(var)
+            _module.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
             if isinstance(var, _base.string_types):
                 var = _ty.GlobalTypeVar(var)
-            _module.Module_AddDef(self, var, val)
+            _module.Module_AddDef(self, var, val, update)
 
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
 
         Parameters
         ----------
-        var: str or GlobalVar
+        var: Union[String, GlobalVar, GlobalTypeVar]
             The name or global variable.
 
         Returns
@@ -146,6 +149,26 @@ class Module(RelayNode):
         """
         return _module.Module_GetGlobalVar(self, name)
 
+    def get_global_vars(self):
+        """Collect all global vars defined in this module.
+
+        Returns
+        -------
+        global_vars: tvm.Array[GlobalVar]
+            An array of global vars.
+        """
+        return _module.Module_GetGlobalVars(self)
+
+    def get_global_type_vars(self):
+        """Collect all global type vars defined in this module.
+
+        Returns
+        -------
+        global_type_vars: tvm.Array[GlobalTypeVar]
+            An array of global type vars.
+        """
+        return _module.Module_GetGlobalTypeVars(self)
+
     def get_global_type_var(self, name):
         """Get a global type variable in the function by name.
 
@@ -165,6 +188,52 @@ class Module(RelayNode):
         """
         return _module.Module_GetGlobalTypeVar(self, name)
 
+    def get_constructor(self, tag):
+        """Look up an ADT constructor by tag.
+
+        Parameters
+        ----------
+        tag: int
+            The tag for a constructor.
+
+        Returns
+        -------
+        constructor: Constructor
+           The constructor associated with the given tag,
+
+        Raises
+        ------
+        tvm.TVMError if the corresponding constructor cannot be found.
+        """
+        return _module.Module_LookupTag(self, tag)
+
     @staticmethod
-    def from_expr(expr):
-        return _module.Module_FromExpr(expr)
+    def from_expr(expr, functions=None, type_defs=None):
+        """Construct a module from a standalone expression.
+
+        Parameters
+        ----------
+        expr: Expr
+            The starting expression
+        global_funcs: Optional[dict]
+            Map of global vars to function definitions
+        type_defs: Optional[dict]
+            Map of global type vars to type definitions
+
+
+        Returns
+        -------
+        mod: Module
+            A module containing the passed definitions,
+            where expr is set as the entry point
+            (wrapped in a function if necessary)
+        """
+        funcs = functions if functions is not None else {}
+        defs = type_defs if type_defs is not None else {}
+        return _module.Module_FromExpr(expr, funcs, defs)
+
+    def _import(self, file_to_import):
+        return _module.Module_Import(self, file_to_import)
+
+    def import_from_std(self, file_to_import):
+        return _module.Module_ImportFromStd(self, file_to_import)

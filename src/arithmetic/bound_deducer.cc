@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,12 +30,12 @@
 
 #include <unordered_set>
 #include <unordered_map>
+#include "int_set.h"
 
 namespace tvm {
 namespace arith {
 
 using namespace ir;
-using HalideIR::Internal::Interval;
 
 // a visitor to find the path to the target variable
 // from a expression.
@@ -69,7 +69,7 @@ std::vector<const Node*> GetPath(Expr target, Expr expr) {
   return v.path_;
 }
 
-class BoundDeduceIntputChecker;
+enum CompareOp {kGreater, kLess, kEqual};
 
 // a visitor to deduce the bound of a variable from a expression
 class BoundDeducer: public IRVisitor {
@@ -84,11 +84,11 @@ class BoundDeducer: public IRVisitor {
   void Deduce();
 
   void Visit(const NodeRef& e) final {
-    if (!success) return;
+    if (!success_) return;
     if (e.get() == path_[iter_++]) {
       IRVisitor::Visit(e);
     } else {
-      success = false;
+      success_ = false;
       return;
     }
   }
@@ -111,18 +111,18 @@ class BoundDeducer: public IRVisitor {
 
   void Visit_(const Add* op) final {
     bool left = op->a.get() == path_[iter_];
-    result -= left ? op->b : op->a;
+    result_ -= left ? op->b : op->a;
     Visit(left ? op->a : op->b);
   }
 
   void Visit_(const Sub* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
-      result += op->b;
+      result_ += op->b;
     } else {
-      result -= op->a;
-      result = - result;
-      is_greater = !is_greater;
+      result_ -= op->a;
+      result_ = - result_;
+      comp_op = ReverseOp(comp_op);
     }
     Visit(left ? op->a : op->b);
   }
@@ -130,49 +130,60 @@ class BoundDeducer: public IRVisitor {
   void Visit_(const Mul* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
+    Expr target_var = left ? op->a : op->b;
 
-    SignType sign;
+    SignType sign_operand;
     if (operand.type().is_uint()) {
-      sign = kPositive;
+      sign_operand = kPositive;
     } else {
-      sign = expr_map_[operand].sign_type();
+      sign_operand = expr_map_[operand].sign_type();
     }
 
-    if (sign == SignType::kNegative) {
-      is_greater = !is_greater;
-    } else if (sign == SignType::kUnknown) {
+    if (sign_operand == SignType::kNegative) {
+      comp_op = ReverseOp(comp_op);
+    } else if (sign_operand == SignType::kUnknown) {
       // unable to get the sign of operand
-      success = false;
+      success_ = false;
       return;
     }
 
     // always use relax bound
-    bool divided = can_prove(result % operand == 0);
-    result = result / operand;
-    // since system will round down when not divided
-    // eg. 2/4 -> 0; -2/4 -> -1
-    // no need fix for !is_greater:
-    // eg. a <= 2/4 -> a <= 0
-    // eg. a <= 0/4 -> a <= 0
-    // so just fix for not divided and is_greater
-    // eg. a >= 2/4 -> a >= 0 + 1
-    // eg. a >= 0/4 -> a >= 0
-    if (is_greater && !divided) {
-       result += 1;
-    }
+    bool divided = analyzer_.CanProve(floormod(result_, operand) == 0);
 
+    result_ = floordiv(result_, operand);   // rounding down here
+
+    if (!divided) {
+      if (comp_op == kGreater) {
+        // System will round down in all the cases, so add one for result_ for kGreater
+        // (x >= 3/2 --> x >= 2)
+        // (x >= -3/2 --> x >= -1)
+        // (x >= 3/-2 --> x >= -1)
+        // (x >= -3/-2 --> x >= 2)
+        result_ += 1;
+      } else if (comp_op == kEqual) {
+        // condition unsatisfiable as with floor div, it will change the expression
+        success_ = false;
+        return;
+      } else {
+        // System rounds down in all cases, do nothing for kLess.
+        // ( x <= 3/2 --> x <= 1)
+        // ( x <= -3/2 --> x <= -2)
+        // ( x <= 3/-2 --> x <= -2)
+        // ( x <= -3/-2 --> x <= 1)
+      }
+    }
     Visit(left ? op->a : op->b);
   }
 
-  Expr result;
-  bool is_greater{true};
-  bool success{true};
+  Expr result_;
+  CompareOp comp_op{kGreater};
+  bool success_{true};
 
  private:
   void Init();
   void Transform();
   void Relax();
-
+  CompareOp ReverseOp(CompareOp comp_op);
   Expr target_;
   Expr expr_;
   const std::unordered_map<const Variable*, IntSet>& hint_map_;
@@ -180,6 +191,8 @@ class BoundDeducer: public IRVisitor {
   ExprIntSetMap expr_map_;
   std::vector<const Node*> path_;
   size_t iter_{0};
+  // internal analzyer
+  Analyzer analyzer_;
 };
 
 class BoundDeduceInputChecker: public IRVisitor {
@@ -202,8 +215,19 @@ class BoundDeduceInputChecker: public IRVisitor {
 
 void BoundDeducer::Init() {
   BoundDeduceInputChecker checker;
-  if (!checker.Check(this)) success = false;
+  if (!checker.Check(this)) success_ = false;
   Transform();
+}
+
+CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
+  switch (comp_op) {
+    case kEqual: return kEqual;   // IntSet can not represent range for `NE
+    case kGreater: return kLess;
+    case kLess: return kGreater;
+    default:
+      LOG(FATAL) << "Not a valid compare op";
+      return kGreater;  // return some default value
+  }
 }
 
 void BoundDeducer::Transform() {
@@ -211,66 +235,75 @@ void BoundDeducer::Transform() {
   if (const LT* op = expr_.as<LT>()) {
     if (GetPath(target_, op->a).empty()) {
       // a < b -> b >= a + 1
-      is_greater = true;
+      comp_op = kGreater;
       expr_ = op->b;
-      result = op->a + 1;
+      result_ = op->a + 1;
     } else {
       // a < b -> a <= b - 1
-      is_greater = false;
+      comp_op = kLess;
       expr_ = op->a;
-      result = op->b - 1;
+      result_ = op->b - 1;
     }
   } else if (const LE* op = expr_.as<LE>()) {
     if (GetPath(target_, op->a).empty()) {
       // a <= b -> b >= a
-      is_greater = true;
+      comp_op = kGreater;
       expr_ = op->b;
-      result = op->a;
+      result_ = op->a;
     } else {
-      is_greater = false;
+      comp_op = kLess;
       expr_ = op->a;
-      result = op->b;
+      result_ = op->b;
     }
   } else if (const GT* op = expr_.as<GT>()) {
     if (GetPath(target_, op->a).empty()) {
       // a > b -> b <= a - 1
-      is_greater = false;
+      comp_op = kLess;
       expr_ = op->b;
-      result = op->a - 1;
+      result_ = op->a - 1;
     } else {
       // a > b -> a >= b + 1
-      is_greater = true;
+      comp_op = kGreater;
       expr_ = op->a;
-      result = op->b + 1;
+      result_ = op->b + 1;
     }
   } else if (const GE* op = expr_.as<GE>()) {
     if (GetPath(target_, op->a).empty()) {
       // a >= b -> b <= a
-      is_greater = false;
+      comp_op = kLess;
       expr_ = op->b;
-      result = op->a;
+      result_ = op->a;
     } else {
-      is_greater = true;
+      comp_op = kGreater;
       expr_ = op->a;
-      result = op->b;
+      result_ = op->b;
+    }
+  } else if (const EQ* op = expr_.as<EQ>()) {
+    comp_op = kEqual;
+    if (GetPath(target_, op->a).empty()) {
+      // if the b == a -> a == b
+      expr_ = op->b;
+      result_ = op->a;
+    } else {
+      expr_ = op->a;
+      result_ = op->b;
     }
   } else {
-    success = false;
+    success_ = false;
   }
 }
 
 void BoundDeducer::Deduce() {
   Init();
-  if (!success) return;
+  if (!success_) return;
   Relax();
-  if (!success) return;
+  if (!success_) return;
   // get the path
   path_ = GetPath(target_, expr_);
   if (!path_.size()) {
-    success = false;
+    success_ = false;
     return;
   }
-
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   Visit(expr_);
@@ -278,13 +311,21 @@ void BoundDeducer::Deduce() {
 
 void BoundDeducer::Relax() {
   IntSet a = EvalSet(expr_, relax_map_);
-  IntSet b = EvalSet(result, relax_map_);
+  IntSet b = EvalSet(result_, relax_map_);
   if (a.is_everything() || b.is_everything()) {
-    success = false;
+    success_ = false;
     return;
   }
-  expr_  = is_greater ? a.min() : a.max();
-  result = is_greater ? b.max() : b.min();
+  // Both LHS and RHS of the EQ should behave as constants e.g.  i == j,
+  // can not be resolved when either `i` or `j`  or both are variables with
+  // some Range OR `i` and `j` both should be a single point in IntSet
+  if (comp_op == kEqual && (!analyzer_.CanProve(b.min() == b.max())
+     || !analyzer_.CanProve(a.min() == a.max()))) {
+    success_ = false;
+    return;
+  }
+  expr_  = (comp_op == kGreater) ? a.min() : a.max();
+  result_ = (comp_op == kGreater) ? b.max() : b.min();
 }
 
 IntSet DeduceBound(Expr v, Expr e,
@@ -292,12 +333,15 @@ IntSet DeduceBound(Expr v, Expr e,
   const std::unordered_map<const Variable*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
-  if (!d.success) return IntSet::nothing();
-  Expr min = Interval::neg_inf, max = Interval::pos_inf;
-  if (d.is_greater) {
-    min = d.result;
+  if (!d.success_) return IntSet::nothing();
+  Expr min = neg_inf(), max = pos_inf();
+  if (d.comp_op == kEqual) {
+    min = d.result_;
+    max = d.result_;
+  } else if (d.comp_op == kGreater) {
+    min = d.result_;
   } else {
-    max = d.result;
+    max = d.result_;
   }
   return IntSet::interval(min, max);
 }

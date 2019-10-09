@@ -78,7 +78,7 @@ def _darknet_maxpooling(inputs, attrs):
     """Process the max pool 2d operation."""
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'maxpool'))
     if len(kernel) != 1:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Non-2D kernels for Max Pooling are not supported in frontend Darknet.')
 
     op_name, new_attrs = 'max_pool2d', {}

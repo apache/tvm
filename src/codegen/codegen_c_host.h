@@ -45,12 +45,30 @@ class CodeGenCHost final : public CodeGenC {
   // overload visitor functions
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Call *op, std::ostream& os) final; // NOLINT(*)
+  // overload min and max to use the ternary operator, so we don't rely on the
+  // standard library implementations
+  void VisitExpr_(const Min *op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const Max *op, std::ostream& os) final;  // NOLINT(*)
+
   void VisitStmt_(const AssertStmt *op) final; // NOLINT(*)
 
  private:
-  std::string module_name;
-  void PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name);
-  void PrintFuncCall(std::string packed_func_name, int num_args);
+  std::string module_name_;
+
+  void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
+  void PrintFuncCall(const std::string& packed_func_name, int num_args);
+
+  /*!
+   * \brief Print ternary conditional operator implementing binary `op`
+   * Forces the operands to be in SSA form.
+   * \param op binary operator being expressed
+   * \param compare string representation of comparison operator
+   * \param os stream reference to print into
+   */
+  template <typename T>
+  inline void PrintTernaryCondExpr(const T* op,
+                                   const char* compare,
+                                   std::ostream& os);  // NOLINT(*)
 };
 
 }  // namespace codegen

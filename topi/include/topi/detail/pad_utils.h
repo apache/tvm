@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,7 +27,8 @@
 
 #include <vector>
 
-#include "tvm/tvm.h"
+#include "tvm/expr.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace detail {
@@ -46,8 +47,8 @@ inline Array<Expr> GetPadTuple(Expr pad_h, Expr pad_w) {
   pad_h *= 2;
   pad_w *= 2;
 
-  auto pad_top = (pad_h + 1) / 2;
-  auto pad_left = (pad_w + 1) / 2;
+  auto pad_top = indexdiv(pad_h + 1, 2);
+  auto pad_left = indexdiv(pad_w + 1, 2);
 
   return { pad_top, pad_left, pad_h - pad_top, pad_w - pad_left };
 }

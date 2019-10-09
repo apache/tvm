@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,10 +23,12 @@
  */
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
+#include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_visitor.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -36,12 +38,12 @@
 #include "ir_util.h"
 #include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
+#include "../arithmetic/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace ir {
 
-using HalideIR::Internal::Region;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -50,8 +52,10 @@ using intrinsic::tvm_address_of;
 class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
-                            int cache_line_size, bool create_bound_attributes)
-      : create_bound_attributes_(create_bound_attributes) {
+                            int cache_line_size, bool create_bound_attributes,
+                            IRVisitorWithAnalyzer* bounded_analyzer)
+      : bounded_analyzer_(bounded_analyzer),
+        create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -186,7 +190,7 @@ class StorageFlattener : public IRMutator {
       }
 
       // use small alignment for small arrays
-      int32_t const_size = Allocate::constant_allocation_size(shape, key.GetName());
+      int32_t const_size = Allocate::constant_allocation_size(shape);
       int align = GetTempAllocaAlignment(op->type, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -207,11 +211,11 @@ class StorageFlattener : public IRMutator {
           if (dim < avec.size() && avec[dim].align_factor != 0) {
             Expr factor = make_const(stride.type(), avec[dim].align_factor);
             Expr offset = make_const(stride.type(), avec[dim].align_offset);
-            stride = stride + (factor + offset - stride % factor) % factor;
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
-          stride = arith::ComputeExpr<Mul>(stride, shape[dim]);
+          stride = stride * shape[dim];
         }
         strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
       }
@@ -220,7 +224,7 @@ class StorageFlattener : public IRMutator {
           Var(key.GetName(), Handle()),
           op->type, shape, strides, Expr(),
           key.GetName(), skey.to_string(),
-          align, 0);
+          align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);
@@ -237,7 +241,7 @@ class StorageFlattener : public IRMutator {
         int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, storage_type,
-            {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
+            {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
@@ -348,14 +352,14 @@ class StorageFlattener : public IRMutator {
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
         stmt = For::make(
-            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::Host, stmt);
+            vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
         Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
         stmt = Evaluate::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::Host, stmt);
+        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;
@@ -414,14 +418,14 @@ class StorageFlattener : public IRMutator {
     if (be.bounds.size() != 0) {
       CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
-        begins.push_back(
-            arith::ComputeExpr<Sub>(tuple->args[2 * i], be.bounds[i]->min));
+        begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
         extents.push_back(tuple->args[2 * i + 1]);
       }
     } else {
       for (size_t i = 0; i < tuple->args.size(); i += 2) {
         begins.push_back(tuple->args[i]);
-        extents.push_back(tuple->args[i + 1]);
+        auto new_extent = bounded_analyzer_->Simplify(tuple->args[i+1]);
+        extents.push_back(new_extent);
       }
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
@@ -512,6 +516,9 @@ class StorageFlattener : public IRMutator {
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
   std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
+  // bounds populator. We really need the analyzer from it.
+  // However
+  IRVisitorWithAnalyzer* bounded_analyzer_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
@@ -522,9 +529,11 @@ class StorageFlattener : public IRMutator {
 
 Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
+  IRVisitorWithAnalyzer bounded_analyzer;
+  bounded_analyzer.Visit(stmt);
   stmt =
-      StorageFlattener(extern_buffer, cache_line_size, create_bound_attributes)
-          .Mutate(stmt);
+      StorageFlattener(extern_buffer, cache_line_size,
+          create_bound_attributes, &bounded_analyzer).Mutate(stmt);
   return stmt;
 }
 

@@ -35,7 +35,9 @@ tvm.intrin
    tvm.ceil
    tvm.trunc
    tvm.round
+   tvm.nearbyint
    tvm.abs
+   tvm.isnan
 
 .. autofunction:: tvm.call_packed
 .. autofunction:: tvm.call_pure_intrin
@@ -51,4 +53,6 @@ tvm.intrin
 .. autofunction:: tvm.ceil
 .. autofunction:: tvm.trunc
 .. autofunction:: tvm.round
+.. autofunction:: tvm.nearbyint
 .. autofunction:: tvm.abs
+.. autofunction:: tvm.isnan

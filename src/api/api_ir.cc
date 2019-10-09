@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -38,6 +38,9 @@ TVM_REGISTER_API("_Var")
 TVM_REGISTER_API("make.abs")
 .set_body_typed(tvm::abs);
 
+TVM_REGISTER_API("make.isnan")
+.set_body_typed(tvm::isnan);
+
 TVM_REGISTER_API("make.floor")
 .set_body_typed(tvm::floor);
 
@@ -46,6 +49,9 @@ TVM_REGISTER_API("make.ceil")
 
 TVM_REGISTER_API("make.round")
 .set_body_typed(tvm::round);
+
+TVM_REGISTER_API("make.nearbyint")
+.set_body_typed(tvm::nearbyint);
 
 TVM_REGISTER_API("make.trunc")
 .set_body_typed(tvm::trunc);
@@ -59,14 +65,13 @@ TVM_REGISTER_API("make._range_by_min_extent")
 TVM_REGISTER_API("make.For")
 .set_body_typed<Stmt(VarExpr, Expr, Expr, int, int, Stmt)>([](
   VarExpr loop_var, Expr min, Expr extent,
-  int for_type, int device_api, Stmt body
-) {
+  int for_type, int device_api, Stmt body) {
   return For::make(loop_var,
-                    min,
-                    extent,
-                    static_cast<ForType>(for_type),
-                    static_cast<HalideIR::DeviceAPI>(device_api),
-                    body);
+                   min,
+                   extent,
+                   static_cast<ForType>(for_type),
+                   static_cast<DeviceAPI>(device_api),
+                   body);
 });
 
 TVM_REGISTER_API("make.Load")
@@ -127,6 +132,8 @@ REGISTER_MAKE(Sub);
 REGISTER_MAKE(Mul);
 REGISTER_MAKE(Div);
 REGISTER_MAKE(Mod);
+REGISTER_MAKE(FloorDiv);
+REGISTER_MAKE(FloorMod);
 REGISTER_MAKE(Min);
 REGISTER_MAKE(Max);
 REGISTER_MAKE(EQ);
@@ -191,8 +198,15 @@ TVM_REGISTER_API("make.Allocate")
 REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
 REGISTER_MAKE_BINARY_OP(_OpSub, operator-);
 REGISTER_MAKE_BINARY_OP(_OpMul, operator*);
-REGISTER_MAKE_BINARY_OP(_OpDiv, operator/);
-REGISTER_MAKE_BINARY_OP(_OpMod, operator%);
+REGISTER_MAKE_BINARY_OP(_OpDiv, div);
+REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
+REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
+REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
+REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
+REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
+REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpPow, pow);
 REGISTER_MAKE_BINARY_OP(_OpMin, min);
 REGISTER_MAKE_BINARY_OP(_OpMax, max);
 REGISTER_MAKE_BINARY_OP(_OpEQ, operator==);
@@ -208,6 +222,10 @@ REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
 REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
+TVM_REGISTER_API("make._OpIfThenElse")
+.set_body_typed<Expr(Expr, Expr, Expr)>([] (Expr cond, Expr true_value, Expr false_value) {
+  return if_then_else(cond, true_value, false_value);
+});
 
 }  // namespace ir
 }  // namespace tvm

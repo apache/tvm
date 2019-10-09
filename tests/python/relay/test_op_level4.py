@@ -17,8 +17,15 @@
 import tvm
 import numpy as np
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
 import topi.testing
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_binary_op():
     def check_binary_op(opfunc, ref):
@@ -30,7 +37,8 @@ def test_binary_op():
         z = opfunc(x, y)
         # test printer
         assert ("{}(%x, %y)".format(z.op.name)) in z.astext()
-        assert relay.ir_pass.infer_type(z).checked_type == t1
+        zz = run_infer_type(z)
+        assert zz.checked_type == t1
 
         if ref is not None:
             t1 = relay.TensorType((5, 10, 5))
@@ -62,8 +70,7 @@ def test_cmp_type():
         x = relay.var("x", relay.TensorType((10, 4), "float32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "float32"))
         z = op(x, y)
-        z.astext()
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "bool")
 
         if ref is not None:
@@ -94,7 +101,7 @@ def test_binary_int_broadcast():
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
 
     if ref is not None:
@@ -120,7 +127,7 @@ def test_where():
     x = relay.var("x", relay.TensorType(shape, dtype))
     y = relay.var("y", relay.TensorType(shape, dtype))
     z = relay.where(cond, x, y)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType(shape, dtype)
 
     func = relay.Function([cond, x, y], z)
@@ -138,10 +145,11 @@ def test_where():
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
+    dtype = "bool" if ref_func in [np.all] else dtype
 
     x = relay.var("x", relay.TensorType(data, dtype))
     z = test_func(x, axis, keepdims, exclude)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     if axis:
         assert "axis=" in z.astext()
     if keepdims:
@@ -155,7 +163,9 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         return
 
     func = relay.Function([x], z)
-    x_data = np.random.uniform(size=data).astype(dtype)
+    x_data = np.random.choice([True, False], size=data) if ref_func in [np.all] \
+        else np.random.uniform(size=data).astype(dtype)
+
     if ref_func in [np.sum]:
         ref_res = ref_func(x_data + 0, axis=axis, dtype=dtype, keepdims=keepdims)
     elif ref_func in [np.max, np.min, np.mean, np.prod]:
@@ -193,16 +203,22 @@ def test_reduce_functions():
                  [relay.max, np.max],
                  [relay.min, np.min],
                  [relay.mean, np.mean],
+                 [relay.variance, np.var],
+                 [relay.std, np.std],
                  [relay.prod, np.prod],
+                 [relay.all, np.all],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())
         verify_reduce(func, (d1, d2, d3, d4), 2, True, False, (d1, d2, 1, d4))
+        verify_reduce(func, (d1, d2, d3, d4), 0, True, False, (1, d2, d3, d4))
         verify_reduce(func, (d1, d2, d3), 1, True, False, (d1, 1, d3))
+        verify_reduce(func, (d1, d2, d3), 0, True, False, (1, d2, d3))
         verify_reduce(func, (d1, d2, d3), None, True, False, (1, 1, 1))
         verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
         verify_reduce(func, (2, 3, 4), 1, True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
+        verify_reduce(func, (2, 3, 4), -1, True, False, (2, 3, 1))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
         verify_reduce(func, (4, 4, 3), None, False, False, ())
         verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))
@@ -212,12 +228,49 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
 
 
+def verify_mean_var_std(funcs, shape, axis, keepdims):
+    test_func = funcs[0]
+    ref_func = funcs[1]
+    dtype = "float32"
+
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    z = test_func(x, axis, keepdims)
+    func = relay.Function([x], z.astuple())
+    x_data = np.random.uniform(size=shape).astype(dtype)
+    ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+    ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1[0].asnumpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res1[1].asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2[0].asnumpy(), ref_mean, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res2[1].asnumpy(), ref_res, rtol=1e-5)
+
+def test_mean_var_std():
+    for func in [[relay.mean_variance, np.var],
+                 [relay.mean_std, np.std]]:
+        verify_mean_var_std(func, (2, 3, 4), 1, True)
+        verify_mean_var_std(func, (2, 3, 4), (1,), True)
+        verify_mean_var_std(func, (2, 3, 4), -1, True)
+        verify_mean_var_std(func, (2, 3, 4), (0, 1, 2), False)
+        verify_mean_var_std(func, (4, 4, 3), None, False)
+        verify_mean_var_std(func, (4, 4, 3), (0, 2), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 1), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 2), False)
+        verify_mean_var_std(func, (128, 24, 128), (0, 1), True)
+        verify_mean_var_std(func, (128, 24, 128), (0, 2), True)
+
+
 def test_strided_slice():
     def verify(dshape, begin, end, strides, output, test_ref=True):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.strided_slice(x, begin=begin, end=end, strides=strides)
         func = relay.Function([x], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         text = func.astext()
         assert "begin=" in text
         assert "end=" in text
@@ -253,3 +306,4 @@ if __name__ == "__main__":
     test_binary_int_broadcast()
     test_where()
     test_reduce_functions()
+    test_mean_var_std()

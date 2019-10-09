@@ -18,14 +18,13 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
- *
  * \file eta_expand.cc
  *
  * \brief Add abstraction over a function. For example, abs will become (fun x -> abs x).
  *
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/type.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -44,10 +43,8 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
     original_type_params = func->type_params;
     ret_type = func->ret_type;
   } else {
-    auto inferred = InferType(e, mod);
-    CHECK(inferred->is_type<FunctionNode>());
-
-    auto func = GetRef<Function>(inferred.as_derived<FunctionNode>());
+    CHECK(e->is_type<FunctionNode>());
+    auto func = GetRef<Function>(e.as_derived<FunctionNode>());
     original_params = func->params;
     original_type_params = func->type_params;
     ret_type = func->ret_type;
@@ -62,10 +59,24 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
   auto new_func =
       FunctionNode::make(args, CallNode::make(e, params), ret_type, original_type_params);
 
-  return InferType(new_func, mod);
+  return std::move(new_func);
 }
 
-TVM_REGISTER_API("relay._ir_pass.eta_expand").set_body_typed(EtaExpand);
+namespace transform {
+
+Pass EtaExpand() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(EtaExpand(f, m));
+    };
+  Pass expanded = CreateFunctionPass(pass_func, 1, "EtaExpand", {});
+  return Sequential({expanded, InferType()});
+}
+
+TVM_REGISTER_API("relay._transform.EtaExpand")
+.set_body_typed(EtaExpand);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

@@ -53,13 +53,13 @@ struct TensorDom {
 /*!
  * \brief Base class of all operation nodes
  */
-class OperationNode : public FunctionBaseNode {
+class OperationNode : public ir::FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
   std::string name;
   /*! \brief optional tag of the operation */
   std::string tag;
-  /*! \brief addtitional attributes of the operation*/
+  /*! \brief additional attributes of the operation*/
   Map<std::string, NodeRef> attrs;
   /*! \return name of the operation */
   const std::string& func_name() const final {
@@ -100,6 +100,7 @@ class OperationNode : public FunctionBaseNode {
   /*!
    * \brief Propagate the bounds to inputs
    * \param self The reference to self.
+   * \param analyzer The analyzer to be used in the function.
    * \param dom_map the domain map of Variables(corresponds to root_iter_vars)
    * \param out_dom_map The output domain.
    *  The function is only asked to fill the bounds for Tensors that
@@ -107,6 +108,7 @@ class OperationNode : public FunctionBaseNode {
    */
   virtual void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const = 0;
   /*!
@@ -170,6 +172,7 @@ class PlaceholderOpNode : public OperationNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
@@ -247,6 +250,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
@@ -286,6 +290,8 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   Array<Tensor> inputs;
   /*! \brief region of input tensors */
   Array<Region> input_regions;
+  /*! \brief scalar expression inputs */
+  Array<Expr> scalar_inputs;
   /*! \brief constructor */
   TensorComputeOpNode() {}
   // override functions
@@ -297,6 +303,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
@@ -314,6 +321,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
     v->Visit("intrin", &intrin);
     v->Visit("inputs", &inputs);
     v->Visit("input_regions", &input_regions);
+    v->Visit("scalar_inputs", &scalar_inputs);
   }
   static Operation make(std::string name,
                         std::string tag,
@@ -322,7 +330,8 @@ class TensorComputeOpNode : public BaseComputeOpNode {
                         int schedulable_ndim,
                         TensorIntrin intrin,
                         Array<Tensor> tensors,
-                        Array<Region> regions);
+                        Array<Region> regions,
+                        Array<Expr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, BaseComputeOpNode);
@@ -369,6 +378,7 @@ class ScanOpNode : public OperationNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
@@ -435,6 +445,7 @@ class ExternOpNode : public OperationNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
@@ -459,7 +470,7 @@ class ExternOpNode : public OperationNode {
     v->Visit("output_placeholders", &output_placeholders);
     v->Visit("body", &body);
   }
-  EXPORT static Operation make(std::string name,
+  TVM_DLL static Operation make(std::string name,
                                std::string tag,
                                Map<std::string, NodeRef> attrs,
                                Array<Tensor> inputs,
@@ -502,6 +513,7 @@ class HybridOpNode : public OperationNode {
       const std::unordered_map<Tensor, Tensor>& rmap) const final;
   void PropBoundToInputs(
       const Operation& self,
+      arith::Analyzer* analyzer,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
@@ -526,12 +538,12 @@ class HybridOpNode : public OperationNode {
     v->Visit("axis", &axis);
     v->Visit("body", &body);
   }
-  EXPORT static Operation make(std::string name,
-                               std::string tag,
-                               Map<std::string, NodeRef> attrs,
-                               Array<Tensor> inputs,
-                               Array<Tensor> outputs,
-                               Stmt body);
+  TVM_DLL static Operation make(std::string name,
+                                std::string tag,
+                                Map<std::string, NodeRef> attrs,
+                                Array<Tensor> inputs,
+                                Array<Tensor> outputs,
+                                Stmt body);
 
   static constexpr const char* _type_key = "HybridOp";
   TVM_DECLARE_NODE_TYPE_INFO(HybridOpNode, OperationNode);

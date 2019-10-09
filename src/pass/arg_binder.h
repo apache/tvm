@@ -50,7 +50,7 @@ namespace ir {
  *  - assert bufferB.shape[1] == n + 3
  *
  *  In general, this is a constraint solving problem. We have simplified assumption
- *  over the binding declaration, such that we require the variable occured in
+ *  over the binding declaration, such that we require the variable occurred in
  *  constraint must be declared in argument list. So it is illegal to have signature
  *  f(tA(shape=(n+3))) without any argument variable corresponds to n, even though
  *  it is already enough to derive n from the input argument.

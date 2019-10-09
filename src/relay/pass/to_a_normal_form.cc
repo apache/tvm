@@ -18,13 +18,15 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
+ * Copyright (c) 2019 by Contributors
  *
- * \file to_anf.cc
+ * \file to_a_normal_form.cc
  *
  * \brief Turn implicit sharing into observable sharing.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/logging.h>
 #include "let_list.h"
@@ -34,10 +36,6 @@
 
 namespace tvm {
 namespace relay {
-
-Expr ToANormalForm(const Expr& e,
-                   const Module& m,
-                   std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv);
 
 struct ScopeNode;
 using Scope = std::shared_ptr<ScopeNode>;
@@ -74,13 +72,16 @@ Scope LCA(Scope lhs, Scope rhs) {
 
 std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
+  bool global_scope_used = false;
   Scope global_scope = std::make_shared<ScopeNode>();
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
     DependencyGraph::Node* n = *it;
     auto iit = n->parents.head;
     Scope s;
     if (iit == nullptr) {
+      CHECK(!global_scope_used);
       s = global_scope;
+      global_scope_used = true;
     } else {
       s = expr_scope.at(iit->value);
       iit = iit->next;
@@ -90,11 +91,8 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
     }
     expr_scope.insert({n, n->new_scope ? ChildScope(s) : s});
   }
+  CHECK(global_scope_used);
   return expr_scope;
-}
-
-bool IsPrimitiveFunction(const Expr& e) {
-  return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
 /* Special care is needed to handle local recursion.
@@ -104,29 +102,21 @@ bool IsPrimitiveFunction(const Expr& e) {
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToANormalForm(const Expr& e,
-                            const Module& m,
                             const DependencyGraph& dg,
-                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                            std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-    Fill fi(m, dg, node_scope, gv);
+                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) {
+    Fill fi(dg, node_scope);
     return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
   }
 
  private:
-  Module mod_;
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_set<GlobalVar, NodeHash, NodeEqual>* visited_;
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo;
 
-  Fill(Module mod,
-       const DependencyGraph& dg,
-       std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-       std::unordered_set<GlobalVar, NodeHash, NodeEqual>* visited) :
-    mod_(mod),
+  Fill(const DependencyGraph& dg,
+       std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) :
     dg_(dg),
-    node_scope_(node_scope),
-    visited_(visited) { }
+    node_scope_(node_scope) { }
 
   Scope GetScope(const Expr& e) {
     return node_scope_->at(dg_.expr_node.at(e));
@@ -147,22 +137,26 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr(const Expr& e, const Var& v) final {
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
+    } else if (v.defined()) {
+      GetScope(e)->ll->Push(v, memo.at(e));
     }
-    return memo.at(e);
+    auto ret = memo.at(e);
+    CHECK(IsAtomic(ret));
+    return ret;
   }
 
   Expr VisitExpr(const Expr& e) {
     return this->VisitExpr(e, Var());
   }
 
-  Expr Atomic(const Expr& orig, const Expr& now, const Var& v) {
-    return v.defined() ? GetScope(orig)->ll->Push(v, now) : now;
+  Expr Atomic(const Expr& e, const Var& v) {
+    return v.defined() ? GetScope(e)->ll->Push(v, e) : e;
   }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
     Var var = v.defined() ?
       v :
-      VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
+      VarNode::make(std::string("x"), Type());
     return GetScope(orig)->ll->Push(var, now);
   }
 
@@ -215,7 +209,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
     Expr e = GetRef<Expr>(f);
     Expr ret;
-    if (IsPrimitiveFunction(e)) {
+    if (f->IsPrimitive()) {
       ret = e;
     } else {
       ret = FunctionNode::make(f->params,
@@ -241,26 +235,22 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
     Expr e = GetRef<Expr>(vn);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
-    if (visited_->count(gv) == 0) {
-      visited_->insert(gv);
-      mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
-    }
-    return Atomic(gv, gv, v);
+    return Atomic(gv, v);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
     Expr e = GetRef<Expr>(op);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
     Expr e = GetRef<Expr>(c);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const MatchNode* m, const Var& v) final {
@@ -272,13 +262,11 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
         c->lhs,
         GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
-    return Compound(e, MatchNode::make(data, clauses), v);
+    return Compound(e, MatchNode::make(data, clauses, m->complete), v);
   }
 };
 
-Expr ToANormalFormAux(const Expr& e,
-                      const Module& m,
-                      std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
+Expr ToANormalFormAux(const Expr& e) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -301,37 +289,50 @@ Expr ToANormalFormAux(const Expr& e,
    * We do an additional pass to fill all the LetList and we are done.
    */
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
-  return Fill::ToANormalForm(e, m, dg, &node_scope, gv);
+  return Fill::ToANormalForm(e, dg, &node_scope);
 }
 
-Expr ToANormalForm(const Expr& e,
-                   const Module& m,
-                   std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-  DLOG(INFO)
-  << "ToANF:" << std::endl
-  << AsText(e, false);
+Module ToANormalForm(const Module& m) {
+  DLOG(INFO) << "ToANF:" << std::endl << m;
 
-  Expr ret =
-    TransformF([&](const Expr& e) {
-      return ToANormalFormAux(e, m, gv);
-    }, e);
+  tvm::Map<GlobalVar, Function> updates;
+  auto funcs = m->functions;
+  for (const auto& it : funcs) {
+    CHECK_EQ(FreeVars(it.second).size(), 0);
+    Expr ret =
+      TransformF([&](const Expr& e) {
+        return ToANormalFormAux(e);
+      }, it.second);
+    CHECK_EQ(FreeVars(ret).size(), 0)
+      << AsText(ret)
+      << "should not has free vars: "
+      << FreeVars(ret);
+    updates.Set(it.first, Downcast<Function>(ret));
+  }
 
-  CHECK_EQ(FreeVars(ret).size(), 0);
+  for (auto pair : updates) {
+    m->Add(pair.first, pair.second, true);
+  }
 
-  DLOG(INFO)
-    << "ToANF: transformed" << std::endl
-    << AsText(ret, false);
+  DLOG(INFO) << "ToANF: transformed" << std::endl << m;
 
-  return ret;
+  return m;
 }
 
-Expr ToANormalForm(const Expr& e, const Module& m) {
-  std::unordered_set<GlobalVar, NodeHash, NodeEqual> gv;
-  return ToANormalForm(e, m, &gv);
+namespace transform {
+
+Pass ToANormalForm() {
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+    return ToANormalForm(m);
+  };
+  return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
-.set_body_typed(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
+TVM_REGISTER_API("relay._transform.ToANormalForm")
+.set_body_typed(ToANormalForm);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

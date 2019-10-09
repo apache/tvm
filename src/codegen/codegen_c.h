@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -126,6 +126,7 @@ class CodeGenC :
   void VisitExpr_(const Not* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Select* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const Shuffle* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)

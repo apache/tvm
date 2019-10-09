@@ -25,6 +25,7 @@
 #define TVM_IR_MUTATOR_H_
 
 #include <unordered_map>
+#include <utility>
 #include "expr.h"
 #include "ir.h"
 #include "tvm/node/ir_functor.h"
@@ -97,6 +98,8 @@ class TVM_DLL IRMutator {
   virtual Expr Mutate_(const Mul* op, const Expr& e);
   virtual Expr Mutate_(const Div* op, const Expr& e);
   virtual Expr Mutate_(const Mod* op, const Expr& e);
+  virtual Expr Mutate_(const FloorDiv* op, const Expr& e);
+  virtual Expr Mutate_(const FloorMod* op, const Expr& e);
   virtual Expr Mutate_(const Min* op, const Expr& e);
   virtual Expr Mutate_(const Max* op, const Expr& e);
   virtual Expr Mutate_(const EQ* op, const Expr& e);

@@ -42,14 +42,22 @@ extern "C" {
 
 /*! \brief Physically contiguous buffer size limit */
 #ifndef VTA_MAX_XFER
-#define VTA_MAX_XFER (1<<22)
+#define VTA_MAX_XFER (1<<25)
 #endif
+
+/*! PAGE SIZE */
+#define VTA_PAGE_BITS 12
+#define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
 
 /*! \brief Device resource context  */
 typedef void * VTADeviceHandle;
 
 /*! \brief physical address */
+#ifdef USE_VTA64
+typedef uint64_t vta_phy_addr_t;
+#else
 typedef uint32_t vta_phy_addr_t;
+#endif
 
 /*!
  * \brief Allocate a device resource handle
@@ -78,7 +86,7 @@ int VTADeviceRun(VTADeviceHandle device,
                  uint32_t wait_cycles);
 
 /*!
- * \brief Allocates physically contiguous region in memory (limited by MAX_XFER).
+ * \brief Allocates physically contiguous region in memory readable/writeable by FPGA.
  * \param size Size of the region in Bytes.
  * \param cached Region can be set to not cached (write-back) if set to 0.
  * \return A pointer to the allocated region.
@@ -86,7 +94,7 @@ int VTADeviceRun(VTADeviceHandle device,
 void* VTAMemAlloc(size_t size, int cached);
 
 /*!
- * \brief Frees a physically contiguous region in memory.
+ * \brief Frees a physically contiguous region in memory readable/writeable by FPGA.
  * \param buf Buffer to free.
  */
 void VTAMemFree(void* buf);
@@ -99,20 +107,40 @@ void VTAMemFree(void* buf);
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf);
 
 /*!
+ * \brief Performs a copy operation from host memory to buffer allocated with VTAMemAlloc.
+ * \param dst The desination buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc.
+ * \param src The source buffer in host memory.
+ * \param size Size of the region in Bytes.
+ */
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size);
+
+/*!
+ * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
+ * \param dst The destination buffer in host memory.
+ * \param src The source buffer in FPGA-accessible memory. Has to be allocated with VTAMemAlloc.
+ * \param size Size of the region in Bytes.
+ */
+void VTAMemCopyToHost(void* dst, const void* src, size_t size);
+
+/*!
  * \brief Flushes the region of memory out of the CPU cache to DRAM.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be flushed.
- *            This need to be the physical address.
+ * \param vir_addr Pointer to memory region allocated with VTAMemAlloc to be flushed.
+ *                 This need to be the virtual address.
+ * \param phy_addr Pointer to memory region allocated with VTAMemAlloc to be flushed.
+ *                 This need to be the physical address.
  * \param size Size of the region to flush in Bytes.
  */
-void VTAFlushCache(vta_phy_addr_t buf, int size);
+void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
 
 /*!
  * \brief Invalidates the region of memory that is cached.
- * \param buf Pointer to memory region allocated with VTAMemAlloc to be invalidated.
- *            This need to be the physical address.
+ * \param vir_addr Pointer to memory region allocated with VTAMemAlloc to be invalidated.
+ *                 This need to be the virtual address.
+ * \param phy_addr Pointer to memory region allocated with VTAMemAlloc to be invalidated.
+ *                 This need to be the physical address.
  * \param size Size of the region to invalidate in Bytes.
  */
-void VTAInvalidateCache(vta_phy_addr_t buf, int size);
+void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
 
 #ifdef __cplusplus
 }

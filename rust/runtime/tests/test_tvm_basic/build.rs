@@ -19,13 +19,21 @@
 
 extern crate ar;
 
-use std::{env, path::Path, process::Command};
+use std::{path::PathBuf, process::Command};
 
 use ar::Builder;
 use std::fs::File;
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let mut out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    out_dir.push("lib");
+
+    if !out_dir.is_dir() {
+        std::fs::create_dir(&out_dir).unwrap();
+    }
+
+    let obj_file = out_dir.join("test.o");
+    let lib_file = out_dir.join("libtest.a");
 
     let output = Command::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -35,7 +43,7 @@ fn main() {
     .output()
     .expect("Failed to execute command");
     assert!(
-        Path::new(&format!("{}/test.o", out_dir)).exists(),
+        obj_file.exists(),
         "Could not build tvm lib: {}",
         String::from_utf8(output.stderr)
             .unwrap()
@@ -45,9 +53,9 @@ fn main() {
             .unwrap_or("")
     );
 
-    let mut builder = Builder::new(File::create(format!("{}/libtest.a", out_dir)).unwrap());
-    builder.append_path(format!("{}/test.o", out_dir)).unwrap();
+    let mut builder = Builder::new(File::create(lib_file).unwrap());
+    builder.append_path(obj_file).unwrap();
 
     println!("cargo:rustc-link-lib=static=test");
-    println!("cargo:rustc-link-search=native={}", out_dir);
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
 }

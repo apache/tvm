@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/graph_codegen.cc
  * \brief Graph runtime codegen
  */
@@ -51,7 +50,7 @@ using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphNodePtr = std::shared_ptr<GraphNode>;
 using GraphInputNodePtr = std::shared_ptr<GraphInputNode>;
 using GraphOpNodePtr = std::shared_ptr<GraphOpNode>;
-using TargetsMap = std::unordered_map<std::string, Target>;
+using TargetsMap = std::unordered_map<int, Target>;
 
 /*! \brief Lowered outputs */
 struct LoweredOutput {
@@ -193,12 +192,10 @@ class GraphOpNode : public GraphNode {
 class GraphRuntimeCodegen
     : public ::tvm::relay::ExprFunctor<std::vector<GraphNodeRef>(const Expr&)> {
  public:
-  GraphRuntimeCodegen(runtime::Module* mod,
-                      const std::unordered_map<std::string, std::string>& targets) : mod_(mod) {
+  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets)
+      : mod_(mod) {
     compile_engine_ = CompileEngine::Global();
-    for (auto &kv : targets) {
-      targets_[kv.first] = Target::create(kv.second);
-    }
+    targets_ = targets;
   }
 
   LoweredOutput Codegen(relay::Function func) {
@@ -240,7 +237,7 @@ class GraphRuntimeCodegen
    * \param shape
    * \return std::vector<int64_t>
    */
-  std::vector<int64_t> _ShapeToJSON(tvm::Array<HalideIR::Expr> shape) {
+  std::vector<int64_t> _ShapeToJSON(tvm::Array<IndexExpr> shape) {
     std::vector<int64_t> ret;
     for (IndexExpr dim : shape) {
       const int64_t* pval = as_const_int(dim);
@@ -406,7 +403,7 @@ class GraphRuntimeCodegen
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     auto &device_type = storage_device_map_[expr][1];
-    auto call_dev_type = device_type[0]->value;  //-> int to string
+    auto call_dev_type = device_type[0]->value;
     Target target;
     if (targets_.size() == 1) {
        // homogeneous execution.
@@ -415,22 +412,17 @@ class GraphRuntimeCodegen
        }
     } else {
       // heterogeneous execution.
-      const auto call_dev_key = std::to_string(call_dev_type);
       std::string call_dev_name;
       if (call_dev_type == 0) {
         call_dev_name = "llvm";
       } else {
         call_dev_name = runtime::DeviceName(call_dev_type);
       }
-      if (targets_.count(call_dev_name) == 0 && targets_.count(call_dev_key) == 0) {
+      if (targets_.count(call_dev_type) == 0) {
         LOG(FATAL) << "No target is provided for device "
                    << call_dev_name;
       }
-      if (targets_.count(call_dev_key)) {
-        target = targets_[call_dev_key];
-      } else {
-        target = targets_[call_dev_name];
-      }
+      target = targets_[call_dev_type];
     }
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowerd_func = (*pf1)(compile_engine_, key);
@@ -604,30 +596,21 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name,
                                  const std::shared_ptr<ModuleNode>& sptr_to_self) {
      if (name == "init") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                   << "runtime::Module mod and Map<str, StringImm> targets";
-        void* mod = args[0];
-        auto& sptr = args[1].node_sptr();
-        auto* node = static_cast<const ArrayNode*>(sptr.get());
-        auto& tmp_targets = node->data;
-        std::unordered_map<std::string, std::string> targets;
-        for (size_t i = 0; i < tmp_targets.size(); i += 2) {
-          std::string key;
-          auto sk = Expr(tmp_targets[i]).as<ir::StringImm>();
-          auto ik = Expr(tmp_targets[i]).as<ir::IntImm>();
-          if (sk) {
-            key = sk->value;
-          }
-          if (ik) {
-            key = std::to_string(ik->value);
-          }
-          auto v = Expr(tmp_targets[i + 1]).as<ir::StringImm>();
-          targets[key] = v->value;
-        }
-        codegen_ = std::make_shared<GraphRuntimeCodegen>(
-          reinterpret_cast<runtime::Module*>(mod), targets);
-      });
+       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+         CHECK_EQ(args.num_args, 2)
+             << "The expected of arguments are: "
+             << "runtime::Module mod and Map<int, Target> targets";
+         void* mod = args[0];
+         Map<Integer, tvm::Target> tmp = args[1];
+         TargetsMap targets;
+         for (const auto& it : tmp) {
+           auto dev_type = it.first.as<ir::IntImm>();
+           CHECK(dev_type);
+           targets[dev_type->value] = it.second;
+         }
+         codegen_ = std::make_shared<GraphRuntimeCodegen>(
+             reinterpret_cast<runtime::Module*>(mod), targets);
+       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
@@ -639,9 +622,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<HalideIR::Expr> ret;
+        Array<tvm::Expr> ret;
         for (const auto &kv : this->output_.params) {
-          HalideIR::Expr name = ir::StringImm::make(kv.first);
+          tvm::Expr name = ir::StringImm::make(kv.first);
           ret.push_back(name);
         }
         *rv = ret;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,17 +18,15 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file compute_expr.h
- * \brief Utility integer expression with quick eager simplification.
- *  This is weaker than Simplify but can be done Eagerly.
+ * \brief Utility to invoke certan compute operations.
  */
 #ifndef TVM_ARITHMETIC_COMPUTE_EXPR_H_
 #define TVM_ARITHMETIC_COMPUTE_EXPR_H_
 
 #include <tvm/ir.h>
-#include <arithmetic/Interval.h>
 #include <limits>
+#include <algorithm>
 
 namespace tvm {
 namespace arith {
@@ -41,7 +39,7 @@ namespace arith {
  * \return The result.
  */
 template<typename OP>
-inline Expr ComputeExpr(Expr lhs, Expr rhs) {
+inline Expr Compute(Expr lhs, Expr rhs) {
   return OP::make(lhs, rhs);
 }
 
@@ -79,38 +77,38 @@ inline bool GetConstInt(Expr e, int* out) {
 }
 
 template<>
-inline Expr ComputeExpr<ir::Add>(Expr a, Expr b) {
+inline Expr Compute<ir::Add>(Expr a, Expr b) {
   return a + b;
 }
 
 template<>
-inline Expr ComputeExpr<ir::Sub>(Expr a, Expr b) {
+inline Expr Compute<ir::Sub>(Expr a, Expr b) {
   return a - b;
 }
 
 template<>
-inline Expr ComputeExpr<ir::Mul>(Expr a, Expr b) {
+inline Expr Compute<ir::Mul>(Expr a, Expr b) {
   return a * b;
 }
 
 template<>
-inline Expr ComputeExpr<ir::Div>(Expr a, Expr b) {
-  return a / b;
+inline Expr Compute<ir::Div>(Expr a, Expr b) {
+  return truncdiv(a, b);
 }
 
 template<>
-inline Expr ComputeExpr<ir::Mod>(Expr a, Expr b) {
-  return a % b;
+inline Expr Compute<ir::Mod>(Expr a, Expr b) {
+  return truncmod(a, b);
 }
 
 template<>
-inline Expr ComputeExpr<ir::Max>(Expr a, Expr b) {
-  return HalideIR::Internal::Interval::make_max(a, b);
+inline Expr Compute<ir::Max>(Expr a, Expr b) {
+  return max(a, b);
 }
 
 template<>
-inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
-  return HalideIR::Internal::Interval::make_min(a, b);
+inline Expr Compute<ir::Min>(Expr a, Expr b) {
+  return min(a, b);
 }
 
 template<typename Op>
@@ -121,7 +119,7 @@ inline Expr ComputeReduce(const Array<Expr>& values, Expr empty_value) {
   }
   Expr res = values[0];
   for (size_t i = 1; i < values.size(); ++i) {
-    res = ComputeExpr<Op>(res, values[i]);
+    res = Compute<Op>(res, values[i]);
   }
   return res;
 }

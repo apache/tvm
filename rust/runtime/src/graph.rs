@@ -164,7 +164,7 @@ impl<'a> TryFrom<&'a str> for Graph {
 /// ```
 pub struct GraphExecutor<'m, 't> {
     graph: Graph,
-    op_execs: Vec<Box<Fn() + 'm>>,
+    op_execs: Vec<Box<dyn Fn() + 'm>>,
     tensors: Vec<Tensor<'t>>,
 }
 
@@ -240,7 +240,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         graph: &Graph,
         lib: &'m M,
         tensors: &Vec<Tensor<'t>>,
-    ) -> Result<Vec<Box<Fn() + 'm>>, Error> {
+    ) -> Result<Vec<Box<dyn Fn() + 'm>>, Error> {
         ensure!(graph.node_row_ptr.is_some(), "Missing node_row_ptr.");
         let node_row_ptr = graph.node_row_ptr.as_ref().unwrap();
 
@@ -279,7 +279,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 })
                 .collect::<Result<Vec<DLTensor>, Error>>()
                 .unwrap();
-            let op: Box<Fn()> = box move || {
+            let op: Box<dyn Fn()> = box move || {
                 let args = dl_tensors
                     .iter()
                     .map(|t| t.into())

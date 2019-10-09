@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,22 +18,34 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file generic/injective.h
-* \brief Generic schedule for injective operations
-*/
+ * \file generic/injective.h
+ * \brief Generic schedule for injective operations
+ */
 #ifndef TOPI_GENERIC_INJECTIVE_H_
 #define TOPI_GENERIC_INJECTIVE_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
 
 namespace generic {
+
+/*!
+ * \brief Updates an existing schedule for the given injective ops.
+ *
+ * \param sch The schedule to update.
+ * \param out The tensor representing the injective op.
+ * 
+ * \return The updated schedule.
+ */
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
+  detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
+  return sch;
+}
 
 /*!
  * \brief Create a generic schedule for the given injective ops.
@@ -51,7 +63,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   auto s = create_schedule(out_ops);
   tvm::schedule::AutoInlineInjective(s);
   auto x = outs[0];
-  detail::Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
+  schedule_injective_from_existing(s, x);
 
   return s;
 }

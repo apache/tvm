@@ -16,11 +16,18 @@
 # under the License.
 """ Support level2 operator test cases.
 """
+import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
-import numpy as np
 import topi.testing
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_conv2d_infer_type():
     # symbolic in batch dimension
@@ -31,20 +38,29 @@ def test_conv2d_infer_type():
                         kernel_size=(3, 3),
                         padding=(1, 1),
                         channels=2)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type ==  relay.TensorType(
         (n, 2, 224, 224), "float32")
     assert yy.args[1].checked_type == relay.TensorType(
         (2, 10, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-
     n, c, h, w = tvm.var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
     y = relay.nn.conv2d(x, w, out_dtype="int32")
     assert "out_dtype=\"int32\"" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222, 222), "int32")
+
+    # infer shape in case of different dtypes for input and weight.
+    n, c, h, w = tvm.var("n"), 10, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, h, w), "uint8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
+    y = relay.nn.conv2d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
     assert yy.checked_type ==  relay.TensorType(
         (n, 2, 222, 222), "int32")
 
@@ -59,7 +75,7 @@ def test_conv2d_infer_type():
                         data_layout="NCHW4n4c",
                         kernel_layout="OIHW4o4i",
                         out_dtype="int32")
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type ==  relay.TensorType(
         (1, 4, 224, 224, 4, 4), "int32")
     assert yy.args[1].checked_type == relay.TensorType(
@@ -75,7 +91,7 @@ def test_conv2d_infer_type():
                         channels=16,
                         data_layout="NHWC",
                         out_dtype="int32")
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type ==  relay.TensorType(
         (n, h, w, 16), "int32")
 
@@ -89,8 +105,8 @@ def test_conv2d_run():
                         except_targets=None,
                         **attrs):
         if except_targets is None:
-          except_targets = []
-          
+            except_targets = []
+
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
@@ -169,7 +185,7 @@ def test_conv2d_transpose_infer_type():
                                   padding=(1, 1),
                                   channels=15)
     assert "channels=15" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (n, 15, 10, 12), "float32")
     assert yy.args[1].checked_type == relay.TensorType(
@@ -183,7 +199,7 @@ def test_conv2d_transpose_infer_type():
                                   output_padding=(1, 1),
                                   channels=11,
                                   data_layout="NHWC")
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (n, 15, 15, 11), "float32")
 
@@ -217,14 +233,14 @@ def test_conv2d_transpose_run():
 def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h*2, w*2), "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR")
-    yy = relay.ir_pass.infer_type(y)
+    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
 
@@ -233,7 +249,7 @@ def _test_pool2d(opfunc, reffunc):
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x, pool_size=(1, 1))
     assert "pool_size=" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, 10, 224, 224), "float32")
     # test execution
     dtype = "float32"
@@ -248,18 +264,37 @@ def _test_pool2d(opfunc, reffunc):
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+def _test_pool2d_int(opfunc, reffunc, dtype):
+    n, c, h, w = tvm.var("n"), 10, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+    y = opfunc(x, pool_size=(1, 1))
+    assert "pool_size=" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, 10, 224, 224), dtype)
+    # test execution
+    dtype = "int32"
+    dshape = (1, 3, 28, 28)
+    x = relay.var("x", shape=dshape, dtype=dtype)
+    y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+    func = relay.Function([x], y)
+    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def _test_global_pool2d(opfunc, reffunc):
     n, c, h, w = tvm.var("n"), tvm.var("c"), 224, 224
     x = relay.var("x", relay.TensorType((n, h, w, c), "float32"))
     y = opfunc(x, layout="NHWC")
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, 1, 1, c), "float32")
 
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 1, 1), "float32")
     # test execution
     dtype = "float32"
@@ -278,6 +313,8 @@ def _test_global_pool2d(opfunc, reffunc):
 def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max)
     _test_pool2d(relay.nn.avg_pool2d, np.mean)
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'int32')
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
@@ -320,17 +357,17 @@ def test_flatten_infer_type():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
     y = relay.nn.batch_flatten(x)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((d1, ((d2*d3)*d4)), "float32")
 
     x = relay.var("x", relay.TensorType((3, 2, 4, 3), "float32"))
     y = relay.nn.batch_flatten(x)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((3, 24), "float32")
 
     x = relay.var("x", relay.TensorType((d1, 2, d3, 3), "float32"))
     y = relay.nn.batch_flatten(x)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((d1, ((2*d3)*3)), "float32")
 
     shape = (1, 5, 10, 10)
@@ -338,7 +375,7 @@ def test_flatten_infer_type():
     dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     z = relay.nn.batch_flatten(x)
-    yy = relay.ir_pass.infer_type(z)
+    yy = run_infer_type(z)
     assert yy.checked_type == relay.TensorType(o_shape, dtype)
     func = relay.Function([x], z)
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
@@ -358,14 +395,14 @@ def test_pad_infer_type():
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4)))
     "pad_width=" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((3, 6, 9, 12), "float32")
 
     # some symbolic values
     n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4)))
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
 def test_pad_run():
@@ -389,7 +426,7 @@ def test_lrn():
     x = relay.var("x", shape=(n, c , h, w))
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=.00001, beta=0.75)
     "alpha=" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c , h, w))
 
     shape = (1, 5, 10, 10)
@@ -401,7 +438,7 @@ def test_lrn():
     alpha=.00001
     beta=0.75
     z = relay.nn.lrn(x, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
-    yy = relay.ir_pass.infer_type(z)
+    yy = run_infer_type(z)
     assert yy.checked_type == relay.TensorType(shape, dtype)
     func = relay.Function([x], z)
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
@@ -420,7 +457,7 @@ def test_l2_normalize():
     x = relay.var("x", shape=(n, c , h, w))
     y = relay.nn.l2_normalize(x, eps=0.001, axis=[1])
     "axis=" in y.astext()
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c , h, w))
 
     shape = (1, 5, 10, 10)
@@ -429,7 +466,7 @@ def test_l2_normalize():
     eps=0.001
     axis=1
     z = relay.nn.l2_normalize(x, eps=0.001, axis=[axis])
-    yy = relay.ir_pass.infer_type(z)
+    yy = run_infer_type(z)
     assert yy.checked_type == relay.TensorType(shape, dtype)
     func = relay.Function([x], z)
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
@@ -465,7 +502,7 @@ def test_batch_flatten():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
-def _test_upsampling(layout, method):
+def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
     scale = 2
     dtype = "float32"
@@ -476,16 +513,18 @@ def _test_upsampling(layout, method):
             return (h, w, c), (h*scale, w*scale, c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
-    yy = relay.ir_pass.infer_type(y)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+                            method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    if method == "NEAREST_NEIGHBOR":
-        ref = topi.testing.upsampling_python(data, scale, layout)
+    if method == "nearest_neighbor":
+        ref = topi.testing.upsampling_python(data, (scale, scale), layout)
     else:
         ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
     for target, ctx in ctx_list():
@@ -495,10 +534,130 @@ def _test_upsampling(layout, method):
 
 
 def test_upsampling():
-    _test_upsampling("NCHW", "NEAREST_NEIGHBOR")
-    _test_upsampling("NCHW", "BILINEAR")
-    _test_upsampling("NHWC", "NEAREST_NEIGHBOR")
-    _test_upsampling("NHWC", "BILINEAR")
+    _test_upsampling("NCHW", "nearest_neighbor")
+    _test_upsampling("NCHW", "bilinear", True)
+    _test_upsampling("NHWC", "nearest_neighbor")
+    _test_upsampling("NHWC", "bilinear", True)
+
+
+def test_conv2d_int8_intrinsics():
+    def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
+        input_dtype, weight_dtype, output_dtype = dtypes
+
+        n, h, w, ch, cw = 1, 64, 64, 3, 3
+        if data_layout == 'NCHW':
+            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+        elif data_layout == 'NHWC':
+            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+        else:
+            raise ValueError('Not supported')
+
+        if kernel_layout == 'OIHW':
+            kernel_shape = (oc, ic, ch, cw)
+        elif kernel_layout == 'HWIO':
+            kernel_shape = (ch, cw, ic, oc)
+        else:
+            raise ValueError('Not supported')
+
+        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
+        y = relay.nn.conv2d(x, w,
+                            kernel_size=(ch, cw),
+                            channels=oc,
+                            padding=(1, 1),
+                            dilation=(1, 1),
+                            data_layout=data_layout,
+                            kernel_layout=kernel_layout,
+                            out_dtype=output_dtype)
+        func = relay.Function([x, w], y)
+        wdata = np.random.rand(*kernel_shape) * 10
+        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(func, target, params=parameters)
+        assembly = lib.get_source("asm")
+        return assembly
+
+    # compile conv2d for x86 (skylake) and test assembly contains *pmadd* instructions
+    target = "llvm -mcpu=skylake-avx512"
+    name = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
+    if llvm_id != 0:
+        fast_int8_dtypes = ('uint8', 'int8', 'int32')
+        # Sweep the input channels to check int8 robustness
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for ic in range(1, 24):
+            asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+
+        # Sweep the output channels to check int8 robustness
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        for oc in range(2, 24):
+            asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=fast_int8_dtypes)
+            assert "pmaddubs" in asm
+
+        # Check that both non-divisible oc and ic work
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                       dtypes=fast_int8_dtypes)
+        assert "pmaddubs" in asm
+
+        asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=fast_int8_dtypes)
+        assert "pmaddubs" in asm
+
+        # Ensure that code is generated when datatypes are not HW supported.
+        dtypes = ('int8', 'int8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
+        # Check that intrinisic is not present in the assembly.
+        assert "pmaddubs" not in asm
+
+        # Ensure that code is generated when datatypes are not HW supported.
+        dtypes = ('uint8', 'uint8', 'int32')
+        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                       dtypes=dtypes)
+        # Check that intrinisic is not present in the assembly.
+        assert "pmaddubs" not in asm
+
+    # Check that a vectorized instruction is generated for older Intel
+    # generations, because we default to NCHWc layout.
+    target = "llvm -mcpu=core-avx2"
+    fast_int8_dtypes = ('uint8', 'int8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+                   dtypes=fast_int8_dtypes)
+    # Check that vector int mult and add instructions are generated.
+    assert "vpmulld" in asm and "vpadd" in asm
+
+
+def test_bitserial_conv2d_infer_type():
+    # Basic shape test with ambiguous batch.
+    n, c, h, w = tvm.var("n"), 32, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, h, w), "int16"))
+    w = relay.var("w", relay.ty.TensorType((32, 32, 3, 3), "int16"))
+    y = relay.nn.bitserial_conv2d(
+        x, w, kernel_size=(3, 3), padding=(0, 0), channels=32)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 32, 222, 222), "int16")
+
+
+def test_bitpack_infer_type():
+    # Test axis packing shape inference.
+    o, i, h, w = 32, 32, 128, 128
+    x = relay.var("x", relay.ty.TensorType((o, i, h, w), "int16"))
+    y = relay.nn.bitpack(x, bit_axis=4, pack_axis=1, pack_type='uint16', bits=1)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (32, 2, 128, 128, 1), "uint16")
 
 
 if __name__ == "__main__":
@@ -507,6 +666,7 @@ if __name__ == "__main__":
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
+    test_bitpack_infer_type()
     test_upsampling_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
@@ -514,5 +674,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
+    test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
+    test_conv2d_int8_intrinsics()

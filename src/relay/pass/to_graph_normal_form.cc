@@ -24,8 +24,9 @@
  *
  * \brief Turn A normal form into graph normal form.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include "let_list.h"
 
 namespace tvm {
@@ -67,7 +68,7 @@ class GNF : public ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* ln) override {
-    var_map_.insert(std::pair<Var, Expr>(ln->var, VisitExpr(WrapRec(ln->var, ln->value))));
+    var_map_.insert(std::pair<Var, Expr>(ln->var, WrapRec(ln->var, VisitExpr(ln->value))));
     return VisitExpr(ln->body);
   }
 };
@@ -76,8 +77,20 @@ Expr ToGraphNormalForm(const Expr& e) {
   return GNF()(e);
 }
 
-TVM_REGISTER_API("relay._ir_pass.to_graph_normal_form")
+namespace transform {
+
+Pass ToGraphNormalForm() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(ToGraphNormalForm(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "ToGraphNormalForm", {});
+}
+
+TVM_REGISTER_API("relay._transform.ToGraphNormalForm")
 .set_body_typed(ToGraphNormalForm);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

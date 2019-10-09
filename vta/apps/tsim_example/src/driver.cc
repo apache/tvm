@@ -21,71 +21,143 @@
 #include <tvm/runtime/registry.h>
 #include <vta/dpi/module.h>
 
+#include "vmem/virtual_memory.h"
+
 namespace vta {
 namespace driver {
-
-uint32_t get_half_addr(void *p, bool upper) {
-  if (upper) {
-    return ((uint64_t) ((uint64_t*) p)) >> 32;
-  } else {
-    return ((uint64_t) ((uint64_t*) p));
-  }
-}
 
 using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
 
-class TestDriver {
+class DPILoader {
  public:
-  TestDriver(Module module)
-      : module_(module) {
-    dpi_ = static_cast<DPIModuleNode*>(
-        module.operator->());
+  ~DPILoader() {
+    dpi_->SimResume();
+    dpi_->SimFinish();
   }
 
-  int Run(uint32_t length, void* inp, void* out) {
-    uint32_t wait_cycles = 100000000;
-    this->Launch(wait_cycles, length, inp, out);
-    this->WaitForCompletion(wait_cycles);
-    dpi_->Finish();
-    return 0;
+  void Init(Module module) {
+    mod_ = module;
+    dpi_ = this->Get();
+    dpi_->SimLaunch();
+    dpi_->SimWait();
+  }
+
+  DPIModuleNode* Get() {
+    return static_cast<DPIModuleNode*>(mod_.operator->());
+  }
+
+  static DPILoader* Global() {
+    static DPILoader inst;
+    return &inst;
+  }
+
+  // TVM module
+  Module mod_;
+  // DPI Module
+  DPIModuleNode* dpi_{nullptr};
+};
+
+class Device {
+ public:
+  Device() {
+    loader_ = DPILoader::Global();
+  }
+
+  uint32_t Run(uint32_t c, DLTensor* a, DLTensor* b) {
+    uint32_t cycles;
+    uint32_t len = a->shape[0];
+    size_t size = (a->dtype.bits >> 3) * len;
+    a_ = this->MemAlloc(size);
+    b_ = this->MemAlloc(size);
+    this->MemCopyFromHost(a_, a->data, size);
+    this->Init();
+    this->Launch(c, len);
+    cycles = this->WaitForCompletion();
+    this->MemCopyToHost(b->data, b_, size);
+    this->MemFree(a_);
+    this->MemFree(b_);
+    return cycles;
   }
 
  private:
-  void Launch(uint32_t wait_cycles, uint32_t length, void* inp, void* out) {
-    dpi_->Launch(wait_cycles);
-    // write registers
-    dpi_->WriteReg(0x04, length);
-    dpi_->WriteReg(0x08, get_half_addr(inp, false));
-    dpi_->WriteReg(0x0c, get_half_addr(inp, true));
-    dpi_->WriteReg(0x10, get_half_addr(out, false));
-    dpi_->WriteReg(0x14, get_half_addr(out, true));
+  void Init() {
+    dpi_ = loader_->Get();
+    dpi_->SimResume();
+  }
+
+  void* MemAlloc(size_t size) {
+    void * addr = vta::vmem::VirtualMemoryManager::Global()->Alloc(size);
+    return reinterpret_cast<void*>(vta::vmem::VirtualMemoryManager::Global()->GetPhyAddr(addr));
+  }
+
+  void MemFree(void* buf) {
+    void * addr = vta::vmem::VirtualMemoryManager::Global()->GetAddr(reinterpret_cast<uint64_t>(buf));
+    vta::vmem::VirtualMemoryManager::Global()->Free(addr);
+  }
+
+  vta_phy_addr_t MemGetPhyAddr(void* buf) {
+    return reinterpret_cast<uint64_t>(reinterpret_cast<uint64_t*>(buf));
+  }
+
+  void MemCopyFromHost(void* dst, const void* src, size_t size) {
+    vta::vmem::VirtualMemoryManager::Global()->MemCopyFromHost(dst, src, size);
+  }
+
+  void MemCopyToHost(void* dst, const void* src, size_t size) {
+    vta::vmem::VirtualMemoryManager::Global()->MemCopyToHost(dst, src, size);
+  }
+
+  void Launch(uint32_t c, uint32_t len) {
+    dpi_->WriteReg(0x08, c);
+    dpi_->WriteReg(0x0c, len);
+    dpi_->WriteReg(0x10, this->MemGetPhyAddr(a_));
+    dpi_->WriteReg(0x14, 0);
+    dpi_->WriteReg(0x18, this->MemGetPhyAddr(b_));
+    dpi_->WriteReg(0x1c, 0);
     dpi_->WriteReg(0x00, 0x1); // launch
   }
 
-  void WaitForCompletion(uint32_t wait_cycles) {
+  uint32_t WaitForCompletion() {
     uint32_t i, val;
-    for (i = 0; i < wait_cycles; i++) {
+    for (i = 0; i < wait_cycles_; i++) {
       val = dpi_->ReadReg(0x00);
       if (val == 2) break; // finish
     }
+    val = dpi_->ReadReg(0x04);
+    dpi_->SimWait();
+    return val;
   }
 
- private:
-  DPIModuleNode* dpi_;
-  Module module_;
+  // wait cycles
+  uint32_t wait_cycles_{100000000};
+  // DPI loader
+  DPILoader* loader_{nullptr};
+  // DPI Module
+  DPIModuleNode* dpi_{nullptr};
+  // input vm ptr
+  void* a_{nullptr};
+  // output vm ptr
+  void* b_{nullptr};
 };
 
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
 
+TVM_REGISTER_GLOBAL("tvm.vta.tsim.init")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Module m = args[0];
+    DPILoader::Global()->Init(m);
+  });
+
 TVM_REGISTER_GLOBAL("tvm.vta.driver")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    Module dev_mod = args[0];
-    DLTensor* A = args[1];
-    DLTensor* B = args[2];
-    TestDriver dev_(dev_mod);
-    dev_.Run(A->shape[0], A->data, B->data);
+    Device dev_;
+    DLTensor* A = args[0];
+    DLTensor* B = args[1];
+    uint32_t c = static_cast<int>(args[2]);
+    uint32_t cycles = dev_.Run(c, A, B);
+    *rv = static_cast<int>(cycles);
   });
 
 }  // namespace driver

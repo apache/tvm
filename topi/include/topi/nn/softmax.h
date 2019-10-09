@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,7 +30,8 @@
 
 #include "topi/reduction.h"
 #include "topi/tags.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace nn {
@@ -61,6 +62,9 @@ inline Tensor softmax(const Tensor &x,
   auto k2 = tvm::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
+  tvm::Map<std::string, NodeRef> attrs;
+  attrs.Set("axis", Integer(axis));
+
   auto insert_reduce_index = [axis, ndim](const Array<Var> &indices,
                                           const IterVar &reduce_index) {
     Array<Expr> eval_range;
@@ -74,35 +78,48 @@ inline Tensor softmax(const Tensor &x,
     return eval_range;
   };
 
-  auto _compute_max = [&](const Array<Var> &indices) {
-    auto eval_range = insert_reduce_index(indices, k1);
-    return topi::MaxOp(x(eval_range), {k1});
-  };
-
-  auto _compute_expsum = [&](const Tensor &max_elem,
-                             const Array<Var> &indices) {
-    auto eval_range = insert_reduce_index(indices, k2);
-    return tvm::sum(tvm::exp(x(eval_range) - max_elem(indices)), {k2});
-  };
-
-  auto _normalize = [&](const Tensor &max_elem, const Tensor &expsum,
-                        const Array<Var> &indices) {
+  auto get_non_reduce_indices = [axis, ndim](const Array<Var> &indices) {
     Array<Expr> non_reduce_indices;
     for (size_t i = 0; i < ndim; ++i) {
       if (static_cast<int>(i) != axis)
         non_reduce_indices.push_back(indices[i]);
     }
-    return tvm::exp(x(indices) - max_elem(non_reduce_indices)) /
-           expsum(non_reduce_indices);
+    return non_reduce_indices;
+  };
+
+  auto _compute_max = [&](const Array<Var> &indices) {
+    auto eval_range = insert_reduce_index(indices, k1);
+    return topi::MaxOp(x(eval_range), {k1});
+  };
+
+  auto _compute_exp = [&](const Tensor &max_elem,
+                          const Array<Var> &indices) {
+    auto non_reduce_indices = get_non_reduce_indices(indices);
+    return tvm::exp(x(indices) - max_elem(non_reduce_indices));
+  };
+
+  auto _compute_expsum = [&](const Tensor &exp,
+                             const Array<Var> &indices) {
+    auto eval_range = insert_reduce_index(indices, k2);
+    return tvm::sum(exp(eval_range), {k2});
+  };
+
+  auto _normalize = [&](const Tensor &exp, const Tensor &expsum,
+                        const Array<Var> &indices) {
+    auto non_reduce_indices = get_non_reduce_indices(indices);
+    return exp(indices) / expsum(non_reduce_indices);
   };
 
   auto max_elem = tvm::compute(reduced_shape, _compute_max);
+  auto exp = tvm::compute(input_shape, [&](const Array<Var> &indices) {
+      return _compute_exp(max_elem, indices);
+  });
   auto expsum = tvm::compute(reduced_shape, [&](const Array<Var> &indices) {
-      return _compute_expsum(max_elem, indices);
+      return _compute_expsum(exp, indices);
   });
   return tvm::compute(input_shape, [&](const Array<Var> &indices) {
-      return _normalize(max_elem, expsum, indices);
-  }, name, tag);
+      return _normalize(exp, expsum, indices);
+  }, name, tag, attrs);
 }
 
 /*!

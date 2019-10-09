@@ -49,7 +49,6 @@ def _transform_bias(bias, bn):
 
 def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
                         padding, dilation=1, add_bias=False, add_relu=False, dtype="float32"):
-    assert dilation == 1, "conv2d_NCHWc does not support dilation for now."
     print("Workload: (%d, %d, %d, %d, %d, %d, %d)" %
           (batch, in_channel, in_size, num_filter, kernel, stride, padding))
 
@@ -79,7 +78,8 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
         w_np = np.random.uniform(size=(num_filter, in_channel, kernel, kernel)).astype(dtype)
         b_np = np.random.uniform(size=(num_filter, 1, 1)).astype(dtype)
-        c_np = topi.testing.conv2d_nchw_python(a_np, w_np, stride, padding)
+        dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+        c_np = topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
         if add_bias:
             c_np += b_np
         if add_relu:
@@ -149,8 +149,8 @@ def test_conv2d_NCHWc():
     verify_conv2d_NCHWc(1, 64, 56, 64, 3, 1, 1, add_bias=True)
     verify_conv2d_NCHWc(1, 64, 56, 64, 3, 1, 1, add_bias=True, add_relu=True)
 
-    # disable dilation test since it is not supported by NCHW[x]c conv for now.
-    # verify_conv2d_NCHWc(1, 64, 56, 64, 3, 1, 1, dilation=2)
+    # dilation
+    verify_conv2d_NCHWc(1, 64, 56, 64, 3, 1, 1, dilation=2)
 
     # batch size
     verify_conv2d_NCHWc(4, 64, 56, 64, 3, 1, 1)

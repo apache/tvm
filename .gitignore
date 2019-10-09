@@ -216,3 +216,19 @@ patched.txt
 # Python type checking
 .mypy_cache/
 .pyre/
+
+# pipenv files
+Pipfile
+Pipfile.lock
+
+# conda package artifacts
+conda/Dockerfile.cuda*
+conda/pkg
+
+# nix files
+.envrc
+*.nix
+
+# antlr files
+*.tokens
+*.interp

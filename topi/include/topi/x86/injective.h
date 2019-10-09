@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,22 +18,43 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file x86/injective.h
-* \brief x86 schedule for injective ops
-*/
+ * \file x86/injective.h
+ * \brief x86 schedule for injective ops
+ */
 #ifndef TOPI_X86_INJECTIVE_H_
 #define TOPI_X86_INJECTIVE_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
 
 namespace x86 {
+
+/*!
+ * \brief Updates an existing schedule for the given injective ops.
+ *
+ * \param sch The schedule to update.
+ * \param out The tensor representing the injective op.
+ * 
+ * \return The updated schedule.
+ */
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
+  auto axis = sch[out]->op.as<ComputeOpNode>()->axis;
+  if (axis.size() == 4) {
+    auto n = axis[0];
+    auto c = axis[1];
+    auto fused = detail::Fuse(sch[out], { n, c });  // for nhwc layout, fuse n and h
+    sch[out].parallel(fused);
+  } else {
+    sch[out].parallel(axis[0]);
+  }
+  return sch;
+}
+
 /*!
 * \brief Create an x86 schedule for the given injective ops.
 *
@@ -51,15 +72,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
   tvm::schedule::AutoInlineInjective(s);
 
   auto x = outs[0];
-  auto axis = s[x]->op.as<ComputeOpNode>()->axis;
-  if (axis.size() == 4) {
-    auto n = axis[0];
-    auto c = axis[1];
-    auto fused = detail::Fuse(s[x], { n, c });  // for nhwc layout, fuse n and h
-    s[x].parallel(fused);
-  } else {
-    s[x].parallel(axis[0]);
-  }
+  schedule_injective_from_existing(s, x);
 
   return s;
 }

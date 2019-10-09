@@ -22,13 +22,14 @@ extern crate ndarray;
 extern crate tvm_runtime;
 
 use ndarray::Array;
-use tvm_runtime::{DLTensor, Module, SystemLibModule};
+use tvm_runtime::{DLTensor, Module as _, SystemLibModule};
+
+mod tvm_mod {
+    import_module!("../lib/test.o");
+}
 
 fn main() {
-    let syslib = SystemLibModule::default();
-    let add = syslib
-        .get_function("default_function")
-        .expect("main function not found");
+    // try static
     let mut a = Array::from_vec(vec![1f32, 2., 3., 4.]);
     let mut b = Array::from_vec(vec![1f32, 0., 1., 0.]);
     let mut c = Array::from_vec(vec![0f32; 4]);
@@ -36,6 +37,14 @@ fn main() {
     let mut a_dl: DLTensor = (&mut a).into();
     let mut b_dl: DLTensor = (&mut b).into();
     let mut c_dl: DLTensor = (&mut c).into();
+    call_packed!(tvm_mod::default_function, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
+    assert!(c.all_close(&e, 1e-8f32));
+
+    // try runtime
+    let syslib = SystemLibModule::default();
+    let add = syslib
+        .get_function("default_function")
+        .expect("main function not found");
     call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 }

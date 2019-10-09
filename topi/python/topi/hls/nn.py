@@ -34,7 +34,7 @@ def _schedule_conv2d(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule conv2d
         elif OP.tag.find("conv2d") >= 0:
@@ -220,7 +220,7 @@ def schedule_reduce(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         elif OP.tag in ["comm_reduce", "comm_reduce_idx"]:
             if OP.tag == "comm_reduce":
@@ -261,8 +261,22 @@ def schedule_softmax(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     softmax = outs[0]
-    max_elem = softmax.op.input_tensors[1]
-    expsum = softmax.op.input_tensors[2]
+
+    op_tag = softmax.op.tag
+    if op_tag == 'softmax_output':
+        expsum = softmax.op.input_tensors[1]
+        exp = softmax.op.input_tensors[0]
+        max_elem = s[exp].op.input_tensors[1]
+    elif op_tag == 'log_softmax_output':
+        exp = None
+        max_elem = softmax.op.input_tensors[1]
+        expsum = softmax.op.input_tensors[2]
+    else:
+        raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
+                         Got {0}'.format(op_tag))
+
+    if exp != None:
+        s[exp].compute_at(s[softmax], s[softmax].op.axis[1])
 
     s[expsum].compute_at(s[softmax], s[softmax].op.axis[1])
     s[max_elem].compute_at(s[softmax], s[softmax].op.axis[1])
@@ -298,7 +312,7 @@ def schedule_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule dense
         elif OP.tag == 'dense':
@@ -342,7 +356,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -386,7 +400,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):

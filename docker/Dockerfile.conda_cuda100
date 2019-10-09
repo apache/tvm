@@ -1,0 +1,46 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+FROM nvidia/cuda:10.0-devel-ubuntu16.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+            bzip2 curl sudo binutils && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN  curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v7.6.0/cudnn-10.0-linux-x64-v7.6.0.64.tgz -O && \
+    tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.6.0.64.tgz -C /usr/local && \
+    rm cudnn-10.0-linux-x64-v7.6.0.64.tgz && \
+    ldconfig
+
+
+RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
+     chmod +x ~/miniconda.sh && \
+     ~/miniconda.sh -b -p /opt/conda && \
+     rm ~/miniconda.sh && \
+     /opt/conda/bin/conda upgrade --all && \
+     /opt/conda/bin/conda install conda-build conda-verify && \
+     /opt/conda/bin/conda clean -ya
+
+RUN /opt/conda/bin/conda install --download-only cmake make zlib
+RUN /opt/conda/bin/conda install --download-only -c numba llvmdev=8.0.0
+
+ENV PATH /opt/conda/bin:$PATH
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV CONDA_BLD_PATH /tmp
+
+WORKDIR /workspace
+RUN chmod -R a+w /workspace

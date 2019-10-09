@@ -65,11 +65,11 @@ image_shape = (3, 224, 224)
 data_shape = (batch_size,) + image_shape
 out_shape = (batch_size, num_class)
 
-net, params = relay.testing.resnet.get_workload(
+mod, params = relay.testing.resnet.get_workload(
     num_layers=18, batch_size=batch_size, image_shape=image_shape)
 
 # set show_meta_data=True if you want to show meta data
-print(net.astext(show_meta_data=False))
+print(mod.astext(show_meta_data=False))
 
 ######################################################################
 # Compilation
@@ -98,7 +98,7 @@ opt_level = 3
 target = tvm.target.cuda()
 with relay.build_config(opt_level=opt_level):
     graph, lib, params = relay.build_module.build(
-        net, target, params=params)
+        mod, target, params=params)
 
 #####################################################################
 # Run the generate library

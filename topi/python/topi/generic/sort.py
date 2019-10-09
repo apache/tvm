@@ -36,3 +36,20 @@ def schedule_argsort(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_topk(outs):
+    """Schedule for topk operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The indices that would sort an input array along
+      the given axis.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

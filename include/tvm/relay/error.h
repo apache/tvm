@@ -64,9 +64,10 @@ struct RelayErrorStream {
 
 struct Error : public dmlc::Error {
   Span sp;
-  explicit Error(const std::string& msg) : dmlc::Error(msg), sp() {}
-  Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
-  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
+  explicit Error(const std::string& msg) : dmlc::Error(msg), sp(nullptr) {}
+  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp(nullptr) {} // NOLINT(*)
+  Error(const Error& err) : dmlc::Error(err.what()), sp(nullptr) {}
+  Error() : dmlc::Error(""), sp(nullptr) {}
 };
 
 /*! \brief An abstraction around how errors are stored and reported.
@@ -83,7 +84,7 @@ struct Error : public dmlc::Error {
  *
  * The final mode represents the old mode, if we report an error that has no span or
  * expression, we will default to throwing an exception with a textual representation
- * of the error and no indication of where it occured in the original program.
+ * of the error and no indication of where it occurred in the original program.
  *
  * The latter mode is not ideal, and the goal of the new error reporting machinery is
  * to avoid ever reporting errors in this style.
@@ -118,7 +119,8 @@ class ErrorReporter {
    * \param err The error message to report.
    */
   inline void ReportAt(const GlobalVar& global, const NodeRef& node, std::stringstream& err) {
-    this->ReportAt(global, node, Error(err));
+    std::string err_msg = err.str();
+    this->ReportAt(global, node, Error(err_msg));
   }
 
   /*! \brief Report an error against a program, using the full program

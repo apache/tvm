@@ -46,3 +46,31 @@ def matmul(lhs, rhs, transa=False, transb=False):
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.cublas.matmul",
             ins[0], ins[1], outs[0], transa, transb), name="C")
+
+def batch_matmul(lhs, rhs, transa=False, transb=False):
+    """Create an extern op that compute batch matrix mult of A and rhs with cuBLAS
+
+    Parameters
+    ----------
+    lhs : Tensor
+        The left matrix operand
+    rhs : Tensor
+        The right matrix operand
+    transa : bool
+        Whether transpose lhs
+    transb : bool
+        Whether transpose rhs
+
+    Returns
+    -------
+    C : Tensor
+        The result tensor.
+    """
+    b = lhs.shape[0]
+    n = lhs.shape[2] if transa else lhs.shape[1]
+    m = rhs.shape[1] if transb else rhs.shape[2]
+    return _api.extern(
+        (b, n, m), [lhs, rhs],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.cublas.batch_matmul",
+            ins[0], ins[1], outs[0], transa, transb), name="C")

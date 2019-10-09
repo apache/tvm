@@ -19,6 +19,7 @@
 import tvm
 from .. import tag
 from .. import generic
+from ..util import traverse_inline
 
 
 
@@ -73,7 +74,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):
@@ -136,7 +137,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -149,4 +150,53 @@ def schedule_pool(outs, layout):
         scheduled_ops.append(OP)
 
     traverse(outs[0].op)
+    return s
+
+
+@generic.schedule_pool_grad.register(['cuda', 'gpu'])
+def schedule_pool_grad_cuda(outs):
+    """Schedule for pool_grad on CUDA
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of pool_grad
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for pool_grad.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _schedule_pool_grad(op):
+        if op in s.outputs:
+            out = op
+        else:
+            out = outs[0].op.output(0)
+        fused = s[out].fuse(*s[out].op.axis)
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+        bx, tx = s[out].split(fused, factor=num_thread)
+        s[out].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[out].bind(tx, tvm.thread_axis("threadIdx.x"))
+
+        if tag.COMM_REDUCE_IDX in op.input_tensors[0].op.tag:
+            max_pool_index = op.input_tensors[0]
+            s[max_pool_index].compute_at(s[out], tx)
+
+            pool_input = max_pool_index.op.input_tensors[0]
+            if isinstance(pool_input.op, tvm.tensor.ComputeOp):
+                # handle padding
+                s[pool_input].compute_inline()
+        if op not in s.outputs:
+            s[op].compute_at(s[out], tx)
+
+    def _callback(op):
+        if op.tag.startswith('pool_grad'):
+            _schedule_pool_grad(op)
+
+    traverse_inline(s, outs[0].op, _callback)
+
     return s

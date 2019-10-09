@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief External computation rule.
  * \file extern_op.cc
  */
@@ -72,7 +71,10 @@ Operation ExternOpNode::make(std::string name,
   CHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
     CHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    CHECK(inputs[i]->shape.same_as(input_placeholders[i]->shape));
+    CHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
+        CHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+    }
     CHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
   n->inputs = std::move(inputs);
@@ -109,6 +111,7 @@ Operation ExternOpNode::ReplaceInputs(
 
 void ExternOpNode::PropBoundToInputs(
     const Operation& self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (Tensor t : this->inputs) {
@@ -137,7 +140,7 @@ Stmt ExternOpNode::BuildRealize(
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
-    HalideIR::Internal::Region bounds;
+    Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/ir/alpha_equal.cc
  * \brief Alpha equality check by deep comparing two nodes.
  */
@@ -26,10 +26,11 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/attrs/nn.h>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
-
 namespace tvm {
 namespace relay {
 
@@ -40,8 +41,8 @@ class AlphaEqualHandler:
       public ExprFunctor<bool(const Expr&, const Expr&)>,
       public PatternFunctor<bool(const Pattern&, const Pattern&)> {
  public:
-  explicit AlphaEqualHandler(bool map_free_var)
-      : map_free_var_(map_free_var) {}
+  explicit AlphaEqualHandler(bool map_free_var, bool assert_mode)
+    : map_free_var_(map_free_var), assert_mode_(assert_mode) { }
 
   /*!
    * Check equality of two nodes.
@@ -60,9 +61,28 @@ class AlphaEqualHandler:
       if (!rhs->derived_from<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
+    if (const auto lhsm = lhs.as<ModuleNode>()) {
+      auto rhsm = rhs.as<ModuleNode>();
+      if (!rhsm) return false;
+      if (lhsm->functions.size() != rhsm->functions.size()) return false;
+      for (const auto& p : lhsm->functions) {
+        if (!Equal(p.second, rhsm->Lookup(p.first->name_hint))) return false;
+      }
+      if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
+      for (const auto& p : lhsm->type_definitions) {
+        if (!rhsm->HasDef(p.first->var->name_hint) ||
+            !Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) {
+          return false;
+        }
+      }
+      return true;
+    }
     return AttrEqual(lhs, rhs);
   }
 
+  bool DoubleEqual(double l, double r) {
+    return true;
+  }
   /*!
    * Check equality of two attributes.
    * \param lhs The left hand operand.
@@ -70,7 +90,28 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
-    return AttrsEqualHandler::Equal(lhs, rhs);
+    auto compute = [&]() {
+      if (&lhs == &rhs) return true;
+      if (auto lhsd = lhs.as<DictAttrsNode>()) {
+        auto rhsd = lhs.as<DictAttrsNode>();
+        if (!rhsd) return false;
+        if (lhsd->dict.size() != rhsd->dict.size()) return false;
+        for (const auto& k : lhsd->dict) {
+          if (!Equal(k.second, rhsd->dict[k.first])) return false;
+        }
+        return true;
+      }
+      if (auto lhsbn = lhs.as<BatchNormAttrs>()) {
+        auto rhsbn = rhs.as<BatchNormAttrs>();
+        if (!rhsbn) return false;
+        return (lhsbn->axis == rhsbn->axis)
+          && DoubleEqual(lhsbn->epsilon, rhsbn->epsilon)
+          && (lhsbn->center == rhsbn->center)
+          && (lhsbn->scale == rhsbn->scale);
+      }
+      return AttrsEqualHandler::Equal(lhs, rhs);
+    };
+    return Compare(compute(), lhs, rhs);
   }
   /*!
    * Check equality of two types.
@@ -79,9 +120,19 @@ class AlphaEqualHandler:
    * \return the comparison result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (!lhs.defined() || !rhs.defined()) return false;
-    return this->VisitType(lhs, rhs);
+    auto compute = [&]() {
+      if (lhs.same_as(rhs)) return true;
+      if (!lhs.defined() || !rhs.defined()) return false;
+      return this->VisitType(lhs, rhs);
+    };
+    return Compare(compute(), lhs, rhs);
+  }
+
+  bool Compare(bool result, const NodeRef& lhs, const NodeRef& rhs) {
+    if (assert_mode_) {
+      CHECK(result) << "\n" << AsText(lhs, true) << "\nis not equal to:\n" << AsText(rhs, true);
+    }
+    return result;
   }
   /*!
    * Check equality of two expressions.
@@ -96,18 +147,21 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool ExprEqual(const Expr& lhs, const Expr& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (!lhs.defined() || !rhs.defined()) return false;
-    auto it = equal_map_.find(lhs);
-    if (it != equal_map_.end()) {
-      return it->second.same_as(rhs);
-    }
-    if (this->VisitExpr(lhs, rhs)) {
-      equal_map_[lhs] = rhs;
-      return true;
-    } else {
-      return false;
-    }
+    auto compute = [&]() {
+      if (lhs.same_as(rhs)) return true;
+      if (!lhs.defined() || !rhs.defined()) return false;
+      auto it = equal_map_.find(lhs);
+      if (it != equal_map_.end()) {
+        return it->second.same_as(rhs);
+      }
+      if (this->VisitExpr(lhs, rhs)) {
+        equal_map_[lhs] = rhs;
+        return true;
+      } else {
+        return false;
+      }
+    };
+    return Compare(compute(), lhs, rhs);
   }
 
  protected:
@@ -237,7 +291,7 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const GlobalTypeVarNode* lhs, const Type& other) final {
-    return GetRef<Type>(lhs) == other;
+    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
   }
 
   bool VisitType_(const TypeCallNode* lhs, const Type& other) final {
@@ -250,6 +304,26 @@ class AlphaEqualHandler:
 
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       if (!TypeEqual(lhs->args[i], rhs->args[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitType_(const TypeDataNode* lhs, const Type& other) final {
+    const TypeDataNode* rhs = other.as<TypeDataNode>();
+    if (rhs == nullptr
+        || lhs->type_vars.size() != rhs->type_vars.size()
+        || !TypeEqual(lhs->header, rhs->header)) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs->type_vars.size(); ++i) {
+      if (!TypeEqual(lhs->type_vars[i], rhs->type_vars[i])) {
+        return false;
+      }
+    }
+    for (size_t i = 0; i < lhs->constructors.size(); ++i) {
+      if (!ExprEqual(lhs->constructors[i], rhs->constructors[i])) {
         return false;
       }
     }
@@ -334,6 +408,7 @@ class AlphaEqualHandler:
       }
       // check return types.
       if (!TypeEqual(lhs->ret_type, rhs->ret_type)) return false;
+      if (!AttrEqual(lhs->attrs, rhs->attrs)) return false;
       return ExprEqual(lhs->body, rhs->body);
     } else {
       return false;
@@ -370,8 +445,8 @@ class AlphaEqualHandler:
 
   bool VisitExpr_(const LetNode* lhs, const Expr& other) final {
     if (const LetNode* rhs = other.as<LetNode>()) {
-      if (!ExprEqual(lhs->value, rhs->value)) return false;
       if (!MergeVarDecl(lhs->var, rhs->var)) return false;
+      if (!ExprEqual(lhs->value, rhs->value)) return false;
       return ExprEqual(lhs->body, rhs->body);
     } else {
       return false;
@@ -433,7 +508,10 @@ class AlphaEqualHandler:
   }
 
   bool VisitExpr_(const ConstructorNode* lhs, const Expr& other) final {
-    return GetRef<Expr>(lhs) == other;
+    if (const ConstructorNode* rhs = other.as<ConstructorNode>()) {
+      return lhs->name_hint == rhs->name_hint;
+    }
+    return false;
   }
 
   bool ClauseEqual(const Clause& lhs, const Clause& rhs) {
@@ -441,7 +519,7 @@ class AlphaEqualHandler:
   }
 
   bool PatternEqual(const Pattern& lhs, const Pattern& rhs) {
-    return VisitPattern(lhs, rhs);
+    return Compare(VisitPattern(lhs, rhs), lhs, rhs);
   }
 
   bool VisitPattern_(const PatternWildcardNode* lhs, const Pattern& other) final {
@@ -471,12 +549,28 @@ class AlphaEqualHandler:
     return true;
   }
 
+  bool VisitPattern_(const PatternTupleNode* lhs, const Pattern& other) final {
+    const auto* rhs = other.as<PatternTupleNode>();
+    if (rhs == nullptr
+        || lhs->patterns.size() != rhs->patterns.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < lhs->patterns.size(); i++) {
+      if (!PatternEqual(lhs->patterns[i], rhs->patterns[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool VisitExpr_(const MatchNode* lhs, const Expr& other) final {
     const MatchNode* rhs = other.as<MatchNode>();
 
     if (rhs == nullptr
         || !ExprEqual(lhs->data, rhs->data)
-        || lhs->clauses.size() != rhs->clauses.size()) {
+        || lhs->clauses.size() != rhs->clauses.size()
+        || lhs->complete != rhs->complete) {
       return false;
     }
 
@@ -490,33 +584,43 @@ class AlphaEqualHandler:
 
  private:
   // whether to map open terms.
-  bool map_free_var_{false};
+  bool map_free_var_;
+  // if in assert mode, must return true, and will throw error otherwise.
+  bool assert_mode_;
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, NodeRef, NodeHash, NodeEqual> equal_map_;
 };
 
 bool AlphaEqual(const Type& lhs, const Type& rhs) {
-  return AlphaEqualHandler(false).TypeEqual(lhs, rhs);
+  return AlphaEqualHandler(false, false).TypeEqual(lhs, rhs);
 }
 
 bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
-  return AlphaEqualHandler(false).ExprEqual(lhs, rhs);
+  return AlphaEqualHandler(false, false).ExprEqual(lhs, rhs);
 }
 
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._make._alpha_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-    return AlphaEqualHandler(false).Equal(a, b);
-  });
+  return AlphaEqualHandler(false, false).Equal(a, b);
+});
 
-TVM_REGISTER_API("relay._make._type_alpha_equal")
-.set_body_typed<bool(Type, Type)>([](Type a, Type b) {
-    return AlphaEqualHandler(false).TypeEqual(a, b);
-  });
+TVM_REGISTER_API("relay._make._assert_alpha_equal")
+.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+  bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
+  CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
+});
 
 TVM_REGISTER_API("relay._make._graph_equal")
 .set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
-    return AlphaEqualHandler(true).Equal(a, b);
-  });
+  return AlphaEqualHandler(true, false).Equal(a, b);
+});
+
+TVM_REGISTER_API("relay._make._assert_graph_equal")
+.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+  bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
+  CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
+});
+
 }  // namespace relay
 }  // namespace tvm

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -51,11 +51,11 @@ class CPUDeviceAPI final : public DeviceAPI {
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
-#elif defined(_LIBCPP_SGX_CONFIG) || (defined(__ANDROID__) && __ANDROID_API__ < 16)
+#elif defined(_LIBCPP_SGX_CONFIG) || (defined(__ANDROID__) && __ANDROID_API__ < 17)
     ptr = memalign(alignment, nbytes);
     if (ptr == nullptr) throw std::bad_alloc();
 #else
-    // posix_memalign is available in android ndk since __ANDROID_API__ >= 16
+    // posix_memalign is available in android ndk since __ANDROID_API__ >= 17
     int ret = posix_memalign(&ptr, alignment, nbytes);
     if (ret != 0) throw std::bad_alloc();
 #endif

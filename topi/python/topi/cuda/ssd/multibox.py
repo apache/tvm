@@ -95,8 +95,8 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
 
             for k in range(num_sizes + num_ratios - 1):
                 w = if_then_else(k < num_sizes,
-                                 size_ratio_concat[k] * in_height / in_width / 2.0,
-                                 size_ratio_concat[0] * in_height / in_width *
+                                 float(size_ratio_concat[k]) * in_height / in_width / 2.0,
+                                 float(size_ratio_concat[0]) * in_height / in_width *
                                  math.sqrt(size_ratio_concat[k + 1]) / 2.0)
                 h = if_then_else(
                     k < num_sizes, size_ratio_concat[k] / 2.0,
@@ -204,10 +204,12 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors
-        j = tid % num_anchors
+        i = idxd(tid, num_anchors)
+        j = idxm(tid, num_anchors)
         valid_count[i] = 0
         score[tid] = -1.0
         cls_id[tid] = 0
@@ -314,9 +316,13 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors
-        j = tid % num_anchors
+        i = idxd(tid, num_anchors)
+        j = idxm(tid, num_anchors)
+
         with ib.if_scope(cls_id[tid] > 0):
             with ib.if_scope(tid == 0):
                 out_base_idx = i * num_anchors * 6

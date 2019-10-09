@@ -83,7 +83,7 @@ macro_rules! TVMPODValue {
                 use $name::*;
                 #[allow(non_upper_case_globals)]
                 unsafe {
-                    match type_code {
+                    match type_code as _ {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),

@@ -561,6 +561,9 @@ inline const TTypeNode* ExprNode::type_as() const {
   return node;
 }
 
+/*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
+std::string PrettyPrint(const NodeRef& node);
+
 /*!
  * \brief Render the node as a string in the Relay text format.
  * \param node The node to be rendered.
@@ -572,6 +575,7 @@ inline const TTypeNode* ExprNode::type_as() const {
 std::string AsText(const NodeRef& node,
                    bool show_meta_data = true,
                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

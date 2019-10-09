@@ -42,14 +42,6 @@
 #include "object.h"
 #include "node_base.h"
 
-namespace HalideIR {
-// Forward declare type for extensions
-// The header works fine without depending on this.
-struct Type;
-struct Expr;
-}
-
-
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
 #define TVM_RUNTIME_HEADER_ONLY 0
@@ -58,8 +50,33 @@ struct Expr;
 namespace tvm {
 // forward declarations
 class Integer;
+class DataType;
+class Expr;
 
 namespace runtime {
+
+/*!
+ * \brief Runtime utility for getting custom type name from code
+ * \param type_code Custom type code
+ * \return Custom type name
+ */
+TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
+
+/*!
+ * \brief Runtime utility for checking whether custom type is registered
+ * \param type_code Custom type code
+ * \return Bool representing whether type is registered
+ */
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+
+/*!
+ * \brief Runtime utility for parsing string of the form "custom[<typename>]"
+ * \param s String to parse
+ * \param scan pointer to parsing pointer, which is scanning across s
+ * \return type code of custom type parsed
+ */
+TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
+
 // forward declarations
 class TVMArgs;
 class TVMArgValue;
@@ -474,7 +491,7 @@ class TVMPODValue_ {
   }
   operator Object() const {
     if (type_code_ == kNull) return Object();
-    TVM_CHECK_TYPE_CODE(type_code_, kObject);
+    TVM_CHECK_TYPE_CODE(type_code_, kObjectCell);
     return Object(static_cast<ObjectCell*>(value_.v_handle));
   }
   operator TVMContext() const {
@@ -603,8 +620,8 @@ class TVMArgValue : public TVMPODValue_ {
            typename = typename std::enable_if<
              std::is_class<TNodeRef>::value>::type>
   inline bool IsNodeType() const;
-  inline operator HalideIR::Type() const;
-  inline operator HalideIR::Expr() const;
+  inline operator tvm::DataType() const;
+  inline operator tvm::Expr() const;
   inline operator tvm::Integer() const;
   // get internal node ptr, if it is node
   inline NodePtr<Node>& node_sptr();
@@ -744,7 +761,7 @@ class TVMRetValue : public TVMPODValue_ {
   }
   TVMRetValue& operator=(Object other) {
     this->Clear();
-    type_code_ = kObject;
+    type_code_ = kObjectCell;
     value_.v_handle = other.ptr_.data_;
     other.ptr_.data_ = nullptr;
     return *this;
@@ -812,8 +829,8 @@ class TVMRetValue : public TVMPODValue_ {
   inline TVMRetValue& operator=(const NodeRef& other);
   inline TVMRetValue& operator=(const NodePtr<Node>& other);
   // type related
-  inline operator HalideIR::Type() const;
-  inline TVMRetValue& operator=(const HalideIR::Type& other);
+  inline operator tvm::DataType() const;
+  inline TVMRetValue& operator=(const tvm::DataType& other);
 
  private:
   template<typename T>
@@ -844,7 +861,7 @@ class TVMRetValue : public TVMPODValue_ {
             kNodeHandle, *other.template ptr<NodePtr<Node> >());
         break;
       }
-      case kObject: {
+      case kObjectCell: {
         *this = other.operator Object();
         break;
       }
@@ -895,7 +912,7 @@ class TVMRetValue : public TVMPODValue_ {
         static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;
       }
-      case kObject: {
+      case kObjectCell: {
         static_cast<ObjectCell*>(value_.v_handle)->DecRef();
         break;
       }
@@ -928,7 +945,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
-    case kObject: return "Object";
+    case kObjectCell: return "ObjectCell";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
@@ -939,7 +956,11 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  os << TypeCode2Str(t.code);
+  if (t.code < kCustomBegin) {
+    os << TypeCode2Str(t.code);
+  } else {
+    os << "custom[" << GetCustomTypeName(t.code) << "]";
+  }
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
@@ -960,7 +981,11 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  repr += TypeCode2Str(t.code);
+  if (t.code < kCustomBegin) {
+    repr += TypeCode2Str(t.code);
+  } else {
+    repr += "custom[" + GetCustomTypeName(t.code) + "]";
+  }
   if (t.code == kHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
   if (t.lanes != 1) {
@@ -994,6 +1019,8 @@ inline TVMType String2TVMType(std::string s) {
     t.bits = 1;
     t.lanes = 1;
     return t;
+  } else if (s.substr(0, 6) == "custom") {
+    t.code = ParseCustomDatatype(s, &scan);
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
@@ -1151,7 +1178,7 @@ class TVMArgsSetter {
   inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
-  inline void operator()(size_t i, const HalideIR::Type& t) const;
+  inline void operator()(size_t i, const tvm::DataType& t) const;
 
  private:
   /*! \brief The values fields */

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,13 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/arithmetic.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
@@ -132,11 +132,11 @@ class Vectorizer : public IRMutator {
       if (lanes != 1) {
         const Ramp* b_ramp = b.as<Ramp>();
         const Ramp* a_ramp = a.as<Ramp>();
-        if (a_ramp && b.type().lanes() == 1 && can_prove(b > 0)) {
+        if (a_ramp && b.type().lanes() == 1 && analyzer_.CanProve(b > 0)) {
           return Ramp::make(
               a_ramp->base * b, a_ramp->stride * b, a_ramp->lanes);
         }
-        if (b_ramp && a.type().lanes() == 1 && can_prove(a > 0)) {
+        if (b_ramp && a.type().lanes() == 1 && analyzer_.CanProve(a > 0)) {
           return Ramp::make(
               b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
         }
@@ -149,6 +149,12 @@ class Vectorizer : public IRMutator {
     return BinaryVec(op, e);
   }
   Expr Mutate_(const Mod* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const FloorDiv* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const FloorMod* op, const Expr &e) final {
     return BinaryVec(op, e);
   }
   Expr Mutate_(const Min* op, const Expr &e) final {
@@ -186,7 +192,7 @@ class Vectorizer : public IRMutator {
     Expr stride = this->Mutate(op->stride);
     if (base.type().lanes() > 1 && stride.type().lanes() == 1) {
       const Ramp* base_ramp = base.as<Ramp>();
-      if (can_prove(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
+      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
         return Ramp::make(base_ramp->base, stride, op->lanes * base_ramp->lanes);
       }
     }
@@ -262,16 +268,34 @@ class Vectorizer : public IRMutator {
     if (op->name == intrinsic::tvm_if_then_else) {
       return MutateIfThenElseExpr_(op, e);
     }
-    int lane = 0;
-    Array<Expr> new_args = MutateArray(op->args, &lane);
-
-    // normal code path.
-    if (op->args.same_as(new_args)) {
-      return e;
+    if (!op->is_vectorizable()) {
+      // Cannot vectorize this op
+      Array<Expr> new_args;
+      for (auto arg : op->args) {
+        auto new_arg = this->Mutate(arg);
+        if (new_arg.type().is_vector()) {
+          need_scalarize_ = true;
+          return e;
+        }
+        new_args.push_back(new_arg);
+      }
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type, op->name, new_args, op->call_type, op->func, op->value_index);
+      }
     } else {
-      return Call::make(
-          op->type.with_lanes(lane), op->name, new_args,
-          op->call_type, op->func, op->value_index);
+      int lane = 0;
+      Array<Expr> new_args = MutateArray(op->args, &lane);
+      // normal code path.
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type.with_lanes(lane), op->name, new_args,
+            op->call_type, op->func, op->value_index);
+      }
     }
   }
   // Load
@@ -423,6 +447,8 @@ class Vectorizer : public IRMutator {
   }
 
  private:
+  // analyzer
+  arith::Analyzer analyzer_;
   // variable to be replaced
   Var var_;
   // the lanes.
@@ -483,13 +509,13 @@ class Vectorizer : public IRMutator {
         const Ramp* a_ramp = a.as<Ramp>();
         if (a.type().lanes() == 1 && b_ramp) {
           return Ramp::make(
-              arith::ComputeExpr<T>(a, b_ramp->base),
-              arith::ComputeExpr<T>(make_zero(b_ramp->stride.type()), b_ramp->stride),
+              arith::Compute<T>(a, b_ramp->base),
+              arith::Compute<T>(make_zero(b_ramp->stride.type()), b_ramp->stride),
               b_ramp->lanes);
         }
         if (b.type().lanes() == 1 && a_ramp) {
           return Ramp::make(
-              arith::ComputeExpr<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
+              arith::Compute<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }
       }
       return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
@@ -517,6 +543,24 @@ class LoopVectorizer : public IRMutator {
 
 Stmt VectorizeLoop(Stmt stmt) {
   return LoopVectorizer().Mutate(stmt);
+}
+
+class VectorizeSkipper : public IRMutator {
+ public:
+  Stmt Mutate_(const For* op, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<For>();
+    if (op->for_type == ForType::Vectorized) {
+      return For::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
+                       op->body);
+    } else {
+       return stmt;
+    }
+  }
+};
+
+Stmt SkipVectorize(Stmt stmt) {
+  return VectorizeSkipper().Mutate(stmt);
 }
 
 }  // namespace ir

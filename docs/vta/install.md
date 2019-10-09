@@ -20,8 +20,9 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 1. [Simulator installation](#vta-simulator-installation)
-2. [Hardware test setup](#vta-pynq-based-test-setup)
-3. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
+2. [PYNQ-based test setup](#vta-pynq-based-test-setup)
+3. [Custom test setup for Intel FPGA](#vta-custom-test-setup-for-intel-fpga)
+4. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
 
 ## VTA Simulator Installation
 
@@ -61,7 +62,7 @@ To do so,
 
 ```bash
 cd <tvm root>
-cp vta/config/vta_config.json vta_config.json
+vim vta/config/vta_config.json
 # edit vta_config.json
 make vta
 ```
@@ -84,7 +85,7 @@ This guide covers the following themes:
 
 Setup your Pynq board based on the [Pynq board getting started tutorial](http://pynq.readthedocs.io/en/latest/getting_started.html).
 You should follow the instructions up to and including the *Turning On the PYNQ-Z1* step (no need to pursue the tutorial beyond this point).
-* Make sure that you've downloaded the latest Pynq image, [PYNQ-Z1 v2.3](http://www.pynq.io/board.html) (released October 3rd 2018), and have imaged your SD card with it (we recommend the free [Etcher](https://etcher.io/) program).
+* Make sure that you've downloaded the latest Pynq image, [PYNQ-Z1 v2.4](http://www.pynq.io/board.html)(released February 22rd 2019), and have imaged your SD card with it (we recommend the free [Etcher](https://etcher.io/) program).
 * For this test setup, follow the ["Connect to a Computer"](http://pynq.readthedocs.io/en/latest/getting_started.html#connect-to-a-computer) Ethernet setup instructions. To be able to talk to the board, make sure to [assign your computer a static IP address](http://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip)
 
 Once the board is powered on and connected to your development machine, try connecting to it to make sure you've properly set up your Pynq board:
@@ -117,14 +118,17 @@ ssh xilinx@192.168.2.99
 cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
+echo 'set(USE_VTA_FSIM OFF)' >> build/config.cmake
+echo 'set(USE_VTA_TSIM OFF)' >> build/config.cmake
+echo 'set(USE_VTA_FPGA ON)' >> build/config.cmake
 # Copy pynq specific configuration
-cp vta/config/pynq_sample.json build/vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 cd build
 cmake ..
 make runtime vta -j2
 # Build VTA RPC server (takes 1 min)
 cd ..
-sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is 'xilinx'
+sudo ./apps/vta_rpc/start_rpc_server.sh # pw is 'xilinx'
 ```
 
 You should see the following being displayed when starting the RPC server. In order to run the next examples, you'll need to leave the RPC server running in an `ssh` session.
@@ -147,13 +151,12 @@ export VTA_PYNQ_RPC_PORT=9091
 ```
 
 In addition, you'll need to edit the `vta_config.json` file on the host to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to `"pynq"`.
-Alternatively, you can copy the default `vta/config/pynq_sample.json` into the TVM root as `vta_config.json`.
 > Note: in contrast to our simulation setup, there are no libraries to compile on the host side since the host offloads all of the computation to the Pynq board.
 
 ```bash
 # On the Host-side
 cd <tvm root>
-cp vta/config/pynq_sample.json vta_config.json
+cp vta/config/pynq_sample.json vta/config/vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench.
@@ -180,35 +183,105 @@ The performance metrics measured on the Pynq board will be reported for each con
 
 You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
 
+## VTA Custom Test Setup for Intel FPGA
+
+Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano. 
+
+In terms of hardware components, you would need the [DE10-Nano Development Kit](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&No=1046), which can be acquired for $130, or $100 for academics from [Terasic](https://www.terasic.com.tw/). A microSD card would be delivered the kit. Power cables and USB cables would be included as well. However, an additional Ethernet cable would be needed to connect the board to LAN.
+
+The rest part of this guide would provide the steps to
+
+* Flash the microSD card with latest Angstrom Linux image
+* Cross compilation setup
+* Device-side RPC server setup and deployment
+
+### DE10-Nano Board Setup
+
+Before powering up the device, we need to flash the microSD card image with latest Angstrom Linux image.
+
+#### Flash SD Card and Boot Angstrom Linux
+
+To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
+After registration and login on the webpage, the prebuilt Angstrom Linux image would be available for downloading and flashing.
+Specifically, to flash the downloaded Linux SD card image into your physical SD card:
+
+First, extract the gzipped archive file.
+
+``` bash
+tar xf de10-nano-image-Angstrom-v2016.12.socfpga-sdimg.2017.03.31.tgz
+```
+
+This would produce a single SD card image named `de10-nano-image-Angstrom-v2016.12.socfpga-sdimg` (approx. 2.4 GB), it contains all the file systems to boot Angstrom Linux.
+
+Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`. 
+
+Then, flash the disk image into your physical SD card with the following command:
+
+``` bash
+# NOTE: root privilege is typically required to run the following command.
+dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progress
+```
+This would take a few minutes for your PC to write the whole file systems into the SD card.
+After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
+Now you can connect the power cable and serial port to boot the Angstrom Linux.
+
+> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. 
+> In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. 
+> For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage).
+
+After connecting he usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
+
+``` bash
+# NOTE: root privilege is typically required to run the following command.
+minicom -D /dev/ttyUSB0
+```
+
+The default user name for the device would be `root`, and the password is empty for the default user.
+
+You may now start to install supporting Python3 packages (TVM has dropped the support for Python2), specifically, they are `numpy`, `attrs` and `decorator`.
+
+> Note: You might fail to install `numpy` by using `pip3` on the DE10-Nano device. 
+> In that case, you have the option to either build your own filesystem image for the board from [meta-de10-nano](https://github.com/intel/meta-de10-nano) repository; 
+> an alternative option is to download prebuilt packages from existing Linux distributions, e.g. Debian.
+> For a quick fix, we have concatenated the supplementary binary files [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/rootfs_supplement.tgz), and you can extract the files into the root filesystem.
+
+#### Install Required Python Packages
+
+After accessing bash terminal from the serial port, we need to install required Python packages before building and installing TVM and VTA programs.
+
+#### Build Additional Components to Use VTA Bitstream
+
+To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
+Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
 
 ## VTA FPGA Toolchain Installation
 
-This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx compilation toolchains.
+This last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel compilation toolchains.
 
 ### Xilinx Toolchain Installation
 
-We recommend using `Vivado 2018.2` since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using `Vivado 2018.3` since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2018.2](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2018.3](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
 
 #### Obtaining and Launching the Vivado GUI Installer
 
-1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-2.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2018.2: WebPACK and Editions.
+1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-3.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2018.3: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin`.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin`.
 4. Now that the file is downloaded, go to your `Downloads` directory, and change the file permissions so it can be executed:
 ```bash
-chmod u+x Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin
+chmod u+x Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 5. Now you can execute the binary:
 ```bash
-./Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin
+./Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 
 #### Xilinx Vivado GUI Installer Steps
 
-At this point you've launched the Vivado 2017.1 Installer GUI program.
+At this point you've launched the Vivado 2018.3 Installer GUI program.
 
 1. Click “Next” on the *Welcome* screen.
 2. On the *Select Install Type* screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next” .
@@ -230,12 +303,44 @@ At this point you've launched the Vivado 2017.1 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2018.2 environment
-export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.2
+# Xilinx Vivado 2018.3 environment
+export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 ```
 
-### Custom VTA Bitstream Compilation
+### Intel Toolchain Installation
+
+It is recommended to use `Intel Quartus Prime 18.1`, since the test scripts contained in this document have been tested on this version. 
+
+You would need to install Intel's FPGA compilation toolchain, [Quartus Prime Lite](http://fpgasoftware.intel.com/?edition=lite), which is a license-free version of the Intel Quartus Prime software.
+
+#### Obtaining and Launching the Quartus GUI Installer
+
+1. Go to the [download center](http://fpgasoftware.intel.com/?edition=lite), and download the linux version of `Quartus Prime (include Nios II EDS)` and `Cyclone V device support` files in the `Separate file` tab. This avoid downloading unused device support files.
+2. Sign in the form if you have an account, or register on the right side of the web page to create an account.
+3. After signed in, you are able to download the installer and the device support files.
+4. Now that the files are downloaded, go to your `Downloads` directory, and change the file permissions:
+```bash
+chmod u+x QuartusLiteSetup-18.1.0.625-linux.run
+```
+5. Now ensure both the installer and device support files are in the same directory, and you can run the install with:
+```bash
+./QuartusLiteSetup-18.1.0.625-linux.run
+```
+6. Follow the instructions on the pop-up GUI form, and install all the content in the `/usr/local` directory. After installation, `/usr/local/intelFPGA_lite/18.1` would be created and the Quartus program along with other programs would be available in the folder.
+
+#### Environment Setup
+
+Similar to what should be done for Xilinx toolchain, the following line should be added to your `~/.bashrc`.
+```bash
+# Intel Quartus 18.1 environment
+export QUARTUS_ROOTDIR="/usr/local/intelFPGA_lite/18.1/quartus"
+export PATH=${QUARTUS_ROOTDIR}/bin:${PATH}
+export PATH=${QUARTUS_ROOTDIR}/sopc_builder/bin:${PATH}
+```
+This would add quartus binary path into your `PATH` environment variable, so you can launch compilation scripts from the command line.
+
+### HLS-based Custom VTA Bitstream Compilation for PYNQ
 
 High-level hardware parameters are listed in the VTA configuration file and can be customized by the user.
 For this custom VTA bitstream compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
@@ -267,6 +372,28 @@ This process is lengthy, and can take around up to an hour to complete depending
 We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take full advantage of all the cores on your development machine.
 
 Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
+
+### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
+
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+
+For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
+
+If you just want to generate the Chisel-based VTA IP core for the DE10-Nano board without compiling the design for the FPGA hardware, enter:
+```bash
+cd <tvmroot>/vta/hardware/intel
+make ip
+```
+Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
+
+If you would like to run the full hardware compilation for the `de10nano` board:
+```bash
+make
+```
+
+This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
+
+Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
 
 ### Use the Custom Bitstream
 

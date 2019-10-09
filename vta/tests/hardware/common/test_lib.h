@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file test_lib.cpp
  * \brief Test library for the VTA design simulation and driver tests.
  */
@@ -40,7 +39,6 @@
 #include "../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
 
-typedef uint64_t axi_T;
 typedef uint32_t uop_T;
 typedef int8_t wgt_T;
 typedef int8_t inp_T;
@@ -95,13 +93,23 @@ template <typename T, int T_WIDTH>
 void unpackBuffer(T **dst, T *src, int y_size, int x_size, int y_block, int x_block);
 
 /*!
-* \brief Allocates and initializes a 2D array in the heap.
+* \brief Allocates and randomly initializes a 2D array in the heap.
 * \param rows Number of rows.
 * \param cols Number of columns.
 * \return Pointer to the 2D array.
 */
-template <typename T, int T_WIDTH>
+template <typename T>
 T ** allocInit2dArray(int rows, int cols);
+
+/*!
+* \brief Allocates and initializes a 2D array to a set value in the heap.
+* \param rows Number of rows.
+* \param cols Number of columns.
+* \param val Value to set the whole array to.
+* \return Pointer to the 2D array.
+*/
+template <typename T>
+T ** allocSet2dArray(int rows, int cols, int val);
 
 /*!
 * \brief Allocates a 2D array in the heap.
@@ -227,9 +235,9 @@ VTAGenericInsn getGEMMInsn(int uop_offset, int batch, int in_feat, int out_feat,
 /*!
 * \brief Returns a VTA ALU instruction for map type operation.
 * \param opcode Opcode of the ALU instruction.
+* \param vector_size Vector size of the ALU operation size.
 * \param use_imm Use immediate.
 * \param imm Immediate value (int16).
-* \param vector_size Vector size of the ALU operation size.
 * \param uop_compression Apply micro-op compression.
 * \param pop_prev_dep Pop dependence from previous stage.
 * \param pop_next_dep Pop dependence from next stage.
@@ -237,7 +245,7 @@ VTAGenericInsn getGEMMInsn(int uop_offset, int batch, int in_feat, int out_feat,
 * \param push_next_dep Push dependence to next stage.
 * \return A VTAGenericInsn for a ALU op.
 */
-VTAGenericInsn getALUInsn(int opcode, bool use_imm, int imm, int vector_size, bool uop_compression,
+VTAGenericInsn getALUInsn(int opcode, int vector_size, bool use_imm, int imm, bool uop_compression,
   int pop_prev_dep, int pop_next_dep, int push_prev_dep, int push_next_dep);
 
 /*!

@@ -48,6 +48,8 @@ def test_add_pipeline():
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    # lower the floordiv(use stackvm rules so it works for all targets)
+    fsplits = [tvm.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
     fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
@@ -76,7 +78,12 @@ def test_add_pipeline():
             return
         if not tvm.module.enabled(host):
             return
-        fmt = "ptx" if device == "cuda" else device
+        if device == "cuda":
+            fmt = "ptx"
+        elif device == "rocm":
+            fmt = "hsaco"
+        else:
+            fmt = device
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
         temp = util.tempdir()
@@ -99,8 +106,9 @@ def test_add_pipeline():
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
     check_target("vulkan", host="llvm")
-    check_target("rocm", host="llvm")
     check_module_save("vulkan", host="stackvm")
+    check_target("rocm", host="llvm")
+    check_module_save("rocm", host="llvm")
 
 
 if __name__ == "__main__":

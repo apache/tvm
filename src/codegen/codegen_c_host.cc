@@ -31,13 +31,13 @@ namespace tvm {
 namespace codegen {
 
 CodeGenCHost::CodeGenCHost() {
-  module_name = GetUniqueName("__tvm_module_ctx");
+  module_name_ = GetUniqueName("__tvm_module_ctx");
 }
 
 void CodeGenCHost::Init(bool output_ssa) {
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-  decl_stream << "extern void* " << module_name << " = NULL;\n";
+  decl_stream << "extern void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }
 
@@ -154,12 +154,13 @@ void CodeGenCHost::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLI
   os << "))";
 }
 
-void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name) {
+void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
+                                           const std::string& packed_func_name) {
   this->PrintIndent();
   this->stream << "if (" << packed_func_name << " == NULL) {\n";
   int packed_func_if_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "if (TVMBackendGetFuncFromEnv(" << module_name
+  this->stream << "if (TVMBackendGetFuncFromEnv(" << module_name_
               << ", \"" << func_name << "\""
               << ", &" << packed_func_name << ") != 0) {\n";
   int get_func_env_scope = this->BeginScope();
@@ -173,7 +174,7 @@ void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string pa
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCall(std::string packed_func_name, int num_args) {
+void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
   this->PrintIndent();
   std::string ret_val = GetUniqueName("ret_val");
   std::string ret_type_code = GetUniqueName("ret_type_code");
@@ -249,6 +250,29 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   PrintIndent();
   stream << "}\n";
   this->PrintStmt(op->body);
+}
+
+void CodeGenCHost::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+  PrintTernaryCondExpr(op, "<", os);
+}
+
+void CodeGenCHost::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+  PrintTernaryCondExpr(op, ">", os);
+}
+
+template <typename T>
+inline void CodeGenCHost::PrintTernaryCondExpr(const T* op,
+                                           const char* compare,
+                                           std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp_a;
+  VisitExpr(op->a, temp_a);
+  std::string a_id = SSAGetID(temp_a.str(), op->a.type());
+  std::ostringstream temp_b;
+  VisitExpr(op->b, temp_b);
+  std::string b_id = SSAGetID(temp_b.str(), op->b.type());
+
+  os << "((" << a_id << ") " << compare << " (" << b_id << ") "
+     << "? (" << a_id << ") : (" << b_id << "))";
 }
 
 runtime::Module BuildCHost(Array<LoweredFunc> funcs) {

@@ -114,7 +114,7 @@ class ConstructorNode : public ExprNode {
   /*! \brief The datatype the constructor will construct. */
   GlobalTypeVar belong_to;
   /*! \brief Index in the table of constructors (set when the type is registered). */
-  mutable int tag = -1;
+  mutable int32_t tag = -1;
 
   ConstructorNode() {}
 
@@ -162,6 +162,29 @@ class PatternConstructorNode : public PatternNode {
 };
 
 RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
+
+/*! \brief A tuple pattern. Matches a tuple, binds recursively. */
+class PatternTuple;
+/*! \brief PatternVar container node */
+class PatternTupleNode : public PatternNode {
+ public:
+  /*! Sub-patterns to match against each value of the tuple. */
+  tvm::Array<Pattern> patterns;
+
+  PatternTupleNode() {}
+
+  TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("patterns", &patterns);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.PatternTuple";
+  TVM_DECLARE_NODE_TYPE_INFO(PatternTupleNode, PatternNode);
+};
+
+RELAY_DEFINE_NODE_REF(PatternTuple, PatternTupleNode, Pattern);
 
 /*!
  * \brief Stores all data for an Algebraic Data Type (ADT).
@@ -241,14 +264,20 @@ class MatchNode : public ExprNode {
   /*! \brief The match node clauses. */
   tvm::Array<Clause> clauses;
 
+  /*! \brief Should this match be complete (cover all cases)?
+   *  If yes, the type checker will generate an error if there are any missing cases.
+   */
+  bool complete;
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
-    v->Visit("clause", &clauses);
+    v->Visit("clauses", &clauses);
+    v->Visit("complete", &complete);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern);
+  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
 
   static constexpr const char* _type_key = "relay.Match";
   TVM_DECLARE_NODE_TYPE_INFO(MatchNode, ExprNode);

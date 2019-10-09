@@ -14,20 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+#pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
 import warnings
 
 import topi
-from . import _quantize
-from .quantize import QAnnotateKind, current_qconfig
-from .quantize import _conv_counter, _set_conv_counter
+from ..._ffi.function import register_func
 from .. import expr as _expr
+from .. import analysis as _analysis
 from .. import op as _op
 from ..op import op as _reg
 from ..base import register_relay_node
-from ..._ffi.function import register_func
+from . import _quantize
+from .quantize import QAnnotateKind, current_qconfig, quantize_context
+from .quantize import _forward_op
 
 
 @_reg.register_compute("relay.op.annotation.simulated_quantize")
@@ -38,6 +39,9 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert attrs.rounding == "round"
 
     data, scale, clip_min, clip_max = inputs
+
+    if attrs.kind == QAnnotateKind.IDENTITY:
+        return [topi.identity(data)]
 
     # simulate rounding error
     scaled_data = topi.divide(data, scale)
@@ -52,7 +56,7 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 _reg.register_schedule("relay.op.annotation.simulated_quantize",
                        _reg.schedule_injective)
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
-                      _reg.OpPattern.OPAQUE)
+                      _reg.OpPattern.ELEMWISE)
 
 
 @register_relay_node
@@ -70,12 +74,6 @@ class QAnnotateExpr(_expr.TempExpr):
     def __init__(self, expr, kind):
         self.__init_handle_by_constructor__(
             _quantize.make_annotate_expr, expr, kind)
-
-
-def _forward_op(ref_call, args):
-    """forward the operator of ref_call with provided arguments"""
-    return _expr.Call(
-        ref_call.op, args, ref_call.attrs, ref_call.type_args)
 
 
 def _get_expr_kind(anno):
@@ -110,13 +108,12 @@ def register_annotate_function(op_name, frewrite=None, level=10):
             if not current_qconfig().guard(ref_call):
                 return default_rewrite(ref_call, new_args, ctx)
             return func(ref_call, new_args, ctx)
-        _op.op._Register(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
+        _reg._Register(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
         return frewrite_with_guard
 
     return _register(frewrite) if frewrite is not None else _register
 
 
-@register_func("relay.quantize.attach_simulated_quantize")
 def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     """Attach a simulated quantize operation after input data expr.
 
@@ -133,11 +130,20 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
         if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
             return data
 
+    qctx = quantize_context()
+    key = tuple([data, kind, sign, rounding])
+    if key in qctx.qnode_map:
+        return qctx.qnode_map[key]
+
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
-    return _quantize.simulated_quantize(
+    qnode = _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+    qctx.qnode_map[key] = qnode
+    return qnode
+
+register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
@@ -152,49 +158,49 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for conv2d. Lhs of conv will be quantized to
     input field, and rhs of conv will be quantized to weight field.
     Output would be in activation field"""
-    cnt = _conv_counter()
-    if cnt < current_qconfig().skip_k_conv:
-        _set_conv_counter(cnt + 1)
+    if quantize_context().check_to_skip(ref_call):
         return None
-    _set_conv_counter(cnt + 1)
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
-    if lhs_kind is None or lhs_kind != QAnnotateKind.INPUT:
+    if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
 
     assert rhs_kind is None
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
-@register_annotate_function("nn.dense")
+# TODO(tmoreau89,ziheng) need to include an option to turn off dense quant
+# @register_annotate_function("nn.dense")
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
     dense will be quantized to weight field. Output would be in activation field."""
-    cnt = _conv_counter()
-    if cnt < current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
+
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
-    if lhs_kind is None or lhs_kind != QAnnotateKind.INPUT:
+    if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
 
     assert rhs_kind is None
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
 @register_annotate_function("multiply")
 def multiply_rewrite(ref_call, new_args, ctx):
     """Rewrite function for multiply."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -202,6 +208,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
 
     if lhs_kind is None and rhs_kind is None:
         return None
+
     if lhs_kind in [QAnnotateKind.ACTIVATION, QAnnotateKind.INPUT] and rhs_kind is None:
         # quantize lhs to INPUT field
         if lhs_kind == QAnnotateKind.ACTIVATION:
@@ -210,41 +217,57 @@ def multiply_rewrite(ref_call, new_args, ctx):
         rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
     raise ValueError
 
 
 @register_annotate_function("add")
 def add_rewrite(ref_call, new_args, ctx):
     """Rewrite function for add."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
     if lhs_kind is None and rhs_kind is None:
+        # trivial case
         return None
+
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
+        assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+
     if lhs_kind is not None and rhs_kind is None:
-        if isinstance(rhs_expr, _expr.Constant):
-            # quantize rhs to WEIGHT field if it is Constant
+        if _analysis.check_constant(rhs_expr):
+            # - introduced by batch_norm: add(out, const)
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         else:
-            # quantize rhs to INPUT field if it is not Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
-    if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
-        # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
-        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
-    expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    if lhs_kind is not None and rhs_kind is not None:
+        if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+        if (lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.INPUT) or \
+            (lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.ACTIVATION):
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    raise ValueError()
 
 
 def identity_rewrite(ref_call, new_args, ctx):
     """Simply forward the original operation"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
 
     x_expr, x_kind = _get_expr_kind(new_args[0])
@@ -255,21 +278,25 @@ def identity_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(ret_expr, x_kind)
 
 
+register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)
 register_annotate_function("nn.avg_pool2d", identity_rewrite)
+register_annotate_function("annotation.stop_fusion", identity_rewrite)
 
 
 def pool2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for max pool2d"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
+
     expr, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
         return None
     if x_kind == QAnnotateKind.ACTIVATION:
         expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+
     expr = _forward_op(ref_call, [expr])
     return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 
@@ -277,10 +304,27 @@ def pool2d_rewrite(ref_call, new_args, ctx):
 register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 
 
+@register_annotate_function("annotation.cast_hint")
+def cast_hint_rewrite(ref_call, new_args, ctx):
+    """Rewrite function to force cast"""
+    expr, x_kind = _get_expr_kind(new_args[0])
+
+    if quantize_context().check_to_skip(ref_call):
+        return expr
+
+    if x_kind is None:
+        return new_args[0]
+    if x_kind == QAnnotateKind.ACTIVATION:
+        expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+
+    expr = _forward_op(ref_call, [expr])
+    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+
+
 @register_annotate_function("concatenate")
 def concatenate_rewrite(ref_call, new_args, ctx):
     """Rewrite function for concatenate"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if quantize_context().check_to_skip(ref_call):
         return None
 
     input_tuple = new_args[0]
@@ -296,3 +340,20 @@ def concatenate_rewrite(ref_call, new_args, ctx):
             expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
+
+@register_annotate_function("nn.global_avg_pool2d")
+def global_avg_pool2d_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for global_avg_pool2d for stopping quantize"""
+    if quantize_context().check_to_skip(ref_call):
+        return None
+
+    expr, x_kind = _get_expr_kind(new_args[0])
+
+    if x_kind is None:
+        return None
+    expr = _forward_op(ref_call, [new_args[0].realize()])
+
+    # stop quantize after global_avg_pool2d
+    quantize_context().stop_quantize()
+    return expr

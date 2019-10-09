@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,6 +23,6 @@ export PYTHONPATH=python:topi/python
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-TVM_FFI=ctypes python3 -m nose -v tests/python/unittest
+TVM_FFI=ctypes python3 -m pytest -v tests/python/unittest
 make cython3
-TVM_FFI=cython python3 -m nose -v tests/python/unittest
+TVM_FFI=cython python3 -m pytest -v tests/python/unittest

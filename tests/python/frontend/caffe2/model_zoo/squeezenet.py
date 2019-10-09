@@ -95,7 +95,7 @@ def get_net(batch_size, image_shape, num_classes, dtype):
     net = relay.nn.relu(net)
     net = relay.nn.global_avg_pool2d(net)
     net = relay.nn.softmax(net, axis=1)
-    args = relay.ir_pass.free_vars(net)
+    args = relay.analysis.free_vars(net)
     return relay.Function(args, net)
 
 

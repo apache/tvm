@@ -135,7 +135,7 @@ struct SockAddr {
   }
 
 #ifdef _WIN32
-    const char *s = inet_ntop(addr.ss_family, sinx_addr,
+    const char *s = inet_ntop(addr.ss_family, (PVOID)sinx_addr,  // NOLINT(*)
                               &buf[0], buf.length());
 #else
     const char *s = inet_ntop(addr.ss_family, sinx_addr,
@@ -373,7 +373,7 @@ class TCPSocket : public Socket {
   }
   /*!
    * \brief decide whether the socket is at OOB mark
-   * \return 1 if at mark, 0 if not, -1 if an error occured
+   * \return 1 if at mark, 0 if not, -1 if an error occurred
    */
   int AtMark() const {
 #ifdef _WIN32

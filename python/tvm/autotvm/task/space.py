@@ -165,6 +165,20 @@ def get_factors(n):
     ret.sort()
     return ret
 
+def get_pow2s(n):
+    """return all power-of-two numbers that are less or equal than the integer
+
+    Parameters
+    ----------
+    n: int
+        integer for reference
+
+    Returns
+    -------
+    factors: list
+        List of all power-of-two numbers
+    """
+    return [2**x for x in range(math.floor(math.log2(n)) + 1)]
 
 class SplitSpace(TransformSpace):
     """Split an axis for several times"""
@@ -175,42 +189,50 @@ class SplitSpace(TransformSpace):
         self.policy = policy
         self.entities = []
 
-        if policy == 'all':
-            num_outputs = kwargs["num_outputs"]
-            max_factor = kwargs.get("max_factor", 1 << 31)
-            fil = kwargs.get("filter", lambda x: True)
+        max_factor = kwargs.get("max_factor", 1 << 31)
+        fil = kwargs.get("filter", lambda x: True)
+        self.product = axis.length
+        self.num_output = kwargs.get("num_outputs", 0)
+        assert self.num_output > 0
 
-            length = axis.length
-            factors = get_factors(length)
-            factors = [x for x in factors if x <= max_factor]
-            # copy factors for every level
-            self.product = length
-            self.num_outputs = num_outputs
-            self.factors = [factors] * (num_outputs-1)
-            self._generate_space(0, [None] * (num_outputs - 1))
-            self.entities = list(filter(fil, self.entities))
-            self.num_output = num_outputs
-        elif policy == 'candidate':
-            self.product = axis.length
-            self.num_outputs = kwargs["num_outputs"]
+        if policy == 'candidate':
             for size in kwargs["candidate"]:
-                assert len(size) == self.num_outputs
-                # assert np.prod(size) == self.product
+                assert len(size) == self.num_output
                 self.entities.append(SplitEntity(size))
-            self.num_output = self.num_outputs
         else:
-            raise RuntimeError("Invalid policy: " + policy)
+            if policy == 'verbose':
+                # Include factors and power-of-twos. May generate tails.
+                divisibles = get_factors(self.product)
+                pow2s = get_pow2s(self.product)
+                factors = [x for x in list(set(divisibles) | set(pow2s)) if x <= max_factor]
+            elif policy == 'factors':
+                # Include divisible factors. Guarantee no tails.
+                factors = [x for x in get_factors(self.product) if x <= max_factor]
+            elif policy == 'power2':
+                # Include less, equal, and round-up power-of-two numbers. May generate tails.
+                factors = [x for x in get_pow2s(self.product) if x <= max_factor]
+            else:
+                raise RuntimeError("Invalid policy: %s" % policy)
 
-    def _generate_space(self, now, tmp_stack):
+            # Enforce the product of all split factors equals to the axis length
+            no_tail = kwargs.get("no_tail", policy == 'factors')
+
+            # Generate split entity by enumerating candidate factors.
+            self.factors = factors
+            self._generate_space(0, [None] * (self.num_output - 1), enforce_no_tail=no_tail)
+
+        self.entities = list(filter(fil, self.entities))
+
+    def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
-        if now == self.num_outputs - 1:
-            if self.product % np.prod(tmp_stack) == 0:
-                first = int(self.product // int(np.prod(tmp_stack)))
-                self.entities.append(SplitEntity([first] + tmp_stack[::-1]))
+        if now == self.num_output - 1:
+            prod = np.prod(tmp_stack, dtype=np.int64)
+            if self.product % prod == 0 or (not enforce_no_tail and prod < self.product):
+                self.entities.append(SplitEntity([-1] + tmp_stack[::-1]))
         else:
-            for factor in self.factors[now]:
+            for factor in self.factors:
                 tmp_stack[now] = factor
-                self._generate_space(now + 1, tmp_stack)
+                self._generate_space(now + 1, tmp_stack, enforce_no_tail)
 
     @staticmethod
     def get_num_output(axes, policy, **kwargs):
@@ -218,7 +240,7 @@ class SplitSpace(TransformSpace):
 
     def __repr__(self):
         return ("Split(policy=%s, product=%d, num_outputs=%d) len=%d" %
-                (self.policy, self.product, self.num_outputs, len(self)))
+                (self.policy, self.product, self.num_output, len(self)))
 
 
 class SplitEntity(object):
@@ -608,7 +630,7 @@ class ConfigSpace(object):
 
     reduce_axis = axis
 
-    def define_split(self, name, axis, policy='all', **kwargs):
+    def define_split(self, name, axis, policy='factors', **kwargs):
         """Define a new tunable knob which splits an axis into a list of axes
 
         Parameters
@@ -619,11 +641,22 @@ class ConfigSpace(object):
             axis to split
         policy: str
             name of policy.
-            If is 'all', the tuner will try all divisible factors.
-            If is 'candidate', try listed candidate.
+            If is 'factors', the tuner will try all divisible factors.
+            If is 'power2', the tuner will try power-of-two factors less or equal to the length.
+            If is 'verbose', the tuner will try all candidates in above two policies.
+            If is 'candidate', try given candidates.
         kwargs: dict
             extra arguments for policy
-            see examples below for how to use filter
+            max_factor: int
+                the maximum split factor.
+            filter: function(int) -> bool
+                see examples below for how to use filter.
+            num_outputs: int
+                the total number of axis after split.
+            no_tail: bool
+                should we only include divisible numbers as split factors.
+            candidate: list
+                (policy=candidate) manual candidate list.
 
         Examples
         --------
@@ -631,7 +664,7 @@ class ConfigSpace(object):
         >>> cfg.define_split('tile_x', x, policy='candidate', candidate=[[1, 4, 4], [4, 1, 4]])
 
         >>> # use a filter that only accepts the split scheme whose inner most tile is less then 4
-        >>> cfg.define_split('tile_y', y, policy='all', filter=lambda x: x.size[-1] <= 4)
+        >>> cfg.define_split('tile_y', y, policy='factors', filter=lambda x: x.size[-1] <= 4)
         """
         axes = [axis]
         return self._add_new_transform(SplitSpace, name, axes, policy, **kwargs)
@@ -943,7 +976,7 @@ class FallbackConfigEntity(ConfigSpace):
         """
         space = self.space_map[name]
         assert isinstance(space, SplitSpace)
-        assert len(constraints) == space.num_outputs
+        assert len(constraints) == space.num_output
 
         # '-1' means no constraint
         constraints = [x if x != -1 else 1e10 for x in constraints]
@@ -951,7 +984,7 @@ class FallbackConfigEntity(ConfigSpace):
         entity = self._entity_map[name]
         now = space.product
 
-        for i in reversed(range(space.num_outputs)):
+        for i in reversed(range(space.num_output)):
             factors = get_factors(now)
 
             find = len(factors) - 1
@@ -971,6 +1004,9 @@ class FallbackConfigEntity(ConfigSpace):
         We use tuned parameters from TopHub as reference data.
         For an unseen shape, we find the most similar tuned one from TopHub and
         mimic its parameters.
+        Note that we are not matching by workload (e.g., input size, kernel size),
+        but instead matching by configuration space. The idea is that if two workloads have
+        similar configuration space, their optimal configurations are also likely to be similar.
 
         Parameters
         ----------

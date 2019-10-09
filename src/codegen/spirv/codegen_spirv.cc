@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,8 +25,8 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <string>
-#include "../../arithmetic/compute_expr.h"
 #include "codegen_spirv.h"
+#include "../../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -283,6 +283,9 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
+  } else if (op->is_intrinsic(Call::reinterpret)) {
+    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->type),
+                               MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
@@ -339,7 +342,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(
-          arith::ComputeExpr<Mul>(make_const(op->stride.type(), i), op->stride));
+          make_const(op->stride.type(), i) * op->stride);
       v = builder_->Add(v, offset);
     }
     values.push_back(v);
@@ -419,9 +422,7 @@ void CodeGenSPIRV::Scalarize(const Expr& e,
                              std::function<void(int i, spirv::Value v)> f) {
   if (const Ramp* ramp = e.as<Ramp>()) {
     for (int i = 0; i < ramp->type.lanes(); ++i) {
-      Expr offset = arith::ComputeExpr<Add>(
-          ramp->base,
-          arith::ComputeExpr<Mul>(ramp->stride, i));
+      Expr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
     }
   } else {
@@ -626,7 +627,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AssertStmt* op) {
-  arith::ConstraintContext cctx(analyzer_.get(), op->condition);
+  With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
   this->VisitStmt(op->body);
 }
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,7 +28,7 @@
 #include <tvm/arithmetic.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "../arithmetic/int_set_internal.h"
+#include "../arithmetic/int_set.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -226,8 +226,6 @@ class PartitionFinder : public IRVisitor {
 
  private:
   Expr InverseCond(const Expr& cond) {
-    // We expect most condition not to be of EQ or NE form.
-    // Currently we do not handle inversing EQ or NE.
     Expr inverse_cond;
     if (const LT* op = cond.as<LT>()) {
       // a < b -> a >= b
@@ -241,6 +239,12 @@ class PartitionFinder : public IRVisitor {
     } else if (const GE* op = cond.as<GE>()) {
       // a >= b -> a < b
       inverse_cond = LT::make(op->a, op->b);
+    } else if (const EQ* op = cond.as<EQ>()) {
+      // a == b -> a != b
+      inverse_cond = NE::make(op->a, op->b);
+      // a != b -> a == b
+    } else if (const NE* op = cond.as<NE>()) {
+      inverse_cond = EQ::make(op->a, op->b);
     }
     return inverse_cond;
   }
@@ -366,7 +370,7 @@ class LoopPartitioner : public IRMutator {
 
   std::pair<IntSet, std::unordered_set<const Node*>>
   GetIntervalAndCondset(const Partition &partitions,
-                        const arith::Interval &for_interval,
+                        const arith::IntervalSet &for_interval,
                         bool cond_value);
 
   inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
@@ -374,6 +378,7 @@ class LoopPartitioner : public IRMutator {
   /* Candidate IRs that may be partitioned potentially */
   std::unordered_map<const Variable*, IntSet> hint_map_;
   std::unordered_map<const Variable*, IntSet> relax_map_;
+  arith::Analyzer analyzer_;
   CandidateSelector selector;
 };
 
@@ -381,16 +386,17 @@ class LoopPartitioner : public IRMutator {
 // given in the second component provably have value given by cond_value
 std::pair<IntSet, std::unordered_set<const Node*>>
 LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
-                                       const arith::Interval &for_interval,
+                                       const arith::IntervalSet &for_interval,
                                        bool cond_value) {
   Array<IntSet> sets;
   std::unordered_set<const Node*> cond_set;
 
   for (const auto &kv : partitions) {
     if (kv.first.second == cond_value) {
-      arith::Interval interval = kv.second.as<arith::IntervalSet>()->i;
-      arith::Interval intersection = arith::Interval::make_intersection(interval, for_interval);
-      if (!intersection.is_empty()) {
+      arith::IntervalSet interval = Downcast<arith::IntervalSet>(kv.second);
+      arith::IntervalSet intersection = arith::Intersect(
+          &analyzer_, interval, for_interval);
+      if (!intersection->IsEmpty()) {
         sets.push_back(kv.second);
         cond_set.insert(kv.first.first);
       }
@@ -463,11 +469,17 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
                                    Expr max,
                                    Stmt body,
                                    bool partition_thread_scope) {
+  using namespace arith;
+  // include hint of var.
+  hint_map_.insert({var.get(), IntSet::interval(min, max)});
+
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
+
+  hint_map_.erase(var.get());
   if (finder.partitions.empty()) return Stmt();
 
-  arith::Interval for_interval(min, max);
+  arith::IntervalSet for_interval(min, max);
   bool cond_value;
   IntSet middle_interval;
   std::unordered_set<const Node*> cond_set;
@@ -478,9 +490,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     // if such interval doesn't exist, find an interval in which all
     // conditions on var are false
     std::tie(middle_interval, cond_set) =
-            GetIntervalAndCondset(finder.partitions, for_interval, false);
+        GetIntervalAndCondset(finder.partitions, for_interval, false);
     if (middle_interval.is_nothing())
-      // we couldn't find an interval in which the condintions are provably true or false
+      // we couldn't find an interval in which the conditions are provably true or false
       // Therefore, we can't partition the loop based on those conds
       return Stmt();
     cond_value = false;
@@ -488,7 +500,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     cond_value = true;
   }
 
-  arith::Interval middle_interval_i = middle_interval.as<arith::IntervalSet>()->i;
+  IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that
@@ -499,48 +511,44 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   Expr body_begin;
   Stmt pre_stmt;
   bool pre_stmt_recurse = true;
-  if (middle_interval_i.has_lower_bound()) {
+  if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
-    if (!can_prove(body_begin == min)) {
-      Expr cond = (body_begin - min >= 0);
-      if (!can_prove(cond)) {
-        LOG(WARNING) << "Cannot prove: " << cond
-                     << ", when generating the pre doubt loop";
-        body_begin = Max::make(body_begin, min);
-        // stop recursing on this interval if we can't prove it has non-negative length
-        pre_stmt_recurse = false;
-      }
-      if (!partition_thread_scope) {
-        Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
-        pre_stmt = MakeFor(node, body_begin - min, pre_body);
-      }
+    Expr cond = (body_begin - min >= 0);
+    if (!analyzer_.CanProve(cond)) {
+      LOG(WARNING) << "Cannot prove: " << cond
+                   << ", when generating the pre doubt loop";
+      body_begin = Max::make(body_begin, min);
+      // stop recursing on this interval if we can't prove it has non-negative length
+      pre_stmt_recurse = false;
+    }
+    if (!partition_thread_scope) {
+      Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+      pre_stmt = MakeFor(node, body_begin - min, pre_body);
     }
   } else {
     body_begin = min;
   }
 
   // Calculating post-subrange and generating code for it.
-  // post-subrange = [post_doubt_begin, max]
+  // post-subrange = [post_doubt_begin, max+1)
   Expr post_doubt_begin;
   Stmt post_stmt;
   bool post_stmt_recurse = true;
-  if (middle_interval_i.has_upper_bound()) {
+  if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
-    if (!can_prove(middle_interval.max() == max)) {
-      // require the extent to be non-negative
-      Expr cond = (max - post_doubt_begin + 1 >= 0);
-      if (!can_prove(cond)) {
-        LOG(WARNING) << "Cannot prove: " << cond
-                     << ", when generating the post doubt loop";
-        post_doubt_begin = Min::make(post_doubt_begin, max);
-        // stop recursing on this interval if we can't prove it has non-negative length
-        post_stmt_recurse = false;
-      }
-      if (!partition_thread_scope) {
-        Stmt post_body =
-                Substitute(body, {{Var{var}, var + post_doubt_begin}});
-        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
-      }
+    // require the extent to be non-negative
+    Expr cond = (max - post_doubt_begin + 1 >= 0);
+    if (!analyzer_.CanProve(cond)) {
+      LOG(WARNING) << "Cannot prove: " << cond
+                   << ", when generating the post doubt loop";
+      post_doubt_begin = Min::make(post_doubt_begin, max+1);
+      // stop recursing on this interval if we can't prove it has non-negative length
+      post_stmt_recurse = false;
+    }
+    if (!partition_thread_scope) {
+      Stmt post_body =
+        Substitute(body, {{Var{var}, var + post_doubt_begin}});
+      post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
     }
   } else {
     post_doubt_begin = max + 1;
@@ -551,7 +559,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   // Generating code for middle subrange
   if (!partition_thread_scope) {
     Stmt mid_stmt;
-    if (!can_prove(body_begin >= post_doubt_begin)) {
+    if (!analyzer_.CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value).Mutate(body);
       Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
@@ -573,8 +581,8 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     s = AppendStmts(s, post_stmt);
   } else {
     Expr cond = const_true();
-    if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
-    if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
+    if (!analyzer_.CanProve(body_begin == min)) cond = cond && (var >= body_begin);
+    if (!analyzer_.CanProve(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
     s = ThreadPartitionInserter(cond_set, cond).Mutate(stmt);
   }
   s = ConvertSSA(s);
@@ -584,7 +592,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
-  if (can_prove(extent == make_const(Int(32), 1))) {
+  if (analyzer_.CanProve(extent == make_const(Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(Int(32), 0)}});
   } else {

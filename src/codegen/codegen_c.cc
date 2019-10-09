@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -443,7 +443,7 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-inline void PrintBinaryIntrinsitc(const Call* op,
+inline void PrintBinaryIntrinsic(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenC* p) {
@@ -528,20 +528,20 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     }
     os << ")";
   } else if (op->is_intrinsic(Call::bitwise_and)) {
-    PrintBinaryIntrinsitc(op, " & ", os, this);
+    PrintBinaryIntrinsic(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
-    PrintBinaryIntrinsitc(op, " ^ ", os, this);
+    PrintBinaryIntrinsic(op, " ^ ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_or)) {
-    PrintBinaryIntrinsitc(op, " | ", os, this);
+    PrintBinaryIntrinsic(op, " | ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     this->PrintExpr(op->args[0], os);
     os << ')';
   } else if (op->is_intrinsic(Call::shift_left)) {
-    PrintBinaryIntrinsitc(op, " << ", os, this);
+    PrintBinaryIntrinsic(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
-    PrintBinaryIntrinsitc(op, " >> ", os, this);
+    PrintBinaryIntrinsic(op, " >> ", os, this);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     os << "(";
     PrintExpr(op->args[0], os);
@@ -569,6 +569,19 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     os << "(";
     this->PrintExpr(op->args[0], os);
     os << " == NULL)";
+  } else if (op->is_intrinsic(Call::reinterpret)) {
+    // generate (*( TYPE *)(&(ARG)))
+    os << "(*(";
+    this->PrintType(op->type, os);
+    os << " *)(&(";
+    this->PrintExpr(op->args[0], os);
+    os << ")))";
+  } else if (op->is_intrinsic(Call::isnan)) {
+    os << "(";
+    this->PrintExpr(op->args[0], os);
+    os << " != ";
+    this->PrintExpr(op->args[0], os);
+    os << ")";
   } else {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
@@ -719,6 +732,10 @@ void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
       os << ", ";
   }
   os << "))";
+}
+
+void CodeGenC::VisitExpr_(const Shuffle* op, std::ostream& os) {
+  LOG(FATAL) << "Shuffle: not supported ";
 }
 
 void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)

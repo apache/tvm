@@ -52,7 +52,7 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
     """a block of deconv + batch norm + relu"""
     eps = 1e-5 + 1e-12
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
-    net = layers.batch_norm_infer(net, epsilon=eps, name="%s_batch_norm" % prefix)
+    net = layers.batch_norm_infer(net, epsilon=eps, scale=False, name="%s_batch_norm" % prefix)
     net = relay.nn.relu(net)
     return net
 
@@ -81,7 +81,7 @@ def get_net(batch_size, random_len=100, oshape=(3, 64, 64), ngf=128, code=None, 
         dc32, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
     tanh = relay.tanh(dc64)
 
-    args = relay.ir_pass.free_vars(tanh)
+    args = relay.analysis.free_vars(tanh)
     return relay.Function(args, tanh)
 
 
@@ -103,8 +103,8 @@ def get_workload(batch_size, oshape=(3, 64, 64), ngf=128, random_len=100, dtype=
 
     Returns
     -------
-    net : nnvm.symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a DCGAN network.
     params : dict of str to NDArray
         The parameters.
     """

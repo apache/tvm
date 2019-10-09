@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,8 +27,27 @@ rm -rf ~/.tvm
 # Rebuild cython
 make cython3
 
-echo "Running unittest..."
-python3 -m nose -v vta/tests/python/unittest
+# Run unit tests in functional/fast simulator
+echo "Running unittest in fsim..."
+python3 -m pytest -v vta/tests/python/unittest
 
-echo "Running integration test..."
-python3 -m nose -v vta/tests/python/integration
+# Run unit tests in functional/fast simulator
+echo "Running integration test in fsim..."
+python3 -m pytest -v vta/tests/python/integration
+
+# # Build VTA chisel design and verilator simulator
+# (make -C vta/hardware/chisel/)
+
+# # Set default VTA config to use TSIM cycle accurate sim
+# cp vta/config/tsim_sample.json vta/config/vta_config.json
+
+# # Run unit tests in cycle accurate simulator
+# echo "Running unittest in tsim..."
+# python3 -m pytest -v vta/tests/python/unittest
+
+# # Run unit tests in cycle accurate simulator
+# echo "Running integration test in tsim..."
+# python3 -m pytest -v vta/tests/python/integration
+
+# # Reset default fsim simulation
+# cp vta/config/fsim_sample.json vta/config/vta_config.json

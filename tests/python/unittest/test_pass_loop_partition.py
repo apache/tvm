@@ -162,12 +162,24 @@ def test_condition():
     ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
-    with ib.for_range(0, ((n+3)/4), 'i') as i:
+    with ib.for_range(0, tvm.truncdiv(n+3,4), 'i') as i:
       with ib.for_range(0, 4, 'j') as j:
         ib.emit(tvm.make.Evaluate(
           tvm.make.Select(ib.likely(i*4+j<n), m, n)))
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
+
+def test_condition_EQ():
+    ib = tvm.ir_builder.create()
+    m = tvm.var('m')
+    n = tvm.var('n')
+    with ib.for_range(0, 10, 'i') as i:
+            ib.emit(tvm.make.Evaluate(
+                tvm.make.Select(ib.likely(tvm.expr.EQ(i, 5)), m, n)))
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
 
@@ -194,7 +206,7 @@ def test_everything_during_deduction():
     ib = tvm.ir_builder.create()
     with ib.for_range(0, n, 'i') as i:
         with ib.for_range(0, 32, 'j') as j:
-            with ib.if_scope(ib.likely(i/j < m)):
+            with ib.if_scope(ib.likely(tvm.truncdiv(i,j) < m)):
                 # this guard will produce everything during deduction
                 ib.emit(tvm.make.Evaluate(m))
     stmt = ib.get()
@@ -384,6 +396,34 @@ def test_double_splitting_with_indivisible_factors():
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy(), rtol=1e-5)
     tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy(), rtol=1e-5)
 
+def test_simple_rfactor():
+    K = 16*4+4
+    k = tvm.reduce_axis((0, K), 'k')
+
+    A = tvm.placeholder((1, K), name='A')
+
+    B = tvm.compute( (1,), lambda b:
+            tvm.sum(A[b, k], axis=k),
+            name='B'
+    )
+
+    s = tvm.create_schedule(B.op)
+    ko, _ = s[B].split(s[B].op.reduce_axis[0], 16)
+    BF = s.rfactor(B, ko, 0)
+
+    s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+
+    stmt1 = tvm.schedule.ScheduleOps(s, bounds)
+    stmt1 = tvm.ir_pass.Simplify(stmt1)
+
+    stmt2 = tvm.ir_pass.LoopPartition(stmt1, True)
+    stmt2 = tvm.ir_pass.Simplify(stmt2)
+
+    #make sure loop partition actually did something
+    assert not tvm.ir_pass.Equal(stmt1.body, stmt2.body)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -392,6 +432,7 @@ if __name__ == "__main__":
     test_thread_axis()
     test_vectorize()
     test_condition()
+    test_condition_EQ()
     test_thread_axis2()
     test_everything_during_deduction()
     test_single_likely()
@@ -402,3 +443,4 @@ if __name__ == "__main__":
     test_cce_loop_3()
     test_conv_tiling()
     test_double_splitting_with_indivisible_factors()
+    test_simple_rfactor()

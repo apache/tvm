@@ -41,11 +41,13 @@ We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
+- [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
@@ -53,9 +55,11 @@ We do encourage everyone to work anything they are interested in.
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
+- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
-- [Eddie Yan](https://github.com/eqy): @eqy - runtime, autotvm, rpc, topi
+- [Jian Weng](https://github.com/were): @were: - hybrid script
+- [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
@@ -66,22 +70,27 @@ We do encourage everyone to work anything they are interested in.
 - [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
+- [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
+- [Animesh Jain](https://github.com/anijain2305): @anijain2305
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
+- [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
+- [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
@@ -89,11 +98,14 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Jian Weng](https://github.com/were): @were
+- [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
+- [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
@@ -105,3 +117,5 @@ We do encourage everyone to work anything they are interested in.
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
+- [Shoubhik Bhattacharya](https://github.com/shoubhik)
+- [Neo Chien](https://github.com/cchung100m)

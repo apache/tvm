@@ -20,8 +20,9 @@ from __future__ import absolute_import as _abs
 import sys
 import numpy as np
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable, new_var
@@ -114,9 +115,28 @@ def _convert_activation(inexpr, keras_layer, _):
 
 def _convert_advanced_activation(inexpr, keras_layer, etab):
     act_type = type(keras_layer).__name__
+
+    if act_type == 'Softmax':
+        axis = keras_layer.axis
+        dims = len(keras_layer.input_shape)
+        if isinstance(axis, list):
+            raise tvm.error.OpAttributeUnImplemented(
+                'Softmax with axes {} is not supported.'.format(axis))
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims - 1 else 1
+        return _op.nn.softmax(inexpr, axis=axis)
     if act_type == 'ReLU':
-        if keras_layer.max_value:
+        threshold = _expr.const(keras_layer.threshold, dtype='float32')
+        if keras_layer.max_value and float(keras_layer.threshold) == 0:
+            # f(x) = max_value, for x >= max_value
+            # f(x) = x,         for threshold <= x < max_value
             return _op.clip(inexpr, a_min=0., a_max=float(keras_layer.max_value))
+        elif keras_layer.max_value and _op.greater(threshold, inexpr).astype('float32'):
+            # f(x) = negative_slope * (inexpr - threshold)
+            negative_slope = _expr.const(keras_layer.negative_slope, dtype='float32')
+            return _op.multiply(negative_slope, _op.subtract(inexpr, threshold))
         return _op.nn.relu(inexpr)
     if act_type == 'LeakyReLU':
         return _op.nn.leaky_relu(inexpr, alpha=float(keras_layer.alpha))
@@ -143,7 +163,26 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
 def _convert_merge(inexpr, keras_layer, _):
     merge_type = type(keras_layer).__name__
     ret = inexpr[0]
-    if merge_type == 'Subtract':
+    if merge_type == 'Dot':
+        axes = keras_layer.axes
+        if isinstance(keras_layer.axes, int):
+            axes = [keras_layer.axes, keras_layer.axes]
+        if isinstance(axes, list):
+            if len(axes) != 2:
+                raise tvm.error.OpAttributeUnImplemented(
+                    'Dot with axes {} is not supported.'.format(keras_layer.axes))
+            for i, axis in enumerate(axes):
+                if axis not in [1, 2]:
+                    raise tvm.error.OpAttributeUnImplemented(
+                        'Dot with axes {} is not supported.'.format(keras_layer.axes))
+                if axes[i] == 2:
+                    inexpr[i] = _op.transpose(inexpr[i], axes=[0, 2, 1])
+        else:
+            raise tvm.error.OpAttributeUnImplemented(
+                'Dot with axes {} is not supported.'.format(keras_layer.axes))
+        ret_dot = _op.nn.batch_matmul(inexpr[0], inexpr[1])
+        ret = _op.transpose(ret_dot, axes=[0, 2, 1])
+    elif merge_type == 'Subtract':
         assert len(inexpr) == 2, "Subtract merge takes 2 inputs."
         ret = _op.subtract(ret, inexpr[1])
     elif merge_type in ['Add', 'Multiply', 'Maximum']:
@@ -158,6 +197,10 @@ def _convert_merge(inexpr, keras_layer, _):
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported in frontend Keras.'.format(merge_type))
     return ret
+
+
+def _convert_permute(inexpr, keras_layer, _):
+    return _op.transpose(inexpr, axes=(0,) + keras_layer.dims)
 
 
 def _convert_dense(inexpr, keras_layer, etab):
@@ -203,7 +246,6 @@ def _convert_convolution(inexpr, keras_layer, etab):
     else:
         kernel_h, kernel_w, in_channels, n_filters = weightList[0].shape
         weight = weightList[0].transpose([3, 2, 0, 1])
-    dilation = [1, 1]
     if isinstance(keras_layer.dilation_rate, (list, tuple)):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
@@ -237,7 +279,7 @@ def _convert_convolution(inexpr, keras_layer, etab):
     else:
         msg = 'Padding with {} is not supported for operator Convolution ' \
               'in frontend Keras.'
-        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
+        raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
     if is_deconv:
         out = _op.nn.conv2d_transpose(data=inexpr, **params)
     else:
@@ -285,7 +327,7 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
     else:
         msg = 'Padding with {} is not supported for operator Separable ' \
               'Convolution in frontend Keras.'
-        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
+        raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
 
     depthconv = _op.nn.conv2d(data=inexpr, **params0)
     # pointwise conv
@@ -339,7 +381,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
         params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Padding with {} is not supported in operator Pooling.'.format(keras_layer.padding))
     if pool_type == 'MaxPooling2D':
         return _op.nn.max_pool2d(inexpr, **params)
@@ -353,29 +395,30 @@ def _convert_pooling(inexpr, keras_layer, etab):
 def _convert_upsample(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
+    params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params = {'scale': h}
+        params['scale'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params = {'scale': h}
+        params['scale'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
             if interpolation == 'nearest':
-                params['method'] = 'NEAREST_NEIGHBOR'
+                params['method'] = 'nearest_neighbor'
             else:
-                params['method'] = 'BILINEAR'
+                params['method'] = 'bilinear'
 
     elif upsample_type == 'UpSampling3D':
         h, w, d = keras_layer.size
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params = {'scale': h}
+        params['scale'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
@@ -456,11 +499,26 @@ def _convert_concat(inexpr, keras_layer, _):
 
 def _convert_reshape(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
-    ch = keras_layer.input_shape[-1]
-    assert ch == keras_layer.target_shape[-1], \
-        "Only supports last dimension in target shape being equal to " \
-        "the channel number of input tensor."
-    shape = (-1, ch) + keras_layer.target_shape[:-1]
+    inshape = keras_layer.input_shape # includes batch
+    tshape = keras_layer.target_shape # no batch
+    if len(inshape) == 3 and len(tshape) == 1:
+        # (?, a, b) -> (-1, ab)
+        shape = (-1, tshape[0])
+    elif len(inshape) in [2, 3] and len(tshape) == 2:
+        # (?, cc) -> (-1, c, c)
+        # (?, a, b) -> (-1, c, c)
+        assert tshape[0] == tshape[1], \
+            "Only supports square target shapes, but got {}".format(tshape)
+        shape = (-1, ) + tshape
+    else:
+        # (?, h, w, c) -> (-1, c, H, W)
+        # (?, h, w, c) -> (-1, c, hw)
+        # (?, hw, c) -> (-1, c, h, w)
+        ch = inshape[-1]
+        assert ch == tshape[-1], \
+            "Only supports last dimension in target shape being equal to " \
+            "the channel number of input tensor."
+        shape = (-1, ch) + tshape[:-1]
     return _op.reshape(inexpr, newshape=shape)
 
 
@@ -574,6 +632,7 @@ def _default_skip(inexpr, keras_layer, _): # pylint: disable=unused-argument
 _convert_map = {
     'Dense'                    : _convert_dense,
     'Activation'               : _convert_activation,
+    'Softmax'                  : _convert_advanced_activation,
     'ReLU'                     : _convert_advanced_activation,
     'LeakyReLU'                : _convert_advanced_activation,
     'PReLU'                    : _convert_advanced_activation,
@@ -619,8 +678,8 @@ _convert_map = {
 
     'Average'                : _convert_merge,
     'Maximum'                : _convert_merge,
-    # 'Dot'                    : _convert_merge,
-    # 'Permute'                : _convert_permute,
+    'Dot'                    : _convert_merge,
+    'Permute'                : _convert_permute,
     # 'Embedding'              : _convert_embedding,
     # 'RepeatVector'           : _convert_repeat_vector,
 
@@ -632,11 +691,15 @@ _convert_map = {
 
 
 def _check_unsupported_layers(model):
+    missing_ops = set()
     for layer in model.layers:
         op_name = type(layer).__name__
         if op_name not in _convert_map:
-            raise tvm.error.OpNotImplemented(
-                'Operator {} is not supported in frontend Keras.'.format(op_name))
+            missing_ops.add(op_name)
+
+    if missing_ops:
+        raise NotImplementedError( \
+            "The following operators are not implemented: {}".format(missing_ops))
 
 
 def keras_op_to_relay(inexpr, keras_layer, outname, etab):
@@ -680,8 +743,8 @@ def from_keras(model, shape=None):
 
     Returns
     -------
-    func : tvm.relay.Function
-        Compatible relay Function.
+    mod : tvm.relay.Module
+        The relay module for compilation.
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by Relay.
@@ -743,6 +806,6 @@ def from_keras(model, shape=None):
     outexpr = [etab.get_expr(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2])) \
                for oc in model._output_coordinates]
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
-    func = _expr.Function(ir_pass.free_vars(outexpr), outexpr)
+    func = _expr.Function(analysis.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
-    return func, params
+    return _module.Module.from_expr(func), params

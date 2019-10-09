@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,13 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file detail/extern.h
-* \brief Helpers for using external functions
-*/
+ * \file detail/extern.h
+ * \brief Helpers for using external functions
+ */
 #ifndef TOPI_DETAIL_EXTERN_H_
 #define TOPI_DETAIL_EXTERN_H_
 
-#include <tvm/tvm.h>
+#include <tvm/operation.h>
 #include <vector>
 #include <string>
 
@@ -49,7 +48,7 @@ inline Buffer DeclExternBuffer(Array<Expr> shape,
   auto data = var(name, Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-                          -1, 0);
+                          -1, 0, kDefault);
 }
 
 /*!

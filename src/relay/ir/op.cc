@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -54,8 +54,8 @@ struct OpManager {
   std::vector<PackedFunc*> frontend_funcs;
   // get singleton of the op manager
   static OpManager* Global() {
-    static OpManager inst;
-    return &inst;
+    static OpManager* inst = new OpManager();
+    return inst;
   }
 };
 
@@ -82,6 +82,17 @@ const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
     LOG(FATAL) << "Operator attribute \'" << key << "\' is not registered";
   }
   return *it->second.get();
+}
+
+// Check if a key is present in the registry.
+const bool Op::HasGenericAttr(const std::string& key) {
+  OpManager* mgr = OpManager::Global();
+  std::lock_guard<std::mutex> lock(mgr->mutex);
+  auto it = mgr->attr.find(key);
+  if (it == mgr->attr.end()) {
+    return false;
+  }
+  return true;
 }
 
 void OpRegistry::UpdateAttr(const std::string& key,
@@ -121,14 +132,25 @@ TVM_REGISTER_API("relay.op._ListOpNames")
 TVM_REGISTER_API("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
 
 TVM_REGISTER_API("relay.op._OpGetAttr")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      Op op = args[0];
-      std::string attr_name = args[1];
-      auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
-      if (op_map.count(op)) {
-        *rv = op_map[op];
-      }
-    });
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
+    if (op_map.count(op)) {
+      *rv = op_map[op];
+    }
+  });
+
+TVM_REGISTER_API("relay.op._OpSetAttr")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    runtime::TVMArgValue value = args[2];
+    int plevel = args[3];
+    auto& reg =
+        OpRegistry::Registry()->__REGISTER_OR_GET__(op->name).set_name();
+    reg.set_attr(attr_name, value, plevel);
+  });
 
 TVM_REGISTER_API("relay.op._Register")
 .set_body([](TVMArgs args, TVMRetValue* rv) {

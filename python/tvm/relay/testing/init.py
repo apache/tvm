@@ -144,16 +144,16 @@ def create_workload(net, initializer=None, seed=0):
 
     Returns
     -------
-    net : tvm.relay.Function
-        The updated dataflow
+    mod : tvm.relay.Module
+        The created relay module.
 
     params : dict of str to NDArray
         The parameters.
     """
-    net = relay.ir_pass.infer_type(net)
+    mod = relay.Module.from_expr(net)
+    mod = relay.transform.InferType()(mod)
     shape_dict = {
-        v.name_hint : v.checked_type for v in net.params}
-    net.astext()
+        v.name_hint : v.checked_type for v in mod["main"].params}
     np.random.seed(seed)
     initializer = initializer if initializer else Xavier()
     params = {}
@@ -163,4 +163,4 @@ def create_workload(net, initializer=None, seed=0):
         init_value = np.zeros(v.concrete_shape).astype(v.dtype)
         initializer(k, init_value)
         params[k] = tvm.nd.array(init_value, ctx=tvm.cpu(0))
-    return net, params
+    return mod, params

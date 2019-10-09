@@ -27,7 +27,6 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
-#include <arithmetic/Simplify.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -250,35 +249,42 @@ Stmt UnrollLoop(Stmt stmt,
 
 /*!
  * \brief vectorize the constant loops
- * \param stmt The statment to be vectorized.
+ * \param stmt The statement to be vectorized.
  * \return Transformed stmt.
  */
 Stmt VectorizeLoop(Stmt stmt);
 
 /*!
+ * \brief convert vectorized loops into serialized loops
+ * \param stmt The statement to skip vectorization on.
+ * \return Transformed stmt.
+ */
+Stmt SkipVectorize(Stmt stmt);
+
+/*!
 * \brief instruments bound checkers.
-* \param stmt The statment to be instrumented.
-* \return Instrumented Stmt.
+* \param stmt The statement to be instrumented.
+* \return Instrumented stmt.
 */
 Stmt InstrumentBoundCheckers(Stmt stmt);
 
 /*!
  * \brief Inject virtual thread loops into stmt.
- * \param stmt The statment to be transformed.
+ * \param stmt The statement to be transformed.
  * \return Transformed stmt.
  */
 Stmt InjectVirtualThread(Stmt stmt);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
- * \param stmt The statment to be transformed.
+ * \param stmt The statement to be transformed.
  * \return Transformed stmt.
  */
 Stmt InjectPrefetch(Stmt stmt);
 
 /*!
  * \brief Inject double buffer into stmt.
- * \param stmt The statment to be transformed.
+ * \param stmt The statement to be transformed.
  * \param split_loop Loop splitting factor.
  * \return Transformed stmt.
  */
@@ -287,7 +293,7 @@ Stmt InjectDoubleBuffer(Stmt stmt, int split_loop);
 /*!
  * \brief Inject copy intrinsics with optional pad.
  *
- * \param stmt The statment to be transformed.
+ * \param stmt The statement to be transformed.
  * \param pragma_key The pragma key for hint of copy.
  * \param fintrin The function with signature
  *
@@ -308,7 +314,7 @@ Stmt InjectCopyIntrin(Stmt stmt,
  *  Trying to share space between allocations to make
  *  a static allocation plan when possible.
  *
- * \param stmt The stmt to be trasnformed
+ * \param stmt The stmt to be transformed
  * \return Transformed stmt.
  */
 Stmt StorageRewrite(Stmt stmt);
@@ -324,7 +330,7 @@ Stmt LoopPartition(Stmt stmt, bool split_const_loop);
 /*!
  * \brief Detect and insert sync points to co-processor.
  *
- * \param stmt The stmt to be trasnformed
+ * \param stmt The stmt to be transformed
  * \return Transformed stmt.
  */
 Stmt CoProcSync(Stmt stmt);
@@ -332,7 +338,7 @@ Stmt CoProcSync(Stmt stmt);
 /*!
  * \brief Lift common attrs with attr_key to outer scope.
  *
- * \param stmt The stmt to be trasnformed
+ * \param stmt The stmt to be transformed
  * \param attr_key The attribute key to be checked.
  * \return Transformed stmt.
  */
@@ -340,7 +346,7 @@ Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
 
 /*!
  * \brief Detect and rewrite unsafe select that contains memory access.
- * \param stmt The statment to be rewritten.
+ * \param stmt The statement to be rewritten.
  * \return Transformed stmt.
  */
 Stmt RewriteUnsafeSelect(Stmt stmt);
@@ -349,7 +355,7 @@ Stmt RewriteUnsafeSelect(Stmt stmt);
  * \brief Lower attached storage access information.
  * Do this pass after all storage access analysis finish.
  *
- * \param stmt The stmt to be trasnformed
+ * \param stmt The stmt to be transformed
  * \return Transformed stmt.
  */
 Stmt LowerStorageAccessInfo(Stmt stmt);
@@ -358,7 +364,7 @@ Stmt LowerStorageAccessInfo(Stmt stmt);
  * \brief Decorate the stmt with a device scope, this is helpful for
  * hardware accelerator without thread blocks.
  *
- * \param stmt The stmt to be trasnformed
+ * \param stmt The stmt to be transformed
  * \return Transformed stmt.
  */
 Stmt DecorateDeviceScope(Stmt stmt);
@@ -367,7 +373,7 @@ Stmt DecorateDeviceScope(Stmt stmt);
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
- *   - Map the values in the api_args to of Var that is required by body.
+ *   - Map the values in the api_args to Var that is required by body.
  *   - Insert assertions to check type/value of the passed arguments.
  *
  * \param body The body of the function.
@@ -381,7 +387,7 @@ Stmt DecorateDeviceScope(Stmt stmt);
  * \return a LoweredFunc with the specified signiture.
  *
  * \note
- *  The function signiture have two cases
+ *  The function signature have two cases
  *
  *  let num_packed_args = len(api_args) - num_unpacked_args;
  *
@@ -499,6 +505,17 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \return Transformed function.
  */
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Lower custom datatypes.
+ *
+ * See tvm::datatypes::Registry for more information on adding custom datatypes.
+ *
+ * \param f The device function to be lowered.
+ * \param target The target device.
+ * \return Transformed function.
+ */
+LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,7 +24,7 @@
  *
  * \brief Utility functions for Relay.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include "pass_util.h"
@@ -274,10 +274,10 @@ tvm::Array<Var> AllVars(const Expr& expr) {
   return VarVisitor().All(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.free_vars")
+TVM_REGISTER_API("relay._analysis.free_vars")
 .set_body_typed(FreeVars);
 
-TVM_REGISTER_API("relay._ir_pass.bound_vars")
+TVM_REGISTER_API("relay._analysis.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
       if (x.as_derived<ExprNode>()) {
@@ -287,10 +287,10 @@ TVM_REGISTER_API("relay._ir_pass.bound_vars")
       }
     });
 
-TVM_REGISTER_API("relay._ir_pass.all_vars")
+TVM_REGISTER_API("relay._analysis.all_vars")
 .set_body_typed(AllVars);
 
-TVM_REGISTER_API("relay._ir_pass.free_type_vars")
+TVM_REGISTER_API("relay._analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef x = args[0];
     Module mod = args[1];
@@ -301,7 +301,7 @@ TVM_REGISTER_API("relay._ir_pass.free_type_vars")
     }
   });
 
-TVM_REGISTER_API("relay._ir_pass.bound_type_vars")
+TVM_REGISTER_API("relay._analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
       Module mod = args[1];
@@ -312,7 +312,7 @@ TVM_REGISTER_API("relay._ir_pass.bound_type_vars")
       }
     });
 
-TVM_REGISTER_API("relay._ir_pass.all_type_vars")
+TVM_REGISTER_API("relay._analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
       Module mod = args[1];
@@ -425,10 +425,24 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
     Var VisitVar(const Var& v) final {
       return Downcast<Var>(VisitExpr(v));
     }
+
+    Pattern VisitPattern(const Pattern& p) final {
+      return PatternMutator::VisitPattern(p);
+    }
+
+    Clause VisitClause(const Clause& c) final {
+      Pattern pat = VisitPattern(c->lhs);
+      return ClauseNode::make(pat, VisitExpr(c->rhs));
+    }
+
    private:
     const tvm::Map<TypeVar, Type>& subst_map_;
   };
-  return TypeSubstMutator(subst_map).VisitExpr(expr);
+  CHECK(WellFormed(expr));
+  auto ret = TypeSubstMutator(subst_map).VisitExpr(expr);
+  CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
+  CHECK(WellFormed(ret));
+  return ret;
 }
 
 }  // namespace relay

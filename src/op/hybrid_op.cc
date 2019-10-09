@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
@@ -28,7 +27,6 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/expr_operator.h>
-#include <ir/Expr.h>
 #include <unordered_set>
 #include <string>
 #include <utility>
@@ -84,7 +82,25 @@ Operation HybridOpNode::make(std::string name,
 }
 
 Array<Tensor> HybridOpNode::InputTensors() const {
-  return inputs;
+  // Because input tensors could be potentially inlined into hybrid scripts,
+  // we need to check if all input tensors are used in the body.
+  std::unordered_set<Tensor> orig_inputs;
+  for (auto t : inputs) {
+    orig_inputs.insert(t);
+  }
+  std::unordered_set<Tensor> visited;
+  Array<Tensor> curr_inputs;
+  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const NodeRef& n) {
+      const ir::Call *call = n.as<ir::Call>();
+      if (call != nullptr && call->func.defined()) {
+        Tensor t = Operation(call->func.node_).output(call->value_index);
+        if (orig_inputs.count(t) && !visited.count(t)) {
+          curr_inputs.push_back(t);
+          visited.insert(t);
+        }
+      }
+  });
+  return curr_inputs;
 }
 
 Operation HybridOpNode::ReplaceInputs(
@@ -110,9 +126,11 @@ Operation HybridOpNode::ReplaceInputs(
 
 void HybridOpNode::PropBoundToInputs(
     const Operation &self,
+    arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet> &dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-  for (Tensor t : this->inputs) {
+  auto curr_inputs = InputTensors();
+  for (Tensor t : curr_inputs) {
     auto it = out_dom_map->find(t);
     if (it == out_dom_map->end()) continue;
     TensorDom &dom = it->second;
@@ -143,7 +161,7 @@ Stmt HybridOpNode::BuildRealize(
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
-    HalideIR::Internal::Region bounds;
+    Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(
@@ -181,11 +199,10 @@ Stmt HybridOpNode::BuildProvide(
       outputs[i]->dtype);
     f_push_bind(buffer, stage->op.output(i));
   }
-  for (int i = static_cast<int>(inputs.size()) - 1; i >= 0; --i) {
-    Buffer buffer = decl_buffer(
-      inputs[i]->shape,
-      inputs[i]->dtype);
-    f_push_bind(buffer, inputs[i]);
+  auto curr_inputs = InputTensors();
+  for (int i = static_cast<int>(curr_inputs.size()) - 1; i >= 0; --i) {
+    Buffer buffer = decl_buffer(curr_inputs[i]->shape, curr_inputs[i]->dtype);
+    f_push_bind(buffer, curr_inputs[i]);
   }
 
   std::unordered_map<Tensor, Tensor> rmap;
@@ -204,7 +221,7 @@ Stmt HybridOpNode::BuildProvide(
    *      tensors have the same names as the operation produces them.
    *   2. Once OpNode is wrapped up by an Operation node, it is finalized.
    *      Later access will be from a const OpNode*.
-   * This is a chiken-egg paradox. It is impossible to put the output
+   * This is a chicken-egg paradox. It is impossible to put the output
    * tensors into the function body without forming the op node. The
    * function body is immutable after the node is formed.
    *
@@ -292,7 +309,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
         return ir::Substitute(op->body, rmap);
@@ -300,7 +317,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         under_outer = true;
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent;
+        rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
         return For::make(parent->var, Expr(0), extent * op->extent,
@@ -308,7 +325,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (under_outer) {
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = ir::Substitute(body, rmap);
         extent = extent * op->extent;
         return body;
@@ -442,7 +459,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
       }
       const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
       return For::make(target->var, range->min, range->extent,
-                       for_type, HalideIR::DeviceAPI::None, body);
+                       for_type, DeviceAPI::None, body);
     }
   };
 

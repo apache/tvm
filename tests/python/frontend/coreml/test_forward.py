@@ -25,13 +25,14 @@ import topi
 import topi.testing
 from tvm import relay
 from tvm.relay.testing.config import ctx_list
+from topi.testing import conv2d_nchw_python
 
 import coremltools as cm
 import model_zoo
 
 def get_tvm_output(func, x, params, target, ctx,
                    out_shape=(1, 1000), input_name='image', dtype='float32'):
-    with relay.build_module.build_config(opt_level=3):
+    with relay.transform.build_config(opt_level=3):
         graph, lib, params = relay.build(func, target, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -46,9 +47,9 @@ def run_model_checkonly(model_file, model_name='', input_name='image'):
     model = cm.models.MLModel(model_file)
     x = model_zoo.get_cat_image()
     shape_dict = {input_name : x.shape}
-    func, params = relay.frontend.from_coreml(model, shape_dict)
+    mod, params = relay.frontend.from_coreml(model, shape_dict)
     for target, ctx in ctx_list():
-        tvm_output = get_tvm_output(func, x, params, target, ctx)
+        tvm_output = get_tvm_output(mod["main"], x, params, target, ctx)
         print(target, ctx, model_name, 'prediction id: ', np.argmax(tvm_output.flat))
 
 def test_mobilenet_checkonly():
@@ -71,9 +72,9 @@ def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shap
         shape_dict = {input_name: input_data.shape}
         dtype_dict = {input_name: input_data.dtype}
 
-    func, params = relay.frontend.from_coreml(coreml_model, shape_dict)
-    with relay.build_module.build_config(opt_level=3):
-        graph, lib, params = relay.build(func, target, params=params)
+    mod, params = relay.frontend.from_coreml(coreml_model, shape_dict)
+    with relay.transform.build_config(opt_level=3):
+        graph, lib, params = relay.build(mod, target, params=params)
 
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
@@ -95,7 +96,10 @@ def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shap
             tvm_output_list.append(tvm_output.asnumpy())
         return tvm_output_list
     else:
-        tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
+        if not output_shape:
+            tvm_output = m.get_output(0)
+        else:
+            tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
         return tvm_output.asnumpy()
 
 def verify_AddLayerParams(input_dim, alpha=2):
@@ -179,7 +183,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     a_np = np.full(input_dim, 1, dtype=dtype)
     if mode == 'NN':
-        b_np = topi.testing.upsampling_python(a_np, scale)
+        b_np = topi.testing.upsampling_python(a_np, (scale, scale))
     else:
         new_h = input_dim[2] * scale
         new_w = input_dim[3] * scale
@@ -330,6 +334,72 @@ def test_forward_min():
     verify_min((1, 3, 20, 20))
     verify_min((20, 20))
 
+def verify_image_scaler(input_dim, blue_bias=0.0, green_bias=0.0, red_bias=0.0, image_scale=1.0):
+    dtype = 'float32'
+    a_np = np.random.uniform(size=input_dim).astype(dtype)
+    # make sure it is valid image format CHW.
+    assert len(a_np.shape) == 3 and a_np.shape[0] == 3
+    b_np = np.zeros(a_np.shape, dtype=dtype)
+    b_np[0, :, :] = image_scale * a_np[0, :, :] + blue_bias
+    b_np[1, :, :] = image_scale * a_np[1, :, :] + green_bias
+    b_np[2, :, :] = image_scale * a_np[2, :, :] + red_bias
+    b_np = np.add(a_np, b_np)
+    inputs = [('input1', datatypes.Array(*input_dim)),
+              ('input2', datatypes.Array(*input_dim))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.set_pre_processing_parameters(image_input_names=['input1'],
+                                          is_bgr=True,
+                                          blue_bias=blue_bias,
+                                          green_bias=green_bias,
+                                          red_bias=red_bias,
+                                          image_scale=image_scale)
+    # add one add layer to make CoreML model format valid
+    # add layer has been tested before.
+    builder.add_elementwise(name='add', input_names=['input1', 'input2'],
+                            output_name='output', alpha=0, mode='ADD')
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model, target, ctx, [a_np, a_np],
+                            ['input1', 'input2'], b_np.shape, dtype)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_image_scaler():
+    verify_image_scaler((3, 224, 224), image_scale=0.17)
+    verify_image_scaler((3, 224, 224),
+                        blue_bias=-1.7669800519943237,
+                        green_bias=-1.985260009765625,
+                        red_bias=-2.102560043334961,
+                        image_scale=0.379)
+
+def verify_convolution(input_dim, filter, padding):
+    dtype = 'float32'
+    N, C, H, W = input_dim
+    OC, _, KH, KW = filter
+    a_np = np.random.uniform(size=input_dim).astype(dtype)
+    w_np = np.random.uniform(size=(OC, C, KH, KW)).astype(dtype)
+    w_np_cm = np.transpose(w_np, axes=(2, 3, 1, 0))
+    b_np = conv2d_nchw_python(a_np, w_np, [1, 1], padding)
+    inputs = [('input1', datatypes.Array(C, H, W))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.add_convolution(name='conv', kernel_channels=3, output_channels=OC,
+                            height=KH, width=KW, stride_height=1, stride_width=1,
+                            border_mode=padding.lower(), groups=1,
+                            W=w_np_cm, b=None, has_bias=False,
+                            is_deconv=False,
+                            input_name='input1',
+                            output_name='output')
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model, target, ctx, [a_np],
+                            ['input1'], output_shape=None)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_convolution():
+    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding='VALID')
+    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding='SAME')
+
 if __name__ == '__main__':
     test_forward_AddLayerParams()
     test_forward_ConcatLayerParams()
@@ -342,3 +412,5 @@ if __name__ == '__main__':
     test_forward_min()
     test_mobilenet_checkonly()
     test_resnet50_checkonly()
+    test_forward_image_scaler()
+    test_forward_convolution()

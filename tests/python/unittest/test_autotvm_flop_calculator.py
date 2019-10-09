@@ -60,11 +60,14 @@ def test_pack_gemm():
         k = tvm.reduce_axis((0, L))
 
         bn = 4
+        idxd = tvm.indexdiv
+        idxm = tvm.indexmod
+
         A_pack = tvm.compute((N // bn, L, bn), lambda i, j, k: A[i * bn + k][j])
         B_pack = tvm.compute((M // bn, L, bn), lambda i, j, k: B[i * bn + k][j])
         C_pack = tvm.compute((N // bn, M // bn, bn, bn), lambda i, j, ii, jj:
         tvm.sum(A_pack[i, k, ii].astype(acc_dtype) * B_pack[j, k, jj].astype(acc_dtype), axis=[k]))
-        C = tvm.compute((N, M), lambda i, j: C_pack[i // bn][j // bn][i % bn][j % bn])
+        C = tvm.compute((N, M), lambda i, j: C_pack[idxd(i, bn)][idxd(j, bn)][idxm(i, bn)][idxm(j, bn)])
 
         s = tvm.create_schedule([C.op])
         assert compute_flop(s) == 2 * N * L * M
@@ -119,9 +122,11 @@ def test_average_pool():
         OH = (H - KH) + 1
         OW = (W - KW) + 1
 
+
         C = tvm.compute(
             (N, CO, OH, OW),
-            lambda n, co, h, w: tvm.sum(D[n][co][h + kh][w + kw].astype(acc_dtype) / (KW * KH), axis=[kh, kw]))
+            lambda n, co, h, w: tvm.sum(
+                tvm.div(D[n][co][h + kh][w + kw].astype(acc_dtype), (KW * KH)), axis=[kh, kw]))
 
         s = tvm.create_schedule([C.op])
 

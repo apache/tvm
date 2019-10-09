@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Binary op constructions
  * \file nn/bnn.h
  */
@@ -27,7 +26,7 @@
 
 #include <string>
 
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/ir_pass.h"
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
@@ -59,7 +58,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
   Array<Expr> oshape;
   for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == static_cast<size_t>(axis) ?
-                     tvm::ir::Simplify(ishape[i] / 32) :
+                     tvm::ir::Simplify(indexdiv(ishape[i], 32)) :
                      ishape[i]);
   }
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,17 +18,17 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file generic/extern.h
-* \brief Schedule for extern followed by injective ops
-*/
+ * \file generic/extern.h
+ * \brief Schedule for extern followed by injective ops
+ */
 #ifndef TOPI_GENERIC_EXTERN_H_
 #define TOPI_GENERIC_EXTERN_H_
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/build_module.h"
+#include "injective.h"
 
 namespace topi {
 using namespace tvm;
@@ -48,6 +48,15 @@ inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
     out_ops.push_back(t->op);
   }
   auto s = create_schedule(out_ops);
+
+  tvm::schedule::AutoInlineInjective(s);
+  for (auto out : outs) {
+    if (out->op->derived_from<ExternOpNode>()) {
+      continue;
+    }
+    tvm::GenericFunc::Get("schedule_injective_from_existing")(s, out);
+  }
+
   return s;
 }
 

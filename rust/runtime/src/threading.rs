@@ -42,7 +42,7 @@ use tvm_common::ffi::TVMParallelGroupEnv;
 #[cfg(target_env = "sgx")]
 use super::{TVMArgValue, TVMRetValue};
 
-type FTVMParallelLambda =
+pub(crate) type FTVMParallelLambda =
     extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
 
 /// Holds a parallel job request made by a TVM library function.

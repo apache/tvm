@@ -17,10 +17,12 @@
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
+
+import tvm
 from topi.util import get_const_tuple
 from .. import expr as _expr
-from .. import expr as _expr
-from .. import ir_pass
+from .. import module as _module
+from .. import transform as _transform
 from .. import op as _op
 
 
@@ -38,6 +40,20 @@ class StrAttrsDict(object):
     """
     def __init__(self, attrs):
         self.attrs = attrs
+
+    def has_attr(self, key):
+        """Checks if a attribute is present in the map.
+
+        Parameters
+        ----------
+        key : str
+            The attribute key
+
+        Returns
+        -------
+        bool : True if the key is present in the attributes else false.
+        """
+        return key in self.attrs
 
     def get_float(self, key, default=RequiredAttr()):
         """Get float attribute
@@ -122,7 +138,8 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(',') if x)
+            return tuple(int(x) if x.strip("- ").isdigit() else None
+                         for x in tshape.strip('()[]').split(',') if x)
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -224,6 +241,7 @@ class StrAttrsDict(object):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
 
+
 def get_relay_op(op_name):
     """Get the callable function from Relay based on operator name.
     Parameters
@@ -241,13 +259,14 @@ def get_relay_op(op_name):
             op = None
     else:
         # try search op in various modules
-        for candidate in (_op, _op.nn, _op.image):
+        for candidate in (_op, _op.nn, _op.image, _op.vision):
             op = getattr(candidate, op_name, None)
             if op is not None:
                 break
     if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+        raise tvm.error.OpNotImplemented("Unable to map op_name {} to relay".format(op_name))
     return op
+
 
 class ExprTable(object):
     """Table storing Relay expressions by names."""
@@ -269,9 +288,15 @@ class ExprTable(object):
     def get_expr(self, name):
         return self.exprs[name]
 
-    def set_expr(self, name, expr):
+    def set_expr(self, name, expr, force_override=False):
         assert isinstance(expr, _expr.Expr)
-        if name not in self.exprs:
+        # if name exists, we should override the value
+        # otherwise, we can not get like x = func(x) work.
+        # One example is CoreML preprocess, which will override
+        # the same name of input.
+        # However, according to git log, Find keras frontend depends
+        # on this property, so we add one force_override to control it.
+        if name not in self.exprs or force_override:
             self.exprs[name] = expr
 
     def has_expr(self, name):
@@ -286,7 +311,7 @@ class ExprTable(object):
 
 
 class AttrCvt(object):
-    """Common attribute conveter. An AttrConverter instance is a callable:
+    """Common attribute converter. An AttrConverter instance is a callable:
     ```
     attr_converter = AttrConverter(op_name, transforms={'a':'b', 'c':('d', 1)})
     new_op_name, new_attr = attr_converter(attrs)
@@ -298,21 +323,27 @@ class AttrCvt(object):
         If set as str, returned operator name is the str.
         If set as callable, returned operator is the str returned by calling:
         `op_name = func(attr)`
+
     transforms : dict of `new_name, or (new_name, default_value, transform function)`
         If only a new_name is provided, it's like renaming the attribute name.
-        If default_value if provded, then the attribute is considered as optional.
+        If default_value if provided, then the attribute is considered as optional.
         If transform function is provided, the original attribute value is handled
         by transform function.
+
     excludes : list
         A list of excluded attributes that should `NOT` appear.
-        Raise NotImplementedError if occured.
+        Raise NotImplementedError if occurred.
+
     disables : list
         A list of attributes that is disabled in relay. Log warnings.
+
     ignores : list
         A list of attributes that is ignored in relay. Debug level logging.
+
     extras : dict
         A series of additional attributes should be added anyway to the returned
         attribute dict.
+
     custom_check : callable
         A custom function takes attribute, and return True/False.
         Raise RuntimeError if not bool(True) returned.
@@ -329,6 +360,14 @@ class AttrCvt(object):
         self._custom_check = custom_check
 
     def __call__(self, inputs, attrs, *args):
+        self._ignores.append('_output_shapes')
+        self._ignores.append('_input_shapes')
+        self._ignores.append('T')
+        self._ignores.append('use_cudnn_on_gpu')
+        self._ignores.append('_node_name')
+        self._ignores.append('is_training')
+        self._ignores.append('_target_layout')
+
         # apply custom check
         if self._custom_check:
             func, msg = self._custom_check
@@ -348,7 +387,8 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise NotImplementedError("Attribute {} not supported yet.".format(k))
+                raise NotImplementedError('Attribute %s in operator %s is not' +
+                                          ' supported.', k, op_name)
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
@@ -401,32 +441,45 @@ class AttrCvt(object):
             raise AttributeError("Required attribute {} not found.".format(key))
         return attr[key]
 
+
 def get_name(node):
     name = ''
     if hasattr(node, "name_hint"):
         name = node.name_hint
     return name
 
+
+def infer_type(node):
+    """A method to infer the type of an intermediate node in the relay graph."""
+    mod = node if isinstance(node, _module.Module) else _module.Module.from_expr(node)
+    mod = _transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(node, _expr.Function) else entry.body
+
+
 def infer_shape(inputs):
     """A method to get the output shape of an intermediate node in the graph."""
-    out_type = ir_pass.infer_type(inputs)
+    out_type = infer_type(inputs)
     out_shapes = get_const_tuple(out_type.checked_type.shape)
     return out_shapes
+
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
     these attributes. We check the shape of weights provided to get the number.
     """
-    out_type = ir_pass.infer_type(inputs)
+    out_type = infer_type(inputs)
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
+
 
 def new_var(name_hint,
             type_annotation=None,
             shape=None,
             dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
+
 
 class Renamer(object):
     """A simply renamer for operators.

@@ -71,6 +71,16 @@ class ROCMModuleNode : public runtime::ModuleNode {
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;
 
 
+  void SaveToFile(const std::string& file_name,
+                  const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    std::string meta_file = GetMetaFilePath(file_name);
+    // note: llvm and asm formats are not laodable, so we don't save them
+    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    SaveMetaDataToFile(meta_file, fmap_);
+    SaveBinaryToFile(file_name, data_);
+  }
+
   void SaveToBinary(dmlc::Stream* stream) final {
     stream->Write(fmt_);
     stream->Write(fmap_);
@@ -79,7 +89,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     if (format == fmt_) { return data_; }
-    if (format == "llvm") { return hip_source_; }
+    if (format == "llvm" || format == "") { return hip_source_; }
     if (format == "asm") { return assembly_; }
     return "";
   }
@@ -230,6 +240,17 @@ Module ROCMModuleCreate(
   return Module(n);
 }
 
+Module ROCMModuleLoadFile(const std::string& file_name,
+                          const std::string& format) {
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt = GetFileFormat(file_name, format);
+  std::string meta_file = GetMetaFilePath(file_name);
+  LoadBinaryFromFile(file_name, &data);
+  LoadMetaDataFromFile(meta_file, &fmap);
+  return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
+}
+
 Module ROCMModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string data;
@@ -248,5 +269,12 @@ TVM_REGISTER_GLOBAL("module.loadbinary_hsaco")
 
 TVM_REGISTER_GLOBAL("module.loadbinary_hip")
 .set_body_typed(ROCMModuleLoadBinary);
+
+
+TVM_REGISTER_GLOBAL("module.loadfile_hsaco")
+.set_body_typed(ROCMModuleLoadFile);
+
+TVM_REGISTER_GLOBAL("module.loadfile_hip")
+.set_body_typed(ROCMModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

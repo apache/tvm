@@ -54,7 +54,7 @@ def get_net(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32"
     relu4 = relay.nn.relu(dense1)
     dense2 = layers.dense_add_bias(relu4, units=num_actions, name="dense2")
 
-    args = relay.ir_pass.free_vars(dense2)
+    args = relay.analysis.free_vars(dense2)
     return relay.Function(args, dense2)
 
 
@@ -72,8 +72,8 @@ def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="flo
         The data type
     Returns
     -------
-    net : nnvm.symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a DQN network.
     params : dict of str to NDArray
         The parameters.
     """

@@ -81,8 +81,46 @@ def test_graph_simple():
         out = mod.get_output(0, out)
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
+    def check_sharing():
+        from tvm import relay
+        x = relay.var('x', shape=(1, 10))
+        y = relay.var('y', shape=(1, 10))
+        z = relay.add(x, y)
+        func = relay.Function([x, y], z)
+
+        x_in = np.ones((1, 10)).astype("float32")
+        params = {'x': x_in}
+        graph, lib, params = relay.build(func, target="llvm", params=params)
+
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))
+        mod_shared.load_params(relay.save_param_dict(params))
+        num_mods = 10
+        mods = [graph_runtime.create(graph, lib, tvm.cpu(0))
+                for _ in range(num_mods)]
+
+        for mod in mods:
+            mod.share_params(mod_shared, relay.save_param_dict(params))
+
+        a = np.random.uniform(size=(1, 10)).astype("float32")
+        for mod in mods:
+            mod.run(y=a)
+            out = mod.get_output(0, tvm.nd.empty((1, 10)))
+            np.testing.assert_equal(out.asnumpy(), x_in + a)
+
+        # Explicitly delete the shared module and verify correctness.
+        del mod_shared
+        for mod in mods:
+            mod.run(y=a)
+            out = mod.get_output(0, tvm.nd.empty((1, 10)))
+            np.testing.assert_equal(out.asnumpy(), x_in + a)
+            del mod
+
     check_verify()
     check_remote()
+    check_sharing()
 
 if __name__ == "__main__":
     test_graph_simple()

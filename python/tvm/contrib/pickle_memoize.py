@@ -34,9 +34,11 @@ class Cache(object):
     ----------
     key: str
        The file key to the function
+    save_at_exit: bool
+        Whether save the cache to file when the program exits
     """
     cache_by_key = {}
-    def __init__(self, key):
+    def __init__(self, key, save_at_exit):
         cache_dir = ".pkl_memoize_py{0}".format(sys.version_info[0])
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
@@ -49,6 +51,7 @@ class Cache(object):
         else:
             self.cache = {}
         self.dirty = False
+        self.save_at_exit = save_at_exit
 
     def save(self):
         if self.dirty:
@@ -60,16 +63,19 @@ class Cache(object):
 def _atexit():
     """Save handler."""
     for value in Cache.cache_by_key.values():
-        value.save()
+        if value.save_at_exit:
+            value.save()
 
 
-def memoize(key):
+def memoize(key, save_at_exit=False):
     """Memoize the result of function and reuse multiple times.
 
     Parameters
     ----------
     key: str
         The unique key to the file
+    save_at_exit: bool
+        Whether save the cache to file when the program exits
 
     Returns
     -------
@@ -81,9 +87,9 @@ def memoize(key):
         allow_types = (string_types, int, float)
         fkey = key + "." + f.__name__ + ".pkl"
         if fkey not in Cache.cache_by_key:
-            Cache.cache_by_key[fkey] = Cache(fkey)
+            Cache.cache_by_key[fkey] = Cache(fkey, save_at_exit)
         cache = Cache.cache_by_key[fkey]
-        cargs = tuple(x.cell_contents for x in f.__closure__)
+        cargs = tuple(x.cell_contents for x in f.__closure__) if f.__closure__ else ()
         cargs = (len(cargs),) + cargs
 
         def _memoized_f(func, *args, **kwargs):

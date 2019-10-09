@@ -27,7 +27,7 @@ tuple.
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
 
-from ... import _api_internal, tensor, placeholder, create_schedule
+from ... import _api_internal, tensor, placeholder
 
 from .task import args_to_workload, dispatcher, register
 from ..util import get_const_tuple
@@ -73,8 +73,9 @@ def deserialize_args(args):
 class TaskExtractEnv:
     """Global environment for extracting tuning tasks from nnvm graph"""
     current = None
+    registered = None
 
-    def __init__(self):
+    def __init__(self, allow_duplicate=False):
         import topi
 
         # topi compute -> autotvm task name
@@ -84,6 +85,7 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: "topi_nn_group_conv2d_nchw",
             topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
             topi.nn.conv2d_NCHWc: "topi_x86_conv2d_NCHWc",
+            topi.nn.conv2d_NCHWc_int8: "topi_x86_conv2d_NCHWc_int8",
             topi.nn.dense: "topi_nn_dense",
             topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
@@ -99,6 +101,7 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: [topi.generic.schedule_group_conv2d_nchw],
             topi.nn.conv2d_transpose_nchw: [topi.generic.schedule_conv2d_transpose_nchw],
             topi.nn.conv2d_NCHWc: [topi.generic.schedule_conv2d_NCHWc],
+            topi.nn.conv2d_NCHWc_int8: [topi.generic.schedule_conv2d_NCHWc_int8],
             topi.nn.dense: [topi.generic.schedule_dense],
             topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
@@ -106,46 +109,65 @@ class TaskExtractEnv:
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
-        self._register_tracing()
+        # function reflection for tracing
+        self.func_to_reflection = {
+            topi.nn.conv2d:                 lambda x: setattr(topi.nn, 'conv2d', x),
+            topi.nn.conv2d_NCHWc:           lambda x: setattr(topi.nn, 'conv2d_NCHWc', x),
+            topi.nn.conv2d_NCHWc_int8:      lambda x: setattr(topi.nn, 'conv2d_NCHWc_int8', x),
+            topi.nn.depthwise_conv2d_nchw:  lambda x: setattr(topi.nn, 'depthwise_conv2d_nchw', x),
+            topi.nn.group_conv2d_nchw:      lambda x: setattr(topi.nn, 'group_conv2d_nchw', x),
+            topi.nn.conv2d_transpose_nchw:  lambda x: setattr(topi.nn, 'conv2d_transpose_nchw', x),
+            topi.nn.dense:                  lambda x: setattr(topi.nn, 'dense', x),
+            topi.nn.bitserial_conv2d_nchw:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nchw', x),
+            topi.nn.bitserial_conv2d_nhwc:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nhwc', x),
+            topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
+            topi.nn.deformable_conv2d_nchw: lambda x: setattr(topi.nn, 'deformable_conv2d_nchw', x),
+        }
+
+        self.allow_duplicate = allow_duplicate
         self._register_topi_task()
         self.task_collection = []
         self.wanted_topi_funcs = list(self.topi_to_task.keys())
+        self.modified_funcs = []
 
-    def _register_tracing(self):
-        """Register tracing function to track the topi function call"""
-        # register topi compute for "tracing" target
-        for topi_compute in self.topi_to_task:
+    def __enter__(self):
+        self.task_collection = []
+        self.modified_funcs = []
+
+        for topi_compute in self.wanted_topi_funcs:
             def _local_scope(compute_func):
                 """start a scope to hold the local function in for loop"""
 
-                @compute_func.register("tracing", )
-                def _tracing_topi_compute(*args, **kwargs):
-                    assert not kwargs, "Do not support extracting tuning tasks when" \
-                                       "kwargs is used in TOPI function call." \
+                def _tracing_wrapper(*args, **kwargs):
+                    assert not kwargs, "Do not support extracting tuning tasks when " \
+                                       "kwargs is used in TOPI function call. " \
                                        "Please modify it to use only positional args."
+                    key = (self.topi_to_task[compute_func], serialize_args(args))
+                    if self.allow_duplicate or key not in self.task_collection:
+                        self.task_collection.append(key)
 
-                    if compute_func in self.wanted_topi_funcs:  # record this call
-                        key = (self.topi_to_task[compute_func], serialize_args(args))
-                        if key not in self.task_collection:
-                            self.task_collection.append(key)
-                    return compute_func.fdefault(*args)
+                    return compute_func(*args, **kwargs)
+
+                self.func_to_reflection[compute_func](_tracing_wrapper)
+                self.modified_funcs.append(compute_func)
+
             _local_scope(topi_compute)
 
-        # register topi schedule for "tracing" target
-        for topi_compute in self.topi_to_task:
-            for topi_schedule in self.topi_to_schedule[topi_compute]:
-                def _local_scope_(schedule_func):
-                    """start a scope to hold the local function in for loop"""
+        return self
 
-                    @schedule_func.register("tracing", )
-                    def _tracing_topi_compute(outs):
-                        outs = [outs] if isinstance(outs, tensor.Tensor) else outs
-                        return create_schedule([x.op for x in outs])
-                _local_scope_(topi_schedule)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # revert modification
+        for func in self.modified_funcs:
+            self.func_to_reflection[func](func)
 
     def _register_topi_task(self):
         """register tuning wrapper for topi function"""
         import topi
+
+        # Avoid double registration for certain targets
+        if TaskExtractEnv.registered:
+            return
+        TaskExtractEnv.registered = True
 
         # Tuning wrapper for topi functions
         @register("topi_nn_conv2d")
@@ -190,7 +212,11 @@ class TaskExtractEnv:
         def _topi_nn_dense(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             args = deserialize_args(args)
-            data, weight, bias, _ = args
+            if len(args) > 2:
+                data, weight, bias = args[:3]
+            else:
+                data, weight = args
+                bias = None
             C = topi.nn.dense(*args, **kwargs)
             s = topi.generic.schedule_dense([C])
             if bias is not None:
@@ -262,8 +288,15 @@ class TaskExtractEnv:
         return self.task_collection
 
     @staticmethod
-    def get():
+    def get(allow_duplicate=False):
         """Get the single instance of TaskExtractEnv
+
+        Parameters
+        ----------
+        allow_duplicate : boolean
+            Whether to fetch all workloads in the network,
+            even though some of them are the same. This is
+            useful for graph tuning.
 
         Returns
         -------
@@ -271,11 +304,13 @@ class TaskExtractEnv:
             The single instance of TaskExtractEnv
         """
         if not TaskExtractEnv.current:
-            TaskExtractEnv.current = TaskExtractEnv()
+            TaskExtractEnv.current = TaskExtractEnv(allow_duplicate)
+        else:
+            TaskExtractEnv.current.allow_duplicate = allow_duplicate
         return TaskExtractEnv.current
 
 
-def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
+def register_topi_compute(topi_compute, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi compute function.
 
     After the registration, this topi compute will become a configuration dispatcher. It uses
@@ -324,7 +359,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_compute]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, *args, **kwargs):
                 """call the topi func and attach workload to compute node"""
                 assert not kwargs, "Do not support kwargs in template function call"
@@ -363,7 +398,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     return _decorator
 
 
-def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None):
+def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi schedule function.
 
     After the registration. This topi schedule will become a configuration dispatcher. It dispatches
@@ -429,7 +464,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_schedule]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, outs, *args, **kwargs):
                 """call the schedule func"""
                 if f == topi_schedule.fdefault:

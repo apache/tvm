@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,8 +27,6 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/build_module.h>
-#include <topi/elemwise.h>
-#include <topi/nn/upsampling.h>
 #include <vector>
 #include "../op_common.h"
 
@@ -99,11 +97,13 @@ bool UpSamplingRel(const Array<Type>& types,
 Expr MakeUpSampling(Expr data,
                     int scale,
                     std::string layout,
-                    std::string method) {
+                    std::string method,
+                    bool align_corners) {
   auto attrs = make_node<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->scale = scale;
+  attrs->align_corners = align_corners;
   static const Op& op = Op::Get("nn.upsampling");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -135,38 +135,7 @@ RELAY_REGISTER_OP("nn.upsampling")
 .add_type_rel("UpSampling", UpSamplingRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
   UpsamplingInferCorrectLayout<UpSamplingAttrs>)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
-.set_attr<FTVMCompute>(
-  "FTVMCompute", [](const Attrs& attrs,
-                    const Array<Tensor>& inputs,
-                    const Type& out_type,
-                    const Target& target) {
-    const auto* uattrs = attrs.as<UpSamplingAttrs>();
-    CHECK(uattrs != nullptr);
-    auto out_tt = out_type.as<TensorTypeNode>();
-    CHECK(out_tt) << "expected a tensor type: " << out_type;
-    const auto layout = uattrs->layout;
-    const auto base_layout = layout.substr(0, 4);
-    CHECK(base_layout == "NCHW" || layout == "NHWC")
-      << "unknown layout: " << uattrs->layout;
-
-    Array<HalideIR::Expr> oshape;
-    if (base_layout == "NCHW") {
-      oshape.push_back(out_tt->shape[2]);
-      oshape.push_back(out_tt->shape[3]);
-    } else if (layout == "NHWC") {
-      oshape.push_back(out_tt->shape[1]);
-      oshape.push_back(out_tt->shape[2]);
-    }
-
-    return Array<Tensor>{
-      topi::nn::upsampling(
-        inputs[0],
-        oshape,
-        uattrs->layout,
-        uattrs->method)
-    };
-});
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
 }  // namespace relay

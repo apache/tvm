@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,7 +30,9 @@
 
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
+
 
 namespace topi {
 namespace nn {
@@ -68,8 +70,8 @@ inline Tensor flatten(const Tensor& x,
       Expr idx = j;
       std::vector<Expr> index;
       for (auto s : extra_shape) {
-        index.push_back(idx % s);
-        idx = idx / s;
+        index.push_back(indexmod(idx, s));
+        idx = indexdiv(idx, s);
       }
       index.push_back(i);
       std::reverse(index.begin(), index.end());

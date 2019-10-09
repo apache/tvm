@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file const_fold.h
  * \brief Centralized location for constant folding.
  */
@@ -29,6 +28,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {
@@ -155,9 +155,10 @@ template<>
 inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const Type& rtype = a.type();
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
+      if (pa && pb) {
+        // due to division and mod can have different modes
+        // NOTE: this will assumes truc div.
+        CHECK_NE(pb->value, 0) << "Divide by zero";
         return IntImm::make(rtype, pa->value / pb->value);
       }
       if (pa) {
@@ -183,10 +184,53 @@ template<>
 inline Expr TryConstFold<ir::Mod>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const Type& rtype = a.type();
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
+      if (pa && pb) {
         return IntImm::make(rtype, pa->value % pb->value);
+      }
+      if (pa) {
+        if (pa->value == 0) return a;
+      }
+      if (pb) {
+        if (pb->value == 1) return make_zero(rtype);
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+      }
+    });
+  return Expr();
+}
+
+template<>
+inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
+  TVM_ARITH_CONST_PROPAGATION({
+      const Type& rtype = a.type();
+      if (pa && pb) {
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+        return IntImm::make(rtype, arith::floordiv(pa->value, pb->value));
+      }
+      if (pa) {
+        if (pa->value == 0) return a;
+      }
+      if (pb) {
+        if (pb->value == 1) return a;
+        CHECK_NE(pb->value, 0) << "Divide by zero";
+      }
+      if (fa && fb && fb->value != 0) {
+        return FloatImm::make(rtype, std::floor(fa->value / fb->value));
+      }
+      if (fa && fa->value == 0) return a;
+      if (fb) {
+        if (fb->value == 1) return a;
+        CHECK_NE(fb->value, 0) << "Divide by zero";
+      }
+    });
+  return Expr();
+}
+
+template<>
+inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
+  TVM_INDEX_CONST_PROPAGATION({
+      const Type& rtype = a.type();
+      if (pa && pb) {
+        return IntImm::make(rtype, arith::floormod(pa->value, pb->value));
       }
       if (pa) {
         if (pa->value == 0) return a;
@@ -206,6 +250,7 @@ inline Expr TryConstFold<ir::Min>(Expr a, Expr b) {
       if (pa && pb) return IntImm::make(rtype, std::min(pa->value, pb->value));
       if (fa && fb) return FloatImm::make(rtype, std::min(fa->value, fb->value));
     });
+  if (a.same_as(b)) return a;
   return Expr();
 }
 
@@ -216,6 +261,7 @@ inline Expr TryConstFold<ir::Max>(Expr a, Expr b) {
       if (pa && pb) return IntImm::make(rtype, std::max(pa->value, pb->value));
       if (fa && fb) return FloatImm::make(rtype, std::max(fa->value, fb->value));
     });
+  if (a.same_as(b)) return a;
   return Expr();
 }
 
@@ -305,6 +351,58 @@ inline Expr TryConstFold<ir::Not>(Expr a) {
     return UIntImm::make(UInt(1), !(pa->value));
   }
   return Expr();
+}
+
+/*! \brief Helper namespace for symbolic value limits */
+struct SymbolicLimits {
+  /*! \brief positive infinity */
+  static Expr pos_inf_;
+  /*! \brief negative infinity */
+  static Expr neg_inf_;
+};
+
+/*!
+ * \brief Opaque expression representing positive infinity.
+ *
+ *  It can can only be used as parameter of by min/max
+ *  for integer analysis and cannot be used in normal expressions.
+ *
+ * \return positive infinity.
+ */
+inline Expr pos_inf() {
+  return SymbolicLimits::pos_inf_;
+}
+
+/*!
+ * \brief Check if value is positive infinity.
+ * \param value The value to be checked.
+ *
+ * \return The check result.
+ */
+inline bool is_pos_inf(const Expr& value) {
+  return value.same_as(SymbolicLimits::pos_inf_);
+}
+
+/*!
+ * \brief Opaque expression representing negative infinity.
+ *
+ *  It can can only be used as parameter of by min/max
+ *  for integer analysis and cannot be used in normal expressions.
+ *
+ * \return negative infinity.
+ */
+inline Expr neg_inf() {
+  return SymbolicLimits::neg_inf_;
+}
+
+/*!
+ * \brief Check if value is negative infinity.
+ * \param value The value to be checked.
+ *
+ * \return The check result.
+ */
+inline bool is_neg_inf(const Expr& value) {
+  return value.same_as(SymbolicLimits::neg_inf_);
 }
 
 }  // namespace arith

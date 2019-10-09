@@ -20,21 +20,28 @@ import math
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
 import topi.testing
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_resize_infer_type():
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     th, tw = tvm.var("th"), tvm.var("tw")
     z = relay.image.resize(x, (th, tw))
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z= relay.image.resize(x, (100, 200), "NCHW", "BILINEAR", False)
+    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", True)
     assert "size=" in z.astext()
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
 
 def test_resize():
@@ -45,14 +52,14 @@ def test_resize():
             size = (dshape[2] * scale, dshape[3] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "BILINEAR":
+        if method == "bilinear":
             ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling_python(x_data, scale, layout)
+            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, False)
+        z = relay.image.resize(x, size, layout, method, True)
         assert "size=" in z.astext()
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
@@ -60,8 +67,8 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    for method in ["BILINEAR", "NEAREST_NEIGHBOR"]:
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
@@ -109,7 +116,7 @@ def test_multibox_prior():
                               check_type_only=False):
 
         z = relay.vision.multibox_prior(x, sizes, ratios, steps, offsets, clip)
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         if check_size:
             assert "sizes=" in z.astext()
         assert zz.checked_type == relay.TensorType(
@@ -121,7 +128,7 @@ def test_multibox_prior():
 
         data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
         func = relay.Function([x], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data)
@@ -152,31 +159,31 @@ def test_multibox_prior():
 
 
 def test_get_valid_counts():
-    def verify_get_valid_counts(dshape, score_threshold):
+    def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         dtype = "float32"
         batch_size, num_anchor, elem_length = dshape
-        np_data = np.random.uniform(size=dshape).astype(dtype)
+        np_data = np.random.uniform(low=-2, high=2, size=dshape).astype(dtype)
         np_out1 = np.zeros(shape=(batch_size,))
         np_out2 = np.zeros(shape=dshape).astype(dtype)
         for i in range(batch_size):
             np_out1[i] = 0
             inter_idx = 0
             for j in range(num_anchor):
-                score = np_data[i, j, 1]
-                if score >= score_threshold:
+                score = np_data[i, j, score_index]
+                if score > score_threshold and (id_index < 0 or np_data[i, j, id_index] >= 0):
                     for k in range(elem_length):
                         np_out2[i, inter_idx, k] = np_data[i, j, k]
                     np_out1[i] += 1
                     inter_idx += 1
                 if j >= np_out1[i]:
                     for k in range(elem_length):
-                        np_out2[i, j, k] = -1
+                        np_out2[i, j, k] = -1.0
 
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
-        z = relay.vision.get_valid_counts(x, score_threshold)
+        z = relay.vision.get_valid_counts(x, score_threshold, id_index, score_index)
         assert "score_threshold" in z.astext()
         func = relay.Function([x], z.astuple())
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         for target, ctx in ctx_list():
             if target == 'cuda':
                 return
@@ -185,10 +192,10 @@ def test_get_valid_counts():
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
 
-    verify_get_valid_counts((1, 2500, 6), 0)
-    verify_get_valid_counts((1, 2500, 6), -1)
-    verify_get_valid_counts((3, 1000, 6), 0.55)
-    verify_get_valid_counts((16, 500, 6), 0.95)
+    verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
+    verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
+    verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
+    verify_get_valid_counts((16, 500, 5), 0.95, -1, 0)
 
 
 def test_non_max_suppression():
@@ -205,8 +212,8 @@ def test_non_max_suppression():
                     top_k = top_k)
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
-        zz = relay.ir_pass.infer_type(z)
-        zz_indices = relay.ir_pass.infer_type(z_indices)
+        zz = run_infer_type(z)
+        zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
         assert zz_indices.checked_type == relay.ty.TensorType((dshape[0], dshape[1]), "int32")
 
@@ -214,9 +221,9 @@ def test_non_max_suppression():
             return
 
         func = relay.Function([x0, x1], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         func_indices = relay.Function([x0, x1], z_indices)
-        func_indices = relay.ir_pass.infer_type(func_indices)
+        func_indices = run_infer_type(func_indices)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
@@ -288,7 +295,7 @@ def test_multibox_transform_loc():
 
         mtl = relay.vision.multibox_transform_loc(
             cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors)
-        ret = relay.ir_pass.infer_type(mtl.astuple())
+        ret = run_infer_type(mtl.astuple())
         ref_type = relay.ty.TupleType(
             tvm.convert([
                 relay.ty.TensorType((1, num_anchors, 6), "float32"),
@@ -299,7 +306,7 @@ def test_multibox_transform_loc():
 
         nms = relay.vision.non_max_suppression(mtl[0], mtl[1], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds,
@@ -330,7 +337,7 @@ def test_multibox_transform_loc():
             anchor=anchors,
             threshold=threshold,
             variances=variances)
-        ret = relay.ir_pass.infer_type(ret.astuple())
+        ret = run_infer_type(ret.astuple())
         ref_type = relay.ty.TupleType(
             tvm.convert([
                 relay.ty.TensorType((n, num_anchors, 6), "float32"),
@@ -349,15 +356,14 @@ def test_roi_align():
         z = relay.vision.roi_align(data, rois, pooled_size=(pooled_size, pooled_size),
                                    spatial_scale=spatial_scale, sample_ratio=sample_ratio,
                                    layout="NCHW")
-        zz = relay.ir_pass.infer_type(z)
-
+        zz = run_infer_type(z)
         batch, channel, in_size, _ = data_shape
         num_roi = rois_shape[0]
         assert zz.checked_type == relay.ty.TensorType(
                 (num_roi, channel, pooled_size, pooled_size), "float32")
 
         func = relay.Function([data, rois], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
         np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
@@ -382,15 +388,14 @@ def test_roi_pool():
         rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
         z = relay.vision.roi_pool(data, rois, pooled_size=(pooled_size, pooled_size),
                                    spatial_scale=spatial_scale, layout="NCHW")
-        zz = relay.ir_pass.infer_type(z)
-
+        zz = run_infer_type(z)
         batch, channel, in_size, _ = data_shape
         num_roi = rois_shape[0]
         assert zz.checked_type == relay.ty.TensorType(
                 (num_roi, channel, pooled_size, pooled_size), "float32")
 
         func = relay.Function([data, rois], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
         np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi).astype('float32')
@@ -414,12 +419,11 @@ def test_proposal():
         bbox_pred = relay.var("bbox_pred", relay.ty.TensorType(np_bbox_pred.shape, "float32"))
         im_info = relay.var("im_info", relay.ty.TensorType(np_im_info.shape, "float32"))
         z = relay.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
-        zz = relay.ir_pass.infer_type(z)
-
+        zz = run_infer_type(z)
         assert zz.checked_type == relay.ty.TensorType(np_out.shape, "float32")
 
         func = relay.Function([cls_prob, bbox_pred, im_info], z)
-        func = relay.ir_pass.infer_type(func)
+        func = run_infer_type(func)
         for target in ['cuda']:
             if not tvm.module.enabled(target):
                 print("Skip test because %s is not enabled." % target)
@@ -478,13 +482,14 @@ def test_yolo_reorg_infer_shape():
     def verify_yolo_reorg(shape, stride, out_shape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.vision.yolo_reorg(x, stride=stride)
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert "stride=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(out_shape, "float32")
 
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    idxd = tvm.indexdiv
     verify_yolo_reorg((n, c, 20, 20), 10, (n, c*10*10, 2, 2))
-    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, h/2, w/2))
+    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, idxd(h, 2), idxd(w, 2)))
 
 def test_yolo_reorg():
     def verify_yolo_reorg(shape, stride):
@@ -493,7 +498,7 @@ def test_yolo_reorg():
 
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.vision.yolo_reorg(x, stride=stride)
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert "stride=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(ref_res.shape, "float32")
 
@@ -527,7 +532,7 @@ def test_deformable_conv2d():
         weight_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
         out_shape = (batch, out_channel, size, size)
         offset_shape = (batch, 2 * kernel_size[0] * kernel_size[1] * deformable_groups, out_shape[2], out_shape[3])
-        yy = relay.ir_pass.infer_type(y)
+        yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType(out_shape)
         assert yy.args[1].checked_type == relay.TensorType(offset_shape), yy.args[1].checked_type
         assert yy.args[2].checked_type == relay.TensorType(weight_shape)

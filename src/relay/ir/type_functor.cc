@@ -92,6 +92,10 @@ void TypeVisitor::VisitType_(const TypeDataNode* op) {
   }
 }
 
+Type TypeMutator::VisitType(const Type& t) {
+  return t.defined() ? TypeFunctor<Type(const Type&)>::VisitType(t) : t;
+}
+
 // Type Mutator.
 Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
   // The array will do copy on write

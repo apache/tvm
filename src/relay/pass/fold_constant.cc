@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,11 +21,12 @@
  * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -64,6 +65,13 @@ class ConstantChecker : private ExprVisitor {
     memo_[GetRef<Tuple>(n)] = result;
   }
 };
+
+bool ConstantCheck(const Expr& e) {
+  return ConstantChecker().Check(e);
+}
+
+TVM_REGISTER_API("relay._analysis.check_constant")
+.set_body_typed(ConstantCheck);
 
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
@@ -155,9 +163,13 @@ class ConstantFolder : public ExprMutator {
   }
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
-    expr = InferType(expr, Module(nullptr));
-    expr = FuseOps(expr, 0, Module(nullptr));
-    expr = InferType(expr, Module(nullptr));
+    std::vector<transform::Pass> passes = {transform::FuseOps(0),
+                                           transform::InferType()};
+    auto mod = ModuleNode::FromExpr(expr);
+    auto seq = transform::Sequential(passes);
+    mod = seq(mod);
+    auto entry_func = mod->Lookup("main");
+    expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return ValueToExpr(executor_(expr));
   }
   // Evaluate shape_of op
@@ -203,17 +215,29 @@ Expr FoldConstant(const Expr& expr) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
-  Target target = Target::create("llvm");
+  Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  BuildConfigContext fresh_build_ctx(build_config());
+  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return ConstantFolder(CreateInterpreter(
       Module(nullptr), ctx, target)).Mutate(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.FoldConstant")
+namespace transform {
+
+Pass FoldConstant() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(FoldConstant(f));
+  };
+  return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
+}
+
+TVM_REGISTER_API("relay._transform.FoldConstant")
 .set_body_typed(FoldConstant);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

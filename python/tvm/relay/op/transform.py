@@ -17,7 +17,7 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper
+from ..expr import TupleWrapper, const
 
 
 def cast(data, dtype):
@@ -38,6 +38,43 @@ def cast(data, dtype):
     """
     from .. import _make as _relay_make
     return _relay_make.cast(data, dtype)
+
+
+def cast_like(data, dtype_like):
+    """Cast input tensor to data type of another tensor.
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+    dtype_like: relay.Expr
+        The tensor to cast to.
+    Returns
+    -------
+    result : relay.Expr
+        The casted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.cast_like(data, dtype_like)
+
+
+def reinterpret(data, dtype):
+    """Reinterpret input tensor to data type.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    dtype: str
+        The target data type
+
+    Returns
+    -------
+    result : relay.Expr
+        The reinterpreted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.reinterpret(data, dtype)
 
 
 def expand_dims(data, axis, num_newaxis=1):
@@ -106,7 +143,6 @@ def squeeze(data, axis=None):
         The squeezed result.
     """
     return _make.squeeze(data, axis)
-
 
 def reshape(data, newshape):
     """Reshapes the input array.
@@ -177,6 +213,28 @@ def reshape(data, newshape):
         newshape = [newshape]
     return _make.reshape(data, list(newshape))
 
+def argwhere(condition):
+    """Find the indices of elements of a tensor that are
+    non-zero.
+
+    Parameters
+    ----------
+    condition : relay.Expr
+        The input condition tensor.
+
+    Returns
+    -------
+    out : relay.Expr
+        Tensor with the indices of elements that are non-zero.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        condition = [[True, False], [False, True]]
+        relay.argwhere(condition) = [[0, 0], [1, 1]]
+    """
+    return _make.argwhere(condition)
 
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
@@ -218,9 +276,10 @@ def take(data, indices, axis=None, mode="clip"):
         the flattened input array is used.
 
     mode : str, optional
-        Specifies how out-of-bound indices will behave.
-        clip - clip to the range (default)
-        wrap - wrap around the indices
+        Specifies how out-of-bound indices will behave [clip, wrap, fast].
+        clip: clip to the range (default).
+        wrap: wrap around the indices.
+        fast: no clip or wrap around (user must make sure indices are in-bound).
 
     Returns
     -------
@@ -271,7 +330,7 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
-def arange(start, stop=None, step=1, dtype="float32"):
+def arange(start, stop=None, step=None, dtype="float32"):
     """Return evenly spaced values within a given interval.
 
     .. note::
@@ -309,9 +368,13 @@ def arange(start, stop=None, step=1, dtype="float32"):
         relay.arange(1, 5) = [1, 2, 3, 4]
         relay.arange(1, 5, 1.5) = [1, 2.5, 4]
     """
+    if step is None:
+        step = const(1, dtype)
+
     if stop is None:
         stop = start
-        start = 0
+        start = const(0, dtype=dtype)
+
     return _make.arange(start, stop, step, dtype)
 
 
@@ -677,3 +740,93 @@ def gather_nd(data, indices):
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
     return _make.gather_nd(data, indices)
+
+
+def sequence_mask(data, valid_length, mask_value=0, axis=0):
+    """Sets all elements outside the expected length of the sequence to a constant value.
+
+    This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+    [batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data.
+
+    valid_length : relay.Expr
+        The expected (valid) length of each sequence in the tensor.
+
+    mask_value : float
+        The masking value.
+
+    axis : int
+        The axis of the length dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [ 10.,  11.,  12.]],
+             [[ 13.,  14.,   15.], [ 16.,  17.,   18.]]]
+
+       relay.sequence_mask(x, valid_length=[1, 1]) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]]]
+
+       relay.sequence_mask(x, valid_length=[2, 3], mask_value=0.1) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [  10.,  11.,  12.]],
+             [[  0.1,  0.1,  0.1], [  16.,  17.,  18.]]]
+    """
+    return _make.sequence_mask(data, valid_length, mask_value, axis)
+
+def one_hot(indices, on_value, off_value, depth, axis, dtype):
+    """
+    Returns a one-hot tensor where the locations repsented by indices take value on_value,
+    other locations take value off_value.
+    Final dimension is <indices outer dimensions> x depth x <indices inner dimensions>.
+
+    Parameters
+    ----------
+    indices : relay.Expr
+        Locations to set to on_value.
+
+    on_value : relay.Expr
+        Value to fill at indices.
+
+    off_value : relay.Expr
+        Value to fill at all other positions besides indices.
+
+    depth : int
+        Depth of the one-hot dimension.
+
+    axis : int
+        Axis to fill.
+
+    dtype : str
+        Data type of the output tensor.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The one-hot tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [0, 1, 2]
+
+        relay.one_hot(indices, 3) =
+            [[1, 0, 0],
+             [0, 1, 0],
+             [0, 0, 1]]
+    """
+    return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)

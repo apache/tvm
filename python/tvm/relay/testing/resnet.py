@@ -169,7 +169,7 @@ def resnet(units,
     flat = relay.nn.batch_flatten(data=pool1)
     fc1 = layers.dense_add_bias(data=flat, units=num_classes, name='fc1')
     net = relay.nn.softmax(data=fc1)
-    return relay.Function(relay.ir_pass.free_vars(net), net)
+    return relay.Function(relay.analysis.free_vars(net), net)
 
 
 def get_net(batch_size,
@@ -261,8 +261,8 @@ def get_workload(batch_size=1,
 
     Returns
     -------
-    net : relay.Function
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a ResNet network.
 
     params : dict of str to NDArray
         The parameters.

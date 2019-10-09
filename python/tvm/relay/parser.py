@@ -18,22 +18,12 @@
 from __future__ import absolute_import
 from .. import register_func
 
-def enabled():
-    """Checks whether the parser is enabled, this allows users to
-       optionally support building the parser.
-
-       We use this check before importing the parser.
-    """
-    try:
-        # pylint: disable=unused-variable
-        from tvm.relay import _parser
-        return True
-    # pylint: disable=broad-except
-    except Exception:
-        return False
 
 @register_func("relay.fromtext")
 def fromtext(data, source_name=None):
     """Parse a Relay program."""
     from tvm.relay import _parser
-    return _parser.fromtext(data, source_name)
+    x = _parser.fromtext(data + "\n", source_name)
+    if x is None:
+        raise Exception("cannot parse: ", data)
+    return x

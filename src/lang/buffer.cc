@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,9 +26,14 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <iterator>
+#include <stack>
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
+
+// TODO(tqchen): change to floormod/div
+using IndexMod = ir::FloorMod;
+using IndexDiv = ir::FloorDiv;
 
 Array<Expr> SimplifyArray(Array<Expr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
@@ -48,7 +53,8 @@ Buffer decl_buffer(Array<Expr> shape,
       Expr(),
       name,
       "",
-      0, 0);
+      0, 0,
+      kDefault);
 }
 
 // Split the given expression w.r.t the add operator
@@ -107,7 +113,7 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
   Expr mult_inner;  // The inner multiplication factor
   Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
   while (true) {
-    auto inner_div_ptr = search_ptr->as<Div>();
+    auto inner_div_ptr = search_ptr->as<IndexDiv>();
     auto inner_mult_ptr = search_ptr->as<Mul>();
     auto inner_add_ptr = search_ptr->as<Add>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
@@ -154,7 +160,7 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
   *has_mult = false;
   *has_mod = false;
   for (const Expr* ele : eles) {
-    auto mod_ptr = ele->as<Mod>();
+    auto mod_ptr = ele->as<IndexMod>();
     auto mult_ptr = ele->as<Mul>();
     if (mod_ptr) {
       *has_mod = true;
@@ -233,7 +239,8 @@ inline Expr MergeMulMod(const Expr &base) {
   }
   for (std::list<std::pair<Expr, Expr> >::iterator it = mod_exprs.begin();
                                                    it != mod_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + it->first % it->second : it->first % it->second;
+    no_opt_sum = no_opt_sum.get() ?
+        no_opt_sum + indexmod(it->first, it->second) : indexmod(it->first, it->second);
   }
   return no_opt_sum;
 }
@@ -244,13 +251,20 @@ inline Expr MergeMulMod(const Expr &base) {
 inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
-    CHECK_EQ(n->shape.size(), index.size());
-    if (index.size() > 0) {
-      Expr offset = index[0];
-      for (size_t i = 1; i < index.size(); ++i) {
-        offset = MergeMulMod(offset * n->shape[i] + index[i]);
+    // Scalar case
+    if (n->shape.size() == 0 && index.size() == 1) {
+      auto is_int = index[0].as<IntImm>();
+      CHECK(is_int && is_int->value == 0);
+      base = base + index[0];
+    } else {
+      CHECK_EQ(n->shape.size(), index.size());
+      if (index.size() > 0) {
+        Expr offset = index[0];
+        for (size_t i = 1; i < index.size(); ++i) {
+          offset = MergeMulMod(offset * n->shape[i] + index[i]);
+        }
+        base = base + offset;
       }
-      base = base + offset;
     }
   } else {
     CHECK_EQ(n->strides.size(), index.size());
@@ -364,7 +378,8 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           n->name + "_slice",
                           n->scope,
                           n->data_alignment,
-                          0);
+                          0,
+                          n->buffer_type);
 }
 
 Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr offset) const {
@@ -375,8 +390,7 @@ Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr 
     extent = make_const(self->DefaultIndexType(), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
-    extent = arith::ComputeExpr<ir::Mul>(
-        self->strides[highest_dim], self->shape[highest_dim]) - offset;
+    extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
     extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr()) - offset;
   }
@@ -404,7 +418,8 @@ Buffer BufferNode::make(Var data,
                         std::string name,
                         std::string scope,
                         int data_alignment,
-                        int offset_factor) {
+                        int offset_factor,
+                        BufferType buffer_type) {
   auto n = make_node<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -427,6 +442,12 @@ Buffer BufferNode::make(Var data,
   n->elem_offset = std::move(elem_offset);
   n->data_alignment = data_alignment;
   n->offset_factor = offset_factor;
+  n->buffer_type = buffer_type;
+  if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
+    for (size_t i = 0; i < n->shape.size(); ++i) {
+      n->strides.push_back(tvm::var("stride"));
+    }
+  }
   return Buffer(n);
 }
 

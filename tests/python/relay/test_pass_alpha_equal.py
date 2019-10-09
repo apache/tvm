@@ -14,17 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
-from tvm.relay import ir_pass
+from tvm.relay import analysis
 
 def alpha_equal(x, y):
     """
     Wrapper around alpha equality which ensures that
     the hash function respects equality.
     """
-    return ir_pass.alpha_equal(x, y) and ir_pass.structural_hash(x) == ir_pass.structural_hash(y)
+    return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
@@ -160,7 +160,6 @@ def test_type_relation_alpha_equal():
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    # attrs are also compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
@@ -391,7 +390,6 @@ def test_call_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    # attrs are compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
@@ -521,7 +519,7 @@ def test_match_alpha_equal():
                                                              relay.PatternVar(a)]),
                                    p.cons(z, a))
 
-    data = p.cons(p.z(), p.cons(p.z(), p.nil()))
+    data = p.cons(relay.const(1), p.cons(relay.const(2), p.nil()))
 
     match = relay.Match(data, [nil_case, cons_case])
     equivalent = relay.Match(data, [nil_case, equivalent_cons])
@@ -547,8 +545,8 @@ def test_match_alpha_equal():
         relay.Clause(relay.PatternWildcard(), p.nil())
     ])
     wrong_constructors = relay.Match(data, [
-        relay.Clause(relay.PatternConstructor(p.z), p.nil()),
-        relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(x)]),
+        relay.Clause(relay.PatternConstructor(p.none), p.nil()),
+        relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(x)]),
                      p.cons(x, p.nil()))
     ])
 
@@ -594,6 +592,38 @@ def test_graph_equal():
     # Check the difference in the text format.
     assert not alpha_equal(z0, z3)
 
+def test_hash_unequal():
+    x1 = relay.var("x1", shape=(10, 10), dtype="float32")
+    y1 = relay.var("y1", shape=(10, 10), dtype="float32")
+    func1 = relay.Function([x1, y1], relay.add(x1, y1))
+
+    # func2 is exactly same structure with same variables shapes and dtypes
+    x2 = relay.var("x2", shape=(10, 10), dtype="float32")
+    y2 = relay.var("y2", shape=(10, 10), dtype="float32")
+    func2 = relay.Function([x2, y2], relay.add(x2, y2))
+
+    assert analysis.structural_hash(func1) == analysis.structural_hash(func2)
+
+    # func3 is same as func1 but with different var shapes
+    x3 = relay.var("x3", shape=(20, 10), dtype="float32")
+    y3 = relay.var("y3", shape=(20, 10), dtype="float32")
+    func3 = relay.Function([x3, y3], relay.add(x3, y3))
+
+    assert not analysis.structural_hash(func1) == analysis.structural_hash(func3)
+
+
+def test_tuple_match():
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+
+    a = relay.Var("a")
+    b = relay.Var("b")
+    clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
+    y = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
+    assert analysis.alpha_equal(x, y)
+    assert analysis.structural_hash(x) == analysis.structural_hash(y)
 
 
 if __name__ == "__main__":
@@ -617,3 +647,4 @@ if __name__ == "__main__":
     test_op_alpha_equal()
     test_var_alpha_equal()
     test_graph_equal()
+    test_hash_unequal()

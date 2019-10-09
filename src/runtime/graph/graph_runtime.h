@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,6 +34,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <string>
@@ -67,6 +68,13 @@ struct TVMOpParam {
  *  TVM runtime PackedFunc API.
  */
 class GraphRuntime : public ModuleNode {
+  struct OpArgs {
+    std::vector<DLTensor> args;
+    std::vector<TVMValue> arg_values;
+    std::vector<int> arg_tcodes;
+    std::vector<int64_t> shape_data;
+  };
+
  public:
   /*!
    * \brief Get member function to front-end
@@ -112,6 +120,12 @@ class GraphRuntime : public ModuleNode {
    */
   void SetInput(int index, DLTensor* data_in);
   /*!
+   * \brief set index-th input to the graph without copying the data
+   * \param index The input index.
+   * \param data_ref The input data that is referred.
+   */
+  void SetInputZeroCopy(int index, DLTensor* data_ref);
+  /*!
    * \brief Get the number of outputs
    *
    * \return The number of outputs from graph.
@@ -147,10 +161,19 @@ class GraphRuntime : public ModuleNode {
    * \param param_blob A binary blob of parameter.
    */
   void LoadParams(const std::string& param_blob);
- /*!
-  * \brief Get total number of nodes.
-  * \return Total number of nodes.
-  */
+
+  /*!
+   * \brief Share parameters from pre-existing GraphRuntime instance.
+   * \param other A GraphRuntime instance, previously with |LoadParams| called with the
+   * identical input |param_blob|.
+   * \param strm The input stream.
+   */
+  void ShareParams(const GraphRuntime& other, dmlc::Stream* strm);
+
+  /*!
+   * \brief Get total number of nodes.
+   * \return Total number of nodes.
+   */
   uint32_t GetNumOfNodes() const {
     return static_cast<uint32_t>(nodes_.size());
   }
@@ -356,9 +379,9 @@ class GraphRuntime : public ModuleNode {
    * \param num_inputs Number of inputs.
    * \return The created executor.
    */
-  std::function<void()> CreateTVMOp(const TVMOpParam& attrs,
-                                    const std::vector<DLTensor>& args,
-                                    size_t num_inputs);
+  std::pair<std::function<void()>, std::shared_ptr<OpArgs> > CreateTVMOp(
+      const TVMOpParam& attrs, const std::vector<DLTensor>& args,
+      size_t num_inputs);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const {
     return node_row_ptr_[nid] + index;
@@ -375,6 +398,10 @@ class GraphRuntime : public ModuleNode {
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
+  /*! \brief Map of input names to input indices. */
+  std::unordered_map<std::string, uint32_t> input_map_;
+  /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
+  std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */
@@ -389,6 +416,8 @@ class GraphRuntime : public ModuleNode {
   std::vector<NDArray> storage_pool_;
   /*! \brief Data entry of each node. */
   std::vector<NDArray> data_entry_;
+  /*! \brief Data alignment of each node. */
+  std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
 };

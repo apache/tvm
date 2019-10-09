@@ -20,7 +20,12 @@ from __future__ import absolute_import as _abs
 from numbers import Integral
 
 import tvm
+from tvm.api import layout, bijective_layout
 from . import tag
+
+class InvalidShapeError(ValueError):
+    """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
+    pass
 
 def traverse_inline(s, final_op, callback):
     """Traverse computation graph and do auto inline
@@ -44,7 +49,7 @@ def traverse_inline(s, final_op, callback):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     _traverse(tensor.op)
         callback(op)
 
@@ -151,11 +156,7 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_int(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_int(elem) for elem in in_tuple)
 
 
 def get_float_tuple(in_tuple):
@@ -171,11 +172,7 @@ def get_float_tuple(in_tuple):
     out_tuple : tuple of float
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_float(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_float(elem) for elem in in_tuple)
 
 
 def simplify(expr):
@@ -235,10 +232,12 @@ def unravel_index(idx, shape):
     indices : tuple of int or tvm.expr.IntImm
         Corresponding coordinate of the 1D index
     """
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
     indices = []
     for i in range(len(shape) - 1, -1, -1):
-        indices.append(idx % shape[i])
-        idx = idx // shape[i]
+        indices.append(idxm(idx, shape[i]))
+        idx = idxd(idx, shape[i])
     indices = indices[::-1]
     return indices
 
@@ -260,12 +259,13 @@ def const_matrix(matrix, name="const_matrix"):
     """
     row, col = matrix.shape
     dtype = str(matrix.dtype)
+    idxm = tvm.indexmod
 
     def select_array(i, j):
         now = tvm.const(0.0, dtype)
         for ii in range(row):
             for jj in range(col):
-                now = tvm.expr.Select(tvm.all(i % row == ii, j % col == jj),
+                now = tvm.expr.Select(tvm.all(idxm(i, row) == ii, idxm(j, col) == jj),
                                       tvm.const(matrix[ii][jj], dtype),
                                       now)
         return now
@@ -297,3 +297,41 @@ def get_max_power2_factor(n, max_value=None):
         x *= 2
         n /= 2
     return x
+
+
+def get_shape(src_shape, src_layout, dst_layout):
+    """Given a source shape, a source layout and a destination layout, infer
+    the destination shape.
+
+    Parameter
+    ---------
+    src_shape : tuple of int or IntImm
+        Source shape
+
+    src_layout : str or Layout
+        Source layout
+
+    dst_layout : str or Layout
+        Destination layout
+
+    Returns
+    -------
+    dst_shape : tuple of int
+        Destination shape
+    """
+    if src_layout == dst_layout:
+        return get_const_tuple(src_shape)
+
+    if isinstance(src_layout, str):
+        src_layout = layout(src_layout)
+    if isinstance(dst_layout, str):
+        dst_layout = layout(dst_layout)
+
+    assert len(src_layout) == len(dst_layout), \
+        "Incompatible layout %s vs %s" % (src_layout, dst_layout)
+
+    layout_mapping = bijective_layout(src_layout, dst_layout)
+    dst_indices = layout_mapping.forward_index(
+        tvm.convert([i for i in range(len(src_layout))]))
+
+    return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))

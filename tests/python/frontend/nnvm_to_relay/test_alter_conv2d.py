@@ -20,7 +20,8 @@ import nnvm
 
 from tvm import relay
 from tvm import autotvm
-from tvm.relay.ir_pass import infer_type, alpha_equal
+from tvm.relay import transform
+from tvm.relay.analysis import alpha_equal
 
 
 def test_alter_layout_conv2d():
@@ -57,31 +58,32 @@ def test_alter_layout_conv2d():
         n15 = relay.reshape(n14, newshape=[1, 1, 3, 3, 224, 224])
         n16 = relay.transpose(n15, axes=[0, 1, 4, 2, 5, 3])
         net = relay.reshape(n16, newshape=[1, 1, 672, 672])
-        args = relay.ir_pass.free_vars(net)
+        args = relay.analysis.free_vars(net)
         return relay.Function(args, net)
 
     # orig net
     N = convnet()
-    N = infer_type(N)
 
     # trigger a test
     # for each known alter_conv2d
     targets=['cuda',
              'opencl -device=mali',
              'opencl -device=intel_graphics',
+
              'llvm -device=arm_cpu',
              'llvm -device=core-avx-ii']
 
     for tgt in targets:
         with tvm.target.create(tgt) as target:
-            with relay.build_config(opt_level=-1, add_pass='AlterOpLayout'):
-               with autotvm.tophub.context(target):
-                   O = relay.optimize(N, target, params=None)
-                   O = relay.ir_pass.infer_type(O)
+            with autotvm.tophub.context(target):
+                mod = relay.Module.from_expr(N)
+                mod = transform.AlterOpLayout()(mod)
+                O = mod["main"]
 
-                   # graph should differ
-                   assert not relay.ir_pass.alpha_equal(N, O)
+                # graph should differ
+                assert not relay.analysis.alpha_equal(N, O)
 
 if __name__ == "__main__":
+    import numpy as np
     np.random.seed(42)
     test_alter_layout_conv2d()

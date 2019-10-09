@@ -62,6 +62,9 @@ class UpSamplingAttrs(Attrs):
 class PadAttrs(Attrs):
     """Attributes for nn.pad"""
 
+@register_relay_attr_node
+class MirrorPadAttrs(Attrs):
+    """Attributes for nn.mirror_pad"""
 
 @register_relay_attr_node
 class LeakyReluAttrs(Attrs):
@@ -251,3 +254,28 @@ class YoloReorgAttrs(Attrs):
 @register_relay_attr_node
 class ProposalAttrs(Attrs):
     """Attributes used in proposal operators"""
+
+
+@register_relay_attr_node
+class MaxPool2DAttrs(Attrs):
+    """Attributes used in max_pool2d operators"""
+
+
+@register_relay_attr_node
+class AvgPool2DAttrs(Attrs):
+    """Attributes used in avg_pool2d operators"""
+
+
+@register_relay_attr_node
+class BitPackAttrs(Attrs):
+    """Attributes used in bitpack operator"""
+
+
+@register_relay_attr_node
+class BinaryConv2DAttrs(Attrs):
+    """Attributes used in bitserial conv2d operators"""
+
+
+@register_relay_attr_node
+class BinaryDenseAttrs(Attrs):
+    """Attributes used in bitserial dense operators"""

@@ -14,20 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import numpy as np
+import pytest
+
+import tvm
 from tvm import relay
-from tvm.relay.ir_pass import gradient, infer_type
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import check_grad, ctx_list, run_infer_type
+from tvm.relay.transform import gradient
+
 
 def sigmoid(x):
     one = np.ones_like(x)
     return one / (one + np.exp(-x))
 
+
 def relu(x):
     x_copy = np.copy(x)
     np.maximum(x_copy, 0, x_copy)
     return x_copy
+
 
 def test_unary_op():
     def check_single_op(opfunc, ref):
@@ -41,7 +46,8 @@ def test_unary_op():
             data = np.random.rand(*shape).astype(dtype)
             ref_grad = ref(data)
             fwd_func = relay.Function([x], y)
-            bwd_func = infer_type(gradient(fwd_func))
+            fwd_func = run_infer_type(fwd_func)
+            bwd_func = run_infer_type(gradient(fwd_func))
 
             for target, ctx in ctx_list():
                 intrp = relay.create_executor(ctx=ctx, target=target)
@@ -53,7 +59,11 @@ def test_unary_op():
                         (tvm.relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
                         (tvm.relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
                         (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
-                        (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x)))]:
+                        (tvm.relay.abs, lambda x: np.where(x < 0, -np.ones_like(x), np.ones_like(x))),
+                        (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
+                        (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
+                        (tvm.relay.sin, lambda x: np.cos(x)),
+                        (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0)))]:
         check_single_op(opfunc, ref)
 
 
@@ -72,7 +82,8 @@ def test_binary_op():
         y_data = np.random.rand(*s).astype(t.dtype)
         ref_grad0, ref_grad1 = ref(x_data, y_data)
         fwd_func = relay.Function([x, y], z)
-        bwd_func = infer_type(gradient(fwd_func))
+        fwd_func = run_infer_type(fwd_func)
+        bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, ctx in ctx_list():
             intrp = relay.create_executor(ctx=ctx, target=target)
@@ -87,6 +98,24 @@ def test_binary_op():
         check_binary_op(opfunc, ref)
 
 
+def test_softmax_grad():
+    data = relay.var("data", relay.TensorType((1, 16), "float64"))
+    fwd_func = relay.Function([data], relay.nn.softmax(data))
+    check_grad(fwd_func, scale=1)
+
+
+def test_log_softmax_grad():
+    data = relay.var("data", relay.TensorType((2, 16), "float64"))
+    fwd_func = relay.Function([data], relay.nn.log_softmax(data))
+    check_grad(fwd_func, scale=1)
+
+
+def test_bias_add_grad():
+    data = relay.var("data", relay.TensorType((1, 16), "float32"))
+    bias = relay.var("bias", relay.TensorType((16,), "float32"))
+    fwd_func = relay.Function([data, bias], relay.nn.bias_add(data, bias))
+    check_grad(fwd_func)
+
+
 if __name__ == "__main__":
-    test_unary_op()
-    test_binary_op()
+    pytest.main([__file__])

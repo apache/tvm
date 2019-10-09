@@ -24,7 +24,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir_functor_ext.h>
 #include <algorithm>
-#include "int_op_overflow.h"
+#include "int_operator.h"
 #include "pattern_match.h"
 
 namespace tvm {
@@ -34,19 +34,31 @@ using namespace ir;
 
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
-ConstIntBound ConstIntBoundNode::make(
+ConstIntBound::ConstIntBound(
     int64_t min_value, int64_t max_value) {
   auto node = make_node<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
-  return ConstIntBound(node);
+  node_ = std::move(node);
+}
+
+inline void PrintBoundValue(std::ostream& os, int64_t val) {
+  if (val == ConstIntBound::kPosInf) {
+    os << "pos_inf";
+  } else if (val == ConstIntBound::kNegInf) {
+    os << "neg_inf";
+  } else {
+    os << val;
+  }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ConstIntBoundNode *op, IRPrinter *p) {
-    p->stream << "ConstIntBound"
-              << "[" << op->min_value << ", "
-              << op->max_value << ']';
+.set_dispatch<ConstIntBoundNode>([](const ConstIntBoundNode* op, IRPrinter* p) {
+    p->stream << "ConstIntBound[";
+    PrintBoundValue(p->stream, op->min_value);
+    p->stream << ',';
+    PrintBoundValue(p->stream, op->max_value);
+    p->stream << ']';
   });
 
 // internal entry for const int bound
@@ -95,7 +107,10 @@ class ConstIntBoundAnalyzer::Impl :
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
         CHECK(it->second == info)
-          << "var \'" << var << "\' already updated.";
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
+            << ", new=" << ConstIntBound(info.min_value, info.max_value);
       }
     }
     var_map_[var] = info;
@@ -110,7 +125,7 @@ class ConstIntBoundAnalyzer::Impl :
   // Override visitor behaviors
   Entry VisitExprDefault_(const Node* op) final {
     return Everything(
-        static_cast<const ir::BaseExprNode*>(op)->type);
+        static_cast<const ExprNode*>(op)->type);
   }
 
   Entry VisitExpr(const Expr& expr) final {
@@ -190,10 +205,41 @@ class ConstIntBoundAnalyzer::Impl :
                          std::min(a.max_value, b_max_cap));
       } else {
         return MakeBound(std::max(a.min_value, -b_max_cap),
-                         std::min(a.max_value, b_max_cap));
+                         std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
       }
     } else {
       CHECK(!b.is_const(0)) << "mod by zero";
+      // mod by negative value is rare,
+      // and we just use the simpliest rule.
+      return Everything(op->type);
+    }
+  }
+
+  Entry VisitExpr_(const FloorDiv* op) final {
+    Entry a = VisitExpr(op->a);
+    Entry b = VisitExpr(op->b);
+    CHECK(!b.is_const(0)) << "floordiv by zero";
+    // assume no division by 0
+    if (b.min_value == 0) b.min_value = 1;
+    if (b.max_value == 0) b.max_value = -1;
+    return BinaryOpBoundry(a, b, InfAwareFloorDiv);
+  }
+
+  Entry VisitExpr_(const FloorMod* op) final {
+    Entry a = VisitExpr(op->a);
+    Entry b = VisitExpr(op->b);
+    if (b.min_value > 0) {
+      int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) return a;
+        // other case, we can get close to 0
+        return MakeBound(0, std::min(a.max_value, b_max_cap));
+      } else {
+        return MakeBound(0, b_max_cap);
+      }
+    } else {
+      CHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
       return Everything(op->type);
@@ -289,8 +335,8 @@ class ConstIntBoundAnalyzer::Impl :
   std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
-  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBound::kNegInf;
+  static const constexpr int64_t kPosInf = ConstIntBound::kPosInf;
   static_assert(-kNegInf == kPosInf, "invariant of inf");
   // internal helper functions
   /*!
@@ -359,6 +405,20 @@ class ConstIntBoundAnalyzer::Impl :
       return -x;
     }
     return x / y;
+  }
+  /*!
+   * \brief Compute floodiv(x, y), aware of inf.
+   * \param x The left operand.
+   * \param y The right operand.
+   * \return the result.
+   */
+  static int64_t InfAwareFloorDiv(int64_t x, int64_t y) {
+    CHECK_NE(y, 0);
+    if (x == kPosInf || x == kNegInf) {
+      if (y > 0) return x;
+      return -x;
+    }
+    return floordiv(x, y);
   }
   /*!
    * \brief Compute x / y, aware of inf.
@@ -462,7 +522,7 @@ class ConstIntBoundAnalyzer::Impl :
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const Expr& expr) {
   Entry ret = impl_->VisitExpr(expr);
-  return ConstIntBoundNode::make(ret.min_value, ret.max_value);
+  return ConstIntBound(ret.min_value, ret.max_value);
 }
 
 void ConstIntBoundAnalyzer::Update(const Var& var,

@@ -29,20 +29,21 @@ A quick solution is to install Flatbuffers via pip
 
     pip install flatbuffers --user
 
+
 To install TFlite packages, you could use our prebuilt wheel:
 
 .. code-block:: bash
 
     # For python3:
-    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py3-none-any.whl
-    pip install tflite-0.0.1-py3-none-any.whl --user
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py3-none-any.whl
+    pip3 install -U tflite-1.13.1-py3-none-any.whl --user
 
     # For python2:
-    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py2-none-any.whl
-    pip install tflite-0.0.1-py2-none-any.whl --user
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py2-none-any.whl
+    pip install -U tflite-1.13.1-py2-none-any.whl --user
 
 
-or you could generate TFLite package by yourself. The steps are as following:
+or you could generate TFLite package yourself. The steps are the following:
 
 .. code-block:: bash
 
@@ -52,18 +53,18 @@ or you could generate TFLite package by yourself. The steps are as following:
     flatc --version
 
     # Get the TFLite schema.
-    wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.12/tensorflow/contrib/lite/schema/schema.fbs
+    wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
 
     # Generate TFLite package.
     flatc --python schema.fbs
 
-    # Add it to PYTHONPATH.
-    export PYTHONPATH=/path/to/tflite
+    # Add current folder (which contains generated tflite module) to PYTHONPATH.
+    export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)
 
 
 Now please check if TFLite package is installed successfully, ``python -c "import tflite"``
 
-Below you can find an example for how to compile TFLite model using TVM.
+Below you can find an example on how to compile TFLite model using TVM.
 """
 ######################################################################
 # Utils for downloading and extracting zip files
@@ -117,24 +118,15 @@ plt.imshow(resized_image)
 plt.show()
 image_data = np.asarray(resized_image).astype("float32")
 
-# convert HWC to CHW
-image_data = image_data.transpose((2, 0, 1))
-
-# after expand_dims, we have format NCHW
+# after expand_dims, we have format NHWC
 image_data = np.expand_dims(image_data, axis=0)
 
 # preprocess image as described here:
 # https://github.com/tensorflow/models/blob/edb6ed22a801665946c63d650ab9a0b23d98e1b1/research/slim/preprocessing/inception_preprocessing.py#L243
-image_data[:, 0, :, :] = 2.0 / 255.0 * image_data[:, 0, :, :] - 1
-image_data[:, 1, :, :] = 2.0 / 255.0 * image_data[:, 1, :, :] - 1
-image_data[:, 2, :, :] = 2.0 / 255.0 * image_data[:, 2, :, :] - 1
+image_data[:, :, :, 0] = 2.0 / 255.0 * image_data[:, :, :, 0] - 1
+image_data[:, :, :, 1] = 2.0 / 255.0 * image_data[:, :, :, 1] - 1
+image_data[:, :, :, 2] = 2.0 / 255.0 * image_data[:, :, :, 2] - 1
 print('input', image_data.shape)
-
-####################################################################
-#
-# .. note:: Input layout:
-#
-#   Currently, TVM TFLite frontend accepts ``NCHW`` as input layout.
 
 ######################################################################
 # Compile the model with relay
@@ -142,19 +134,19 @@ print('input', image_data.shape)
 
 # TFLite input tensor name, shape and type
 input_tensor = "input"
-input_shape = (1, 3, 224, 224)
+input_shape = (1, 224, 224, 3)
 input_dtype = "float32"
 
 # parse TFLite model and convert into Relay computation graph
 from tvm import relay
-func, params = relay.frontend.from_tflite(tflite_model,
-                                          shape_dict={input_tensor: input_shape},
-                                          dtype_dict={input_tensor: input_dtype})
+mod, params = relay.frontend.from_tflite(tflite_model,
+                                         shape_dict={input_tensor: input_shape},
+                                         dtype_dict={input_tensor: input_dtype})
 
 # target x86 CPU
 target = "llvm"
-with relay.build_module.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+with relay.build_config(opt_level=3):
+    graph, lib, params = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -189,11 +181,9 @@ label_file_url = ''.join(['https://raw.githubusercontent.com/',
 label_file = "labels_mobilenet_quant_v1_224.txt"
 label_path = download_testdata(label_file_url, label_file, module='data')
 
-# map id to 1001 classes
-labels = dict()
+# list of 1001 classes
 with open(label_path) as f:
-    for id, line in enumerate(f):
-        labels[id] = line
+    labels = f.readlines()
 
 # convert result to 1D data
 predictions = np.squeeze(tvm_output)

@@ -99,14 +99,14 @@ class OpAttributeInvalid(OpError, AttributeError):
 
 
 @register_error
-class OpAttributeUnimplemented(OpError, NotImplementedError):
+class OpAttributeUnImplemented(OpError, NotImplementedError):
     """Attribute is not supported in a certain frontend.
 
     Example
     -------
     .. code:: python
 
-        raise OpAttributeUnimplemented(
+        raise OpAttributeUnImplemented(
             "Attribute {} is not supported in operator {}".format(
                 attr_name, op_name))
     """

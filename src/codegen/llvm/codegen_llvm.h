@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -131,6 +131,7 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const Load* op) override;
   llvm::Value* VisitExpr_(const Call* op) override;
   llvm::Value* VisitExpr_(const Ramp* op) override;
+  llvm::Value* VisitExpr_(const Shuffle* op) override;
   llvm::Value* VisitExpr_(const Broadcast* op) override;
   // stmt
   void VisitStmt_(const Store* op) override;
@@ -293,6 +294,17 @@ class CodeGenLLVM :
   std::unordered_set<const Variable*> alias_var_set_;
   // set of volatile buffer.
   std::unordered_set<const Variable*> volatile_buf_;
+  /*! \brief Helper struct for debug infos. */
+  struct DebugInfo {
+    std::unique_ptr<llvm::DIBuilder> di_builder_;
+    llvm::DICompileUnit* compilation_unit_{nullptr};
+    llvm::DIFile* file_{nullptr};
+  };
+  /*!
+   * \brief Create a new DebugInfo struct from the given Module that
+   *  initializes file and compilation_unit_ to TVM defaults.
+   */
+  static std::unique_ptr<DebugInfo> CreateDebugInfo(llvm::Module* module);
 };
 }  // namespace codegen
 }  // namespace tvm

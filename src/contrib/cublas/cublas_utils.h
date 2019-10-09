@@ -27,9 +27,7 @@
 
 #include <dmlc/logging.h>
 
-extern "C" {
 #include <cublas_v2.h>
-}
 
 namespace tvm {
 namespace contrib {

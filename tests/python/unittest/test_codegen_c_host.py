@@ -44,6 +44,7 @@ def test_add():
             c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_c()
 
+
 def test_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)
@@ -63,8 +64,6 @@ def test_add_pipeline():
     s[C].vectorize(xi)
 
     def check_c():
-        if not tvm.module.enabled("llvm"):
-            return
         # Specifically allow offset to test codepath when offset is available
         Ab = tvm.decl_buffer(
             A.shape, A.dtype,
@@ -95,6 +94,32 @@ def test_add_pipeline():
     with tvm.build_config(offset_factor=4):
         check_c()
 
+
+def test_reinterpret():
+    nn = 1024
+    n = tvm.convert(nn)
+    A = tvm.placeholder((n,), name='A', dtype="int32")
+    B = tvm.compute(A.shape, lambda *i: tvm.call_pure_intrin("float32", "reinterpret", A(*i)), name='B')
+    s = tvm.create_schedule(B.op)
+
+    def check_c():
+        mhost = tvm.build(s, [A, B], "c", name="reinterpret")
+        temp = util.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm.module.load(path_dso)
+        fadd = m['reinterpret']
+        ctx = tvm.cpu(0)
+        n = nn
+        a = tvm.nd.array(np.random.randint(-2 ** 30, 2 ** 30, size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        fadd(a, b)
+        tvm.testing.assert_allclose(
+            b.asnumpy(), a.asnumpy().view('float32'))
+    check_c()
+
+
 if __name__ == "__main__":
     test_add()
     test_add_pipeline()
+    test_reinterpret()

@@ -17,14 +17,13 @@
 
 <img src=https://raw.githubusercontent.com/tqchen/tvm.ai/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
 ==============================================
-
-[![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
-[![Build Status](http://ci.tvm.ai:8080/buildStatus/icon?job=tvm/master)](http://ci.tvm.ai:8080/job/tvm/job/master/)
-
 [Documentation](https://docs.tvm.ai) |
 [Contributors](CONTRIBUTORS.md) |
 [Community](https://tvm.ai/community.html) |
 [Release Notes](NEWS.md)
+
+[![Build Status](http://ci.tvm.ai:8080/buildStatus/icon?job=tvm/master)](http://ci.tvm.ai:8080/job/tvm/job/master/)
+[![Azure Pipeline](https://dev.azure.com/tvmai/tvm/_apis/build/status/windows_mac_build?branchName=master)](https://dev.azure.com/tvmai/tvm/_build/latest?definitionId=2&branchName=master)
 
 TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
@@ -42,8 +41,8 @@ Checkout the [Contributor Guide](https://docs.tvm.ai/contribute/)
 
 Acknowledgement
 ---------------
-We learnt a lot from the following projects when building TVM.
+We learned a lot from the following projects when building TVM.
 - [Halide](https://github.com/halide/Halide): TVM uses [HalideIR](https://github.com/dmlc/HalideIR) as data structure for
-  arithmetic simplification and low level lowering. We also learnt and adapted some part of lowering pipeline from Halide.
+  arithmetic simplification and low level lowering. We also learned and adapted some part of lowering pipeline from Halide.
 - [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
 - [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.

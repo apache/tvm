@@ -30,16 +30,19 @@ from tvm import autotvm
 from tvm import relay
 from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
+from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
 # Define network
 # --------------
 # First we need to define the network in relay frontend API.
-# We can load some pre-defined network from :code:`relay.testing`.
+# We can either load some pre-defined network from :code:`relay.testing`
+# or building :any:`relay.testing.resnet` with relay.
 # We can also load models from MXNet, ONNX and TensorFlow.
 #
 # In this tutorial, we choose resnet-18 as tuning example.
+
 
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
@@ -48,27 +51,30 @@ def get_network(name, batch_size):
 
     if "resnet" in name:
         n_layer = int(name.split('-')[1])
-        net, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif "vgg" in name:
         n_layer = int(name.split('-')[1])
-        net, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif name == 'mobilenet':
-        net, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'squeezenet_v1.1':
-        net, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
+        mod, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
     elif name == 'inception_v3':
         input_shape = (1, 3, 299, 299)
-        net, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
+        mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'mxnet':
         # an example for mxnet model
         from mxnet.gluon.model_zoo.vision import get_model
         block = get_model('resnet18_v1', pretrained=True)
-        net, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+        mod, params = relay.frontend.from_mxnet(block, shape={input_name: input_shape}, dtype=dtype)
+        net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
+        mod = relay.Module.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
-    return net, params, input_shape, output_shape
+    return mod, params, input_shape, output_shape
+
 
 # Replace "llvm" with the correct target of your CPU.
 # For example, for AWS EC2 c5 instance with Intel Xeon
@@ -81,6 +87,11 @@ batch_size = 1
 dtype = "float32"
 model_name = "resnet-18"
 log_file = "%s.log" % model_name
+graph_opt_sch_file = "%s_graph_opt.log" % model_name
+
+# Set the input name of the graph
+# For ONNX models, it is typically "0".
+input_name = "data"
 
 # Set number of threads used for tuning based on the number of
 # physical CPU cores on your machine.
@@ -112,6 +123,7 @@ tuning_option = {
                                    min_repeat_ms=1000),
     ),
 }
+
 
 # You can skip the implementation of this function for this tutorial.
 def tune_kernels(tasks,
@@ -158,32 +170,44 @@ def tune_kernels(tasks,
                            autotvm.callback.log_to_file(log_filename)])
 
 
+# Use graph tuner to achieve graph level optimal schedules
+# Set use_DP=False if it takes too long to finish.
+def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
+    target_op = [relay.nn.conv2d]
+    Tuner = DPTuner if use_DP else PBQPTuner
+    executor = Tuner(graph, {input_name: dshape}, records, target_op, target)
+    executor.benchmark_layout_transform(min_exec_num=2000)
+    executor.run()
+    executor.write_opt_sch2record_file(opt_sch_file)
+
+
 ########################################################################
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
 def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
-    net, params, data_shape, out_shape = get_network(model_name, batch_size)
-    tasks = autotvm.task.extract_from_program(net, target=target,
+    mod, params, data_shape, out_shape = get_network(model_name, batch_size)
+    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
                                               params=params, ops=(relay.op.nn.conv2d,))
 
     # run tuning tasks
     print("Tuning...")
     tune_kernels(tasks, **tuning_opt)
+    tune_graph(mod["main"], data_shape, log_file, graph_opt_sch_file)
 
-    # compile kernels with history best records
-    with autotvm.apply_history_best(log_file):
+    # compile kernels with graph-level best records
+    with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build_module.build(
-                net, target=target,  params=params)
+                mod, target=target, params=params)
 
         # upload parameters to device
         ctx = tvm.cpu()
         data_tvm = tvm.nd.array((np.random.uniform(size=data_shape)).astype(dtype))
         module = runtime.create(graph, lib, ctx)
-        module.set_input('data', data_tvm)
+        module.set_input(input_name, data_tvm)
         module.set_input(**params)
 
         # evaluate

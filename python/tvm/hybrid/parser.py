@@ -25,17 +25,17 @@ import numbers
 
 from enum import Enum
 
-from .util import _internal_assert, _apply_indices
+from .util import _internal_assert
 from . import calls
 from . import util
 from .preprocessor import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
+
 from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import _api_internal as _tvm_internal
 from .. import expr as _expr
-from .. import stmt as _stmt
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
@@ -43,16 +43,15 @@ from .. import ir_pass as _ir_pass
 
 def concat_list_to_block(lst):
     """Concatenate a list of Python IR nodes to HalideIR Block"""
+    if not lst:
+        return util.make_nop()
     n = len(lst)
     if n == 1:
         return lst[0]
     body = lst[n - 1]
     for i in range(1, n):
         stmt = lst[n - 1 - i]
-        if isinstance(stmt, _stmt.AssertStmt):
-            body = _make.AssertStmt(stmt.condition, stmt.message, body)
-        else:
-            body = _make.Block(stmt, body)
+        body = _make.Block(stmt, body)
     return body
 
 
@@ -80,6 +79,18 @@ class Symbol(Enum):
     ThreadBind = 10
 
 
+def _floordiv(x, y):
+    if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
+        return _api.floordiv(x, y)
+    return operator.floordiv(x, y)
+
+
+def _floormod(x, y):
+    if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
+        return _api.floormod(x, y)
+    return operator.mod(x, y)
+
+
 class HybridParser(ast.NodeVisitor):
     """Python AST visitor pass which finally lowers it to HalideIR"""
 
@@ -89,8 +100,8 @@ class HybridParser(ast.NodeVisitor):
         ast.Sub     : operator.sub,
         ast.Mult    : operator.mul,
         ast.Div     : operator.div if sys.version_info[0] == 2 else operator.truediv,
-        ast.FloorDiv: operator.div if sys.version_info[0] == 2 else operator.truediv,
-        ast.Mod     : operator.mod,
+        ast.FloorDiv: _floordiv,
+        ast.Mod     : _floormod,
         ast.BitOr   : operator.or_,
         ast.BitAnd  : operator.and_,
         ast.BitXor  : operator.xor,
@@ -100,8 +111,8 @@ class HybridParser(ast.NodeVisitor):
         ast.LtE     : operator.le,
         ast.Eq      : operator.eq,
         ast.NotEq   : operator.ne,
-        ast.And   : _all,
-        ast.Or    : _any,
+        ast.And     : _all,
+        ast.Or      : _any,
     }
 
 
@@ -179,6 +190,9 @@ class HybridParser(ast.NodeVisitor):
         to_pop = []
         for key, val in self.usage.items():
             _, level, _ = val
+            if key not in self.symbols:
+                # don't realize the symbols that are never visited
+                continue
             if level != node:
                 continue
             _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
@@ -363,44 +377,25 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_Attribute(self, node):
-        _internal_assert(isinstance(node.value, ast.Name), \
-                         "For atrribute access, only both names are supported so far!")
         buf = self.visit(node.value)
         return getattr(buf, node.attr)
 
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
-        if isinstance(node.value, ast.Name):
-            if node.value.id in self.closure_vars:
-                args = ast.literal_eval(str(args))
-                return _api.convert(_apply_indices(self.closure_vars[node.value.id], args))
-
-            buf = self.visit(node.value)
-            if isinstance(buf, Array):
-                for i in args:
-                    if isinstance(i, numbers.Integral):
-                        buf = buf[i]
-                    else:
-                        _internal_assert(isinstance(i, (_expr.IntImm, _expr.UIntImm)), \
-                                         "All indices are supposed to be constants")
-                        buf = buf[i.value]
-
-                return buf
-
-            if isinstance(node.ctx, ast.Load):
-                return _make.Call(buf.dtype, buf.name, args, \
-                                  _expr.Call.Halide, buf.op, buf.value_index)
-
-            return buf, args
-
-        shape = self.visit(node.value)
-        _internal_assert(len(args) == 1, "For 'shape' access the argument should be only one!")
-        args = args[0]
-        #TODO: maybe support non-constant value later?
-        _internal_assert(isinstance(args, (_expr.IntImm, _expr.UIntImm)), \
-                         "So far only constant shape access supported!")
-        return shape[args.value]
-
+        arr = self.visit(node.value)
+        if isinstance(arr, Array):
+            for i in args:
+                if isinstance(i, numbers.Integral):
+                    arr = arr[i]
+                else:
+                    _internal_assert(isinstance(i, (_expr.IntImm, _expr.UIntImm)), \
+                                     "All indices are supposed to be constants")
+                    arr = arr[i.value]
+            return arr
+        if isinstance(node.ctx, ast.Load):
+            return _make.Call(arr.dtype, arr.name, args,
+                              _expr.Call.Halide, arr.op, arr.value_index)
+        return arr, args
 
     def visit_With(self, node):
         if sys.version_info[0] < 3:
@@ -417,7 +412,7 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_If(self, node):
-        cond = self.visit(node.test)
+        cond = _ir_pass.CanonicalSimplify(self.visit(node.test))
 
         # Return no IfThenElse if proven
         if isinstance(cond, _expr.UIntImm):
@@ -508,11 +503,11 @@ class HybridParser(ast.NodeVisitor):
         _name = node.target.id
 
         if isinstance(for_type, tuple):
-            low = _ir_pass.Simplify(low)
-            ext = _ir_pass.Simplify(ext)
+            low = _ir_pass.CanonicalSimplify(low)
+            ext = _ir_pass.CanonicalSimplify(ext)
             _internal_assert(isinstance(low, _expr.ConstExpr) and
                              isinstance(ext, _expr.ConstExpr), \
-                             "Const range should start from a const" + \
+                             "Const range should start from a const " + \
                              "and iterate const times")
 
             low, ext = low.value, ext.value

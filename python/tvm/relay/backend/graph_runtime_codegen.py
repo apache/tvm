@@ -36,12 +36,9 @@ contrib.graph_runtime or any other TVM runtime compatible systems.
 from __future__ import absolute_import
 
 from tvm.ndarray import empty
-from tvm._ffi.function import _init_api
-
 from tvm.relay import build_module
 from tvm import target as _target
-
-_init_api("tvm.relay.build_module")
+from tvm import expr as _expr
 
 class GraphRuntimeCodegen(object):
     """The compiler from Relay to the TVM runtime system."""
@@ -57,17 +54,14 @@ class GraphRuntimeCodegen(object):
         self._setup(mod, target)
 
     def _setup(self, mod, target):
-        tgts = []
+        tgts = {}
         if isinstance(target, dict):
-            for kv in target.items():
-                tgts.append(kv[0])
-                if isinstance(kv[1], (str, _target.Target)):
-                    tgts.append(str(kv[1]))
-                else:
+            for dev, tgt in target.items():
+                if not isinstance(tgt, (str, _target.Target)):
                     raise Exception("Unknown target type")
+                tgts[dev] = _target.create(tgt)
         elif isinstance(target, (str, _target.Target)):
-            tgts.append("0")
-            tgts.append(str(target))
+            tgts[_expr.IntImm("int32", 0)] = _target.create(target)
         self._init(mod, tgts)
 
     def codegen(self, func):

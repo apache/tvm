@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,14 +25,19 @@ echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-4.0 main\
 echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-4.0 main\
      >> /etc/apt/sources.list.d/llvm.list
 
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-5.0 main\
+echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-5.0 main\
+echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main\
      >> /etc/apt/sources.list.d/llvm.list
 
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main\
+echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main\
+echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
      >> /etc/apt/sources.list.d/llvm.list
 
 echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
@@ -41,4 +46,4 @@ echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
      >> /etc/apt/sources.list.d/llvm.list
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-apt-get update && apt-get install -y llvm-4.0 llvm-5.0 llvm-6.0 clang-6.0
+apt-get update && apt-get install -y llvm-4.0 llvm-9 llvm-8 llvm-7 clang-9 clang-8 clang-7

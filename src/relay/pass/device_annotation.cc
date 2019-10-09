@@ -34,7 +34,7 @@
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 
 #include <memory>
 #include <unordered_map>
@@ -67,6 +67,7 @@ class ValidateAnnotation : private ExprVisitor {
 
  private:
   void VisitExpr_(const CallNode* call_node) final {
+    ExprVisitor::VisitExpr_(call_node);
     if (IsOnDeviceNode(call_node)) {
       int device_type = GetDeviceId(call_node);
       if (annotation_map_.count(call_node)) {
@@ -85,7 +86,14 @@ class ValidateAnnotation : private ExprVisitor {
         annotation_map_.insert({node, GetDeviceId(call_node)});
       }
     }
-    ExprVisitor::VisitExpr_(call_node);
+  }
+
+  void VisitExpr_(const TupleGetItemNode* get_elem) final {
+    ExprVisitor::VisitExpr_(get_elem);
+    const auto* tn = get_elem->tuple.operator->();
+    if (annotation_map_.count(tn)) {
+      annotation_map_.insert({get_elem, annotation_map_.at(tn)});
+    }
   }
 
   /*
@@ -176,7 +184,11 @@ class RewriteAnnotation : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (IsOnDeviceNode(call_node) || IsDeviceCopyNode(call_node)) {
+    if (IsOnDeviceNode(call_node)) {
+      return this->VisitExpr(call_node->args[0]);
+    }
+
+    if (IsDeviceCopyNode(call_node)) {
       return ExprMutator::VisitExpr_(call_node);
     }
 
@@ -248,7 +260,9 @@ class RewriteAnnotation : public ExprMutator {
         if (src->is_type<CallNode>() || src->is_type<FunctionNode>()) {
           return annotation_map_.at(dst) != fallback_device_;
         } else {
-          return false;
+          // There shouldn't be any copy nodes between var/constant and another
+          // expression.
+          return !(src->is_type<VarNode>() || src->is_type<ConstantNode>());
         }
       } else {
         return false;
@@ -358,6 +372,9 @@ class DeviceInfo {
    public:
     void Visit(const Expr& expr) {
       if (const auto* fn = expr.as<FunctionNode>()) {
+        for (const auto& param : fn->params) {
+          this->VisitExpr(param);
+        }
         this->VisitExpr(fn->body);
       } else {
         this->VisitExpr(expr);
@@ -402,7 +419,7 @@ class DeviceInfo {
     }
 
     void VisitExpr_(const VarNode* vn) final {
-        post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
+      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
     }
 
     void VisitExpr_(const LetNode* ln) final {
@@ -485,7 +502,52 @@ class DeviceInfo {
 
 Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   RewriteAnnotation rewrote = RewriteAnnotation();
-  return rewrote.Rewrite(expr, fallback_device);
+  Expr new_expr = rewrote.Rewrite(expr, fallback_device);
+
+  // Remove OnDevice operators. Note that these operators are only present at the
+  // leaves after annotation. Therefore, we can simply reconstruct the
+  // Function/Expr by removing them directly.
+  if (const FunctionNode* fn = new_expr.as<FunctionNode>()) {
+    auto params = fn->params;
+    auto body = fn->body;
+    std::vector<Expr> new_body;
+    if (const TupleNode* tuple = body.as<TupleNode>()) {
+      for (const auto& field : tuple->fields) {
+        if (!IsOnDeviceNode(field.operator->())) {
+          new_body.push_back(field);
+        }
+      }
+      CHECK_GT(new_body.size(), 0U);
+      if (new_body.size() == 1) {
+        return FunctionNode::make(params, new_body[0], Type(nullptr),
+                                  fn->type_params, fn->attrs);
+      } else if (tuple->fields.size() == new_body.size()) {
+          return new_expr;
+      } else {
+        Tuple tuple_body = TupleNode::make(new_body);
+        return FunctionNode::make(params, tuple_body, Type(nullptr),
+                                  fn->type_params, fn->attrs);
+      }
+    } else {
+      return new_expr;
+    }
+  } else if (const TupleNode* tuple = new_expr.as<TupleNode>()) {
+    std::vector<Expr> new_fields;
+    for (const auto& field : tuple->fields) {
+      if (!IsOnDeviceNode(field.operator->())) {
+        new_fields.push_back(field);
+      }
+    }
+    CHECK_GT(new_fields.size(), 0U);
+    if (tuple->fields.size() == new_fields.size()) {
+      return new_fields.size() == 1 ? new_fields[0] : new_expr;
+    } else {
+      return new_fields.size() == 1 ? new_fields[0]
+                                    : TupleNode::make(new_fields);
+    }
+  } else {
+    return new_expr;
+  }
 }
 
 Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
@@ -496,15 +558,30 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.CollectDeviceInfo")
+TVM_REGISTER_API("relay._analysis.CollectDeviceInfo")
 .set_body_typed(CollectDeviceInfo);
 
-TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
+TVM_REGISTER_API("relay._analysis.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
-TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
+TVM_REGISTER_API("relay._analysis.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
+
+namespace transform {
+
+Pass RewriteAnnotatedOps(int fallback_device) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
+  };
+  return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")
+.set_body_typed(RewriteAnnotatedOps);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm
-

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -195,6 +195,11 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   return -1;
 }
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<LayoutNode>([](const LayoutNode* l, IRPrinter* p) {
+    p->stream << "Layout(" << l->name << ")";
+  });
+
 inline bool GetStoreRule(Array<Expr>* rule,
                          const Layout& src_layout,
                          const Layout& dst_layout) {
@@ -231,10 +236,10 @@ inline bool GetStoreRule(Array<Expr>* rule,
     if (store_axis.IsPrimal()) {
       const int32_t factor = dst_layout.FactorOf(store_axis);
       if (factor > 0) {
-        store = store / Expr(factor);
+        store = indexdiv(store, Expr(factor));
       }
     } else {
-      store = store % store_axis_impl->dom->extent;
+      store = indexmod(store, store_axis_impl->dom->extent);
     }
 
     rule->push_back(store);
@@ -345,5 +350,11 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
 
   return BijectiveLayout(n);
 }
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<BijectiveLayoutNode>([](const BijectiveLayoutNode* b, IRPrinter* p) {
+    p->stream << "BijectiveLayout(" << b->src_layout.name()
+              << "->" << b->dst_layout.name() << ")";
+  });
 
 }  // namespace tvm

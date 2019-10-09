@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,7 +27,8 @@
 
 #include <vector>
 
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace detail {
@@ -41,7 +42,7 @@ using namespace tvm;
 *
 * \return The index after flattening
 */
-inline Expr RavelIndex(Array<Var> indices, Array<Expr> shape) {
+inline Expr RavelIndex(Array<Expr> indices, Array<Expr> shape) {
   CHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   CHECK_GT(indices.size(), 0) << "indices must not be empty";
   Expr idx;
@@ -67,8 +68,8 @@ inline Array<Expr> UnravelIndex(Expr idx, Array<Expr> shape) {
   std::vector<Expr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
-    indices.push_back(idx % shape[i]);
-    idx = idx / shape[i];
+    indices.push_back(indexmod(idx, shape[i]));
+    idx = indexdiv(idx, shape[i]);
   }
   std::reverse(indices.begin(), indices.end());
   return indices;

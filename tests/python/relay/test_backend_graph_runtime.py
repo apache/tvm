@@ -19,7 +19,6 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.ir_pass import infer_type
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
 from tvm.relay.module import Module
@@ -101,7 +100,7 @@ def test_with_params():
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(1, 5).astype('float32')
     params = {"y": y_data}
-    graph, lib, params = relay.build(func, "llvm", params=params)
+    graph, lib, params = relay.build(relay.Module.from_expr(func), "llvm", params=params)
     mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
     mod.set_input(**params)
     mod.set_input(x=x_data)
@@ -124,9 +123,9 @@ def test_plan_memory():
     z = relay.exp(z)
     z = relay.exp(z)
     func = relay.Function([x, y], z)
-    func = relay.ir_pass.infer_type(func)
-    func = relay.ir_pass.fuse_ops(func, opt_level=0)
-    func = relay.ir_pass.infer_type(func)
+    mod = relay.Module.from_expr(func)
+    mod = relay.transform.FuseOps(0)(mod)
+    func = mod["main"]
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()
@@ -170,7 +169,7 @@ def test_gru_like():
 
     for target, ctx in ctx_list():
         with relay.build_config(opt_level=2):
-            graph, lib, params = relay.build(z, target)
+            graph, lib, params = relay.build(relay.Module.from_expr(z), target)
             m = graph_runtime.create(graph, lib, ctx)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))
             m.set_input("y", tvm.nd.array(y.astype(dtype)))

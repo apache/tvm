@@ -18,7 +18,6 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 import os
-from tensorflow.core.framework import graph_pb2
 from tvm.contrib import util
 
 
@@ -35,12 +34,12 @@ class TFParser(object):
     --------
     .. code-block:: python
 
-        parser = TfParser(model_dir)
-        graph = parser.parse()
-        # graph is related graphdef of the model
+        parser = TFParser(model_dir)
+        graphdef = parser.parse()
     """
 
     def __init__(self, model_dir):
+        from tensorflow.core.framework import graph_pb2
         self._tmp_dir = util.tempdir()
         self._model_dir = model_dir
         self._graph = graph_pb2.GraphDef()
@@ -80,15 +79,16 @@ class TFParser(object):
                 "InputConfiguration: Unable to import tensorflow which is "
                 "required to restore from saved model.")
         tags = self._get_tag_set()
+        output_names = set()
         with tf.Session() as sess:
             meta_graph_def = tf.saved_model.loader.load(sess,
                                                         tags,
                                                         self._model_dir)
-            output_names = set()
             for sig_def in meta_graph_def.signature_def.values():
                 for output_tensor in sig_def.outputs.values():
                     output_names.add(output_tensor.name.replace(":0", ""))
-            return ",".join(output_names)
+        tf.reset_default_graph()
+        return ",".join(output_names)
 
     def _load_saved_model(self):
         """Load the tensorflow saved model."""
@@ -96,6 +96,7 @@ class TFParser(object):
             from tensorflow.python.tools import freeze_graph
             from tensorflow.python.framework import ops
             from tensorflow.python.framework import graph_util
+            from tensorflow.core.framework import graph_pb2
         except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "

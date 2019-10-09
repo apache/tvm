@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
 from .. import generic
-from .injective import _schedule_injective
+from .injective import schedule_injective_from_existing
 
 def _schedule_reduce(op, sch, is_idx_reduce=False):
     if is_idx_reduce:
@@ -30,14 +30,14 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         data_out = op.output(0)
 
     if not sch[data_out].op.reduce_axis:
-        return _schedule_injective(op, sch)
+        return schedule_injective_from_existing(sch, op.output(0))
 
     if len(sch[data_out].op.axis) > 0:
         all_reduce = False
         num_thread = 32
         target = tvm.target.current_target()
         if target and target.target_name == "opencl":
-            # without it, CL_INVALID_WORK_GROUP_SIZE occured when running test_topi_reduce.py
+            # without it, CL_INVALID_WORK_GROUP_SIZE occurred when running test_topi_reduce.py
             # don't know why
             num_thread = 16
         block_x = tvm.thread_axis("blockIdx.x")
@@ -126,7 +126,7 @@ def schedule_reduce(outs):
         """Internal travserse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
-                _schedule_injective(operator, sch)
+                schedule_injective_from_existing(sch, operator.output(0))
             for tensor in operator.input_tensors:
                 traverse_after_reduce(tensor.op)
         elif operator.tag == 'comm_reduce':

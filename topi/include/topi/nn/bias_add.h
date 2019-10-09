@@ -30,7 +30,8 @@
 #include "topi/tags.h"
 #include "topi/broadcast.h"
 #include "topi/transform.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace nn {

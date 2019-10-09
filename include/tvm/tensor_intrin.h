@@ -67,6 +67,11 @@ class TensorIntrinNode : public Node {
    *  When it is a constant, it means we can only take data in that shape.
    */
   Array<Buffer> buffers;
+  /*! \brief List of scalar variables, used in body. These placeholders
+   *  will be bound to expressions passed in when the TensorIntrin is called
+   * from a TensorComputeOp.
+   */
+  Array<Var> scalar_params;
   /*! \brief The normal statement to execute the intrinsic */
   Stmt body;
   /*!
@@ -87,6 +92,7 @@ class TensorIntrinNode : public Node {
     v->Visit("op", &op);
     v->Visit("inputs", &inputs);
     v->Visit("buffers", &buffers);
+    v->Visit("scalar_params", &scalar_params);
     v->Visit("body", &body);
     v->Visit("reduce_init", &reduce_init);
     v->Visit("reduce_update", &reduce_update);
@@ -96,6 +102,7 @@ class TensorIntrinNode : public Node {
                                    Operation op,
                                    Array<Tensor> inputs,
                                    Array<Buffer> buffers,
+                                   Array<Var> scalar_params,
                                    Stmt body,
                                    Stmt reduce_init,
                                    Stmt reduce_update);
@@ -134,22 +141,29 @@ class TensorIntrinCallNode : public Node {
   Array<Tensor> tensors;
   /*! \brief regions of input tensors */
   Array<Region> regions;
+
+
   /*!
    * \brief IterVar on each reduction axis, if the
    * intrin will use the reduce axis
    */
   Array<IterVar> reduce_axis;
 
+  /*! \brief scalar expression inputs */
+  Array<Expr> scalar_inputs;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("intrin", &intrin);
     v->Visit("tensors", &tensors);
     v->Visit("regions", &regions);
     v->Visit("reduce_axis", &reduce_axis);
+    v->Visit("scalar_inputs", &scalar_inputs);
   }
   static TensorIntrinCall make(TensorIntrin intrin,
                                Array<Tensor> tensors,
                                Array<Region> regions,
-                               Array<IterVar> reduce_axis);
+                               Array<IterVar> reduce_axis,
+                               Array<Expr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorIntrinCall";
   TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinCallNode, Node);

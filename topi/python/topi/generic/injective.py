@@ -20,6 +20,25 @@ from __future__ import absolute_import as _abs
 
 import tvm
 
+@tvm.target.override_native_generic_func("schedule_injective_from_existing")
+def schedule_injective_from_existing(sch, out):
+    """Schedule for injective op from existing schedule.
+
+    Parameters
+    ----------
+    sch: Schedule
+         The schedule to update.
+    out: Tensor
+         The tensor representing the injective op.
+
+    Returns
+    -------
+    sch: Schedule
+         The updated schedule.
+    """
+    sch[out].fuse(s[out].op.axis)
+    return sch
+
 @tvm.target.override_native_generic_func("schedule_injective")
 def schedule_injective(outs):
     """Schedule for injective op.
@@ -42,7 +61,7 @@ def schedule_injective(outs):
     x = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
-    s[x].fuse(s[x].op.axis)
+    schedule_injective_from_existing(s, x)
     return s
 
 @tvm.target.generic_func

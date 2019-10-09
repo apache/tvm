@@ -183,11 +183,11 @@ def test_function_taking_adt_ref_tuple():
     prelude = relay.prelude.Prelude(mod)
     intrp = create_executor("debug", mod)
 
-    nil_value = ConstructorValue(prelude.nil, [], [])
-    cons_value = ConstructorValue(prelude.cons, [
+    nil_value = ConstructorValue(prelude.nil.tag, [], prelude.nil)
+    cons_value = ConstructorValue(prelude.cons.tag, [
         TensorValue(np.random.rand(1, 10).astype('float32')),
         nil_value
-    ], [relay.TensorType((1, 10), 'float32')])
+    ], prelude.cons)
 
     ref_value = RefValue(TensorValue(np.random.rand(1, 10).astype('float32')))
     tuple_value = TupleValue(*[
@@ -197,16 +197,16 @@ def test_function_taking_adt_ref_tuple():
     id_func = intrp.evaluate(prelude.id)
 
     res_nil = id_func(nil_value)
-    assert res_nil.constructor == nil_value.constructor
+    assert res_nil.tag == nil_value.tag
     assert len(res_nil.fields) == 0
 
     res_cons = id_func(cons_value)
-    assert res_cons.constructor == cons_value.constructor
+    assert res_cons.tag == cons_value.tag
     assert len(res_cons.fields) == len(cons_value.fields)
     tvm.testing.assert_allclose(res_cons.fields[0].asnumpy(),
                                 cons_value.fields[0].asnumpy())
     assert isinstance(res_cons.fields[1], ConstructorValue)
-    assert res_cons.fields[1].constructor == prelude.nil
+    assert res_cons.fields[1].tag == prelude.nil.tag
     assert len(res_cons.fields[1].fields) == 0
 
     res_ref = id_func(ref_value)
@@ -217,6 +217,30 @@ def test_function_taking_adt_ref_tuple():
         tvm.testing.assert_allclose(res_tuple.fields[i].asnumpy(),
                                     tuple_value.fields[i].asnumpy())
 
+def test_tuple_passing():
+    x = relay.var('x', type_annotation=relay.ty.TupleType([
+        relay.ty.TensorType((), 'int64'),
+        relay.ty.TensorType((), 'int64')]))
+
+    fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
+    mod = relay.Module({})
+    gv = relay.GlobalVar('main')
+    mod[gv] = fn
+    mod = relay.transform.InferType()(mod)
+
+    ctx = tvm.cpu()
+    target = tvm.target.create('llvm')
+    exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
+    f = exec.evaluate(gv)
+    # First use a Python tuple.
+    out = f((10, 8))
+    tvm.testing.assert_allclose(out.asnumpy(), np.array(10))
+    # Second use a tuple value.
+    value_tuple = TupleValue(
+        TensorValue(np.array(11)),
+        TensorValue(np.array(12)))
+    out = f(value_tuple)
+    tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 
 if __name__ == "__main__":
     test_id()
@@ -232,3 +256,4 @@ if __name__ == "__main__":
     test_tuple_value()
     test_tuple_getitem()
     test_function_taking_adt_ref_tuple()
+    test_tuple_passing()

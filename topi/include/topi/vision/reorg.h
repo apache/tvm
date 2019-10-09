@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,7 +32,8 @@
 #include "topi/reduction.h"
 #include "topi/tags.h"
 #include "topi/transform.h"
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
+#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace vision {
@@ -63,9 +64,9 @@ inline Tensor reorg(const Tensor &data,
   auto out = tvm::compute(input_shape,
                           [&](Var b, Var k, Var j, Var i) {
                           return data(b * stride * stride,
-                                      (k % out_c) * stride * stride,
-                                      (j*stride + (k / out_c) / stride) * stride,
-                                      (i*stride + (k / out_c) % stride));
+                                      indexmod(k, out_c) * stride * stride,
+                                      (j*stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
+                                      (i*stride + indexmod(indexdiv(k, out_c), stride)));
                           },
                           name,
                           tag);

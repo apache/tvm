@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -154,6 +154,8 @@ TVM_DEFINE_ATTRS_BINOP_EQUAL(Sub);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Mul);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Div);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Mod);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorDiv);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorMod);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Max);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Min);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(GE);
@@ -266,6 +268,8 @@ TVM_DEFINE_ATTRS_BINOP_HASH(Sub);
 TVM_DEFINE_ATTRS_BINOP_HASH(Mul);
 TVM_DEFINE_ATTRS_BINOP_HASH(Div);
 TVM_DEFINE_ATTRS_BINOP_HASH(Mod);
+TVM_DEFINE_ATTRS_BINOP_HASH(FloorDiv);
+TVM_DEFINE_ATTRS_BINOP_HASH(FloorMod);
 TVM_DEFINE_ATTRS_BINOP_HASH(Max);
 TVM_DEFINE_ATTRS_BINOP_HASH(Min);
 TVM_DEFINE_ATTRS_BINOP_HASH(GE);

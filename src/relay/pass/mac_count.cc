@@ -30,7 +30,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/data_layout.h>
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -65,7 +67,7 @@ int64_t ConvMacCount(const Call& call_node) {
   }
   Array<Expr> args = call_node->args;
   CHECK(args.size() == 2)
-      << "The number of input arguments of a CONV 2D node should be 2.";
+    << "The number of input arguments of a CONV 2D node should be 2.";
   const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
   const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> data_shape = data_type->shape;
@@ -73,18 +75,54 @@ int64_t ConvMacCount(const Call& call_node) {
   int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
   CHECK(C_ind != -1)
-      << "There is no input channel dimension.";
+    << "There is no input channel dimension.";
   int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
   if (c_ind != -1)
     input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
   Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
   CHECK(kernel_size.size() == 2)
-      << "The dimension of the kernel size in Conv 2D should be 2.";
+    << "The dimension of the kernel in Conv 2D should be 2.";
   const auto* expr = call_node->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> output_tensor = expr->shape;
   CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
-      << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
-  int64_t count = input_channel * GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+    << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
+  int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+  CHECK_EQ(input_channel % conv_2d_attr->groups, 0)
+    << "The number of input channels is not divisble by groups.";
+  count *= input_channel/conv_2d_attr->groups;
+  return count;
+}
+
+int64_t Conv2dTransposeMacCount(const Call& call_node) {
+  if (!call_node->checked_type_.defined()) {
+    LOG(WARNING) << "The infer type pass should be called before the mac count pass";
+    return 0;
+  }
+  Array<Expr> args = call_node->args;
+  CHECK(args.size() == 2)
+    << "The number of input arguments of a CONV 2D Transpose node should be 2.";
+  const auto* conv_2d_transpose_attr = call_node->attrs.as<Conv2DTransposeAttrs>();
+  const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
+  Array<IndexExpr> data_shape = data_type->shape;
+  std::string data_layout = conv_2d_transpose_attr->data_layout;
+  int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
+  int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
+  CHECK(C_ind != -1)
+    << "There is no input channel dimension.";
+  int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
+  if (c_ind != -1)
+    input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
+  Array<IndexExpr> kernel_size = conv_2d_transpose_attr->kernel_size;
+  CHECK(kernel_size.size() == 2)
+    << "The dimension of the kernel in Conv 2D Transpose should be 2.";
+  const auto* expr = call_node->checked_type().as<TensorTypeNode>();
+  Array<IndexExpr> output_tensor = expr->shape;
+  CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
+    << "The dimension of the output tensor in Conv 2D Transpose should be 4 or 5.";
+  int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+  CHECK_EQ(input_channel % conv_2d_transpose_attr->groups, 0)
+    << "The number of input channels is not divisble by groups.";
+  count *= input_channel/conv_2d_transpose_attr->groups;
   return count;
 }
 
@@ -101,19 +139,22 @@ int64_t DenseMacCount(const Call& call_node) {
   Array<IndexExpr> data_shape = data_type->shape;
   Array<IndexExpr> weight_shape = weight_type->shape;
   CHECK(data_shape.size() == 2 && weight_shape.size() == 2)
-      << "The dimension of an input tensor to Dense node should be 2.";
+    << "The dimension of an input tensor to Dense node should be 2.";
   int64_t d1 = static_cast<int64_t>(data_shape[0].as<IntImm>()->value);
   int64_t d2 = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
   int64_t d3 = static_cast<int64_t>(weight_shape[0].as<IntImm>()->value);
   int64_t d4 = static_cast<int64_t>(weight_shape[1].as<IntImm>()->value);
   CHECK(d2 == d4)
-      << "The dimensions of input arguments do not match.";
+    << "The dimensions of input arguments do not match.";
   int64_t count = d1 * d2 * d3;
   return count;
 }
 
 RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FMacCount>("FMacCount", ConvMacCount);
+
+RELAY_REGISTER_OP("nn.conv2d_transpose")
+.set_attr<FMacCount>("FMacCount", Conv2dTransposeMacCount);
 
 RELAY_REGISTER_OP("nn.dense")
 .set_attr<FMacCount>("FMacCount", DenseMacCount);
@@ -124,7 +165,8 @@ class MacCounter : private ExprVisitor {
     count_ = 0;
   }
   static int64_t GetTotalMacNumber(const Expr& expr) {
-    LOG(INFO) << "This pass only counts MACs in direct CONV 2D and Dense ops";
+    LOG(INFO) << "This pass only counts MACs in direct CONV 2D, "
+              << "CONV 2D Transpose and Dense ops";
     MacCounter counter;
     counter(expr);
     return counter.count_;
@@ -146,7 +188,7 @@ int64_t GetTotalMacNumber(const Expr& expr) {
   return MacCounter::GetTotalMacNumber(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.GetTotalMacNumber")
+TVM_REGISTER_API("relay._analysis.GetTotalMacNumber")
 .set_body_typed(GetTotalMacNumber);
 
 }  // namespace mac_count

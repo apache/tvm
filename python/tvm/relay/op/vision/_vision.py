@@ -82,7 +82,10 @@ def schedule_get_valid_counts(_, outs, target):
 def compute_get_valid_counts(attrs, inputs, _, target):
     """Compute definition of get_valid_counts"""
     score_threshold = get_const_float(attrs.score_threshold)
-    return topi.vision.get_valid_counts(inputs[0], score_threshold)
+    id_index = get_const_int(attrs.id_index)
+    score_index = get_const_int(attrs.score_index)
+    return topi.vision.get_valid_counts(inputs[0], score_threshold,
+                                        id_index, score_index)
 
 reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
 

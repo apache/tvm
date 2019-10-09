@@ -36,11 +36,15 @@ def test_ewise():
         assert B.op.body[0].name == name
 
     test_apply(topi.exp, "exp")
+    test_apply(topi.erf, "erf")
     test_apply(topi.tanh, "tanh")
     test_apply(topi.sigmoid, "sigmoid")
     test_apply(topi.log, "log")
     test_apply(topi.sqrt, "sqrt")
     test_apply(topi.rsqrt, "rsqrt")
+    test_apply(topi.sin, "sin")
+    test_apply(topi.cos, "cos")
+    test_apply(topi.atan, "atan")
 
 
 if __name__ == "__main__":

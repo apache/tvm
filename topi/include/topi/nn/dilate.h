@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,7 +27,7 @@
 
 #include <string>
 
-#include "tvm/tvm.h"
+#include "tvm/operation.h"
 #include "tvm/ir_pass.h"
 #include "topi/tags.h"
 
@@ -77,7 +77,7 @@ inline Tensor dilate(const Tensor& x,
   Array<Expr> out_shape;
   for (size_t i = 0; i < n; ++i) {
     out_shape.push_back(tvm::ir::Simplify(
-      (x->shape[i] - 1) * strides[i] + 1));
+      (x->shape[i] - 1) * cast(Int(32), strides[i] + 1)));
   }
 
   return tvm::compute(
@@ -89,8 +89,8 @@ inline Tensor dilate(const Tensor& x,
         if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
           index_tuple.push_back(indices[i]);
         } else {
-          index_tuple.push_back(indices[i] / strides[i]);
-          not_zero.push_back((indices[i] % strides[i]) == 0);
+          index_tuple.push_back(indexdiv(indices[i], strides[i]));
+          not_zero.push_back((indexmod(indices[i], strides[i])) == 0);
         }
       }
       if (not_zero.size() > 0) {

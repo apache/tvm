@@ -48,6 +48,22 @@ class Op(Expr):
         """
         return _OpGetAttr(self, attr_name)
 
+    def set_attr(self, attr_name, value, plevel=10):
+        """Set attribute about the operator.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name
+
+        value : object
+            The attribute value
+
+        plevel : int
+            The priority level
+        """
+        _OpSetAttr(self, attr_name, value, plevel)
+
 
 def get(op_name):
     """Get the Op for a given name
@@ -170,6 +186,23 @@ def register_alter_op_layout(op_name, alter_layout=None, level=10):
     return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
 
 
+def register_legalize(op_name, legal_op=None, level=10):
+    """Register legal transformation function for an op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    legal_op: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
+        The function for transforming an expr to another expr.
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMLegalize", legal_op, level)
+
+
 def register_pattern(op_name, pattern, level=10):
     """Register operator pattern for an op.
 
@@ -202,6 +235,26 @@ def register_gradient(op_name, fgradient=None, level=10):
     """
     return register(op_name, "FPrimalGradient", fgradient, level)
 
+def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
+    """Register operator shape function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    data_dependant : bool
+        Whether the shape function depends on input data.
+
+    shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
+                 -> shape_tensors: List<Tensor>
+        The function for computing the dynamic output shapes
+
+    level : int
+        The priority level
+    """
+    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
+    return register(op_name, "FShapeFunc", shape_func, level)
 
 _init_api("relay.op", __name__)
 
@@ -218,6 +271,13 @@ def schedule_injective(attrs, outputs, target):
     """Generic schedule for binary broadcast."""
     with target:
         return topi.generic.schedule_injective(outputs)
+
+
+def schedule_concatenate(attrs, outputs, target):
+    """Generic schedule for concatinate."""
+    with target:
+        return topi.generic.schedule_concatenate(outputs)
+
 
 __DEBUG_COUNTER__ = 0
 

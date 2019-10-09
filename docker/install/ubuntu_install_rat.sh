@@ -21,7 +21,7 @@ set -u
 set -o pipefail
 
 cd /tmp
-wget -q http://www.trieuvan.com/apache//creadur/apache-rat-0.12/apache-rat-0.12-bin.tar.gz
+wget -q https://archive.apache.org/dist/creadur/apache-rat-0.12/apache-rat-0.12-bin.tar.gz
 tar xf apache-rat-0.12-bin.tar.gz
 mv apache-rat-0.12/apache-rat-0.12.jar /bin/apache-rat.jar
 rm -rf apache-rat-0.12-bin.tar.gz apache-rat-0.12

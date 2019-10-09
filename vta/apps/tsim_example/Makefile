@@ -17,29 +17,28 @@
 
 export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
 
-BUILD_DIR = $(shell python python/tsim/config.py --get-build-name)
+BUILD_NAME = build
+build_dir = $(abspath .)/$(BUILD_NAME)
 
-TVM_DIR = $(abspath ../../../)
+default: verilog driver
+	python3 tests/python/verilog_accel.py
 
-TSIM_TARGET = verilog
-TSIM_TOP_NAME = TestAccel
-TSIM_BUILD_NAME = build
+run_chisel: chisel driver
+	python3 tests/python/chisel_accel.py
 
-# optional
-TSIM_TRACE_NAME = trace.vcd
+driver: | $(build_dir)
+	cd $(build_dir) && cmake .. && make
 
-default: cmake run
-
-.PHONY: cmake
-
-cmake: | $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. && make
-
-$(BUILD_DIR):
+$(build_dir):
 	mkdir -p $@
 
-run:
-	python3 tests/python/test_tsim.py | grep PASS
+verilog:
+	make -C hardware/verilog
+
+chisel:
+	make -C hardware/chisel
 
 clean:
-	-rm -rf $(BUILD_DIR)
+	-rm -rf $(build_dir)
+	make -C hardware/chisel clean
+	make -C hardware/verilog clean

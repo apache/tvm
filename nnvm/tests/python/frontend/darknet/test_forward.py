@@ -27,8 +27,8 @@ from tvm.contrib import graph_runtime
 from tvm.contrib.download import download_testdata
 download_testdata.__test__ = False
 from nnvm import frontend
-from nnvm.testing.darknet import LAYERTYPE
-from nnvm.testing.darknet import __darknetffi__
+from tvm.relay.testing.darknet import LAYERTYPE
+from tvm.relay.testing.darknet import __darknetffi__
 import nnvm.compiler
 
 DARKNET_LIB = 'libdarknet2.0.so'

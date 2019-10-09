@@ -18,6 +18,10 @@
 """TVM: Low level DSL/IR stack for tensor computation."""
 from __future__ import absolute_import as _abs
 
+import multiprocessing
+import sys
+import traceback
+
 from . import _pyversion
 
 from . import tensor
@@ -38,12 +42,13 @@ from . import generic
 from . import hybrid
 from . import testing
 from . import error
+from . import datatype
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, opengl, ext_dev
+from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
 
-from ._ffi.runtime_ctypes import TypeCode
+from ._ffi.runtime_ctypes import TypeCode, TVMType
 from ._ffi.ndarray import TVMContext
 from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
@@ -58,3 +63,13 @@ from .tag import tag_scope
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+
+# Clean subprocesses when TVM is interrupted
+def tvm_excepthook(exctype, value, trbk):
+    print('\n'.join(traceback.format_exception(exctype, value, trbk)))
+    if hasattr(multiprocessing, 'active_children'):
+        # pylint: disable=not-callable
+        for p in multiprocessing.active_children():
+            p.terminate()
+
+sys.excepthook = tvm_excepthook

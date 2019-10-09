@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -203,14 +203,16 @@ void PrepareAxisMapping(Stage orig_stage,
   auto& vsub = *p_vsub;
   auto& vsub2newvar = *p_vsub2newvar;
   auto& predicates = *p_predicates;
+  arith::Analyzer analyzer;
 
   for (IterVar iv : op->reduce_axis) {
     red_axis.insert(iv);
   }
   for (IterVar iv : op->axis) {
     dom_map[iv] = iv->dom;
+    analyzer.Bind(iv->var, iv->dom);
   }
-  schedule::PassDownDomain(orig_stage, &dom_map, true);
+  schedule::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
   {
     // The source->cache
     std::unordered_map<IterVar, Expr> value_map;
@@ -410,10 +412,15 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
     new_regions.push_back(region);
   }
 
+  Array<Expr> new_scalar_inputs;
+  for (Expr old_input : tensor_op->scalar_inputs) {
+    new_scalar_inputs.push_back(VarReplacer(vsub2newvar).Mutate(old_input));
+  }
+
   Operation cache_op = TensorComputeOpNode::make(
       tensor_op->name + "." + scope, tensor_op->tag, new_axis,
       tensor_op->reduce_axis, tensor_op->schedulable_ndim,
-      tensor_op->intrin, tensor_op->inputs, new_regions);
+      tensor_op->intrin, tensor_op->inputs, new_regions, new_scalar_inputs);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;
@@ -539,6 +546,8 @@ void InjectInline(ScheduleNode* sch) {
 
   std::vector<Array<Expr> > new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
+  std::vector<Stmt> new_hybrid_body(sch->stages.size());
+  std::vector<bool> hybrid_changed(sch->stages.size(), false);
   // inline all the ops
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage stage = sch->stages[i - 1];
@@ -561,6 +570,7 @@ void InjectInline(ScheduleNode* sch) {
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
+        const HybridOpNode* hybrid = s->op.as<HybridOpNode>();
         if (compute) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
@@ -599,6 +609,15 @@ void InjectInline(ScheduleNode* sch) {
               }
             }
           }
+        } else if (hybrid) {
+          if (!new_hybrid_body[j].defined()) {
+            new_hybrid_body[j] = hybrid->body;
+          }
+          Stmt new_stmt = ir::Inline(new_hybrid_body[j], stage->op, args, body);
+          if (!new_stmt.same_as(new_hybrid_body[j])) {
+            new_hybrid_body[j] = new_stmt;
+            hybrid_changed[j] = true;
+          }
         }
       }
     }
@@ -625,6 +644,17 @@ void InjectInline(ScheduleNode* sch) {
         }
         s->op = op;
       }
+    } else if (hybrid_changed[i]) {
+      const HybridOpNode* hybrid = sch->stages[i]->op.as<HybridOpNode>();
+      CHECK(hybrid);
+      Operation op = HybridOpNode::make(
+              hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
+              hybrid->outputs, new_hybrid_body[i]);
+      op = op->ReplaceInputs(op, repl);
+      for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
+        repl[s->op.output(idx)] = op.output(idx);
+      }
+      s->op = op;
     } else {
       Operation op = s->op->ReplaceInputs(s->op, repl);
       if (!op.same_as(s->op)) {
@@ -674,6 +704,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
         << "Factor axis touches normal axis.";
     skip_bound_check.insert(iv);
   }
+  // get analyzer.
+  arith::Analyzer analyzer;
   // Get the replace index
   std::unordered_map<IterVar, Range> dom_map;
   std::unordered_map<IterVar, Expr> value_map;
@@ -683,8 +715,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     } else {
       skip_bound_check.insert(iv);
     }
+    analyzer.Bind(iv->var, iv->dom);
   }
-  schedule::PassDownDomain(reduce_stage, &dom_map, true);
+  schedule::PassDownDomain(reduce_stage, &dom_map, &analyzer, true);
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv)) {
       Range dom = dom_map.at(iv);
@@ -730,7 +763,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  Expr predicate = arith::ComputeReduce<ir::And>(predicates, Expr());
+  Expr predicate = likely(arith::ComputeReduce<ir::And>(predicates, Expr()));
 
   std::unordered_map<const Variable*, Expr> vsub;
 
@@ -756,12 +789,15 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   VarReplacer replacer(vsub);
   Array<Expr> new_source = ir::UpdateArray(reduce->source,
     [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+
+  Expr new_pred = replacer.Mutate(predicate);
+
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
                                    new_source,
                                    n->reduce_axis,
-                                   predicate,
+                                   new_pred,
                                    idx));
   }
   n->body = Array<Expr>(body);

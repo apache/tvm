@@ -140,6 +140,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const Mul* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const Div* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const Mod* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const FloorDiv* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const FloorMod* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const Min* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const Max* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const EQ* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -180,6 +182,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(Mul);
     IR_EXPR_FUNCTOR_DISPATCH(Div);
     IR_EXPR_FUNCTOR_DISPATCH(Mod);
+    IR_EXPR_FUNCTOR_DISPATCH(FloorDiv);
+    IR_EXPR_FUNCTOR_DISPATCH(FloorMod);
     IR_EXPR_FUNCTOR_DISPATCH(Min);
     IR_EXPR_FUNCTOR_DISPATCH(Max);
     IR_EXPR_FUNCTOR_DISPATCH(EQ);
@@ -195,6 +199,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(Not);
     IR_EXPR_FUNCTOR_DISPATCH(Select);
     IR_EXPR_FUNCTOR_DISPATCH(Ramp);
+    IR_EXPR_FUNCTOR_DISPATCH(Shuffle);
     IR_EXPR_FUNCTOR_DISPATCH(Broadcast);
     IR_EXPR_FUNCTOR_DISPATCH(IntImm);
     IR_EXPR_FUNCTOR_DISPATCH(UIntImm);

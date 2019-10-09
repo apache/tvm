@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,7 +41,7 @@ namespace ir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-// Find a linear pattern of storage acess
+// Find a linear pattern of storage access
 // Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
 // before_scope -> scope_body -> after_scope
@@ -190,6 +190,10 @@ class LinearAccessPatternFinder final : public IRVisitor {
   }
 
   void Visit_(const For* op) final {
+    VisitNewScope(op);
+  }
+
+  void Visit_(const AssertStmt* op) final {
     VisitNewScope(op);
   }
 
@@ -606,8 +610,8 @@ class StoragePlanRewriter : public IRMutator {
           }
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
-          bool divided = can_prove(combo_size % type_bits == 0);
-          combo_size = combo_size / type_bits;
+          bool divided = analyzer_.CanProve(indexmod(combo_size, type_bits) == 0);
+          combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
             combo_size = combo_size + make_const(Int(32), 1);
@@ -920,6 +924,8 @@ class StoragePlanRewriter : public IRMutator {
   std::unordered_map<const Variable*, StorageEntry*> alloc_map_;
   // The allocations
   std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 // Turn alloc into vector alloc

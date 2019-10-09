@@ -18,17 +18,35 @@
 import ctypes
 import json
 import tvm
+from ..environment import get_env
 from ..libinfo import find_libvta
 
-def _load_lib():
-    """Load local library, assuming they are simulator."""
-    lib_path = find_libvta(optional=True)
-    if not lib_path:
-        return []
+def _load_sw():
+    """Load hardware library for simulator."""
+
+    env = get_env()
+    lib_driver_name = "libvta_tsim" if env.TARGET == "tsim" else "libvta_fsim"
+
+    # Load driver library
+    lib_driver = find_libvta(lib_driver_name, optional=True)
+    assert lib_driver
     try:
-        return [ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)]
+        libs = [ctypes.CDLL(lib_driver[0], ctypes.RTLD_GLOBAL)]
     except OSError:
         return []
+
+    if env.TARGET == "tsim":
+        lib_hw = find_libvta("libvta_hw", optional=True)
+        assert lib_hw # make sure to build vta/hardware/chisel
+        try:
+            f = tvm.get_global_func("vta.tsim.init")
+            m = tvm.module.load(lib_hw[0], "vta-tsim")
+            f(m)
+            return lib_hw
+        except OSError:
+            return []
+
+    return libs
 
 
 def enabled():
@@ -38,22 +56,43 @@ def enabled():
 
 
 def clear_stats():
-    """Clear profiler statistics"""
-    f = tvm.get_global_func("vta.simulator.profiler_clear", True)
+    """Clear profiler statistics."""
+    env = get_env()
+    if env.TARGET == "sim":
+        f = tvm.get_global_func("vta.simulator.profiler_clear", True)
+    else:
+        f = tvm.get_global_func("vta.tsim.profiler_clear", True)
     if f:
         f()
 
 
 def stats():
-    """Clear profiler statistics
+    """Get profiler statistics
 
     Returns
     -------
     stats : dict
         Current profiler statistics
     """
-    x = tvm.get_global_func("vta.simulator.profiler_status")()
+    env = get_env()
+    if env.TARGET == "sim":
+        x = tvm.get_global_func("vta.simulator.profiler_status")()
+    else:
+        x = tvm.get_global_func("vta.tsim.profiler_status")()
     return json.loads(x)
 
 
-LIBS = _load_lib()
+# debug flag to skip execution.
+DEBUG_SKIP_EXEC = 1
+
+def debug_mode(flag):
+    """Set debug mode
+    Paramaters
+    ----------
+    flag : int
+        The debug flag, 0 means clear all flags.
+    """
+    tvm.get_global_func("vta.simulator.profiler_debug_mode")(flag)
+
+
+LIBS = _load_sw()

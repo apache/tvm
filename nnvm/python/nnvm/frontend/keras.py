@@ -180,7 +180,6 @@ def _convert_convolution(insym, keras_layer, symtab):
     else:
         kernel_h, kernel_w, in_channels, n_filters = weightList[0].shape
         weight = weightList[0].transpose([3, 2, 0, 1])
-    dilation = [1, 1]
     if isinstance(keras_layer.dilation_rate, (list, tuple)):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:

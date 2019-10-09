@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,7 +27,6 @@
 #include <vector>
 #include <string>
 #include "codegen_cuda.h"
-#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -55,6 +54,10 @@ std::string CodeGenCUDA::Finish() {
 
   if (enable_int8_) {
     decl_stream << "#include <sm_61_intrinsics.h>\n";
+  }
+
+  if (need_math_constants_h_) {
+    decl_stream << "#include <math_constants.h>\n";
   }
 
   return CodeGenC::Finish();
@@ -202,17 +205,26 @@ void CodeGenCUDA::PrintVecBinaryOp(
 
 void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, Type t, int i, std::ostream& os) {  // NOLINT(*)
-  const char access[] = {'x', 'y', 'z', 'w'};
+  static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
-  os << vec << "." << access[i];
+  if (t.is_int() && t.bits() == 8) {
+    os << "(0x000000ff & (" << vec << " >> " << i * 8 << "))";
+  } else {
+    os << vec << "." << access[i];
+  }
 }
 
 void CodeGenCUDA::PrintVecElemStore(
     const std::string& vec, Type t, int i, const std::string& value) {
   this->PrintIndent();
-  const char access[] = {'x', 'y', 'z', 'w'};
+  static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < 4);
-  stream << vec << "." << access[i] << " = " << value << ";\n";
+  if (t.is_int() && t.bits() == 8) {
+    stream << vec << "=" << vec << " & ~(0x000000ff << " << i * 8 << ") | ("
+        << value << " << " << i * 8 << ");\n";
+  } else {
+    stream << vec << "." << access[i] << " = " << value << ";\n";
+  }
 }
 
 void CodeGenCUDA::PrintStorageSync(const Call* op) {
@@ -305,7 +317,7 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   std::string v = PrintExpr(op->value);
   os << "make_";
   PrintType(op->type, os);
-  os << "(";
+  os << '(';
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
@@ -313,13 +325,41 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   os << ')';
 }
 
+void CodeGenCUDA::VisitExpr_(const Shuffle* op, std::ostream &os) {
+  std::vector<std::string> to_shuffle(op->vectors.size());
+  for (int i = 0, e = op->vectors.size(); i < e; ++i) {
+    CHECK(op->vectors[i].type().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
+    to_shuffle[i] = PrintExpr(op->vectors[i]);
+  }
+  os << "make_";
+  PrintType(op->type, os);
+  os << '(';
+  for (int i = 0, e = op->indices.size(); i < e; ++i) {
+    const int64_t *val = as_const_int(op->indices[i]);
+    CHECK(val && *val >= 0 && (int) *val < (int) to_shuffle.size());
+    if (i != 0) os << ", ";
+    os << to_shuffle[*val];
+  }
+  os << ')';
+}
 
 inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
   switch (op->type.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
-      temp << std::scientific << op->value;
-      if (op->type.bits() == 32) temp << 'f';
+      if (std::isinf(op->value)) {
+        if (op->value < 0) {
+          temp << "-";
+        }
+        temp << ((op->type.bits() == 32) ? "CUDART_INF_F" : "CUDART_INF");
+        p->need_math_constants_h_ = true;
+      } else if (std::isnan(op->value)) {
+        temp << ((op->type.bits() == 32) ? "CUDART_NAN_F" : "CUDART_NAN");
+        p->need_math_constants_h_ = true;
+      } else {
+        temp << std::scientific << op->value;
+        if (op->type.bits() == 32) temp << 'f';
+      }
       p->MarkConst(temp.str());
       os << temp.str();
       break;

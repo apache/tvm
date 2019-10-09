@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -87,6 +87,8 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
   virtual R VisitAttr_(const ir::Mul* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Div* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Mod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloorDiv* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloorMod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Min* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Max* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::GE* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -119,6 +121,9 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(Sub);
     ATTR_FUNCTOR_DISPATCH(Mul);
     ATTR_FUNCTOR_DISPATCH(Div);
+    ATTR_FUNCTOR_DISPATCH(Mod);
+    ATTR_FUNCTOR_DISPATCH(FloorDiv);
+    ATTR_FUNCTOR_DISPATCH(FloorMod);
     ATTR_FUNCTOR_DISPATCH(Min);
     ATTR_FUNCTOR_DISPATCH(Max);
     ATTR_FUNCTOR_DISPATCH(GE);
@@ -160,6 +165,8 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ir::Mul* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Div* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Mod* lhs, const NodeRef& other) final;
+  bool VisitAttr_(const ir::FloorDiv* lhs, const NodeRef& other) final;
+  bool VisitAttr_(const ir::FloorMod* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Min* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Max* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::GE* lhs, const NodeRef& other) final;
@@ -201,6 +208,8 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::Mul* op) final;
   size_t VisitAttr_(const ir::Div* op) final;
   size_t VisitAttr_(const ir::Mod* op) final;
+  size_t VisitAttr_(const ir::FloorDiv* op) final;
+  size_t VisitAttr_(const ir::FloorMod* op) final;
   size_t VisitAttr_(const ir::Min* op) final;
   size_t VisitAttr_(const ir::Max* op) final;
   size_t VisitAttr_(const ir::GE* op) final;
