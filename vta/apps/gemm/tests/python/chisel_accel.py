@@ -29,7 +29,6 @@ slice_width : slice width
 Returnsi
 ---------
 C: 2d matrix where each cloumn (because of bit packing) represents each bit slice of A
-    
 """
 def slice(A, slice_width):
     assert np.log2(slice_width) % 1 == 0, "only power of 2 is supported"
@@ -67,7 +66,6 @@ a_width : activation slice width
 Returns
 ---------
 C: result of A * B
-    
 """
 # A is a n*m matrix, B is a m*p matrix(not transposed yet)
 def matrix_multiply(A, B, w_width, a_width):
@@ -149,9 +147,9 @@ def test_accel(A, B, w_width, a_width):
 """ Matrix Generator
 Parameters
 ----------     
-dtype: String, datatype generated (supports only uint)
-w_width: weight bit slices(needs to be less than actual bit width)
-a_width: activation bit slices(needs to be less than actual bit width)
+dtype : String, datatype generated (supports only uint)
+w_width : weight bit slices(needs to be less than actual bit width)
+a_width : activation bit slices(needs to be less than actual bit width)
 """
 def top_test(dtype, w_width, a_width):
 
