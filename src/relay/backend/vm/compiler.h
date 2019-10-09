@@ -72,8 +72,6 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
-  // Map from name to constant index
-  std::unordered_map<std::string, size_t> constant_indices;
   // List of constants
   std::vector<NDArray> constants;
   // List of cached functions
@@ -110,6 +108,14 @@ class VMCompiler : public runtime::ModuleNode {
    */
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
+  /*!
+   * \brief Compile functions in a Module
+   *
+   * \param mod Relay Module
+   * \param targets For heterogeneous compilation, it is a dictionary indicating context
+                    to target mapping. For homogeneous compilation, it is a build target.
+   * \param target_host Host compilation target, if target is device.
+   */
   void Compile(Module mod,
                const TargetsMap& targets,
                const tvm::Target& target_host);
