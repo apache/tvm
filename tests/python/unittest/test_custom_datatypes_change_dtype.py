@@ -399,15 +399,9 @@ def test_conv2d():
 
 if __name__ == "__main__":
     setup()
-    # test_conv2d()
-    #test_ops('float32', 'custom[bfloat]16')
-    #test_ops('float32', 'float32')
-    #test_ops('float32', 'custom[posit]32')
-    test_ops_same_function('float32', 'custom[posit]32')
+    test_ops('float32', 'custom[posit]32')
+    # These all run very slowly:
+    #test_conv2d('float32', 'custom[posit]32')
     #test_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
-    # test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
-    # test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
-    # test_change_dtype_inception_v3()
-    # test_change_dtype_simple()
-    # test_change_dtype_mobilenet()
-    # test_change_dtype_resnet()
+    #test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
+    #test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
