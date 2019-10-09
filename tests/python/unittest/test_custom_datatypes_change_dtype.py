@@ -165,14 +165,9 @@ def setup():
                 intrinsic_name="exp")
     register_min_func(lambda num_bits: -3.38953139e38, "posit")
 
-
 def test_ops_same_function(src_dtype, dst_dtype):
-    """Run the same op, but with two different datatypes
+    """Run the same op, but with two different datatypes"""
 
-    As opposed to the current implementation of test_ops, which uses an
-    op and a reference implementation of that op. This version of this
-    function probably makes more sense for testing datatypes---the thing
-    we change is the datatype, not the op itself."""
     def check_unary_op(op, src_dtype, dst_dtype):
         t1 = relay.TensorType((5, 10, 5))
         x = relay.var("x", t1)
