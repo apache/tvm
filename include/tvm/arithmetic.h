@@ -245,6 +245,8 @@ class RewriteSimplifier {
               const Expr& new_expr,
               bool override = false);
 
+  std::function<void()> EnterConstraint(const Expr& constraint);
+
  private:
   friend class Analyzer;
   friend class ConstraintContext;

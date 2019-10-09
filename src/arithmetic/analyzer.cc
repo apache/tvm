@@ -67,8 +67,10 @@ void ConstraintContext::EnterWithScope() {
   // entering the scope.
   auto f0 = analyzer_->const_int_bound.EnterConstraint(constraint_);
   auto f1 = analyzer_->modular_set.EnterConstraint(constraint_);
+  auto f2 = analyzer_->rewrite_simplify.EnterConstraint(constraint_);
   // recovery function.
-  exit_ = [f0, f1]() {
+  exit_ = [f0, f1, f2]() {
+    if (f2 != nullptr) f2();
     if (f1 != nullptr) f1();
     if (f0 != nullptr) f0();
   };
