@@ -30,7 +30,6 @@ class VMCompilerProfiler(vm.VMCompiler):
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
         self._set_params_func = self.mod["set_params"]
-        self._get_params_func = self.mod["get_params"]
 
     def compile(self, mod, target=None, target_host=None, params=None):
         """

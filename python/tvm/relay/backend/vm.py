@@ -132,7 +132,6 @@ class VMCompiler(object):
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
         self._set_params_func = self.mod["set_params"]
-        self._get_params_func = self.mod["get_params"]
 
     def set_params(self, params):
         """Set constant parameters for the model"""
@@ -182,14 +181,6 @@ class VMCompiler(object):
         else:
             tophub_context = autotvm.util.EmptyContext()
         return tophub_context
-
-    def get_params(self):
-        """Return the updated weights."""
-        params = self._get_params_func()
-        ret = {}
-        for key, value in params.items():
-            ret[key] = value.data
-        return ret
 
     def compile(self, mod, target=None, target_host=None, params=None):
         """

@@ -103,13 +103,6 @@ class VMCompiler : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Get params dictionary
-   *
-   * \return Map<std::string, Constant> params dictionary
-   */
-  Map<std::string, Constant> GetParams();
-
-  /*!
    * \brief Set the parameters
    *
    * \param name name of parameter
@@ -149,8 +142,6 @@ class VMCompiler : public runtime::ModuleNode {
   std::shared_ptr<VirtualMachine> vm_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
-  /*! \brief Output parameters */
-  std::unordered_map<std::string, runtime::NDArray> out_params_;
 };
 
 }  // namespace vm
