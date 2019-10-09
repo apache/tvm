@@ -43,9 +43,20 @@ def change_dtype(src, dst, module, params):
 
 
 def setup():
-    # You must first load the library containing the datatype implementation.
-    # In this case, we have built the test functions used below right into TVM.
+    """Set up tests
+
+    Currently, this registers some custom datatypes using the Bring Your
+    Own Datatypes framework.
+    """
+
+    # To use datatype operations in an external library, you should first load
+    # the library containing the datatype implementation:
     # CDLL("libmybfloat16.so", RTLD_GLOBAL)
+    # In this case, the datatype library we are using is built right into TVM,
+    # so we do not need to explicitly load any library.
+
+    # You can pick a code for your datatype arbitrarily, as long as it is
+    # greater than 128 and has not already been chosen.
 
     register("bfloat", 129)
 
