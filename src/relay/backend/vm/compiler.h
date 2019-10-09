@@ -72,6 +72,8 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
+  // Map from name to constant index
+  std::unordered_map<std::string, size_t> constant_indices;
   // List of constants
   std::vector<NDArray> constants;
   // List of cached functions
@@ -99,6 +101,13 @@ class VMCompiler : public runtime::ModuleNode {
   virtual void InitVM() {
     vm_ = std::make_shared<VirtualMachine>();
   }
+
+  /*!
+   * \brief Get params dictionary
+   *
+   * \return Map<std::string, Constant> params dictionary
+   */
+  Map<std::string, Constant> GetParams();
 
   /*!
    * \brief Set the parameters
@@ -140,6 +149,8 @@ class VMCompiler : public runtime::ModuleNode {
   std::shared_ptr<VirtualMachine> vm_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
+  /*! \brief Output parameters */
+  std::unordered_map<std::string, runtime::NDArray> out_params_;
 };
 
 }  // namespace vm

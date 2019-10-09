@@ -132,6 +132,7 @@ class VMCompiler(object):
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
         self._set_params_func = self.mod["set_params"]
+        self._get_params_func = self.mod["get_params"]
 
     def set_params(self, params):
         """Set constant parameters for the model"""
@@ -182,6 +183,14 @@ class VMCompiler(object):
             tophub_context = autotvm.util.EmptyContext()
         return tophub_context
 
+    def get_params(self):
+        """Return the updated weights."""
+        params = self._get_params_func()
+        ret = {}
+        for key, value in params.items():
+            ret[key] = value.data
+        return ret
+
     def compile(self, mod, target=None, target_host=None, params=None):
         """
         Parameters
@@ -211,6 +220,9 @@ class VMCompiler(object):
         -------
         vm : VirtualMachine
             The VM runtime.
+
+        params : dict
+            The parameters of the final graph.
         """
         target = self.update_target(target)
         target_host = self.update_target_host(target, target_host)
@@ -222,8 +234,8 @@ class VMCompiler(object):
 
         with tophub_context:
             self._compile(mod, target, target_host)
-        return VirtualMachine(self._get_vm())
-
+        params = self.get_params()
+        return VirtualMachine(self._get_vm()), params
 
 class VMExecutor(Executor):
     """

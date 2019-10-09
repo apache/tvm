@@ -266,6 +266,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const ConstantNode* const_node) {
     size_t konst_idx = context_->constants.size();
+    std::string name = "p" + std::to_string(konst_idx);
+    context_->constant_indices[name] = konst_idx;
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
   }
@@ -395,6 +397,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         }
       }
       size_t konst_idx = context_->constants.size();
+      std::string name = "p" + std::to_string(konst_idx);
+      context_->constant_indices[name] = konst_idx;
       context_->constants.push_back(shape_tensor);
       Emit(Instruction::LoadConst(konst_idx, NewRegister()));
       return last_register_;
@@ -794,10 +798,22 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
         this->SetParam(kv.first, kv.second->data);
       }
     });
+  } else if (name == "get_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetParams();
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
+}
+
+Map<std::string, Constant> VMCompiler::GetParams() {
+  Map<std::string, Constant> ret;
+  for (const auto& kv : out_params_) {
+    ret.Set(kv.first, ConstantNode::make(kv.second));
+  }
+  return ret;
 }
 
 void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
@@ -886,6 +902,10 @@ void VMCompiler::Compile(Module mod,
   // populate constants
   for (auto data : context_.constants) {
     vm_->constants.push_back(Object::Tensor(data));
+  }
+  // populate output parameters
+  for (auto p : context_.constant_indices) {
+    out_params_[p.first] = context_.constants[p.second];
   }
 
   LibraryCodegen();
