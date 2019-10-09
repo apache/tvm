@@ -32,14 +32,12 @@ def create_vm(f, ctx=tvm.cpu(), target="llvm", params=None):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        compiler = relay.vm.VMCompiler()
-        vm = compiler.compile(mod, target=target, params=params)
+        vm = _vm.compile(mod, target=target, params=params)
         vm.init(ctx)
         return vm
     else:
         assert isinstance(f, relay.Module), "expected mod as relay.Module"
-        compiler = relay.vm.VMCompiler()
-        vm = compiler.compile(f, target=target, params=params)
+        vm = _vm.compile(f, target=target, params=params)
         vm.init(ctx)
         return vm
 
