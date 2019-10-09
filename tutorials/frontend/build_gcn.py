@@ -76,7 +76,6 @@ class GCN(nn.Module):
 # ------------------
 # You may substitute this part with your own dataset, here we load data from DGL
 
-from dgl import DGLGraph
 from dgl.data import load_data
 from collections import namedtuple
 
@@ -135,7 +134,7 @@ num_classes = data.num_labels
 #
 # The weights are trained with https://github.com/dmlc/dgl/blob/master/examples/pytorch/gcn/train.py
 from tvm.contrib.download import download_testdata
-
+from dgl import DGLGraph
 
 features = torch.FloatTensor(data.features)
 dgl_g = DGLGraph(g)
