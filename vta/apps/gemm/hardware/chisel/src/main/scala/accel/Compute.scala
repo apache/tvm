@@ -25,15 +25,18 @@ import vta.dpi._
 
 /** Compute
   *
-  * Add-by-one procedure:
+  * Bit Slice GEMM:
   *
   * 1. Wait for launch to be asserted
-  * 2. Issue a read request for 8-byte value at inp_baddr address
+  * 2. Issue 2 read request for 8-byte value at inp1_baddr address and inp2_baddr address
   * 3. Wait for the value
-  * 4. Issue a write request for 8-byte value at out_baddr address
-  * 5. Increment read-address and write-address for next value
-  * 6. Check if counter (cnt) is equal to length to assert finish,
-  *    otherwise go to step 2.
+  * 4. Increment read-address for next value
+  * 5. Wait for sliced accumulator
+  * 6. Check if counter (cnt) is equal to length process,
+       otherwise goto step 2
+  * 7. Check if reset slice accumulator
+  * 8. Wait for overall accumulator
+  * 8. Issue a write request for 8-byte value at out_baddr address
   */
 class Compute(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {

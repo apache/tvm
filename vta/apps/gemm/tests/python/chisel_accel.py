@@ -20,7 +20,17 @@ import numpy as np
 import tsim
 import sys
 
-# bit slice
+""" Vector Bit Slice and Pack Function
+Parameters
+----------
+A : Vector to be sliced and packed
+slice_width : slice width
+
+Returnsi
+---------
+C: 2d matrix where each cloumn (because of bit packing) represents each bit slice of A
+    
+"""
 def slice(A, slice_width):
     assert np.log2(slice_width) % 1 == 0, "only power of 2 is supported"
     dtype = type(A[0]) 
@@ -46,7 +56,19 @@ def slice(A, slice_width):
             C[y][x] = (np.uint64(A[x]) >> np.uint64(slice_width * y)) & np.uint64(slice_mask)
     return C
 
+""" Matrix Multiplication Function
+Parameters
+----------
+A : Matrix A
+B: Matrix B
+w_width : weight slice width
+a_width : activation slice width
 
+Returns
+---------
+C: result of A * B
+    
+"""
 # A is a n*m matrix, B is a m*p matrix(not transposed yet)
 def matrix_multiply(A, B, w_width, a_width):
     assert A.shape[1] == B.shape[0], "can't perform multiplication"
@@ -76,6 +98,7 @@ def matrix_multiply(A, B, w_width, a_width):
     print("ALL TESTS PASSED, cycles: " + str(cycles))
     return C
 
+""" Software Verification Function"""
 # takes 2 matrix input (sliced and packed)
 def compute(A, B, w_width, a_width):
     assert A.shape[1] == B.shape[1], "sliced shape not match"
@@ -88,6 +111,7 @@ def compute(A, B, w_width, a_width):
     # get value from accumulator
     return accum
 
+"""Testing Function for Dot Product"""
 def test_accel(A, B, w_width, a_width):
     assert A.shape[1] == B.shape[1], "sliced shape not match"
 
@@ -122,12 +146,13 @@ def test_accel(A, B, w_width, a_width):
 
     return (accum.asnumpy()[0], cycles)
 
-# top_test
-#   paramters:
-#     dtype: String, datatype generated (supports only uint)
-#     w_width: weight bit slices(needs to be less than actual bit width)
-#     a_width: activation bit slices(needs to be less than actual bit width)
-
+""" Matrix Generator
+Parameters
+----------     
+dtype: String, datatype generated (supports only uint)
+w_width: weight bit slices(needs to be less than actual bit width)
+a_width: activation bit slices(needs to be less than actual bit width)
+"""
 def top_test(dtype, w_width, a_width):
 
     rmax = np.random.randint(256)
