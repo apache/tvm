@@ -51,6 +51,13 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Mutate(stmt);
   }
 
+  Stmt Mutate_(const For* op, const Stmt& s) final {
+    analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+    With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
+    With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
+    return IRMutator::Mutate_(op, s);
+  }
+
   Stmt Mutate_(const LetStmt* op, const Stmt& s) {
     Expr value = this->Mutate(op->value);
     if (!ir::HasSideEffect(value)) {
