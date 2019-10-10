@@ -582,6 +582,27 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     os << " != ";
     this->PrintExpr(op->args[0], os);
     os << ")";
+  } else if (op->is_intrinsic("wmma::mem_col_major")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::mem_col_major";
+  } else if (op->is_intrinsic("wmma::mem_row_major")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::mem_row_major";
+  } else if (op->is_intrinsic("wmma::col_major")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::col_major";
+  } else if (op->is_intrinsic("wmma::row_major")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::row_major";
+  } else if (op->is_intrinsic("wmma::matrix_a")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::matrix_a";
+  } else if (op->is_intrinsic("wmma::matrix_b")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::matrix_b";
+  } else if (op->is_intrinsic("wmma::accumulator")) {
+    CHECK_EQ(op->args.size(), 0U);
+    os << "wmma::accumulator";
   } else {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
@@ -781,12 +802,49 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    std::string new_data = PrintExpr(op->new_expr);
-    this->PrintIndent();
-    PrintType(op->type, stream);
-    stream << "* "<< vid << '=' << new_data << ";\n";
+    const Call* call = op->new_expr.as<Call>();
+    if (call != nullptr && call->is_intrinsic("wmma::fragment")) {
+      CHECK_EQ(call->args.size(), 5);
+      this->PrintIndent();
+      this->stream << "wmma::fragment<" << PrintExpr(call->args[0])
+                                 << "," << PrintExpr(call->args[1])
+                                 << "," << PrintExpr(call->args[2])
+                                 << "," << PrintExpr(call->args[3]);
+
+      std::string type_str;
+      if (op->type == Int(8)) {
+        type_str = "signed char";
+      } else if (op->type == Int(32)) {
+        type_str = "int";
+      } else if (op->type == Float(16)) {
+        type_str = "half";
+      } else if (op->type == Float(32)) {
+        type_str = "float";
+      } else {
+        LOG(FATAL) << "Fragement type " << op->type
+                   << " is not supported for now";
+      }
+      this->stream << "," << type_str;
+
+      std::string arg0 = PrintExpr(call->args[0]);
+      if (arg0 == "wmma::matrix_a"
+          || arg0 == "wmma::matrix_b") {
+        this->stream << ", " << PrintExpr(call->args[4]) << "> ";
+      } else if (arg0 == "wmma::accumulator") {
+        this->stream << "> ";
+      } else {
+        LOG(FATAL) << "Invalid fragment " << PrintExpr(arg0);
+      }
+      int32_t constant_size = op->constant_allocation_size();
+      this->stream << vid << "[" << constant_size << "];\n";
+    } else {
+      // Prefer global static allocation for the program
+      CHECK_EQ(op->free_function, "nop");
+      std::string new_data = PrintExpr(op->new_expr);
+      this->PrintIndent();
+      PrintType(op->type, stream);
+      stream << "* "<< vid << '=' << new_data << ";\n";
+    }
   } else {
     this->PrintIndent();
     int32_t constant_size = op->constant_allocation_size();

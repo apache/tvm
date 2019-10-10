@@ -467,7 +467,9 @@ Stmt Realize::make(FunctionRef func,
                    DataType type,
                    Region bounds,
                    Expr condition,
-                   Stmt body) {
+                   Stmt body,
+                   Expr new_expr,
+                   std::string free_function) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
@@ -485,6 +487,8 @@ Stmt Realize::make(FunctionRef func,
   node->bounds = std::move(bounds);
   node->condition = std::move(condition);
   node->body = std::move(body);
+  node->new_expr = std::move(new_expr);
+  node->free_function = std::move(free_function);
   return Stmt(node);
 }
 

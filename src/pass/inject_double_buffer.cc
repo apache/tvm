@@ -115,7 +115,7 @@ class DoubleBufferInjector : public IRMutator {
           Evaluate::make(0)));
       alloc_nest.emplace_back(Allocate::make(
           op->buffer_var, op->type, new_extents, op->condition,
-          Evaluate::make(0)));
+          Evaluate::make(0), op->new_expr, op->free_function));
       return op->body;
     } else {
       return IRMutator::Mutate_(op, s);

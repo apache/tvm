@@ -207,6 +207,12 @@ Stmt StorageFlatten(Stmt stmt,
                     int cache_line_size,
                     bool create_bound_attribute = false);
 
+Stmt TensorCore(Stmt stmt,
+                Schedule schedule,
+                double cuda_compute_capability,
+                double cuda_version,
+                Map<Tensor, Buffer> extern_buffer);
+
 /*!
  * \brief Remove No Op from the Stmt.
  * \param stmt The stmt to be trasnformed

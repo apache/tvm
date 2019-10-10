@@ -50,10 +50,14 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
     decl_stream << "#include <cuda_fp16.h>\n";
+    decl_stream << "#include <mma.h>\n";
+    decl_stream << "using namespace nvcuda;\n";
   }
 
   if (enable_int8_) {
     decl_stream << "#include <sm_61_intrinsics.h>\n";
+    decl_stream << "#include <mma.h>\n";
+    decl_stream << "using namespace nvcuda;\n";
   }
 
   if (need_math_constants_h_) {
@@ -88,8 +92,15 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
-      case 16: os << "half";
+      case 16:
         enable_fp16_ = true;
+        switch (lanes) {
+          case 1: os << "half"; return;
+          case 2: os << "float"; return;
+          case 4: os << "float2"; return;
+          case 8: os << "float4"; return;
+          default: fail = true;
+        }
         break;
       case 32: os << "float"; break;
       case 64: os << "double"; break;

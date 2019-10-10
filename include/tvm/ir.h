@@ -1001,6 +1001,9 @@ class Realize : public StmtNode {
   /*! \brief The body of realization. */
   Stmt body;
 
+  Expr new_expr;
+  std::string free_function;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
@@ -1015,7 +1018,9 @@ class Realize : public StmtNode {
                            DataType type,
                            Region bounds,
                            Expr condition,
-                           Stmt body);
+                           Stmt body,
+                           Expr new_expr = Expr(),
+                           std::string free_function = std::string());
 
   static constexpr const char* _type_key = "Realize";
   TVM_DECLARE_NODE_TYPE_INFO(Realize, StmtNode);

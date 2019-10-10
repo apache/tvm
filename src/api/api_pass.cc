@@ -94,6 +94,13 @@ TVM_REGISTER_API("ir_pass.StorageFlatten")
     }
   });
 
+TVM_REGISTER_API("ir_pass.TensorCore")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args.size() == 5) {
+      *ret = TensorCore(args[0], args[1], args[2], args[3], args[4]);
+    }
+  });
+
 TVM_REGISTER_API("ir_pass.AttrsEqual")
 .set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
     return AttrsEqual()(lhs, rhs);

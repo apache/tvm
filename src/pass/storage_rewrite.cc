@@ -577,7 +577,8 @@ class StoragePlanRewriter : public IRMutator {
                                               make_const(Int(32), 1));
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {sz},
-              e->allocs[0]->condition, Evaluate::make(0));
+              e->allocs[0]->condition, Evaluate::make(0),
+              e->allocs[0]->new_expr, e->allocs[0]->free_function);
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -967,7 +968,8 @@ class VectorAllocRewriter : public IRMutator {
                     extents[extents.size() - 1] / make_const(extents[0].type(), factor));
         return Allocate::make(
             op->buffer_var, tvec[0], extents,
-            op->condition, op->body);
+            op->condition, op->body,
+            op->new_expr, op->free_function);
       }
     }
     return stmt;
