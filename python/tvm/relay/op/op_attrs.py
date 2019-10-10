@@ -55,6 +55,11 @@ class DenseAttrs(Attrs):
 
 
 @register_relay_attr_node
+class FIFOBufferAttrs(Attrs):
+    """Attributes for nn.fifo_buffer"""
+
+
+@register_relay_attr_node
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
 

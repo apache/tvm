@@ -601,6 +601,36 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
+def fifo_buffer(data, buffer, axis):
+    """FIFO buffer
+
+    Compute equivalent of
+    ```
+    concat(buffer, data, axis=axis) \
+    .slice_axis(axis=axis, begin=data.shape[axis], end=data.shape[axis]+buffer.shape[axis])
+    ```
+
+    Useful for
+    * Encoding explicit re-use of computation in convolution ops operated on a sliding window input
+    * Implementing a FIFO queue to cache intermediate results, e.g. as in Fast WaveNet.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data
+    buffer : tvm.relay.Expr
+        Previous value of the FIFO buffer
+    axis : int
+        Specify which axis should be used for buffering
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Updated value for the buffer
+    """
+    return _make.fifo_buffer(data, buffer, axis)
+
+
 def relu(data):
     """Rectified linear unit.
 
