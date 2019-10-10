@@ -98,6 +98,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
                                        Index output_size,
                                        const std::vector<Object>& args) {
   auto ctx = VirtualMachine::GetParamsContext();
+  // warmup
+  VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,
+                               args);
+  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
+
   auto op_begin = std::chrono::high_resolution_clock::now();
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,
                                args);
