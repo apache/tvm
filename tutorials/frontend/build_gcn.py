@@ -42,10 +42,10 @@ https://pytorch.org/get-started/locally/
 #
 # DGL example: https://github.com/dmlc/dgl/tree/master/examples/pytorch/gcn
 # This part reuses the code from the above example
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import dgl
 from dgl.nn.pytorch import GraphConv
 
 class GCN(nn.Module):
@@ -67,7 +67,11 @@ class GCN(nn.Module):
     def forward(self, features):
         h = features
         for i, layer in enumerate(self.layers):
-            h = layer(self.g, h)
+            # handle api changes for differnt DGL version
+            if dgl.__version__ <= '0.2':
+                h = layer(h, self.g)
+            else:
+                h = layer(self.g, h)
         return h
 
 
@@ -75,7 +79,6 @@ class GCN(nn.Module):
 # Define the functions to load dataset and evaluate accuracy
 # ------------------
 # You may substitute this part with your own dataset, here we load data from DGL
-
 from dgl.data import load_data
 from collections import namedtuple
 
@@ -90,6 +93,7 @@ def load_dataset(dataset="cora"):
 
     return g, data
 
+
 def evaluate(data, logits):
     test_mask = data.test_mask # the test set which isn't included in the training phase
 
@@ -97,6 +101,7 @@ def evaluate(data, logits):
     acc = ((pred == data.labels) * test_mask).sum() / test_mask.sum()
 
     return acc
+
 
 ######################################################################
 # Load the data and set up model parameters
@@ -147,11 +152,12 @@ torch_model = GCN(dgl_g,
                   F.relu)
 
 # Download the pretrained weights
-model_url = "https://homes.cs.washington.edu/~cyulin/media/gcn_%s.torch"%(dataset)
+model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_%s.torch"%(dataset)
 model_path = download_testdata(model_url, "gcn_%s.pickle"%(dataset), module='gcn_model')
 
 # Load the weights into the model
 torch_model.load_state_dict(torch.load(model_path))
+
 
 ######################################################################
 # Run the DGL model and test for accuracy
@@ -163,6 +169,7 @@ print("Print the first five outputs from DGL-PyTorch execution\n", logits_torch[
 
 acc = evaluate(data, logits_torch.numpy())
 print("Test accuracy of DGL results: {:.2%}".format(acc))
+
 
 ######################################################################
 # Define Graph Convolution Layer in Relay
@@ -314,8 +321,6 @@ func = relay.Function(relay.analysis.free_vars(output), output)
 ######################################################################
 # Compile and run with TVM
 # ------------------
-#
-
 # Export the weigths from PyTorch model to Python Dict
 model_params = {}
 for param_tensor in torch_model.state_dict():
