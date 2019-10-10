@@ -68,10 +68,10 @@ class GCN(nn.Module):
         h = features
         for i, layer in enumerate(self.layers):
             # handle api changes for differnt DGL version
-            if dgl.__version__ <= '0.2':
-                h = layer(h, self.g)
-            else:
+            if dgl.__version__ > '0.3':
                 h = layer(self.g, h)
+            else:
+                h = layer(h, self.g)
         return h
 
 
