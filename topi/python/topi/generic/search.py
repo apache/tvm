@@ -14,35 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable,
-"""Schedule for cudnn and miopen extern op"""
+# pylint: disable=invalid-name, no-member
+"""Generic search operators"""
+from __future__ import absolute_import as _abs
 import tvm
-from .. import generic
-from .injective import _schedule_injective
+from .vision import _default_schedule
 
-
-@generic.schedule_extern.register(["cuda", "gpu"])
-def schedule_extern(outs):
-    """Schedule for an extern op followed by injective operations.
-       For example, cudnn kernel + bias add + relu.
+@tvm.target.generic_func
+def schedule_argwhere(outs):
+    """Schedule for argwhere operator.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of extern plus injective ops in the format
-          of an array of tensors.
+      The computation graph description of argwhere.
 
     Returns
     -------
-    sch: Schedule
-        The computation schedule for the op.
+    s: Schedule
+      The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-
-    tvm.schedule.AutoInlineInjective(s)
-    for out in outs:
-        if isinstance(out.op, tvm.tensor.ExternOp):
-            continue
-        _schedule_injective(out.op, s)
-    return s
+    return _default_schedule(outs, False)

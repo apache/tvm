@@ -27,6 +27,7 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/qnn/transform.h>
 #include <tvm/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
@@ -779,11 +780,19 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
   if (name == "compile") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
-      this->Compile(args[0], args[1], args[2]);
+      Module mod = args[0];
+      this->Compile(mod, args[1], args[2]);
     });
   } else if (name == "get_vm") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = runtime::Module(vm_);
+    });
+  } else if (name == "set_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Map<std::string, Constant> params = args[0];
+      for (const auto& kv : params) {
+        this->SetParam(kv.first, kv.second->data);
+      }
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -791,11 +800,53 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
   }
 }
 
-void VMCompiler::Compile(const Module& mod_ref,
+void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
+  params_[name] = data_in;
+}
+
+relay::Function VMCompiler::BindParamsByName(
+    relay::Function func,
+    const std::unordered_map<std::string, runtime::NDArray>& params) {
+  std::unordered_map<std::string, relay::Var> name_dict;
+  std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+  for (auto arg : func->params) {
+    const auto &name = arg->name_hint();
+    if (name_dict.count(name)) {
+      repeat_var.insert(arg);
+    } else {
+      name_dict[name] = arg;
+    }
+  }
+  std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+  for (auto &kv : params) {
+    if (name_dict.count(kv.first) == 0) {
+      continue;
+    }
+    auto arg = name_dict.at(kv.first);
+    if (repeat_var.count(arg)) {
+      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+    }
+    bind_dict[arg] = ConstantNode::make(kv.second);
+  }
+  Expr bound_expr = relay::Bind(func, bind_dict);
+  Function ret = Downcast<Function>(bound_expr);
+  CHECK(ret.defined())
+      << "The returning type is expected to be a Relay Function."
+      << "\n";
+  return ret;
+}
+
+
+void VMCompiler::Compile(Module mod,
                          const TargetsMap& targets,
                          const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
+  if (params_.size()) {
+    auto f = BindParamsByName(mod->Lookup("main"), params_);
+    auto gvar = mod->GetGlobalVar("main");
+    mod->Add(gvar, f);
+  }
 
   InitVM();
   targets_ = targets;
@@ -803,7 +854,7 @@ void VMCompiler::Compile(const Module& mod_ref,
 
   // Run some optimizations first, this code should
   // be moved to pass manager.
-  context_.module = OptimizeModule(mod_ref);
+  context_.module = OptimizeModule(mod, targets_);
 
   // Populate the global map.
   //
@@ -844,18 +895,62 @@ void VMCompiler::Compile(const Module& mod_ref,
   }
 }
 
-Module VMCompiler::OptimizeModule(const Module& mod) {
-  // TODO(@icemelon9): check number of targets and build config, add more optimization pass
-  transform::Sequential seq({transform::SimplifyInference(),
-                             transform::InlinePrimitives(),
-                             // TODO(@wweic): FuseOps pass currently don't handle Let
-                             // For now, we put FuseOps before ToANormalForm to enable it
-                             transform::FuseOps(),
-                             transform::ToANormalForm(),
-                             transform::LambdaLift(),
-                             transform::InlinePrimitives()});
-  auto pass_ctx = transform::PassContext::Create();
+Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
+  Array<Pass> pass_seqs;
+  // Run all dialect legalization passes.
+  pass_seqs.push_back(relay::qnn::transform::Legalize());
+
+  // Legalize pass is restricted to homogeneous execution for now.
+  if (targets.size() == 1) {
+    pass_seqs.push_back(transform::Legalize());
+  }
+
+  pass_seqs.push_back(transform::SimplifyInference());
+  PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    Expr expr = args[0];
+    if (expr.as<CallNode>()) {
+      auto call_node = expr.as<CallNode>();
+      auto op_node = call_node->op.as<OpNode>();
+      if (op_node->name == "cast") {
+        auto attrs = call_node->attrs.as<CastAttrs>();
+        if (attrs->dtype == Int(32)) {
+          *rv = true;
+        }
+      }
+    }
+    *rv = false;
+  });
+  pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+  pass_seqs.push_back(transform::InlinePrimitives());
+
+  pass_seqs.push_back(transform::CombineParallelConv2D(3));
+  pass_seqs.push_back(transform::CombineParallelDense(3));
+  pass_seqs.push_back(transform::FoldConstant());
+  pass_seqs.push_back(transform::FoldScaleAxis());
+  pass_seqs.push_back(transform::CanonicalizeCast());
+  pass_seqs.push_back(transform::CanonicalizeOps());
+
+  // Alter layout transformation is only applied to homogeneous execution yet.
+  if (targets.size() == 1) {
+    pass_seqs.push_back(transform::AlterOpLayout());
+  }
+
+  pass_seqs.push_back(transform::FoldConstant());
+
+  pass_seqs.push_back(transform::FuseOps());
+  pass_seqs.push_back(transform::ToANormalForm());
+  pass_seqs.push_back(transform::LambdaLift());
+  pass_seqs.push_back(transform::InlinePrimitives());
+
+  transform::Sequential seq(pass_seqs);
+  transform::PassContext pass_ctx = PassContext::Current();
+  // TODO(wweic): Support heterogenous execution
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
+  if (targets.size() == 1) {
+    const auto& it = targets.begin();
+    With<Target> tctx((*it).second);
+    return seq(mod);
+  }
   return seq(mod);
 }
 

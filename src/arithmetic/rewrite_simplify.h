@@ -28,6 +28,7 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_map>
+#include <vector>
 #include "const_fold.h"
 #include "pattern_match.h"
 #include "ir_mutator_with_analyzer.h"
@@ -74,6 +75,8 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr Mutate_(const Cast* op, const Expr& self) override;
   Expr Mutate_(const Let* op, const Expr& self) override;
 
+  std::function<void()> EnterConstraint(const Expr& constraint);
+
  protected:
   /*! \brief internal structure for comparison. */
   enum CompareResult {
@@ -89,6 +92,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   int recur_depth_{0};
   // internal variable map
   std::unordered_map<Var, Expr, ExprHash, ExprEqual> var_map_;
+
+  std::vector<Expr> literal_constraints_;
+
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;
 

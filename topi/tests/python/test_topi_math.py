@@ -69,8 +69,16 @@ def test_ewise():
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for device in get_all_backend():
-            check_device(device)
+        check_device('llvm')
+        check_device('cuda')
+        check_device('opencl')
+        check_device('metal')
+        check_device('rocm')
+        check_device('vulkan')
+        check_device('nvptx')
+        check_device('llvm -device=arm-cpu')
+        check_device('opencl -device=mali')
+        check_device('aocl_sw_emu')
 
     def test_isnan(
         low,
@@ -109,8 +117,16 @@ def test_ewise():
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for device in get_all_backend():
-            check_device(device)
+        check_device('llvm')
+        check_device('cuda')
+        check_device('opencl')
+        check_device('metal')
+        check_device('rocm')
+        check_device('vulkan')
+        check_device('nvptx')
+        check_device('llvm -device=arm-cpu')
+        check_device('opencl -device=mali')
+        check_device('aocl_sw_emu')
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)

@@ -154,6 +154,12 @@ class Op : public relay::Expr {
   template <typename ValueType>
   inline static OpMap<ValueType> GetAttr(const std::string& attr_name);
   /*!
+   * \brief Checks if an attr is present in the registry.
+   * \param attr_name The name of the attribute.
+   * \return bool True if the attr is present.
+   */
+  inline static bool HasAttr(const std::string& attr_name);
+  /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
    * \param op_name Name of the operator.
@@ -171,6 +177,12 @@ class Op : public relay::Expr {
    * \return reference to GenericOpMap
    */
   TVM_DLL static const GenericOpMap& GetGenericAttr(const std::string& key);
+  /*!
+   * \brief Checks if the key is present in the registry
+   * \param key The attribute key
+   * \return bool True if the key is present
+   */
+  TVM_DLL static const bool HasGenericAttr(const std::string& key);
 };
 
 /*! \brief Helper structure to register operators */
@@ -391,6 +403,10 @@ inline const OpNode* Op::operator->() const {
 template <typename ValueType>
 inline OpMap<ValueType> Op::GetAttr(const std::string& key) {
   return OpMap<ValueType>(Op::GetGenericAttr(key));
+}
+
+inline bool Op::HasAttr(const std::string& key) {
+  return Op::HasGenericAttr(key);
 }
 
 inline OpNode* OpRegistry::get() {

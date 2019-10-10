@@ -55,6 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
+- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
@@ -74,6 +75,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
+- [Animesh Jain](https://github.com/anijain2305): @anijain2305
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Zhi Chen](https://github.com/zhiics): @zhiics
@@ -101,6 +103,7 @@ We do encourage everyone to work anything they are interested in.
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Jian Weng](https://github.com/were): @were
+- [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy

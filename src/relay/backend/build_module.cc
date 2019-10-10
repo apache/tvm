@@ -27,6 +27,7 @@
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/qnn/transform.h>
 #include <memory>
 
 #include "utils.h"
@@ -142,6 +143,10 @@ class RelayBuildModule : public runtime::ModuleNode {
         for (const auto& kv : params) {
           this->SetParam(kv.first, kv.second->data);
         }
+      });
+    } else if (name == "get_lowered_funcs") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetLoweredFunc();
       });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
@@ -282,6 +287,15 @@ class RelayBuildModule : public runtime::ModuleNode {
       const TargetsMap& targets,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     Array<Pass> pass_seqs;
+
+    // Run all dialect legalization passes.
+    pass_seqs.push_back(relay::qnn::transform::Legalize());
+
+    // Legalize pass is restricted to homogeneous execution for now.
+    if (targets.size() == 1) {
+      pass_seqs.push_back(transform::Legalize());
+    }
+
     pass_seqs.push_back(transform::SimplifyInference());
     PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       Expr expr = args[0];
@@ -299,15 +313,11 @@ class RelayBuildModule : public runtime::ModuleNode {
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
+    pass_seqs.push_back(transform::CombineParallelDense(3));
     pass_seqs.push_back(transform::FoldConstant());
     pass_seqs.push_back(transform::FoldScaleAxis());
     pass_seqs.push_back(transform::CanonicalizeCast());
     pass_seqs.push_back(transform::CanonicalizeOps());
-
-    // Legalize pass is restricted to homogeneous execution for now.
-    if (targets.size() == 1) {
-      pass_seqs.push_back(transform::Legalize());
-    }
 
     // Alter layout transformation is only applied to homogeneous execution yet.
     if (targets.size() == 1) {
@@ -318,10 +328,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Create a sequential pass and perform optimizations.
     transform::Pass seq = transform::Sequential(pass_seqs);
     if (targets.size() == 1) {
-      for (const auto& kv : targets) {
-        With<Target> tctx(kv.second);
-        relay_module = seq(relay_module);
-      }
+      const auto& it = targets.begin();
+      With<Target> tctx((*it).second);
+      relay_module = seq(relay_module);
     } else {
       relay_module = seq(relay_module);
     }

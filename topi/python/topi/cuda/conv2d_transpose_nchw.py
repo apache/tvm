@@ -69,9 +69,11 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
                       [0, 0, (bpad_bottom + stride_h - 1) // stride_h,
                        (bpad_right + stride_w - 1) // stride_w], name='FirstPad')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     # remove extra padding introduced by dilatation
-    border_h = (stride_h - bpad_top % stride_h) % stride_h
-    border_w = (stride_w - bpad_left % stride_w) % stride_w
+    border_h = idxmod(stride_h - idxmod(bpad_top, stride_h), stride_h)
+    border_w = idxmod(stride_w - idxmod(bpad_left, stride_w), stride_w)
 
     # dilation stage
     data = FirstPad
@@ -83,8 +85,8 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
         index_tuple = []
         for i in range(n):
             if not equal_const_int(strides[i], 1):
-                index_tuple.append(indices[i] // strides[i])
-                not_zero.append((indices[i] % strides[i]).equal(0))
+                index_tuple.append(idxdiv(indices[i], strides[i]))
+                not_zero.append(idxmod(indices[i], strides[i]).equal(0))
             else:
                 index_tuple.append(indices[i])
         if not_zero:

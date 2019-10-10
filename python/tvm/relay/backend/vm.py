@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name
+# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name, redefined-builtin
 """
 The Relay Virtual Machine.
 
@@ -23,30 +23,12 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
+from tvm import autotvm
 from tvm._ffi.runtime_ctypes import TVMByteArray
+from tvm.relay import expr as _expr
 from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
-
-
-def _update_target(target):
-    target = target if target else tvm.target.current_target()
-    if target is None:
-        raise ValueError("Target is not set in env or passed as argument.")
-
-    tgts = {}
-    if isinstance(target, (str, tvm.target.Target)):
-        dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
-        tgts[dev_type] = tvm.target.create(target)
-    elif isinstance(target, dict):
-        for dev, tgt in target.items():
-            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
-            tgts[dev_type] = tvm.target.create(tgt)
-    else:
-        raise TypeError("target is expected to be str, tvm.target.Target, " +
-                        "or dict of str to str/tvm.target.Target, but received " +
-                        "{}".format(type(target)))
-    return tgts
 
 def _convert(arg, cargs):
     if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
@@ -143,47 +125,103 @@ class VirtualMachine(object):
         return self.mod
 
 
+def compile(mod, target=None, target_host=None, params=None):
+    """
+    Parameters
+    ----------
+    mod : relay.Module
+        The Relay module to build.
+
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+        device/context name) to str/tvm.target.Target, optional
+        For heterogeneous compilation, it is a dictionary indicating context
+        to target mapping. For homogeneous compilation, it is a build target.
+
+    target_host : str or :any:`tvm.target.Target`, optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        to setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    Returns
+    -------
+    vm : VirtualMachine
+        The VM runtime.
+    """
+    compiler = VMCompiler()
+
+    target = compiler.update_target(target)
+    target_host = compiler.update_target_host(target, target_host)
+    if params:
+        compiler.set_params(params)
+    tophub_context = compiler.tophub_context(target)
+    with tophub_context:
+        compiler._compile(mod, target, target_host)
+    return VirtualMachine(compiler._get_vm())
+
 class VMCompiler(object):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
+        self._set_params_func = self.mod["set_params"]
 
-    def compile(self, mod, target=None, target_host=None):
-        """
-        Parameters
-        ----------
-        mod : relay.Module
-            The Relay module to build.
+    def set_params(self, params):
+        """Set constant parameters for the model"""
+        inputs = {}
+        for name, param in params.items():
+            if isinstance(param, np.ndarray):
+                param = _nd.array(param)
+            inputs[name] = _expr.const(param)
+        self._set_params_func(inputs)
 
-        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-            device/context name) to str/tvm.target.Target, optional
-            For heterogeneous compilation, it is a dictionary indicating context
-            to target mapping. For homogeneous compilation, it is a build target.
+    def update_target(self, target):
+        """Update target"""
+        target = target if target else tvm.target.current_target()
+        if target is None:
+            raise ValueError("Target is not set in env or passed as argument.")
+        tgts = {}
+        if isinstance(target, (str, tvm.target.Target)):
+            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
+            tgts[dev_type] = tvm.target.create(target)
+        elif isinstance(target, dict):
+            for dev, tgt in target.items():
+                dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
+                tgts[dev_type] = tvm.target.create(tgt)
+        else:
+            raise TypeError("target is expected to be str, tvm.target.Target, " +
+                            "or dict of str to str/tvm.target.Target, but received " +
+                            "{}".format(type(target)))
+        return tgts
 
-        target_host : str or :any:`tvm.target.Target`, optional
-            Host compilation target, if target is device.
-            When TVM compiles device specific program such as CUDA,
-            we also need host(CPU) side code to interact with the driver
-            to setup the dimensions and parameters correctly.
-            target_host is used to specify the host side codegen target.
-            By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
-
-        Returns
-        -------
-        vm : VirtualMachine
-            The VM runtime.
-        """
-        target = _update_target(target)
+    def update_target_host(self, target, target_host):
+        """Update target host"""
         target_host = None if target_host == "" else target_host
         if not target_host:
+            for device_type, tgt in target.items():
+                if device_type.value == tvm.nd.cpu(0).device_type:
+                    target_host = tgt
+                    break
+        if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
-        target_host = tvm.target.create(target_host)
-        self._compile(mod, target, target_host)
-        return VirtualMachine(self._get_vm())
+        return tvm.target.create(target_host)
 
+    def tophub_context(self, target):
+        # If current dispatch context is fallback context (the default root context),
+        # then load pre-tuned parameters from TopHub
+        if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+            tophub_context = autotvm.tophub.context(list(target.values()))
+        else:
+            tophub_context = autotvm.util.EmptyContext()
+        return tophub_context
 
 class VMExecutor(Executor):
     """
@@ -211,8 +249,7 @@ class VMExecutor(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        compiler = VMCompiler()
-        self.vm = compiler.compile(mod, target)
+        self.vm = compile(mod, target)
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):

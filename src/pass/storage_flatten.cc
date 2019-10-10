@@ -23,10 +23,12 @@
  */
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
+#include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_visitor.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -36,6 +38,7 @@
 #include "ir_util.h"
 #include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
+#include "../arithmetic/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -49,8 +52,10 @@ using intrinsic::tvm_address_of;
 class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
-                            int cache_line_size, bool create_bound_attributes)
-      : create_bound_attributes_(create_bound_attributes) {
+                            int cache_line_size, bool create_bound_attributes,
+                            IRVisitorWithAnalyzer* bounded_analyzer)
+      : bounded_analyzer_(bounded_analyzer),
+        create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -206,7 +211,7 @@ class StorageFlattener : public IRMutator {
           if (dim < avec.size() && avec[dim].align_factor != 0) {
             Expr factor = make_const(stride.type(), avec[dim].align_factor);
             Expr offset = make_const(stride.type(), avec[dim].align_offset);
-            stride = stride + (factor + offset - stride % factor) % factor;
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
@@ -419,7 +424,8 @@ class StorageFlattener : public IRMutator {
     } else {
       for (size_t i = 0; i < tuple->args.size(); i += 2) {
         begins.push_back(tuple->args[i]);
-        extents.push_back(tuple->args[i + 1]);
+        auto new_extent = bounded_analyzer_->Simplify(tuple->args[i+1]);
+        extents.push_back(new_extent);
       }
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
@@ -510,6 +516,9 @@ class StorageFlattener : public IRMutator {
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
   std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
+  // bounds populator. We really need the analyzer from it.
+  // However
+  IRVisitorWithAnalyzer* bounded_analyzer_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
@@ -520,9 +529,11 @@ class StorageFlattener : public IRMutator {
 
 Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
+  IRVisitorWithAnalyzer bounded_analyzer;
+  bounded_analyzer.Visit(stmt);
   stmt =
-      StorageFlattener(extern_buffer, cache_line_size, create_bound_attributes)
-          .Mutate(stmt);
+      StorageFlattener(extern_buffer, cache_line_size,
+          create_bound_attributes, &bounded_analyzer).Mutate(stmt);
   return stmt;
 }
 

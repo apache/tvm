@@ -313,10 +313,15 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
                        axis=[ci, dh, dw, b1, b2])
 
     conv = tvm.compute(ovshape, _conv, name='conv_out')
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
 
-    return tvm.compute(oshape, lambda n, co, h, w:
-                       conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
-                       name='conv_vec', tag='spatial_bitserial_conv_nchw')
+    return tvm.compute(
+        oshape, lambda n, co, h, w:
+        conv[n,
+             idxd(co, VC), idxd(h, VH), idxd(w, VW),
+             idxm(h, VH), idxm(w, VW), idxm(co, VC)],
+        name='conv_vec', tag='spatial_bitserial_conv_nchw')
 
 @autotvm.register_topi_compute(bitserial_conv2d_nhwc, 'cpu', 'direct')
 def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
@@ -415,9 +420,14 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
 
     conv = tvm.compute(ovshape, _conv, name='conv')
 
-    return tvm.compute(oshape, lambda n, h, w, co:
-                       conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
-                       name='output_unpack', tag='spatial_bitserial_conv_nhwc')
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+    return tvm.compute(
+        oshape, lambda n, h, w, co:
+        conv[n,
+             idxd(h, VH), idxd(w, VW), idxd(co, VC),
+             idxm(h, VH), idxm(w, VW), idxm(co, VC)],
+        name='output_unpack', tag='spatial_bitserial_conv_nhwc')
 
 @tvm.target.generic_func
 def bitserial_conv2d_legalize(attrs, inputs, types):

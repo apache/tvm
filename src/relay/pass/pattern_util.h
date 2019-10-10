@@ -336,6 +336,14 @@ inline Expr ZerosLike(Expr e) {
   return CallNode::make(op, {e});
 }
 
+inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
+  auto attrs = make_node<InitOpAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("zeros");
+  return CallNode::make(op, {}, Attrs(attrs), {});
+}
+
 inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
   return CallNode::make(op, {e});
@@ -476,10 +484,12 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value) {
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+                       std::string pad_mode) {
   auto attrs = make_node<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
+  attrs->pad_mode = std::move(pad_mode);
   static const Op& op = Op::Get("nn.pad");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -494,6 +504,16 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
+
+Expr MakeStack(Expr data, int axis);
+
+Expr MakeSplit(Expr data, NodeRef indices_or_sections, int axis);
+
+Expr MakeSqueeze(Expr data, Array<Integer> axis);
+
+Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
+
+Expr MakeLayoutTransform(Expr data, std::string src_layout, std::string dst_layout);
 
 Expr StopFusion(Expr data);
 

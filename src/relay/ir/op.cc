@@ -84,6 +84,17 @@ const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
   return *it->second.get();
 }
 
+// Check if a key is present in the registry.
+const bool Op::HasGenericAttr(const std::string& key) {
+  OpManager* mgr = OpManager::Global();
+  std::lock_guard<std::mutex> lock(mgr->mutex);
+  auto it = mgr->attr.find(key);
+  if (it == mgr->attr.end()) {
+    return false;
+  }
+  return true;
+}
+
 void OpRegistry::UpdateAttr(const std::string& key,
                             TVMRetValue value,
                             int plevel) {

@@ -86,7 +86,7 @@ The configuration of TVM can be modified by `config.cmake`.
 
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
 
-  - LLVM 4.0 or higher is needed for build with LLVM. Note that verison of LLVM from default apt may lower than 4.0.
+  - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     `LLVM Download Page <http://releases.llvm.org/download.html>`_.
 
@@ -227,4 +227,4 @@ tests in TVM. The easiest way to install GTest is from source.
        make install
 
 
-After installing GTest, the C++ tests can be built with ``make cpptest``.
+After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.

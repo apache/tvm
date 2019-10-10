@@ -211,6 +211,28 @@ class Layout : public NodeRef {
   }
 
   /*!
+   * \brief Returns a new layout where the dims have been expanded to match the primal dimensions.
+   * \param dst_layout The dst layout to which current layout has to be expanded.
+   * \return The expanded Layout.
+   */
+  inline Layout ExpandPrimal(const Layout& dst_layout) {
+    Layout new_src_layout;
+    // 1) Find the axis which are missing in the current layout. Make them the prefix.
+    std::string new_src_layout_str = "";
+    for (auto dst_axis : dst_layout->axes) {
+      if (LayoutAxis::Get(dst_axis).IsPrimal()) {
+        if (!this->Contains(LayoutAxis::Get(dst_axis))) {
+          new_src_layout_str += dst_axis->var->name_hint;
+        }
+      }
+    }
+    // 2) Now, add the primal axis of the current layout.
+    new_src_layout_str += this->name();
+    new_src_layout = Layout(new_src_layout_str);
+    return new_src_layout;
+  }
+
+  /*!
    * \brief return the index of the input axis.
    *        If it is not found in the layout or the layout is undefined,
    *        return -1.

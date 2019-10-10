@@ -74,6 +74,8 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
+            'GREATER': self.convert_greater,
+            'ZEROS_LIKE': self.convert_zeros_like,
             'REDUCE_MIN': self._convert_reduce_min,
             'REDUCE_MAX': self._convert_reduce_max,
             'MEAN': self._convert_reduce_mean,
@@ -82,6 +84,8 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
             'LOGISTIC': self.convert_logistic,
+            'TANH':self.convert_tanh,
+            'RELU':self.convert_relu,
             'SPLIT': self.convert_split,
             'TRANSPOSE': self.convert_transpose,
             'TILE': self.convert_tile,
@@ -326,6 +330,40 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_tanh(self, op):
+        """Convert TFLite TANH"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.tanh(in_expr)
+
+        return out
+
+    def convert_relu(self, op):
+        """Convert TFLite ReLU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.nn.relu(in_expr)
+
+        return out
+
     def convert_concatenation(self, op):
         """Convert TFLite concatenation"""
         try:
@@ -437,6 +475,26 @@ class OperatorConverter(object):
 
     def convert_minimum(self, op):
         return self._convert_elemwise(_op.minimum, op)
+
+    def convert_greater(self, op):
+        return self._convert_elemwise(_op.greater, op)
+
+    def convert_zeros_like(self, op):
+        """Convert TFLite ZEROS LIKE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.zeros_like(in_expr)
+
+        return out
 
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""

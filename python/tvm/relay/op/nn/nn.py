@@ -935,6 +935,73 @@ def batch_norm(data,
     return TupleWrapper(result, 3)
 
 
+def instance_norm(data,
+                  gamma,
+                  beta,
+                  axis=1,
+                  epsilon=1e-5,
+                  center=True,
+                  scale=True):
+    r"""
+    Instance Normalization (Ulyanov and et al., 2016)
+    Applies instance normalization to the n-dimensional input array.
+
+    .. math::
+
+        out = \frac{data - mean(data)}{\sqrt{var(data)+\epsilon}}
+            * gamma + beta
+
+    The instance normalization is similar to batch normalization, but unlike
+    batch normalization, the mean and var are calculated per-dimension
+    separately for each object(instance) in a mini-batch, not over a batch.
+    And the same normalization is applied both at test and train time.
+
+    Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
+    have shape *(k,)*.
+
+    The parameter ``axis`` specifies which axis of the input shape denotes
+    the 'channel'.  The default is 1. Specifying -1 sets the channel axis
+    to be the last item in the input shape.
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input to which instance_norm will be applied.
+
+    gamma : tvm.relay.Expr
+        The gamma scale factor.
+
+    beta : tvm.relay.Expr
+        The beta offset factor.
+
+    axis : int, optional, default=1
+        Specify along which shape axis the channel is specified.
+
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid dividing by zero.
+
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+
+    scale : boolean, optional, default=True
+        If True, multiply by gamma. If False, gamma is not used.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The normalized data.
+
+    .. _`Instance Normalization: The Missing Ingredient for Fast Stylization`:
+        https://arxiv.org/abs/1607.08022
+    """
+    return _make.instance_norm(data, gamma, beta, axis, epsilon, center, scale)
+
+
 def layer_norm(data,
                gamma,
                beta,
@@ -964,7 +1031,7 @@ def layer_norm(data,
     Parameters
     ----------
     data : tvm.relay.Expr
-        Input to which batch_norm will be applied.
+        Input to which layer_norm will be applied.
 
     gamma : tvm.relay.Expr
         The gamma scale factor.
@@ -1691,3 +1758,22 @@ def bitserial_dense(data,
     """
     return _make.bitserial_dense(data, weight, units, data_bits, weight_bits,
                                  pack_dtype, out_dtype, unipolar)
+
+
+def cross_entropy(predictions, targets):
+    """CrossEntropy without logits.
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The targets.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.cross_entropy(predictions, targets)

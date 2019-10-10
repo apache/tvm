@@ -117,7 +117,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
-    throw Error(std::string("Do not have a default for ") + op->type_key());
+    LOG(FATAL) << "Do not have a default for " << op->type_key();
+    throw;
   }
 
  private:

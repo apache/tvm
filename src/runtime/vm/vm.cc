@@ -577,31 +577,33 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
+      auto gvit = this->global_map.find(func_name);
+      CHECK(gvit != this->global_map.end()) << "Cannot find function " << func_name;
+      auto func_index = gvit->second;
+      const auto& vm_func = this->functions[func_index];
+      const auto& param_names = vm_func.params;
       auto ctx = this->GetParamsContext();
-      std::vector<Object> func_args;
+
+      // Prepare the func args
+      std::vector<Object> func_args(param_names.size());
+      std::vector<size_t> empty_slots;
+
+      for (size_t i = 0; i < param_names.size(); ++i) {
+        const auto& pit = params_.find(param_names[i]);
+        if (pit != params_.end()) {
+          func_args[i] = pit->second;
+        } else {
+          empty_slots.push_back(i);
+        }
+      }
+      CHECK_EQ(empty_slots.size(), args.size() - 1)
+          << "The number of provided parameters doesn't match the number of arguments";
       for (int i = 1; i < args.size(); ++i) {
         Object obj = CopyTo(args[i], ctx);
-        func_args.push_back(obj);
+        func_args[empty_slots[i - 1]] = obj;
       }
-      auto it = std::find_if(functions.begin(), functions.end(),
-                             [func_name](const VMFunction& func) {
-                               return func.name == func_name;
-                             });
 
-      CHECK(it != functions.end()) << "Cannot find function " << func_name << "\n";
-      CHECK_EQ(func_args.size() + params_.size(), it->params.size())
-          << "The number of provided parameters doesn't match the number of arguments"
-          << "\n";
-      if (!params_.empty()) {
-        for (const auto& p : it->params) {
-          const auto& pit = params_.find(p);
-          if (pit != params_.end()) {
-            func_args.push_back(pit->second);
-          }
-        }
-        CHECK_EQ(func_args.size(), it->params.size());
-      }
-      *rv = this->Invoke(func_name, func_args);
+      *rv = this->Invoke(vm_func, func_args);
     });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

@@ -167,7 +167,7 @@ Expr Conv2DPadInput(const Expr& data, const QnnConv2DAttrs* param) {
     } else {
       LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
     }
-    padded_data = Pad(data, pad_width, param->input_zero_point);
+    padded_data = Pad(data, pad_width, param->input_zero_point, "constant");
   }
   return padded_data;
 }
@@ -217,15 +217,6 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnC
   auto scaled_hw_t2 = Multiply(casted_t2, MakeConstantScalar(Int(32), kernel_h * kernel_w));
   Array<IndexExpr> padding({0, 0});
 
-  // If the pool_size is 1x1, we don't need avg_pool2d.
-  auto reduced_hw_t2 = scaled_hw_t2;
-  if (kernel_h * kernel_w != 1) {
-    reduced_hw_t2 =
-        AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, padding, param->data_layout,
-                  false,   // ceil_mode
-                  false);  // count_include_pad
-  }
-
   // Reduce the C dimension. Find the dimension.
   Array<Integer> axes_t2;
   if (param->data_layout == "NCHW") {
@@ -236,24 +227,22 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnC
     LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
   }
   // Keep dims true to retain 4D tensor
-  auto reduced_t2 = Sum(reduced_hw_t2, axes_t2, true, false);
+  auto reduced_c_t2 = Sum(scaled_hw_t2, axes_t2, true, false);
+
+  // If the pool_size is 1x1, we don't need avg_pool2d.
+  auto reduced_t2 = reduced_c_t2;
+  if (kernel_h * kernel_w != 1) {
+    reduced_t2 =
+        AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
+                  false,   // ceil_mode
+                  false);  // count_include_pad
+  }
+
   auto multiplied_t2 = reduced_t2;
   if (param->kernel_zero_point != 1) {
     multiplied_t2 = Multiply(zp_kernel, reduced_t2);
   }
-
-  // Replicate to go back to NHWC/NCHW. This is not necessarily needed, but it fails AlterOpLayout.
-  // We can remove this once AlterOpLayout refactoring completes -
-  // https://github.com/dmlc/tvm/issues/3670
-  Array<Integer> reps;
-  if (param->data_layout == "NCHW") {
-    reps = {1, out_channels, 1, 1};
-  } else if (param->data_layout == "NHWC") {
-    reps = {1, 1, 1, out_channels};
-  } else {
-    LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
-  }
-  return Tile(multiplied_t2, reps);
+  return multiplied_t2;
 }
 
 /*

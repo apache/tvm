@@ -300,31 +300,41 @@ class PConstWithTypeLike :
 };
 
 
-#define TVM_PATTERN_BINARY_OP(FuncName, NodeName)                   \
+#define TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, CheckStep)     \
   template<typename TA, typename TB>                                \
   inline PBinaryExpr<NodeName, TA, TB>                              \
   FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {            \
+    CheckStep;                                                      \
     return PBinaryExpr<NodeName, TA, TB>(a.derived(), b.derived()); \
   }                                                                 \
   template<typename TA>                                             \
   inline PBinaryExpr<NodeName, TA, PConstWithTypeLike<TA> >         \
   FuncName(const Pattern<TA>& a, int64_t b) {                       \
+    CheckStep;                                                      \
     return FuncName(a, PConstWithTypeLike<TA>(a.derived(), b));     \
   }                                                                 \
   template<typename TA>                                             \
   inline PBinaryExpr<NodeName, PConstWithTypeLike<TA>, TA>          \
   FuncName(int64_t b, const Pattern<TA>& a) {                       \
+    CheckStep;                                                      \
     return FuncName(PConstWithTypeLike<TA>(a.derived(), b), a);     \
   }
+
+#define TVM_PATTERN_BINARY_OP(FuncName, NodeName) \
+  TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, )
+
+
+// raise ambiguity error for operator overload of / and %
+TVM_PATTERN_BINARY_OP_EX(operator/, ir::Div, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator%, ir::Mod, DivAmbiguityError(a));
 
 // arithmetic expressions
 TVM_PATTERN_BINARY_OP(operator+, ir::Add);
 TVM_PATTERN_BINARY_OP(operator-, ir::Sub);
 TVM_PATTERN_BINARY_OP(operator*, ir::Mul);
-TVM_PATTERN_BINARY_OP(operator/, ir::Div);
-TVM_PATTERN_BINARY_OP(operator%, ir::Mod);
 TVM_PATTERN_BINARY_OP(min, ir::Min);
 TVM_PATTERN_BINARY_OP(max, ir::Max);
+TVM_PATTERN_BINARY_OP(div, ir::Div);
 TVM_PATTERN_BINARY_OP(truncdiv, ir::Div);
 TVM_PATTERN_BINARY_OP(truncmod, ir::Mod);
 TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDiv);

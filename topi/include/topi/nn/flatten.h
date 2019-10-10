@@ -70,8 +70,8 @@ inline Tensor flatten(const Tensor& x,
       Expr idx = j;
       std::vector<Expr> index;
       for (auto s : extra_shape) {
-        index.push_back(idx % s);
-        idx = idx / s;
+        index.push_back(indexmod(idx, s));
+        idx = indexdiv(idx, s);
       }
       index.push_back(i);
       std::reverse(index.begin(), index.end());

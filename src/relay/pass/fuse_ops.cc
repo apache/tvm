@@ -77,6 +77,8 @@ namespace relay {
 using common::LinkNode;
 using common::LinkedList;
 
+constexpr uint32_t kMaxFusedOps = 256;
+
 /*!
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
@@ -544,6 +546,11 @@ class GraphPartitioner {
       }
       return root;
     }
+
+    /*!
+     * \brief The number of nodes belonging to this group
+     */
+    uint32_t num_nodes{1};
   };
   /*!
    * \brief Partition a graph.
@@ -616,6 +623,8 @@ class GraphPartitioner {
    * \param parent The parent group.
    */
   void MergeFromTo(Group* child, Group* parent) {
+    // update the number of nodes of the parent group
+    parent->num_nodes += child->num_nodes;
     child = child->FindRoot();
     parent = parent->FindRoot();
     if (child == parent) return;
@@ -689,6 +698,10 @@ class GraphPartitioner {
       if (dom_node->parent == nullptr) continue;
       CHECK(!graph_node->extern_ref);
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+
+      // refuse the fusion if too many ops are going to be fused together
+      if (groups_[dom_parent_gindex]->num_nodes + group_node->num_nodes > kMaxFusedOps)
+        continue;
 
       if (phase == 2) {
         // Fuse injective ops into intermediate tuples, if any

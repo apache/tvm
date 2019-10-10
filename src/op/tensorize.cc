@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -157,7 +157,6 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
   }
 }
 
-
 // Remap the tensor placeholder, index and inline things.
 class TensorIntrinMatcher final : public IRMutator {
  public:
@@ -207,11 +206,22 @@ class TensorIntrinMatcher final : public IRMutator {
 
   void Init(const ComputeOpNode* self,
             const Stage& stage,
+            const std::unordered_map<IterVar, Range>& dom_map,
             const std::unordered_map<IterVar, Range>& out_dom,
             const std::unordered_map<Tensor, Array<Range> >& in_region,
             const TensorIntrin& intrin,
             Map<Var, Range>* compute_intrin_iter_space) {
     CHECK(self == stage->op.get());
+
+    for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+      IterVar iv = stage->leaf_iter_vars[i];
+      auto vit = dom_map.find(iv);
+      if (vit != dom_map.end()) {
+        const Range vrange = vit->second;
+        compute_intrin_iter_space->Set(iv->var, vrange);
+      }
+    }
+
     // input remap.
     Array<Tensor> inputs = self->InputTensors();
     CHECK_EQ(inputs.size(), intrin->inputs.size());
@@ -222,8 +232,9 @@ class TensorIntrinMatcher final : public IRMutator {
       CHECK_GE(e.region.size(), e.tensor.ndim());
       // Enable fuzzy matching, to match [1, n, m] to [n, m]
       e.start = e.region.size() - e.tensor.ndim();
-      for (size_t i = 0; i < e.start; ++i) {
-        CHECK(is_one(e.region[i]->extent))
+      for (size_t j = 0; j < e.start; ++j) {
+        auto canonical_extent = Simplify(e.region[j]->extent, *compute_intrin_iter_space);
+        CHECK(is_one(canonical_extent))
             << "Tensorize " << intrin->name << ":"
             << " Input dimension mismatch with tensor intrin "
             << " expected shape=" << e.tensor->shape
@@ -298,12 +309,13 @@ class TensorIntrinMatcher final : public IRMutator {
 Array<Expr> MatchTensorizeBody(
     const ComputeOpNode* self,
     const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map,
     const std::unordered_map<IterVar, Range>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin,
     Map<Var, Range>* compute_intrin_iter_space) {
   TensorIntrinMatcher matcher;
-  matcher.Init(self, stage, out_dom, in_region, intrin, compute_intrin_iter_space);
+  matcher.Init(self, stage, dom_map, out_dom, in_region, intrin, compute_intrin_iter_space);
   Array<Expr> ret;
   for (Expr expr : self->body) {
     ret.push_back(matcher.Mutate(expr));
@@ -314,11 +326,12 @@ Array<Expr> MatchTensorizeBody(
 void VerifyTensorizeBody(
     const ComputeOpNode* self,
     const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map,
     const std::unordered_map<IterVar, Range>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin) {
   Map<Var, Range> compute_intrin_iter_space;
-  Array<Expr> body = MatchTensorizeBody(self, stage, out_dom, in_region, intrin,
+  Array<Expr> body = MatchTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin,
                                         &compute_intrin_iter_space);
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
   CHECK(intrin_compute) << "Only support compute intrinsic for now";
@@ -356,7 +369,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   CHECK(intrin.defined());
   ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
   VerifyTensorizeLoopNest(self, stage, n, tloc);
-  VerifyTensorizeBody(self, stage, out_dom, in_region, intrin);
+  VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.
   Stmt nop = Evaluate::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
@@ -509,6 +522,7 @@ TVM_REGISTER_API("test.op.MatchTensorizeBody")
     CHECK(stage->op.as<ComputeOpNode>());
     *ret = MatchTensorizeBody(stage->op.as<ComputeOpNode>(),
                               stage,
+                              {{}},
                               as_unordered_map(out_dom),
                               as_unordered_map(in_region),
                               intrin,

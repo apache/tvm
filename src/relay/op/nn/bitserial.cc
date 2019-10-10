@@ -66,12 +66,12 @@ bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (i == bit_axis) {
       out_shape.push_back(bits);
       if (i == pack_axis) {
-        out_shape.push_back(data->shape[i] / pack_bits);
+        out_shape.push_back(indexdiv(data->shape[i], pack_bits));
       } else {
         out_shape.push_back(data->shape[i]);
       }
     } else if (i == pack_axis) {
-      out_shape.push_back(data->shape[i] / pack_bits);
+      out_shape.push_back(indexdiv(data->shape[i], pack_bits));
     } else {
       out_shape.push_back(data->shape[i]);
     }
@@ -102,12 +102,12 @@ TVM_REGISTER_API("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
 RELAY_REGISTER_OP("nn.bitpack")
     .describe(R"code(Bitpack layer that prepares data for bitserial operations.
 
-This layer backs the bits of an input into a single datatype, allowing 
+This layer backs the bits of an input into a single datatype, allowing
 efficient implementation of bitserial operations.
 
 - **data**: Input tensor of any shape, dimension that is to be
             packed must be divisible by number of bits.
-- **out**:  Packed tensor with shape appropriately compressed. 
+- **out**:  Packed tensor with shape appropriately compressed.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .set_attrs_type_key("relay.attrs.BitPackAttrs")
@@ -183,7 +183,7 @@ on some platforms.
               When data is NCHW, weight is expected to be OIHW or OIHWi.
               When data is NHWC weight is expected to be HWIO or HWIOi.
 
-- **out**:    Output with same layout as input.            
+- **out**:    Output with same layout as input.
 )code" TVM_ADD_FILELINE)
     .set_attrs_type_key("relay.attrs.BinaryConv2DAttrs")
     .set_num_inputs(2)

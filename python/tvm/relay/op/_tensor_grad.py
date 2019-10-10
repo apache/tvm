@@ -25,7 +25,18 @@ from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
 from .op import register_gradient
 from .reduce import sum as _sum
-from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like, equal
+from .tensor import (
+    cos,
+    exp,
+    less,
+    negative,
+    ones_like,
+    power,
+    sin,
+    zeros_like,
+    equal,
+    shape_of,
+    log)
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
@@ -33,6 +44,7 @@ from .transform import (
     reshape,
     reshape_like,
     strided_slice,
+    take,
     tile,
     transpose,
     where,
@@ -293,6 +305,15 @@ def softmax_grad(orig, grad):
     return [(grad - _sum(grad * orig, orig.attrs.axis, True)) * orig]
 
 
+@register_gradient("nn.log_softmax")
+def log_softmax_grad(orig, grad):
+    """Gradient of log_softmax"""
+    x = orig.args[0]
+    sm = _nn.softmax(x, axis=orig.attrs.axis)
+    grad = grad / sm
+    return softmax_grad(sm, grad)
+
+
 @register_gradient("nn.bias_add")
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
@@ -353,3 +374,12 @@ def sum_grad(orig, grad):
     """Returns grad broadcasted to data dims"""
     data = orig.args[0]
     return [broadcast_to_like(grad, data)]
+
+
+@register_gradient("nn.cross_entropy")
+def cross_entropy_grad(orig, grad):
+    x, y = orig.args
+    shape = shape_of(x)
+    batch_size = take(shape, const(0, dtype='int32'), axis=0)
+    grad = grad / batch_size.astype('float32')
+    return [-grad * y / x, -grad * log(x)]

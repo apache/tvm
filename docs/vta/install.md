@@ -202,7 +202,7 @@ Before powering up the device, we need to flash the microSD card image with late
 #### Flash SD Card and Boot Angstrom Linux
 
 To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
-After registeration and login on the webpage, the prebuild Angstrom Linux image would be available for downloading and flashing.
+After registration and login on the webpage, the prebuilt Angstrom Linux image would be available for downloading and flashing.
 Specifically, to flash the downloaded Linux SD card image into your physical SD card:
 
 First, extract the gzipped archive file.
@@ -260,28 +260,28 @@ This last guide allows users to generate custom VTA bitstreams using free-to-use
 
 ### Xilinx Toolchain Installation
 
-We recommend using `Vivado 2019.1` since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using `Vivado 2018.3` since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2019.1](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2018.3](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
 
 #### Obtaining and Launching the Vivado GUI Installer
 
-1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2019-1.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2019.1: WebPACK and Editions.
+1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-3.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2018.3: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin`.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin`.
 4. Now that the file is downloaded, go to your `Downloads` directory, and change the file permissions so it can be executed:
 ```bash
-chmod u+x Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
+chmod u+x Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 5. Now you can execute the binary:
 ```bash
-./Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
+./Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 
 #### Xilinx Vivado GUI Installer Steps
 
-At this point you've launched the Vivado 2019.1 Installer GUI program.
+At this point you've launched the Vivado 2018.3 Installer GUI program.
 
 1. Click “Next” on the *Welcome* screen.
 2. On the *Select Install Type* screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next” .
@@ -303,8 +303,8 @@ At this point you've launched the Vivado 2019.1 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2019.1 environment
-export XILINX_VIVADO=${XILINX_PATH}/Vivado/2019.1
+# Xilinx Vivado 2018.3 environment
+export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 ```
 

@@ -20,6 +20,32 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
 
+@generic.schedule_injective_from_existing.register(["cpu"])
+def schedule_injective_from_existing(sch, out):
+    """Schedule for injective op from existing schedule.
+
+    Parameters
+    ----------
+    sch: Schedule
+         The schedule to update.
+    out: Tensor
+         The tensor representing the injective op.
+
+    Returns
+    -------
+    sch: Schedule
+         The updated schedule.
+    """
+    if len(sch[out].op.axis) >= 5:
+        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
+        sch[out].parallel(fused)
+    elif len(sch[out].op.axis) >= 3:
+        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1])
+        sch[out].parallel(fused)
+    elif len(sch[out].op.axis) >= 1:
+        sch[out].parallel(sch[out].op.axis[0])
+    return sch
+
 @generic.schedule_injective.register(["cpu"])
 def schedule_injective(outs):
     """X86 schedule for injective op.
@@ -39,14 +65,7 @@ def schedule_injective(outs):
     x = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
-    if len(s[x].op.axis) >= 5:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) >= 3:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) >= 1:
-        s[x].parallel(s[x].op.axis[0])
+    schedule_injective_from_existing(s, x)
     return s
 
 @generic.schedule_concatenate.register(["cpu"])

@@ -64,11 +64,13 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     packw = tvm.compute(packw_shape,
                         lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight")
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     k = tvm.reduce_axis((0, K), name="k")
     C = tvm.compute((M, N),
                     lambda y, x: tvm.sum(
                         data[y, k].astype(out_dtype) *
-                        packw[x // packw_bn, k, x % packw_bn].astype(out_dtype),
+                        packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
                         axis=k),
                     tag="dense_pack")
     if bias is not None:
@@ -111,6 +113,10 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct")
 def _schedule_dense(cfg, outs):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):

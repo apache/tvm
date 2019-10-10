@@ -288,10 +288,10 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   tvm::Array<tvm::Expr> output_shape{
-      I->shape[0],                                            // B
-      W->shape[0],                                            // O
-      (I->shape[2] - W->shape[2] + 2 * pad_h) / stride_h + 1,  // H
-      (I->shape[3] - W->shape[3] + 2 * pad_w) / stride_w + 1   // W
+    I->shape[0],                                            // B
+    W->shape[0],                                            // O
+    indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
+    indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
   };
   auto i = tvm::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
   auto kh = tvm::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
@@ -339,8 +339,8 @@ inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I,
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   tvm::Array<tvm::Expr> output_shape{
-      (I->shape[2] - W->shape[2] + 2 * pad_h) / stride_h + 1,  // H
-      (I->shape[3] - W->shape[3] + 2 * pad_w) / stride_w + 1,  // W
+      indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
+      indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1,  // W
       I->shape[2],                                             // B
       W->shape[3]                                              // O
   };
@@ -393,8 +393,8 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
   tvm::Array<tvm::Expr> output_shape{
       I->shape[0],                                            // B
       W->shape[1],                                            // O
-      (I->shape[2] - W->shape[2] + 2 * pad_h) / stride_h + 1,  // H
-      (I->shape[3] - W->shape[3] + 2 * pad_w) / stride_w + 1   // W
+      indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
+      indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
   };
   auto i = tvm::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
   auto kh = tvm::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
@@ -403,8 +403,8 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
                ? I
                : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
   auto l = [&](tvm::Var b, tvm::Var o, tvm::Var h, tvm::Var w) {
-    return tvm::sum(T(b, i / pCM, stride_h * h + kh, stride_w * w + kw) *
-                        W(i / pCM, o % pCM, kh, kw),
+    return tvm::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
+                    W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
                     {i, kh, kw});
   };
   return tvm::compute(output_shape, l, name, tag);
@@ -425,8 +425,8 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
   auto pCM = W->shape[1];  // channel_multiplier
   tvm::Array<tvm::Expr> output_shape{
       I->shape[0],                                            // B
-      (I->shape[1] - W->shape[1] + 2 * pad_h) / stride_h + 1,  // H
-      (I->shape[2] - W->shape[2] + 2 * pad_w) / stride_w + 1,   // W
+      indexdiv(I->shape[1] - W->shape[1] + 2 * pad_h, stride_h) + 1,  // H
+      indexdiv(I->shape[2] - W->shape[2] + 2 * pad_w, stride_w) + 1,   // W
       W->shape[3],                                            // O
   };
   auto i = tvm::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
@@ -436,8 +436,8 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
                ? I
                : pad(I, {tvm::Expr(0), pad_h, pad_w, tvm::Expr(0)});
   auto l = [&](tvm::Var b, tvm::Var h, tvm::Var w, tvm::Var o) {
-    return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, i / pCM) *
-                        W(kh, kw, i / pCM, o % pCM),
+    return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
+                    W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
                     {kh, kw, i});
   };
   return tvm::compute(output_shape, l, name, tag);
@@ -479,8 +479,8 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
       I->shape[0],                                            // B
       I->shape[1],                                            // G
       W->shape[2],                                            // O
-      (I->shape[3] - W->shape[3] + 2 * pad_h) / stride_h + 1,  // H
-      (I->shape[4] - W->shape[4] + 2 * pad_w) / stride_w + 1   // W
+      indexdiv(I->shape[3] - W->shape[3] + 2 * pad_h, stride_h) + 1,  // H
+      indexdiv(I->shape[4] - W->shape[4] + 2 * pad_w, stride_w) + 1   // W
   };
   auto i = tvm::reduce_axis(tvm::Range{0, I->shape[2]}, "i");
   auto kh = tvm::reduce_axis(tvm::Range{0, W->shape[3]}, "kh");

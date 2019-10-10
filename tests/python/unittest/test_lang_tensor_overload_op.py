@@ -72,7 +72,7 @@ def test_combination():
     A = tvm.placeholder((n, m), name='A')
     B = tvm.placeholder((n, m), name='B')
     C = tvm.placeholder((n, m), name='C')
-    D = k + A - B * C / x
+    D = k + A - B * C + x
     s = tvm.create_schedule(D.op)
     foo = tvm.build(s, [x, A, B, C, D], "llvm")
     ctx = tvm.cpu(0)
@@ -82,7 +82,7 @@ def test_combination():
     c = tvm.nd.array(np.random.uniform(size=(n, m)).astype(C.dtype), ctx)
     d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
     foo(x, a, b, c, d)
-    tvm.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() / x)
+    tvm.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() + x)
 
 
 def verify_tensor_scalar_bop(shape, typ="add"):

@@ -800,11 +800,12 @@ def test_adt_cons_expr():
         %s
 
         def @make_singleton(%%x: int32) -> List[int32] {
-          Cons(%%x, Nil())
+          Cons(%%x, Nil)
         }
         """ % LIST_DEFN,
         mod
     )
+
 
 @raises_parse_error
 def test_duplicate_adt_defn():

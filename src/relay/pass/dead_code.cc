@@ -110,7 +110,15 @@ class CalcDep : private ExprVisitor {
   VarMap<size_t> use_map_;
 
   void VisitExpr(const Expr& e) final {
-    return ExprFunctor<void(const Expr& e)>::VisitExpr(e);
+    visit_counter_[e.get()]++;
+    // The dce code seprate variable into three parts:
+    // used 0 times (remove)
+    // used 1 times (inline)
+    // used 2 times (dont do anything).
+    if (visit_counter_[e.get()] <= 2) {
+      using TParent = ExprFunctor<void(const Expr&)>;
+      TParent::VisitExpr(e);
+    }
   }
 
   void VisitExpr_(const LetNode* l) final {

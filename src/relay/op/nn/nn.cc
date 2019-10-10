@@ -640,6 +640,76 @@ axis to be the last item in the input shape.
 .add_type_rel("BatchNorm", BatchNormRel);
 
 
+// instance_norm
+TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
+
+bool InstanceNormRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  const InstanceNormAttrs* param = attrs.as<InstanceNormAttrs>();
+  int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
+  CHECK(axis >= 0 && axis < (int)data->shape.size());
+  reporter->Assign(types[1], TensorTypeNode::make({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[3], TensorTypeNode::make(data->shape, data->dtype));
+
+  return true;
+}
+
+Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
+                      bool center, bool scale) {
+  auto attrs = make_node<InstanceNormAttrs>();
+  attrs->axis = axis;
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+  static const Op& op = Op::Get("nn.instance_norm");
+  return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.instance_norm")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.instance_norm")
+.describe(R"code(Instance Normalization (Ulyanov and et al., 2016)
+Applies instance normalization to the n-dimensional input array.
+
+.. math::
+
+    out = \frac{data - mean(data)}{\sqrt{var(data)+\epsilon}}
+        * gamma + beta
+
+The instance normalization is similar to batch normalization, but unlike
+batch normalization, the mean and var are calculated per-dimension
+separately for each object(instance) in a mini-batch, not over a batch.
+And the same normalization is applied both at test and train time.
+
+Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
+have shape *(k,)*.
+
+The parameter ``axis`` specifies which axis of the input shape denotes
+the 'channel'.  The default is 1. Specifying -1 sets the channel axis
+to be the last item in the input shape.
+
+.. note::
+
+    This operator can be optimized away for inference.
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.InstanceNormAttrs")
+.set_num_inputs(3)
+.add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
+.add_argument("gamma", "Tensor", "The gamma scale factor.")
+.add_argument("beta", "Tensor", "The beta offset factor.")
+.set_support_level(1)
+.add_type_rel("InstanceNorm", InstanceNormRel);
+
+
 // layer_norm
 TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
 
@@ -745,6 +815,55 @@ are data in batch.
 .add_argument("y", "3D Tensor", "Second input.")
 .set_support_level(10)
 .add_type_rel("BatchMatmul", BatchMatmulRel);
+
+
+// relay.nn.cross_entropy
+bool CrossEntropyRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+  CHECK(x->shape.size() == 2 && y->shape.size() == 2)
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[1], y->shape[1]))
+    << "CrossEntropy: shapes of x and y is inconsistent, "
+    << "x shape = " << x->shape << ", "
+    << "y shape = " << y->shape;
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make({}, x->dtype));
+  return true;
+}
+
+// Positional relay function to create batch_matmul operator used by frontend FFI.
+Expr MakeCrossEntropy(Expr predictions, Expr targets) {
+  static const Op& op = Op::Get("nn.cross_entropy");
+  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
+.set_body_typed(MakeCrossEntropy);
+
+
+RELAY_REGISTER_OP("nn.cross_entropy")
+.describe(R"code(
+Computes cross entropy given predictions and targets.
+Do log on the data - do not accept logits.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "1D Tensor", "Predictions.")
+.add_argument("y", "1D Tensor", "Targets.")
+.set_support_level(10)
+.add_type_rel("CrossEntropy", CrossEntropyRel);
 
 
 }  // namespace relay

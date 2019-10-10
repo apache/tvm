@@ -570,7 +570,13 @@ class PrettyPrinter :
     } else {
       doc << Print(op->op);
     }
-    return doc << "(" << PrintSep(args) << ")";
+
+    if (cons_node && cons_node->inputs.size() == 0) {
+      // don't print as a call if it's a 0-arity cons
+      return doc;
+    } else {
+      return doc << "(" << PrintSep(args) << ")";
+    }
   }
 
   Doc VisitExpr_(const RefCreateNode* op) final {
@@ -638,6 +644,17 @@ class PrettyPrinter :
       }
       doc << PrintSep(pats) << ")";
     }
+    return doc;
+  }
+
+  Doc VisitPattern_(const PatternTupleNode* pt) final {
+    Doc doc;
+    doc << "(";
+    std::vector<Doc> pats;
+    for (const auto& pat : pt->patterns) {
+      pats.push_back(Print(pat));
+    }
+    doc << PrintSep(pats) << ")";
     return doc;
   }
 

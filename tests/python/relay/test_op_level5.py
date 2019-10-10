@@ -67,7 +67,7 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
@@ -487,8 +487,9 @@ def test_yolo_reorg_infer_shape():
         assert zz.checked_type == relay.ty.TensorType(out_shape, "float32")
 
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    idxd = tvm.indexdiv
     verify_yolo_reorg((n, c, 20, 20), 10, (n, c*10*10, 2, 2))
-    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, h/2, w/2))
+    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, idxd(h, 2), idxd(w, 2)))
 
 def test_yolo_reorg():
     def verify_yolo_reorg(shape, stride):

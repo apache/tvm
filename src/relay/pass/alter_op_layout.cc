@@ -38,6 +38,7 @@
 #include <unordered_map>
 
 #include "alter_op_layout.h"
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -45,19 +46,35 @@ namespace relay {
 namespace alter_op_layout {
 
 // Make a transform CallNode
+/* Performs 2 operations
+ * 1) If src_layout ndim is smaller then dst_layout, expand_dim is inserted to match the dim size.
+ *    For example, src_layout = C, dst_layout = NCHW16c. The src is expanded to NHWC.
+ * 2) Call layout transform with new src layout.
+ */
 Expr TransformLayout(Expr raw, Layout src_layout, Layout dst_layout) {
-  if (src_layout.Equals(dst_layout)) { return raw; }
-  CHECK(src_layout.defined() && dst_layout.defined())
-    << "Cannot insert layout transform because there are undefined layouts";
-  CHECK(BijectiveLayoutNode::make(src_layout, dst_layout).defined())
-    << "Cannot insert layout transform because there are inconvertible layouts: "
-    << src_layout << " v.s. " << dst_layout;
-  static auto &transform_op = Op::Get("layout_transform");
-  NodePtr<LayoutTransformAttrs> attrs = make_node<LayoutTransformAttrs>();
-  attrs->src_layout = src_layout.name();
-  attrs->dst_layout = dst_layout.name();
-  Call transform = CallNode::make(transform_op, {raw}, Attrs{attrs});
-  return std::move(transform);
+  if (src_layout.Equals(dst_layout)) {
+    return raw;
+  }
+
+  // 1) Check if the shape lengths are different. If yes, expand dims.
+  Expr input_expr = raw;
+  Layout new_src_layout = src_layout;
+  if (src_layout.ndim_primal() < dst_layout.ndim_primal()) {
+    int num_new_axis = dst_layout.ndim_primal() - src_layout.ndim_primal();
+    new_src_layout = src_layout.ExpandPrimal(dst_layout);
+    input_expr = MakeExpandDims(input_expr, 0, num_new_axis);
+    if (new_src_layout.Equals(dst_layout)) {
+      return input_expr;
+    }
+  }
+
+  // 2) Insert layout transform on the transformed src.
+  CHECK(new_src_layout.defined() && dst_layout.defined())
+      << "Cannot insert layout transform because there are undefined layouts";
+  CHECK(BijectiveLayoutNode::make(new_src_layout, dst_layout).defined())
+      << "Cannot insert layout transform because there are inconvertible layouts: "
+      << new_src_layout << " v.s. " << dst_layout;
+  return MakeLayoutTransform(input_expr, new_src_layout.name(), dst_layout.name());
 }
 
 // Memorize layout transform so we can reuse internal transformed nodes

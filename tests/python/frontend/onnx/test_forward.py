@@ -28,6 +28,7 @@ from nnvm.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto
 import unittest
+import scipy
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
@@ -415,6 +416,50 @@ def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
 
+
+def verify_instance_norm(shape, axis=1):
+
+    def _get_python_instance_norm(x, gamma, beta, epsilon=1e-5):
+        dims_x = len(x.shape)
+        axis = tuple(range(2, dims_x))
+        mean = np.mean(x, axis=axis, keepdims=True)
+        var = np.var(x, axis=axis, keepdims=True)
+        dim_ones = (1,) * (dims_x - 2)
+        gamma = gamma.reshape(-1, *dim_ones)
+        beta = beta.reshape(-1, *dim_ones)
+        return gamma * (x - mean) / np.sqrt(var + epsilon) + beta
+
+    x = np.random.randn(*shape).astype(np.float32)
+    gamma = np.random.randn(shape[1]).astype(np.float32)
+    beta = np.random.randn(shape[1]).astype(np.float32)
+    epsilon = 1e-5
+    y = _get_python_instance_norm(x, gamma, beta, epsilon).astype(np.float32)
+
+    node = onnx.helper.make_node(
+            'InstanceNormalization',
+            inputs=['x', 'gamma', 'beta'],
+            outputs=['y'],
+            epsilon=epsilon,
+        )
+    graph = helper.make_graph([node],
+                              "instance_norm_test",
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(shape)),
+                                      helper.make_tensor_value_info("gamma", TensorProto.FLOAT, (shape[1],)),
+                                      helper.make_tensor_value_info("beta", TensorProto.FLOAT, (shape[1],))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(shape))])
+    model = helper.make_model(graph, producer_name='instance_norm_test')
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x, gamma, beta], target, ctx, shape, 'float32')
+        tvm.testing.assert_allclose(y, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_instance_norm():
+    verify_instance_norm((2, 3, 4, 5))
+    verify_instance_norm((32, 64, 80, 64))
+    verify_instance_norm((8, 6, 5))
+    verify_instance_norm((8, 7, 6, 5, 4))
+
+
 def _test_upsample_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3)
@@ -780,21 +825,31 @@ def test_constantfill():
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
 
-def verify_pad(indata, pads, value=0.0):
+def verify_pad(indata, pads, mode='constant', value=0.0):
     indata = np.array(indata).astype(np.float32)
     #  numpy expect result
     len_dim = len(pads) // 2
     np_pads = [(pads[i], pads[i+len_dim]) for i in range(len_dim)]
-    outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
     #  onnx graph
-    node = helper.make_node(
-        'Pad',
-        inputs=['input'],
-        outputs=['output'],
-        mode='constant',
-        pads=pads,
-        value=value
-    )
+    if mode in ['edge', 'reflect']:
+        outdata = np.pad(indata, pad_width=np_pads, mode=mode)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input'],
+            outputs=['output'],
+            mode=mode,
+            pads=pads,
+        )
+    else:
+        outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input'],
+            outputs=['output'],
+            mode='constant',
+            pads=pads,
+            value=value
+        )
     graph = helper.make_graph([node],
                               'pad_test',
                               inputs = [helper.make_tensor_value_info("input",
@@ -808,9 +863,11 @@ def verify_pad(indata, pads, value=0.0):
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_pad():
-    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 0.0)
-    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 0.0)
-    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 5.0)
+    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 'constant', 0.0)
+    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 'constant', 0.0)
+    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 'constant', 5.0)
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
 
 def verify_reduce_x(name, indata, axis, keepdims):
     indata = np.array(indata).astype(np.float32)
@@ -1225,6 +1282,23 @@ def test_tile():
     z = np.tile(x, repeats)
     verify_tile(x, z, repeats=repeats)
 
+def verify_erf(indata, outdata):
+    node = helper.make_node('Erf', inputs=['in'], outputs=['out'])
+    graph = helper.make_graph([node],
+                              'erf_test',
+                              inputs=[helper.make_tensor_value_info('in', TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info('out', TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='erf_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_erf():
+    x = np.random.rand(2, 3, 4, 6).astype(np.float32)
+    z = scipy.special.erf(x)
+    verify_erf(x, z)
+
 
 if __name__ == '__main__':
     test_flatten()
@@ -1240,6 +1314,7 @@ if __name__ == '__main__':
     test_matmul()
     test_gather()
     test_lrn()
+    test_instance_norm()
     test_upsample()
     test_forward_min()
     test_forward_max()
@@ -1248,7 +1323,6 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantfill()
-    test_pad()
     test_reduce_max()
     test_reduce_min()
     test_reduce_sum()
@@ -1272,3 +1346,4 @@ if __name__ == '__main__':
     test_not()
     test_and()
     test_tile()
+    test_erf()

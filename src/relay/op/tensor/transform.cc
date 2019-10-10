@@ -37,6 +37,7 @@
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
+#include "../../pass/pattern_util.h"
 #include "transform.h"
 
 namespace tvm {
@@ -615,7 +616,7 @@ bool ReshapeRel(const Array<Type>& types,
         if (d0.as<Any>()) {
           oshape.push_back(Any::make());
         } else {
-          oshape.push_back(d0 / d2);
+          oshape.push_back(indexdiv(d0, d2));
         }
         used_output_dims.insert(oshape.size());
         oshape.push_back(d2);
@@ -627,7 +628,7 @@ bool ReshapeRel(const Array<Type>& types,
           if (d0.as<Any>()) {
             oshape.push_back(Any::make());
           } else {
-            oshape.push_back(d0 / d1);
+            oshape.push_back(indexdiv(d0, d1));
           }
         } else {
           oshape.push_back(d2);
@@ -659,7 +660,7 @@ bool ReshapeRel(const Array<Type>& types,
           infer_dim = Any::make();
           break;
         }
-        infer_dim /= oshape[i];
+        infer_dim = indexdiv(infer_dim, oshape[i]);
       }
     }
     oshape.Set(infer_idx, infer_dim);
@@ -817,6 +818,40 @@ the input array into an output array with the same shape as the second input arr
 .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// ArgWhere
+bool ArgWhereRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto tt = types[0].as<TensorTypeNode>();
+  CHECK(tt != nullptr);
+  const auto& input_shape = tt->shape;
+  const auto& input_rank = input_shape.size();
+  std::vector<IndexExpr> result_shape;
+  result_shape.push_back(Any::make());
+  result_shape.push_back(IntImm::make(Int(32), input_rank));
+  reporter->Assign(types[1], TensorTypeNode::make(result_shape, Int(32)));
+  return true;
+}
+
+TVM_REGISTER_API("relay.op._make.argwhere")
+.set_body_typed<Expr(Expr)>([](Expr data) {
+  static const Op& op = Op::Get("argwhere");
+  auto attrs = make_node<ArgWhereAttrs>();
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("argwhere")
+.describe(R"doc(Find the indices of elements of a tensor that are
+non-zero)doc" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ArgWhereAttrs")
+.add_argument("condition", "Tensor", "The input condition tensor.")
+.add_type_rel("ArgWhere", ArgWhereRel)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_support_level(10);
 
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
@@ -1987,13 +2022,13 @@ bool SplitRel(const Array<Type>& types,
     << "axis should be within the input dimension range.";
 
   if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
-    CHECK(reporter->Assert(data->shape[axis] %
-                           sections->value == make_zero(Int(64))))
+    CHECK(reporter->Assert(indexmod(data->shape[axis],
+                                    sections->value) == make_zero(Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
         std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-        oshape[axis] /= int32_t(sections->value);
+        oshape[axis] = indexdiv(oshape[axis], sections->value);
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }

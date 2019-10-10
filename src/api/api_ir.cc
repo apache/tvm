@@ -50,6 +50,9 @@ TVM_REGISTER_API("make.ceil")
 TVM_REGISTER_API("make.round")
 .set_body_typed(tvm::round);
 
+TVM_REGISTER_API("make.nearbyint")
+.set_body_typed(tvm::nearbyint);
+
 TVM_REGISTER_API("make.trunc")
 .set_body_typed(tvm::trunc);
 
@@ -195,8 +198,10 @@ TVM_REGISTER_API("make.Allocate")
 REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
 REGISTER_MAKE_BINARY_OP(_OpSub, operator-);
 REGISTER_MAKE_BINARY_OP(_OpMul, operator*);
-REGISTER_MAKE_BINARY_OP(_OpDiv, operator/);
-REGISTER_MAKE_BINARY_OP(_OpMod, operator%);
+REGISTER_MAKE_BINARY_OP(_OpDiv, div);
+REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
+REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
 REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
 REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);

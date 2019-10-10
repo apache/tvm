@@ -31,6 +31,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import variables
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -597,6 +598,13 @@ def _test_maximum(data):
 def _test_minimum(data):
     """ One iteration of minimum """
     return _test_elemwise(math_ops.minimum, data)
+#######################################################################
+# Greater
+# -------
+
+def _test_greater(data):
+    """ One iteration of greater """
+    return _test_elemwise(math_ops.greater, data)
 
 def _test_forward_elemwise(testop):
     """ Elewise"""
@@ -623,6 +631,22 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+    _test_forward_elemwise(_test_greater)
+
+#######################################################################
+# Zeros like
+# --------
+
+def _test_zeros_like(data):
+    """ One iteration of ZEROS LIKE """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = gen_array_ops.zeros_like(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_zeros_like():
+    """ ZEROS LIKE """
+    _test_zeros_like(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
 #######################################################################
 # Reduce
@@ -813,6 +837,35 @@ def test_forward_softmax():
     """ Softmax """
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+#######################################################################
+# Tanh
+# --------
+
+def _test_tanh(data):
+    """ One iteration of TANH """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = math_ops.sigmoid(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_tanh():
+    """ TANH """
+    _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+#######################################################################
+# ReLu
+# --------
+
+def _test_relu(data):
+    """ One iteration of ReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_ops.relu(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_relu():
+    """ ReLU """
+    _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
 #######################################################################
 # Fully Connected
@@ -976,10 +1029,15 @@ if __name__ == '__main__':
     test_forward_logistic()
     test_forward_pooling()
     test_forward_softmax()
+    test_forward_tanh()
+    test_forward_relu()
     test_forward_fully_connected()
 
     # Elemwise
     test_all_elemwise()
+
+    # Zeros Like
+    test_forward_zeros_like()
 
     # Reduce
     test_all_reduce()

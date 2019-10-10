@@ -31,6 +31,10 @@
 
 namespace tvm {
 
+// TODO(tqchen): change to floormod/div
+using IndexMod = ir::FloorMod;
+using IndexDiv = ir::FloorDiv;
+
 Array<Expr> SimplifyArray(Array<Expr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
     array.Set(i, ir::Simplify(array[i]));
@@ -109,7 +113,7 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
   Expr mult_inner;  // The inner multiplication factor
   Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
   while (true) {
-    auto inner_div_ptr = search_ptr->as<Div>();
+    auto inner_div_ptr = search_ptr->as<IndexDiv>();
     auto inner_mult_ptr = search_ptr->as<Mul>();
     auto inner_add_ptr = search_ptr->as<Add>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
@@ -156,7 +160,7 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
   *has_mult = false;
   *has_mod = false;
   for (const Expr* ele : eles) {
-    auto mod_ptr = ele->as<Mod>();
+    auto mod_ptr = ele->as<IndexMod>();
     auto mult_ptr = ele->as<Mul>();
     if (mod_ptr) {
       *has_mod = true;
@@ -235,7 +239,8 @@ inline Expr MergeMulMod(const Expr &base) {
   }
   for (std::list<std::pair<Expr, Expr> >::iterator it = mod_exprs.begin();
                                                    it != mod_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + it->first % it->second : it->first % it->second;
+    no_opt_sum = no_opt_sum.get() ?
+        no_opt_sum + indexmod(it->first, it->second) : indexmod(it->first, it->second);
   }
   return no_opt_sum;
 }

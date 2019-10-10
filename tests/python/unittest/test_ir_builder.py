@@ -41,8 +41,9 @@ def test_if():
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
     A = ib.pointer("float32", name="A")
+    tmod = tvm.truncmod
     with ib.for_range(0, n, name="i") as i:
-        with ib.if_scope((i % 2) == 0):
+        with ib.if_scope(tmod(i, 2) == 0):
             A[i] = A[i] + 1
         with ib.else_scope():
             A[0] = A[i] + 2
@@ -108,13 +109,15 @@ def test_gpu():
     dtype = "float32"
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
+    idxd = tvm.indexdiv
+
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 32
         ib = tvm.ir_builder.create()
         bx = tvm.thread_axis("blockIdx.x")
         tx = tvm.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", (n+max_threads-1) // max_threads)
+        ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         Aptr = ib.buffer_ptr(A)

@@ -42,10 +42,10 @@ def _schedule_sort(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    from .injective import _schedule_injective
+    from .injective import schedule_injective_from_existing
     def traverse(op):
         if tag.is_injective(op.tag):
-            _schedule_injective(op, s)
+            schedule_injective_from_existing(s, op.output(0))
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)
@@ -115,6 +115,8 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
     ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                           tvm.convert(['shared']),
                           tvm.expr.Call.Intrinsic, None, 0))
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
 
     with ib.for_range(0, axis_mul_before) as i:
         with ib.for_range(0, axis_mul_after) as j:
@@ -122,13 +124,13 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
             base_idx = i * shape[axis] * axis_mul_after + j
             # OddEvenTransposeSort
             with ib.for_range(0, current_sort_num) as k:
-                with ib.if_scope(tid < (current_sort_num + 1) // 2):
-                    offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
+                with ib.if_scope(tid < idxd(current_sort_num + 1, 2)):
+                    offset = base_idx + (2 * tid + idxm(k, 2)) * axis_mul_after
                     if is_ascend:
-                        cond = tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
+                        cond = tvm.all(2 * tid + idxm(k, 2) + 1 < current_sort_num,
                                        values_out[offset] > values_out[offset + axis_mul_after])
                     else:
-                        cond = tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
+                        cond = tvm.all(2 * tid + idxm(k, 2) + 1 < current_sort_num,
                                        values_out[offset] < values_out[offset + axis_mul_after])
                     with ib.if_scope(cond):
                         temp_data[0] = values_out[offset]
@@ -199,6 +201,9 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
     is_ascend = tvm.make.node("IntImm", dtype="int32", value=is_ascend)
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     with ib.for_range(0, axis_mul_before) as i:
         with ib.for_range(0, axis_mul_after) as j:
             current_sort_num = valid_count[i * axis_mul_after + j]
@@ -207,10 +212,10 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
                 output[base_idx + tid * axis_mul_after] = tid
             # OddEvenTransposeSort
             with ib.for_range(0, current_sort_num) as k:
-                with ib.if_scope(tid < (current_sort_num + 1) // 2):
-                    offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
+                with ib.if_scope(tid < idxd(current_sort_num + 1, 2)):
+                    offset = base_idx + (2 * tid + idxm(k, 2)) * axis_mul_after
                     with ib.if_scope(tvm.all(is_ascend == 1, \
-                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             2 * tid + idxm(k, 2) + 1 < current_sort_num, \
                                              data[offset] > data[offset + axis_mul_after])):
                         temp_data[0] = data[offset]
                         data[offset] = data[offset + axis_mul_after]
@@ -219,7 +224,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
                         output[offset] = output[offset + axis_mul_after]
                         output[offset + axis_mul_after] = temp_index[0]
                     with ib.if_scope(tvm.all(is_ascend == 0, \
-                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             2 * tid + idxm(k, 2) + 1 < current_sort_num, \
                                              data[offset] < data[offset + axis_mul_after])):
                         temp_data[0] = data[offset]
                         data[offset] = data[offset + axis_mul_after]

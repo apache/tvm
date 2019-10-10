@@ -35,9 +35,11 @@ def test_deduce():
     d_s = tvm.arith.IntervalSet(-3, -1)
     zero = tvm.const(0, "int32")
 
+    fdiv = tvm.floordiv
+
     e0 = (-b)*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d - c) /(b*-1) + (-1))
+    ans0 = fdiv(d - c, b*-1)
     assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
@@ -46,7 +48,7 @@ def test_deduce():
 
     e0 = d*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d-c)/d - 1)
+    ans0 = fdiv(d-c, d)
     assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
@@ -56,7 +58,7 @@ def test_deduce():
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (((c - b) + -1)/4 -1)
+    ans1 = fdiv(c-1-b, 4)
     assert_expr_equal(res1.max_value, ans1)
 
 
@@ -79,7 +81,7 @@ def test_deduce():
 
     e3 = (-b)+a*c-d
     res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    ans3 = 2/c+1
+    ans3 = fdiv(2,c)+1
     assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
 
     res3 = tvm.arith.DeduceBound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})

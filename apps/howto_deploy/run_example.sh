@@ -25,5 +25,8 @@ export DYLD_LIBRARY_PATH=../../build:${DYLD_LIBRARY_PATH}
 echo "Run the deployment with all in one packed library..."
 lib/cpp_deploy_pack
 
-echo "Run the deployment with all in normal library..."
+echo "Run the cpp deployment with all in normal library..."
 lib/cpp_deploy_normal
+
+echo "Run the python deployment with all in normal library..."
+python python_deploy.py

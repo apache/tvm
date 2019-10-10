@@ -89,8 +89,8 @@ inline Tensor dilate(const Tensor& x,
         if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
           index_tuple.push_back(indices[i]);
         } else {
-          index_tuple.push_back(indices[i] / strides[i]);
-          not_zero.push_back((indices[i] % strides[i]) == 0);
+          index_tuple.push_back(indexdiv(indices[i], strides[i]));
+          not_zero.push_back((indexmod(indices[i], strides[i])) == 0);
         }
       }
       if (not_zero.size() > 0) {
