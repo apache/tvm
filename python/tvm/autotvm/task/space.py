@@ -233,7 +233,6 @@ class SplitSpace(TransformSpace):
 
         self.policy = policy
         self.entities = []
-        self.entity_hash_set = set()
 
         max_factor = kwargs.get("max_factor", 1 << 31)
         fil = kwargs.get("filter", lambda x: True)

@@ -153,7 +153,7 @@ class Tuner(object):
         self.depend_num = self.parse_depend_mode(depend_mode, len(self.task.depend.tuned_configs))
         depend_configs = iter(self.task.depend.tuned_configs)
         i = error_ct = 0
-        while i < n_trial or self.best_flops == 0:
+        while i < n_trial:
             if not self.has_next():
                 break
 

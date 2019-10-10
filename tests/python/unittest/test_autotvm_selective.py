@@ -32,17 +32,9 @@ def test_selective():
         for shape in shapes
     ]
 
-    # Test unspecified center number
+    # Test task selection
     autotvm.task.mark_depend(tasks)
-    assert all([t.depend == t for t in tasks])
-
-    # Test too many centers
-    autotvm.task.mark_depend(tasks, num=10)
-    assert all([t.depend == t for t in tasks])
-
-    # All tasks should depend on task 1
-    autotvm.task.mark_depend(tasks, num=1)
-    assert all([t.depend == tasks[1] for t in tasks])
+    assert all([t.depend == tasks[2] for t in tasks])
 
     c = autotvm.task.space.ConfigEntity(
         -1, None, "",
@@ -50,7 +42,7 @@ def test_selective():
             'tile_x': autotvm.task.space.SplitEntity([-1, 10]),
             'tile_y': autotvm.task.space.SplitEntity([-1, 5])
         }), [])
-    tasks[1].tuned_configs = [c]
+    tasks[2].tuned_configs = [c]
 
     tuner = XGBTuner(tasks[0], loss_type='rank')
     tuner.tune(n_trial=10,
