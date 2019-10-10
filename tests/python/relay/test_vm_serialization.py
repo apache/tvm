@@ -28,18 +28,16 @@ from tvm.relay.prelude import Prelude
 from tvm.contrib import util
 from tvm.relay import testing
 
-def create_vm(f, ctx=tvm.cpu(), target="llvm"):
+def create_vm(f, ctx=tvm.cpu(), target="llvm", params=None):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        compiler = relay.vm.VMCompiler()
-        vm = compiler.compile(mod, target)
+        vm = _vm.compile(mod, target=target, params=params)
         vm.init(ctx)
         return vm
     else:
         assert isinstance(f, relay.Module), "expected mod as relay.Module"
-        compiler = relay.vm.VMCompiler()
-        vm = compiler.compile(f, target)
+        vm = _vm.compile(f, target=target, params=params)
         vm.init(ctx)
         return vm
 
@@ -61,7 +59,7 @@ def run_network(mod,
         return result.asnumpy().astype(dtype)
 
     def get_serialized_output(mod, data, params, target, ctx, dtype='float32'):
-        vm = create_vm(mod, ctx, target)
+        vm = create_vm(mod, ctx, target, params=params)
         ser = serializer.Serializer(vm)
         code, lib = ser.serialize()
         deser = deserializer.Deserializer(code, lib)

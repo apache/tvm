@@ -22,13 +22,11 @@ import pytest
 from tvm import relay
 from tvm.relay.testing import resnet
 
-@pytest.mark.skip
 def test_basic():
     mod, params = resnet.get_workload()
-    compiler = relay.profiler_vm.VMCompilerProfiler()
     target = 'llvm'
     ctx = tvm.cpu()
-    vm = compiler.compile(mod, target)
+    vm = relay.profiler_vm.compile(mod, target)
     vm.init(ctx)
     vm.load_params(params)
 
