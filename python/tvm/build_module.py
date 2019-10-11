@@ -264,13 +264,16 @@ def build_config(**kwargs):
 
     return config
 
-def get_binds(args, binds=None):
+def get_binds(args, compact=False, binds=None):
     """Internal function to get binds and arg_list given arguments.
 
     Parameters
     ----------
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
+
+    compact : bool
+        If the statement has already bound to a compact buffer.
 
     binds : dict of :any:`Tensor` to :any:`Buffer`, optional
         Dictionary that maps the Tensor to Buffer which specified the data layout
@@ -290,12 +293,15 @@ def get_binds(args, binds=None):
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
+            any_dim = any(isinstance(i, expr.Var) for i in x.shape)
+            buffer_type = "auto_broadcast" if any_dim and not compact else ""
             if x not in binds:
                 buf = api.decl_buffer(x.shape,
                                       dtype=x.dtype,
                                       name=x.name,
                                       data_alignment=cfg.data_alignment,
-                                      offset_factor=cfg.offset_factor)
+                                      offset_factor=cfg.offset_factor,
+                                      buffer_type=buffer_type)
                 binds[x] = buf
                 arg_list.append(buf)
             else:
@@ -361,7 +367,6 @@ def lower(sch,
        The result function, if with_api_wrapper=False
        Then the Stmt before make api is returned.
     """
-    binds, arg_list = get_binds(args, binds)
     cfg = current_build_config()
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
     if cfg.dump_pass_ir:
@@ -377,11 +382,16 @@ def lower(sch,
 
     for f in lower_phase0:
         stmt = f(stmt)
+
+    compact = ir_pass.VerifyCompactBuffer(stmt)
+    binds, arg_list = get_binds(args, compact, binds)
+
     # Phase 1
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
         stmt = f(stmt)
+
     # Phase 2
     if not simple_mode:
         stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
@@ -400,6 +410,7 @@ def lower(sch,
         cfg.unroll_explicit)
     for f in lower_phase2:
         stmt = f(stmt)
+
     # Phase 3
     stmt = ir_pass.Simplify(stmt)
     stmt = ir_pass.LowerStorageAccessInfo(stmt)
@@ -413,6 +424,7 @@ def lower(sch,
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
     if simple_mode:
         return stmt
+
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
 

@@ -74,9 +74,11 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
     } else if (var1) {
       bh.common_shape.push_front(shape2[s2_size - i]);
       bh.vars2.push_front(bh.all_vars[0]);
+      bh.vars1.push_front(bh.all_vars[0]);
     } else if (var2) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
+      bh.vars2.push_front(bh.all_vars[0]);
     } else {
       CHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i]
                    << " and " << shape2[s2_size - i] << " in: "
@@ -98,16 +100,18 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
 }
 
 inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
-    const tvm::Array<tvm::Var>& ovars, const tvm::Tensor& T,
-    const std::deque<tvm::Var>& my_vars, const std::deque<tvm::Var>& all_vars) {
+    const tvm::Array<tvm::Var>& ovars,
+    const tvm::Tensor& T,
+    const std::deque<tvm::Var>& my_vars,
+    const std::deque<tvm::Var>& all_vars) {
   tvm::Array<tvm::Expr> ivars;
   CHECK_EQ(ovars.size(), all_vars.size());
-  // N^2, could use a map but NBD..
+  // N^2, could use a map but NBD.
   size_t expected_dims = T->shape.size();
   for (size_t i = 0; i < ovars.size(); ++i) {
     bool found = false;
     for (size_t j = 0; j < my_vars.size(); ++j) {
-    if (all_vars[i].same_as(my_vars[j])) {
+      if (all_vars[i].same_as(my_vars[j])) {
         ivars.push_back(ovars[i]);
         found = true;
         break;
@@ -123,13 +127,12 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
   return ivars;
 }
 
-
 template <typename FBinaryExpr>
 inline tvm::Tensor WithBroadcast(FBinaryExpr op,
                                  const tvm::Tensor& A,
                                  const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = "") {
+                                 const std::string& name = "tensor",
+                                 const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
