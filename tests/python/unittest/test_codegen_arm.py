@@ -42,13 +42,14 @@ def test_popcount():
     check_correct_assembly('uint32', 2, 2)
     check_correct_assembly('uint64', 2, 3)
 
+
 def test_vmlal_s16():
     target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(N):
         K = tvm.var("K")
         A = tvm.placeholder((K, N), dtype="int8", name='A')
-        B = tvm.placeholder((K, N), dtype="int8", name='A')
+        B = tvm.placeholder((K, N), dtype="int8", name='B')
         k = tvm.reduce_axis((0, K))
         C = tvm.compute((N, ), lambda n: tvm.sum(
             A[k, n].astype("int32") * B[k, n].astype("int32"), axis=[k]), name='C')
@@ -60,14 +61,15 @@ def test_vmlal_s16():
         assembly = f.get_source('asm')
         matches = re.findall("vmlal.s16", assembly)
         assert (len(matches) == N // 4)
-    check_correct_assembly(4)
     check_correct_assembly(8)
     check_correct_assembly(16)
+    check_correct_assembly(32)
+    check_correct_assembly(64)
 
     def check_broadcast_correct_assembly(N):
         K = tvm.var("K")
         A = tvm.placeholder((K, N), dtype="int8", name='A')
-        B = tvm.placeholder((K,), dtype="int8", name='A')
+        B = tvm.placeholder((K,), dtype="int8", name='B')
         k = tvm.reduce_axis((0, K))
         C = tvm.compute((N, ), lambda n: tvm.sum(
             A[k, n].astype("int32") * B[k].astype("int32"),
@@ -84,6 +86,7 @@ def test_vmlal_s16():
     check_broadcast_correct_assembly(16)
     check_broadcast_correct_assembly(32)
     check_broadcast_correct_assembly(64)
+
 
 if __name__ == "__main__":
     test_popcount()
