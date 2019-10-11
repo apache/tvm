@@ -641,6 +641,120 @@ def test_alter_layout_prelu():
     assert(analysis.alpha_equal(a, b))
 
 
+def test_alter_layout_pad():
+    """ Check NCHW, NHWC and corner case for pad layout conversion"""
+    # Register alter op layout. "level" is used to override the previously registered functions.
+    @register_alter_op_layout("nn.conv2d", level=112)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Check NCHW conversion.
+    def before_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1), (0, 0)))
+        ret = relay.layout_transform(ret, "NCHW16c", "NCHW")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nchw()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nchw()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check NHWC conversion.
+    def before_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC')
+        ret = relay.nn.pad(y, pad_width=((0, 0), (1, 1), (1, 1), (0, 0)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1), (0, 0)))
+        ret = relay.layout_transform(ret, "NCHW16c", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nhwc()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nhwc()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check that conversion does not happen when padding along split axis..
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.nn.pad(y, pad_width=((0, 0), (1, 1), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
+        ret = relay.nn.pad(ret, pad_width=((0, 0), (1, 1), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_alter_layout_pool():
     """ Check NCHW, NHWC pool layout conversion"""
     # Register alter op layout. "level" is used to override the previously registered functions.
@@ -815,5 +929,6 @@ if __name__ == "__main__":
     test_alter_layout_strided_slice()
     test_alter_layout_depthwise_conv2d()
     test_alter_layout_prelu()
+    test_alter_layout_pad()
     test_alter_layout_pool()
     test_alter_layout_sum()
