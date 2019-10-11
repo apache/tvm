@@ -18,12 +18,12 @@
 
 import tvm
 import numpy as np
+from pytest import skip
 from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32_vnni
 from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32
-from nose.tools import nottest
 
 
-@nottest
+
 def test_fc_int8_acc32():
     m = 1024
     n = 1024
@@ -37,16 +37,17 @@ def test_fc_int8_acc32():
     memory_ops = m * k + n * k + 2 * m * n
     gops_per_mm = 2 * m * n * k
 
-    # For LLVM < 8.0, it shows "'cascadelake' is not a recognized processor for this target
-    # (ignoring processor)" error with the following setting. After LLVM 8.0 is enabled in the
-    # test, we should use cascadelake setting.
+    #There are versions of llvm (<8.0)  where cascadelake is not
+    #recognized, skip the test when encountering them.
     def verify(target="llvm -mcpu=cascadelake"):
-        if not tvm.module.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
+        try:
+            tvm.module.enabled(target)
+            ctx = tvm.context(target, 0)
+            pc = dot_16x1x16_int8_int8_int32_vnni()
+        except:
+            skip("%s is not enabled" % target)
+            exit(0)
 
-        ctx = tvm.context(target, 0)
-        pc = dot_16x1x16_int8_int8_int32_vnni()
         ak = tvm.reduce_axis((0, k), name='k')
         packedW = tvm.placeholder(
             (n // 16, 16 * (k // 4), 4), name='packedW', dtype="int8")
@@ -98,8 +99,5 @@ def test_fc_int8_acc32():
 
 
 if __name__ == "__main__":
-    # The test requires Cascade Lake and newer Intel machines to generate the
-    # correct AVX512 VNNI instruction. So, disabling the test.
-
-    # test_fc_int8_acc32()
+    test_fc_int8_acc32()
     pass
