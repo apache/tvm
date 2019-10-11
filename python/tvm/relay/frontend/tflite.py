@@ -748,10 +748,12 @@ class OperatorConverter(object):
         elif padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
-            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
-                                                          (pad_top, pad_bottom),
-                                                          (pad_left, pad_right),
-                                                          (0, 0)))
+            do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
+            if do_pad:
+                in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
+                                                              (pad_top, pad_bottom),
+                                                              (pad_left, pad_right),
+                                                              (0, 0)))
         else:
             raise tvm.error.OpAttributeUnImplemented(
                 'Padding format {} is not supported for operator Conv.'.format(padding))

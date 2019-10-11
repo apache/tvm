@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -119,6 +119,59 @@ Array<Integer> GetExcludeAxes(size_t indim,
   return r_axes;
 }
 
+// Return the modified layout for AlterOpLayout pass.
+Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
+                                              const Array<Layout>& new_in_layouts,
+                                              const Array<Layout>& old_in_layouts,
+                                              const Array<Array<IndexExpr>>& old_in_shapes) {
+  // NOTE: Discard "const" qualifier here.
+  ReduceAttrs* params = const_cast<ReduceAttrs*>(attrs.as<ReduceAttrs>());
+
+  // Get the reduce axes.
+  uint32_t indim = old_in_shapes[0].size();
+  auto r_axes = GetReduceAxes(indim, params->axis, params->exclude);
+
+  Layout ret = Layout::Undef();
+  if (new_in_layouts.defined() && r_axes.size()) {
+    // Adapt to new layout. The axis has to change. Record original reduce axes. Convert to the
+    // modified layout axes.
+    CHECK_EQ(new_in_layouts.size(), 1);
+    CHECK_EQ(old_in_layouts.size(), 1);
+
+    // 1) Collect the original axes
+    std::unordered_set<std::string> old_r_dims;
+    for (auto r_axis : r_axes) {
+      old_r_dims.emplace(old_in_layouts[0][r_axis].name());
+    }
+
+    // 2) Collect the new axes by walking new_layout.
+    tvm::Array<tvm::Integer> new_r_axes;
+    std::string new_layout_string = "";
+    int axis_index = 0;
+    for (auto iter_var : new_in_layouts[0]->axes) {
+      const auto& layout_axis = LayoutAxis::Get(iter_var);
+      const std::string& layout_dim = layout_axis.name();
+      if (old_r_dims.count(layout_dim)) {
+        new_r_axes.push_back(tvm::Integer(axis_index));
+      }
+      // Collect only the primal axis.
+      if (layout_axis.IsPrimal()) {
+        new_layout_string += layout_dim;
+        axis_index++;
+      }
+    }
+
+    // 3) Set the new axis and layout.
+    ret = Layout(new_layout_string);
+    params->axis = new_r_axes;
+  } else if (old_in_layouts.defined()) {
+    // If the new layout is undefined, set the old layout as the inferred layout.
+    CHECK_EQ(old_in_layouts.size(), 1);
+    ret = old_in_layouts[0];
+  }
+
+  return Array<Array<Layout>>{{ret}, {ret}};
+}
 
 template<typename F>
 Array<Tensor> ReduceCompute(const Attrs& attrs,
@@ -325,6 +378,7 @@ Example::
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout)
 .set_attr<FTVMCompute>("FTVMCompute", SumCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
