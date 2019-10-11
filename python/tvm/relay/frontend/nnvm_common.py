@@ -124,21 +124,23 @@ def _elemwise_sum(inputs, _, _dtype='float32'):
 
 
 def _binop_scalar(new_op):
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, odtype=None):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        dtype = _infer_type(inputs[0]).checked_type.dtype
-        scalar = _expr.const(scalar, dtype=dtype)
+        if odtype is None:
+            odtype = _infer_type(inputs[0]).checked_type.dtype
+        scalar = _expr.const(scalar, dtype=odtype)
         return new_op(inputs[0], scalar)
     return _impl
 
 
 def _rbinop_scalar(new_op):
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, odtype=None):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        dtype = _infer_type(inputs[0]).checked_type.dtype
-        scalar = _expr.const(scalar, dtype=dtype)
+        if odtype is None:
+            odtype = _infer_type(inputs[0]).checked_type.dtype
+        scalar = _expr.const(scalar, dtype=odtype)
         return new_op(scalar, inputs[0])
     return _impl
 
