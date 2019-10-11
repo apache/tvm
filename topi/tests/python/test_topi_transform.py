@@ -19,6 +19,7 @@ import numpy as np
 import tvm
 import topi
 import topi.testing
+from tvm.contrib.nvcc import have_fp16
 
 from common import get_all_backend
 
@@ -52,6 +53,9 @@ def verify_reinterpret(in_shape, in_dtype, out_dtype, generator):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
+            return
+        if in_dtype == "float16" and device == 'cuda' and not have_fp16(ctx.compute_version):
+            print("Skip because %s does not have fp16 support" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
