@@ -28,6 +28,7 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir.h>
 #include <tvm/data_layout.h>
+#include <tvm/runtime/packed_func.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -1139,11 +1140,41 @@ and type as the input array.
 TVM_REGISTER_NODE_TYPE(ArangeAttrs);
 
 double ToScalar(const runtime::NDArray& array) {
-  if (array->dtype.code == kDLInt || array->dtype.code == kDLUInt) {
-    return reinterpret_cast<int32_t*>(array->data)[0];
-  } else {
-    return reinterpret_cast<float*>(array->data)[0];
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[0];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[0];
+    }
   }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
 }
 
 bool ArangeRel(const Array<Type>& types,

@@ -75,7 +75,7 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   const auto param = attrs.as<LayerNormAttrs>();
   CHECK(param);
 
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr mean = Mean(data, {param->axis}, true, false);
   Expr var = Variance(data, mean, {param->axis}, true, false);
   Expr denom = Sqrt(Add(var, epsilon));
