@@ -21,6 +21,7 @@ from __future__ import absolute_import as _abs
 from .. import expr as _expr
 from .. import op as _op
 from .common import get_relay_op
+from .common import infer_type as _infer_type
 
 def _warn_not_used(attr, op='nnvm'):
     import warnings
@@ -123,20 +124,22 @@ def _elemwise_sum(inputs, _, _dtype='float32'):
 
 
 def _binop_scalar(new_op):
-    def _impl(inputs, attrs, odtype='float32'):
+    def _impl(inputs, attrs, odtype=None):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
+        if odtype is None:
+            odtype = _infer_type(inputs[0]).checked_type.dtype
         scalar = _expr.const(scalar, dtype=odtype)
         return new_op(inputs[0], scalar)
     return _impl
 
 
 def _rbinop_scalar(new_op):
-    def _impl(inputs, attrs, odtype='float32'):
+    def _impl(inputs, attrs, odtype=None):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
+        if odtype is None:
+            odtype = _infer_type(inputs[0]).checked_type.dtype
         scalar = _expr.const(scalar, dtype=odtype)
         return new_op(scalar, inputs[0])
     return _impl
