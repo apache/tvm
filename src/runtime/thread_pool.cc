@@ -402,23 +402,8 @@ int TVMBackendParallelLaunch(
       flambda, cdata, num_task, 1);
   return res;
 #else
-  const char *val = getenv("TVM_NUM_THREADS");
-  int num_workers;
-  if (val == nullptr) {
-    val = getenv("OMP_NUM_THREADS");
-  }
-  if (val != nullptr) {
-    num_workers = atoi(val);
-  } else {
-#if defined(_M_X64) || defined(__x86_64__)
-  // Half to not count hyper threading.
-    num_workers = std::thread::hardware_concurrency() / 2;
-#else
-    num_workers = std::thread::hardware_concurrency();
-#endif
-  }
-  num_workers = std::max(num_workers, 1);
-  if (num_task ==0) num_task = num_workers;
+  int num_workers = tvm::runtime::threading::MaxConcurrency();
+  if (num_task == 0) num_task = num_workers;
   omp_set_num_threads(num_workers);
   #pragma omp parallel num_threads(num_workers)
   {
@@ -437,6 +422,9 @@ int TVMBackendParallelLaunch(
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
+#ifdef USE_OMP
+  #pragma omp barrier
+#else
   using tvm::runtime::kSyncStride;
   int num_task = penv->num_task;
   std::atomic<int>* sync_counter =
@@ -447,14 +435,11 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(
                  std::memory_order_relaxed) <= old_counter) {
-#ifdef USE_OMP
-        #pragma omp taskyield
-#else
         tvm::runtime::threading::Yield();
-#endif
       }
     }
   }
   std::atomic_thread_fence(std::memory_order_acquire);
+#endif
   return 0;
 }
