@@ -97,6 +97,7 @@ We do encourage everyone to work anything they are interested in.
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
+- [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
