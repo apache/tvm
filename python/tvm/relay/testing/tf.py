@@ -80,7 +80,7 @@ def AddShapesToGraphDef(session, out_node):
 
     """
 
-    graph_def = tf.graph_util.convert_variables_to_constants(
+    graph_def = tf.compat.v1.graph_util.convert_variables_to_constants(
         session,
         session.graph.as_graph_def(add_shapes=True),
         [out_node],

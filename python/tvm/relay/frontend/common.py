@@ -409,7 +409,12 @@ class AttrCvt(object):
                 new_attrs[k] = attrs[k]
         # add extras
         new_attrs.update(self._extras)
-        return get_relay_op(op_name)(*inputs, **new_attrs)
+        try:
+            return get_relay_op(op_name)(*inputs, **new_attrs)
+        except:
+            import pdb; pdb.set_trace()
+            import traceback
+            print(traceback.format_exc())
 
     def _parse_default(self, target):
         """Helper function to parse default values."""

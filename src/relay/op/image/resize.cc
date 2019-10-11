@@ -73,12 +73,14 @@ Expr MakeResize(Expr data,
                 std::string layout,
                 std::string method,
                 bool align_corners,
+                bool half_pixel_centers,
                 DataType out_dtype) {
   auto attrs = make_node<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->align_corners = align_corners;
+  attrs->half_pixel_centers = half_pixel_centers;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize");
   return CallNode::make(op, {data}, Attrs(attrs), {});

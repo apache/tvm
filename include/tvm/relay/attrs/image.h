@@ -37,6 +37,7 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   std::string layout;
   std::string method;
   bool align_corners;
+  bool half_pixel_centers;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
@@ -54,6 +55,8 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
                   "bicubic - Bicubic Interpolation");
     TVM_ATTR_FIELD(align_corners).set_default(true)
         .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(half_pixel_centers).set_default(false)
+        .describe("Defaults to false, following the Tensorflow 2.0 settings");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type.");

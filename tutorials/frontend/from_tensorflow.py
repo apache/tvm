@@ -34,6 +34,12 @@ import os.path
 
 # Tensorflow imports
 import tensorflow as tf
+if tf.__version__.startswith('2'):
+    gfile_mod = tf.io.gfile
+    gfile = gfile_mod.GFile
+else:
+    gfile_mod = tf.gfile
+    gfile = gfile_mod.FastGFile
 
 # Tensorflow utility functions
 import tvm.relay.testing.tf as tf_testing
@@ -89,14 +95,14 @@ label_path = download_testdata(label_map_url, label_map, module='data')
 # ------------
 # Creates tensorflow graph definition from protobuf file.
 
-with tf.gfile.FastGFile(model_path, 'rb') as f:
-    graph_def = tf.GraphDef()
+with gfile(model_path, 'rb') as f:
+    graph_def = tf.compat.v1.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
     # Call the utility to import the graph definition into default graph.
     graph_def = tf_testing.ProcessGraphDefParam(graph_def)
     # Add shapes to the graph.
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         graph_def = tf_testing.AddShapesToGraphDef(sess, 'softmax')
 
 ######################################################################
@@ -187,8 +193,8 @@ for node_id in top_k:
 def create_graph():
     """Creates a graph from saved GraphDef file and returns a saver."""
     # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(model_path, 'rb') as f:
-        graph_def = tf.GraphDef()
+    with gfile(model_path, 'rb') as f:
+        graph_def = tf.compat.v1.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
         # Call the utility to import the graph definition into default graph.
@@ -206,14 +212,14 @@ def run_inference_on_image(image):
     -------
         Nothing
     """
-    if not tf.gfile.Exists(image):
+    if not gfile_mod.Exists(image):
         tf.logging.fatal('File does not exist %s', image)
-    image_data = tf.gfile.FastGFile(image, 'rb').read()
+    image_data = gfile(image, 'rb').read()
 
     # Creates graph from saved GraphDef.
     create_graph()
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         softmax_tensor = sess.graph.get_tensor_by_name('softmax:0')
         predictions = sess.run(softmax_tensor,
                                {'DecodeJpeg/contents:0': image_data})
