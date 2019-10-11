@@ -189,6 +189,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
          << DetectROCMComputeVersion(target)
+         << " -mattr=-code-object-v3 "
          << target.substr(4, target.length() - 4);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
