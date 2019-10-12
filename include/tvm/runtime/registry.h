@@ -249,10 +249,10 @@ class Registry {
   /*!
    * \brief Register a function with given name
    * \param name The name of the function.
-   * \param override Whether allow oveeride existing function.
-   * \return Reference to theregistry.
+   * \param override Whether allow overriding existing function.
+   * \return Reference to the registry.
    */
-  TVM_DLL static Registry& Register(const std::string& name, bool override = false);  // NOLINT(*)
+  TVM_DLL static Registry& Register(const std::string& name, bool override = true);  // NOLINT(*)
   /*!
    * \brief Erase global function from registry, if exist.
    * \param name The name of the function.
