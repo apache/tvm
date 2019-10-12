@@ -166,6 +166,10 @@ TVMPODValue! {
     /// # Example
     ///
     /// ```
+    /// # use std::convert::TryFrom;
+    /// # use std::convert::TryInto;
+    /// # use self::tvm_common::TVMRetValue;
+    ///
     /// let a = 42u32;
     /// let b: i64 = TVMRetValue::from(a).try_into().unwrap();
     ///
@@ -332,6 +336,12 @@ impl TryFrom<TVMRetValue> for String {
 impl From<String> for TVMRetValue {
     fn from(s: String) -> Self {
         Self::String(std::ffi::CString::new(s).unwrap())
+    }
+}
+
+impl From<&str> for TVMRetValue {
+    fn from(s: &str) -> Self {
+        Self::from(s.to_string())
     }
 }
 

@@ -162,6 +162,8 @@ impl_tvm_context!(
 /// ## Example
 ///
 /// ```
+/// # use self::tvm_common::TVMByteArray;
+///
 /// let v = b"hello";
 /// let barr = TVMByteArray::from(&v);
 /// assert_eq!(barr.len(), v.len());
