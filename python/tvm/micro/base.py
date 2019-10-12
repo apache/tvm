@@ -88,9 +88,6 @@ class Session:
         self._exit = self.module["exit"]
         print('finished session init')
 
-    def add_module(self, c_mod):
-        self.op_modules.append(c_mod)
-
     def bake(self):
         import subprocess
         import os
@@ -111,14 +108,7 @@ class Session:
         with open(runtime_src_path) as f:
             runtime_src = f.read()
 
-        include_str = "#include \"utvm_runtime.h\""
-        split_idx = runtime_src.index(include_str) + len(include_str) + 2
-        merged_src = (runtime_src[:split_idx] \
-                + op_srcs \
-                + runtime_src[split_idx:] \
-                # TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
-                # TODO: splice `main` in *before* the end of the `extern C` block
-                + "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n")
+        merged_src = self.gen_merged_src(runtime_src, op_srcs)
 
         print('writing src to main.c')
         nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
@@ -133,7 +123,7 @@ class Session:
         child_env = copy.deepcopy(os.environ)
         child_env["LD_LIBRARY_PATH"] += ":" + ":".join(paths)
 
-        print('flashing to device')
+        print('compiling bin')
         proc = subprocess.Popen(
                 ["make", "blinky.elf"],
                 cwd=nucleo_path,
@@ -150,45 +140,64 @@ class Session:
         with open(result_binary_path, "rb") as f:
             result_binary_contents = bytearray(f.read())
 
-        #sym_map_str = binutil.tvm_callback_get_symbol_map(result_binary_contents, self.toolchain_prefix)
-        #sym_map_lines = list(filter(lambda s: len(s) != 0, sym_map_str.split('\n')))
-
-        #sym_map_iter = iter(sym_map_lines)
-        #sym_map = {}
-        #for sym_name in sym_map_iter:
-        #    sym_loc = next(sym_map_iter)
-        #    sym_map[sym_name] = sym_loc
-
-        #print('UTVMMain: ' + sym_map['UTVMMain'])
-        #print('UTVMDone: ' + sym_map['UTVMDone'])
-        #print('fadd: ' + sym_map['fadd'])
-        #print('TVMBackendAllocWorkspace: ' + sym_map['TVMBackendAllocWorkspace'])
-        #print('TVMBackendFreeWorkspace: ' + sym_map['TVMBackendFreeWorkspace'])
-        #print('TVMAPISetLastError: ' + sym_map['TVMAPISetLastError'])
-
-        # TODO: we might need to start OpenOCD in a separate process
-        # wait until the server has started up until attempting to connect in C++
-        #openocd_script_dir = '/usr/share/openocd/scripts'
-        #cmd = [
-        #        'openocd',
-        #        '-f', f'{openocd_script_dir}/interface/stlink-v2-1.cfg',
-        #        '-f', f'{openocd_script_dir}/target/stm32f7x.cfg'
-        #]
-        #self.openocd_process = subprocess.Popen(
-        #        cmd,
-        #        stdout=subprocess.PIPE,
-        #        stderr=subprocess.STDOUT)
-        #print('waiting for OpenOCD to start up')
-        #while True:
-        #    output = self.openocd_process.stdout.readline()
-        #    if 'stm32f7x.cpu: hardware has 8 breakpoints, 4 watchpoints' in output.decode('utf-8'):
-        #        break
-        #    if output:
-        #        print(output.strip())
-        #    rc = self.openocd_process.poll()
-        #print('finished starting up')
-
         _BakeSession(result_binary_contents);
+
+    def add_module(self, c_mod):
+        self.op_modules.append(c_mod)
+
+    def gen_merged_src(self, runtime_src, op_srcs):
+        include_str = "#include \"utvm_runtime.h\""
+        split_idx = runtime_src.index(include_str) + len(include_str) + 2
+        merged_src = runtime_src[:split_idx] + op_srcs + runtime_src[split_idx:]
+        merged_src += "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n"
+
+        return merged_src
+
+        #print(merged_src)
+        #print('--------------------------------------------------------------------------------')
+
+        ## TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
+        ## TODO: splice `main` in *before* the end of the `extern C` block
+        #import re
+        #func_regex = re.compile(r' *(TVM_DLL)? *(int|int32_t|void|void\*|const char\*) *([a-zA-Z0-9_]+) *\((.*)\) *{? *')
+        #matches = []
+        #for line in merged_src.split('\n'):
+        #    match = func_regex.match(line)
+        #    if match is not None:
+        #        func_name = match.group(3)
+        #        args = match.group(4)
+        #        matches.append((func_name, args))
+
+        #method_calls = []
+        #for func_name, args in matches:
+        #    call_args = []
+        #    args = args.strip()
+        #    if len(args) != 0:
+        #        args = list(map(lambda s: s.strip(), args.split(',')))
+        #        for arg in args:
+        #            if arg.startswith('const char*'):
+        #                call_args.append('NULL')
+        #            elif arg.startswith('void*'):
+        #                call_args.append('NULL')
+        #            elif arg.startswith('int32_t'):
+        #                call_args.append('0')
+        #            elif arg.startswith('int'):
+        #                call_args.append('0')
+        #            else:
+        #                raise RuntimeError('ayy lmao')
+        #    call_args = ','.join(call_args)
+        #    method_calls.append(f'{func_name}({call_args});')
+        #print(method_calls)
+        #print('--------------------------------------------------------------------------------')
+        #input('look at dat source')
+        #return merged_src
+
+    def extract_method_sigs(self, merged_src):
+        #for line in merged_src.split('\n'):
+        #    if line.startswith('TVM_DLL'):
+        #        line = line[len('TVM_DLL'):]
+        #        print(line)
+        pass
 
     def get_func(self, func_name):
         return _GetFunction(func_name);
