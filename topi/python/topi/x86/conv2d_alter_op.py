@@ -158,19 +158,22 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             return None
         return F.nn.contrib_conv2d_nchwc_int8(*copy_inputs, **new_attrs)
 
-    # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-    new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
-    # Store altered operator's config
-    new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn,
-                                  kh, kw, ic_bn, oc_bn), dtype=kernel_tensor.dtype)
-    new_workload = autotvm.task.args_to_workload(
-        [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
-         new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
-    dispatch_ctx.update(target, new_workload, cfg)
+    # Check that the datatypes are float32. Integer is already handled.
+    if data_dtype == "float32" and kernel_dtype == "float32":
+        # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
+        new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+        # Store altered operator's config
+        new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn,
+                                      kh, kw, ic_bn, oc_bn), dtype=kernel_tensor.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
+             new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+        dispatch_ctx.update(target, new_workload, cfg)
 
-    if F.__name__ == 'nnvm.symbol':
-        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
-    return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+        if F.__name__ == 'nnvm.symbol':
+            return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+        return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+    return None
 
 
 @conv2d_legalize.register("cpu")
