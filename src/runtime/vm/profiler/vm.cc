@@ -96,7 +96,7 @@ void VirtualMachineDebug::Init(const std::vector<TVMContext>& ctxs) {
 void VirtualMachineDebug::InvokePacked(Index packed_index,
                                        const PackedFunc& func, Index arg_count,
                                        Index output_size,
-                                       const std::vector<Object>& args) {
+                                       const std::vector<ObjectRef>& args) {
   auto ctx = VirtualMachine::GetParamsContext();
   // warmup
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,

@@ -102,7 +102,7 @@ void Deserializer::DeserializeConstantSection() {
   for (size_t i = 0; i < size; i++) {
     runtime::NDArray constant;
     STREAM_CHECK(constant.Load(strm_), "constant");
-    runtime::Object obj = runtime::Object::Tensor(constant);
+    runtime::ObjectRef obj = runtime::vm::Tensor(constant);
     vm_->constants.push_back(obj);
   }
 }
