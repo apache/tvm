@@ -23,6 +23,6 @@ def get_fp32_len():
     target = tvm.target.current_target()
     if target is not None:
         for opt in target.options:
-            if opt == '-mcpu=skylake-avx512':
+            if opt == '-mcpu=skylake-avx512' or opt == '-mcpu=cascadelake':
                 fp32_vec_len = 16
     return fp32_vec_len

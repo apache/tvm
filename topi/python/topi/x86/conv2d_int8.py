@@ -57,15 +57,17 @@ def _is_int8_hw_support(data_dtype, kernel_dtype):
     is_dtype_support = data_dtype == 'uint8' and kernel_dtype == 'int8'
 
     # 2) Check LLVM support
-    llvm_intrin_fast_int8 = "llvm.x86.avx512.pmaddubs.w.512"
-    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8)
-    is_llvm_support = llvm_id != 0
+    llvm_intrin_fast_int8_skylake = "llvm.x86.avx512.pmaddubs.w.512"
+    llvm_intrin_fast_int8_cascadelake = "llvm.x86.avx512.vpdpbusd.512"
+    llvm_id_skylake = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8_skylake)
+    llvm_id_cascadelake = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8_cascadelake)
+    is_llvm_support = llvm_id_skylake != 0 and llvm_id_cascadelake != 0
 
     # 3) Check target
     target = tvm.target.current_target()
     is_target_support = False
     for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
+        if opt == '-mcpu=skylake-avx512' or opt == '-mcpu=cascadelake':
             is_target_support = True
 
     return is_dtype_support and is_llvm_support and is_target_support
