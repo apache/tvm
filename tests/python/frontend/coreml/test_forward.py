@@ -44,12 +44,12 @@ def get_tvm_output(func, x, params, target, ctx,
     return out.asnumpy()
 
 def run_model_checkonly(model_file, model_name='', input_name='image'):
-    # Some Relay passes change operators on the fly. Ensuring that we generate new graph for each
-    # target.
+    model = cm.models.MLModel(model_file)
+    x = model_zoo.get_cat_image()
+    shape_dict = {input_name : x.shape}
+    # Some Relay passes change operators on the fly. Ensuring that we generate
+    # new graph for each target.
     for target, ctx in ctx_list():
-        model = cm.models.MLModel(model_file)
-        x = model_zoo.get_cat_image()
-        shape_dict = {input_name : x.shape}
         mod, params = relay.frontend.from_coreml(model, shape_dict)
         tvm_output = get_tvm_output(mod["main"], x, params, target, ctx)
         print(target, ctx, model_name, 'prediction id: ', np.argmax(tvm_output.flat))
