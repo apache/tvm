@@ -42,6 +42,8 @@ struct TypeInfo {
   uint32_t num_slots{0};
   /*! \brief number of allocated child slots. */
   uint32_t allocated_slots{0};
+  /*! \brief Whether child can overflow. */
+  bool child_slots_can_overflow{true};
   /*! \brief name of the type. */
   std::string name;
 };
@@ -83,6 +85,11 @@ class TypeContext {
     TypeInfo& pinfo = type_table_[parent_tindex];
     CHECK_EQ(pinfo.index, parent_tindex);
 
+    // if parent cannot overflow, then this class cannot.
+    if (!pinfo.child_slots_can_overflow) {
+      child_slots_can_overflow = false;
+    }
+
     // total number of slots include the type itself.
     uint32_t num_slots = num_child_slots + 1;
     uint32_t allocated_tindex;
@@ -102,7 +109,7 @@ class TypeContext {
       // update parent's state
       pinfo.allocated_slots += num_slots;
     } else {
-      CHECK(child_slots_can_overflow)
+      CHECK(pinfo.child_slots_can_overflow)
           << "Reach maximum number of sub-classes for " << pinfo.name;
       // allocate new entries.
       allocated_tindex = type_counter_;
@@ -116,6 +123,8 @@ class TypeContext {
     type_table_[allocated_tindex].parent_index = parent_tindex;
     type_table_[allocated_tindex].num_slots = num_slots;
     type_table_[allocated_tindex].allocated_slots = 1;
+    type_table_[allocated_tindex].child_slots_can_overflow =
+        child_slots_can_overflow;
     type_table_[allocated_tindex].name = skey;
     // update the key2index mapping.
     type_key2index_[skey] = allocated_tindex;
