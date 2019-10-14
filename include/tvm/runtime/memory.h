@@ -84,6 +84,13 @@ class SimpleObjAllocator :
    public:
     template<typename... Args>
     static T* New(SimpleObjAllocator*, Args&&... args) {
+      // NOTE: the first argument is not needed for SimpleObjAllocator
+      // It is reserved for special allocators that needs to recycle
+      // the object to itself (e.g. in the case of object pool).
+      //
+      // In the case of an object pool, an allocator needs to create
+      // a special chunk memory that hides reference to the allocator
+      // and call allocator's release function in the deleter.
       return new T(std::forward<Args>(args)...);
     }
 

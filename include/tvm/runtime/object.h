@@ -93,7 +93,7 @@ enum TypeIndex  {
  * - Use TVM_DECLARE_FINAL_OBJECT_INFO for object classes that cannot be sub-classed.
  *
  * New objects can be created using make_object function.
- * Which will automatically populate the type_index and deleterof the object.
+ * Which will automatically populate the type_index and deleter of the object.
  *
  * \sa make_object
  * \sa ObjectPtr
@@ -176,7 +176,7 @@ class Object {
 
  protected:
   // The fields of the base object cell.
-  /*! \brief Type index(tag) that indicate the type of the object. */
+  /*! \brief Type index(tag) that indicates the type of the object. */
   uint32_t type_index_{0};
   /*! \brief The internal reference counter */
   RefCounterType ref_counter_{0};
@@ -197,7 +197,7 @@ class Object {
    *  When the function is first time called for a type,
    *  it will register the type to the type table in the runtime.
    *  If the static_tindex is TypeIndex::kDynamic, the function will
-   *  will allocate a runtime type index.
+   *  allocate a runtime type index.
    *  Otherwise, we will populate the type table and return the static index.
    *
    * \param key the type key.
@@ -412,7 +412,7 @@ class ObjectPtr {
 class ObjectRef {
  public:
   /*! \brief default constructor */
-  ObjectRef()  = default;
+  ObjectRef() = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : data_(data) {}
   /*! \return the internal object pointer */
@@ -488,7 +488,8 @@ class ObjectRef {
 
 #define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
   TypeName() {}                                                         \
-  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) \
+  explicit TypeName(                                                    \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
       : ParentType(n) {}                                                \
   const ObjectName* operator->() const {                                \
     return static_cast<const ObjectName*>(data_.get());                 \
