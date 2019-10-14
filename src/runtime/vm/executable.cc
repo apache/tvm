@@ -87,7 +87,7 @@ std::string Executable::GetBytecode() const {
         << func.instructions.size() << std::endl;
 
     // Print pramams of a `VMFunction`.
-    oss << "# Parameters:"<< std::endl;
+    oss << "# Parameters: "<< std::endl;
     for (const auto& param : func.params) {
       oss << param << " ";
     }

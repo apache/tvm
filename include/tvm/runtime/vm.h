@@ -434,7 +434,7 @@ struct VMFrame {
 /*! \brief The executable emitted by the VM compiler.
  *
  * The executable contains information (e.g. data in different memory regions)
- * to create a virtual machine.
+ * to run in a virtual machine.
  */
 class Executable : public ModuleNode {
  public:
@@ -450,7 +450,7 @@ class Executable : public ModuleNode {
                          const std::shared_ptr<ModuleNode>& sptr_to_self) final;
 
   /*!
-   * \brief Get the serialized form of the `functions` in `vm_`. This is
+   * \brief Get the serialized form of the `functions`. This is
    * essentially bytecode serialization.
    *
    * \return The serialized vm bytecode.
@@ -501,7 +501,8 @@ class Executable : public ModuleNode {
     return "VMExecutable";
   }
 
-  /*! \brief The runtime module/library that contains hardware dependent code. */
+  /*! \brief The runtime module/library that contains both the host and also the device
+   * code when executing on non-CPU devices. */
   runtime::Module lib;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
