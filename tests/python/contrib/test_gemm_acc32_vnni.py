@@ -20,10 +20,10 @@ import tvm
 import numpy as np
 from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32_vnni
 from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32
-from nose.tools import nottest
+import pytest
 
 
-@nottest
+@pytest.mark.skip("skip because feature not enabled")
 def test_fc_int8_acc32():
     m = 1024
     n = 1024
