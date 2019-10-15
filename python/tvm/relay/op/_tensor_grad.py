@@ -50,7 +50,6 @@ from .transform import (
     where,
     repeat,
     expand_dims,
-    split,
     full_like
 )
 
@@ -202,6 +201,7 @@ def clip_grad(orig, grad):
 
 @register_gradient("nn.max_pool2d")
 def max_pool2d_grad(orig, grad):
+    """Returns the gradient of max_pool2d."""
     attrs = orig.attrs
     pool_grad = _nn.max_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
                                     strides=attrs.strides, padding=attrs.padding,
@@ -211,6 +211,7 @@ def max_pool2d_grad(orig, grad):
 
 @register_gradient("nn.avg_pool2d")
 def avg_pool2d_grad(orig, grad):
+    """Returns the gradient of avg_pool2d."""
     attrs = orig.attrs
     pool_grad = _nn.avg_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
                                     strides=attrs.strides, padding=attrs.padding,
@@ -221,6 +222,7 @@ def avg_pool2d_grad(orig, grad):
 
 @register_gradient("nn.global_avg_pool2d")
 def global_avg_pool2d_grad(orig, grad):
+    """Returns the gradient of global_avg_pool2d."""
     data = orig.args[0]
     shape = data.checked_type.shape
     layout = orig.attrs.layout
@@ -233,7 +235,7 @@ def global_avg_pool2d_grad(orig, grad):
         pool_size = shape[1], shape[2]
 
     pool_grad = _nn.avg_pool2d_grad(grad, data, pool_size=pool_size,
-                                    strides=(1,1), padding=(0,0),
+                                    strides=(1, 1), padding=(0, 0),
                                     layout=layout)
     return [pool_grad]
 
@@ -310,26 +312,26 @@ def conv2d_grad(orig, grad):
     return [backward_data, backward_weight]
 
 
-# helper function to get the reduce axis as plain ints
-def _get_reduce_axis(op):
-    x, axis = op.args[0], op.attrs.axis
+def _get_reduce_axis(call):
+    """Helper function that returns the reduce axis of the call as plain python ints."""
+    x, axis = call.args[0], call.attrs.axis
     shape = x.checked_type.concrete_shape
 
     # should never exclude when axis is None
-    assert not (axis is None and op.attrs.exclude)
+    assert not (axis is None and call.attrs.exclude)
 
     if axis is None:
         return None
 
     # convert to nonnegative integers and sort
     axis = sorted([ax if ax >= 0 else len(shape) + ax for ax in map(int, axis)])
-    if op.attrs.exclude:
+    if call.attrs.exclude:
         axis = [ax for ax in range(len(shape)) if ax not in axis]
     return axis
 
 
-# unreduces x using the given reduce axis by expanding reduced dimensions
 def _unreduce_expand(x, axis):
+    """Helper function that returns x expanded on the reduced dimensions in axis."""
     # assume axis is sorted nonnegative ints
     for ax in axis:
         x = expand_dims(x, ax)
