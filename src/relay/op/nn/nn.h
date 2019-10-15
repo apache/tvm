@@ -49,7 +49,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // validate the weight shape is proper if defined
     // Assign weight type
     Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight->dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
