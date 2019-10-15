@@ -576,57 +576,76 @@ def test_conv2d_int8_intrinsics():
         assembly = lib.get_source("asm")
         return assembly
 
-    # compile conv2d for x86 (skylake) and test assembly contains *pmadd* instructions
-    target = "llvm -mcpu=skylake-avx512"
-    name = "llvm.x86.avx512.pmaddubs.w.512"
-    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
-    if llvm_id != 0:
-        fast_int8_dtypes = ('uint8', 'int8', 'int32')
-        # Sweep the input channels to check int8 robustness
-        for ic in range(1, 24):
-            asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW", kernel_layout='OIHW',
+    def has_fast_int8_instruction(asm, target):
+        intel_device_type = None
+        if 'skylake-avx512' in target:
+            return "pmaddubs" in asm
+        elif 'cascadelake' in target:
+            return "vpdpbusd" in asm
+        else:
+            assert False, "Target should be Skylake or Cascadelake"
+
+    # compile conv2d for x86 (skylake, cascadelake) and test assembly contains *pmadd* instructions
+    # targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    targets = ["llvm -mcpu=skylake-avx512"]
+    name_skylake = "llvm.x86.avx512.pmaddubs.w.512"
+    name_cascadelake = 'llvm.x86.avx512.vpdpbusd.512'
+    llvm_id_skylake = tvm.codegen.llvm_lookup_intrinsic_id(name_skylake)
+    llvm_id_cascadelake = tvm.codegen.llvm_lookup_intrinsic_id(name_cascadelake)
+    for target in targets:
+        if llvm_id_skylake != 0 and llvm_id_cascadelake != 0:
+            fast_int8_dtypes = ('uint8', 'int8', 'int32')
+            # Sweep the input channels to check int8 robustness
+            # Input channels should be a multiple of 4 internally.
+            for ic in [1, 4, 6]:
+                asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW",
+                               kernel_layout='OIHW',
+                               dtypes=fast_int8_dtypes)
+                assert has_fast_int8_instruction(asm, target)
+
+            for ic in [1, 4, 6]:
+                asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC",
+                               kernel_layout='HWIO',
+                               dtypes=fast_int8_dtypes)
+                assert has_fast_int8_instruction(asm, target)
+
+
+            # Sweep the output channels to check int8 robustness
+            # Output channels should be a multiple of 16 internally.
+            for oc in [4, 16, 20]:
+                asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW",
+                               kernel_layout='OIHW',
+                               dtypes=fast_int8_dtypes)
+                assert has_fast_int8_instruction(asm, target)
+
+            for oc in [4, 16, 20]:
+                asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC",
+                               kernel_layout='HWIO',
+                               dtypes=fast_int8_dtypes)
+                assert has_fast_int8_instruction(asm, target)
+
+            # Check that both non-divisible oc and ic work
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
                            dtypes=fast_int8_dtypes)
-            assert "pmaddubs" in asm
+            assert has_fast_int8_instruction(asm, target)
 
-        for ic in range(1, 24):
-            asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
                            dtypes=fast_int8_dtypes)
-            assert "pmaddubs" in asm
+            assert has_fast_int8_instruction(asm, target)
 
+            # Ensure that code is generated when datatypes are not HW supported.
+            dtypes = ('int8', 'int8', 'int32')
+            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=dtypes)
+            # Check that intrinisic is not present in the assembly.
+            assert not has_fast_int8_instruction(asm, target)
 
-        # Sweep the output channels to check int8 robustness
-        for oc in range(2, 24):
-            asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW", kernel_layout='OIHW',
-                           dtypes=fast_int8_dtypes)
-            assert "pmaddubs" in asm
-
-        for oc in range(2, 24):
-            asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                           dtypes=fast_int8_dtypes)
-            assert "pmaddubs" in asm
-
-        # Check that both non-divisible oc and ic work
-        asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
-                       dtypes=fast_int8_dtypes)
-        assert "pmaddubs" in asm
-
-        asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                       dtypes=fast_int8_dtypes)
-        assert "pmaddubs" in asm
-
-        # Ensure that code is generated when datatypes are not HW supported.
-        dtypes = ('int8', 'int8', 'int32')
-        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                       dtypes=dtypes)
-        # Check that intrinisic is not present in the assembly.
-        assert "pmaddubs" not in asm
-
-        # Ensure that code is generated when datatypes are not HW supported.
-        dtypes = ('uint8', 'uint8', 'int32')
-        asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                       dtypes=dtypes)
-        # Check that intrinisic is not present in the assembly.
-        assert "pmaddubs" not in asm
+            # Ensure that code is generated when datatypes are not HW supported.
+            dtypes = ('uint8', 'uint8', 'int32')
+            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                           dtypes=dtypes)
+            # Check that intrinisic is not present in the assembly.
+            assert not has_fast_int8_instruction(asm, target)
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
