@@ -47,7 +47,7 @@
 #include <tuple>
 
 #include "low_level_device.h"
-#include "device/utvm_runtime.h"
+#include "host_driven/utvm_runtime.h"
 #include "target_data_layout_encoder.h"
 
 namespace tvm {
@@ -97,7 +97,9 @@ class MicroSession : public ModuleNode {
                      const std::string& server_addr,
                      int port);
 
-  void BakeSession(const std::string& binary);
+  void BakeSession(const std::string& binary_path);
+
+  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
 
   /*!
    * \brief ends the session by destructing the low-level device and its allocators

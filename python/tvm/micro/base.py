@@ -119,13 +119,33 @@ class Session:
         print('[END SRC]')
 
         paths = [path for path in find_include_path()]
-        paths += ["/home/pratyush/Code/tvm/src/runtime/micro/device"]
-        child_env = copy.deepcopy(os.environ)
-        child_env["LD_LIBRARY_PATH"] += ":" + ":".join(paths)
+        #print(paths)
+        #input()
+        #paths += ["/home/pratyush/Code/tvm/src/runtime/micro/host_driven"]
+        paths += [_get_micro_device_dir()]
 
         print('compiling bin')
+        compile_cmd = [
+                'arm-none-eabi-gcc',
+                'src/main.o',
+                '-static',
+                '-mcpu=cortex-m7',
+                '-mlittle-endian',
+                '-mfloat-abi=hard',
+                '-mfpu=fpv5-sp-d16',
+                '-Wl,--gc-sections',
+                '-Wl,--print-gc-sections',
+                '-Wl,--cref,-Map=blinky.map',
+                '-c',
+                '-L',
+                '.',
+                '-T',
+                'UTVM_STM32F746ZGTx_FLASH.ld',
+                '-o',
+                'blinky.elf'
+                ]
         proc = subprocess.Popen(
-                ["make", "blinky.elf"],
+                ['make', 'clean'],
                 cwd=nucleo_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT)
@@ -134,13 +154,58 @@ class Session:
             msg = "Compilation error:\n"
             msg += out.decode("utf-8")
             raise RuntimeError(msg)
+        proc = subprocess.Popen(
+                ['make', 'blinky.elf'],
+                cwd=nucleo_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT)
+
+
+        #['arm-none-eabi-gcc',
+        #        '-std=c11',
+        #        '-Wall',
+        #        '-Wextra',
+        #        '--pedantic',
+        #        '-Wa,-aghlms=src/main.lst',
+        #        '-fstack-usage',
+        #        '-mcpu=cortex-m7',
+        #        '-mlittle-endian',
+        #        '-mfloat-abi=hard',
+        #        '-mfpu=fpv5-sp-d16',
+        #        '-O0',
+        #        '-g',
+        #        '-gdwarf-5',
+        #        '-nostartfiles',
+        #        '-nodefaultlibs',
+        #        '-nostdlib',
+        #        '-fdata-sections',
+        #        '-ffunction-sections',
+        #        '-I', 'src',
+        #        '-I', '/home/pratyush/Code/tvm/include',
+        #        '-I', '/home/pratyush/Code/tvm/3rdparty/dlpack/include',
+        #        '-I', '/home/pratyush/Code/tvm/src/runtime/micro/device',
+        #        '-c',
+        #        '-o', 'src/main.o',
+        #        'src/main.c']
+        #proc = subprocess.Popen(
+        #        ['arm-none-eabi-gcc',],
+        #        cwd=nucleo_path,
+        #        stdout=subprocess.PIPE,
+        #        stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+        if proc.returncode != 0:
+            msg = "Compilation error:\n"
+            msg += out.decode("utf-8")
+            raise RuntimeError(msg)
         print('finished')
 
-        result_binary_path = f"{nucleo_path}/blinky.elf"
-        with open(result_binary_path, "rb") as f:
-            result_binary_contents = bytearray(f.read())
+        #result_binary_path = f"{nucleo_path}/blinky.elf"
+        #with open(result_binary_path, "rb") as f:
+        #    result_binary_contents = bytearray(f.read())
+        #_BakeSession(result_binary_contents);
 
-        _BakeSession(result_binary_contents);
+        result_binary_path = f"{nucleo_path}/src/main.o"
+        _BakeSession(result_binary_path);
 
     def add_module(self, c_mod):
         self.op_modules.append(c_mod)
@@ -149,7 +214,7 @@ class Session:
         include_str = "#include \"utvm_runtime.h\""
         split_idx = runtime_src.index(include_str) + len(include_str) + 2
         merged_src = runtime_src[:split_idx] + op_srcs + runtime_src[split_idx:]
-        merged_src += "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n"
+        #merged_src += "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n"
 
         return merged_src
 
@@ -233,7 +298,7 @@ class Session:
 
 
 def _get_micro_device_dir():
-    """Get directory path for uTVM runtime source files.
+    """Get directory path for uTVM host-driven runtime source files.
 
     Return
     ------
@@ -242,7 +307,7 @@ def _get_micro_device_dir():
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
-                                    "src", "runtime", "micro", "device")
+                                    "src", "runtime", "micro", "host_driven")
     return micro_device_dir
 
 

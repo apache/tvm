@@ -74,8 +74,10 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
             continue
         entry_name = tokens[0]
         entry_size = int(tokens[1])
-        if entry_name in sections_to_sum:
-            section_size += entry_size
+        for section_name in sections_to_sum:
+            if entry_name.startswith(section_name):
+                section_size += entry_size
+                break
 
     # NOTE: For some reason, the size of the BSS section on the RISC-V
     # GCC is sometimes reported to be smaller than it is, so we need to adjust
@@ -126,56 +128,125 @@ def tvm_callback_relocate_binary(
         the relocated binary
     """
     tmp_dir = util.tempdir()
-    rel_obj_path = tmp_dir.relpath("relocated.o")
-    ld_script_contents = ""
-    # TODO(weberlo): There should be a better way to configure this for different archs.
-    if "riscv" in toolchain_prefix:
-        ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
+    #rel_obj_path = tmp_dir.relpath("relocated.o")
+    rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
+
+    #ld_script_contents = ""
+    ## TODO(weberlo): There should be a better way to configure this for different archs.
+    #if "riscv" in toolchain_prefix:
+    #    ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
+    print(f'binary path: {binary_path}')
+
     # TODO(weberlo): Generate the script in a more procedural manner.
-    ld_script_contents += """
+    ld_script_contents = """
+/* Highest address of the user mode stack */
+_estack = 0x20050000;   /* end of RAM */
+
+/* Specify the memory areas */
+/*
+MEMORY
+{
+RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 320K
+FLASH (rx)     : ORIGIN = 0x8000000, LENGTH = 1024K
+}
+*/
+
+/* Define output sections */
 SECTIONS
 {
   . = %s;
-  . = ALIGN(8);
+  . = ALIGN(4);
   .text :
   {
+    . = ALIGN(4);
     *(.text)
-    . = ALIGN(8);
     *(.text*)
+    . = ALIGN(4);
   }
+
   . = %s;
-  . = ALIGN(8);
+  . = ALIGN(4);
   .rodata :
   {
+    . = ALIGN(4);
     *(.rodata)
-    . = ALIGN(8);
     *(.rodata*)
+    . = ALIGN(4);
   }
+
   . = %s;
-  . = ALIGN(8);
+  . = ALIGN(4);
   .data :
   {
+    . = ALIGN(4);
     *(.data)
-    . = ALIGN(8);
     *(.data*)
-    . = ALIGN(8);
-    *(.sdata)
+    . = ALIGN(4);
   }
+
   . = %s;
-  . = ALIGN(8);
+  . = ALIGN(4);
   .bss :
   {
+    . = ALIGN(4);
     *(.bss)
-    . = ALIGN(8);
     *(.bss*)
-    . = ALIGN(8);
-    *(.sbss)
+    . = ALIGN(4);
   }
 }
     """ % (text_addr, rodata_addr, data_addr, bss_addr)
+
+    print(ld_script_contents)
+
+
+#"""
+#SECTIONS
+#{
+#  . = %s;
+#  . = ALIGN(8);
+#  .text :
+#  {
+#    *(.text)
+#    . = ALIGN(8);
+#    *(.text*)
+#  }
+#  . = %s;
+#  . = ALIGN(8);
+#  .rodata :
+#  {
+#    *(.rodata)
+#    . = ALIGN(8);
+#    *(.rodata*)
+#  }
+#  . = %s;
+#  . = ALIGN(8);
+#  .data :
+#  {
+#    *(.data)
+#    . = ALIGN(8);
+#    *(.data*)
+#    . = ALIGN(8);
+#    *(.sdata)
+#  }
+#  . = %s;
+#  . = ALIGN(8);
+#  .bss :
+#  {
+#    *(.bss)
+#    . = ALIGN(8);
+#    *(.bss*)
+#    . = ALIGN(8);
+#    *(.sbss)
+#  }
+#}
+#    """ % (text_addr, rodata_addr, data_addr, bss_addr)
     rel_ld_script_path = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script_path, "w") as f:
         f.write(ld_script_contents)
+    ld_cmd = ' '.join(["{}ld".format(toolchain_prefix), binary_path,
+                                "-T", rel_ld_script_path,
+                                "-o", rel_obj_path])
+    print(f'runnin ld cmd: {ld_cmd}')
     ld_proc = subprocess.Popen(["{}ld".format(toolchain_prefix), binary_path,
                                 "-T", rel_ld_script_path,
                                 "-o", rel_obj_path],

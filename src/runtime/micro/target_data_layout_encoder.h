@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
 #include <vector>
-#include "device/utvm_runtime.h"
+#include "host_driven/utvm_runtime.h"
 
 namespace tvm {
 namespace runtime {

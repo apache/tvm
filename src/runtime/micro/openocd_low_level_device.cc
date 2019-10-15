@@ -48,16 +48,10 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     port_ = port;
     base_addr_ = base_addr;
     CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
-  }
 
-  void Connect() {
     socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
     socket_.cmd_builder() << "halt";
     socket_.SendCommand();
-    std::cout << "LOADING BINARY" << std::endl;
-    socket_.cmd_builder() << "load_image /home/pratyush/Code/nucleo-interaction-from-scratch/blinky.elf";
-    socket_.SendCommand();
-    std::cout << "FINISHED LOADING BINARY" << std::endl;
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
@@ -132,6 +126,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   }
 
   void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
+    std::cout << "here and writing " << std::dec << num_bytes << " bytes" << std::endl;
     if (num_bytes == 0) {
       return;
     }

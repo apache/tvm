@@ -18,11 +18,13 @@
  */
 
 /*!
+ *  Copyright (c) 2019 by Contributors
  * \file micro_session.cc
  */
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <memory>
 #include <stack>
 #include <tuple>
 #include <vector>
@@ -34,18 +36,18 @@ namespace tvm {
 namespace runtime {
 
 struct TVMMicroSessionThreadLocalEntry {
-  std::stack<ObjectPtr<MicroSession>> session_stack;
+  std::stack<std::shared_ptr<MicroSession>> session_stack;
 };
 
 typedef dmlc::ThreadLocalStore<TVMMicroSessionThreadLocalEntry> TVMMicroSessionThreadLocalStore;
 
-ObjectPtr<MicroSession>& MicroSession::Current() {
+std::shared_ptr<MicroSession>& MicroSession::Current() {
   TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
   CHECK_GT(entry->session_stack.size(), 0) << "No current session";
   return entry->session_stack.top();
 }
 
-void MicroSession::EnterWithScope(ObjectPtr<MicroSession> session) {
+void MicroSession::EnterWithScope(std::shared_ptr<MicroSession> session) {
   TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
   entry->session_stack.push(session);
 }
@@ -136,7 +138,7 @@ MicroSession::MicroSession() {
 
   // TODO: why do we need to start 0x1c8 bytes after the start of ram?
   //curr_start_offset = DevBaseOffset(0x200001C8);
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x20000000);
   size_t one_eighth_ram_size = 40000;
    section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
      .start = curr_start_offset,
@@ -299,10 +301,10 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   // TODO: figure out why it's not running anymore when we compile it with "-c"
   // instead of "-shared". we should be relocating the binary.
-  //std::cout << "do execution things: ";
-  //char tmp;
-  //std::cin >> tmp;
-  low_level_device()->Execute(utvm_main_loc, utvm_done_loc);
+  std::cout << "do execution things: ";
+  char tmp;
+  std::cin >> tmp;
+  //low_level_device()->Execute(utvm_main_loc, utvm_done_loc);
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
@@ -320,10 +322,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   rodata_section.size = GetSectionSize(binary_path, SectionKind::kRodata, toolchain_prefix_, kWordSize);
   data_section.size = GetSectionSize(binary_path, SectionKind::kData, toolchain_prefix_, kWordSize);
   bss_section.size = GetSectionSize(binary_path, SectionKind::kBss, toolchain_prefix_, kWordSize);
-  std::cout << "text size: " << std::hex << text_section.size << std::endl;
-  std::cout << "rodata size: " << std::hex << rodata_section.size << std::endl;
-  std::cout << "data size: " << std::hex << data_section.size << std::endl;
-  std::cout << "bss size: " << std::hex << bss_section.size << std::endl;
 
   text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
   rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
@@ -333,10 +331,10 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
         data_section.start != nullptr && bss_section.start != nullptr)
       << "not enough space to load module on device";
 
-  std::cout << "text start: " << std::hex << text_section.start.value() << std::endl;
-  std::cout << "rodata start: " << std::hex << rodata_section.start.value() << std::endl;
-  std::cout << "data start: " << std::hex << data_section.start.value() << std::endl;
-  std::cout << "bss start: " << std::hex << bss_section.start.value() << std::endl;
+  std::cout << "text start: " << text_section.start << std::endl;
+  std::cout << "rodata start: " << rodata_section.start << std::endl;
+  std::cout << "data start: " << data_section.start << std::endl;
+  std::cout << "bss start: " << bss_section.start << std::endl;
   std::string relocated_bin = RelocateBinarySections(
       binary_path,
       low_level_device_->ToDevPtr(text_section.start),
@@ -348,14 +346,9 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
   std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
   std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
-
-  std::cout << "writing text (size = " << std::dec << text_contents.size() << ")" << std::endl;
   low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
-  std::cout << "writing rodata (size = " << std::dec << rodata_contents.size() << ")" << std::endl;
   low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
-  std::cout << "writing data (size = " << std::dec << data_contents.size() << ")" << std::endl;
   low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
-  std::cout << "writing bss (size = " << std::dec << bss_contents.size() << ")" << std::endl;
   low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
   SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
 
@@ -449,6 +442,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 
   int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
   int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
+  std::cout << "writing byte_offset " << arr.byte_offset << std::endl;
   ARMTVMArray dev_arr = {
     .data = *((uint32_t*) &arr.data),
     .ctx = arr.ctx,
@@ -460,6 +454,15 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     .byte_offset = *((uint32_t*) &arr.byte_offset),
     .pad2 = 0,
   };
+
+  std::cout << "sizeof(ARMTVMArray): " << sizeof(ARMTVMArray) << std::endl;
+  std::cout << "data offs: " << (((uintptr_t) &(dev_arr.data)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "ctx offs: " << (((uintptr_t) &(dev_arr.ctx)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "ndim offs: " << (((uintptr_t) &(dev_arr.ndim)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "dtype offs: " << (((uintptr_t) &(dev_arr.dtype)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "strides offs: " << (((uintptr_t) &(dev_arr.strides)) - ((uintptr_t) &dev_arr)) << std::endl;
+  std::cout << "byte_offset offs: " << (((uintptr_t) &(dev_arr.byte_offset)) - ((uintptr_t) &dev_arr)) << std::endl;
+
 
   // Copy `arr`, update the copy's pointers to be device pointers, then
   // write the copy to `tvm_arr_slot`.
@@ -548,10 +551,10 @@ void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
 
 PackedFunc MicroSession::GetFunction(
     const std::string& name,
-    const ObjectPtr<Object>& sptr_to_self) {
+    const std::shared_ptr<ModuleNode>& sptr_to_self) {
   if (name == "enter") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      MicroSession::EnterWithScope(GetObjectPtr<MicroSession>(this));
+    return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+      MicroSession::EnterWithScope(std::dynamic_pointer_cast<MicroSession>(sptr_to_self));
     });
   } else if (name == "exit") {
     return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -590,7 +593,7 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     uint64_t base_addr = args[3];
     const std::string& server_addr = args[4];
     int port = args[5];
-    ObjectPtr<MicroSession> session = make_object<MicroSession>();
+    std::shared_ptr<MicroSession> session = std::make_shared<MicroSession>();
     //session->CreateSession(
     //    device_type, binary_path, toolchain_prefix, base_addr, server_addr, port);
     session->CreateSession(

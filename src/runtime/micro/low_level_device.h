@@ -66,8 +66,6 @@ class LowLevelDevice {
    */
   virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
 
-  virtual void Connect() = 0;
-
   // TODO(weberlo): Should we just give the device the *entire* memory layout
   // decided by the session?
 
