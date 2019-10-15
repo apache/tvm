@@ -355,7 +355,7 @@ TVM_REGISTER_API("relay._analysis.post_order_visit")
       });
   });
 
-// Implement bind.
+// Implement Bind.
 class ExprBinder : public ExprMutator, PatternMutator {
  public:
   explicit ExprBinder(const tvm::Map<Var, Expr>& args_map)
@@ -404,6 +404,41 @@ class ExprBinder : public ExprMutator, PatternMutator {
  private:
   const tvm::Map<Var, Expr>& args_map_;
 };
+
+// Implement Subst.
+class ExprSub : public ExprMutator, PatternMutator {
+ public:
+  explicit ExprSub(const tvm::Map<Var, Expr>& args_map)
+    : args_map_(args_map) {
+  }
+
+
+  Expr VisitExpr_(const VarNode* op) final {
+    auto id = GetRef<Var>(op);
+    auto it = args_map_.find(id);
+    if (it != args_map_.end()) {
+      return (*it).second;
+    } else {
+      return std::move(id);
+    }
+  }
+
+  Pattern VisitPattern(const Pattern& p) final {
+    return PatternMutator::VisitPattern(p);
+  }
+
+  Clause VisitClause(const Clause& c) final {
+    Pattern pat = VisitPattern(c->lhs);
+    return ClauseNode::make(pat, VisitExpr(c->rhs));
+  }
+
+ private:
+  const tvm::Map<Var, Expr>& args_map_;
+};
+
+Expr Subst(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
+  return ExprSub(args_map).VisitExpr(expr);
+}
 
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {

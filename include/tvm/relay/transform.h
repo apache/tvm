@@ -573,8 +573,19 @@ TVM_DLL Pass PrintIR();
 }  // namespace transform
 
 /*!
- * \brief Bind the free variables to a Relay expression. This is a helper
+ * \brief Subst the free variables to a Relay expression. This is a helper
  * function usually called by other pass functions to help optimizations.
+ *
+ * \param expr The input expression.
+ * \param binds The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Subst(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Subst, but when the input is a function, remove the param and replace all occurrence with the expression.
  *
  * \param expr The input expression.
  * \param binds The variable to expression map that will be used to help the

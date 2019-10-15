@@ -195,6 +195,14 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
   return else_branch;
 }
 
+using InlineCacheKey = std::vector<size_t>;
+InlineCacheKey* UpdateICK(InlineCacheKey* ick, const NDArray& v) {
+  for (auto x : v.Shape()) {
+    ick->push_back(x);
+  }
+  return ick;
+}
+
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
   VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host, const std::shared_ptr<VirtualMachine>& vm)
@@ -371,6 +379,17 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     this->last_register_ = true_register;
   }
 
+  Index GetCFuncIndex(const CachedFunc& cfunc) {
+    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+      auto idx = vm_->NewPackedFuncIndex();
+      context_->cached_funcs.push_back(cfunc);
+      context_->seen_funcs[cfunc->funcs[0]] = idx;
+      return idx;
+    } else {
+      return context_->seen_funcs[cfunc->funcs[0]];
+    }
+  }
+
   Index EmitGetShape(const TensorTypeNode* ttype, Index reg) {
     bool const_shape = true;
     std::vector<int64_t> shape;
@@ -417,14 +436,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // TODO(@icemelon9): handle heterogeneous target, such as cuda
     auto key = CCacheKeyNode::make(func, target_host_);
     auto cfunc = engine_->Lower(key);
-    auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->cached_funcs.size();
-      context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
-    } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
+    auto cfunc_index = GetCFuncIndex(cfunc);
+
     std::vector<Index> arg_regs{reg};
     int64_t ndim = ttype->shape.size();
     if (ndim == 0) {
@@ -434,7 +447,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
     Index shape_reg = last_register_;
     arg_regs.push_back(shape_reg);
-    Emit(Instruction::InvokePacked(op_index, 2, 1, arg_regs));
+    Emit(Instruction::InvokePacked(cfunc_index, 2, 1, arg_regs));
     return shape_reg;
   }
 
@@ -468,15 +481,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Lower shape function
     auto key = CCacheKeyNode::make(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
-    int op_index = -1;
-    if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
-      op_index = context_->cached_funcs.size();
-      context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
-    } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
-
+    auto cfunc_index = GetCFuncIndex(cfunc);
     // Prepare input and output registers
     std::vector<Index> shape_func_args;
     std::vector<Index> shape_regs;
@@ -495,6 +500,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
     for (auto t : cfunc->outputs) {
+      CHECK_GT(t->shape.size(), 0);
+      CHECK(t->shape[0].as<IntImm>());
       int64_t ndim = t->shape[0].as<IntImm>()->value;
       Emit(Instruction::AllocTensor({ndim}, t->dtype, NewRegister()));
       shape_func_args.push_back(last_register_);
@@ -503,7 +510,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     int arity = shape_func_args.size();
     int ret_count = shape_regs.size();
-    Emit(Instruction::InvokePacked(op_index, arity, ret_count, shape_func_args));
+    Emit(Instruction::InvokePacked(cfunc_index, arity, ret_count, shape_func_args));
 
     // Alloc return tensors given the shape regs
     std::vector<DataType> ret_dtypes;
@@ -558,9 +565,42 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     return ret_regs;
   }
 
+  bool IsDynamicCompute(const Expr& e) {
+    struct IsDynamicComputeVisitor : ExprVisitor {
+      bool b = true;
+      void VisitExpr_(const OpNode* op) override {
+        Op OP = GetRef<Op>(op);
+        static auto op_dynamic_compute = Op::GetAttr<TOpDynamicCompute>("TOpDynamicCompute");
+        CHECK_GT(op_dynamic_compute.count(OP), 0) << "TOpDynamicCompute not registered for " << OP;
+        b &= op_dynamic_compute[OP];
+      }
+    } dc;
+    dc(e);
+    return dc.b;
+  }
+
+  bool HasDynamicTensorType(const Type& t) {
+    struct HasDynamicTensorTypeVisitor : TypeVisitor {
+      bool b = false;
+      void VisitType_(const TensorTypeNode* op) override {
+        for (const auto& dim : op->shape) {
+          if (! dim.as<tvm::IntImm>()) {
+            b = true;
+          }
+        }
+      }
+    } dtt;
+    dtt(t);
+    return dtt.b;
+  }
+
+
   void EmitInvokePrimitive(const Function& func,
                            const std::vector<Index>& arg_registers,
                            const Type& ret_type) {
+
+    bool need_jit = !IsDynamicCompute(func) && HasDynamicTensorType(func->checked_type());
+
     std::vector<Index> unpacked_arg_regs;
     std::vector<Instruction> allocs;
 
@@ -607,20 +647,47 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // heterogeneous execution.
       LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
     }
-    auto key = CCacheKeyNode::make(func, target);
-    auto cfunc = engine_->Lower(key);
-    // TODO(jroesch): support lowered funcs for multiple targets
-    CHECK_EQ(cfunc->funcs.size(), 1);
-    auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->cached_funcs.size();
-      context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
-    } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
 
-    Emit(Instruction::InvokePacked(op_index, arity, return_count, unpacked_arg_regs));
+    if (! need_jit) {
+      auto key = CCacheKeyNode::make(func, target);
+      auto cfunc = engine_->Lower(key);
+      // TODO(jroesch): support lowered funcs for multiple targets
+      CHECK_EQ(cfunc->funcs.size(), 1);
+      auto cfunc_index = GetCFuncIndex(cfunc);
+      Emit(Instruction::InvokePacked(cfunc_index, arity, return_count, unpacked_arg_regs));
+    } else {
+      using JITMap = std::map<InlineCacheKey, PackedFunc>;
+      auto jit_map = JITMap();
+      auto type = Downcast<FuncType>(func->checked_type());
+      auto pf = PackedFunc([=](TVMArgs args, TVMRetValue* rv) mutable {
+        InlineCacheKey ick;
+        for (size_t i = 0; i < arity; ++i) {
+          NDArray arr = args[i];
+          UpdateICK(&ick, arr);
+        }
+        tvm::Map<Var, Expr> bindings;
+        if (jit_map.count(ick) == 0) {
+          auto func_type = Downcast<FuncType>(func->checked_type());
+          for (size_t i = 0; i < func->params.size(); ++i) {
+            auto int_shape = NDArray(args[i]).Shape();
+            tvm::Array<tvm::Expr> shape;
+            for (auto s : int_shape) {
+              shape.push_back(tvm::Expr(static_cast<int32_t>(s)));
+            }
+            auto dtype = Downcast<TensorType>(func_type->arg_types[i])->dtype;
+            bindings.Set(func->params[i], VarNode::make("new_var", TensorTypeNode::make(shape, dtype)));
+          }
+          auto new_func_untyped = Downcast<Function>(Subst(func, bindings));
+          auto new_func = Downcast<Function>(InferType(new_func_untyped, Module(), GlobalVar()));
+          auto key = CCacheKeyNode::make(new_func, target);
+          CompileEngine ce = CompileEngine::Global(); // WHY cant I use engine_?
+          auto jit_pf = ce->JIT(key);
+          jit_map.insert({ick, jit_pf});
+        }
+        jit_map.at(ick).CallPacked(args, rv);
+      });
+      Emit(vm_->InvokeNewPacked(pf, arity, return_count, unpacked_arg_regs));
+    }
 
     if (return_count > 1) {
       // return value is a tuple, we need to create a tuple
@@ -774,6 +841,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   TargetsMap targets_;
   /*! \brief Host target. */
   Target target_host_;
+  std::shared_ptr<VirtualMachine> vm_;
 };
 
 
@@ -871,7 +939,7 @@ void VMCompiler::Compile(Module mod,
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
     auto func = named_func.second;
-    VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+    VMFunctionCompiler func_compiler(&context_, targets_, target_host_, vm_);
     auto vm_func = func_compiler.Compile(gvar, func);
 
     size_t func_index = context_.global_map.at(gvar);
@@ -993,9 +1061,8 @@ void VMCompiler::LibraryCodegen() {
   } else {
     LOG(FATAL) << "relay.backend.build is not registered";
   }
-  size_t primitive_index = 0;
   for (auto cfunc : cached_funcs) {
-    vm_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    vm_->primitive_map.insert({cfunc->funcs[0]->name, context_.seen_funcs.at(cfunc->funcs[0])});
   }
 }
 

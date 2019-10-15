@@ -599,14 +599,15 @@ def test_jit():
     w = relay.var('w', shape=(6, 5))
     y = relay.nn.dense(x, w)
     mod["main"] = relay.Function([x, w], y)
-    vm = relay.vm.compile(mod, 'llvm')
-    vm.init(tvm.cpu())
+    vm = relay.create_executor('vm', ctx=tvm.cpu(), target="llvm", mod=mod)
 
     def _test(batch_size):
         x_np = np.random.uniform(size=(batch_size, 5)).astype('float32')
         w_np = np.random.uniform(size=(6, 5)).astype('float32')
         ref_np = np.dot(x_np, w_np.T)
-        check_result([x_np, w_np], ref_np, mod=mod)
+        rts_result = vm.evaluate()(x_np, w_np)
+        #tvm.testing.assert_allclose(ref_np, rts_result.asnumpy())
+
 
     _test(5)
     _test(10)

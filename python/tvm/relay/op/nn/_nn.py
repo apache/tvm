@@ -775,7 +775,7 @@ def _dense_shape_func(x, y, ndim):
     out = output_tensor(x.shape, x.dtype)
     for i in const_range(0, ndim-1):
         out[i] = x[i]
-    out[ndim-1] = y[1]
+    out[ndim-1] = y[0]
     return out
 
 @reg.register_shape_func("nn.dense", False)
