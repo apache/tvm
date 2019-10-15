@@ -110,43 +110,67 @@ class Session:
 
         merged_src = self.gen_merged_src(runtime_src, op_srcs)
 
-        print('writing src to main.c')
-        nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
-        with open(f"{nucleo_path}/src/main.c", "w") as f:
-            f.write(merged_src)
-        print('[BEGIN SRC]')
-        print(merged_src)
-        print('[END SRC]')
+        tmp_dir = _util.tempdir()
 
-        paths = [path for path in find_include_path()]
+        temp_src_path = tmp_dir.relpath("temp.c")
+        #nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
+        with open(temp_src_path, "w") as f:
+            f.write(merged_src)
+
+        paths = [('-I', path) for path in find_include_path()]
         #print(paths)
         #input()
         #paths += ["/home/pratyush/Code/tvm/src/runtime/micro/host_driven"]
-        paths += [_get_micro_device_dir()]
+        paths += [('-I', _get_micro_device_dir())]
+
 
         print('compiling bin')
+        #ld_cmd = [
+        #        'arm-none-eabi-gcc',
+        #        'src/main.o',
+        #        '-static',
+        #        '-mcpu=cortex-m7',
+        #        '-mlittle-endian',
+        #        '-mfloat-abi=hard',
+        #        '-mfpu=fpv5-sp-d16',
+        #        '-Wl,--gc-sections',
+        #        '-Wl,--print-gc-sections',
+        #        '-Wl,--cref,-Map=blinky.map',
+        #        '-c',
+        #        '-L',
+        #        '.',
+        #        '-T',
+        #        'UTVM_STM32F746ZGTx_FLASH.ld',
+        #        '-o',
+        #        'blinky.elf'
+        #        ]
         compile_cmd = [
                 'arm-none-eabi-gcc',
-                'src/main.o',
-                '-static',
+                '-std=c11',
+                '-Wall',
+                '-Wextra',
+                '--pedantic',
+                '-fstack-usage',
                 '-mcpu=cortex-m7',
                 '-mlittle-endian',
                 '-mfloat-abi=hard',
                 '-mfpu=fpv5-sp-d16',
-                '-Wl,--gc-sections',
-                '-Wl,--print-gc-sections',
-                '-Wl,--cref,-Map=blinky.map',
-                '-c',
-                '-L',
-                '.',
-                '-T',
-                'UTVM_STM32F746ZGTx_FLASH.ld',
-                '-o',
-                'blinky.elf'
-                ]
+                '-O0',
+                '-g',
+                '-gdwarf-5',
+                '-nostartfiles',
+                '-nodefaultlibs',
+                '-nostdlib',
+                '-fdata-sections',
+                '-ffunction-sections',
+                '-c']
+        for s, path in paths:
+            compile_cmd += [s, path]
+        temp_obj_path = tmp_dir.relpath('temp.o')
+        compile_cmd += ['-o', temp_obj_path, temp_src_path]
+
         proc = subprocess.Popen(
-                ['make', 'clean'],
-                cwd=nucleo_path,
+                compile_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
@@ -154,12 +178,6 @@ class Session:
             msg = "Compilation error:\n"
             msg += out.decode("utf-8")
             raise RuntimeError(msg)
-        proc = subprocess.Popen(
-                ['make', 'blinky.elf'],
-                cwd=nucleo_path,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT)
-
 
         #['arm-none-eabi-gcc',
         #        '-std=c11',
@@ -192,11 +210,11 @@ class Session:
         #        cwd=nucleo_path,
         #        stdout=subprocess.PIPE,
         #        stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-        if proc.returncode != 0:
-            msg = "Compilation error:\n"
-            msg += out.decode("utf-8")
-            raise RuntimeError(msg)
+        #(out, _) = proc.communicate()
+        #if proc.returncode != 0:
+        #    msg = "Compilation error:\n"
+        #    msg += out.decode("utf-8")
+        #    raise RuntimeError(msg)
         print('finished')
 
         #result_binary_path = f"{nucleo_path}/blinky.elf"
@@ -204,8 +222,8 @@ class Session:
         #    result_binary_contents = bytearray(f.read())
         #_BakeSession(result_binary_contents);
 
-        result_binary_path = f"{nucleo_path}/src/main.o"
-        _BakeSession(result_binary_path);
+        #result_binary_path = f"{nucleo_path}/src/main.o"
+        _BakeSession(temp_obj_path);
 
     def add_module(self, c_mod):
         self.op_modules.append(c_mod)
