@@ -22,6 +22,7 @@ import topi
 from topi.util import get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
+from ....hybrid import script
 
 # relu
 reg.register_schedule("nn.relu", schedule_injective)
@@ -768,3 +769,24 @@ reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 def compute_cross_entropy(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(topi.log(x) * y) / x.shape[0]]
+
+@script
+def _dense_shape_func(x, y, ndim):
+    out = output_tensor(x.shape, x.dtype)
+    for i in const_range(0, ndim-1):
+        out[i] = x[i]
+    out[ndim-1] = y[1]
+    return out
+
+@reg.register_shape_func("nn.dense", False)
+def dense_shape_func(_, args, ndims):
+    (x, y) = args
+    (ndim,) = ndims
+    assert int(ndim) == 2
+    assert int(x.shape[0]) == int(ndim)
+    assert int(y.shape[0]) == int(ndim)
+    assert x.dtype == y.dtype
+    return [_dense_shape_func(x, y, ndim)]
+
+reg.register_dynamic_compute("nn.dense", False)
+reg.register_is_stateful("nn.dense", False)

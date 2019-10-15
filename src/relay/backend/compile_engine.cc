@@ -54,7 +54,7 @@ struct IsDynamicVisitor : public TypeVisitor {
   bool is_dyn{false};
   void VisitType_(const TensorTypeNode* tt) {
     for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
+      if (!dim.as<IntImm>()) {
         is_dyn = true;
         break;
       }

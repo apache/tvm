@@ -761,6 +761,17 @@ void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
   }
 }
 
+Instruction VirtualMachine::InvokeNewPacked(const PackedFunc& pf, Index arity, Index output_size,
+                                            const std::vector<RegName>& args) {
+  size_t idx = NewPackedFuncIndex();
+  if (packed_funcs.size() <= idx) {
+    packed_funcs.resize(idx + 1);
+  }
+  CHECK(packed_funcs[idx] == nullptr);
+  packed_funcs[idx] = pf;
+  return Instruction::InvokePacked(idx, arity, output_size, args);
+}
+
 inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
   frames.back().register_file[r] = val;
 }
@@ -795,7 +806,7 @@ void VirtualMachine::RunLoop() {
     auto const& instr = this->code[this->pc];
     DLOG(INFO) << "Executing(" << pc << "): " << instr;
 #if USE_RELAY_DEBUG
-    InstructionPrint(std::cout, instr);
+    std::cout << instr << std::endl;
 #endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {

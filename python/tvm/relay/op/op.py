@@ -219,6 +219,15 @@ def register_pattern(op_name, pattern, level=10):
     """
     return register(op_name, "TOpPattern", pattern, level)
 
+
+def register_dynamic_compute(op_name, is_dynamic_compute, level=10):
+    return register(op_name, "TOpDynamicCompute", is_dynamic_compute, level)
+
+
+def register_is_stateful(op_name, is_stateful, level=10):
+    return register(op_name, "TOpIsStateful", is_stateful, level)
+
+
 def register_gradient(op_name, fgradient=None, level=10):
     """Register operator pattern for an op.
 

@@ -80,6 +80,11 @@ using TNonComputational = bool;
 using TShapeDataDependant = bool;
 
 /*!
+ * \brief Can we lower this even with dynamic shape?
+ */
+using TOpDynamicCompute = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention

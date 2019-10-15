@@ -44,6 +44,7 @@
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
+#include "../../ir/type_functor.h"
 #include "compiler.h"
 
 namespace tvm {
@@ -196,13 +197,14 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
 
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
-      : last_register_(0),
-        registers_num_(0),
-        engine_(CompileEngine::Global()),
-        context_(context),
-        targets_(targets),
-        target_host_(target_host) {}
+  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host, const std::shared_ptr<VirtualMachine>& vm)
+    : last_register_(0),
+      registers_num_(0),
+      engine_(CompileEngine::Global()),
+      context_(context),
+      targets_(targets),
+      target_host_(target_host),
+      vm_(vm) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
     size_t i = 0;
