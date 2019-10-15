@@ -110,12 +110,15 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     kh, kw, _, _ = get_const_tuple(kernel.shape)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":
-        if cfg.is_fallback:
-            _get_default_config(cfg, data, kernel, strides, padding, out_dtype, False, layout)
-        # specialize for INT8 1X1 conv on X86
-        return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
-                                                          padding, dilation, out_dtype)
+    # FIXME - https://github.com/dmlc/tvm/issues/4122
+    # _declaration_conv_nhwc_pack expects kernel layout to be HWOI. However, the tests use HWIO
+    # layout. Commenting until we have clarity about the nhwc_pack implementation from the author.
+    # elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":
+    #     if cfg.is_fallback:
+    #         _get_default_config(cfg, data, kernel, strides, padding, out_dtype, False, layout)
+    #     # specialize for INT8 1X1 conv on X86
+    #     return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
+    #                                                       padding, dilation, out_dtype)
     elif layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
