@@ -43,8 +43,9 @@ bool DequantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(input_dtype == Int(8) || input_dtype == UInt(8))
-    << "Input type should be one of the quantized types [unit8, int8] but was " <<  input_dtype;
+  CHECK(input_dtype == Int(8) || input_dtype == UInt(8) || input_dtype == Int(32))
+    << "Input type should be one of the quantized types [unit8, int8, int32] but was "
+    <<  input_dtype;
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type, output will always be float 32.
   reporter->Assign(types[1], TensorTypeNode::make(oshape, Float(32)));
