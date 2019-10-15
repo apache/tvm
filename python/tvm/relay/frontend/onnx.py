@@ -915,6 +915,7 @@ class Tile(Elemwise):
         reps = attr.pop('repeats')  # The number of times repeating the tensor data.
         return _op.tile(inputs[0], reps)
 
+
 class Erf(OnnxOpConverter):
     """Operator converter for Erf
     """
@@ -928,6 +929,18 @@ class Where(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         return _op.where(inputs[0], inputs[1], inputs[2])
+
+
+class ConstantOfShape(Elemwise):
+    """Operator converter for ConstantOfShape
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError("Expect minimum 2 inputs")
+        # reps: The number of times repeating the tensor data.
+        shape = tuple(params[inputs[0].name_hint].asnumpy().astype('int').tolist())
+        return _op.tile(inputs[1], reps=shape)
 
 
 # compatible operators that do NOT require any conversion.
@@ -1050,7 +1063,8 @@ def _get_convert_map(opset):
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
-        'Where': Where.get_converter(opset)
+        'Where': Where.get_converter(opset),
+        'ConstantOfShape': ConstantOfShape.get_converter(opset)
     }
 
 
@@ -1170,6 +1184,13 @@ class GraphProto(object):
                     self._params[i_name] = fill_value
                     self._nodes[i_name] = new_var(node.output[0], shape=(), dtype=dtype)
                     inputs.append(self._nodes[i_name])
+                if op_name == "ConstantOfShape":
+                    t_proto = self._parse_attr(node.attribute)["value"]
+                    i_name = node.output[0]
+                    self._params[i_name] = self._parse_array(t_proto)
+                    self._nodes[i_name] = new_var(node.input[0],
+                                                  shape=self._params[node.input[0]].shape,
+                                                  dtype=self._params[node.input[0]].dtype)
 
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}

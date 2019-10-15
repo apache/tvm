@@ -1326,6 +1326,38 @@ def test_where():
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
 
+def verify_constantofshape(indata, outdata, out_value):
+    in_tensor = onnx.helper.make_tensor(name='in',
+                                        data_type=TensorProto.FLOAT,
+                                        dims=indata.shape,
+                                        vals=indata)
+
+    value_tensor = onnx.helper.make_tensor(name='value',
+                                           data_type=TensorProto.FLOAT,
+                                           dims=[1],
+                                           vals=[out_value])
+
+    node = helper.make_node('ConstantOfShape', inputs=['in'], outputs=['out'], value=value_tensor,)
+    graph = helper.make_graph([node],
+                              'ConstantOfShape_test',
+                              inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))],
+                              initializer=[in_tensor])
+    model = helper.make_model(graph, producer_name='ConstantOfShape_test')
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_constantofshape():
+    # test cases: https://github.com/onnx/onnx/blob/master/docs/Operators.md#ConstantOfShape
+    # float ones
+    x = np.array([4, 3, 2]).astype(np.int64)
+    y = np.ones(x, dtype=np.float32)
+    value = 1
+    verify_constantofshape(x, y, out_value=value)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1374,3 +1406,4 @@ if __name__ == '__main__':
     test_tile()
     test_erf()
     test_where()
+    test_constantofshape()
