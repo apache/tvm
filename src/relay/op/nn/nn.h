@@ -36,7 +36,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
-  if (data == nullptr) return false;
+  if (data == nullptr || weight == nullptr) return false;
 
   const AttrType* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -52,7 +52,6 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reporter->Assign(types[1], TensorTypeNode::make(wshape, weight->dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
-    if (weight == nullptr) return false;
     Array<tvm::Expr> wshape = weight->shape;
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
