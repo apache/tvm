@@ -464,6 +464,7 @@ def _build_for_device(flist, target, target_host):
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
             func = ir_pass.ThreadSync(func, "warp")
+            func = ir_pass.InferFragment(func)
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]

@@ -533,6 +533,14 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
 
 /*!
+ * \brief Infer the TensorCore fragment infomation using tensor intrinsics
+ *
+ * \param stmt The stmt to be transformed
+ * \return Transformed stmt.
+ */
+LoweredFunc InferFragment(LoweredFunc f);
+
+/*!
  * \brief Verify if memory accesses are legal for a specific target device type.
  *
  *  In the case that tgt is cuda, if not all workload is bound with

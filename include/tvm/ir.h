@@ -1311,6 +1311,16 @@ constexpr const char* opengl_stage_scope = "opengl_stage_scope";
 constexpr const char* device_scope = "device_scope";
 
 /*!
+ * \brief Mark that the shape of TensorCore fragment
+ */
+constexpr const char* fragment_shape = "fragment_shape";
+
+/*!
+ * \brief Mark that the layout of TensorCore fragment
+ */
+constexpr const char* fragment_layout = "fragment_layout";
+
+/*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
  * \return true if it is a pragma key
@@ -1318,6 +1328,7 @@ constexpr const char* device_scope = "device_scope";
 inline bool IsPragmaKey(const std::string& attr_key) {
   return attr_key.compare(0, 7, "pragma_") == 0;
 }
+
 
 }  // namespace attr
 
@@ -1559,7 +1570,6 @@ constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
 constexpr const char* tvm_mma_sync = "tvm_mma_sync";
 constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
 constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
-constexpr const char* tvm_access_fragement = "tvm_access_fragement";
 
 }   // namespace intrinsic
 

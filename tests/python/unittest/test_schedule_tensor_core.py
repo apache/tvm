@@ -35,8 +35,8 @@ def intrin_wmma_load_matrix(scope):
         BA = ins[0]
         BC = outs[0]
         ib.emit(tvm.call_intrin('handle', 'tvm_load_matrix_sync',
-                                BC.data, BC.elem_offset // 256,
-                                BA.access_ptr('r'), n))
+                                BC.data, n, n, n, BC.elem_offset // 256,
+                                BA.access_ptr('r'), n, 'row_major'))
         return ib.get()
 
     return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
@@ -61,7 +61,7 @@ def intrin_wmma_gemm():
 
         def init():
             ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_intrin('handle', 'tvm_fill_fragment', BC.data, BC.elem_offset // 256, 0.0))
+            ib.emit(tvm.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
             return ib.get()
 
         def update():
@@ -91,8 +91,8 @@ def intrin_wmma_store_matrix():
         BA = ins[0]
         BC = outs[0]
         ib.emit(tvm.call_intrin('handle', 'tvm_store_matrix_sync',
-                                BA.data, BA.elem_offset // 256,
-                                BC.access_ptr('w'), n, 'mem_row_major'))
+                                BA.data, n, n, n, BA.elem_offset // 256,
+                                BC.access_ptr('w'), n, 'row_major'))
         return ib.get()
 
     return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})

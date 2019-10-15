@@ -161,5 +161,6 @@ REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
+REGISTER_PASS(InferFragment)
 }  // namespace ir
 }  // namespace tvm
