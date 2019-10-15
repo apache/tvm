@@ -27,6 +27,7 @@ from ....hybrid import script
 # relu
 reg.register_schedule("nn.relu", schedule_injective)
 reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
+reg.register_dynamic_compute("nn.relu", True)
 
 # softmax
 @reg.register_schedule("nn.softmax")

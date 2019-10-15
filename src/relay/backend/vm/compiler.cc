@@ -599,7 +599,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                            const std::vector<Index>& arg_registers,
                            const Type& ret_type) {
 
-    bool need_jit = !IsDynamicCompute(func) && HasDynamicTensorType(func->checked_type());
+    bool need_jit = HasDynamicTensorType(func->checked_type()) && !IsDynamicCompute(func);
 
     std::vector<Index> unpacked_arg_regs;
     std::vector<Instruction> allocs;
