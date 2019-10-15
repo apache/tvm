@@ -193,7 +193,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     using namespace arith;
     PVar<Expr> x, y;
     if ((floormod(x, y) != 0).Match(e)) {
-      return Mutate((truncmod(x, y) == 0).Eval());
+      return Mutate((truncmod(x, y) != 0).Eval());
     }
     return IRMutatorWithAnalyzer::Mutate_(op, e);
   }
