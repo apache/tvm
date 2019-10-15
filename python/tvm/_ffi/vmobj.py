@@ -44,9 +44,9 @@ except IMPORT_EXCEPT:
 
 class ObjectTag(object):
     """Type code used in API calls"""
-    TENSOR = 0
-    CLOSURE = 1
-    DATATYPE = 2
+    TENSOR = 1
+    CLOSURE = 2
+    DATATYPE = 3
 
 
 class Object(_ObjectBase):

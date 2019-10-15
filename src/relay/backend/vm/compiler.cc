@@ -885,7 +885,7 @@ void VMCompiler::Compile(Module mod,
 
   // populate constants
   for (auto data : context_.constants) {
-    vm_->constants.push_back(Object::Tensor(data));
+    vm_->constants.push_back(runtime::vm::Tensor(data));
   }
 
   LibraryCodegen();

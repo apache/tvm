@@ -98,8 +98,8 @@ std::string Serializer::Stats() const {
   // Get the number of constants and the shape of each of them.
   oss << "  Constant shapes (# " << vm_->constants.size() << "): [";
   for (const auto& it : vm_->constants) {
-    auto cell = it.AsTensor();
-    CHECK(cell.operator->());
+    auto* cell = it.as<runtime::vm::TensorObj>();
+    CHECK(cell != nullptr);
     runtime::NDArray data = cell->data;
     const auto& shape = data.Shape();
 
@@ -175,7 +175,8 @@ void Serializer::SerializeGlobalSection() {
 void Serializer::SerializeConstantSection() {
   std::vector<DLTensor*> arrays;
   for (const auto& obj : vm_->constants) {
-    auto cell = obj.AsTensor();
+    const auto* cell = obj.as<runtime::vm::TensorObj>();
+    CHECK(cell != nullptr);
     runtime::NDArray data = cell->data;
     arrays.push_back(const_cast<DLTensor*>(data.operator->()));
   }

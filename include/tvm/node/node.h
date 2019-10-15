@@ -42,7 +42,7 @@ namespace runtime {
 // forward declaration
 class NDArray;
 // forward declaration
-class Object;
+class ObjectRef;
 }  // namespace runtime
 
 /*!
@@ -63,7 +63,7 @@ class TVM_DLL AttrVisitor {
   virtual void Visit(const char* key, DataType* value) = 0;
   virtual void Visit(const char* key, NodeRef* value) = 0;
   virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  virtual void Visit(const char* key, runtime::Object* value) = 0;
+  virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
   template<typename ENum,
            typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
