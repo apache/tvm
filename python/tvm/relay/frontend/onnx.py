@@ -1191,7 +1191,7 @@ class GraphProto(object):
                     self._nodes[i_name] = new_var(node.input[0],
                                                   shape=self._params[node.input[0]].shape,
                                                   dtype=self._params[node.input[0]].dtype)
-
+                    inputs.append(self._nodes[i_name])
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}
                 attr['tvm_custom']['name'] = i_name
