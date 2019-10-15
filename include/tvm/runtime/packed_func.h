@@ -489,10 +489,10 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
     return NDArray(static_cast<NDArray::Container*>(value_.v_handle));
   }
-  operator Object() const {
-    if (type_code_ == kNull) return Object();
+  operator ObjectRef() const {
+    if (type_code_ == kNull) return ObjectRef(ObjectPtr<Object>(nullptr));
     TVM_CHECK_TYPE_CODE(type_code_, kObjectCell);
-    return Object(static_cast<ObjectCell*>(value_.v_handle));
+    return ObjectRef(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
@@ -566,7 +566,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
-  using TVMPODValue_::operator Object;
+  using TVMPODValue_::operator ObjectRef;
 
   // conversion operator.
   operator std::string() const {
@@ -662,7 +662,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
-  using TVMPODValue_::operator Object;
+  using TVMPODValue_::operator ObjectRef;
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
@@ -759,11 +759,12 @@ class TVMRetValue : public TVMPODValue_ {
     other.data_ = nullptr;
     return *this;
   }
-  TVMRetValue& operator=(Object other) {
+  TVMRetValue& operator=(ObjectRef other) {
     this->Clear();
     type_code_ = kObjectCell;
-    value_.v_handle = other.ptr_.data_;
-    other.ptr_.data_ = nullptr;
+    // move the handle out
+    value_.v_handle = other.data_.data_;
+    other.data_.data_ = nullptr;
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
@@ -862,7 +863,7 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kObjectCell: {
-        *this = other.operator Object();
+        *this = other.operator ObjectRef();
         break;
       }
       default: {
@@ -913,7 +914,7 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kObjectCell: {
-        static_cast<ObjectCell*>(value_.v_handle)->DecRef();
+        static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
     }
@@ -1160,6 +1161,10 @@ class TVMArgsSetter {
   void operator()(size_t i, const NDArray& value) const {  // NOLINT(*)
     values_[i].v_handle = value.data_;
     type_codes_[i] = kNDArrayContainer;
+  }
+  void operator()(size_t i, const ObjectRef& value) const {  // NOLINT(*)
+    values_[i].v_handle = value.data_.data_;
+    type_codes_[i] = kObjectCell;
   }
   void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {

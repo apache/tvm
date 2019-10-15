@@ -70,7 +70,7 @@ cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
 	python3 3rdparty/dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src verilog\
+	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src \
 	 examples/extension/src examples/graph_executor/src
 
 pylint:

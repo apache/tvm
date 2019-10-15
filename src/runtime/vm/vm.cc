@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/vm/vm.cc
  * \brief The Relay virtual machine.
  */
@@ -558,12 +557,12 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
-Object CopyTo(Object src, const DLContext& ctx) {
-  if (src->tag == ObjectTag::kTensor) {
-    auto tensor = ToNDArray(src);
+ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
+  if (const TensorObj* obj = src.as<TensorObj>()) {
+    auto tensor = obj->data;
     if (tensor->ctx.device_type != ctx.device_type) {
       auto copy = tensor.CopyTo(ctx);
-      return Object::Tensor(copy);
+      return Tensor(copy);
     } else {
       return src;
     }
@@ -585,7 +584,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto ctx = this->GetParamsContext();
 
       // Prepare the func args
-      std::vector<Object> func_args(param_names.size());
+      std::vector<ObjectRef> func_args(param_names.size());
       std::vector<size_t> empty_slots;
 
       for (size_t i = 0; i < param_names.size(); ++i) {
@@ -599,7 +598,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       CHECK_EQ(empty_slots.size(), args.size() - 1)
           << "The number of provided parameters doesn't match the number of arguments";
       for (int i = 1; i < args.size(); ++i) {
-        Object obj = CopyTo(args[i], ctx);
+        ObjectRef obj = CopyTo(args[i], ctx);
         func_args[empty_slots[i - 1]] = obj;
       }
 
@@ -660,7 +659,7 @@ void VirtualMachine::LoadParams(const std::string& params) {
   for (size_t i = 0; i < size; i++) {
     NDArray arr;
     CHECK(arr.Load(strm)) << "Invalid parameter file";
-    runtime::Object obj = runtime::Object::Tensor(arr);
+    ObjectRef obj = Tensor(arr);
     auto copy = CopyTo(obj, ctx);
     params_.emplace(std::make_pair(names[i], copy));
   }
@@ -682,7 +681,7 @@ Index VirtualMachine::PopFrame() {
   return call_stack_size;
 }
 
-void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
+void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args) {
   DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
 
   PushFrame(func.params.size(), this->pc + 1, func);
@@ -695,7 +694,7 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
   pc = 0;
 }
 
-Object VirtualMachine::Invoke(const VMFunction& func, const std::vector<Object>& args) {
+ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
   DLOG(INFO) << "Executing Function: " << std::endl << func;
 
   InvokeGlobal(func, args);
@@ -705,7 +704,7 @@ Object VirtualMachine::Invoke(const VMFunction& func, const std::vector<Object>&
   return return_register;
 }
 
-Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>& args) {
+ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
   auto func_index = this->global_map[name];
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index;
   return Invoke(this->functions[func_index], args);
@@ -713,11 +712,11 @@ Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
                                   Index arg_count, Index output_size,
-                                  const std::vector<Object>& args) {
+                                  const std::vector<ObjectRef>& args) {
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
-      arity += args[i].AsDatatype()->fields.size();
+    if (const auto* obj = args[i].as<DatatypeObj>()) {
+      arity += obj->fields.size();
     } else {
       ++arity;
     }
@@ -728,15 +727,16 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   int idx = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
-      auto dt_cell = args[i].AsDatatype();
+    if (const auto* dt_cell = args[i].as<DatatypeObj>()) {
       for (auto obj : dt_cell->fields) {
-        NDArray data = ToNDArray(obj);
-        setter(idx++, data);
+        const auto* tensor = obj.as<TensorObj>();
+        CHECK(tensor != nullptr);
+        setter(idx++, tensor->data);
       }
     } else {
-      NDArray data = ToNDArray(args[i]);
-      setter(idx++, data);
+      const auto* tensor = args[i].as<TensorObj>();
+      CHECK(tensor != nullptr);
+      setter(idx++, tensor->data);
     }
   }
 
@@ -761,18 +761,20 @@ void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
   }
 }
 
-inline void VirtualMachine::WriteRegister(Index r, const Object& val) {
+inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
   frames.back().register_file[r] = val;
 }
 
-inline Object VirtualMachine::ReadRegister(Index r) const {
+inline ObjectRef VirtualMachine::ReadRegister(Index r) const {
   return frames.back().register_file[r];
 }
 
 inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
   int32_t result;
   const auto& obj = ReadRegister(r);
-  NDArray array = ToNDArray(obj).CopyTo({kDLCPU, 0});
+  const auto* tensor = obj.as<TensorObj>();
+  CHECK(tensor != nullptr);
+  NDArray array = tensor->data.CopyTo({kDLCPU, 0});
 
   if (array->dtype.bits <= 8) {
     result = reinterpret_cast<int8_t*>(array->data)[0];
@@ -798,7 +800,7 @@ void VirtualMachine::RunLoop() {
 
     switch (instr.op) {
       case Opcode::Move: {
-        Object from_obj;
+        ObjectRef from_obj;
         from_obj = ReadRegister(instr.from);
         WriteRegister(instr.dst, from_obj);
         pc++;
@@ -817,12 +819,12 @@ void VirtualMachine::RunLoop() {
       case Opcode::LoadConsti: {
         auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, {kDLCPU, 0});
         reinterpret_cast<int64_t*>(tensor->data)[0] = instr.load_consti.val;
-        WriteRegister(instr.dst, Object::Tensor(tensor));
+        WriteRegister(instr.dst, Tensor(tensor));
         pc++;
         goto main_loop;
       }
       case Opcode::Invoke: {
-        std::vector<Object> args;
+        std::vector<ObjectRef> args;
         for (Index i = 0; i < instr.num_args; ++i) {
           args.push_back(ReadRegister(instr.invoke_args_registers[i]));
         }
@@ -833,7 +835,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::InvokePacked: {
         const auto& func = packed_funcs[instr.packed_index];
         const auto& arity = instr.arity;
-        std::vector<Object> args;
+        std::vector<ObjectRef> args;
         for (Index i = 0; i < arity; ++i) {
           args.push_back(ReadRegister(instr.packed_args[i]));
         }
@@ -847,8 +849,9 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::InvokeClosure: {
         auto object = ReadRegister(instr.closure);
-        const auto& closure = object.AsClosure();
-        std::vector<Object> args;
+        const auto* closure = object.as<ClosureObj>();
+
+        std::vector<ObjectRef> args;
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);
         }
@@ -861,10 +864,10 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetField: {
         auto object = ReadRegister(instr.object);
-        CHECK(object->tag == ObjectTag::kDatatype)
+        const auto* tuple = object.as<DatatypeObj>();
+        CHECK(tuple != nullptr)
             << "Object is not data type object, register " << instr.object << ", Object tag "
-            << static_cast<int>(object->tag);
-        const auto& tuple = object.AsDatatype();
+            << object->type_index();
         auto field = tuple->fields[instr.field_index];
         WriteRegister(instr.dst, field);
         pc++;
@@ -872,15 +875,15 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetTag: {
         auto object = ReadRegister(instr.get_tag.object);
-        CHECK(object->tag == ObjectTag::kDatatype)
+        const auto* data = object.as<DatatypeObj>();
+        CHECK(data != nullptr)
             << "Object is not data type object, register "
             << instr.get_tag.object << ", Object tag "
-            << static_cast<int>(object->tag);
-        const auto& data = object.AsDatatype();
+            << object->type_index();
         auto tag = data->tag;
         auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
-        WriteRegister(instr.dst, Object::Tensor(tag_tensor));
+        WriteRegister(instr.dst, Tensor(tag_tensor));
         pc++;
         goto main_loop;
       }
@@ -909,7 +912,7 @@ void VirtualMachine::RunLoop() {
         }
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, ctxs[0]);
-        auto obj = Object::Tensor(data);
+        auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
         goto main_loop;
@@ -920,7 +923,9 @@ void VirtualMachine::RunLoop() {
         cpu_ctx.device_id = 0;
 
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
-        NDArray shape_tensor = ToNDArray(shape_tensor_obj).CopyTo(cpu_ctx);
+        const auto* tensor = shape_tensor_obj.as<TensorObj>();
+        CHECK(tensor != nullptr);
+        NDArray shape_tensor = tensor->data.CopyTo(cpu_ctx);
 
         int64_t* dims = static_cast<int64_t*>(shape_tensor->data);
         auto num_dims = shape_tensor->shape[0];
@@ -928,27 +933,27 @@ void VirtualMachine::RunLoop() {
         shape.assign(dims, dims + num_dims);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, ctxs[0]);
-        auto obj = Object::Tensor(data);
+        auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
         goto main_loop;
       }
       case Opcode::AllocDatatype: {
-        std::vector<Object> fields;
+        std::vector<ObjectRef> fields;
         for (Index i = 0; i < instr.num_fields; ++i) {
           fields.push_back(ReadRegister(instr.datatype_fields[i]));
         }
-        Object obj = Object::Datatype(instr.constructor_tag, fields);
+        ObjectRef obj = Datatype(instr.constructor_tag, fields);
         WriteRegister(instr.dst, obj);
         pc++;
         goto main_loop;
       }
       case Opcode::AllocClosure: {
-        std::vector<Object> free_vars;
+        std::vector<ObjectRef> free_vars;
         for (Index i = 0; i < instr.num_freevar; i++) {
           free_vars.push_back(ReadRegister(instr.free_vars[i]));
         }
-        WriteRegister(instr.dst, Object::Closure(instr.func_index, free_vars));
+        WriteRegister(instr.dst, Closure(instr.func_index, free_vars));
         pc++;
         goto main_loop;
       }

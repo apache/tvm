@@ -582,7 +582,7 @@ def test_set_params():
     mod["main"] = relay.Function([x, w, b], y)
     vm = relay.vm.compile(mod, 'llvm')
     vm.init(tvm.cpu())
-    
+
     x_np = np.random.uniform(size=(10, 5)).astype('float32')
     w_np = np.random.uniform(size=(6, 5)).astype('float32')
     b_np = np.random.uniform(size=(6,)).astype('float32')

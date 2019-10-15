@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/runtime/vm.h
  * \brief A virtual machine for executing Relay programs.
  */
@@ -35,6 +34,75 @@
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+/*! \brief An object containing an NDArray. */
+class TensorObj : public Object {
+ public:
+  /*! \brief The NDArray. */
+  NDArray data;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kVMTensor;
+  static constexpr const char* _type_key = "vm.Tensor";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorObj, Object);
+};
+
+/*! \brief reference to tensor. */
+class Tensor : public ObjectRef {
+ public:
+  explicit Tensor(NDArray data);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
+};
+
+
+/*! \brief An object representing a structure or enumeration. */
+class DatatypeObj : public Object {
+ public:
+  /*! \brief The tag representing the constructor used. */
+  size_t tag;
+  /*! \brief The fields of the structure. */
+  std::vector<ObjectRef> fields;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kVMDatatype;
+  static constexpr const char* _type_key = "vm.Datatype";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DatatypeObj, Object);
+};
+
+/*! \brief reference to data type. */
+class Datatype : public ObjectRef {
+ public:
+  Datatype(size_t tag, std::vector<ObjectRef> fields);
+
+  /*!
+   * \brief construct a tuple object.
+   * \param fields The fields of the tuple.
+   * \return The constructed tuple type.
+   */
+  static Datatype Tuple(std::vector<ObjectRef> fields);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Datatype, ObjectRef, DatatypeObj);
+};
+
+/*! \brief An object representing a closure. */
+class ClosureObj : public Object {
+ public:
+  /*! \brief The index into the VM function table. */
+  size_t func_index;
+  /*! \brief The free variables of the closure. */
+  std::vector<ObjectRef> free_vars;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kVMClosure;
+  static constexpr const char* _type_key = "vm.Closure";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClosureObj, Object);
+};
+
+/*! \brief reference to closure. */
+class Closure : public ObjectRef {
+ public:
+  Closure(size_t func_index, std::vector<ObjectRef> free_vars);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
+};
 
 /*! \brief Magic number for NDArray list file  */
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
@@ -193,7 +261,7 @@ struct Instruction {
   static Instruction Ret(RegName return_reg);
   /*! \brief Construct a fatal instruction.
    *  \return The fatal instruction.
-   * */  
+   * */
   static Instruction Fatal();
   /*! \brief Construct a invoke packed instruction.
    *  \param packed_index The index of the packed function.
@@ -348,7 +416,7 @@ struct VMFrame {
   const Instruction* code;
 
   /*! \brief Statically allocated space for objects */
-  std::vector<Object> register_file;
+  std::vector<ObjectRef> register_file;
 
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
@@ -406,8 +474,11 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * \note The return value will be stored in the last output_size slots of args.
    */
-  virtual void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                            Index output_size, const std::vector<Object>& args);
+  virtual void InvokePacked(Index packed_index,
+                            const PackedFunc& func,
+                            Index arg_count,
+                            Index output_size,
+                            const std::vector<ObjectRef>& args);
 
   virtual ~VirtualMachine() {}
 
@@ -424,7 +495,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames;
   /*! \brief The global constant pool. */
-  std::vector<Object> constants;
+  std::vector<ObjectRef> constants;
   /*! \brief The fuction table index of the current function. */
   Index func_index;
   /*! \brief The current pointer to the code section. */
@@ -433,7 +504,7 @@ class VirtualMachine : public runtime::ModuleNode {
   Index pc;
 
   /*! \brief The special return register. */
-  Object return_register;
+  ObjectRef return_register;
 
   /*! \brief The set of TVM contexts the VM is currently executing on. */
   std::vector<TVMContext> ctxs;
@@ -449,13 +520,13 @@ class VirtualMachine : public runtime::ModuleNode {
    *  \param reg The register to write to.
    *  \param obj The object to write to.
    */
-  inline void WriteRegister(RegName reg, const Object& obj);
+  inline void WriteRegister(RegName reg, const ObjectRef& obj);
 
   /*! \brief Read a VM register.
    *  \param reg The register to read from.
    *  \return The read object.
    */
-  inline Object ReadRegister(RegName reg) const;
+  inline ObjectRef ReadRegister(RegName reg) const;
 
   /*! \brief Read a VM register and cast it to int32_t
    *  \param reg The register to read from.
@@ -468,15 +539,16 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param args The arguments to the function.
    * \return The object representing the result.
    */
-  Object Invoke(const VMFunction& func, const std::vector<Object>& args);
+  ObjectRef Invoke(const VMFunction& func, const std::vector<ObjectRef>& args);
 
   // TODO(@jroesch): I really would like this to be a global variable.
-  /*! \brief Invoke a VM function by name.
+  /*!
+   * \brief Invoke a VM function by name.
    * \param name The function's name.
    * \param args The arguments to the function.
    * \return The object representing the result.
    */
-  Object Invoke(const std::string& name, const std::vector<Object>& args);
+  ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
 
   VirtualMachine() : functions(), frames(), func_index(0), code(nullptr), pc(0) {}
 
@@ -513,11 +585,10 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * This does not begin execution of the VM.
    */
-  void InvokeGlobal(const VMFunction& func, const std::vector<Object>& args);
-
+  void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
 
   /*! \brief The parameter name to data mapping. */
-  std::unordered_map<std::string, Object> params_;
+  std::unordered_map<std::string, ObjectRef> params_;
 };
 
 }  // namespace vm
