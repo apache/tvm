@@ -382,6 +382,21 @@ def test_dense():
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_dense_dtype():
+    data_dtype = 'uint8'
+    weight_dtype = 'int8'
+    out_dtype = 'uint8'
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), data_dtype))
+    w = relay.var("w", relay.TensorType((2, w), weight_dtype))
+    y = relay.nn.dense(x, w, units=2, out_dtype=out_dtype)
+    assert "units=2" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, 2), out_dtype)
+    assert run_infer_type(yy.args[0]).checked_type.dtype == 'uint8'
+    assert run_infer_type(yy.args[1]).checked_type.dtype == 'int8'
+
+
 def test_bitserial_dense():
     m, k = tvm.var("m"), tvm.var("k")
     x = relay.var("x", relay.TensorType((m, k), "int16"))
@@ -405,3 +420,4 @@ if __name__ == "__main__":
     test_batch_norm()
     test_dense()
     test_bitserial_dense()
+    test_dense_dtype()
