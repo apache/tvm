@@ -49,7 +49,7 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         .describe("The scale of the output tensor.");
     TVM_ATTR_FIELD(output_zero_point)
         .describe("The zero point of the output tensor.");
-    TVM_ATTR_FIELD(rounding).set_default("TONEAREST")
+    TVM_ATTR_FIELD(rounding).set_default("UPWARD")
         .describe("Defines the rounding direction when the value is midway between"
                   "two representable values. There are two supported modes - UPWARD"
                   "or TONEAREST. Both modes behave exactly same except at the"

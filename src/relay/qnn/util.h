@@ -76,7 +76,7 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
                               double input_scale, int32_t input_zero_point, double output_scale,
                               int32_t output_zero_point, const DataType& out_dtype,
-                              const std::string& rounding = "TONEAREST") {
+                              const std::string& rounding = "UPWARD") {
   auto attrs = make_node<RequantizeAttrs>();
   attrs->input_scale = std::move(input_scale);
   attrs->input_zero_point = std::move(input_zero_point);
