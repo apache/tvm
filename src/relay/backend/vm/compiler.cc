@@ -34,6 +34,7 @@
 #include <topi/tags.h>
 #include <algorithm>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -205,7 +206,10 @@ InlineCacheKey* UpdateICK(InlineCacheKey* ick, const NDArray& v) {
 
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host, const std::shared_ptr<VirtualMachine>& vm)
+  VMFunctionCompiler(VMCompilerContext* context,
+                     TargetsMap targets,
+                     Target target_host,
+                     const std::shared_ptr<VirtualMachine>& vm)
     : last_register_(0),
       registers_num_(0),
       engine_(CompileEngine::Global()),
@@ -584,7 +588,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       bool b = false;
       void VisitType_(const TensorTypeNode* op) override {
         for (const auto& dim : op->shape) {
-          if (! dim.as<tvm::IntImm>()) {
+          if (!dim.as<tvm::IntImm>()) {
             b = true;
           }
         }
@@ -598,7 +602,6 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitInvokePrimitive(const Function& func,
                            const std::vector<Index>& arg_registers,
                            const Type& ret_type) {
-
     bool need_jit = HasDynamicTensorType(func->checked_type()) && !IsDynamicCompute(func);
 
     std::vector<Index> unpacked_arg_regs;
@@ -648,7 +651,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
     }
 
-    if (! need_jit) {
+    if (!need_jit) {
       auto key = CCacheKeyNode::make(func, target);
       auto cfunc = engine_->Lower(key);
       // TODO(jroesch): support lowered funcs for multiple targets
@@ -675,12 +678,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
               shape.push_back(tvm::Expr(static_cast<int32_t>(s)));
             }
             auto dtype = Downcast<TensorType>(func_type->arg_types[i])->dtype;
-            bindings.Set(func->params[i], VarNode::make("new_var", TensorTypeNode::make(shape, dtype)));
+            bindings.Set(func->params[i],
+                         VarNode::make("new_var", TensorTypeNode::make(shape, dtype)));
           }
           auto new_func_untyped = Downcast<Function>(Subst(func, bindings));
           auto new_func = Downcast<Function>(InferType(new_func_untyped, Module(), GlobalVar()));
           auto key = CCacheKeyNode::make(new_func, target);
-          CompileEngine ce = CompileEngine::Global(); // WHY cant I use engine_?
+          CompileEngine ce = CompileEngine::Global();  // WHY cant I use engine_?
           auto jit_pf = ce->JIT(key);
           jit_map.insert({ick, jit_pf});
         }
