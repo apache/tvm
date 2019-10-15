@@ -97,7 +97,7 @@ class MicroSession : public ModuleNode {
                      const std::string& server_addr,
                      int port);
 
-  void BakeSession(const std::string& binary_path);
+  //void BakeSession(const std::string& binary_path);
 
   BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
 
@@ -134,10 +134,6 @@ class MicroSession : public ModuleNode {
    * \param args args to the packed function
    */
   void PushToExecQueue(DevPtr func, const TVMArgs& args);
-
-  DevPtr GetSymbolLoc(const std::string& sym_name) {
-    return symbol_map_[sym_name];
-  }
 
   //void EnqueueBinary(const std::string& binary_path);
 
@@ -189,7 +185,7 @@ class MicroSession : public ModuleNode {
   /*! \brief offset of the runtime exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
 
-  SymbolMap symbol_map_;
+  SymbolMap runtime_symbol_map_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation

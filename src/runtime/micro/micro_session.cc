@@ -207,10 +207,9 @@ void MicroSession::CreateSession(const std::string& device_type,
     LOG(FATAL) << "unsupported micro low-level device";
   }
 
-  //CHECK(!binary_path.empty()) << "uTVM runtime not initialized";
-  //runtime_bin_info_ = LoadBinary(binary_path, /* patch_dylib_pointers */ false);
-  //utvm_main_symbol_ = low_level_device()->ToDevOffset(symbol_map_["UTVMMain"]);
-  //utvm_done_symbol_ = low_level_device()->ToDevOffset(symbol_map_["UTVMDone"]);
+  runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
+  std::cout << runtime_symbol_map_["UTVMMain"].value() << std::endl;
+  std::cout << runtime_symbol_map_["utvm_task"].value() << std::endl;
 
   //if (device_type == "openocd") {
   //  // Set OpenOCD device's stack pointer.
@@ -219,25 +218,25 @@ void MicroSession::CreateSession(const std::string& device_type,
   //}
 
   // Patch workspace pointers to the start of the workspace section.
-  //DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
-  //DevBaseOffset workspace_end_offset = GetAllocator(SectionKind::kWorkspace)->max_end_offset();
-  //void* workspace_start_addr =
-  //    low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
-  //void* workspace_end_addr =
-  //    low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
+  DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
+  DevBaseOffset workspace_end_offset = GetAllocator(SectionKind::kWorkspace)->max_end_offset();
+  void* workspace_start_addr =
+      low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
+  void* workspace_end_addr =
+      low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
   // TODO(weberlo): A lot of these symbol writes can be converted into symbols
   // in the C source, where the symbols are created by the linker script we
   // generate in python.
-  //DevSymbolWrite(symbol_map_, "utvm_workspace_begin", workspace_start_addr);
-  //DevSymbolWrite(symbol_map_, "utvm_workspace_end", workspace_end_addr);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_begin", workspace_start_addr);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
 }
 
-void MicroSession::BakeSession(const std::string& binary_path) {
-  //symbol_map_ = SymbolMap(binary, toolchain_prefix_);
-  symbol_map_ = LoadBinary(binary_path, false).symbol_map;
-  std::cout << symbol_map_["UTVMMain"].value() << std::endl;
-  std::cout << symbol_map_["utvm_task"].value() << std::endl;
-}
+//void MicroSession::BakeSession(const std::string& binary_path) {
+//  //runtime_symbol_map_ = SymbolMap(binary, toolchain_prefix_);
+//  runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
+//  std::cout << runtime_symbol_map_["UTVMMain"].value() << std::endl;
+//  std::cout << runtime_symbol_map_["utvm_task"].value() << std::endl;
+//}
 
 // ARM and other manufacturers use the LSB of a function address to determine
 // whether it's a "thumb mode" function (TODO: figure out what that means).
@@ -289,10 +288,10 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     .num_args = (uint32_t) args.num_args,
   };
   // Write the task.
-  DevSymbolWrite(symbol_map_, "utvm_task", task);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
 
-  DevBaseOffset utvm_main_loc = DevBaseOffset(GetSymbolLoc("UTVMMain").value());
-  DevBaseOffset utvm_done_loc = DevBaseOffset(GetSymbolLoc("UTVMDone").value());
+  DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
+  DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
   if (kRequiresThumbModeBit) {
     utvm_main_loc += 1;
   }
@@ -480,11 +479,11 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 }
 
 void MicroSession::CheckDeviceError() {
-  int32_t return_code = DevSymbolRead<int32_t>(symbol_map_, "utvm_return_code");
+  int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
 
   if (return_code) {
     std::uintptr_t last_error =
-        DevSymbolRead<std::uintptr_t>(symbol_map_, "utvm_last_error");
+        DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
     std::string last_error_str;
     if (last_error) {
       DevBaseOffset last_err_offset = low_level_device()->ToDevOffset(DevPtr(last_error));
@@ -498,7 +497,7 @@ void MicroSession::CheckDeviceError() {
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
-  void* runtime_impl_addr = symbol_map_[func_name].cast_to<void*>();
+  void* runtime_impl_addr = runtime_symbol_map_[func_name].cast_to<void*>();
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
@@ -562,25 +561,6 @@ PackedFunc MicroSession::GetFunction(
   }
 }
 
-class MicroWrappedFunc {
- public:
-  MicroWrappedFunc(std::shared_ptr<MicroSession> session,
-                   DevPtr func_ptr) {
-    session_ = session;
-    func_ptr_ = func_ptr;
-  }
-
-  void operator()(TVMArgs args, TVMRetValue* rv) const {
-    session_->PushToExecQueue(func_ptr_, args);
-  }
-
- private:
-  /*! \brief reference to the session for this function (to keep the session alive) */
-  std::shared_ptr<MicroSession> session_;
-  /*! \brief offset of the function to be called */
-  DevPtr func_ptr_;
-};
-
 // create micro session and low-level device from Python frontend
 TVM_REGISTER_GLOBAL("micro._CreateSession")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -596,23 +576,6 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     session->CreateSession(
         "openocd", binary_path, "arm-none-eabi-", 0, "127.0.0.1", 6666);
     *rv = Module(session);
-    });
-
-TVM_REGISTER_GLOBAL("micro._BakeSession")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    const std::string& binary = args[0];
-
-    std::shared_ptr<MicroSession>& session = MicroSession::Current();
-    session->BakeSession(binary);
-    });
-
-TVM_REGISTER_GLOBAL("micro._GetFunction")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    const std::string& name = args[0];
-    std::shared_ptr<MicroSession>& session = MicroSession::Current();
-
-    DevPtr func_ptr = session->GetSymbolLoc(name);
-    *rv = PackedFunc(MicroWrappedFunc(session, func_ptr));
     });
 
 }  // namespace runtime

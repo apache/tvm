@@ -66,65 +66,50 @@ class MicroModuleNode final : public ModuleNode {
    */
   void InitMicroModule(const std::string& binary_path) {
     session_ = MicroSession::Current();
-    //binary_path_ = binary_path;
-    std::cout << "AYY" << std::endl;
-    //binary_info_ = session_->EnqueueBinary(binary_path_);
-    std::cout << "LMAO" << std::endl;
+    symbol_map_ = session_->LoadBinary(binary_path, true).symbol_map;
   }
 
   /*!
    * \brief runs selected function on the micro device
    * \param func_name name of the function to be run
-   * \param func_offset offset of the function to be run
+   * \param func_ptr offset of the function to be run
    * \param args type-erased arguments passed to the function
    */
-  void RunFunction(const std::string& func_name, DevBaseOffset func_offset, const TVMArgs& args) {
-    session_->PushToExecQueue(func_offset, args);
+  void RunFunction(DevPtr func_ptr, const TVMArgs& args) {
+    session_->PushToExecQueue(func_ptr, args);
   }
 
  private:
-  BinaryContents binary_contents_;
-  ///*! \brief module binary info */
-  //BinaryInfo binary_info_;
-  ///*! \brief path to module binary */
   //std::string binary_path_;
+  SymbolMap symbol_map_;
   /*! \brief global session pointer */
   ObjectPtr<MicroSession> session_;
 };
 
 class MicroWrappedFunc {
  public:
-  MicroWrappedFunc(MicroModuleNode* m,
-                   ObjectPtr<MicroSession> session,
-                   const std::string& func_name,
-                   DevBaseOffset func_offset) {
-    m_ = m;
+  MicroWrappedFunc(ObjectPtr<MicroSession> session,
+                   DevPtr func_ptr) {
     session_ = session;
-    func_name_ = func_name;
-    func_offset_ = func_offset;
+    func_ptr_ = func_ptr;
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
-    m_->RunFunction(func_name_, func_offset_, args);
+    session_->PushToExecQueue(func_ptr_, args);
   }
 
  private:
-  /*! \brief internal module */
-  MicroModuleNode* m_;
   /*! \brief reference to the session for this function (to keep the session alive) */
-  ObjectPtr<MicroSession> session_;
-  /*! \brief name of the function */
-  std::string func_name_;
+  std::shared_ptr<MicroSession> session_;
   /*! \brief offset of the function to be called */
-  DevBaseOffset func_offset_;
+  DevPtr func_ptr_;
 };
 
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
-  DevBaseOffset func_offset =
-      session_->low_level_device()->ToDevOffset(binary_contents_.binary_info.symbol_map[name]);
-  MicroWrappedFunc f(this, session_, name, func_offset);
+  DevPtr func_ptr = symbol_map_[name];
+  MicroWrappedFunc f(session_, func_ptr);
   return PackedFunc(f);
 }
 

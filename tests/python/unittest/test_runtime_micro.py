@@ -350,14 +350,14 @@ def test_arm_add():
         # the case, then we'll need to create all of the micro mods we want,
         # *then* call sess.bake, which should just execute the same Python code
         # as in micro/base.py, but with a trip to C++ in between.
-        #micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
-        #micro_func = micro_mod[func_name]
+        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+        micro_func = micro_mod[func_name]
 
-        sess.add_module(c_mod)
+        #sess.add_module(c_mod)
         print('baking session')
-        sess.bake()
+        #sess.bake()
         print(f'grabbing {func_name} from session')
-        micro_func = sess.get_func(func_name)
+        #micro_func = sess.get_func(func_name)
         print(f'grabbed it')
 
         ctx = tvm.micro_dev(0)
@@ -372,6 +372,7 @@ def test_arm_add():
         # also try loading in the original blinky program (or some slight
         # variant of it) to see if we're loading shit onto the device
         # correctly.
+        input('not gon work')
         micro_func(a, b, c)
         print('--------------------------------------------------------------------------------')
         print(c)

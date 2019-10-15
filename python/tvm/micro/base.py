@@ -68,10 +68,11 @@ class Session:
         #self._check_args(device_type, kwargs)
 
         # First, find and compile runtime library.
-        #tmp_dir = _util.tempdir()
-        #runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
-        #create_micro_lib(
-        #    runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
+        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
+        tmp_dir = _util.tempdir()
+        runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
+        create_micro_lib(
+            runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
 
         self.op_modules = []
 
@@ -83,7 +84,7 @@ class Session:
 
         print('creating session')
         self.module = _CreateSession(
-            self.device_type, "", self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
+            self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
         print('finished session init')
@@ -113,37 +114,13 @@ class Session:
         tmp_dir = _util.tempdir()
 
         temp_src_path = tmp_dir.relpath("temp.c")
-        #nucleo_path = "/home/pratyush/Code/nucleo-interaction-from-scratch"
         with open(temp_src_path, "w") as f:
             f.write(merged_src)
 
         paths = [('-I', path) for path in find_include_path()]
-        #print(paths)
-        #input()
-        #paths += ["/home/pratyush/Code/tvm/src/runtime/micro/host_driven"]
         paths += [('-I', _get_micro_device_dir())]
 
-
         print('compiling bin')
-        #ld_cmd = [
-        #        'arm-none-eabi-gcc',
-        #        'src/main.o',
-        #        '-static',
-        #        '-mcpu=cortex-m7',
-        #        '-mlittle-endian',
-        #        '-mfloat-abi=hard',
-        #        '-mfpu=fpv5-sp-d16',
-        #        '-Wl,--gc-sections',
-        #        '-Wl,--print-gc-sections',
-        #        '-Wl,--cref,-Map=blinky.map',
-        #        '-c',
-        #        '-L',
-        #        '.',
-        #        '-T',
-        #        'UTVM_STM32F746ZGTx_FLASH.ld',
-        #        '-o',
-        #        'blinky.elf'
-        #        ]
         compile_cmd = [
                 'arm-none-eabi-gcc',
                 '-std=c11',
@@ -179,111 +156,21 @@ class Session:
             msg += out.decode("utf-8")
             raise RuntimeError(msg)
 
-        #['arm-none-eabi-gcc',
-        #        '-std=c11',
-        #        '-Wall',
-        #        '-Wextra',
-        #        '--pedantic',
-        #        '-Wa,-aghlms=src/main.lst',
-        #        '-fstack-usage',
-        #        '-mcpu=cortex-m7',
-        #        '-mlittle-endian',
-        #        '-mfloat-abi=hard',
-        #        '-mfpu=fpv5-sp-d16',
-        #        '-O0',
-        #        '-g',
-        #        '-gdwarf-5',
-        #        '-nostartfiles',
-        #        '-nodefaultlibs',
-        #        '-nostdlib',
-        #        '-fdata-sections',
-        #        '-ffunction-sections',
-        #        '-I', 'src',
-        #        '-I', '/home/pratyush/Code/tvm/include',
-        #        '-I', '/home/pratyush/Code/tvm/3rdparty/dlpack/include',
-        #        '-I', '/home/pratyush/Code/tvm/src/runtime/micro/device',
-        #        '-c',
-        #        '-o', 'src/main.o',
-        #        'src/main.c']
-        #proc = subprocess.Popen(
-        #        ['arm-none-eabi-gcc',],
-        #        cwd=nucleo_path,
-        #        stdout=subprocess.PIPE,
-        #        stderr=subprocess.STDOUT)
-        #(out, _) = proc.communicate()
-        #if proc.returncode != 0:
-        #    msg = "Compilation error:\n"
-        #    msg += out.decode("utf-8")
-        #    raise RuntimeError(msg)
         print('finished')
 
-        #result_binary_path = f"{nucleo_path}/blinky.elf"
-        #with open(result_binary_path, "rb") as f:
-        #    result_binary_contents = bytearray(f.read())
-        #_BakeSession(result_binary_contents);
+        _BakeSession(temp_obj_path)
 
-        #result_binary_path = f"{nucleo_path}/src/main.o"
-        _BakeSession(temp_obj_path);
-
-    def add_module(self, c_mod):
-        self.op_modules.append(c_mod)
+    #def add_module(self, c_mod):
+    #    self.op_modules.append(c_mod)
 
     def gen_merged_src(self, runtime_src, op_srcs):
         include_str = "#include \"utvm_runtime.h\""
         split_idx = runtime_src.index(include_str) + len(include_str) + 2
         merged_src = runtime_src[:split_idx] + op_srcs + runtime_src[split_idx:]
-        #merged_src += "\nint main() {UTVMMain(); UTVMDone(); fadd(NULL, NULL, 0); TVMBackendAllocWorkspace(0, 0, 0, 0, 0); TVMBackendFreeWorkspace(0, 0, NULL); TVMAPISetLastError(NULL);}\n"
-
         return merged_src
 
-        #print(merged_src)
-        #print('--------------------------------------------------------------------------------')
-
-        ## TODO: figure out how to prevent DCE from kicking in without creating dummy calls.
-        ## TODO: splice `main` in *before* the end of the `extern C` block
-        #import re
-        #func_regex = re.compile(r' *(TVM_DLL)? *(int|int32_t|void|void\*|const char\*) *([a-zA-Z0-9_]+) *\((.*)\) *{? *')
-        #matches = []
-        #for line in merged_src.split('\n'):
-        #    match = func_regex.match(line)
-        #    if match is not None:
-        #        func_name = match.group(3)
-        #        args = match.group(4)
-        #        matches.append((func_name, args))
-
-        #method_calls = []
-        #for func_name, args in matches:
-        #    call_args = []
-        #    args = args.strip()
-        #    if len(args) != 0:
-        #        args = list(map(lambda s: s.strip(), args.split(',')))
-        #        for arg in args:
-        #            if arg.startswith('const char*'):
-        #                call_args.append('NULL')
-        #            elif arg.startswith('void*'):
-        #                call_args.append('NULL')
-        #            elif arg.startswith('int32_t'):
-        #                call_args.append('0')
-        #            elif arg.startswith('int'):
-        #                call_args.append('0')
-        #            else:
-        #                raise RuntimeError('ayy lmao')
-        #    call_args = ','.join(call_args)
-        #    method_calls.append(f'{func_name}({call_args});')
-        #print(method_calls)
-        #print('--------------------------------------------------------------------------------')
-        #input('look at dat source')
-        #return merged_src
-
-    def extract_method_sigs(self, merged_src):
-        #for line in merged_src.split('\n'):
-        #    if line.startswith('TVM_DLL'):
-        #        line = line[len('TVM_DLL'):]
-        #        print(line)
-        pass
-
-    def get_func(self, func_name):
-        return _GetFunction(func_name);
+    #def get_func(self, func_name):
+    #    return _GetFunction(func_name);
 
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
@@ -312,7 +199,6 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self._exit()
-        #self.openocd_process.kill()
 
 
 def _get_micro_device_dir():
@@ -386,6 +272,13 @@ def create_micro_lib(
         whether to include the device library header containing definitions of
         library functions.
     """
+    if toolchain_prefix == '':
+        create_host_micro_lib(obj_path, src_path, toolchain_prefix, options, include_dev_lib_header)
+    elif toolchain_prefix == 'arm-none-eabi-':
+        create_arm_micro_lib(obj_path, src_path, toolchain_prefix, options, include_dev_lib_header)
+
+def create_host_micro_lib(
+        obj_path, src_path, toolchain_prefix, options, include_dev_lib_header):
     def replace_suffix(s, new_suffix):
         if "." in os.path.basename(s):
             # There already exists an extension.
@@ -426,6 +319,69 @@ def create_micro_lib(
         src_path = temp_src_path
 
     _cc.create_shared(obj_path, src_path, options, compile_cmd)
+
+def create_arm_micro_lib(
+        obj_path, src_path, toolchain_prefix, options, include_dev_lib_header):
+    import subprocess
+    import os
+    import copy
+    from shutil import copyfile
+
+    from tvm._ffi.libinfo import find_include_path
+    from tvm.contrib import binutil
+
+    tmp_dir = _util.tempdir()
+    if include_dev_lib_header:
+        # Create a temporary copy of the source, so we can inject the dev lib
+        # header without modifying the original.
+        temp_src_path = tmp_dir.relpath("temp.c")
+        with open(src_path, "r") as f:
+            src_lines = f.read().splitlines()
+        src_lines.insert(0, "#include \"utvm_device_dylib_redirect.c\"")
+        with open(temp_src_path, "w") as f:
+            f.write("\n".join(src_lines))
+        src_path = temp_src_path
+
+    paths = [('-I', path) for path in find_include_path()]
+    paths += [('-I', _get_micro_device_dir())]
+
+    print('compiling bin')
+    compile_cmd = [
+            'arm-none-eabi-gcc',
+            '-std=c11',
+            '-Wall',
+            '-Wextra',
+            '--pedantic',
+            '-fstack-usage',
+            '-mcpu=cortex-m7',
+            '-mlittle-endian',
+            '-mfloat-abi=hard',
+            '-mfpu=fpv5-sp-d16',
+            '-O0',
+            '-g',
+            '-gdwarf-5',
+            '-nostartfiles',
+            '-nodefaultlibs',
+            '-nostdlib',
+            '-fdata-sections',
+            '-ffunction-sections',
+            '-c']
+    for s, path in paths:
+        compile_cmd += [s, path]
+    temp_obj_path = tmp_dir.relpath('temp.o')
+    compile_cmd += ['-o', obj_path, src_path]
+
+    proc = subprocess.Popen(
+            compile_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Compilation error:\n"
+        msg += out.decode("utf-8")
+        raise RuntimeError(msg)
+
+    print('finished')
 
 
 _init_api("tvm.micro", "tvm.micro.base")
