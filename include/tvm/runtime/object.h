@@ -253,6 +253,7 @@ class Object {
   template<typename>
   friend class ObjectPtr;
   friend class TVMRetValue;
+  friend class TVMObjectCAPI;
 };
 
 /*!

@@ -104,7 +104,7 @@ typedef enum {
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
-  kObjectCell = 14U,
+  kObjectHandle = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -549,13 +549,31 @@ TVM_DLL int TVMStreamStreamSynchronize(int device_type,
                                        TVMStreamHandle dst);
 
 /*!
- * \brief Get the tag from an object.
+ * \brief Get the type_index from an object.
  *
  * \param obj The object handle.
- * \param tag The tag of object.
+ * \param out_tindex the output type index.
  * \return 0 when success, -1 when failure happens
  */
-TVM_DLL int TVMGetObjectTag(TVMObjectHandle obj, int* tag);
+TVM_DLL int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
+
+/*!
+ * \brief Convert type key to type index.
+ * \param type_key The key of the type.
+ * \param out_tindex the corresponding type index.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
+
+/*!
+ * \brief Free the object.
+ *
+ * \param obj The object handle.
+ * \note Internally we decrease the reference counter of the object.
+ *       The object will be freed when every reference to the object are removed.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

@@ -491,7 +491,7 @@ class TVMPODValue_ {
   }
   operator ObjectRef() const {
     if (type_code_ == kNull) return ObjectRef(ObjectPtr<Object>(nullptr));
-    TVM_CHECK_TYPE_CODE(type_code_, kObjectCell);
+    TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
     return ObjectRef(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator TVMContext() const {
@@ -761,7 +761,7 @@ class TVMRetValue : public TVMPODValue_ {
   }
   TVMRetValue& operator=(ObjectRef other) {
     this->Clear();
-    type_code_ = kObjectCell;
+    type_code_ = kObjectHandle;
     // move the handle out
     value_.v_handle = other.data_.data_;
     other.data_.data_ = nullptr;
@@ -862,7 +862,7 @@ class TVMRetValue : public TVMPODValue_ {
             kNodeHandle, *other.template ptr<NodePtr<Node> >());
         break;
       }
-      case kObjectCell: {
+      case kObjectHandle: {
         *this = other.operator ObjectRef();
         break;
       }
@@ -913,7 +913,7 @@ class TVMRetValue : public TVMPODValue_ {
         static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;
       }
-      case kObjectCell: {
+      case kObjectHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
@@ -946,7 +946,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
-    case kObjectCell: return "ObjectCell";
+    case kObjectHandle: return "ObjectCell";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
@@ -1164,7 +1164,7 @@ class TVMArgsSetter {
   }
   void operator()(size_t i, const ObjectRef& value) const {  // NOLINT(*)
     values_[i].v_handle = value.data_.data_;
-    type_codes_[i] = kObjectCell;
+    type_codes_[i] = kObjectHandle;
   }
   void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {
