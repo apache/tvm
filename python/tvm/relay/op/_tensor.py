@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 import topi
 from .op import register_compute, register_schedule, register_pattern, register_shape_func
-from .op import schedule_injective, OpPattern
+from .op import schedule_injective, OpPattern, register_dynamic_compute
 from ...hybrid import script
 
 schedule_broadcast = schedule_injective
@@ -47,7 +47,9 @@ register_schedule("negative", schedule_broadcast)
 register_schedule("copy", schedule_broadcast)
 
 register_schedule("add", schedule_broadcast)
+register_dynamic_compute("add", True)
 register_schedule("subtract", schedule_broadcast)
+register_dynamic_compute("subtract", True)
 register_schedule("multiply", schedule_broadcast)
 register_schedule("divide", schedule_broadcast)
 register_schedule("power", schedule_injective)
@@ -55,10 +57,12 @@ register_schedule("mod", schedule_broadcast)
 register_schedule("logical_and", schedule_broadcast)
 register_schedule("logical_or", schedule_broadcast)
 register_schedule("equal", schedule_broadcast)
+register_dynamic_compute("equal", True)
 register_schedule("not_equal", schedule_broadcast)
 register_schedule("less", schedule_broadcast)
 register_schedule("less_equal", schedule_broadcast)
 register_schedule("greater", schedule_broadcast)
+register_dynamic_compute("greater", True)
 register_schedule("greater_equal", schedule_broadcast)
 register_schedule("maximum", schedule_injective)
 register_schedule("minimum", schedule_injective)

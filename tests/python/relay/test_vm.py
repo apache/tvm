@@ -606,7 +606,7 @@ def test_jit():
         w_np = np.random.uniform(size=(6, 5)).astype('float32')
         ref_np = np.dot(x_np, w_np.T)
         rts_result = vm.evaluate()(x_np, w_np)
-        #tvm.testing.assert_allclose(ref_np, rts_result.asnumpy())
+        tvm.testing.assert_allclose(ref_np, rts_result.asnumpy())
 
 
     _test(5)
@@ -614,4 +614,4 @@ def test_jit():
     _test(5)
 
 if __name__ == "__main__":
-    test_jit()
+    pytest.main([__file__])

@@ -279,6 +279,7 @@ reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 # bias_add
 reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
+reg.register_dynamic_compute("nn.bias_add", True)
 
 
 # max_pool2d
@@ -359,6 +360,7 @@ reg.register_pattern("nn.prelu", OpPattern.BROADCAST)
 
 # flatten
 reg.register_schedule("nn.batch_flatten", schedule_broadcast)
+reg.register_dynamic_compute("nn.batch_flatten", True)
 reg.register_pattern("nn.batch_flatten", OpPattern.INJECTIVE)
 
 
