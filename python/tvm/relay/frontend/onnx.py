@@ -654,6 +654,7 @@ class Slice(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        print(attr)
         if isinstance(attr['starts'], int):
             attr['starts'] = (attr['starts'],)
             attr['ends'] = (attr['ends'],)
@@ -688,6 +689,34 @@ class Slice(OnnxOpConverter):
                        transforms={'starts': 'begin',
                                    'ends': 'end'},
                        ignores=['axes'])(inputs, attr)
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        starts = params[get_name(inputs[1])].asnumpy()
+        ends = params[get_name(inputs[2])].asnumpy()
+
+        # Update the starts and ends according to axes if required.
+        if len(inputs) >= 4:
+            axes = params[get_name(inputs[3])].asnumpy()
+
+            if (max(axes + 1) != len(axes)):
+                new_axes = []
+                new_starts = []
+                new_ends = []
+                pop_index = 0
+                for i in range(max(axes) + 1):
+                    if i in axes:
+                        new_axes.append(i)
+                        new_starts.append(starts[pop_index])
+                        new_ends.append(ends[pop_index])
+                        pop_index += 1
+                    else:
+                        new_axes.append(i)
+                        new_starts.append(0)
+                        new_ends.append(np.iinfo(np.int32).max)
+                starts = new_starts
+                ends = new_ends
+        return _op.strided_slice(inputs[0], begin=starts, end=ends)
 
 class Gather(OnnxOpConverter):
     """ Operator converter for Gather.
@@ -847,6 +876,18 @@ class Softmax(OnnxOpConverter):
             attr['axis'] = 1
         return AttrCvt('softmax', transforms={'axis': ('axis', 1)})(inputs, attr, params)
 
+class OneHot(OnnxOpConverter):
+    """ Operator converter for OneHot.
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        print(inputs)
+        # set default value when axis is not set in the model
+        if 'axis' not in attr:
+            attr['axis'] = -1
+        print("UHOH ONEHOT")
+        return AttrCvt('one_hot', transforms={'axis': ('axis', 1)})(inputs, attr, params)
+
 class ConstantFill(OnnxOpConverter):
     """ Operator converter for ConstantFill.
     """
@@ -874,6 +915,20 @@ class ConstantFill(OnnxOpConverter):
         if 'extra_shape' in attr:
             shape = shape + attr.pop('extra_shape')
         return _op.full(inputs[0], shape)
+
+class ConstantOfShape(OnnxOpConverter):
+    """ Operator converter for ConstantOfShape.
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        shape = params[get_name(inputs[0])].asnumpy()
+        if 'value' in attr:
+            value = attr.pop('value')
+            dtype = value.dtype
+        else:
+            value = 0
+            dtype = 'float32'
+        return _op.full(value, shape=shape, dtype=dtype)
 
 class Sign(OnnxOpConverter):
     """ Operator converter for Sign.
@@ -948,6 +1003,7 @@ def _get_convert_map(opset):
         'ScaledTanh': ScaledTanh.get_converter(opset),
         'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
         'ConstantFill': ConstantFill.get_converter(opset),
+        'ConstantOfShape': ConstantOfShape.get_converter(opset),
         # 'GivenTensorFill'
         'FC': AttrCvt('dense', ignores=['axis', 'axis_w']),
         'Scale': Scale.get_converter(opset),
@@ -1001,6 +1057,7 @@ def _get_convert_map(opset):
         # softmax default axis is different in onnx
         'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
+        'OneHot': OneHot.get_converter(opset),
         # 'Hardmax'
         'Softsign': Softsign.get_converter(opset),
         'SoftPlus': SoftPlus.get_converter(opset),
