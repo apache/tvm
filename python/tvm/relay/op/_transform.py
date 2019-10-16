@@ -72,9 +72,11 @@ def _arange_shape_func(start, stop, step):
     out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
     return out
 
+
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
+
 
 @script
 def _concatenate_shape_func(inputs, axis):
@@ -91,6 +93,7 @@ def _concatenate_shape_func(inputs, axis):
             for j in const_range(len(inputs)):
                 out[i] += inputs[j][i]
     return out
+
 
 @_reg.register_shape_func("concatenate", False)
 def concatenate_shape_func(attrs, inputs, _):
@@ -164,10 +167,12 @@ def _reshape_shape_func(data_shape, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
+
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
     return [_reshape_shape_func(inputs[0], convert(newshape), out_ndims[0])]
+
 
 @script
 def _take_no_axis_shape_func(indices_shape, out_ndim):
@@ -175,6 +180,7 @@ def _take_no_axis_shape_func(indices_shape, out_ndim):
     for i in const_range(out_ndim):
         out[i] = indices_shape[i]
     return out
+
 
 @script
 def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
@@ -192,6 +198,7 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
             out[len(indices_shape)+i-1] = data_shape[i]
     return out
 
+
 @_reg.register_shape_func("take", False)
 def take_shape_func(attrs, inputs, out_ndims):
     """
@@ -207,6 +214,7 @@ def take_shape_func(attrs, inputs, out_ndims):
         assert 0 <= axis < data_ndim
         return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
+
 @script
 def _argwhere_shape_func_1d(condition):
     out = output_tensor((2, ), "int64")
@@ -216,6 +224,7 @@ def _argwhere_shape_func_1d(condition):
         if condition[i1] != 0:
             out[0] += int64(1)
     return out
+
 
 @script
 def _argwhere_shape_func_2d(condition):
@@ -228,6 +237,7 @@ def _argwhere_shape_func_2d(condition):
                 out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_3d(condition):
     out = output_tensor((2, ), "int64")
@@ -239,6 +249,7 @@ def _argwhere_shape_func_3d(condition):
                 if condition[i1, i2, i3] != 0:
                     out[0] += int64(1)
     return out
+
 
 @script
 def _argwhere_shape_func_4d(condition):
@@ -253,6 +264,7 @@ def _argwhere_shape_func_4d(condition):
                         out[0] += int64(1)
     return out
 
+
 @script
 def _argwhere_shape_func_5d(condition):
     out = output_tensor((2, ), "int64")
@@ -266,6 +278,7 @@ def _argwhere_shape_func_5d(condition):
                         if condition[i1, i2, i3, i4, i5] != 0:
                             out[0] += int64(1)
     return out
+
 
 @_reg.register_shape_func("argwhere", True)
 def argwhere_shape_func(attrs, inputs, out_ndims):

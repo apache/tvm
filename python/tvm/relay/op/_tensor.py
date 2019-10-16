@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 import topi
 from .op import register_compute, register_schedule, register_pattern, register_shape_func
-from .op import schedule_injective, OpPattern, register_dynamic_compute
+from .op import schedule_injective, OpPattern
 from ...hybrid import script
 
 schedule_broadcast = schedule_injective
