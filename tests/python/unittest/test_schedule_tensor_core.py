@@ -19,7 +19,7 @@ import numpy as np
 from topi.testing import conv2d_nhwc_python
 from tvm.contrib import nvcc
 
-VERIFY = False
+VERIFY = True
 
 
 def intrin_wmma_load_matrix(scope):
@@ -99,8 +99,8 @@ def intrin_wmma_store_matrix():
 
 
 def test_tensor_core_batch_matmal():
-    batch_size = 20
-    n = 2048
+    batch_size = 4
+    n = 512
     m, l = n, n
     assert (n % 16 == 0)
     assert (m % 16 == 0)
@@ -205,11 +205,11 @@ def test_tensor_core_batch_matmal():
 
 def test_tensor_core_batch_conv():
     # The sizes of inputs and filters
-    batch_size = 256
+    batch_size = 32
     height = 14
     width = 14
-    in_channels = 256
-    out_channels = 512
+    in_channels = 32
+    out_channels = 64
     kernel_h = 3
     kernel_w = 3
     pad_h = 1
