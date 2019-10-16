@@ -28,6 +28,7 @@
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
 #include <string>
+#include <unordered_map>
 #include "codegen_c.h"
 
 namespace tvm {

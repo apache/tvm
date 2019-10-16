@@ -508,8 +508,8 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \brief Lower attached storage access information.
  * Do this pass after all storage access analysis finish.
  *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
+ * \param func The device function to be lowered.
+ * \return Transformed function.
  */
 LoweredFunc LowerStorageAccessInfo(LoweredFunc func);
 
@@ -535,8 +535,8 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
 /*!
  * \brief Infer the TensorCore fragment infomation using tensor intrinsics
  *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
+ * \param f The device function to be lowered.
+ * \return Transformed function.
  */
 LoweredFunc InferFragment(LoweredFunc f);
 

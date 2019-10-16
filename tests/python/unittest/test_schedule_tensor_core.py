@@ -99,6 +99,13 @@ def intrin_wmma_store_matrix():
 
 
 def test_tensor_core_batch_matmal():
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+        print("skip because gpu does not support tensor core")
+        return
+
     batch_size = 4
     n = 512
     m, l = n, n
@@ -204,6 +211,13 @@ def test_tensor_core_batch_matmal():
 
 
 def test_tensor_core_batch_conv():
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+        print("skip because gpu does not support tensor core")
+        return
+
     # The sizes of inputs and filters
     batch_size = 32
     height = 14
@@ -363,9 +377,5 @@ def test_tensor_core_batch_conv():
 
 
 if __name__ == '__main__':
-    ctx = tvm.gpu(0)
-    if not nvcc.have_tensorcore(ctx.compute_version):
-        print("skip because gpu does not support tensor core")
-    else:
-        test_tensor_core_batch_matmal()
-        test_tensor_core_batch_conv()
+    test_tensor_core_batch_matmal()
+    test_tensor_core_batch_conv()

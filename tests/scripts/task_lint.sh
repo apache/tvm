@@ -30,19 +30,19 @@ trap cleanup 0
 echo "Check file types..."
 python3 tests/lint/check_file_type.py
 
-echo "Check ASF license header..."
-java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep "== File" > /tmp/$$.apache-rat.txt || true)
-if grep --quiet -E "File" /tmp/$$.apache-rat.txt; then
-    echo "Need to add ASF header to the following files."
-    echo "----------------File List----------------"
-    cat /tmp/$$.apache-rat.txt
-    echo "-----------------------------------------"
-    echo "Use the following steps to add the headers:"
-    echo "- Create file_list.txt in your text editor"
-    echo "- Copy paste the above content in file-list into file_list.txt"
-    echo "- python3 tests/lint/add_asf_header.py file_list.txt"
-    exit 1
-fi
+#echo "Check ASF license header..."
+#java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep "== File" > /tmp/$$.apache-rat.txt || true)
+#if grep --quiet -E "File" /tmp/$$.apache-rat.txt; then
+#    echo "Need to add ASF header to the following files."
+#    echo "----------------File List----------------"
+#    cat /tmp/$$.apache-rat.txt
+#    echo "-----------------------------------------"
+#    echo "Use the following steps to add the headers:"
+#    echo "- Create file_list.txt in your text editor"
+#    echo "- Copy paste the above content in file-list into file_list.txt"
+#    echo "- python3 tests/lint/add_asf_header.py file_list.txt"
+#    exit 1
+#fi
 
 echo "Check codestyle of c++ code..."
 make cpplint

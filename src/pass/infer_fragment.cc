@@ -119,7 +119,7 @@ class FragmentGetter : public IRVisitor {
 
 class FragmentChecker : public IRVisitor {
  public:
-  FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
+  explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
 
   void Visit_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
@@ -137,6 +137,7 @@ class FragmentChecker : public IRVisitor {
       CHECK(CheckShape(buffer_var_d, buffer_var_c));
     }
   }
+
  private:
   bool CheckShape(const Variable* buffer1, const Variable* buffer2) {
     CHECK(fragment_getter.fragments.count(buffer1));
@@ -144,15 +145,14 @@ class FragmentChecker : public IRVisitor {
     FragmentGetter::FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
     FragmentGetter::FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
-
   }
-  const FragmentGetter &fragment_getter;
 
+  const FragmentGetter &fragment_getter;
 };
 
 class InferFragmenter : public IRMutator {
  public:
-  InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
+  explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
 
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
@@ -174,6 +174,7 @@ class InferFragmenter : public IRMutator {
     }
     return stmt;
   }
+
  private:
   const FragmentGetter &fragment_getter;
 };

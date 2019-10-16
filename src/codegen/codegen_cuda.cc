@@ -389,11 +389,11 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
     std::string scope = alloc_storage_scope_.at(buffer);
     if (scope.find("wmma.") == 0) {
       if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-        CHECK(op->type.is_float() && op->type.bits() == 16)
-          << "Matrix_a and matrix_b only support half type for now";
+        CHECK(op->type == Float(16) || op->type == Int(8) || op->type == UInt(8))
+          << "Matrix_a and matrix_b only support half or char or unsigned char type for now";
       } else {
-        CHECK(op->type.is_float() && (op->type.bits() == 16 || op->type.bits() == 32))
-          << "Accumulator only support half and float type for now";
+        CHECK(op->type == Float(16) || op->type == Float(32) || op->type == Int(32))
+          << "Accumulator only support half, float and int type for now";
       }
       constant_size /= 256;
       PrintWmmaScope(scope, op->type, buffer, stream);
@@ -511,7 +511,8 @@ void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*
   PrintConst(op, os, this);
 }
 
-void CodeGenCUDA::PrintWmmaScope(const std::string &scope, Type t, const Variable* variable, std::ostream &os) {
+void CodeGenCUDA::PrintWmmaScope(const std::string &scope, Type t,
+    const Variable* variable, std::ostream &os) {
   std::stringstream type;
   PrintType(t, type);
   std::string shape_str = fragment_shapes[variable];
@@ -527,7 +528,8 @@ void CodeGenCUDA::PrintWmmaScope(const std::string &scope, Type t, const Variabl
        << shape_str << ", " << type.str() << ", nvcuda::wmma::" << layout_str <<">";
   } else if (scope == "wmma.accumulator") {
     need_mma_h_ = true;
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, " << shape_str << ", "<< type.str() << ">";
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, "
+       << shape_str << ", "<< type.str() << ">";
   }
 }
 
