@@ -460,11 +460,14 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.params = graph_codegen_->GetParams();
 
     auto lowered_funcs = graph_codegen_->GetLoweredFunc();
-    CHECK(lowered_funcs.size() != 0) << "no lowered funcs exist in the compiled module";
-    ret_.mod = tvm::build(
-      lowered_funcs,
-      target_host_,
-      BuildConfig::Current());
+    if (lowered_funcs.size() == 0) {
+      LOG(WARNING) << "no lowered funcs exist in the compiled module";
+    } else {
+      ret_.mod = tvm::build(
+        lowered_funcs,
+        target_host_,
+        BuildConfig::Current());
+    }
   }
 
  protected:
