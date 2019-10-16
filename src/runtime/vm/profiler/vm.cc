@@ -67,13 +67,26 @@ PackedFunc VirtualMachineDebug::GetFunction(
       os << "Total Duration " << total_duration << " us" << std::endl;
       *rv = os.str();
     });
+  } else if (name == "init") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size() % 2, 0);
+      std::vector<TVMContext> contexts;
+      for (int i = 0; i < args.size() / 2; ++i) {
+        TVMContext ctx;
+        int device_type = args[i * 2];
+        ctx.device_type = DLDeviceType(device_type);
+        ctx.device_id = args[i * 2 + 1];
+        contexts.push_back(ctx);
+      }
+      this->Init(contexts);
+    });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
   }
 }
 
-void VirtualMachineDebug::Init(const Executable* exec) {
-  VirtualMachine::Init(exec);
+void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
+  VirtualMachine::LoadExecutable(exec);
   CHECK(this->exec);
   for (auto kv : this->exec->primitive_map) {
     packed_index_map[kv.second] = kv.first;
@@ -81,12 +94,16 @@ void VirtualMachineDebug::Init(const Executable* exec) {
   }
 }
 
+void VirtualMachineDebug::Init(const std::vector<TVMContext>& ctxs) {
+  VirtualMachine::Init(ctxs);
+}
+
 void VirtualMachineDebug::InvokePacked(Index packed_index,
                                        const PackedFunc& func, Index arg_count,
                                        Index output_size,
                                        const std::vector<ObjectRef>& args) {
   CHECK(this->exec);
-  auto ctx = this->exec->GetParamsContext();
+  auto ctx = this->GetParamsContext();
   // warmup
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,
                                args);
@@ -108,7 +125,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
 
 runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
   std::shared_ptr<VirtualMachineDebug> vm = std::make_shared<VirtualMachineDebug>();
-  vm->Init(exec);
+  vm->LoadExecutable(exec);
   return runtime::Module(vm);
 }
 

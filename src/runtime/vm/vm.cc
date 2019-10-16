@@ -582,7 +582,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto func_index = gvit->second;
       const auto& vm_func = exec->functions[func_index];
       const auto& param_names = vm_func.params;
-      auto ctx = exec->GetParamsContext();
+      auto ctx = this->GetParamsContext();
 
       // Prepare the func args
       std::vector<ObjectRef> func_args(param_names.size());
@@ -605,10 +605,38 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 
       *rv = this->Invoke(vm_func, func_args);
     });
+  } else if (name == "init") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size() % 2, 0);
+      std::vector<TVMContext> contexts;
+      for (int i = 0; i < args.size() / 2; ++i) {
+        TVMContext ctx;
+        int device_type = args[i * 2];
+        ctx.device_type = DLDeviceType(device_type);
+        ctx.device_id = args[i * 2 + 1];
+        contexts.push_back(ctx);
+      }
+      this->Init(contexts);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
+}
+
+TVMContext VirtualMachine::GetParamsContext() const {
+  CHECK(!ctxs.empty()) << "Context has not been initialized yet."
+                       << "\n";
+
+  // Use the fallback device if no device index is available.
+  int fallback_device_type = static_cast<int>(ctxs[0].device_type);
+  // TODO(wweic): For heterogeneous execution, get device information from byte
+
+  const auto& cit =
+      std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
+        return fallback_device_type == static_cast<int>(c.device_type);
+      });
+  return (cit == ctxs.end() ? ctxs[0] : *cit);
 }
 
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
@@ -646,7 +674,7 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
   InvokeGlobal(func, args);
   RunLoop();
   // TODO(wweic) ctx could be obtained from the ctxs list.
-  auto alloc = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
+  auto alloc = MemoryManager::Global()->GetAllocator(ctxs[0]);
   DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B";
   return return_register;
 }
@@ -692,7 +720,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
-void VirtualMachine::Init(const Executable* exec) {
+void VirtualMachine::LoadExecutable(const Executable* exec) {
   CHECK(exec) << "The executable is not created yet.";
   this->exec = exec;
 
@@ -709,6 +737,11 @@ void VirtualMachine::Init(const Executable* exec) {
     }
     packed_funcs[packed_index] = lib.GetFunction(packed_name);
   }
+}
+
+
+void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
+  this->ctxs = ctxs;
 }
 
 inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
@@ -763,7 +796,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::LoadConst: {
         auto constant_obj = exec->constants[instr.const_index];
         // TODO(wweic) ctx could be obtained from the ctxs list.
-        auto device_obj = CopyTo(constant_obj, exec->ctxs[0]);
+        auto device_obj = CopyTo(constant_obj, ctxs[0]);
         WriteRegister(instr.dst, device_obj);
         pc++;
         goto main_loop;
@@ -863,8 +896,8 @@ void VirtualMachine::RunLoop() {
           shape[i] = instr.alloc_tensor.shape[i];
         }
         // TODO(wweic) ctx could be obtained from the ctxs list.
-        auto allocator = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
-        auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, exec->ctxs[0]);
+        auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, ctxs[0]);
         auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
@@ -885,8 +918,8 @@ void VirtualMachine::RunLoop() {
         auto shape = std::vector<int64_t>(shape_tensor->shape[0]);
         shape.assign(dims, dims + num_dims);
         // TODO(wweic) ctx could be obtained from the ctxs list.
-        auto allocator = MemoryManager::Global()->GetAllocator(exec->ctxs[0]);
-        auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, exec->ctxs[0]);
+        auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, ctxs[0]);
         auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
@@ -932,7 +965,7 @@ void VirtualMachine::RunLoop() {
 
 runtime::Module CreateVirtualMachine(const Executable* exec) {
   std::shared_ptr<VirtualMachine> vm = std::make_shared<VirtualMachine>();
-  vm->Init(exec);
+  vm->LoadExecutable(exec);
   return runtime::Module(vm);
 }
 

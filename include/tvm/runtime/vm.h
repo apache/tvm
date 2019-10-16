@@ -484,17 +484,6 @@ class Executable : public ModuleNode {
    */
   runtime::Module GetLib() const { return lib; }
 
-  /*!
-   * \brief Set the execution context for the executable.
-   *
-   * \param ctxs The list of TVMContext.
-   */
-  void SetContext(const std::vector<TVMContext>& ctxs);
-
-  /*! \brief Get device context for params.
-   */
-  TVMContext GetParamsContext() const;
-
   virtual ~Executable() {}
 
   const char* type_key() const final {
@@ -514,9 +503,6 @@ class Executable : public ModuleNode {
   std::unordered_map<std::string, Index> primitive_map;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
-
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs;
 };
 
 /*! \brief The virtual machine.
@@ -591,6 +577,9 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief The executable the VM will operate on. */
   const Executable* exec;
 
+  /*! \brief The set of TVM contexts the VM is currently executing on. */
+  std::vector<TVMContext> ctxs;
+
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
   /*! \brief Pop a frame off the call stack.
@@ -634,14 +623,23 @@ class VirtualMachine : public runtime::ModuleNode {
 
   VirtualMachine() : frames(), func_index(0), code(nullptr), pc(0), exec(nullptr) {}
 
-  /*! \brief Initialize the virtual machine using an executable.
+  /*! \brief load the executable for the virtual machine.
    *  \param exec The executable.
    */
-  void Init(const Executable* exec);
+  void LoadExecutable(const Executable* exec);
+
+  /*! \brief Initialize the virtual machine for a set of contexts.
+   *  \param contexts The set of TVM contexts.
+   */
+  void Init(const std::vector<TVMContext>& contexts);
 
   /*! \brief Run VM dispatch loop.
    */
   void RunLoop();
+
+  /*! \brief Get device context for params.
+   */
+  TVMContext GetParamsContext() const;
 
  private:
   /*! \brief Invoke a global setting up the VM state to execute.

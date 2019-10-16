@@ -24,7 +24,6 @@ import numpy as np
 
 import tvm
 from tvm import autotvm
-from tvm import TVMContext
 from tvm.relay import expr as _expr
 from . import _vm
 from . import vmobj as _obj
@@ -57,36 +56,9 @@ class Executable(object):
     """Relay VM executable"""
     def __init__(self, mod):
         self.mod = mod
-        self._set_context = self.mod["set_context"]
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_stats = self.mod["get_stats"]
-
-    def set_context(self, ctx):
-        """Initialize the context of the VM executable.
-
-        Parameters
-        ----------
-        ctx : Union[:py:class:`tvm.TVMContext`, List[py:class:`tvm.TVMContext`]]
-            The runtime context to run the code on.
-        """
-
-        if isinstance(ctx, TVMContext):
-            ctx = [ctx]
-        elif not isinstance(ctx, (list, tuple)):
-            raise ValueError("ctx has to be the type of TVMContext or a list of "
-                             "TVMContext")
-        # args[0], args[1] are used as the primary/fallback context type and id
-        # for heterogeneous execution.
-        args = []
-        for cur_ctx in ctx:
-            if not isinstance(cur_ctx, TVMContext):
-                raise ValueError("ctx has to be the type of TVMContext or a list "
-                                 "of TVMContext")
-            args.append(cur_ctx.device_type)
-            args.append(cur_ctx.device_id)
-
-        self._set_context(*args)
 
     @property
     def lib(self):
@@ -182,7 +154,19 @@ class VirtualMachine(object):
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
         self.mod = _vm._VirtualMachine(m)
+        self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
+
+    def init(self, ctx):
+        """Initialize the context in the VM.
+
+        Parameters
+        ----------
+        ctx : :py:class:`TVMContext`
+            The runtime context to run the code on.
+        """
+        args = [ctx.device_type, ctx.device_id]
+        self._init(*args)
 
     def invoke(self, func_name, *args):
         """Invoke a function.
@@ -344,8 +328,8 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         self.executable = compile(mod, target)
-        self.executable.set_context(ctx)
         self.vm = VirtualMachine(self.executable)
+        self.vm.init(ctx)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

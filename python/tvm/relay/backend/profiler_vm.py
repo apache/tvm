@@ -77,6 +77,7 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         super().__init__(mod)
         m = mod.module if isinstance(mod, vm.Executable) else mod
         self.mod = _vm._VirtualMachineDebug(m)
+        self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
         self._get_stat = self.mod["get_stat"]
 

@@ -27,8 +27,8 @@ def test_basic():
     target = 'llvm'
     ctx = tvm.cpu()
     exe = relay.profiler_vm.compile(mod, target, params=params)
-    exe.set_context(ctx)
     vm = relay.profiler_vm.VirtualMachineProfiler(exe)
+    vm.init(ctx)
 
     data = np.random.rand(1, 3, 224, 224).astype('float32')
     res = vm.invoke("main", [data])

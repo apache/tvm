@@ -28,17 +28,15 @@ from tvm.relay.prelude import Prelude
 from tvm.contrib import util
 from tvm.relay import testing
 
-def create_exec(f, ctx=tvm.cpu(), target="llvm", params=None):
+def create_exec(f, target="llvm", params=None):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
         executable = _vm.compile(mod, target=target, params=params)
-        executable.set_context(ctx)
         return executable
     else:
         assert isinstance(f, relay.Module), "expected mod as relay.Module"
         executable = _vm.compile(f, target=target, params=params)
-        executable.set_context(ctx)
         return executable
 
 
@@ -58,13 +56,13 @@ def run_network(mod,
         return result.asnumpy().astype(dtype)
 
     def get_serialized_output(mod, data, params, target, ctx, dtype='float32'):
-        vm = create_exec(mod, ctx, target, params=params)
+        vm = create_exec(mod, target, params=params)
         ser = serializer.Serializer(vm)
         code, lib = ser.serialize()
         deser = deserializer.Deserializer(code, lib)
         des_exec = deser.deserialize()
-        des_exec.set_context(ctx)
         des_vm = _vm.VirtualMachine(des_exec)
+        des_vm.init(ctx)
         result = des_vm.run(data)
         return result.asnumpy().astype(dtype)
 
@@ -147,6 +145,7 @@ def test_save_load():
     deser = deserializer.Deserializer(loaded_code, loaded_lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     res = veval(des_vm, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + x_data)
@@ -163,6 +162,7 @@ def test_const():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
     x_data = np.random.rand(10, 10).astype('float32')
     res = veval(des_vm, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + 1)
@@ -184,6 +184,7 @@ def test_if():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     # same
     res = veval(des_vm, x_data, x_data)
@@ -221,6 +222,7 @@ def test_loop():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm, i_data, accum_data)
     tvm.testing.assert_allclose(result.asnumpy(), sum(range(1, loop_bound + 1)))
@@ -239,6 +241,7 @@ def test_tuple():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm, (i_data, j_data))
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
@@ -261,6 +264,7 @@ def test_adt_list():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm)
     assert len(result) == 2
@@ -308,6 +312,7 @@ def test_adt_compose():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     x_data = np.array(np.random.rand()).astype('float32')
     result = veval(des_vm, x_data)
@@ -329,6 +334,7 @@ def test_closure():
     deser = deserializer.Deserializer(code, lib)
     des_exec = deser.deserialize()
     des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     res = veval(des_vm)
     tvm.testing.assert_allclose(res.asnumpy(), 3.0)

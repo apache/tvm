@@ -96,7 +96,6 @@ class Serializer:
             ctx = tvm.cpu()
             target = "llvm"
             executable = relay.vm..compile(mod, target)
-            executable.set_context(ctx)
 
             # serialize.
             ser = relay.serializer.Serializer(executable)
@@ -117,7 +116,7 @@ class Serializer:
             des_exec = deser.deserialize()
 
             # execute the deserialized executable.
-            des_exec.set_context(ctx)
+            des_vm.init(ctx)
             x_data = np.random.rand(10, 10).astype('float32')
             des_vm = relay.vm.VirtualMachine(des_exec)
             res = des_vm.run(x_data)

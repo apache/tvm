@@ -39,20 +39,7 @@ namespace vm {
 
 PackedFunc Executable::GetFunction(const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  if (name == "set_context") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size() % 2, 0);
-      std::vector<TVMContext> contexts;
-      for (int i = 0; i < args.size() / 2; ++i) {
-        TVMContext ctx;
-        int device_type = args[i * 2];
-        ctx.device_type = DLDeviceType(device_type);
-        ctx.device_id = args[i * 2 + 1];
-        contexts.push_back(ctx);
-      }
-      this->SetContext(contexts);
-    });
-  } else if (name == "get_lib") {
+  if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetLib();
     });
@@ -68,10 +55,6 @@ PackedFunc Executable::GetFunction(const std::string& name,
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc(nullptr);
   }
-}
-
-inline void Executable::SetContext(const std::vector<TVMContext>& ctxs) {
-  this->ctxs = ctxs;
 }
 
 std::string Executable::GetBytecode() const {
@@ -166,20 +149,6 @@ std::string Executable::Stats() const {
   return oss.str();
 }
 
-TVMContext Executable::GetParamsContext() const {
-  CHECK(!ctxs.empty()) << "context has not been set yet.";
-
-  // Use the fallback device if no device index is available.
-  int fallback_device_type = static_cast<int>(ctxs[0].device_type);
-  // TODO(wweic): For heterogeneous execution, get device information from byte
-
-  const auto& cit =
-    std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
-      return fallback_device_type == static_cast<int>(c.device_type);
-    });
-  return (cit == ctxs.end() ? ctxs[0] : *cit);
-}
-
 TVM_REGISTER_GLOBAL("relay._vm.GetNumOfGlobals")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
@@ -187,7 +156,6 @@ TVM_REGISTER_GLOBAL("relay._vm.GetNumOfGlobals")
   CHECK(exec);
   *rv = static_cast<int>(exec->global_map.size());
 });
-
 
 TVM_REGISTER_GLOBAL("relay._vm.GetGlobalFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {

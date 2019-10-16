@@ -48,15 +48,15 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         mod = relay.Module()
         mod["main"] = f
         exe = relay.vm.compile(mod, target)
-        exe.set_context(ctx)
         vm = relay.vm.VirtualMachine(exe)
+        vm.init(ctx)
         return vm.invoke("main", *args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
         exe = relay.vm.compile(mod, target)
-        exe.set_context(ctx)
         vm = relay.vm.VirtualMachine(exe)
+        vm.init(ctx)
         ret = vm.invoke("main", *args)
         return ret
 

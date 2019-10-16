@@ -82,9 +82,6 @@ void Deserializer::Deserialize() {
 
   // Code section.
   DeserializeCodeSection();
-
-  // Context section.
-  DeserializeContextSection();
 }
 
 void Deserializer::DeserializeGlobalSection() {
@@ -310,18 +307,6 @@ void Deserializer::DeserializeCodeSection() {
     CHECK(it != exec_->global_map.end());
     CHECK_LE(it->second, exec_->global_map.size());
     exec_->functions[it->second] = vm_func;
-  }
-}
-
-void Deserializer::DeserializeContextSection() {
-  std::vector<uint64_t> ctxs;
-  STREAM_CHECK(strm_->Read(&ctxs), "context");
-  CHECK_EQ(ctxs.size() % 2, 0U);
-  for (size_t i = 0; i < ctxs.size(); i += 2) {
-    TVMContext ctx;
-    ctx.device_type = DLDeviceType(ctxs[i]);
-    ctx.device_id = static_cast<int>(ctxs[i + 1]);
-    exec_->ctxs.push_back(ctx);
   }
 }
 

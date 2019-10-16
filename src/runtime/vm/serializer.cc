@@ -81,9 +81,6 @@ TVMByteArray Serializer::Serialize() {
   // Code section.
   SerializeCodeSection();
 
-  // Context section.
-  SerializeContextSection();
-
   TVMByteArray arr;
   arr.data = code_.c_str();
   arr.size = code_.length();
@@ -298,16 +295,6 @@ void Serializer::SerializeCodeSection() {
       serialized_instr.Save(strm_);
     }
   }
-}
-
-void Serializer::SerializeContextSection() {
-  CHECK(!exec_->ctxs.empty());
-  std::vector<uint64_t> serialized_ctx;
-  for (const auto& ctx : exec_->ctxs) {
-    serialized_ctx.push_back(static_cast<uint64_t>(ctx.device_type));
-    serialized_ctx.push_back(static_cast<uint64_t>(ctx.device_id));
-  }
-  strm_->Write(serialized_ctx);
 }
 
 runtime::Module CreateSerializer(const Executable* exec) {

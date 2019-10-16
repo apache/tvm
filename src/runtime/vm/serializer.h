@@ -32,8 +32,6 @@
  *  - The `primitive_map` that contains the name of individual primitive operators.
  *  - The `functions`, e.g., the `VMFunction`. Each `VMFunction` is composed of
  *  a list of instructions/bytecode.
- *  - The `ctxs` that contains the device context used to execute the hardware
- *  dependent code.
  *
  * Note that only the library is returned as a separate module. All othere parts
  * are stored in a single serialized code that is organized with the following
@@ -43,7 +41,6 @@
  *  - Primitive name section, containing the function name of the primitive ops
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
- *  - Context section, saving the context information.
  *
  * The code section is again organized as follows for each VM function:
  *   func_name, register_file_size, num_instructions (N)
@@ -135,9 +132,6 @@ class Serializer : public runtime::ModuleNode {
 
   /*! \brief Serialize the vm functions in exec_. */
   void SerializeCodeSection();
-
-  /*! \brief Serialize the context in exec_. */
-  void SerializeContextSection();
 
   /*! \brief The Relay virtual machine executable to be serialized. */
   const Executable* exec_;
