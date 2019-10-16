@@ -573,10 +573,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     struct IsDynamicComputeVisitor : ExprVisitor {
       bool b = true;
       void VisitExpr_(const OpNode* op) override {
-        Op OP = GetRef<Op>(op);
         static auto op_dynamic_compute = Op::GetAttr<TOpDynamicCompute>("TOpDynamicCompute");
-        CHECK_GT(op_dynamic_compute.count(OP), 0) << "TOpDynamicCompute not registered for " << OP;
-        b &= op_dynamic_compute[OP];
+        b &= op_dynamic_compute.get(GetRef<Op>(op), true);
       }
     } dc;
     dc(e);

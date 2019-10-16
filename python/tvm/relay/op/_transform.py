@@ -37,7 +37,6 @@ _reg.register_schedule("broadcast_to_like", schedule_broadcast)
 _reg.register_schedule("expand_dims", schedule_broadcast)
 _reg.register_schedule("squeeze", schedule_injective)
 _reg.register_schedule("reshape", schedule_injective)
-_reg.register_dynamic_compute("reshape", True)
 _reg.register_schedule("reshape_like", schedule_injective)
 _reg.register_schedule("full", schedule_injective)
 _reg.register_schedule("full_like", schedule_injective)
@@ -51,13 +50,11 @@ _reg.register_schedule("reinterpret", schedule_injective)
 _reg.register_schedule("strided_slice", schedule_injective)
 _reg.register_schedule("slice_like", schedule_injective)
 _reg.register_schedule("split", schedule_injective)
-_reg.register_dynamic_compute("split", True)
 _reg.register_schedule("take", schedule_injective)
 _reg.register_schedule("transpose", schedule_injective)
 _reg.register_schedule("where", schedule_broadcast)
 _reg.register_schedule("stack", schedule_injective)
 _reg.register_schedule("concatenate", schedule_concatenate)
-_reg.register_dynamic_compute("concatenate", True)
 _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 _reg.register_schedule("gather_nd", schedule_injective)
 _reg.register_schedule("sequence_mask", schedule_injective)
@@ -78,8 +75,6 @@ def _arange_shape_func(start, stop, step):
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
-
-_reg.register_dynamic_compute("arange", True)
 
 @script
 def _concatenate_shape_func(inputs, axis):
@@ -212,8 +207,6 @@ def take_shape_func(attrs, inputs, out_ndims):
         assert 0 <= axis < data_ndim
         return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
-_reg.register_dynamic_compute("take", True)
-
 @script
 def _argwhere_shape_func_1d(condition):
     out = output_tensor((2, ), "int64")
@@ -291,7 +284,6 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
 
-_reg.register_dynamic_compute("argwhere", True)
 
 @_reg.register_schedule("argwhere")
 def schedule_argwhere(_, outs, target):
