@@ -832,24 +832,6 @@ def test_tensor_take():
     run('float32')
     run('int32')
 
-def test_any_take():
-    mod = relay.Module()
-    p = Prelude(mod)
-    v = relay.var('v', relay.ty.TensorType([relay.ty.Any(), relay.ty.Any()]))
-    lower = relay.var('lower', 'int32')
-    upper = relay.var('upper', 'int32')
-
-    t1 = relay.op.take(v, relay.op.arange(lower, upper, dtype='int32'), axis=0)
-
-    mod["main"] = relay.Function([v, lower, upper], t1)
-    for kind in ["debug"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        t = np.random.uniform(size=(10, 10)).astype('float32')
-        result = ex.evaluate()(t, 2, 5)
-        res = vmobj_to_list(result)
-        expected = [np.take(t, np.arange(2, 5), axis=0)]
-        tvm.testing.assert_allclose(expected, res)
-
 if __name__ == "__main__":
     test_nat_constructor()
     test_double()
