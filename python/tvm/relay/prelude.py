@@ -533,13 +533,13 @@ class Prelude:
         self.load_prelude()
 
     def get_name(self, canonical, dtype):
-        """Get name corresponding to the caninical name"""
+        """Get name corresponding to the canonical name"""
         if canonical == 'tensor_t':
             return 'tensor_{}_t'.format(dtype)
         return "{}_{}".format(canonical, dtype)
 
     def get_var(self, canonical, dtype):
-        """Get var corresponding to the caninical name"""
+        """Get var corresponding to the canonical name"""
         name = self.get_name(canonical, dtype)
         return getattr(self, name)
 

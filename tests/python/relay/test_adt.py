@@ -685,15 +685,14 @@ def test_iterate():
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
 
-def test_tensor_array_add_one():
+def test_tensor_expand_dims():
     def run(dtype):
         x = relay.var('x')
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
-        add_one_func = tensor_array_ops.get_var('tensor_add_one')
-        tensor1 = tensor_array_ops.get_var('tensor1')
-        mod["main"] = relay.Function([x], add_one_func(tensor1(x)))
+        expand_dims_func = p.get_var('tensor_expand_dims', dtype)
+        tensor1 = p.get_var('tensor1', dtype)
+        mod["main"] = relay.Function([x], expand_dims_func(tensor1(x)))
         for kind in ["debug"]:
             ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
             x_np = np.random.uniform(size=(1,)).astype(dtype)
@@ -856,7 +855,7 @@ if __name__ == "__main__":
     test_compose()
     test_iterate()
 
-    test_tensor_array_add_one()
+    test_tensor_expand_dims()
     test_tensor_array_constructor()
     test_tensor_array_read()
     test_tensor_array_stack()
