@@ -101,7 +101,7 @@ def tuple_object(fields):
 
     Returns
     -------
-    ret : DatatypeObject
+    ret : Datatype
         The created object.
     """
     for f in fields:
