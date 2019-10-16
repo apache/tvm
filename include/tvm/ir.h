@@ -1329,7 +1329,6 @@ inline bool IsPragmaKey(const std::string& attr_key) {
   return attr_key.compare(0, 7, "pragma_") == 0;
 }
 
-
 }  // namespace attr
 
 /*! \brief namespace of TVM Intrinsic functions */
@@ -1564,11 +1563,52 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
 /*!
- * \brief tvm intrinsic for tensor core opeartors.
+ * \brief tvm intrinsic for tensor core load operators.
+ *
+ *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                            Expr index, Expr buffer_ptr, Expr stride,
+ *                            StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment.
+ *    // Determine fragment layout(column-major or row major) by layout.
+ *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
+ *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
+ *  }
  */
 constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
+/*!
+ * \brief tvm intrinsic for tensor core mma_sync operators.
+ *
+ *  void tvm_mma_sync(Var fragment_d, Expr index_d,
+ *                    Var fragment_a, Expr index_a,
+ *                    Var fragment_b, Expr index_b,
+ *                    Var fragment_c, Expr index_c) {
+ *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
+ *                           fragment_b[index_b], fragment_c[index_c]);
+ *  }
+ */
 constexpr const char* tvm_mma_sync = "tvm_mma_sync";
+/*!
+ * \brief tvm intrinsic for tensor core fill_fragment operators.
+ *
+ *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                         Expr index, Expr value) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::fill_fragment(fragment[index], value);
+ *  }
+ */
 constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
+/*!
+ * \brief tvm intrinsic for tensor core store operators.
+ *
+ *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                             Expr index, Expr buffer_ptr, Expr stride,
+ *                             StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
+ *  }
+ */
 constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
 
 }   // namespace intrinsic

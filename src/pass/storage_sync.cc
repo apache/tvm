@@ -269,7 +269,7 @@ class ThreadSyncInserter : public IRMutator {
       op = expr.as<Call>();
       CHECK_EQ(op->args.size(), 5U);
       const Variable* buffer_var = op->args[1].as<Variable>();
-      Var var(buffer_var->GetNodePtr());
+      Var var(GetRef<Var>(buffer_var));
       const IntImm* flag = op->args[4].as<IntImm>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {

@@ -18,7 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
+ * Copyright (c) 2019 by Contributors
+ * \brief Infer TensorCore metadata from tensor intrinsic.
  * \file tensorcore_fragment.cc
  */
 #include <tvm/ir.h>
@@ -34,10 +35,14 @@
 namespace tvm {
 namespace ir {
 
+// Get fragment information from tensor intrinsics
 class FragmentGetter : public IRVisitor {
  public:
+  // fragment metadata
   struct FragmentInfo {
+    // fragment shape
     int m, n, k;
+    // fragment layout (row-major or column-major)
     std::string layout;
     FragmentInfo() = default;
     FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
@@ -49,9 +54,11 @@ class FragmentGetter : public IRVisitor {
 
     if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync) ||
         op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
+      // Get shape and layout information from load and store intrinsic
       CHECK_EQ(op->args.size(), 8U);
       const Variable* buffer_var = op->args[0].as<Variable>();
       CHECK(buffer_var);
+      // Get shape
       const IntImm* m = op->args[1].as<IntImm>();
       const IntImm* n = op->args[2].as<IntImm>();
       const IntImm* k = op->args[3].as<IntImm>();
@@ -63,6 +70,7 @@ class FragmentGetter : public IRVisitor {
 
       std::string scope = scopes[buffer_var];
       if (fragments.count(buffer_var)) {
+        // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
         CHECK_EQ(m->value, info.m);
         CHECK_EQ(n->value, info.n);
@@ -71,6 +79,7 @@ class FragmentGetter : public IRVisitor {
           CHECK_EQ(layout->value, info.layout);
         }
       } else {
+        // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
           info = FragmentInfo(m->value, n->value, k->value, layout->value);
@@ -80,9 +89,11 @@ class FragmentGetter : public IRVisitor {
         fragments[buffer_var] = info;
       }
     } else if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
+      // Get shape information from fill intrinsic
       CHECK_EQ(op->args.size(), 6U);
       const Variable* buffer_var = op->args[0].as<Variable>();
       CHECK(buffer_var);
+      // Get shape
       const IntImm* m = op->args[1].as<IntImm>();
       const IntImm* n = op->args[2].as<IntImm>();
       const IntImm* k = op->args[3].as<IntImm>();
@@ -91,6 +102,7 @@ class FragmentGetter : public IRVisitor {
       CHECK(k);
 
       std::string scope = scopes[buffer_var];
+      // Only wmma.accumulator can use tvm_fill_fragment
       CHECK_EQ(scope, "wmma.accumulator");
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
@@ -104,6 +116,7 @@ class FragmentGetter : public IRVisitor {
     }
   }
 
+  // Get memory scope
   void Visit_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       const Variable* buffer = op->node.as<Variable>();
@@ -113,15 +126,19 @@ class FragmentGetter : public IRVisitor {
     IRVisitor::Visit_(op);
   }
 
+  // Memory scope for allocations
   std::unordered_map<const Variable*, std::string> scopes;
+  // Fragment metadata for all fragments
   std::unordered_map<const Variable*, FragmentInfo> fragments;
 };
 
+// Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public IRVisitor {
  public:
   explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
 
   void Visit_(const Call* op) final {
+    // Check shape when calling tvm_mma_sync
     if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
       CHECK_EQ(op->args.size(), 8U);
       const Variable* buffer_var_d = op->args[0].as<Variable>();
@@ -132,6 +149,8 @@ class FragmentChecker : public IRVisitor {
       CHECK(buffer_var_a);
       CHECK(buffer_var_b);
       CHECK(buffer_var_c);
+
+      // Check all fragment A, B, C and D have the same shape
       CHECK(CheckShape(buffer_var_d, buffer_var_a));
       CHECK(CheckShape(buffer_var_d, buffer_var_b));
       CHECK(CheckShape(buffer_var_d, buffer_var_c));
@@ -139,6 +158,7 @@ class FragmentChecker : public IRVisitor {
   }
 
  private:
+  // A tool for checking shapes of two fragments
   bool CheckShape(const Variable* buffer1, const Variable* buffer2) {
     CHECK(fragment_getter.fragments.count(buffer1));
     CHECK(fragment_getter.fragments.count(buffer2));
@@ -146,10 +166,11 @@ class FragmentChecker : public IRVisitor {
     FragmentGetter::FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
   }
-
+  // Fragment infomation
   const FragmentGetter &fragment_getter;
 };
 
+// Store the metadata into attributes
 class InferFragmenter : public IRMutator {
  public:
   explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
@@ -158,13 +179,17 @@ class InferFragmenter : public IRMutator {
     Stmt stmt = IRMutator::Mutate_(op, s);
     const Variable* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {
+      // Add attribute to fragments allocation
       FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
+
+      // Add shape attribute to all fragments
       std::string shape = std::to_string(info.n) + ", " +
                           std::to_string(info.m) + ", " +
                           std::to_string(info.k);
       Expr shape_expr = StringImm::make(shape);
       Stmt shape_attr = AttrStmt::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
+        // Add shape attribute to matrix_a and matrix_b
         Stmt layout_attr = AttrStmt::make(op->buffer_var, attr::fragment_layout,
                                           StringImm::make(info.layout), shape_attr);
         return layout_attr;
@@ -176,6 +201,7 @@ class InferFragmenter : public IRMutator {
   }
 
  private:
+  // Fragment infomation
   const FragmentGetter &fragment_getter;
 };
 

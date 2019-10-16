@@ -248,12 +248,11 @@ def intrin_wmma_store_matrix():
 #   The only thing we should do is to make sure all threads in a warp can call TensorCore at the same time.
 #
 
-
 # Define tiling sizes
-block_row_warps = 2
-block_col_warps = 4
-warp_row_tiles = 4
-warp_col_tiles = 2
+block_row_warps = 4
+block_col_warps = 2
+warp_row_tiles = 2
+warp_col_tiles = 4
 warp_size = 32
 chunk = 2
 
@@ -333,7 +332,8 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ctx = tvm.gpu(0)
 if nvcc.have_tensorcore(ctx.compute_version):
-    func = tvm.build(s, [A, W, Conv], 'cuda')
+    with tvm.build_config(auto_unroll_max_step=16):
+        func = tvm.build(s, [A, W, Conv], 'cuda')
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)
     a = tvm.nd.array(a_np, ctx)

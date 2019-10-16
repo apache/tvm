@@ -191,6 +191,7 @@ def test_tensor_core_batch_matmal():
     s[BF].tensorize(BF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_b'))
     s[C].tensorize(kernel_i, intrin_wmma_store_matrix())
     s[CF].tensorize(_i, intrin_wmma_gemm())
+
     func = tvm.build(s, [A, B, C], 'cuda')
 
     ctx = tvm.gpu(0)
