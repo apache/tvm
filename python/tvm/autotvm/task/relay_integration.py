@@ -34,9 +34,8 @@ logger = logging.getLogger('autotvm')
 # TODO(moreau89) find a more elegant way to lower for VTAs
 def _lower(func,
            target,
-           target_host,
            params):
-    """ Helper to build VTA properly.
+    """ Helper to lower VTA properly.
     """
 
     from tvm import relay
@@ -49,13 +48,10 @@ def _lower(func,
                 _, mod, _ = relay.optimize(func, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 return grc.codegen(mod["main"])
-
-    
     # default case
     _, mod, _ = relay.optimize(func, target, params)
     grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
     return grc.codegen(mod["main"])
-
 
 def extract_from_program(func, params, ops, target, target_host=None):
     """ Extract tuning tasks from a relay program.
