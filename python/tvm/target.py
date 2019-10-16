@@ -128,6 +128,16 @@ class Target(NodeBase):
                 return opt.value[7:]
         return 'unknown'
 
+    @property
+    def mcpu(self):
+        """Returns the mcpu from the target if it exists."""
+        mcpu = ''
+        if self.options is not None:
+            for opt in self.options:
+                if 'mcpu' in opt:
+                    mcpu = opt.split('=')[1]
+        return mcpu
+
     def __enter__(self):
         _api_internal._EnterTargetScope(self)
         return self

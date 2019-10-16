@@ -21,20 +21,13 @@ import tvm
 
 def dot_16x1x16_uint8_int8_int32():
     """Dispatch the most optimized intrin depending on the target"""
-    target = tvm.target.current_target()
-    intel_device_type = None
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            intel_device_type = "skylake"
-        elif opt == '-mcpu=cascadelake':
-            intel_device_type = "cascadelake"
+    mcpu = tvm.target.current_target().mcpu
 
-    assert intel_device_type is not None, \
+    assert mcpu in ("skylake-avx512", "cascadelake"), \
             "An old Intel machine that does not have fast Int8 support."
-
-    if intel_device_type == "skylake":
+    if mcpu == "skylake-avx512":
         return dot_16x1x16_uint8_int8_int32_skylake()
-    # cascade lake
+    # cascadelake
     return dot_16x1x16_uint8_int8_int32_cascadelake()
 
 
