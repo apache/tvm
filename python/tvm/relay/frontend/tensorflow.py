@@ -39,22 +39,10 @@ from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
+from .common import infer_value as _infer_value
 
 __all__ = ['from_tensorflow']
 
-def _infer_value(input_val, params):
-    from tvm.contrib import graph_runtime
-    # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-        input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(analysis.free_vars(input_val), input_val)
-    with tvm.relay.build_config(opt_level=0):
-        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-    ctx = tvm.context("llvm", 0)
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input(**params)
-    m.run()
-    return m.get_output(0)
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:

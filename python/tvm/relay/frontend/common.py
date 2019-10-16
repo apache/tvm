@@ -24,6 +24,7 @@ from .. import expr as _expr
 from .. import module as _module
 from .. import transform as _transform
 from .. import op as _op
+from .. import analysis
 
 
 class RequiredAttr(object):
@@ -472,6 +473,21 @@ def infer_channels(inputs, transpose=False):
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
+    
+
+def infer_value(input_val, params):
+    from tvm.contrib import graph_runtime
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+        input_val)), "All inputs to infer must be available in params."
+    func = _expr.Function(analysis.free_vars(input_val), input_val)
+    with tvm.relay.build_config(opt_level=0):
+        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+    ctx = tvm.context("llvm", 0)
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+    m.run()
+    return m.get_output(0)
 
 
 def new_var(name_hint,

@@ -29,6 +29,7 @@ from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels, get_name
+from onnx.numpy_helper import to_array
 
 __all__ = ['from_onnx']
 
@@ -921,14 +922,14 @@ class ConstantOfShape(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        shape = params[get_name(inputs[0])].asnumpy()
         if 'value' in attr:
-            value = attr.pop('value')
-            dtype = value.dtype
+            np_value = to_array(attr.pop('value'))[0]
+            value = _expr.const(np_value)
+            dtype = np_value.dtype.name
         else:
-            value = 0
+            value = _expr.const(0)
             dtype = 'float32'
-        return _op.full(value, shape=shape, dtype=dtype)
+        return _op.full_like(_op.cast(inputs[0], dtype), value)
 
 class Sign(OnnxOpConverter):
     """ Operator converter for Sign.
@@ -1271,11 +1272,6 @@ class GraphProto(object):
 
     def _parse_array(self, tensor_proto):
         """Grab data in TensorProto and convert to numpy array."""
-        try:
-            from onnx.numpy_helper import to_array
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import onnx which is required {}".format(e))
         np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
         return _nd.array(np_array)
 
