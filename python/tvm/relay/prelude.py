@@ -24,7 +24,7 @@ from .adt import PatternConstructor, PatternVar, PatternWildcard
 from . import op
 from .module import Module
 
-class TensorArrayOps:
+class TensorArrayOps(object):
     """Contains tensor array related ops"""
 
     def __init__(self, prelude, dtype):
@@ -141,14 +141,14 @@ class TensorArrayOps:
                                tensor6_case], False),
                      tensor_t(), [])
 
-    def define_tensor_add_one(self):
-        """Defines a function to grow a tensor_t's rank by adding one dimention in front
+    def define_tensor_expand_dims(self):
+        """Defines a function to grow a tensor_t's rank by adding one dimension in front
         of the original tensor_t.
-        tensor_add_one(t) : tensor_t -> tensor_t
+        tensor_expand_dims(t) : tensor_t -> tensor_t
         """
-        add_one_name = self.get_name("tensor_add_one")
-        add_one_var = GlobalVar(add_one_name)
-        setattr(self.prelude, add_one_name, add_one_var)
+        expand_dims_name = self.get_name("tensor_expand_dims")
+        expand_dims_var = GlobalVar(expand_dims_name)
+        setattr(self.prelude, expand_dims_name, expand_dims_var)
         tensor_type_var = self.get_var('tensor_t')
         x = Var("x", tensor_type_var())
         t0 = Var("t0")
@@ -176,7 +176,7 @@ class TensorArrayOps:
                               tensor5_var(op.expand_dims(t4, 0, 1)))
         tensor5_case = Clause(PatternConstructor(tensor5_var, [PatternVar(t5)]),
                               tensor6_var(op.expand_dims(t5, 0, 1)))
-        self.prelude.mod[add_one_var] =\
+        self.prelude.mod[expand_dims_var] =\
             Function([x],
                      Match(x, [tensor0_case,
                                tensor1_case,
@@ -340,7 +340,7 @@ class TensorArrayOps:
                      self.prelude.l(self.get_var('tensor_t')()), [])
 
     def define_tensor_array_scatter(self):
-        """Defines a function to scatter the values of a tensor_t in indices of a tensor array..
+        """Defines a function to scatter the values of a tensor_t in indices of a tensor array.
         tensor_array_scatter(ta, indices, value) :
             list[tensor_t] -> Tensor[(Any), int32] -> tensor_t -> list[tensor_t]
         """
@@ -500,19 +500,19 @@ class TensorArrayOps:
         setattr(self.prelude, stack_name, stack_var)
         tensor_type_var = self.get_var('tensor_t')
         tensor_array = Var("tensor_array", self.prelude.l(tensor_type_var()))
-        add_one_var = self.get_var('tensor_add_one')
+        expand_dims_var = self.get_var('tensor_expand_dims')
         concat_var = self.get_var('tensor_concatenate')
-        tensor_array_add_one = self.prelude.map(add_one_var, tensor_array)
+        tensor_array_expand_dims = self.prelude.map(expand_dims_var, tensor_array)
         tensors = self.prelude.foldl(concat_var,
-                                     self.prelude.hd(tensor_array_add_one),
-                                     self.prelude.tl(tensor_array_add_one))
+                                     self.prelude.hd(tensor_array_expand_dims),
+                                     self.prelude.tl(tensor_array_expand_dims))
         self.prelude.mod[stack_var] = Function([tensor_array], tensors, tensor_type_var(), [])
 
     def register(self):
         """Register all tensor array ops in Prelude"""
         self.define_tensor_adt()
         self.define_tensor_take()
-        self.define_tensor_add_one()
+        self.define_tensor_expand_dims()
         self.define_tensor_concat()
         self.define_tensor_array()
         self.define_tensor_array_read()
