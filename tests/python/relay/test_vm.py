@@ -59,9 +59,9 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         return ret
 
 def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
+    if isinstance(o, tvm.relay.backend.vm.Tensor):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vmobj.DatatypeObject):
+    elif isinstance(o, tvm.relay.backend.vm.Datatype):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))

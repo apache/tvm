@@ -33,6 +33,7 @@ from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
 from .node import NodeBase
+from . import object as _object
 from . import node as _node
 
 FunctionHandle = ctypes.c_void_p
@@ -165,7 +166,7 @@ def _make_tvm_args(args, temp_args):
             temp_args.append(arg)
         elif isinstance(arg, _CLASS_OBJECT):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.OBJECT_CELL
+            type_codes[i] = TypeCode.OBJECT_HANDLE
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
     return values, type_codes, num_args
@@ -225,7 +226,7 @@ def __init_handle_by_constructor__(fconstructor, args):
         raise get_last_ffi_error()
     _ = temp_args
     _ = args
-    assert ret_tcode.value == TypeCode.NODE_HANDLE
+    assert ret_tcode.value in (TypeCode.NODE_HANDLE, TypeCode.OBJECT_HANDLE)
     handle = ret_val.v_handle
     return handle
 
@@ -247,6 +248,7 @@ def _handle_return_func(x):
 
 # setup return handle for function type
 _node.__init_by_constructor__ = __init_handle_by_constructor__
+_object.__init_by_constructor__ = __init_handle_by_constructor__
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
 RETURN_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
