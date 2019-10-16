@@ -560,6 +560,14 @@ class VirtualMachine : public runtime::ModuleNode {
     return "VirtualMachine";
   }
 
+  VirtualMachine() : frames(), func_index(0), code(nullptr), pc(0), exec(nullptr) {}
+
+  /*! \brief load the executable for the virtual machine.
+   *  \param exec The executable.
+   */
+  void LoadExecutable(const Executable* exec);
+
+ protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs;
   /*! \brief The current stack of call frames. */
@@ -620,13 +628,6 @@ class VirtualMachine : public runtime::ModuleNode {
    * \return The object representing the result.
    */
   ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
-
-  VirtualMachine() : frames(), func_index(0), code(nullptr), pc(0), exec(nullptr) {}
-
-  /*! \brief load the executable for the virtual machine.
-   *  \param exec The executable.
-   */
-  void LoadExecutable(const Executable* exec);
 
   /*! \brief Initialize the virtual machine for a set of contexts.
    *  \param contexts The set of TVM contexts.
