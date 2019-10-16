@@ -142,21 +142,21 @@ bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
 // With this function we only need to visit and mutate top level For node
 // in the main VisitAndMutate function.
 Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
-  std::vector<const Node*> for_node_list;
+  const Node* top_for_node;
   const For* parent_for_node = parent_for_stmt.as<For>();
   CHECK(parent_for_node);
   CHECK(new_if_stmt.as<IfThenElse>());
 
   PostOrderVisit(parent_for_node->body, [&](const NodeRef& node) {
     if (node.as<For>()) {
-      for_node_list.push_back(node.get());
+      top_for_node = node.get();
     }
   });
 
   PackedFunc replace_target_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
       const NodeRef& current_for = args[0];
-      if (current_for.get() == for_node_list.back()) {
+      if (current_for.get() == top_for_node) {
         *ret = new_if_stmt;
       }
     });
