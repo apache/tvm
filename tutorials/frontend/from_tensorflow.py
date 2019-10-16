@@ -34,12 +34,6 @@ import os.path
 
 # Tensorflow imports
 import tensorflow as tf
-if tf.__version__.startswith('2'):
-    gfile_mod = tf.io.gfile
-    gfile = gfile_mod.GFile
-else:
-    gfile_mod = tf.gfile
-    gfile = gfile_mod.FastGFile
 
 # Tensorflow utility functions
 import tvm.relay.testing.tf as tf_testing
@@ -95,7 +89,7 @@ label_path = download_testdata(label_map_url, label_map, module='data')
 # ------------
 # Creates tensorflow graph definition from protobuf file.
 
-with gfile(model_path, 'rb') as f:
+with tf.compat.v1.gfile.GFile(model_path, 'rb') as f:
     graph_def = tf.compat.v1.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
@@ -193,7 +187,7 @@ for node_id in top_k:
 def create_graph():
     """Creates a graph from saved GraphDef file and returns a saver."""
     # Creates graph from saved graph_def.pb.
-    with gfile(model_path, 'rb') as f:
+    with tf.compat.v1.gfile.GFile(model_path, 'rb') as f:
         graph_def = tf.compat.v1.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
@@ -212,9 +206,9 @@ def run_inference_on_image(image):
     -------
         Nothing
     """
-    if not gfile_mod.Exists(image):
+    if not tf.compat.v1.io.gfile.exists(image):
         tf.logging.fatal('File does not exist %s', image)
-    image_data = gfile(image, 'rb').read()
+    image_data = tf.compat.v1.gfile.GFile(image, 'rb').read()
 
     # Creates graph from saved GraphDef.
     create_graph()
