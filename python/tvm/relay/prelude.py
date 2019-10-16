@@ -34,14 +34,11 @@ class TensorArrayOps(object):
 
     def get_name(self, canonical):
         """Get name corresponding to the caninical name"""
-        if canonical == 'tensor_t':
-            return 'tensor_{}_t'.format(self.dtype)
-        return "{}_{}".format(canonical, self.dtype)
+        return self.prelude.get_name(canonical, self.dtype)
 
     def get_var(self, canonical):
         """Get var corresponding to the caninical name"""
-        name = self.get_name(canonical)
-        return getattr(self.prelude, name)
+        return self.prelude.get_var(canonical, self.dtype)
 
     def define_tensor_adt(self):
         """Defines the dynamic tensor ADT, which is the container for tensors
@@ -534,6 +531,17 @@ class Prelude:
             mod = Module()
         self.mod = mod
         self.load_prelude()
+
+    def get_name(self, canonical, dtype):
+        """Get name corresponding to the caninical name"""
+        if canonical == 'tensor_t':
+            return 'tensor_{}_t'.format(dtype)
+        return "{}_{}".format(canonical, dtype)
+
+    def get_var(self, canonical, dtype):
+        """Get var corresponding to the caninical name"""
+        name = self.get_name(canonical, dtype)
+        return getattr(self, name)
 
     def load_prelude(self):
         """Parses the Prelude from Relay's text format into a module."""
