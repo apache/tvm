@@ -27,7 +27,7 @@ def requantize(data,
                input_zero_point,
                output_scale,
                output_zero_point,
-               rounding="TONEAREST",
+               rounding="UPWARD",
                out_dtype="int8"):
     r"""Requantized operator.
 
