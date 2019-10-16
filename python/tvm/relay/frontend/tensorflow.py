@@ -294,10 +294,29 @@ def _conv(opname):
 
             attr['padding'] = [0, 0]
 
+        elif attr['padding'] == 'EXPLICIT':
+            warnings.warn(
+                'Explicit padding is for now only supporting same padding '
+                'before/after. It uses values 0 and 2, out of its 4 values.'
+            )
+            if 'explicit_paddings' not in attr:
+                raise tvm.error.OpAttributeInvalid(
+                    'EXPLICIT padding mode requires the'
+                    ' `explicit_padding` attribute.'
+                )
+            h = attr['explicit_paddings'][0]
+            v = attr['explicit_paddings'][2]
+            attr['padding'] = [h, v]
+
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' \
                   'valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
+
+        # Not needed in the Relay API for `conv`.
+        # Consumed only if `padding` was set to `EXPLICIT`.
+        if opname == 'conv':
+            del attr['explicit_paddings']
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
