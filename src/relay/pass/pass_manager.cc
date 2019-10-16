@@ -37,6 +37,7 @@ namespace transform {
 
 using tvm::IRPrinter;
 
+// This change is a test.
 struct RelayPassContextThreadLocalEntry {
   /*! \brief The default pass context. */
   PassContext default_context;
