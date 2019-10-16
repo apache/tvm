@@ -148,6 +148,19 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
       });
+    } else if (name == "optimize") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.num_args, 2);
+        Function func = args[0];
+        if (this->params_.size()) {
+          func = this->BindParamsByName(func, this->params_);
+        }
+        // Perform Module->Module optimizations.
+        relay::Module relay_module = relay::ModuleNode::FromExpr(func);
+        relay_module = Optimize(relay_module, args[1], this->params_);
+        CHECK(relay_module.defined());
+        *rv = relay_module;
+      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
