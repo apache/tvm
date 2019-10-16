@@ -18,7 +18,7 @@ import tvm
 from tvm import relay
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
-from tvm.relay.prelude import Prelude, TensorArrayOps
+from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
 
 import numpy as np
@@ -708,8 +708,7 @@ def test_tensor_array_constructor():
         x = relay.var('x')
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
-        tensor_array = tensor_array_ops.get_var('tensor_array')
+        tensor_array = p.get_var('tensor_array', dtype)
         mod["main"] = relay.Function([x], tensor_array(x))
         for kind in ["debug"]:
             ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
@@ -724,11 +723,10 @@ def test_tensor_array_read():
     def run(dtype):
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
         l = relay.var('l')
         i = relay.var('i')
-        read_func = tensor_array_ops.get_var('tensor_array_read')
-        tensor_array = tensor_array_ops.get_var('tensor_array')
+        read_func = p.get_var('tensor_array_read', dtype)
+        tensor_array = p.get_var('tensor_array', dtype)
         mod["main"] = relay.Function([l, i], read_func(tensor_array(l), i))
         for kind in ["debug"]:
             ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
@@ -770,11 +768,10 @@ def test_tensor_array_stack():
     def run(dtype):
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
-        tensor_array = tensor_array_ops.get_var('tensor_array')
-        tensor1 = tensor_array_ops.get_var('tensor1')
-        write = tensor_array_ops.get_var('tensor_array_write')
-        stack = tensor_array_ops.get_var('tensor_array_stack')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor1 = p.get_var('tensor1', dtype)
+        write = p.get_var('tensor_array_write', dtype)
+        stack = p.get_var('tensor_array_stack', dtype)
         l = relay.var('l')
         v = relay.var('v')
         init_tensor_array = tensor_array(relay.const(3))
@@ -797,8 +794,7 @@ def test_tensor_array_unstack():
     def run(dtype):
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
-        unstack_tensor1 = tensor_array_ops.get_var('tensor_array_unstack_tensor1')
+        unstack_tensor1 = p.get_var('tensor_array_unstack_tensor1', dtype)
         v = relay.var('v')
         mod["main"] = relay.Function([v], unstack_tensor1(v))
         for kind in ["debug"]:
@@ -814,9 +810,8 @@ def test_tensor_take():
     def run(dtype):
         mod = relay.Module()
         p = Prelude(mod)
-        tensor_array_ops = TensorArrayOps(p, dtype)
-        take = tensor_array_ops.get_var('tensor_take')
-        tensor2 = tensor_array_ops.get_var('tensor2')
+        take = p.get_var('tensor_take', dtype)
+        tensor2 = p.get_var('tensor2', dtype)
         v = relay.var('v')
         lower = relay.var('lower')
         upper = relay.var('upper')
