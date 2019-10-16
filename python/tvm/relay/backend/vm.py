@@ -30,9 +30,12 @@ from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
 
+Tensor = _obj.Tensor
+Datatype = _obj.Datatype
+
 def _convert(arg, cargs):
     if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
-        cargs.append(_obj.tensor_object(arg))
+        cargs.append(_obj.Tensor(arg))
     elif isinstance(arg, (tuple, list)):
         field_args = []
         for field in arg:

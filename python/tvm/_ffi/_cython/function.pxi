@@ -44,7 +44,7 @@ cdef int tvm_callback(TVMValue* args,
         if (tcode == kNodeHandle or
             tcode == kFuncHandle or
             tcode == kModuleHandle or
-            tcode == kObjectCell or
+            tcode == kObjectHandle or
             tcode > kExtBegin):
             CALL(TVMCbArgToReturn(&value, tcode))
 
@@ -155,12 +155,12 @@ cdef inline int make_arg(object arg,
         value[0].v_handle = (<NodeBase>arg).chandle
         tcode[0] = kNodeHandle
         temp_args.append(arg)
+    elif isinstance(arg, _CLASS_OBJECT):
+        value[0].v_handle = (<ObjectBase>arg).chandle
+        tcode[0] = kObjectHandle
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kModuleHandle
-    elif isinstance(arg, _CLASS_OBJECT):
-        value[0].v_handle = c_handle(arg.handle)
-        tcode[0] = kObjectCell
     elif isinstance(arg, FunctionBase):
         value[0].v_handle = (<FunctionBase>arg).chandle
         tcode[0] = kFuncHandle
@@ -190,6 +190,8 @@ cdef inline object make_ret(TVMValue value, int tcode):
     """convert result to return value."""
     if tcode == kNodeHandle:
         return make_ret_node(value.v_handle)
+    elif tcode == kObjectHandle:
+        return make_ret_object(value.v_handle)
     elif tcode == kNull:
         return None
     elif tcode == kInt:
@@ -212,8 +214,6 @@ cdef inline object make_ret(TVMValue value, int tcode):
         fobj = _CLASS_FUNCTION(None, False)
         (<FunctionBase>fobj).chandle = value.v_handle
         return fobj
-    elif tcode == kObjectCell:
-        return make_ret_object(value.v_handle)
     elif tcode in _TVM_EXT_RET:
         return _TVM_EXT_RET[tcode](ctypes_handle(value.v_handle))
 
