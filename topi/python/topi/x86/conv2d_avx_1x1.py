@@ -24,7 +24,7 @@ from ..nn.pad import pad
 from ..nn.util import infer_pad, get_pad_tuple
 from ..generic import conv2d as conv2d_generic
 from ..util import get_const_tuple, simplify
-from .tensor_intrin import dot_16x1x16_int8_int8_int32
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -183,7 +183,7 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     return conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last,
                                                            int32_lanes=16,
-                                                           intrin=dot_16x1x16_int8_int8_int32())
+                                                           intrin=dot_16x1x16_uint8_int8_int32())
 
 
 def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, out_dtype):
@@ -282,7 +282,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     ic_f_outer, ic_s_outer = s[C].split(ic_outer, factor=ic_factor)
     s[C].reorder(oc_outer, oh, ow, ic_f_outer, ic_s_outer, kh, kw, oc_inner, ic_inner)
 
-    pc = dot_16x1x16_int8_int8_int32()
+    pc = dot_16x1x16_uint8_int8_int32()
     s[C].tensorize(oc_inner, pc)
 
     if C != O:

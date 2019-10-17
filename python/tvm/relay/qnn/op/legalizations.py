@@ -100,7 +100,7 @@ def _qnn_conv2d_legalize(attrs, inputs, types):
         Checks to ensure that we can use Intel DLBoost instructions - Check if the target is skylake
         and above.
         """
-        supported_arches = {'-mcpu=skylake-avx512',}
+        supported_arches = {'-mcpu=skylake-avx512', '-mcpu=cascadelake'}
         return supported_arches.intersection(set(target.options))
 
     # Collect the dtypes.

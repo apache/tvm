@@ -18,8 +18,8 @@
 
 import tvm
 import numpy as np
-from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32_vnni
-from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int32
+from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int32
 import pytest
 
 
@@ -46,7 +46,7 @@ def test_fc_int8_acc32():
             return
 
         ctx = tvm.context(target, 0)
-        pc = dot_16x1x16_int8_int8_int32_vnni()
+        pc = dot_16x1x16_uint8_int8_int32_cascadelake()
         ak = tvm.reduce_axis((0, k), name='k')
         packedW = tvm.placeholder(
             (n // 16, 16 * (k // 4), 4), name='packedW', dtype="int8")
