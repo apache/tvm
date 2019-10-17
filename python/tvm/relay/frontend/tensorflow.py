@@ -523,7 +523,8 @@ def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
         values_rank = len(inputs[2].type_annotation.shape)
-        unstack_function = prelude.get_var("tensor_array_unstack_tensor{}".format(values_rank), dtype_str)
+        unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
+        unstack_function = prelude.get_var(unstack_name, dtype_str)
         values = unstack_function(inputs[2])
         tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
         return tensor_array_scatter_func(inputs[0], inputs[1], values)
