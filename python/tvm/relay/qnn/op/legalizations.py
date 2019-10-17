@@ -138,3 +138,59 @@ def _qnn_conv2d_legalize(attrs, inputs, types):
     new_attrs['input_zero_point'] = input_zp
     new_attrs['kernel_zero_point'] = kernel_zp
     return relay.qnn.op.conv2d(data, kernel, **new_attrs)
+
+
+@reg.register_qnn_legalize("qnn.dense")
+def legalize_qnn_dense(attrs, inputs, types):
+
+    return qnn_dense_legalize(attrs, inputs, types)
+
+
+@tvm.target.generic_func
+def qnn_dense_legalize(attrs, inputs, types):
+    """Default legalization is None."""
+    return None
+
+@qnn_dense_legalize.register('cpu')
+def _qnn_dense_legalize_cpu(attrs, inputs, types):
+    return _qnn_dense_legalize(attrs, inputs, types)
+
+@qnn_dense_legalize.register('arm_cpu')
+def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
+    return _qnn_dense_legalize(attrs, inputs, types)
+
+
+def _qnn_dense_legalize(attrs, inputs, types):
+
+    def _shift(data, out_dtype):
+        """Shifts (add/subtracts) the qnn tensor with +/-128)"""
+        if out_dtype == 'uint8':
+            shift = 128
+        elif out_dtype == 'int8':
+            shift = -128
+        else:
+            raise ValueError("Unsupport out dtype.")
+        data_modified = relay.cast(data, 'int32')
+        data_modified = relay.add(data_modified, relay.const(shift, 'int32'))
+        data_modified = relay.cast(data_modified, out_dtype)
+        return data_modified
+
+    # Collect the dtypes.
+    data_dtype = types[0].dtype
+    kernel_dtype = types[1].dtype
+
+    # Collect the input exprs.
+    data, kernel = inputs
+
+    if data_dtype == kernel_dtype:
+        return None
+
+    input_zp = attrs['input_zero_point']
+    if data_dtype == 'uint8':
+        # Compute (QA - 128) and (zp_a - 128)
+        data = _shift(data, 'int8')
+        input_zp = input_zp - 128
+
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+    new_attrs['input_zero_point'] = input_zp
+    return relay.qnn.op.quantized_dense(data, kernel, **new_attrs)
