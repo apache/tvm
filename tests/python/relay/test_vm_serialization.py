@@ -22,29 +22,25 @@ import tvm
 from tvm import relay
 from tvm.relay.module import Module as rly_module
 from tvm.relay import vm as _vm
-from tvm.relay import serializer, deserializer
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.contrib import util
 from tvm.relay import testing
 
-def create_vm(f, ctx=tvm.cpu(), target="llvm", params=None):
+def create_exec(f, target="llvm", params=None):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        vm = _vm.compile(mod, target=target, params=params)
-        vm.init(ctx)
-        return vm
+        executable = _vm.compile(mod, target=target, params=params)
+        return executable
     else:
         assert isinstance(f, relay.Module), "expected mod as relay.Module"
-        vm = _vm.compile(f, target=target, params=params)
-        vm.init(ctx)
-        return vm
+        executable = _vm.compile(f, target=target, params=params)
+        return executable
 
 
 def veval(vm, *args, ctx=tvm.cpu()):
     assert isinstance(vm, _vm.VirtualMachine), "expected VirtualMachine"
-    vm.init(ctx)
     ret = vm.run(*args)
     return ret
 
@@ -59,13 +55,11 @@ def run_network(mod,
         return result.asnumpy().astype(dtype)
 
     def get_serialized_output(mod, data, params, target, ctx, dtype='float32'):
-        vm = create_vm(mod, ctx, target, params=params)
-        ser = serializer.Serializer(vm)
-        code, lib = ser.serialize()
-        deser = deserializer.Deserializer(code, lib)
-        des_vm = deser.deserialize()
+        exe = create_exec(mod, target, params=params)
+        code, lib = exe.save()
+        des_exec = _vm.Executable.load_exec(code, lib)
+        des_vm = _vm.VirtualMachine(des_exec)
         des_vm.init(ctx)
-        des_vm.load_params(params)
         result = des_vm.run(data)
         return result.asnumpy().astype(dtype)
 
@@ -99,26 +93,25 @@ def test_serializer():
     main = relay.Function([x1, y1], glb_f1(x1) * glb_f2(y1))
     mod["main"] = main
 
-    vm = create_vm(mod)
-    ser = serializer.Serializer(vm)
+    exe = create_exec(mod)
 
-    glbs = ser.globals
+    glbs = exe.globals
     assert len(glbs) == 3
     assert "f1" in glbs
     assert "f2" in glbs
     assert "main" in glbs
 
-    prim_ops = ser.primitive_ops
+    prim_ops = exe.primitive_ops
     assert any(item.startswith('fused_add') for item in prim_ops)
     assert any(item.startswith('fused_subtract') for item in prim_ops)
     assert any(item.startswith('fused_multiply') for item in prim_ops)
 
-    code = ser.bytecode
+    code = exe.bytecode
     assert "main 5 2 5" in code
     assert "f1 2 1 3" in code
     assert "f2 2 1 3" in code
 
-    code, lib = ser.serialize()
+    code, lib = exe.save()
     assert isinstance(code, bytearray)
     assert isinstance(lib, tvm.module.Module)
 
@@ -129,24 +122,24 @@ def test_save_load():
     x_data = np.random.rand(10, 10).astype('float32')
 
     # serialize.
-    vm = create_vm(f)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
+    vm = create_exec(f)
+    code, lib = vm.save()
     assert isinstance(code, bytearray)
 
     # save and load the code and lib file.
     tmp = util.tempdir()
     path_lib = tmp.relpath("lib.so")
     lib.export_library(path_lib)
-    with open(tmp.relpath("code.bc"), "wb") as fo:
+    with open(tmp.relpath("code.ro"), "wb") as fo:
         fo.write(code)
 
     loaded_lib = tvm.module.load(path_lib)
-    loaded_code = bytearray(open(tmp.relpath("code.bc"), "rb").read())
+    loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
 
     # deserialize.
-    deser = deserializer.Deserializer(loaded_code, loaded_lib)
-    des_vm = deser.deserialize()
+    des_exec = _vm.Executable.load_exec(loaded_code, loaded_lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     res = veval(des_vm, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + x_data)
@@ -156,12 +149,12 @@ def test_const():
     c = relay.const(1.0, "float32")
     x = relay.var('x', shape=(10, 10), dtype='float32')
     f = relay.Function([x], x + c)
-    vm = create_vm(f)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
+    exe = create_exec(f)
+    code, lib = exe.save()
     assert isinstance(code, bytearray)
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
     x_data = np.random.rand(10, 10).astype('float32')
     res = veval(des_vm, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + 1)
@@ -177,11 +170,11 @@ def test_if():
     x_data = np.random.rand(10, 10).astype('float32')
     y_data = np.random.rand(10, 10).astype('float32')
 
-    vm = create_vm(f)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(f)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     # same
     res = veval(des_vm, x_data, x_data)
@@ -213,11 +206,11 @@ def test_loop():
     aarg = relay.var('accum', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
 
-    vm = create_vm(mod)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(mod)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm, i_data, accum_data)
     tvm.testing.assert_allclose(result.asnumpy(), sum(range(1, loop_bound + 1)))
@@ -230,11 +223,11 @@ def test_tuple():
     i_data = np.random.rand(41).astype('float32')
     j_data = np.random.rand(10).astype('float32')
 
-    vm = create_vm(f)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(f)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm, (i_data, j_data))
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
@@ -251,11 +244,11 @@ def test_adt_list():
     f = relay.Function([], l321)
     mod["main"] = f
 
-    vm = create_vm(mod)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(mod)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     result = veval(des_vm)
     assert len(result) == 2
@@ -297,11 +290,11 @@ def test_adt_compose():
     f = relay.Function([y], add_two_body)
     mod["main"] = f
 
-    vm = create_vm(mod)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(mod)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     x_data = np.array(np.random.rand()).astype('float32')
     result = veval(des_vm, x_data)
@@ -317,11 +310,11 @@ def test_closure():
     clo = ff(relay.const(1.0))
     main = clo(relay.const(2.0))
 
-    vm = create_vm(main)
-    ser = serializer.Serializer(vm)
-    code, lib = ser.serialize()
-    deser = deserializer.Deserializer(code, lib)
-    des_vm = deser.deserialize()
+    exe = create_exec(main)
+    code, lib = exe.save()
+    des_exec = _vm.Executable.load_exec(code, lib)
+    des_vm = _vm.VirtualMachine(des_exec)
+    des_vm.init(tvm.cpu())
 
     res = veval(des_vm)
     tvm.testing.assert_allclose(res.asnumpy(), 3.0)
