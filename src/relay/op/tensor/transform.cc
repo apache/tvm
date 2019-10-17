@@ -28,6 +28,7 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir.h>
 #include <tvm/data_layout.h>
+#include <tvm/runtime/packed_func.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -283,22 +284,34 @@ Array<Array<Layout>> ConcatenateLayout(
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
     const Array<Array<IndexExpr>> &old_in_shapes) {
-  const ConcatenateAttrs* param = attrs.as<ConcatenateAttrs>();
+  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
 
   size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
                 static_cast<size_t>(param->axis);
 
   Layout ret;
+  bool is_new_layout_selected = false;
   if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
+    // If all the new input layouts are same, the new in layout gets selected.  For axis, the new
+    // axis in the new layout is identified. The param->axis is then modified on the fly to conform
+    // to the new input layout.
     const auto& concate_dim = old_in_layouts[0][axis];
-    for (size_t i = 0; i < new_in_layouts.size(); ++i) {
-      if (new_in_layouts[i].ndim() > axis &&
-          new_in_layouts[i][axis] == concate_dim) {
-        ret = new_in_layouts[i];
-        break;
+    bool all_input_layouts_same = true;
+    for (auto new_layout : new_in_layouts) {
+      if (!new_layout.Equals(new_in_layouts[0])) {
+        all_input_layouts_same = false;
       }
     }
-  } else {  // this function is called on the original correct relay ir
+    if (all_input_layouts_same) {
+      auto new_index = new_in_layouts[0].IndexOf(concate_dim);
+      ret = new_in_layouts[0];
+      param->axis = new_index;
+      is_new_layout_selected = true;
+    }
+  }
+
+  if (!is_new_layout_selected) {
+    // this function is called on the original correct relay ir
     for (size_t i = 0; i < old_in_layouts.size(); ++i) {
       if (old_in_layouts[i].defined()) {
         ret = old_in_layouts[i];
@@ -1127,11 +1140,41 @@ and type as the input array.
 TVM_REGISTER_NODE_TYPE(ArangeAttrs);
 
 double ToScalar(const runtime::NDArray& array) {
-  if (array->dtype.code == kDLInt || array->dtype.code == kDLUInt) {
-    return reinterpret_cast<int32_t*>(array->data)[0];
-  } else {
-    return reinterpret_cast<float*>(array->data)[0];
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[0];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[0];
+    }
   }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
 }
 
 bool ArangeRel(const Array<Type>& types,

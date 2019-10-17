@@ -59,9 +59,9 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         return ret
 
 def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.vmobj.TensorObject):
+    if isinstance(o, tvm.relay.backend.vm.Tensor):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vmobj.DatatypeObject):
+    elif isinstance(o, tvm.relay.backend.vm.Datatype):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
@@ -582,7 +582,7 @@ def test_set_params():
     mod["main"] = relay.Function([x, w, b], y)
     vm = relay.vm.compile(mod, 'llvm')
     vm.init(tvm.cpu())
-    
+
     x_np = np.random.uniform(size=(10, 5)).astype('float32')
     w_np = np.random.uniform(size=(6, 5)).astype('float32')
     b_np = np.random.uniform(size=(6,)).astype('float32')

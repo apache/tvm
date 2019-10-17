@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -35,6 +35,82 @@ namespace relay {
 
 // relay.nn.pad
 TVM_REGISTER_NODE_TYPE(PadAttrs);
+
+Array<Array<Layout> > PadInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  // NOTE: Discard "const" qualifier here.
+  PadAttrs *params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
+
+  Layout ret;
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  bool is_layout_modified = new_in_layouts.defined();
+  if (new_in_layouts.defined()) {
+    // Create a map of axis to param_width. For the new layout, a new param_width is generated using
+    // the map. The new layout is rejected, if the padding is happening along the axis which was
+    // split.
+
+    // 1) Create a map from axis to param_width using old layout.
+    std::map<std::string, tvm::Array<tvm::Expr>> axis_pad_width;
+    int index_counter = 0;
+    CHECK_EQ(new_in_layouts.size(), 1);
+    CHECK_EQ(old_in_layouts.size(), 1);
+    for (auto iter_var : old_in_layouts[0]->axes) {
+      const auto& old_layout_axis = LayoutAxis::Get(iter_var);
+      axis_pad_width.emplace(old_layout_axis.name(), params->pad_width[index_counter]);
+      index_counter++;
+    }
+
+    // 2) Create new pad width by walking over the new layout and using the map.
+    tvm::Array<tvm::Array<tvm::Expr>> new_pad_width;
+    for (auto iter_var : new_in_layouts[0]->axes) {
+      const auto& new_layout_axis = LayoutAxis::Get(iter_var);
+      auto axis_name = new_layout_axis.name();
+      if (axis_pad_width.count(axis_name) != 0 && new_layout_axis.IsPrimal()) {
+        // This is primal axis. So, directly use the original pad_width.
+        new_pad_width.push_back(axis_pad_width.at(axis_name));
+      } else {
+        // This is the axis that got split. So, check that pad_width was [0, 0] originally.
+        const auto& dual_axis = new_layout_axis.ToPrimal();
+        auto dual_axis_name = dual_axis.name();
+        CHECK(axis_pad_width.count(dual_axis_name))
+            << "Missing axis " << dual_axis << " in " << old_in_layouts[0].name();
+        new_pad_width.push_back(axis_pad_width.at(dual_axis_name));
+
+        // If any pad_width element is not zero, do not change the layout.
+        for (auto width : axis_pad_width.at(dual_axis_name)) {
+          if (auto* width_imm = width.as<IntImm>()) {
+            if (width_imm->value != 0) {
+              is_layout_modified = false;
+            }
+          } else {
+            is_layout_modified = false;
+          }
+        }
+      }
+    }
+
+    // If the above conditions satisfied, we can set the newly created pad_width and use the new
+    // layout.
+    if (is_layout_modified) {
+      ret = new_in_layouts[0];
+      params->pad_width = new_pad_width;
+    }
+  }
+
+  if (!is_layout_modified) {
+    if (old_in_layouts.defined()) {
+      CHECK_EQ(old_in_layouts.size(), 1);
+      ret = old_in_layouts[0];
+    } else {
+      ret = Layout::Undef();
+    }
+  }
+
+  return Array<Array<Layout> >{{ret}, {ret}};
+}
 
 bool PadRel(const Array<Type>& types,
             int num_inputs,
@@ -133,6 +209,7 @@ RELAY_REGISTER_OP("nn.pad")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("Pad", PadRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PadInferCorrectLayout)
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FTVMCompute>("FTVMCompute", PadCompute);
 

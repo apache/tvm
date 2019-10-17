@@ -47,15 +47,9 @@ Array<Array<Layout> > Pool2DInferCorrectLayout(
   T *params = const_cast<T*>(attrs.as<T>());
 
   if (new_in_layouts.defined()) {
+    // Set the pool with the new layout.
     CHECK_EQ(new_in_layouts.size(), 1);
-
-    Layout raw_layout(params->layout);
-    Layout input = new_in_layouts[0];
-    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
-    input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
-        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
-      params->layout = input.name();  // modify self to follow the input layout
-    }
+    params->layout = new_in_layouts[0].name();
   }
 
   Layout inferred_layout(params->layout);

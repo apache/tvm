@@ -930,7 +930,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";
   }
-  void Visit(const char* key, runtime::Object* obj) final {
+  void Visit(const char* key, runtime::ObjectRef* obj) final {
     LOG(FATAL) << "do not allow Object as argument";
   }
 

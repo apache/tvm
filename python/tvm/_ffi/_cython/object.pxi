@@ -19,7 +19,7 @@
 OBJECT_TYPE = []
 
 def _register_object(int index, object cls):
-    """register node class"""
+    """register object class"""
     while len(OBJECT_TYPE) <= index:
         OBJECT_TYPE.append(None)
     OBJECT_TYPE[index] = cls
@@ -27,41 +27,70 @@ def _register_object(int index, object cls):
 
 cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE
-    cdef int tag
+    cdef unsigned tindex
     cdef list object_type
     cdef object cls
     cdef object handle
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
-    CALL(TVMGetObjectTag(chandle, &tag))
-    if tag < len(object_type):
-        cls = object_type[tag]
+    CALL(TVMObjectGetTypeIndex(chandle, &tindex))
+    if tindex < len(object_type):
+        cls = object_type[tindex]
         if cls is not None:
-            obj = cls(handle)
+            obj = cls.__new__(cls)
         else:
-            obj = ObjectBase(handle)
+            obj = ObjectBase.__new__(ObjectBase)
     else:
-        obj = ObjectBase(handle)
+        obj = ObjectBase.__new__(ObjectBase)
+    (<ObjectBase>obj).chandle = chandle
     return obj
 
 
 cdef class ObjectBase:
-    cdef ObjectHandle chandle
+    cdef void* chandle
 
     cdef inline _set_handle(self, handle):
+        cdef unsigned long long ptr
         if handle is None:
             self.chandle = NULL
         else:
-            self.chandle = c_handle(handle)
+            ptr = handle.value
+            self.chandle = <void*>(ptr)
 
     property handle:
         def __get__(self):
             if self.chandle == NULL:
                 return None
             else:
-                return ctypes.cast(<unsigned long long>self.chandle, ctypes.c_void_p)
+                return ctypes_handle(self.chandle)
+
         def __set__(self, value):
             self._set_handle(value)
 
-    def __init__(self, handle):
-        self._set_handle(handle)
+    def __dealloc__(self):
+        CALL(TVMObjectFree(self.chandle))
+
+    def __init_handle_by_constructor__(self, fconstructor, *args):
+        """Initialize the handle by calling constructor function.
+
+        Parameters
+        ----------
+        fconstructor : Function
+            Constructor function.
+
+        args: list of objects
+            The arguments to the constructor
+
+        Note
+        ----
+        We have a special calling convention to call constructor functions.
+        So the return handle is directly set into the Node object
+        instead of creating a new Node.
+        """
+        # avoid error raised during construction.
+        self.chandle = NULL
+        cdef void* chandle
+        ConstructorCall(
+            (<FunctionBase>fconstructor).chandle,
+            kObjectHandle, args, &chandle)
+        self.chandle = chandle

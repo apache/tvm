@@ -188,8 +188,21 @@ def test_buffer_broadcast_expr():
         fadd(a, b, c, 4, 1)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
+    def check_auto_bind():
+        if not tvm.module.enabled("llvm"):
+            return
+        # Let build bind buffers
+        fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add')
+        ctx = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(1, 4)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), ctx)
+        fadd(a, b, c, 4, 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
     check_stride()
     check_no_stride()
+    check_auto_bind()
 
 
 if __name__ == "__main__":

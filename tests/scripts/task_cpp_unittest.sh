@@ -21,6 +21,9 @@ set -u
 
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 
+# Remove existing testcases
+rm -f build/*_test
+
 make cpptest -j8
 for test in build/*_test; do
     ./$test

@@ -37,7 +37,7 @@ def test_reduce_prims():
         s[R].compute_inline()
 
         # one line to build the function.
-        def check_device(device, host="stackvm"):
+        def check_device(device, host="llvm"):
             ctx = tvm.context(device, 0)
             if not tvm.module.enabled(host):
                 return

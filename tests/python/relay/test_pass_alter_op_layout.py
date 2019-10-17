@@ -45,6 +45,7 @@ def test_alter_op():
         y = relay.Function([x, weight], y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=100)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -79,6 +80,7 @@ def test_alter_return_none():
 
     called = [False]
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.global_max_pool2d", level=101)
     def alter_conv2d(attrs, inputs, tinfos):
         called[0] = True
@@ -112,6 +114,7 @@ def test_alter_layout():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=102)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -180,6 +183,7 @@ def test_alter_layout_dual_path():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=103)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -241,6 +245,7 @@ def test_alter_layout_resnet():
         y = relay.nn.global_max_pool2d(y)
         return relay.Function(analysis.free_vars(y), y)
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=104)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -291,6 +296,7 @@ def test_alter_layout_broadcast_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=105)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -338,6 +344,7 @@ def test_alter_layout_scalar():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=106)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -370,9 +377,19 @@ def test_alter_layout_scalar():
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
+
 def test_alter_layout_concatenate():
-    """ """
-    def before():
+    """ NCHW, NHWC and corner case concatenate layout transform."""
+    # Register alter op layout. "level" is used to override the previously registered functions.
+    @register_alter_op_layout("nn.conv2d", level=107)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # NCHW layout transformation.
+    def before_nchw():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var('weight1')
         weight2 = relay.var('weight2')
@@ -388,14 +405,7 @@ def test_alter_layout_concatenate():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    @register_alter_op_layout("nn.conv2d", level=107)
-    def alter_conv2d(attrs, inputs, tinfos):
-        data, weight = inputs
-        new_attrs = dict(attrs)
-        new_attrs['data_layout'] = 'NCHW16c'
-        return relay.nn.conv2d(data, weight, **new_attrs)
-
-    def expected():
+    def expected_nchw():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var('weight1')
         weight2 = relay.var('weight2')
@@ -415,10 +425,57 @@ def test_alter_layout_concatenate():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before()
+    a = before_nchw()
     a = run_opt_pass(a, transform.AlterOpLayout())
 
-    b = expected()
+    b = expected_nchw()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # NHWC layout transformation.
+    def before_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        weight2 = relay.var('weight2')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC')
+        y1 = relay.nn.conv2d(y, weight2,
+                             channels=32,
+                             kernel_size=(3, 3),
+                             padding=(1, 1),
+                             data_layout='NHWC')
+        ret = relay.concatenate([y, y1], axis=3)
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        weight2 = relay.var('weight2')
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        y1 = relay.nn.conv2d(y, weight2,
+                             channels=32,
+                             kernel_size=(3, 3),
+                             padding=(1, 1),
+                             data_layout='NCHW16c')
+        ret = relay.concatenate([y, y1], axis=1)
+        ret = relay.layout_transform(ret, "NCHW16c", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nhwc()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nhwc()
     b = run_opt_pass(b, transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
@@ -435,6 +492,7 @@ def test_alter_layout_nchw_upsamping_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=108)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -474,6 +532,7 @@ def test_alter_layout_strided_slice():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=109)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -511,6 +570,7 @@ def test_alter_layout_depthwise_conv2d():
         return y
 
     import topi
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=110)
     def alter_conv2d(attrs, inputs, tinfos):
         with tvm.target.create("llvm"):
@@ -548,6 +608,7 @@ def test_alter_layout_prelu():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
+    # Register alter op layout. "level" is used to override the previously registered functions.
     @register_alter_op_layout("nn.conv2d", level=111)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
@@ -580,6 +641,281 @@ def test_alter_layout_prelu():
     assert(analysis.alpha_equal(a, b))
 
 
+def test_alter_layout_pad():
+    """ Check NCHW, NHWC and corner case for pad layout conversion"""
+    # Register alter op layout. "level" is used to override the previously registered functions.
+    @register_alter_op_layout("nn.conv2d", level=112)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Check NCHW conversion.
+    def before_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1), (0, 0)))
+        ret = relay.layout_transform(ret, "NCHW16c", "NCHW")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nchw()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nchw()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check NHWC conversion.
+    def before_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC')
+        ret = relay.nn.pad(y, pad_width=((0, 0), (1, 1), (1, 1), (0, 0)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (1, 1), (1, 1), (0, 0)))
+        ret = relay.layout_transform(ret, "NCHW16c", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nhwc()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nhwc()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check that conversion does not happen when padding along split axis..
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.nn.pad(y, pad_width=((0, 0), (1, 1), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
+        ret = relay.nn.pad(ret, pad_width=((0, 0), (1, 1), (1, 1), (1, 1)))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_alter_layout_pool():
+    """ Check NCHW, NHWC pool layout conversion"""
+    # Register alter op layout. "level" is used to override the previously registered functions.
+    @register_alter_op_layout("nn.conv2d", level=113)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Check NCHW conversion.
+    def before_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.nn.avg_pool2d(y, pool_size=(1, 1))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.avg_pool2d(y, pool_size=(1, 1), layout='NCHW16c')
+        ret = relay.layout_transform(ret, "NCHW16c", "NCHW")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nchw()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nchw()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check NHWC conversion.
+    def before_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC')
+        ret = relay.nn.avg_pool2d(y, pool_size=(1, 1), layout='NHWC')
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.nn.avg_pool2d(y, pool_size=(1, 1), layout='NCHW16c')
+        ret = relay.layout_transform(ret, "NCHW16c", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nhwc()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nhwc()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_alter_layout_sum():
+    """ Check NCHW, NHWC sum layout conversion"""
+    # Register alter op layout. "level" is used to override the previously registered functions.
+    @register_alter_op_layout("nn.conv2d", level=114)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Check NCHW conversion.
+    def before_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        ret = relay.sum(y, axis=1, keepdims=True)
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
+        ret = relay.sum(ret, axis=[1], keepdims=True)
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nchw()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nchw()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+    # Check NHWC conversion.
+    def before_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC')
+        ret = relay.sum(y, axis=3, keepdims=True)
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var('weight1')
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
+        ret = relay.sum(ret, axis=[1], keepdims=True)
+        ret = relay.layout_transform(ret, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before_nhwc()
+    a = run_opt_pass(a, transform.AlterOpLayout())
+
+    b = expected_nhwc()
+    b = run_opt_pass(b, transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_alter_op()
     test_alter_return_none()
@@ -593,3 +929,6 @@ if __name__ == "__main__":
     test_alter_layout_strided_slice()
     test_alter_layout_depthwise_conv2d()
     test_alter_layout_prelu()
+    test_alter_layout_pad()
+    test_alter_layout_pool()
+    test_alter_layout_sum()

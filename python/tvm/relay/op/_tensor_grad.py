@@ -48,6 +48,9 @@ from .transform import (
     tile,
     transpose,
     where,
+    repeat,
+    expand_dims,
+    full_like
 )
 
 
@@ -198,6 +201,7 @@ def clip_grad(orig, grad):
 
 @register_gradient("nn.max_pool2d")
 def max_pool2d_grad(orig, grad):
+    """Returns the gradient of max_pool2d."""
     attrs = orig.attrs
     pool_grad = _nn.max_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
                                     strides=attrs.strides, padding=attrs.padding,
@@ -207,11 +211,32 @@ def max_pool2d_grad(orig, grad):
 
 @register_gradient("nn.avg_pool2d")
 def avg_pool2d_grad(orig, grad):
+    """Returns the gradient of avg_pool2d."""
     attrs = orig.attrs
     pool_grad = _nn.avg_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
                                     strides=attrs.strides, padding=attrs.padding,
                                     layout=attrs.layout, ceil_mode=attrs.ceil_mode,
                                     count_include_pad=attrs.count_include_pad)
+    return [pool_grad]
+
+
+@register_gradient("nn.global_avg_pool2d")
+def global_avg_pool2d_grad(orig, grad):
+    """Returns the gradient of global_avg_pool2d."""
+    data = orig.args[0]
+    shape = data.checked_type.shape
+    layout = orig.attrs.layout
+
+    # we assume NCHW or NHWC layout for now, but easy to add more
+    assert layout in ["NCHW", "NHWC"]
+    if layout == "NCHW":
+        pool_size = shape[2], shape[3]
+    elif layout == "NHWC":
+        pool_size = shape[1], shape[2]
+
+    pool_grad = _nn.avg_pool2d_grad(grad, data, pool_size=pool_size,
+                                    strides=(1, 1), padding=(0, 0),
+                                    layout=layout)
     return [pool_grad]
 
 
@@ -287,16 +312,53 @@ def conv2d_grad(orig, grad):
     return [backward_data, backward_weight]
 
 
+def _get_reduce_axis(call):
+    """Helper function that returns the reduce axis of the call as plain python ints."""
+    x, axis = call.args[0], call.attrs.axis
+    shape = x.checked_type.concrete_shape
+
+    # should never exclude when axis is None
+    assert not (axis is None and call.attrs.exclude)
+
+    if axis is None:
+        return None
+
+    # convert to nonnegative integers and sort
+    axis = sorted([ax if ax >= 0 else len(shape) + ax for ax in map(int, axis)])
+    if call.attrs.exclude:
+        axis = [ax for ax in range(len(shape)) if ax not in axis]
+    return axis
+
+
+def _unreduce_expand(x, axis):
+    """Helper function that returns x expanded on the reduced dimensions in axis."""
+    # assume axis is sorted nonnegative ints
+    for ax in axis:
+        x = expand_dims(x, ax)
+    return x
+
+
 @register_gradient("max")
 def max_grad(orig, grad):
     """Returns the gradient of max"""
-    # Only support axis=0, since broadcasting orig to x behaves incorrectly
-    x, axis = orig.args[0], orig.attrs.axis
-    assert(axis is not None and len(axis) == 1 and int(axis[0]) == 0)
-    orig = broadcast_to_like(orig, x)
-    grad = broadcast_to_like(grad, x)
-    indicators = cast_like(equal(orig, x), grad)
-    return [indicators * grad]
+    x, axis = orig.args[0], _get_reduce_axis(orig)
+    shape = x.checked_type.concrete_shape
+
+    repeated = orig
+    if axis is None:
+        repeated = full_like(x, repeated)
+    else:
+        # expand dims (if necessary) and repeat along each axis
+        if not orig.attrs.keepdims:
+            repeated = _unreduce_expand(repeated, axis)
+            grad = _unreduce_expand(grad, axis)
+        for ax in axis:
+            repeated = repeat(repeated, shape[ax], ax)
+
+    indicators = cast_like(equal(repeated, x), grad)
+    num_selected = _sum(indicators, axis, keepdims=True)
+    # spread error across all max weights
+    return [indicators * grad / num_selected]
 
 
 @register_gradient("nn.softmax")
@@ -372,7 +434,11 @@ def negative_grad(orig, grad):
 @register_gradient("sum")
 def sum_grad(orig, grad):
     """Returns grad broadcasted to data dims"""
-    data = orig.args[0]
+    data, axis = orig.args[0], _get_reduce_axis(orig)
+    if not orig.attrs.keepdims:
+        if axis is None:
+            axis = list(range(len(data.checked_type.concrete_shape)))
+        grad = _unreduce_expand(grad, axis)
     return [broadcast_to_like(grad, data)]
 
 
