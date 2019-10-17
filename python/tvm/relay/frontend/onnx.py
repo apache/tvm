@@ -28,7 +28,7 @@ from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_shape, infer_channels, get_name
+from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_type, infer_value, get_name
 from onnx.numpy_helper import to_array
 
 __all__ = ['from_onnx']
@@ -877,17 +877,24 @@ class Softmax(OnnxOpConverter):
             attr['axis'] = 1
         return AttrCvt('softmax', transforms={'axis': ('axis', 1)})(inputs, attr, params)
 
+
 class OneHot(OnnxOpConverter):
     """ Operator converter for OneHot.
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        print(inputs)
+        # Extract relay one_hot inputs.
+        indices, depth, values = inputs
+        # Split onnx on off values into two separate expressions.
+        on_value, off_value = _op.split(values, 2)
+        # Extract the datatype of the output from on_value.
+        dtype = infer_type(on_value).checked_type.dtype
+        # Convert depth into an integer.
+        depth = infer_value(depth, params).asnumpy()[0]
         # set default value when axis is not set in the model
         if 'axis' not in attr:
             attr['axis'] = -1
-        print("UHOH ONEHOT")
-        return AttrCvt('one_hot', transforms={'axis': ('axis', 1)})(inputs, attr, params)
+        return _op.one_hot(indices, on_value, off_value, depth, attr['axis'], dtype=dtype)
 
 class ConstantFill(OnnxOpConverter):
     """ Operator converter for ConstantFill.
