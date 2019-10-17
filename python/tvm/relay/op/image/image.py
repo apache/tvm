@@ -23,7 +23,6 @@ def resize(data,
            layout="NCHW",
            method="bilinear",
            align_corners=True,
-           half_pixel_centers=False,
            out_dtype=None):
     """Image resize operator.
 
@@ -52,9 +51,6 @@ def resize(data,
     align_corners : int, optional
         Should be true to preserve the values at the corner pixels
 
-    half_pixel_centers : int, optional
-        If true, `align_corners` must be false.
-
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
 
@@ -63,4 +59,4 @@ def resize(data,
     result: relay.Expr
         The resized result.
     """
-    return _make.resize(data, size, layout, method, align_corners, half_pixel_centers, out_dtype)
+    return _make.resize(data, size, layout, method, align_corners, out_dtype)
