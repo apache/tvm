@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
@@ -42,6 +41,11 @@
 
 namespace tvm {
 namespace relay {
+
+TVM_REGISTER_NODE_TYPE(CachedFuncNode);
+TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
+TVM_REGISTER_NODE_TYPE(CCacheValueNode);
+TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
 CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
   auto n = make_node<CCacheKeyNode>();
@@ -78,7 +82,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
       res.push_back(ir::IntImm::make(Int(32), *pval));
-    } else if (val->is_type<ir::Any>()) {
+    } else if (val->IsInstance<ir::Any>()) {
       res.push_back(val.as<ir::Any>()->ToVar());
     } else {
       res.push_back(val);

@@ -76,7 +76,7 @@ Stmt IRTransform(const Stmt& ir_node,
                  const Array<Expr>& only_enable) {
   std::unordered_set<uint32_t> only_type_index;
   for (Expr s : only_enable) {
-    only_type_index.insert(Node::TypeKey2Index(s.as<StringImm>()->value.c_str()));
+    only_type_index.insert(Object::TypeKey2Index(s.as<StringImm>()->value.c_str()));
   }
   return IRTransformer(f_preorder, f_postorder, only_type_index)
       .Mutate(ir_node);

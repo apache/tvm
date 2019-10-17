@@ -34,10 +34,10 @@
 
 namespace tvm {
 /*!
- * \brief A dynamically dispatched functor on NodeRef in the first argument.
+ * \brief A dynamically dispatched functor on ObjectRef in the first argument.
  *
  * \code
- *   IRFunctor<std::string (const NodeRef& n, std::string prefix)> tostr;
+ *   IRFunctor<std::string (const ObjectRef& n, std::string prefix)> tostr;
  *   tostr.set_dispatch<Add>([](const Add* op, std::string prefix) {
  *     return prefix + "Add";
  *   });
@@ -60,10 +60,10 @@ template<typename FType>
 class IRFunctor;
 
 template<typename R, typename ...Args>
-class IRFunctor<R(const NodeRef& n, Args...)> {
+class IRFunctor<R(const ObjectRef& n, Args...)> {
  private:
-  using Function = std::function<R (const NodeRef&n, Args...)>;
-  using TSelf = IRFunctor<R (const NodeRef& n, Args...)>;
+  using Function = std::function<R (const ObjectRef&n, Args...)>;
+  using TSelf = IRFunctor<R (const ObjectRef& n, Args...)>;
   /*! \brief internal function table */
   std::vector<Function> func_;
 
@@ -75,8 +75,8 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
    * \param n The node to be dispatched
    * \return Whether dispatching function is registered for n's type.
    */
-  inline bool can_dispatch(const NodeRef& n) const {
-    uint32_t type_index = n.type_index();
+  inline bool can_dispatch(const ObjectRef& n) const {
+    uint32_t type_index = n->type_index();
     return type_index < func_.size() && func_[type_index] != nullptr;
   }
   /*!
@@ -85,12 +85,12 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
    * \param args The additional arguments
    * \return The result.
    */
-  inline R operator()(const NodeRef& n, Args... args) const {
-    uint32_t type_index = n.type_index();
+  inline R operator()(const ObjectRef& n, Args... args) const {
+    uint32_t type_index = n->type_index();
     CHECK(type_index < func_.size() &&
           func_[type_index] != nullptr)
         << "IRFunctor calls un-registered function on type "
-        << Node::TypeIndex2Key(type_index);
+        << n->GetTypeKey();
     return func_[type_index](n, std::forward<Args>(args)...);
   }
   /*!
@@ -101,19 +101,19 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
    */
   template<typename TNode>
   inline TSelf& set_dispatch(Function f) {  // NOLINT(*)
-    uint32_t tindex = Node::TypeKey2Index(TNode::_type_key);
+    uint32_t tindex = TNode::RuntimeTypeIndex();
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
     }
     CHECK(func_[tindex] == nullptr)
-        << "Dispatch for " << Node::TypeIndex2Key(tindex)
+        << "Dispatch for " << TNode::_type_key
         << " is already set";
     func_[tindex] = f;
     return *this;
   }
   /*!
    * \brief set the dispacher for type TNode
-   *  This allows f to used detailed const Node pointer to replace NodeRef
+   *  This allows f to used detailed const Node pointer to replace ObjectRef
    *
    * \param f The function to be set.
    * \tparam TNode the type of Node to be dispatched.
@@ -121,8 +121,8 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
    */
   template<typename TNode>
   inline TSelf& set_dispatch(std::function<R(const TNode* n, Args...)> f) { // NOLINT(*)
-    Function fun = [f](const NodeRef& n, Args... args) {
-      return f(static_cast<const TNode*>(n.node_.get()),
+    Function fun = [f](const ObjectRef& n, Args... args) {
+      return f(static_cast<const TNode*>(n.get()),
                std::forward<Args>(args)...);
     };
     return this->set_dispatch<TNode>(fun);
@@ -135,7 +135,7 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
   */
   template<typename TNode>
   inline TSelf& clear_dispatch() {  // NOLINT(*)
-    uint32_t tindex = Node::TypeKey2Index(TNode::_type_key);
+    uint32_t tindex = TNode::RuntimeTypeIndex();
     CHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
     func_[tindex] = nullptr;
     return *this;
@@ -172,7 +172,7 @@ class IRFunctor<R(const NodeRef& n, Args...)> {
  *      f(e, this);
  *    }
  *
- *    using FType = IRFunctor<void (const NodeRef&, IRPrinter *)>;
+ *    using FType = IRFunctor<void (const ObjectRef&, IRPrinter *)>;
  *    // function to return global function table
  *    static FType& vtable();
  *  };
@@ -232,15 +232,15 @@ template<typename FType>
 class IRFunctorStaticRegistry;
 
 template<typename R, typename ...Args>
-class IRFunctorStaticRegistry<R(const NodeRef& n, Args...)> {
+class IRFunctorStaticRegistry<R(const ObjectRef& n, Args...)> {
  private:
-  IRFunctor<R(const NodeRef& n, Args...)> *irf_;
+  IRFunctor<R(const ObjectRef& n, Args...)> *irf_;
   std::shared_ptr<IRFunctorCleanList> free_list;
 
-  using TSelf = IRFunctorStaticRegistry<R(const NodeRef& n, Args...)>;
+  using TSelf = IRFunctorStaticRegistry<R(const ObjectRef& n, Args...)>;
 
  public:
-  IRFunctorStaticRegistry(IRFunctor<R(const NodeRef& n, Args...)> *irf) {
+  IRFunctorStaticRegistry(IRFunctor<R(const ObjectRef& n, Args...)> *irf) {
     irf_ = irf;
     free_list = std::make_shared<IRFunctorCleanList>();
   }
@@ -261,12 +261,12 @@ class IRFunctorStaticRegistry<R(const NodeRef& n, Args...)> {
 * the compiler to deduce the template types.
 */
 template<typename R, typename ...Args>
-IRFunctorStaticRegistry<R(const NodeRef& n, Args...)> MakeIRFunctorStaticRegistry(
-  IRFunctor<R(const NodeRef& n, Args...)> *irf) {
-  return IRFunctorStaticRegistry<R(const NodeRef& n, Args...)>(irf);
+IRFunctorStaticRegistry<R(const ObjectRef& n, Args...)> MakeIRFunctorStaticRegistry(
+  IRFunctor<R(const ObjectRef& n, Args...)> *irf) {
+  return IRFunctorStaticRegistry<R(const ObjectRef& n, Args...)>(irf);
 }
 
-#define TVM_AUTO_REGISTER_VAR_DEF(ClsName)                           \
+#define TVM_AUTO_REGISTER_VAR_DEF(ClsName)                        \
   static TVM_ATTRIBUTE_UNUSED auto __make_functor ## _ ## ClsName
 
 /*!

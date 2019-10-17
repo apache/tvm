@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -111,7 +111,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
       CHECK(V) << "Invalid Variable\n";
 
       // Variable is from function args. Return true.
-      if (V == func_->args[0].node_.get()) return true;
+      if (V == func_->args[0].get()) return true;
 
       // The value is expected to come from a tvm_struct_get Call.
       // Get the first argument of tvm_struct_get, and continue.

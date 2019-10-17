@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <utility>
 #include <unordered_map>
 #include "runtime_base.h"
 
@@ -47,6 +48,8 @@ struct TypeInfo {
   bool child_slots_can_overflow{true};
   /*! \brief name of the type. */
   std::string name;
+  /*! \brief hash of the name */
+  size_t name_hash{0};
 };
 
 /*!
@@ -127,6 +130,7 @@ class TypeContext {
     type_table_[allocated_tindex].child_slots_can_overflow =
         child_slots_can_overflow;
     type_table_[allocated_tindex].name = skey;
+    type_table_[allocated_tindex].name_hash = std::hash<std::string>()(skey);
     // update the key2index mapping.
     type_key2index_[skey] = allocated_tindex;
     return allocated_tindex;
@@ -138,6 +142,14 @@ class TypeContext {
           type_table_[tindex].allocated_slots != 0)
         << "Unknown type index " << tindex;
     return type_table_[tindex].name;
+  }
+
+  size_t TypeIndex2KeyHash(uint32_t tindex) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    CHECK(tindex < type_table_.size() &&
+          type_table_[tindex].allocated_slots != 0)
+        << "Unknown type index " << tindex;
+    return type_table_[tindex].name_hash;
   }
 
   uint32_t TypeKey2Index(const char* key) {
@@ -182,6 +194,10 @@ std::string Object::TypeIndex2Key(uint32_t tindex) {
   return TypeContext::Global()->TypeIndex2Key(tindex);
 }
 
+size_t Object::TypeIndex2KeyHash(uint32_t tindex) {
+  return TypeContext::Global()->TypeIndex2KeyHash(tindex);
+}
+
 uint32_t Object::TypeKey2Index(const char* key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
@@ -189,7 +205,9 @@ uint32_t Object::TypeKey2Index(const char* key) {
 class TVMObjectCAPI {
  public:
   static void Free(TVMObjectHandle obj) {
-    static_cast<Object*>(obj)->DecRef();
+    if (obj != nullptr) {
+      static_cast<Object*>(obj)->DecRef();
+    }
   }
 
   static uint32_t TypeKey2Index(const char* type_key) {
@@ -201,6 +219,7 @@ class TVMObjectCAPI {
 
 int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
   API_BEGIN();
+  CHECK(obj != nullptr);
   out_tindex[0] = static_cast<tvm::runtime::Object*>(obj)->type_index();
   API_END();
 }

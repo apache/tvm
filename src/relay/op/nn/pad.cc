@@ -204,7 +204,7 @@ RELAY_REGISTER_OP("nn.pad")
 .describe(R"code(Pad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.PadAttrs")
+.set_attrs_type<PadAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -278,7 +278,7 @@ RELAY_REGISTER_OP("nn.mirror_pad")
 .describe(R"code(MirrorPad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MirrorPadAttrs")
+.set_attrs_type<MirrorPadAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

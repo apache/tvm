@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,10 +34,12 @@
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_NODE_TYPE(DebugAttrs);
+
 Array<Tensor> DebugCompute(const Attrs& attrs,
-                               const Array<Tensor>& inputs,
-                               const Type& out_type,
-                               const Target& target) {
+                           const Array<Tensor>& inputs,
+                           const Type& out_type,
+                           const Target& target) {
   return Array<Tensor>{ topi::identity(inputs[0]) };
 }
 
@@ -48,6 +50,7 @@ RELAY_REGISTER_OP("debug")
 .set_num_inputs(1)
 .add_argument("program", "Tuple", "The program to execute before debugging.")
 .set_support_level(1)
+.set_attrs_type<DebugAttrs>()
 .add_type_rel("Debug", IdentityRel)
 .set_attr<TOpPattern>("TOpPattern", kOpaque)
 .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);

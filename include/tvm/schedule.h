@@ -56,7 +56,7 @@ enum AttachType : int {
 class Stage : public NodeRef {
  public:
   Stage() {}
-  explicit Stage(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Stage(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
@@ -280,7 +280,7 @@ class Stage : public NodeRef {
 class Schedule : public NodeRef {
  public:
   Schedule() {}
-  explicit Schedule(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Schedule(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
@@ -403,7 +403,7 @@ class Schedule : public NodeRef {
 class IterVarRelation : public NodeRef {
  public:
   IterVarRelation() {}
-  explicit IterVarRelation(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVarRelation(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -417,7 +417,7 @@ class IterVarRelation : public NodeRef {
 class IterVarAttr : public NodeRef {
  public:
   IterVarAttr() {}
-  explicit IterVarAttr(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVarAttr(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -745,25 +745,25 @@ class SingletonNode : public IterVarRelationNode {
 
 // implementations
 inline const StageNode* Stage::operator->() const {
-  return static_cast<const StageNode*>(node_.get());
+  return static_cast<const StageNode*>(get());
 }
 inline StageNode* Stage::operator->() {
-  return static_cast<StageNode*>(node_.get());
+  return static_cast<StageNode*>(get_mutable());
 }
 
 inline const ScheduleNode* Schedule::operator->() const {
-  return static_cast<const ScheduleNode*>(node_.get());
+  return static_cast<const ScheduleNode*>(get());
 }
 inline ScheduleNode* Schedule::operator->() {
-  return static_cast<ScheduleNode*>(node_.get());
+  return static_cast<ScheduleNode*>(get_mutable());
 }
 
 inline const IterVarRelationNode* IterVarRelation::operator->() const {
-  return static_cast<const IterVarRelationNode*>(node_.get());
+  return static_cast<const IterVarRelationNode*>(get());
 }
 
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
-  return static_cast<const IterVarAttrNode*>(node_.get());
+  return static_cast<const IterVarAttrNode*>(get());
 }
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_H_

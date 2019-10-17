@@ -134,16 +134,16 @@ class PassContext : public NodeRef {
    * \return const access pointer.
    */
   const PassContextNode* operator->() const {
-    CHECK(node_.get() != nullptr);
-    return static_cast<const PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<const PassContextNode*>(get());
   }
   /*!
    * \brief mutable accessor.
    * \return mutable access pointer.
    */
   PassContextNode* operator->() {
-    CHECK(node_.get() != nullptr);
-    return static_cast<PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<PassContextNode*>(get_mutable());
   }
   /*!
    * \brief Construct a PassContext containing the default configurations.

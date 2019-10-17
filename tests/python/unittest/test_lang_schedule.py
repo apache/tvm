@@ -103,16 +103,20 @@ def test_fuse():
 
 
 def test_singleton():
+    print("test singleton")
     A = tvm.placeholder((), name='A')
     T = tvm.compute((), lambda : A() + 1)
     s = tvm.create_schedule(T.op)
+    print("test singleton fin1")
     fused = s[T].fuse()
     assert any(isinstance(x, tvm.schedule.Singleton) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused,)
     dump = pkl.dumps(s)
+    print("test singleton fin3")
     s_loaded = pkl.loads(dump)
+    print("test singleton fin2")
     assert isinstance(s_loaded, tvm.schedule.Schedule)
-
+    print("test singleton fin")
 
 def test_vectorize():
     m = tvm.var('m')

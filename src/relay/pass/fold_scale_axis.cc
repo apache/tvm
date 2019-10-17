@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file fold_scale_axis.cc
  *
  * \brief Fold axis scaling into weights of
@@ -686,10 +684,10 @@ class BackwardTransformer : public NodeRef {
  public:
   BackwardTransformer() {}
   explicit BackwardTransformer(
-      ::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+      ::tvm::ObjectPtr<::tvm::Object> n) : NodeRef(n) {
   }
   BackwardTransformerNode* operator->() const {
-    return static_cast<BackwardTransformerNode*>(node_.get());
+    return static_cast<BackwardTransformerNode*>(get_mutable());
   }
   using ContainerType = BackwardTransformerNode;
 };

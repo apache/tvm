@@ -83,10 +83,12 @@ using NodeEqual = ::tvm::NodeEqual;
 #define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)          \
   class TypeName : public NodeRefBase {                                 \
    public:                                                              \
-    TypeName() {}                                                        \
-    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRefBase(n) {} \
+    TypeName() {}                                                       \
+    explicit TypeName(::tvm::ObjectPtr<::tvm::Object> n)                \
+        : NodeRefBase(n) {                                              \
+    }                                                                   \
     const NodeName* operator->() const {                                \
-      return static_cast<const NodeName*>(node_.get());                 \
+      return static_cast<const NodeName*>(get());                       \
     }                                                                   \
     operator bool() { return this->defined(); }                         \
     using ContainerType = NodeName;                                     \
@@ -127,7 +129,7 @@ class SourceName : public NodeRef {
    * \return the pointer to the internal node container
    */
   inline const SourceNameNode* operator->() const {
-    return static_cast<SourceNameNode*>(this->node_.get());
+    return static_cast<const SourceNameNode*>(get());
   }
 
   /*!

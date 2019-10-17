@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -92,7 +92,7 @@ class CopyIntrinInjector : public IRMutator {
     if (load->type.lanes() != 1) return false;
     Array<Var> loop_vars;
     for (const For* op : loops) {
-      loop_vars.push_back(Var(op->loop_var.node_));
+      loop_vars.push_back(op->loop_var);
     }
     Array<Expr> store_strides =
         arith::DetectLinearEquation(store->index, loop_vars);
@@ -153,7 +153,7 @@ class CopyIntrinInjector : public IRMutator {
         dst_strides.push_back(make_const(Int(32), 1));
     }
     Buffer dst = BufferNode::make(
-        Var(store->buffer_var.node_),
+        store->buffer_var,
         store->value.type(),
         dst_shape,
         dst_strides,
@@ -162,7 +162,7 @@ class CopyIntrinInjector : public IRMutator {
         GetStorageScope(store->buffer_var.get()),
         0, 0, kDefault);
     Buffer src = BufferNode::make(
-        Var(load->buffer_var.node_),
+        load->buffer_var,
         load->type,
         src_shape,
         src_strides,

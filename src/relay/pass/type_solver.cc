@@ -592,7 +592,7 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& 
     this->AddToQueue(rnode);
   } else {
     LOG(FATAL) << "Do not know how to handle constraint type"
-               << constraint->type_key();
+               << constraint->GetTypeKey();
   }
 }
 

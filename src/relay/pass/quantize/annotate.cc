@@ -79,7 +79,7 @@ Pass QuantizeAnnotate() {
   // TODO(tvm-teams): since partition has added cast_hint in different
   // branches, try to remove this in the future.
   std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
-    if (e->derived_from<TempExprNode>()) {
+    if (e->IsInstance<TempExprNode>()) {
       const auto* n = e.as<QAnnotateExprNode>();
       CHECK(n);
       const PackedFunc* f =
@@ -108,6 +108,8 @@ Pass QuantizeAnnotate() {
 
 TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
 .set_body_typed(QuantizeAnnotate);
+
+TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);
 
 }  // namespace quantize
 }  // namespace relay

@@ -122,7 +122,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     size_t size = combiner->result.size();
 
     const UIntImm *size_of_args = call->args[0].as<UIntImm>();
-    CHECK(size_of_args) << call->args[0]->type_key();
+    CHECK(size_of_args) << call->args[0]->GetTypeKey();
     CHECK_EQ(size, size_of_args->value);
     Array<Expr> inits = combiner->identity_element;
     std::vector<Expr> values(size);
@@ -152,7 +152,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     std::vector<ThreadEntry> vred, vpar;
     for (const AttrStmt* attr : thread_extents_) {
       ThreadEntry e;
-      IterVar iv(attr->node.node_);
+      IterVar iv = Downcast<IterVar>(attr->node);
       e.scope = runtime::ThreadScope::make(iv->thread_tag);
       e.iv = iv;
       CHECK_LE(e.scope.rank, 1);
@@ -183,7 +183,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
       std::vector<Stmt> stores(size);
       for (size_t i = 0; i < size; ++i) {
         Expr pred = const_true(types[i].lanes());
-        Var buffer_var(call->args[2+size+i].node_);
+        Var buffer_var = Downcast<Var>(call->args[2+size+i]);
         stores[i] = Store::make(buffer_var, values[i], 0, pred);
       }
       return Block::make(stores);

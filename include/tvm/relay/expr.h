@@ -541,10 +541,11 @@ RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
 
 // implementataions
 inline const Type& ExprNode::checked_type() const {
-  CHECK(checked_type_.defined()) << "internal error: the type checker has "
-    "not populated the checked_type "
-    "field for "
-                                 << GetRef<Expr>(this);
+  CHECK(checked_type_.defined())
+      << "internal error: the type checker has "
+      << "not populated the checked_type "
+      << "field for "
+      << GetRef<Expr>(this);
   return this->checked_type_;
 }
 
@@ -557,7 +558,7 @@ inline const TTypeNode* ExprNode::type_as() const {
   const TTypeNode* node = checked_type_.as<TTypeNode>();
   CHECK(node != nullptr)
       << "Expected type to be " << TTypeNode::_type_key
-      << ", but get " << checked_type_->type_key();
+      << ", but get " << checked_type_->GetTypeKey();
   return node;
 }
 

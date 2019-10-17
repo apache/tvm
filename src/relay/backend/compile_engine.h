@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -119,9 +119,9 @@ class CCacheKeyNode : public Node {
 class CCacheKey : public NodeRef {
  public:
   CCacheKey() {}
-  explicit CCacheKey(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CCacheKey(ObjectPtr<Object> n) : NodeRef(n) {}
   const CCacheKeyNode* operator->() const {
-    return static_cast<CCacheKeyNode*>(node_.get());
+    return static_cast<const CCacheKeyNode*>(get());
   }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
@@ -153,12 +153,12 @@ class CCacheValueNode : public Node {
 class CCacheValue : public NodeRef {
  public:
   CCacheValue() {}
-  explicit CCacheValue(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CCacheValue(ObjectPtr<Object> n) : NodeRef(n) {}
   CCacheValueNode* operator->() {
-    return static_cast<CCacheValueNode*>(node_.get());
+    return static_cast<CCacheValueNode*>(get_mutable());
   }
   const CCacheValueNode* operator->() const {
-    return static_cast<const CCacheValueNode*>(node_.get());
+    return static_cast<const CCacheValueNode*>(get());
   }
   using ContainerType = CCacheValueNode;
 };
@@ -201,9 +201,9 @@ class CompileEngineNode : public Node {
 class CompileEngine : public NodeRef {
  public:
   CompileEngine() {}
-  explicit CompileEngine(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CompileEngine(ObjectPtr<Object> n) : NodeRef(n) {}
   CompileEngineNode* operator->() {
-    return static_cast<CompileEngineNode*>(node_.get());
+    return static_cast<CompileEngineNode*>(get_mutable());
   }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */

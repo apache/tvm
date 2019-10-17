@@ -629,7 +629,7 @@ Mutate_(const Mul* op, const Expr& self) {
   }
   if (const auto* bconst = b.as<IntImm>()) {
     if (a.as<SumExprNode>()) {
-      SumExpr ret(std::move(a.node_));
+      SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
       return std::move(ret);
     } else {
@@ -931,7 +931,7 @@ Mutate_(const Mod* op, const Expr& self) {
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 &&
           cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr(std::move(a.node_));
+        SumExpr sum_expr = Downcast<SumExpr>(a);
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
@@ -992,7 +992,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
       // Simplify the offset constant if necessary.
       // floormod(x - 5, 3) => floormod(x + 1, 3)
       int64_t new_base = floormod(psum->base, cval);
-      SumExpr sum_expr(std::move(a.node_));
+      SumExpr sum_expr = Downcast<SumExpr>(std::move(a));
       sum_expr.CopyOnWrite()->base = new_base;
       return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
     } else {

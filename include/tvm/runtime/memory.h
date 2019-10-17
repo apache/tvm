@@ -69,7 +69,7 @@ class ObjAllocatorBase {
                   "make_node can only be used to create NodeBase");
     T* ptr = Handler::New(static_cast<Derived*>(this),
                          std::forward<Args>(args)...);
-    ptr->type_index_ = T::type_index();
+    ptr->type_index_ = T::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
     return ObjectPtr<T>(ptr);
   }

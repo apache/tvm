@@ -52,7 +52,7 @@ class PatternNode : public RelayNode {
 class Pattern : public NodeRef {
  public:
   Pattern() {}
-  explicit Pattern(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Pattern(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
 
   using ContainerType = PatternNode;
 };

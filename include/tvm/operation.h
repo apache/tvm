@@ -651,7 +651,7 @@ inline Tensor compute(Array<Expr> shape,
 
 // inline function.
 inline const OperationNode* Operation::operator->() const {
-  return static_cast<const OperationNode*>(node_.get());
+  return static_cast<const OperationNode*>(get());
 }
 }  // namespace tvm
 #endif  // TVM_OPERATION_H_

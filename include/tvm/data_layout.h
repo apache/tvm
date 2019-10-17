@@ -127,7 +127,7 @@ class LayoutNode : public Node {
  */
 class Layout : public NodeRef {
  public:
-  explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Layout(ObjectPtr<Object> n) : NodeRef(n) {}
 
   /*! \brief default constructor */
   Layout() = default;
@@ -152,7 +152,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   const LayoutNode* operator->() const {
-    return static_cast<const LayoutNode*>(node_.get());
+    return static_cast<const LayoutNode*>(get());
   }
 
   /*!
@@ -160,7 +160,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   LayoutNode* operator->() {
-    return static_cast<LayoutNode*>(node_.get());
+    return static_cast<LayoutNode*>(get_mutable());
   }
 
   /*!
@@ -369,7 +369,7 @@ class BijectiveLayout : public NodeRef {
 };
 
 inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
-  return static_cast<const BijectiveLayoutNode*>(node_.get());
+  return static_cast<const BijectiveLayoutNode*>(get());
 }
 
 }  // namespace tvm

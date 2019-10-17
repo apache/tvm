@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/ir/alpha_equal.cc
  * \brief Alpha equality check by deep comparing two nodes.
  */
@@ -53,12 +52,12 @@ class AlphaEqualHandler:
   bool Equal(const NodeRef& lhs, const NodeRef& rhs) {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
-    if (lhs->derived_from<TypeNode>()) {
-      if (!rhs->derived_from<TypeNode>()) return false;
+    if (lhs->IsInstance<TypeNode>()) {
+      if (!rhs->IsInstance<TypeNode>()) return false;
       return TypeEqual(Downcast<Type>(lhs), Downcast<Type>(rhs));
     }
-    if (lhs->derived_from<ExprNode>()) {
-      if (!rhs->derived_from<ExprNode>()) return false;
+    if (lhs->IsInstance<ExprNode>()) {
+      if (!rhs->IsInstance<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
     if (const auto lhsm = lhs.as<ModuleNode>()) {
@@ -181,7 +180,7 @@ class AlphaEqualHandler:
    * \param rhs The right hand operand.
    * \return The compare result.
    */
-  bool LeafNodeEqual(const NodeRef& lhs, const NodeRef& rhs) {
+  bool LeafNodeEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
     if (lhs.same_as(rhs)) return true;
     auto it = equal_map_.find(lhs);
     if (it != equal_map_.end()) {
@@ -197,7 +196,7 @@ class AlphaEqualHandler:
     }
   }
   using AttrsEqualHandler::VisitAttr_;
-  bool VisitAttr_(const Variable* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const Variable* lhs, const ObjectRef& other) final {
     return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
   }
 
@@ -588,7 +587,7 @@ class AlphaEqualHandler:
   // if in assert mode, must return true, and will throw error otherwise.
   bool assert_mode_;
   // renaming of NodeRef to indicate two nodes equals to each other
-  std::unordered_map<NodeRef, NodeRef, NodeHash, NodeEqual> equal_map_;
+  std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> equal_map_;
 };
 
 bool AlphaEqual(const Type& lhs, const Type& rhs) {

@@ -65,7 +65,7 @@ enum TypeIndex  {
  * - _type_index:
  *      Static type index of the object, if assigned to TypeIndex::kDynamic
  *      the type index will be assigned during runtime.
- *      Runtime type index can be accessed by ObjectType::type_index();
+ *      Runtime type index can be accessed by ObjectType::TypeIndex();
  * - _type_key:
  *       The unique string identifier of tyep type.
  * - _type_final:
@@ -147,9 +147,22 @@ class Object {
    * \param self pointer to the Object.
    */
   typedef void (*FDeleter)(Object* self);
-  /*! \return The internal type index of the object. */
+  /*! \return The internal runtime type index of the object. */
   uint32_t type_index() const {
     return type_index_;
+  }
+  /*!
+   * \return the type key of the object.
+   * \note this operation is expensive, can be used for error reporting.
+   */
+  std::string GetTypeKey() const {
+    return TypeIndex2Key(type_index_);
+  }
+  /*!
+   * \return A hash value of the return of GetTypeKey.
+   */
+  size_t GetTypeKeyHash() const {
+    return TypeIndex2KeyHash(type_index_);
   }
   /*!
    * Check if the object is an instance of TargetType.
@@ -158,6 +171,25 @@ class Object {
    */
   template<typename TargetType>
   inline bool IsInstance() const;
+
+  /*!
+   * \brief Get the type key of the corresponding index from runtime.
+   * \param tindex The type index.
+   * \return the result.
+   */
+  TVM_DLL static std::string TypeIndex2Key(uint32_t tindex);
+  /*!
+   * \brief Get the type key hash of the corresponding index from runtime.
+   * \param tindex The type index.
+   * \return the related key-hash.
+   */
+  TVM_DLL static size_t TypeIndex2KeyHash(uint32_t tindex);
+  /*!
+   * \brief Get the type index of the corresponding key from runtime.
+   * \param key The type key.
+   * \return the result.
+   */
+  TVM_DLL static uint32_t TypeKey2Index(const char* key);
 
 #if TVM_OBJECT_ATOMIC_REF_COUNTER
   using RefCounterType = std::atomic<int32_t>;
@@ -170,8 +202,29 @@ class Object {
   static constexpr bool _type_final = false;
   static constexpr uint32_t _type_child_slots = 0;
   static constexpr bool _type_child_slots_can_overflow = true;
-  static const uint32_t _GetOrAllocRuntimeTypeIndex() {
+  static uint32_t _GetOrAllocRuntimeTypeIndex() {
     return 0;
+  }
+  static uint32_t RuntimeTypeIndex() {
+    return 0;
+  }
+
+  // Default constructor and copy constructor
+  Object() {}
+  // Override the copy and assign constructors to do nothing.
+  // This is to make sure only contents, but not deleter and ref_counter
+  // are copied when a child class copies itself.
+  // This will enable us to use make_object<ObjectClass>(*obj_ptr)
+  // to copy an existing object.
+  Object(const Object& other) {  // NOLINT(*)
+  }
+  Object(Object&& other) {  // NOLINT(*)
+  }
+  Object& operator=(const Object& other) {  //NOLINT(*)
+    return *this;
+  }
+  Object& operator=(Object&& other) {  //NOLINT(*)
+    return *this;
   }
 
  protected:
@@ -215,18 +268,6 @@ class Object {
       uint32_t type_child_slots,
       bool type_child_slots_can_overflow);
 
-  /*!
-   * \brief Get the type key of the corresponding index from runtime.
-   * \param tindex The type index.
-   */
-  TVM_DLL static std::string TypeIndex2Key(uint32_t tindex);
-
-  /*!
-   * \brief Get the type index of the corresponding key from runtime.
-   * \param key The type key.
-   */
-  TVM_DLL static uint32_t TypeKey2Index(const char* key);
-
  private:
   // reference counter related operations
   /*! \brief developer function, increases reference counter. */
@@ -255,6 +296,32 @@ class Object {
   friend class TVMRetValue;
   friend class TVMObjectCAPI;
 };
+
+/*!
+ * \brief Get a reference type from a raw object ptr type
+ *
+ *  It is always important to get a reference type
+ *  if we want to return a value as reference or keep
+ *  the node alive beyond the scope of the function.
+ *
+ * \param ptr The node pointer
+ * \tparam RefType The reference type
+ * \tparam ObjectType The node type
+ * \return The corresponding RefType
+ */
+template <typename RefType, typename ObjectType>
+inline RefType GetRef(const ObjectType* ptr);
+
+/*!
+ * \brief Downcast a base reference type to a more specific type.
+ *
+ * \param ref The inptut reference
+ * \return The corresponding SubRef.
+ * \tparam SubRef The target specific reference type.
+ * \tparam BaseRef the current reference type.
+ */
+template <typename SubRef, typename BaseRef>
+inline SubRef Downcast(BaseRef ref);
 
 /*!
  * \brief A custom smart pointer for Object.
@@ -389,7 +456,7 @@ class ObjectPtr {
   /*! \brief internal pointer field */
   Object* data_{nullptr};
   /*!
-   * \brief constructor from NodeBase
+   * \brief constructor from Object
    * \param data The data pointer
    */
   explicit ObjectPtr(Object* data) : data_(data) {
@@ -400,6 +467,7 @@ class ObjectPtr {
   // friend classes
   friend class Object;
   friend class ObjectRef;
+  friend struct ObjectHash;
   template<typename>
   friend class ObjectPtr;
   template<typename>
@@ -407,6 +475,9 @@ class ObjectPtr {
   friend class TVMPODValue_;
   friend class TVMArgsSetter;
   friend class TVMRetValue;
+  friend class TVMArgValue;
+  template <typename RefType, typename ObjType>
+  friend RefType GetRef(const ObjType* ptr);
 };
 
 /*! \brief Base class of all object reference */
@@ -416,10 +487,54 @@ class ObjectRef {
   ObjectRef() = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : data_(data) {}
+  /*!
+   * \brief Comparator
+   * \param other Another object ref.
+   * \return the compare result.
+   */
+  bool same_as(const ObjectRef& other) const {
+    return data_ == other.data_;
+  }
+  /*!
+   * \brief Comparator
+   * \param other Another object ref.
+   * \return the compare result.
+   */
+  bool operator==(const ObjectRef& other) const {
+    return data_ == other.data_;
+  }
+  /*!
+   * \brief Comparator
+   * \param other Another node ref.
+   * \return the compare result.
+   */
+  bool operator!=(const ObjectRef& other) const {
+    return data_ != other.data_;
+  }
+  /*!
+   * \brief Comparator
+   * \param other Another object ref by address.
+   * \return the compare result.
+   */
+  bool operator<(const ObjectRef& other) const {
+    return data_.get() < other.data_.get();
+  }
+  /*! \return whether the expression is null */
+  bool defined() const {
+    return data_ != nullptr;
+  }
   /*! \return the internal object pointer */
-  inline const Object* get() const;
+  const Object* get() const {
+    return data_.get();
+  }
   /*! \return the internal node pointer */
-  inline const Object* operator->() const;
+  const Object* operator->() const {
+    return get();
+  }
+  /*! \return whether the reference is unique */
+  bool unique() const {
+    return data_.unique();
+  }
   /*!
    * \brief Try to downcast the internal Object to a
    *  raw pointer of a corresponding type.
@@ -434,16 +549,70 @@ class ObjectRef {
   template <typename ObjectType>
   inline const ObjectType* as() const;
 
-  /*! \brief type indicate the container type */
+  /*! \brief type indicate the container type. */
   using ContainerType = Object;
 
  protected:
   /*! \brief Internal pointer that backs the reference. */
   ObjectPtr<Object> data_;
+  /*! \return return a mutable internal ptr, can be used by sub-classes. */
+  Object* get_mutable() const {
+    return data_.get();
+  }
+  /*!
+   * \brief Internal helper function downcast a ref without check.
+   * \note Only used for internal dev purpoes.
+   * \tparam T The target reference type.
+   * \return The casted result.
+   */
+  template<typename T>
+  static T DowncastNoCheck(ObjectRef ref) {
+    return T(std::move(ref.data_));
+  }
+  /*!
+   * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
+   * \note only used for internal dev purpsoes.
+   * \tparam ObjectType The corresponding object type.
+   * \return the corresponding type.
+   */
+  template<typename ObjectType>
+  static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
+    return ObjectPtr<ObjectType>(ref.data_.data_);
+  }
   // friend classes.
+  friend struct ObjectHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
+  template <typename SubRef, typename BaseRef>
+  friend SubRef Downcast(BaseRef ref);
 };
+
+
+/*! \brief ObjectRef hash functor */
+struct ObjectHash {
+  size_t operator()(const ObjectRef& a) const {
+    return operator()(a.data_);
+  }
+
+  template<typename T>
+  size_t operator()(const ObjectPtr<T>& a) const {
+    return std::hash<Object*>()(a.get());
+  }
+};
+
+
+/*! \brief ObjectRef equal functor */
+struct ObjectEqual {
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const {
+    return a.same_as(b);
+  }
+
+  template<typename T>
+  size_t operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
+    return a == b;
+  }
+};
+
 
 /*!
  * \brief helper macro to declare a base object type that can be inheritated.
@@ -451,8 +620,10 @@ class ObjectRef {
  * \param ParentType The name of the ParentType
  */
 #define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)              \
-  static const uint32_t type_index()  {                                 \
-    if (_type_index != TypeIndex::kDynamic) return _type_index;         \
+  static const uint32_t RuntimeTypeIndex()  {                           \
+    if (_type_index != ::tvm::runtime::TypeIndex::kDynamic) {           \
+      return _type_index;                                               \
+    }                                                                   \
     return _GetOrAllocRuntimeTypeIndex();                               \
   }                                                                     \
   static const uint32_t _GetOrAllocRuntimeTypeIndex()  {                \
@@ -551,11 +722,11 @@ inline bool Object::IsInstance() const {
     if (TargetType::_type_final) {
       // if the target type is a final type
       // then we only need to check the equivalence.
-      return self->type_index_ == TargetType::type_index();
+      return self->type_index_ == TargetType::RuntimeTypeIndex();
     } else {
       // if target type is a non-leaf type
       // Check if type index falls into the range of reserved slots.
-      uint32_t begin = TargetType::type_index();
+      uint32_t begin = TargetType::RuntimeTypeIndex();
       // The condition will be optimized by constant-folding.
       if (TargetType::_type_child_slots != 0) {
         uint32_t end = begin + TargetType::_type_child_slots;
@@ -565,22 +736,15 @@ inline bool Object::IsInstance() const {
       }
       if (!TargetType::_type_child_slots_can_overflow) return false;
       // Invariance: parent index is always smaller than the child.
-      if (self->type_index_ < TargetType::type_index()) return false;
+      if (self->type_index_ < TargetType::RuntimeTypeIndex()) return false;
       // The rare slower-path, check type hierachy.
-      return self->DerivedFrom(TargetType::type_index());
+      return self->DerivedFrom(TargetType::RuntimeTypeIndex());
     }
   } else {
     return false;
   }
 }
 
-inline const Object* ObjectRef::get() const {
-  return data_.data_;
-}
-
-inline const Object* ObjectRef::operator->() const {
-  return get();
-}
 
 template <typename ObjectType>
 inline const ObjectType* ObjectRef::as() const {
@@ -591,7 +755,27 @@ inline const ObjectType* ObjectRef::as() const {
     return nullptr;
   }
 }
+
+template <typename RefType, typename ObjType>
+inline RefType GetRef(const ObjType* ptr) {
+  static_assert(std::is_base_of<typename RefType::ContainerType, ObjType>::value,
+                "Can only cast to the ref of same container type");
+  return RefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
+}
+
+template <typename SubRef, typename BaseRef>
+inline SubRef Downcast(BaseRef ref) {
+  CHECK(ref->template IsInstance<typename SubRef::ContainerType>())
+      << "Downcast from " << ref->GetTypeKey() << " to "
+      << SubRef::ContainerType::_type_key << " failed.";
+  return SubRef(std::move(ref.data_));
+}
+
 }  // namespace runtime
+
+template<typename T>
+using NodePtr = runtime::ObjectPtr<T>;
+
 }  // namespace tvm
 
 #endif  // TVM_RUNTIME_OBJECT_H_

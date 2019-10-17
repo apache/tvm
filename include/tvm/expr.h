@@ -49,7 +49,7 @@ class ExprNode : public Node {
 class Expr : public NodeRef {
  public:
   Expr() {}
-  explicit Expr(NodePtr<Node> ptr) : NodeRef(ptr) {}
+  explicit Expr(ObjectPtr<Object> ptr) : NodeRef(ptr) {}
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
@@ -122,7 +122,7 @@ class Variable : public ExprNode {
 /*! \brief a named variable in TVM */
 class Var : public Expr {
  public:
-  explicit Var(NodePtr<Node> n) : Expr(n) {}
+  explicit Var(ObjectPtr<Object> n) : Expr(n) {}
   TVM_DLL explicit Var(std::string name_hint = "v",
                        Type t = Int(32));
   /*!
@@ -145,7 +145,7 @@ class Var : public Expr {
    * \return the corresponding Variable.
    */
   const Variable* get() const {
-    return static_cast<Variable*>(node_.get());
+    return static_cast<Variable*>(data_.get());
   }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
@@ -187,7 +187,7 @@ class Integer : public Expr {
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(NodePtr<Node> node) : Expr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : Expr(node) {}
   /*!
    * \brief Construct integer from int value.
    */
@@ -197,7 +197,7 @@ class Integer : public Expr {
    * \param other another expression.
    */
   Integer& operator=(const Integer& other) {
-    node_ = other.node_;
+    data_ = other.data_;
     return *this;
   }
   /*!
@@ -205,13 +205,13 @@ class Integer : public Expr {
    * \return the content of the integer.
    */
   const IntImm* operator->() const {
-    return static_cast<const IntImm*>(node_.get());
+    return static_cast<const IntImm*>(data_.get());
   }
   /*!
    * \brief convert to int64_t
    */
   operator int64_t() const {
-    CHECK(node_ != nullptr)
+    CHECK(data_ != nullptr)
         << " Trying to reference a null Integer";
     return (*this)->value;
   }
@@ -346,7 +346,7 @@ class IterVar : public NodeRef {
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVar(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -423,7 +423,7 @@ class IterVarNode : public Node {
 
 // inline implementations
 inline const IterVarNode* IterVar::operator->() const {
-  return static_cast<const IterVarNode*>(node_.get());
+  return static_cast<const IterVarNode*>(data_.get());
 }
 
 inline IterVar::operator Expr() const {
@@ -481,11 +481,11 @@ class IRPrinter {
       : stream(stream) {}
 
   /*! \brief The node to be printed. */
-  TVM_DLL void Print(const NodeRef& node);
+  TVM_DLL void Print(const ObjectRef& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
-  using FType = IRFunctor<void(const NodeRef&, IRPrinter *)>;
+  using FType = IRFunctor<void(const ObjectRef&, IRPrinter *)>;
   TVM_DLL static FType& vtable();
 };
 
@@ -498,10 +498,7 @@ inline std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT
 
 namespace std {
 template <>
-struct hash<::tvm::IterVar> {
-  std::size_t operator()(const ::tvm::IterVar& k) const {
-    return k.hash();
-  }
+struct hash<::tvm::IterVar> : public ::tvm::NodeHash {
 };
 }
 #endif  // TVM_EXPR_H_

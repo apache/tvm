@@ -78,9 +78,9 @@ class ValueNode : public RelayNode {
 class Value : public NodeRef {
  public:
   Value() {}
-  explicit Value(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Value(ObjectPtr<Object> n) : NodeRef(n) {}
   const ValueNode* operator->() const {
-    return static_cast<const ValueNode*>(node_.get());
+    return static_cast<const ValueNode*>(get());
   }
 
   using ContainerType = ValueNode;

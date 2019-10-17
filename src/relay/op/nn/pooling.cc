@@ -207,7 +207,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -262,7 +262,7 @@ Average pooling operation for one dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AvgPool2DAttrs")
+.set_attrs_type<AvgPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -349,7 +349,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
+.set_attrs_type<GlobalPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -380,7 +380,7 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
+.set_attrs_type<GlobalPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -506,7 +506,7 @@ RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_attrs_type<AdaptivePool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
@@ -545,7 +545,7 @@ RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_attrs_type<AdaptivePool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
@@ -653,7 +653,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -702,7 +702,7 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

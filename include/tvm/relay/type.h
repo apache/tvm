@@ -58,7 +58,7 @@ class TypeNode : public RelayNode {
 class Type : public NodeRef {
  public:
   Type() {}
-  explicit Type(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Type(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
 
   using ContainerType = TypeNode;
 };
@@ -430,10 +430,11 @@ class TypeReporterNode : public Node {
 class TypeReporter : public NodeRef {
  public:
   TypeReporter() {}
-  explicit TypeReporter(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+  explicit TypeReporter(::tvm::ObjectPtr<::tvm::Object> n) : NodeRef(n) {
   }
   TypeReporterNode* operator->() const {
-    return static_cast<TypeReporterNode*>(node_.get());
+    return const_cast<TypeReporterNode*>(
+        static_cast<const TypeReporterNode*>(get()));
   }
   using ContainerType = TypeReporterNode;
 };

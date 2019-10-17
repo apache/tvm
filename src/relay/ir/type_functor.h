@@ -43,18 +43,18 @@ class TypeFunctor;
   { return VisitTypeDefault_(op, std::forward<Args>(args)...); }
 
 
-#define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                                   \
-  vtable.template set_dispatch<OP>(                                       \
-      [](const NodeRef& n, TSelf* self, Args... args) {                   \
-        return self->VisitType_(static_cast<const OP*>(n.node_.get()),    \
-                                std::forward<Args>(args)...);             \
+#define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                                 \
+  vtable.template set_dispatch<OP>(                                     \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
+        return self->VisitType_(static_cast<const OP*>(n.get()),        \
+                                std::forward<Args>(args)...);           \
       });
 
 template <typename R, typename... Args>
 class TypeFunctor<R(const Type& n, Args...)> {
  private:
   using TSelf = TypeFunctor<R(const Type& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const NodeRef& n, TSelf* self, Args...)>;
+  using FType = tvm::IRFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -95,7 +95,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Node* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->type_key();
+    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }
 

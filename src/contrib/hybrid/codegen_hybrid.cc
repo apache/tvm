@@ -300,7 +300,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
     PrintStmt(op->body);
     indent_ -= tab_;
   } else if (op->attr_key == ir::attr::realize_scope) {
-    auto v = FunctionRef(op->node.node_);
+    auto v = Downcast<FunctionRef>(op->node);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
     PrintStmt(op->body);
   } else {
@@ -408,7 +408,7 @@ void CodeGenHybrid::PrintIndent() {
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
   if (binds_.count(v))
     return binds_[v];
-  auto key = std::make_pair(v->GetNodePtr().get(), 0);
+  auto key = std::make_pair(static_cast<const Node*>(v), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
   }

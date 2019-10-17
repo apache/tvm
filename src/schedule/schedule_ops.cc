@@ -221,8 +221,8 @@ class SchedulePostProc : public IRMutator {
         }
       }
     } else if (op->attr_key == ir::attr::buffer_bind_scope) {
-      Array<NodeRef> tuple(op->node.node_);
-      Tensor tensor(tuple[1].node_);
+      Array<NodeRef> tuple = Downcast<Array<NodeRef> >(op->node);
+      Tensor tensor = Downcast<Tensor>(tuple[1]);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
@@ -234,7 +234,7 @@ class SchedulePostProc : public IRMutator {
         }
       }
     } else if (op->attr_key == ir::attr::buffer_dim_align) {
-      Tensor tensor(op->node.node_);
+      Tensor tensor = Downcast<Tensor>(op->node);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
