@@ -179,7 +179,11 @@ PrimExpr max_value(const DataType& dtype) {
 PrimExpr min_value(const DataType& dtype) {
   using namespace tir;
   CHECK_EQ(dtype.lanes(), 1);
-  if (dtype.is_int()) {
+  if (datatype::Registry::Global()->GetTypeRegistered(dtype.code())) {
+    auto f = datatype::GetMinFunc(dtype.code());
+    CHECK(f) << "No minimum function registered for custom dtype " << (unsigned int)dtype.code();
+    return FloatImm(dtype, (*f)(dtype.bits()));
+  } else if (dtype.is_int()) {
     if (dtype.bits() == 64) {
       return IntImm(dtype, std::numeric_limits<int64_t>::lowest());
     } else if (dtype.bits() < 64) {

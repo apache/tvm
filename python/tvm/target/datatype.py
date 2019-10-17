@@ -18,9 +18,9 @@
 import tvm._ffi
 
 import tvm.runtime._ffi_api
-from tvm.runtime import DataType
-import tvm.tir
-from tvm.tir.expr import Cast as _Cast, FloatImm as _FloatImm
+from tvm._ffi import register_func as _register_func
+from tvm.runtime import convert, DataType
+from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
 
 
 def register(type_name, type_code):
@@ -111,6 +111,9 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
 
+# TODO(gus) could probably make this a decorator if i want
+def register_min_func(func, type_name):
+    _register_func("tvm.datatype.min." + type_name, func)
 
 def create_lower_func(extern_func_name):
     """Returns a function which lowers an operation to a function call.

@@ -19,7 +19,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
-from tvm.target.datatype import register, register_op, create_lower_func
+from tvm.target.datatype import register, register_min_func, register_op, create_lower_func
 
 tgt = "llvm"
 
@@ -63,6 +63,7 @@ def setup():
                 "bfloat")
     register_op(create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
                 "bfloat")
+    register_min_func(lambda num_bits: -3.38953139e38, "bfloat")
 
 
 def test_change_dtype_simple():

@@ -112,6 +112,13 @@ class Registry {
 uint64_t ConvertConstScalar(uint8_t type_code, double value);
 
 /*!
+ * \brief Get a function returning the minimum value for a datatype.
+ * \param type_code The datatype
+ * \return Function which takes the width of the datatype and returns the min value
+ */
+const runtime::PackedFunc* GetMinFunc(uint8_t type_code);
+
+/*!
  * \brief Get lowering function for Cast ops
  * \param target The target we are lowering to, e.g. "llvm"
  * \param type_code The datatype being cast to
