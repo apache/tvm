@@ -19,10 +19,9 @@
 import tvm
 
 from tvm import api
-from ..sort import argsort, topk
+from .injective import schedule_injective_from_existing
 from ..math import identity
 from ..transform import strided_slice
-from .. import generic
 from .. import tag
 
 def _schedule_sort(outs):
@@ -42,8 +41,7 @@ def _schedule_sort(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    # pylint: disable=import-outside-toplevel
-    from .injective import schedule_injective_from_existing
+
     def traverse(op):
         if tag.is_injective(op.tag):
             schedule_injective_from_existing(s, op.output(0))
@@ -239,8 +237,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
 
     return ib.get()
 
-@argsort.register(["cuda", "gpu"])
-def argsort_gpu(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
+def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -294,7 +291,6 @@ def argsort_gpu(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
                          tag="argsort_gpu")[1]
     return out
 
-@generic.schedule_argsort.register(["cuda", "gpu"])
 def schedule_argsort(outs):
     """Schedule for argsort operator.
 
@@ -311,8 +307,7 @@ def schedule_argsort(outs):
     """
     return _schedule_sort(outs)
 
-@topk.register(["cuda", "gpu"])
-def topk_gpu(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     """Get the top k elements in an input tensor along the given axis.
 
     Parameters
@@ -389,7 +384,6 @@ def topk_gpu(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"
     return output
 
 
-@generic.schedule_topk.register(["cuda", "gpu"])
 def schedule_topk(outs):
     """Schedule for argsort operator.
 

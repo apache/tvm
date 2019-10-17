@@ -18,8 +18,8 @@
 """x86 declaration and schedules."""
 from __future__ import absolute_import as _abs
 import tvm
+from .injective import schedule_injective_from_existing
 from .. import tag
-from .. import generic
 from ..util import get_const_tuple
 
 def _schedule_reduce(sch, op, is_idx_reduce=False):
@@ -58,7 +58,6 @@ def _schedule_reduce(sch, op, is_idx_reduce=False):
             sch[out].parallel(fused)
 
 
-@generic.schedule_reduce.register(["cpu"])
 def schedule_reduce(outs):
     """X86 schedule for reduction op.
 
@@ -95,7 +94,7 @@ def schedule_reduce(outs):
         """Internal traverse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
-                generic.schedule_injective_from_existing(sch, operator)
+                schedule_injective_from_existing(sch, operator)
             for tensor in operator.input_tensors:
                 traverse_after_reduce(tensor.op)
         elif operator.tag == 'comm_reduce':

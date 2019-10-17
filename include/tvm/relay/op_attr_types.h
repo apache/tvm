@@ -29,6 +29,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/target/target.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/tir/data_layout.h>
 #include <string>
 
@@ -105,9 +106,8 @@ using TShapeDataDependant = bool;
  */
 using FTVMCompute = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
-                     const Array<te::Tensor>& inputs,
-                     const Type& out_type,
-                     const Target& target)>;
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -124,6 +124,16 @@ using FTVMSchedule = runtime::TypedPackedFunc<
                 const Target& target)>;
 
 /*!
+ * \brief Generate the strategy of operators. This function is a generic
+ * function and can be re-defined for different targets.
+ *
+ * The function signature of generic function is:
+ *   OpStrategy(const Attrs& attrs, const Array<Tensor>& inputs,
+ *              const Type& out_type, const Target& target)
+ */
+using FTVMStrategy = GenericFunc;
+
+/*!
  * \brief Alternate the layout of operators or replace the
  *  operator with other expressions. This function will be invoked
  *  in AlterOpLayout pass.
@@ -136,7 +146,8 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<te::Tensor>& tinfos)>;
+       const Array<te::Tensor>& tinfos,
+       const Type& out_type)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -191,9 +202,7 @@ using FForwardRewrite = runtime::TypedPackedFunc<
  * \brief Gradient for a specific op.
  *
  * \param orig_call the original Expr.
- *
  * \param output_grad the gradient of the Expr.
- *
  * \return the gradient for each parameters.
  */
 using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
@@ -207,13 +216,181 @@ enum AnyCodegenStrategy {
   kVariableDimensions
 };
 
-/* \brief A runtime representation of shape. */
+/*! \brief A runtime representation of shape. */
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
                      const Array<te::Tensor>& inputs,
                      const Array<IndexExpr>& out_ndims)>;
+
+/*!
+ * \brief Operator implementation in TVM.
+ */
+class OpImplementNode : public Object {
+ public:
+  /*! \brief Compute function */
+  FTVMCompute fcompute;
+  /*! \brief Schedule function */
+  FTVMSchedule fschedule;
+  /*! \brief Priority level */
+  Integer plevel;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("plevel", &plevel);
+  }
+
+  static constexpr const char* _type_key = "relay.OpImplement";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpImplementNode, Object);
+};
+
+/*!
+ * \brief Operator implementation class.
+ */
+class OpImplement : public ObjectRef {
+ public:
+  /*! \brief default constructor  */
+  OpImplement() {}
+  /*! \brief constructor from node pointer */
+  explicit OpImplement(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OpImplementNode* operator->() const;
+  /*!
+   * \brief Invoke the operator compute function.
+   * \param attrs The attribute of the primitive
+   * \param inputs The input tensors.
+   * \param out_type The output type information.
+   * \return The output compute description of the operator.
+   */
+  Array<te::Tensor> Compute(const Attrs& attrs,
+                            const Array<te::Tensor>& inputs,
+                            const Type& out_type);
+  /*!
+   * \brief Build the computation schedule.
+   * \param attrs The attribute of the node.
+   * \param outs The output tensors.
+   * \param target The build target.
+   * \return The computation schedule.
+   */
+  te::Schedule Schedule(const Attrs& attrs,
+                        const Array<te::Tensor>& outs,
+                        const Target& target);
+};
+
+/*!
+ * \brief Specialized implementations for operators under certain conditions.
+ */
+class OpSpecializationNode : public Object {
+ public:
+  /*! \brief List of implementations. */
+  Array<OpImplement> implements;
+  /*! \brief Condition to enable the specialization.
+   *    Could be undefined to represent generic case. */
+  te::SpecializedCondition condition;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("condition", &condition);
+    v->Visit("implements", &implements);
+  }
+
+  static constexpr const char* _type_key = "relay.OpSpecialization";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpSpecializationNode, ExprNode);
+};
+
+/*!
+ * \brief Operator specialization class.
+ */
+class OpSpecialization : public ObjectRef {
+ public:
+  OpSpecialization() {}
+  explicit OpSpecialization(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OpSpecializationNode* operator->() const;
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline OpSpecializationNode* operator->();
+  /*!
+   * \brief Add an implementation.
+   * \param compute Compute function
+   * \param schedule Schedule function
+   * \param plevel Priority level of this implemntation.
+   */
+  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
+                    int plevel);
+};
+
+/*!
+ * \brief Operator strategy to choose implementation.
+ */
+class OpStrategyNode : public Object {
+ public:
+  /*! \brief List of operator specializations. */
+  Array<OpSpecialization> specializations;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("specializations", &specializations);
+  }
+
+  static constexpr const char* _type_key = "relay.OpStrategy";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpStrategyNode, ExprNode);
+};
+
+/*!
+ * \brief Operator strategy class.
+ */
+class OpStrategy : public ObjectRef {
+ public:
+  /*! \brief default constructor  */
+  OpStrategy() {}
+  /*! \brief constructor from node pointer */
+  explicit OpStrategy(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OpStrategyNode* operator->() const;
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline OpStrategyNode* operator->();
+  /*!
+   * \brief Add an implementation.
+   * \param compute Compute function
+   * \param schedule Schedule function
+   * \param plevel Priority level of this implementation.
+   */
+  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule, int plevel);
+};
+
+// implementations
+inline const OpImplementNode* OpImplement::operator->() const {
+  return static_cast<const OpImplementNode*>(get());
+}
+
+inline const OpSpecializationNode* OpSpecialization::operator->() const {
+  return static_cast<const OpSpecializationNode*>(get());
+}
+
+inline OpSpecializationNode* OpSpecialization::operator->() {
+  return static_cast<OpSpecializationNode*>(get_mutable());
+}
+
+inline const OpStrategyNode* OpStrategy::operator->() const {
+  return static_cast<const OpStrategyNode*>(get());
+}
+
+inline OpStrategyNode* OpStrategy::operator->() {
+  return static_cast<OpStrategyNode*>(get_mutable());
+}
 
 }  // namespace relay
 }  // namespace tvm

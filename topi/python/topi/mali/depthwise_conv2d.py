@@ -20,17 +20,18 @@
 import tvm
 from tvm import autotvm
 
-from ..generic import schedule_depthwise_conv2d_nchw
-from ..nn import depthwise_conv2d_nchw
+from .. import nn
 from ..util import traverse_inline
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(depthwise_conv2d_nchw, 'mali', 'direct',
-                              depthwise_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("depthwise_conv2d_nchw.mali")
+def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
+
 
 # register customized schedule for arm cpu.
-@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'mali', 'direct')
-def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw.mali")
+def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule depthwise conv2d
 
     Parameters
@@ -64,7 +65,7 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
         # fallback support
         if cfg.is_fallback:
             ref_log = autotvm.tophub.load_reference_log(
-                'mali', 'rk3399', 'depthwise_conv2d_nchw', 'direct')
+                'mali', 'rk3399', 'depthwise_conv2d_nchw.mali')
             cfg.fallback_with_reference_log(ref_log)
         ###### space definition end ######
 

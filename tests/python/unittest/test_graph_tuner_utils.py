@@ -36,7 +36,7 @@ def create_workload(dshape, kshape, strides,
     data = tvm.placeholder(dshape, dtype=dtype)
     kernel = tvm.placeholder(kshape, dtype=dtype)
     return autotvm.task.args_to_workload([data, kernel, strides, padding, dilation, layout,
-                                          out_dtype], conv2d)
+                                          out_layout, out_dtype], "conv2d_NCHWc.x86")
 
 
 def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):
@@ -119,7 +119,7 @@ def test_get_in_nodes():
     out = relay.nn.conv2d(out3, w1)
     net = relay.Function(relay.analysis.free_vars(out), out)
     net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1), "w1": (16, 16, 1, 1)})
-    target_ops = ["conv2d"]
+    target_ops = [relay.op.get("nn.conv2d")]
     input_names = ["data"]
     node_list = []
     node_dict = {}

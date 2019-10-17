@@ -295,7 +295,8 @@ def tune_tasks(tasks,
 
 
 def register_vta_tuning_tasks():
-    from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
+    from tvm.autotvm.task import TaskExtractEnv
+    from tvm.autotvm.task.task import deserialize_args
 
     @tvm.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
@@ -356,7 +357,7 @@ def tune_and_evaluate(tuning_opt):
     mod = tvm.IRModule.from_expr(relay_prog)
     tasks = autotvm.task.extract_from_program(mod,
                                               params=params,
-                                              ops=(tvm.relay.op.nn.conv2d, ),
+                                              ops=(relay.op.get("nn.conv2d"),),
                                               target=target,
                                               target_host=env.target_host)
 

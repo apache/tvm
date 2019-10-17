@@ -22,7 +22,7 @@ import topi.testing
 import math
 from topi.util import nchw_pack_layout
 
-from common import get_all_backend
+from common import get_all_backend, get_schedule_injective
 
 def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
                       layout='NCHW', method="nearest_neighbor",
@@ -64,7 +64,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = get_schedule_injective(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -147,7 +147,7 @@ def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = get_schedule_injective(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)

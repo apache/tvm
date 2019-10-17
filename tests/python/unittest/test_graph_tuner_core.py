@@ -48,7 +48,7 @@ def _create_data(target, dshape, dtype, layout):
     tasks = autotvm.task.extract_from_program(mod["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
+                                              ops=(relay.op.get("nn.conv2d"),))
     wkl_list = [
         create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
         create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
@@ -121,7 +121,8 @@ def test_graph_tuner_layout_transform():
     dshape = (1, 3, 8, 8)
     dtype = "float32"
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
     executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
@@ -156,7 +157,8 @@ def test_DPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     mod = tvm.IRModule()
@@ -207,7 +209,8 @@ def test_PBQPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
@@ -255,7 +258,8 @@ def test_many_sub_graphs():
     dtype = "float32"
     dshape = (1, 8, 8, 3)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     t0 = relay.transpose(data, (0, 3, 1, 2))
@@ -277,7 +281,7 @@ def test_many_sub_graphs():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
+                                              ops=(conv2d,))
     wkl_list = [
         create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
         create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
@@ -376,7 +380,8 @@ def test_tuple():
     dtype = "float32"
     dshape = (1, 5, 32, 32)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     w0 = relay.var("w0_weight")
@@ -390,7 +395,7 @@ def test_tuple():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
+                                              ops=(conv2d,))
     wkl_list = [
         create_workload((1, 5, 32, 32), (2, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
         create_workload((1, 5, 32, 32), (3, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
@@ -472,7 +477,8 @@ def test_triangle_block():
     dtype = "float32"
     dshape = (1, 3, 8, 8)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     w0 = relay.var("w0_weight")
@@ -488,7 +494,7 @@ def test_triangle_block():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
+                                              ops=(conv2d,))
     wkl_list = [
         create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
         create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),

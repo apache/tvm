@@ -189,7 +189,7 @@ def download_package(tophub_location, package_name):
 # global cache for load_reference_log
 REFERENCE_LOG_CACHE = {}
 
-def load_reference_log(backend, model, workload_name, template_key):
+def load_reference_log(backend, model, workload_name):
     """ Load reference log from TopHub to support fallback in template.
     Template will use these reference logs to choose fallback config.
 
@@ -201,8 +201,6 @@ def load_reference_log(backend, model, workload_name, template_key):
         The name of the device model
     workload_name: str
         The name of the workload. (The first item in the workload tuple)
-    template_key: str
-        The template key
     """
 
     backend = _alias(backend)
@@ -211,7 +209,7 @@ def load_reference_log(backend, model, workload_name, template_key):
     filename = os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
 
     global REFERENCE_LOG_CACHE
-    key = (backend, model, workload_name, template_key)
+    key = (backend, model, workload_name)
 
     if key not in REFERENCE_LOG_CACHE:
         tmp = []
@@ -233,8 +231,7 @@ def load_reference_log(backend, model, workload_name, template_key):
                 model = max(counts.items(), key=lambda k: k[1])[0]
 
             for inp, res in load_from_file(filename):
-                if (model == inp.target.model and inp.task.workload[0] == workload_name and
-                        inp.config.template_key == template_key):
+                if model == inp.target.model and inp.task.workload[0] == workload_name:
                     tmp.append((inp, res))
         REFERENCE_LOG_CACHE[key] = tmp
 

@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 import tvm
 from .vision import _default_schedule
 
-@tvm.target.generic_func
 def schedule_argsort(outs):
     """Schedule for argsort operator.
 
@@ -37,7 +36,6 @@ def schedule_argsort(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_topk(outs):
     """Schedule for topk operator.
 

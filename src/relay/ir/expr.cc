@@ -354,6 +354,12 @@ TVM_REGISTER_GLOBAL("relay._expr.TempExprRealize")
   return temp->Realize();
 });
 
+TVM_REGISTER_GLOBAL("relay._expr.FunctionGetAttr")
+.set_body_typed(
+  [](Function func, std::string name) {
+    return FunctionGetAttr(func, name);
+});
+
 TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
 .set_body_typed(
   [](Function func, std::string name, ObjectRef ref) {

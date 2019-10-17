@@ -59,7 +59,6 @@ def _parallel_sch(sch, oshape, do_vectorize=False):
     sch.parallel(fused)
 
 
-@generic.schedule_pool.register(["cpu"])
 def schedule_pool(outs, layout):
     """Schedule for pool
 
@@ -117,7 +116,6 @@ def schedule_pool(outs, layout):
     return s
 
 
-@generic.schedule_adaptive_pool.register(["cpu"])
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive pool
 

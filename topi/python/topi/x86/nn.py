@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
 
-@generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
     """Schedule for softmax
 

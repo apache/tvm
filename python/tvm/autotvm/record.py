@@ -28,6 +28,7 @@ import time
 import os
 import itertools
 from collections import OrderedDict
+import numpy as np
 
 from .. import build, lower, target as _target
 
@@ -152,6 +153,7 @@ def decode(row, protocol='json'):
         config = ConfigEntity.from_json_dict(config)
         inp = MeasureInput(tgt, tsk, config)
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
+        config.cost = np.mean(result.costs)
 
         return inp, result
     if protocol == 'pickle':
@@ -160,6 +162,7 @@ def decode(row, protocol='json'):
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
         config = pickle.loads(base64.b64decode(items[2].encode()))
         result = pickle.loads(base64.b64decode(items[3].encode()))
+        config.cost = np.mean(result.costs)
 
         tsk = task.Task(task_tuple[0], task_tuple[1])
         tsk.workload = task_tuple[3]

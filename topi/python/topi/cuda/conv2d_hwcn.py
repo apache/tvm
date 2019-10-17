@@ -20,10 +20,14 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 
-from .. import generic, tag
+from .. import nn, tag
+
+@autotvm.register_topi_compute("conv2d_hwcn.cuda")
+def conv2d_hwcn(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv2d_hwcn, ["cuda", "gpu"], ["direct"])
+@autotvm.register_topi_schedule("conv2d_hwcn.cuda")
 def schedule_conv2d_hwcn(cfg, outs):
     """Schedule for conv2d_hwcn and any element-wise operations.
 

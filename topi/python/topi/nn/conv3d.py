@@ -25,46 +25,8 @@ from .util import get_pad_tuple3d
 from ..util import simplify
 
 
-@tvm.target.generic_func
-def conv3d(input, filter, strides, padding, dilation, layout='NCDHW', out_dtype=None):
-    """Conv3D operator.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        5-D with shape [batch, in_depth, in_channel, in_height, in_width]
-
-    filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
-
-    strides : int or a list/tuple of three ints
-        stride size, or [stride_depth, stride_height, stride_width]
-
-    padding : int or a list/tuple of three ints
-        padding size, or [pad_depth, pad_height, pad_width]
-
-    dilation: int or a list/tuple of three ints
-        dilation size, or [dilation_depth, dilation_height, dilation_width]
-
-    layout : str
-        layout of data
-
-    Returns
-    -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_depth, out_channel, out_height, out_width]
-    """
-    # search platform specific declaration first
-    # default declaration
-    if layout == 'NCDHW':
-        return conv3d_ncdhw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NDHWC':
-        return conv3d_ndhwc(input, filter, strides, padding, dilation, out_dtype)
-    raise ValueError("not support this layout {} yet".format(layout))
-
-
-def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
-    """Convolution operator in NCDHW layout.
+def conv3d_ncdhw(Input, Filter, stride, padding, dilation, layout='NCDHW', out_dtype=None):
+    """Conv3D operator in NCDHW layout.
 
     Parameters
     ----------
@@ -88,6 +50,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
     Output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
+    assert layout == "NCDHW"
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 3
@@ -132,7 +95,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
             axis=[rc, rz, ry, rx]), tag="conv3d_ncdhw")
 
 
-def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
+def conv3d_ndhwc(Input, Filter, stride, padding, dilation, layout='NDHWC', out_dtype='float32'):
     """Convolution operator in NDHWC layout.
 
     Parameters
@@ -157,6 +120,7 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     Output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
+    assert layout == "NDHWC"
     assert isinstance(stride, int) or len(stride) == 3
     assert isinstance(dilation, int) or len(dilation) == 3
 

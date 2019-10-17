@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+#pylint: disable=unused-argument,invalid-name
 """The base node types for the Relay language."""
-import topi
 import tvm._ffi
 from tvm.driver import lower, build
 
 from ..base import register_relay_node
 from ..expr import RelayExpr
 from ...api import register_func
+from ...target import get_native_generic_func, GenericFunc
 from . import _make
 
 @register_relay_node
@@ -143,21 +143,47 @@ class OpPattern(object):
     OPAQUE = 8
 
 
-def register_schedule(op_name, schedule=None, level=10):
-    """Register schedule function for an op
+@register_relay_node
+class OpImplement(Expr):
+    """Operator implementation"""
+    def compute(self, attrs, inputs, out_type):
+        return _OpImplementCompute(self, attrs, inputs, out_type)
 
-    Parameters
-    ----------
-    op_name : str
-        The name of the op.
+    def schedule(self, attrs, outs, target):
+        return _OpImplementSchedule(self, attrs, outs, target)
 
-    schedule : function (attrs: Attrs, outs: List[Tensor], target: Target) -> sch: Schedule
-        The schedule function.
 
-    level : int
-        The priority level
-    """
-    return register(op_name, "FTVMSchedule", schedule, level)
+@register_relay_node
+class OpSpecialization(Expr):
+    """Operator specialization"""
+
+
+@register_relay_node
+class OpStrategy(Expr):
+    def __init__(self):
+        self.__init_handle_by_constructor__(_make.OpStrategy)
+
+    def add_implement(self, compute, schedule, plevel=10):
+        _OpStrategyAddImplement(self, compute, schedule, plevel)
+
+
+def wrap_fstrategy(compute, schedule):
+    def fstrategy(attrs, inputs, out_type, target):
+        strategy = OpStrategy()
+        strategy.add_implement(compute, schedule)
+        return strategy
+    return fstrategy
+
+
+def create_simple_fstrategy(op_name, schedule):
+    assert hasattr(schedule, "dispatch_dict")
+    compute = get(op_name).get_attr("FTVMCompute")
+    assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
+    fstrategy = get_native_generic_func("{}_strategy".format(op_name))
+    fstrategy.set_default(wrap_fstrategy(compute, schedule.fdefault))
+    for key, sch in schedule.dispatch_dict.items():
+        fstrategy.register(wrap_fstrategy(compute, sch), [key])
+    return fstrategy
 
 
 def register_compute(op_name, compute=None, level=10):
@@ -176,6 +202,30 @@ def register_compute(op_name, compute=None, level=10):
         The priority level
     """
     return register(op_name, "FTVMCompute", compute, level)
+
+
+def register_strategy(op_name, fstrategy=None, level=10):
+    if not isinstance(fstrategy, GenericFunc):
+        assert hasattr(fstrategy, "generic_func_node")
+        fstrategy = fstrategy.generic_func_node
+    return register(op_name, "FTVMStrategy", fstrategy, level)
+
+
+def register_schedule(op_name, schedule, level=10):
+    fstrategy = create_simple_fstrategy(op_name, schedule)
+    return register_strategy(op_name, fstrategy, level)
+
+
+def register_strategy_injective(op_name, level=10):
+    return register_schedule(op_name, _schedule_injective, level)
+
+
+def register_strategy_broadcast(op_name, level=10):
+    return register_schedule(op_name, _schedule_injective, level)
+
+
+def register_strategy_reduce(op_name, level=10):
+    return register_schedule(op_name, _schedule_reduce, level)
 
 
 def register_alter_op_layout(op_name, alter_layout=None, level=10):
@@ -245,6 +295,7 @@ def register_pattern(op_name, pattern, level=10):
     """
     return register(op_name, "TOpPattern", pattern, level)
 
+
 def register_gradient(op_name, fgradient=None, level=10):
     """Register operator pattern for an op.
 
@@ -260,6 +311,7 @@ def register_gradient(op_name, fgradient=None, level=10):
         The priority level
     """
     return register(op_name, "FPrimalGradient", fgradient, level)
+
 
 def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     """Register operator shape function for an op.
@@ -290,18 +342,8 @@ def _lower(name, schedule, inputs, outputs):
 def _build(lowered_funcs):
     return build(lowered_funcs, target="llvm")
 
-
-def schedule_injective(attrs, outputs, target):
-    """Generic schedule for binary broadcast."""
-    with target:
-        return topi.generic.schedule_injective(outputs)
-
-
-def schedule_concatenate(attrs, outputs, target):
-    """Generic schedule for concatinate."""
-    with target:
-        return topi.generic.schedule_concatenate(outputs)
-
+_schedule_injective = None
+_schedule_reduce = None
 
 __DEBUG_COUNTER__ = 0
 

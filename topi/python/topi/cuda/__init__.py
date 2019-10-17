@@ -19,23 +19,27 @@
 """CUDA specific declaration and schedules."""
 from __future__ import absolute_import as _abs
 
-from . import conv1d, conv2d, depthwise_conv2d, conv2d_transpose_nchw, \
-              deformable_conv2d, group_conv2d_nchw, dense, conv1d_transpose_ncw
-from . import conv3d
-from .conv2d_hwcn import schedule_conv2d_hwcn
-from .depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
-from .depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
-from .group_conv2d_nchw import schedule_conv2d_nchw_cuda
+from .conv1d import *
+from .conv1d_transpose_ncw import *
+from .conv2d import *
+from .conv2d_hwcn import *
+from .conv2d_int8 import *
+from .conv2d_winograd import *
+from .depthwise_conv2d import *
+from .group_conv2d_nchw import *
+from . import conv2d_alter_op
+from .conv2d_transpose_nchw import *
+from .deformable_conv2d import *
+from .conv3d import *
 from .reduction import schedule_reduce
 from .softmax import schedule_softmax
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
-from .dense import schedule_dense
-from .pooling import schedule_pool, schedule_adaptive_pool
+from .dense import *
+from .pooling import *
 from .nn import schedule_lrn
-from .batch_matmul import schedule_batch_matmul
+from .batch_matmul import *
 from .vision import *
-from . import ssd
 from .ssd import *
-from .nms import *
+from .nms import get_valid_counts, non_max_suppression
 from .rcnn import *
 from .sort import *

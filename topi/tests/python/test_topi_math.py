@@ -20,7 +20,7 @@ import tvm
 import topi
 import topi.testing
 from topi import util
-from common import get_all_backend
+from common import get_all_backend, get_schedule_injective
 
 
 def test_util():
@@ -62,23 +62,15 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = get_schedule_injective(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device('llvm')
-        check_device('cuda')
-        check_device('opencl')
-        check_device('metal')
-        check_device('rocm')
-        check_device('vulkan')
-        check_device('nvptx')
-        check_device('llvm -device=arm-cpu')
-        check_device('opencl -device=mali')
-        check_device('aocl_sw_emu')
+        for target in get_all_backend():
+            check_device(target)
 
     def test_isnan(
         low,
@@ -110,23 +102,15 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = get_schedule_injective(device)(B)
             foo = tvm.build(s, [A, B], device, name="isnan")
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device('llvm')
-        check_device('cuda')
-        check_device('opencl')
-        check_device('metal')
-        check_device('rocm')
-        check_device('vulkan')
-        check_device('nvptx')
-        check_device('llvm -device=arm-cpu')
-        check_device('opencl -device=mali')
-        check_device('aocl_sw_emu')
+        for target in get_all_backend():
+            check_device(target)
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
@@ -168,7 +152,7 @@ def test_cast():
                 continue
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = get_schedule_injective(device)(B)
             foo = tvm.build(s, [A, B], device)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)

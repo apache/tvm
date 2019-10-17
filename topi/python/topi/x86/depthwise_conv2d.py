@@ -18,17 +18,13 @@
 """Depthwise Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
-from tvm.autotvm.task import get_config
 from tvm.autotvm.task.space import SplitEntity
-from tvm.autotvm.task.topi_integration import deserialize_args
-from .. import generic, tag
-from ..generic import schedule_depthwise_conv2d_nchw
+from .. import tag
 from ..nn.pad import pad
 from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
-from ..nn.depthwise_conv2d import depthwise_conv2d_nchw, depthwise_conv2d_NCHWc, \
-    _get_workload, depthwise_conv2d_infer_layout
-
+from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
+from ..nn.conv2d import unpack_NCHWc_to_nchw
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -70,20 +66,53 @@ def _fallback_schedule(cfg, wkl):
     cfg["tile_oc"] = SplitEntity([wkl.out_filter // oc_bn, oc_bn])
     cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
 
+def depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
+    layout = "NCHW"
+    packed_out = depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
+                                        layout, layout, out_dtype)
+    return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
-autotvm.register_topi_compute(depthwise_conv2d_nchw, 'cpu', 'direct',
-                              depthwise_conv2d_nchw.fdefault)
-autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'cpu', 'direct',
-                               schedule_depthwise_conv2d_nchw.fdefault)
+def schedule_depthwise_conv2d_nchw(outs):
+    return schedule_depthwise_conv2d_NCHWc(outs)
 
+def _pack_data(cfg, data, kernel):
+    n, ic, ih, iw = get_const_tuple(data.shape)
+    filter, cm, kh, kw = get_const_tuple(kernel.shape)
+    oc = filter * cm
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
 
-@autotvm.register_topi_compute(depthwise_conv2d_NCHWc, 'cpu', 'direct')
-def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
-                                layout, out_layout, out_dtype=None):
+    ic_chunk = ic // ic_bn
+    oc_chunk = oc // oc_bn
+
+    data = tvm.compute((n, ic_chunk, ih, iw, ic_bn),
+                       lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
+                       name="data_vec")
+
+    kernel = tvm.compute(
+        (oc_chunk, 1, kh, kw, 1, oc_bn),
+        lambda occ, icc, k_h, k_w, icb, ocb:
+        kernel[(occ * oc_bn + ocb) // cm,
+               (occ * oc_bn + ocb) % cm, k_h, k_w],
+        name="kernel_vec")
+
+    return data, kernel
+
+@autotvm.register_topi_compute("depthwise_conv2d_NCHWc.x86")
+def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
+                           layout, out_layout, out_dtype=None):
     out_dtype = data.dtype if out_dtype is None else out_dtype
-    batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
-    out_channel_chunk, _, filter_height, filter_width, __, out_channel_block \
-        = get_const_tuple(kernel.shape)
+
+    if len(data.shape) == 5:
+        batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
+        out_channel_chunk, cm_chunk, filter_height, filter_width, cm_block, out_channel_block \
+            = get_const_tuple(kernel.shape)
+        in_channel = in_channel_chunk * in_channel_block
+        out_channel = out_channel_chunk * out_channel_block
+        channel_multiplier = cm_chunk * cm_block
+    else:
+        batch, in_channel, in_height, in_width = get_const_tuple(data.shape)
+        out_channel, channel_multiplier, filter_height, filter_width = get_const_tuple(kernel.shape)
+    assert channel_multiplier == 1
 
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     HSTR, WSTR = strides
@@ -92,12 +121,12 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     assert (dh, dw) == (1, 1), "Does not support dilation"
 
-    in_channel = in_channel_chunk * in_channel_block
-    out_channel = out_channel_chunk * out_channel_block
-    channel_multiplier = out_channel // in_channel
-
     out_height = (in_height - filter_height + pad_top + pad_down) // HSTR + 1
     out_width = (in_width - filter_width + pad_left + pad_right) // WSTR + 1
+
+    cfg.define_split("tile_ic", in_channel, num_outputs=2)
+    cfg.define_split("tile_oc", out_channel, num_outputs=2)
+    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
 
     # get workload and related schedule config
     wkl = _get_workload(tvm.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
@@ -106,6 +135,14 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                         strides, padding, out_dtype)
     if cfg.is_fallback:
         _fallback_schedule(cfg, wkl)
+
+    # Pack data if raw 4-D data is provided.
+    # This can only happen when autotuning.
+    if len(data.shape) == 4:
+        data, kernel = _pack_data(cfg, data, kernel)
+        _, _, _, _, in_channel_block = get_const_tuple(data.shape)
+        out_channel_chunk, _, _, _, _, out_channel_block \
+            = get_const_tuple(kernel.shape)
 
     # padding stage
     DOPAD = (pad_top != 0 or pad_left != 0 or pad_down != 0 or pad_right != 0)
@@ -136,8 +173,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
         name='DepthwiseConv2d', tag="depthwise_conv2d_NCHWc")
     return Output
 
-
-@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_NCHWc, 'cpu', ['direct'])
+@autotvm.register_topi_schedule("depthwise_conv2d_NCHWc.x86")
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     """CPU schedule for depthwise conv2d in NCHW[x]c layout"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -160,14 +196,22 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     traverse(outs[0].op)
     return s
 
-def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, output):
+def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out, output):
     tile_ow = cfg["tile_ow"].size[-1]
-    # schedule data
-    A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
-        p = s[A].fuse(ic_chunk, ih)
-        s[A].parallel(p)
+    # schedule pad
+    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+            and "pad" in data_vec.op.tag:
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
+        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
+        s[data_vec].parallel(parallel_axis)
+        data_vec = data_vec.op.input_tensors[0]
+
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # only in autotuning, input data of conv2d_NCHWc will be 4-D.
+        # skip this part during tuning to make recrods accurate.
+        # this part will be folded during Relay fold_constant pass.
+        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
 
     C, O = conv_out, output
     CC = s.cache_write(C, 'global')
@@ -195,41 +239,6 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, output
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
     return s
-
-
-@autotvm.task.register("topi_x86_depthwise_conv2d_NCHWc_from_nchw")
-def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
-    assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, dilation, dtype = deserialize_args(args)
-
-    batch, in_channel, height, width = get_const_tuple(data.shape)
-    filter_channel, channel_multiplier, kh, kw = get_const_tuple(kernel.shape)
-    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
-    sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    out_height = (height - kh + pt + pb) // sh + 1
-    out_width = (width - kw + pl + pr) // sw + 1
-    out_channel = filter_channel * channel_multiplier
-
-    # get config here
-    cfg = get_config()
-    cfg.define_split("tile_ic", in_channel, num_outputs=2)
-    cfg.define_split("tile_oc", out_channel, num_outputs=2)
-    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
-
-    # change shape with the value in config
-    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    new_data_shape = (batch, in_channel // ic_bn, height, width, ic_bn)
-    new_kernel_shape = (out_channel // oc_bn, 1, kh, kw, 1, oc_bn)
-    new_data = tvm.placeholder(new_data_shape, data.dtype)
-    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
-
-    data_layout = "NCHW%dc" % ic_bn
-    out_layout = "NCHW%dc" % oc_bn
-
-    C = _depthwise_conv2d_NCHWc_cpu(cfg, new_data, new_kernel, strides, padding, dilation,
-                                    data_layout, out_layout, dtype)
-    s = schedule_depthwise_conv2d_NCHWc(cfg, [C])
-    return s, [new_data, new_kernel, C]
 
 @depthwise_conv2d_infer_layout.register("cpu")
 def _depthwise_conv2d_infer_layout(workload, cfg):

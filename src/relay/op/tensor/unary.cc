@@ -34,9 +34,8 @@ namespace relay {
 
 #define RELAY_UNARY_COMPUTE(FTOPI)                      \
   [] (const Attrs& attrs,                               \
-      const Array<te::Tensor>& inputs,                      \
-      const Type& out_type,                             \
-      const Target& target) -> Array<te::Tensor> {          \
+      const Array<te::Tensor>& inputs,                  \
+      const Type& out_type) -> Array<te::Tensor> {      \
     return {FTOPI(inputs[0])};                          \
   }                                                     \
 
@@ -302,9 +301,8 @@ bool ShapeOfRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs,
-                             const Array<te::Tensor>& inputs,
-                             const Type& out_type,
-                             const Target& target) {
+                                 const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
@@ -353,9 +351,8 @@ bool NdarraySizeRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
-                          const Array<te::Tensor>& inputs,
-                          const Type& out_type,
-                          const Target& target) {
+                                     const Array<te::Tensor>& inputs,
+                                     const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);

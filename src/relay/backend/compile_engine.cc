@@ -52,6 +52,24 @@ TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
+CachedFunc CachedFuncNode::make(tvm::Target target,
+                                std::string func_name,
+                                tvm::Array<te::Tensor> inputs,
+                                tvm::Array<te::Tensor> outputs,
+                                te::Schedule schedule,
+                                tvm::Array<tir::LoweredFunc> funcs,
+                                tvm::Array<Integer> shape_func_param_states) {
+  auto n = make_object<CachedFuncNode>();
+  n->target = std::move(target);
+  n->func_name = func_name;
+  n->inputs = std::move(inputs);
+  n->outputs = std::move(outputs);
+  n->schedule = std::move(schedule);
+  n->funcs = std::move(funcs);
+  n->shape_func_param_states = std::move(shape_func_param_states);
+  return CachedFunc(n);
+}
+
 CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
@@ -100,6 +118,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   return res;
 }
 
+/*
 // The getter to get schedule from compile engine.
 // Get schedule from functor.
 class ScheduleGetter :
@@ -208,7 +227,7 @@ class ScheduleGetter :
           LOG(FATAL) << "not handled";
           return tvm::PrimExpr();
         }
-      }, "compile_engine_const", topi::kBroadcast);
+    }, "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
     return {value};
   }
@@ -231,7 +250,7 @@ class ScheduleGetter :
     }
     if (count_tuple) {
       CHECK_EQ(call_node->args.size(), 1U)
-          << "Only allow function with a single tuple input";
+        << "Only allow function with a single tuple input";
     }
 
     // Prepare the call_node->checked_type(). For the call node inputs, we ensure that the shape is
@@ -253,7 +272,7 @@ class ScheduleGetter :
     }
 
     CHECK(call_node->op.as<OpNode>())
-        << "Primitive function only allows call into primitive ops";
+      << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
     Array<te::Tensor> outputs;
     // Skip fcompute for device copy operators as it is not registered.
@@ -269,8 +288,8 @@ class ScheduleGetter :
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
       CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
-          << "Two complicated op in a primitive function "
-          << " master=" << master_op_ << " current=" << op;
+        << "Two complicated op in a primitive function "
+        << " master=" << master_op_ << " current=" << op;
     }
     if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
@@ -339,6 +358,7 @@ class ScheduleGetter :
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
 };
+*/
 
 // Creates shape function from functor.
 class MakeShapeFunc : public ExprFunctor<Array<te::Tensor>(const Expr&)> {
@@ -677,9 +697,14 @@ class CompileEngineImpl : public CompileEngineNode {
    * \return Pair of schedule and cache.
    *  The funcs field in cache is not yet populated.
    */
-  std::pair<te::Schedule, CachedFunc> CreateSchedule(
-      const Function& source_func, const Target& target) {
-    return ScheduleGetter(target).Create(source_func);
+  CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
+    CachedFunc cfunc;
+    if (const auto* f = runtime::Registry::Get("relay.backend.create_schedule")) {
+      cfunc = (*f)(source_func, target);
+    } else {
+      LOG(FATAL) << "relay.backend.create_schedule is not registered";
+    }
+    return cfunc;
   }
 
  private:
@@ -713,9 +738,9 @@ class CompileEngineImpl : public CompileEngineNode {
     With<Target> target_scope(key->target);
 
     CHECK(!value->cached_func.defined());
-    auto spair = CreateSchedule(key->source_func, key->target);
+    auto cfunc = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_object<CachedFuncNode>(
-        *(spair.second.operator->()));
+        *(cfunc.operator->()));
 
     // Skip lowering for device copy node.
     const Expr body = (key->source_func)->body;
@@ -735,11 +760,12 @@ class CompileEngineImpl : public CompileEngineNode {
     // lower the function
     if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
       cache_node->funcs = (*f)(
-          spair.first, all_args, cache_node->func_name, key->source_func);
+          cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
       tvm::BuildConfig bcfg = BuildConfig::Create();
       std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
+      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name,
+                                     binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -819,6 +845,9 @@ const CompileEngine& CompileEngine::Global() {
       make_object<CompileEngineImpl>());
   return *inst;
 }
+
+TVM_REGISTER_GLOBAL("relay.backend._make_CachedFunc")
+.set_body_typed(CachedFuncNode::make);
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
 .set_body_typed(CCacheKeyNode::make);

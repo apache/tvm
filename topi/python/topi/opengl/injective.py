@@ -17,9 +17,7 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
-from .. import generic
 
-@generic.schedule_injective_from_existing.register(["opengl"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -38,7 +36,6 @@ def schedule_injective_from_existing(sch, out):
     sch[out].opengl()
     return sch
 
-@generic.schedule_injective.register(["opengl"])
 def schedule_injective(outs):
     """Schedule for injective op.
 

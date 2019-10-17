@@ -19,101 +19,99 @@
 from __future__ import absolute_import
 import topi
 from topi.util import get_const_tuple
-from .op import register_compute, register_schedule, register_pattern, register_shape_func
-from .op import schedule_injective, OpPattern
+from .op import register_compute, register_shape_func
+from .op import register_strategy_broadcast, register_strategy_injective
+from .op import register_pattern, OpPattern
 from ...hybrid import script
 from ...api import convert
 
-schedule_broadcast = schedule_injective
-schedule_elemwise = schedule_injective
 
-register_schedule("log", schedule_broadcast)
-register_schedule("cos", schedule_broadcast)
-register_schedule("sin", schedule_broadcast)
-register_schedule("atan", schedule_broadcast)
-register_schedule("exp", schedule_broadcast)
-register_schedule("erf", schedule_broadcast)
-register_schedule("sqrt", schedule_broadcast)
-register_schedule("rsqrt", schedule_broadcast)
-register_schedule("sigmoid", schedule_broadcast)
-register_schedule("floor", schedule_broadcast)
-register_schedule("ceil", schedule_broadcast)
-register_schedule("trunc", schedule_broadcast)
-register_schedule("round", schedule_broadcast)
-register_schedule("sign", schedule_broadcast)
-register_schedule("abs", schedule_broadcast)
-register_schedule("tanh", schedule_broadcast)
-register_schedule("logical_not", schedule_broadcast)
-register_schedule("bitwise_not", schedule_broadcast)
-register_schedule("negative", schedule_broadcast)
-register_schedule("copy", schedule_broadcast)
-
-register_schedule("add", schedule_broadcast)
-register_schedule("subtract", schedule_broadcast)
-register_schedule("multiply", schedule_broadcast)
-register_schedule("divide", schedule_broadcast)
-register_schedule("floor_divide", schedule_broadcast)
-register_schedule("power", schedule_injective)
-register_schedule("mod", schedule_broadcast)
-register_schedule("floor_mod", schedule_broadcast)
-register_schedule("logical_and", schedule_broadcast)
-register_schedule("logical_or", schedule_broadcast)
-register_schedule("bitwise_and", schedule_broadcast)
-register_schedule("bitwise_or", schedule_broadcast)
-register_schedule("bitwise_xor", schedule_broadcast)
-register_schedule("equal", schedule_broadcast)
-register_schedule("not_equal", schedule_broadcast)
-register_schedule("less", schedule_broadcast)
-register_schedule("less_equal", schedule_broadcast)
-register_schedule("greater", schedule_broadcast)
-register_schedule("greater_equal", schedule_broadcast)
-register_schedule("maximum", schedule_injective)
-register_schedule("minimum", schedule_injective)
-register_schedule("right_shift", schedule_injective)
-register_schedule("left_shift", schedule_injective)
-register_schedule("shape_of", schedule_injective)
+register_strategy_broadcast("log")
+register_strategy_broadcast("cos")
+register_strategy_broadcast("sin")
+register_strategy_broadcast("atan")
+register_strategy_broadcast("exp")
+register_strategy_broadcast("erf")
+register_strategy_broadcast("sqrt")
+register_strategy_broadcast("rsqrt")
+register_strategy_broadcast("sigmoid")
+register_strategy_broadcast("floor")
+register_strategy_broadcast("ceil")
+register_strategy_broadcast("trunc")
+register_strategy_broadcast("round")
+register_strategy_broadcast("sign")
+register_strategy_broadcast("abs")
+register_strategy_broadcast("tanh")
+register_strategy_broadcast("add")
+register_strategy_broadcast("subtract")
+register_strategy_broadcast("multiply")
+register_strategy_broadcast("divide")
+register_strategy_broadcast("floor_divide")
+register_strategy_broadcast("power")
+register_strategy_broadcast("copy")
+register_strategy_broadcast("logical_not")
+register_strategy_broadcast("logical_and")
+register_strategy_broadcast("logical_or")
+register_strategy_broadcast("bitwise_not")
+register_strategy_broadcast("bitwise_and")
+register_strategy_broadcast("bitwise_or")
+register_strategy_broadcast("bitwise_xor")
+register_strategy_broadcast("negative")
+register_strategy_broadcast("mod")
+register_strategy_broadcast("floor_mod")
+register_strategy_broadcast("equal")
+register_strategy_broadcast("not_equal")
+register_strategy_broadcast("less")
+register_strategy_broadcast("less_equal")
+register_strategy_broadcast("greater")
+register_strategy_broadcast("greater_equal")
+register_strategy_injective("maximum")
+register_strategy_injective("minimum")
+register_strategy_injective("right_shift")
+register_strategy_injective("left_shift")
+register_strategy_injective("shape_of")
 
 # zeros
 @register_compute("zeros")
-def zeros_compute(attrs, inputs, output_type, target):
+def zeros_compute(attrs, inputs, output_type):
     assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
-register_schedule("zeros", schedule_broadcast)
+register_strategy_broadcast("zeros")
 register_pattern("zeros", OpPattern.ELEMWISE)
 
 # zeros_like
 @register_compute("zeros_like")
-def zeros_like_compute(attrs, inputs, output_type, target):
+def zeros_like_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full_like(inputs[0], 0.0)]
 
-register_schedule("zeros_like", schedule_broadcast)
+register_strategy_broadcast("zeros_like")
 
 # ones
 @register_compute("ones")
-def ones_compute(attrs, inputs, output_type, target):
+def ones_compute(attrs, inputs, output_type):
     assert not inputs
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
-register_schedule("ones", schedule_broadcast)
+register_strategy_broadcast("ones")
 register_pattern("ones", OpPattern.ELEMWISE)
 
 # ones_like
 @register_compute("ones_like")
-def ones_like(attrs, inputs, output_type, target):
+def ones_like_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full_like(inputs[0], 1.0)]
 
-register_schedule("ones_like", schedule_broadcast)
+register_strategy_broadcast("ones_like")
 
 # clip
 @register_compute("clip")
-def clip_compute(attrs, inputs, output_type, target):
+def clip_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
-register_schedule("clip", schedule_elemwise)
+register_strategy_injective("clip")
 
 @script
 def _cast_shape_function(x):
@@ -198,6 +196,7 @@ register_shape_func("mod", False, broadcast_shape_func)
 register_shape_func("floor_mod", False, broadcast_shape_func)
 register_shape_func("logical_and", False, broadcast_shape_func)
 register_shape_func("logical_or", False, broadcast_shape_func)
+register_shape_func("bitwise_not", False, broadcast_shape_func)
 register_shape_func("bitwise_and", False, broadcast_shape_func)
 register_shape_func("bitwise_or", False, broadcast_shape_func)
 register_shape_func("bitwise_xor", False, broadcast_shape_func)
