@@ -134,7 +134,6 @@ def create_lower_func(extern_func_name):
     extern_func_name : str
         The name of the extern "C" function to lower to
     """
-
     def lower(op):
         """
         Takes an op---either a Cast or a binary op (e.g. an Add) and returns a
@@ -169,4 +168,5 @@ def lower_ite(ite_intrin):
     if t.lanes > 1:
         dtype += "x" + str(t.lanes)
     return call_intrin(dtype, "tvm_if_then_else", convert(ite_intrin.args[0]),
-                            convert(ite_intrin.args[1]), convert(ite_intrin.args[2]))
+                       convert(ite_intrin.args[1]),
+                       convert(ite_intrin.args[2]))
