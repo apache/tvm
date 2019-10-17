@@ -515,7 +515,7 @@ def _pack():
 def _tensor_array():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('dtype').name
-        tensor_array_constructor = getattr(prelude, "tensor_array_{}".format(dtype_str))
+        tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
         return tensor_array_constructor(_op.take(inputs[0], tvm.relay.const(0)))
     return _impl
 
@@ -523,13 +523,10 @@ def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
         values_rank = len(inputs[2].type_annotation.shape)
-        unstack_function_name = "tensor_array_unstack_tensor{}_{}".format(values_rank, dtype_str)
-
-        values = getattr(prelude, unstack_function_name)(inputs[2])
-
-        tensor_array_scatter_name = "tensor_array_scatter_{}".format(dtype_str)
-        tensor_array_scatter_var = getattr(prelude, tensor_array_scatter_name)
-        return tensor_array_scatter_var(inputs[0], inputs[1], values)
+        unstack_function = prelude.get_var("tensor_array_unstack_tensor{}".format(values_rank), dtype_str)
+        values = unstack_function(inputs[2])
+        tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
+        return tensor_array_scatter_func(inputs[0], inputs[1], values)
     return _impl
 
 def _tensor_array_gather():
@@ -547,20 +544,17 @@ def _tensor_array_write():
         input_rank = len(inputs[2].type_annotation.shape)
         dtype = attr.get('T').name
 
-        tensor_name = 'tensor{}_{}'.format(input_rank, dtype)
-        tensor_func = getattr(prelude, tensor_name)
+        tensor_name = 'tensor{}'.format(input_rank)
+        tensor_func = prelude.get_var(tensor_name, dtype)
         v = tensor_func(inputs[2])
-
-        write_name = 'tensor_array_write_{}'.format(dtype)
-        write_func = getattr(prelude, write_name)
+        write_func = prelude.get_var('tensor_array_write', dtype)
 
         return write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
     return _impl
 
 def _tensor_array_read():
     def _impl(inputs, attr, params, prelude):
-        read_name = 'tensor_array_read_{}'.format(attr.get('dtype').name)
-        read_func = getattr(prelude, read_name)
+        read_func = prelude.get_var('tensor_array_read', attr.get('dtype').name)
         return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
     return _impl
 
@@ -568,19 +562,15 @@ def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
         input_rank = len(inputs[1].type_annotation.shape)
         dtype_str = attr.get('T').name
-        tensor_constructor_name = "tensor{}_{}".format(input_rank, dtype_str)
-        v = getattr(prelude, tensor_constructor_name)(inputs[1])
+        v = prelude.get_var("tensor{}".format(input_rank), dtype_str)
         lengths = _op.cast(inputs[2], 'int32')
-
-        split_name = "tensor_array_split_{}".format(dtype_str)
-        split_var = getattr(prelude, split_name)
+        split_var = prelude.get_var('tensor_array_split', dtype_str)
         return split_var(inputs[0], v, lengths)
     return _impl
 
 def _tensor_array_concat():
     def _impl(inputs, attr, params, prelude):
-        concat_name = 'tensor_array_concat_{}'.format(attr['dtype'].name)
-        concat_func = getattr(prelude, concat_name)
+        concat_func = prelude.get_var('tensor_array_concat', attr['dtype'].name)
         return concat_func(inputs[1])
     return _impl
 
