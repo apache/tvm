@@ -541,34 +541,63 @@ class Executable : public ModuleNode {
   std::vector<VMFunction> functions;
 
  private:
-    /*! \brief Save the globals. */
-  void SaveGlobalSection();
+  /*!
+   * \brief Save the globals.
+   *
+   * \param strm The input stream.
+   */
+  void SaveGlobalSection(dmlc::Stream* strm);
 
-  /*! \brief Save the constant pool. */
-  void SaveConstantSection();
+  /*!
+   * \brief Save the constant pool.
+   *
+   * \param strm The input stream.
+   */
+  void SaveConstantSection(dmlc::Stream* strm);
 
-  /*! \brief Save primitive op names. */
-  void SavePrimitiveOpNames();
+  /*!
+   * \brief Save primitive op names.
+   *
+   *  \param strm The input stream.
+   */
+  void SavePrimitiveOpNames(dmlc::Stream* strm);
 
-  /*! \brief Save the vm functions. */
-  void SaveCodeSection();
+  /*!
+   * \brief Save the vm functions.
+   *
+   * \param strm The input stream.
+   */
+  void SaveCodeSection(dmlc::Stream* strm);
 
-  /*! \brief Load the globals. */
-  void LoadGlobalSection();
+  /*!
+   * \brief Load the globals.
+   *
+   * \param strm The input stream.
+   */
+  void LoadGlobalSection(dmlc::Stream* strm);
 
-  /*! \brief Load the constant pool. */
-  void LoadConstantSection();
+  /*!
+   * \brief Load the constant pool.
+   *
+   * \param strm The input stream.
+   */
+  void LoadConstantSection(dmlc::Stream* strm);
 
-  /*! \brief Load primitive op names. */
-  void LoadPrimitiveOpNames();
+  /*!
+   * \brief Load primitive op names.
+   *
+   * \param strm The input stream.
+   */
+  void LoadPrimitiveOpNames(dmlc::Stream* strm);
 
-  /*! \brief Load the vm functions.*/
-  void LoadCodeSection();
+  /*!
+   * \brief Load the vm functions.
+   *
+   * \param strm The input stream.
+   */
+  void LoadCodeSection(dmlc::Stream* strm);
 
-  /*! \brief The stream used for serialization. */
-  dmlc::Stream* strm_;
-
-  /*! \brief The serialized code. */
+  /*! \brief The serialized bytecode. */
   std::string code_;
 };
 
