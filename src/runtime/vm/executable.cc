@@ -309,7 +309,9 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(instr.alloc_tensor_reg.shape_register);
       // Save `DLDataType` and the dst register.
       const auto& dtype = instr.alloc_tensor.dtype;
-      fields.assign({dtype.code, dtype.bits, dtype.lanes});
+      fields.push_back(dtype.code);
+      fields.push_back(dtype.bits);
+      fields.push_back(dtype.lanes);
       fields.push_back(instr.dst);
       break;
     }
