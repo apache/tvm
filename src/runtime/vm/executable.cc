@@ -24,18 +24,31 @@
  */
 
 #include <dmlc/memory_io.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm.h>
 
 #include <algorithm>
+#include <memory>
 #include <iostream>
 #include <sstream>
+#include <utility>
 #include <vector>
 
-#include "serializer.h"
+#include "serialize_util.h"
 
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+#define STREAM_CHECK(val, section)                                         \
+  CHECK(val) << "Invalid VM file format in the " << section << " section." \
+             << "\n";
+
+// Helper to serialize a vm instruction.
+VMInstructionSerializer SerializeInstruction(const Instruction& instr);
+// Helper to deserialize a serialized vm instruction.
+Instruction DeserializeInstruction(const VMInstructionSerializer& instr);
 
 PackedFunc Executable::GetFunction(const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
@@ -50,6 +63,10 @@ PackedFunc Executable::GetFunction(const std::string& name,
   } else if (name == "get_stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->Stats();
+    });
+  } else if (name == "save") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->Save();
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -149,6 +166,503 @@ std::string Executable::Stats() const {
   return oss.str();
 }
 
+TVMByteArray Executable::Save() {
+  // Initialize the stream object.
+  strm_ = new dmlc::MemoryStringStream(&code_);
+
+  uint64_t header = kTVMVMBytecodeMagic;
+  strm_->Write(header);
+  std::string version = TVM_VERSION;
+  strm_->Write(version);
+
+  // Global section.
+  SaveGlobalSection();
+
+  // Constant section.
+  SaveConstantSection();
+
+  // Primitive names.
+  SavePrimitiveOpNames();
+
+  // Code section.
+  SaveCodeSection();
+
+  TVMByteArray arr;
+  arr.data = code_.c_str();
+  arr.size = code_.length();
+  return arr;
+}
+
+void Executable::SaveGlobalSection() {
+  std::vector<std::pair<std::string, Index> > globals(this->global_map.begin(),
+                                                      this->global_map.end());
+  auto comp = [](const std::pair<std::string, Index>& a,
+                 const std::pair<std::string, Index>& b) {
+    return a.second < b.second;
+  };
+  std::sort(globals.begin(), globals.end(), comp);
+
+  std::vector<std::string> glbs;
+  for (const auto& it : globals) {
+    glbs.push_back(it.first);
+  }
+  strm_->Write(glbs);
+}
+
+void Executable::SaveConstantSection() {
+  std::vector<DLTensor*> arrays;
+  for (const auto& obj : this->constants) {
+    const auto* cell = obj.as<runtime::vm::TensorObj>();
+    CHECK(cell != nullptr);
+    runtime::NDArray data = cell->data;
+    arrays.push_back(const_cast<DLTensor*>(data.operator->()));
+  }
+  strm_->Write(static_cast<uint64_t>(this->constants.size()));
+  for (const auto& it : arrays) {
+    runtime::SaveDLTensor(strm_, it);
+  }
+}
+
+void Executable::SavePrimitiveOpNames() {
+  std::vector<std::string> primitive_names;
+  for (const auto& it : this->primitive_map) {
+    auto packed_index = static_cast<size_t>(it.second);
+    if (primitive_names.size() <= packed_index) {
+      primitive_names.resize(packed_index + 1);
+    }
+    primitive_names[packed_index] = it.first;
+  }
+  strm_->Write(primitive_names);
+}
+
+// Serialize a virtual machine instruction. It creates a list that contains the
+// hash, opcode, and all fields of an instruction.
+//
+// For example, the function signature used to create an `AllocTensor`
+// instruction is:
+//   Instruction AllocTensor(std::vector<Index> shape, DLDataType dtype, RegName dst)
+//
+// The serialized form will be:
+//   `hash 5 dtype.code dtype.bits dtype.lanes ndim dst_register val1 val2 ... valn`
+//
+// where hash is the hash of serialized instruction that is computed internally
+// by the `VMInstructionExecutable`. It is used for sanity check before decoding.
+// 5 shows opcode of `AllocTensor`, `(dtype.code dtype.bits dtype.lanes)`
+// represents a `DLDataType`, `ndim` is the number of dimensions, `dst_register`
+// is the destination register, and the rest of it together indicates the shape
+// of the tensor to be allocated.
+VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
+  std::vector<Index> fields;
+  // Save the opcode.
+  DLOG(INFO) << "Serializing: " << instr << std::endl;
+  switch (instr.op) {
+    case Opcode::Move: {
+      // Number of fields = 2
+      fields.assign({instr.from, instr.dst});
+      break;
+    }
+    case Opcode::Ret: {
+      // Number of fields = 1
+      fields.push_back(instr.result);
+      break;
+    }
+    case Opcode::Fatal: {
+      // Number of fields = 0
+      break;
+    }
+    case Opcode::InvokePacked: {
+      // Number of fields = 3 + instr.arity
+      // Note that arity includes both input arguments and outputs. We will
+      // put all the `arity` number of fields in the end for serialization.
+      fields.assign({instr.packed_index, instr.arity, instr.output_size});
+      // Save the args.
+      fields.insert(fields.end(), instr.packed_args, instr.packed_args + instr.arity);
+      break;
+    }
+    case Opcode::AllocTensor: {
+      // Number of fields = 5 + instr.alloc_tensor.ndim
+      // Save `DLDataType` and the dst register.
+      const auto& dtype = instr.alloc_tensor.dtype;
+      fields.assign({dtype.code, dtype.bits, dtype.lanes});
+
+      // The number of dimensions is not needed for constructing an
+      // `AllocTensor` instruction as it equals to the length of the `shape`
+      // vector. However, we save it to conveniently deserialize the instruction
+      // because we will know how many fields are needed by the `shape` argument.
+      fields.push_back(instr.alloc_tensor.ndim);
+      fields.push_back(instr.dst);
+
+      // Save the shape of the tensor.
+      // Note that this field is rotated to the end of the list.
+      fields.insert(fields.end(), instr.alloc_tensor.shape,
+                    instr.alloc_tensor.shape + instr.alloc_tensor.ndim);
+      break;
+    }
+    case Opcode::AllocTensorReg: {
+      // Number of fields = 5
+      fields.push_back(instr.alloc_tensor_reg.shape_register);
+      // Save `DLDataType` and the dst register.
+      const auto& dtype = instr.alloc_tensor.dtype;
+      fields.assign({dtype.code, dtype.bits, dtype.lanes});
+      fields.push_back(instr.dst);
+      break;
+    }
+    case Opcode::AllocDatatype: {
+      // Number of fields = 3 + instr.num_fields
+      fields.assign({instr.constructor_tag, instr.num_fields, instr.dst});
+
+      // Save the fields.
+      fields.insert(fields.end(), instr.datatype_fields,
+                    instr.datatype_fields + instr.num_fields);
+      break;
+    }
+    case Opcode::AllocClosure: {
+      // Number of fields = 3 + instr.num_freevar
+      fields.assign({instr.clo_index, instr.num_freevar, instr.dst});
+
+      // Save the free vars.
+      fields.insert(fields.end(), instr.free_vars,
+                    instr.free_vars + instr.num_freevar);
+      break;
+    }
+    case Opcode::If: {
+      // Number of fields = 4
+      fields.assign({instr.if_op.test,
+                     instr.if_op.target,
+                     instr.if_op.true_offset,
+                     instr.if_op.false_offset});
+      break;
+    }
+    case Opcode::Invoke: {
+      // Number of fields = 3 + instr.num_args
+      fields.assign({instr.func_index, instr.num_args, instr.dst});
+
+      // Save the args.
+      fields.insert(fields.end(), instr.invoke_args_registers,
+                    instr.invoke_args_registers + instr.num_args);
+      break;
+    }
+    case Opcode::InvokeClosure: {
+      // Number of fields = 3 + instr.num_closure_args
+      fields.assign({instr.closure, instr.num_closure_args, instr.dst});
+
+      // Save the args.
+      fields.insert(fields.end(), instr.closure_args,
+                    instr.closure_args + instr.num_closure_args);
+      break;
+    }
+    case Opcode::LoadConst: {
+      // Number of fields = 2
+      fields.assign({instr.const_index, instr.dst});
+      break;
+    }
+    case Opcode::LoadConsti: {
+      // Number of fields = 2
+      fields.assign({instr.load_consti.val, instr.dst});
+      break;
+    }
+    case Opcode::GetField: {
+      // Number of fields = 3
+      fields.assign({instr.object, instr.field_index, instr.dst});
+      break;
+    }
+    case Opcode::GetTag: {
+      // Number of fields = 2
+      fields.assign({instr.get_tag.object, instr.dst});
+      break;
+    }
+    case Opcode::Goto: {
+      // Number of fields = 1
+      fields.push_back(instr.pc_offset);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
+      break;
+  }
+
+  return VMInstructionSerializer(static_cast<Index>(instr.op), fields);
+}
+
+void Executable::SaveCodeSection() {
+  // Save the number of functions.
+  strm_->Write(static_cast<uint64_t>(this->functions.size()));
+  for (const auto& func : this->functions) {
+    // Save the function info.
+    VMFunctionSerializer func_format(func.name,
+                                     func.register_file_size,
+                                     func.instructions.size(),
+                                     func.params);
+    func_format.Save(strm_);
+
+    // Serialize each instruction.
+    for (const auto& instr : func.instructions) {
+      const auto& serialized_instr = SerializeInstruction(instr);
+      serialized_instr.Save(strm_);
+    }
+  }
+}
+
+runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
+  std::shared_ptr<Executable> exec = std::make_shared<Executable>();
+  exec->code_ = code;
+  exec->lib = lib;
+  // Initialize the stream object.
+  if (exec->strm_ == nullptr) {
+    exec->strm_ = new dmlc::MemoryStringStream(&exec->code_);
+  }
+
+  // Check header.
+  uint64_t header;
+  STREAM_CHECK(exec->strm_->Read(&header), "header");
+  STREAM_CHECK(header == kTVMVMBytecodeMagic, "header");
+
+  // Check version.
+  std::string version;
+  STREAM_CHECK(exec->strm_->Read(&version), "version");
+  STREAM_CHECK(version == TVM_VERSION, "version");
+
+  // Global section.
+  exec->LoadGlobalSection();
+
+  // Constant section.
+  exec->LoadConstantSection();
+
+  // Primitive names that will be invoked by `InvokePacked` instructions.
+  exec->LoadPrimitiveOpNames();
+
+  // Code section.
+  exec->LoadCodeSection();
+
+  return runtime::Module(exec);
+}
+
+void Executable::LoadGlobalSection() {
+  std::vector<std::string> globals;
+  STREAM_CHECK(strm_->Read(&globals), "global");
+  for (size_t i = 0; i < globals.size(); i++) {
+    this->global_map.insert({globals[i], i});
+  }
+}
+
+void Executable::LoadConstantSection() {
+  uint64_t sz;
+  // Load the number of constants.
+  STREAM_CHECK(strm_->Read(&sz, sizeof(sz)), "constant");
+
+  size_t size = static_cast<size_t>(sz);
+  // Load each of the constants.
+  for (size_t i = 0; i < size; i++) {
+    runtime::NDArray constant;
+    STREAM_CHECK(constant.Load(strm_), "constant");
+    runtime::ObjectRef obj = runtime::vm::Tensor(constant);
+    this->constants.push_back(obj);
+  }
+}
+
+void Executable::LoadPrimitiveOpNames() {
+  std::vector<std::string> primitive_names;
+  STREAM_CHECK(strm_->Read(&primitive_names), "primitive name");
+  for (size_t i = 0; i < primitive_names.size(); i++) {
+    this->primitive_map.insert({primitive_names[i], i});
+  }
+}
+
+// Extract the `cnt` number of fields started at `start` from the list
+// `instr_fields`.
+inline std::vector<Index> ExtractFields(const std::vector<Index>& instr_fields,
+                                        Index start,
+                                        Index cnt) {
+  CHECK_LE(static_cast<size_t>(start + cnt), instr_fields.size());
+  std::vector<Index> ret;
+  for (auto i = start; i < start + cnt; i++) {
+    ret.push_back(instr_fields[i]);
+  }
+  return ret;
+}
+
+Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
+  Opcode opcode = static_cast<Opcode>(instr.opcode);
+  switch (opcode) {
+    case Opcode::Move: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::Move(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::Ret: {
+      // Number of fields = 1
+      DCHECK_EQ(instr.fields.size(), 1U);
+      return Instruction::Ret(instr.fields[0]);
+    }
+    case Opcode::Fatal: {
+      // Number of fields = 0
+      DCHECK(instr.fields.empty());
+      return Instruction::Fatal();
+    }
+    case Opcode::InvokePacked: {
+      // Number of fields = 3 + instr.arity
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
+      Index packed_index = instr.fields[0];
+      Index arity = instr.fields[1];
+      Index output_size = instr.fields[2];
+      std::vector<RegName> args = ExtractFields(instr.fields, 3, arity);
+      return Instruction::InvokePacked(packed_index, arity, output_size, args);
+    }
+    case Opcode::AllocTensor: {
+      // Number of fields = 5 + instr.alloc_tensor.ndim
+      DCHECK_GE(instr.fields.size(), 5U);
+      DCHECK_EQ(instr.fields.size(), 5U + static_cast<size_t>(instr.fields[3]));
+
+      DLDataType dtype;
+      dtype.code = instr.fields[0];
+      dtype.bits = instr.fields[1];
+      dtype.lanes = instr.fields[2];
+
+      Index ndim = instr.fields[3];
+      RegName dst = instr.fields[4];
+
+      std::vector<Index> shape = ExtractFields(instr.fields, 5, ndim);
+
+      return Instruction::AllocTensor(shape, dtype, dst);
+    }
+    case Opcode::AllocTensorReg: {
+      // Number of fields = 5
+      DCHECK_EQ(instr.fields.size(), 5U);
+      Index shape_register = instr.fields[0];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[1];
+      dtype.bits = instr.fields[2];
+      dtype.lanes = instr.fields[3];
+
+      RegName dst = instr.fields[4];
+
+      return Instruction::AllocTensorReg(shape_register, dtype, dst);
+    }
+    case Opcode::AllocDatatype: {
+      // Number of fields = 3 + instr.num_fields
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
+      Index constructor_tag = instr.fields[0];
+      Index num_fields = instr.fields[1];
+      RegName dst = instr.fields[2];
+      std::vector<Index> fields = ExtractFields(instr.fields, 3, num_fields);
+
+      return Instruction::AllocDatatype(constructor_tag, num_fields, fields, dst);
+    }
+    case Opcode::AllocClosure: {
+      // Number of fields = 3 + instr.num_freevar
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
+      Index clo_index = instr.fields[0];
+      Index num_freevar = instr.fields[1];
+      RegName dst = instr.fields[2];
+      std::vector<Index> free_vars = ExtractFields(instr.fields, 3, num_freevar);
+
+      return Instruction::AllocClosure(clo_index, num_freevar, free_vars, dst);
+    }
+    case Opcode::If: {
+      // Number of fields = 4
+      DCHECK_EQ(instr.fields.size(), 4U);
+      Index test = instr.fields[0];
+      Index target = instr.fields[1];
+      Index true_offset = instr.fields[2];
+      Index false_offset = instr.fields[3];
+
+      return Instruction::If(test, target, true_offset, false_offset);
+    }
+    case Opcode::Invoke: {
+      // Number of fields = 3 + instr.num_args
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
+      Index func_index = instr.fields[0];
+      Index num_args = instr.fields[1];
+      RegName dst = instr.fields[2];
+      std::vector<Index> args = ExtractFields(instr.fields, 3, num_args);
+
+      return Instruction::Invoke(func_index, args, dst);
+    }
+    case Opcode::InvokeClosure: {
+      // Number of fields = 3 + instr.num_closure_args
+      DCHECK_GE(instr.fields.size(), 3U);
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+
+      Index closure = instr.fields[0];
+      Index num_closure_args = instr.fields[1];
+      RegName dst = instr.fields[2];
+      std::vector<Index> args = ExtractFields(instr.fields, 3, num_closure_args);
+
+      return Instruction::InvokeClosure(closure, args, dst);
+    }
+    case Opcode::LoadConst: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::LoadConst(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::LoadConsti: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::LoadConsti(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::GetField: {
+      // Number of fields = 3
+      DCHECK_EQ(instr.fields.size(), 3U);
+      return Instruction::GetField(instr.fields[0], instr.fields[1], instr.fields[2]);
+    }
+    case Opcode::GetTag: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::GetTag(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::Goto: {
+      // Number of fields = 1
+      DCHECK_EQ(instr.fields.size(), 1U);
+      return Instruction::Goto(instr.fields[0]);
+    }
+    default:
+      LOG(FATAL) << "Invalid opcode" << instr.opcode;
+      return Instruction();
+  }
+}
+
+void Executable::LoadCodeSection() {
+  // Load the number of functions.
+  uint64_t sz;
+  STREAM_CHECK(strm_->Read(&sz, sizeof(sz)), "code");
+
+  size_t num_funcs = static_cast<size_t>(sz);
+  this->functions.resize(num_funcs);
+  for (size_t i = 0; i < num_funcs; i++) {
+    // Load the function info.
+    VMFunctionSerializer loaded_func;
+    STREAM_CHECK(loaded_func.Load(strm_), "code/function");
+
+    // Load the instructions.
+    std::vector<Instruction> instructions;
+    for (size_t j = 0; j < loaded_func.num_instructions; j++) {
+      VMInstructionSerializer instr;
+      std::vector<Index> instr_fields;
+      STREAM_CHECK(instr.Load(strm_), "code/instruction");
+      instructions.push_back(DeserializeInstruction(instr));
+    }
+
+    // Create the VM function.
+    VMFunction vm_func = VMFunction(loaded_func.name,
+                                    loaded_func.params,
+                                    instructions,
+                                    loaded_func.register_file_size);
+    auto it = this->global_map.find(loaded_func.name);
+    CHECK(it != this->global_map.end());
+    CHECK_LE(it->second, this->global_map.size());
+    this->functions[it->second] = vm_func;
+  }
+}
+
 TVM_REGISTER_GLOBAL("relay._vm.GetNumOfGlobals")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
@@ -198,6 +712,13 @@ TVM_REGISTER_GLOBAL("relay._vm.GetPrimitiveFields")
       break;
     }
   }
+});
+
+TVM_REGISTER_GLOBAL("relay._vm.Load_Executable")
+.set_body_typed<runtime::Module(std::string, runtime::Module)>([](
+    std::string code,
+    runtime::Module lib) {
+  return Executable::Load(code, lib);
 });
 
 }  // namespace vm

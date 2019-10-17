@@ -25,6 +25,7 @@ import numpy as np
 import tvm
 from tvm import autotvm
 from tvm.relay import expr as _expr
+from tvm._ffi.runtime_ctypes import TVMByteArray
 from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
@@ -56,9 +57,102 @@ class Executable(object):
     """Relay VM executable"""
     def __init__(self, mod):
         self.mod = mod
+        self._save = self.mod["save"]
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_stats = self.mod["get_stats"]
+
+    def save(self):
+        """Save the Relay VM Executable.
+
+        Returns
+        -------
+        code : bytearray
+            The binary blob representing a serialized Relay VM executable. It
+            can then be saved to disk and later deserialized into a new
+            Executable.
+
+        lib : :py:class:`~tvm.module.Module`
+            The runtime module that contains the generated code. It is
+            basically a library that is composed of hardware dependent code.
+
+        Notes
+        -----
+        The returned code is organized with the following sections in order.
+         - Global section. This section contains the globals used by the
+         virtual machine.
+         - Constant section. This section is used to store the constant pool of
+         a virtual machine.
+         - Primitive name section. This section is introduced to accommodate
+         the list of primitive operator names that will be invoked by the
+         virtual machine.
+         - Code section. The VM functions, including bytecode, are sitting in
+         this section.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            import numpy as np
+            import tvm
+            from tvm import relay
+            # define a simple network.
+            x = relay.var('x', shape=(10, 10))
+            f = relay.Function([x], x + x)
+            mod = relay.Module({"main": f})
+            # create a Relay VM.
+            ctx = tvm.cpu()
+            target = "llvm"
+            executable = relay.vm.compile(mod, target)
+            code, lib = executable.save()
+            # save and load the code and lib file.
+            tmp = tvm.contrib.util.tempdir()
+            path_lib = tmp.relpath("lib.so")
+            lib.export_library(path_lib)
+            with open(tmp.relpath("code.ro"), "wb") as fo:
+                fo.write(code)
+            loaded_lib = tvm.module.load(path_lib)
+            loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
+            # deserialize.
+            des_exec = relay.vm.Executable.load_exec(loaded_code, loaded_code)
+            # execute the deserialized executable.
+            x_data = np.random.rand(10, 10).astype('float32')
+            des_vm = relay.vm.VirtualMachine(des_exec)
+            des_vm.init(ctx)
+            res = des_vm.run(x_data)
+            print(res.asnumpy())
+        """
+        return self._save(), self._get_lib()
+
+    @staticmethod
+    def load_exec(bytecode, lib):
+        """Construct an executable from saved artifacts.
+
+        Parameters
+        ----------
+        bytecode : bytearray
+            The binary blob representing a the Relay VM bytecode.
+
+        lib : :py:class:`~tvm.module.Module`
+            The runtime module that contains the generated code.
+
+        Returns
+        -------
+        exec: Executable
+            An executable constructed using the provided artifacts.
+        """
+        if isinstance(bytecode, (bytes, str)):
+            code = bytearray(bytecode)
+        elif not isinstance(bytecode, (bytearray, TVMByteArray)):
+            raise TypeError("bytecode is expected to be the type of bytearray " +
+                            "or TVMByteArray, but received {}".format(type(code)))
+
+        if not isinstance(lib, tvm.module.Module):
+            raise TypeError("lib is expected to be the type of tvm.module.Module" +
+                            ", but received {}".format(type(lib)))
+
+        return Executable(_vm.Load_Executable(bytecode, lib))
 
     @property
     def lib(self):

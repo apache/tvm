@@ -435,6 +435,12 @@ struct VMFrame {
  *
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
+ *
+ *  - Global section, containing all globals.
+ *  - Constant section, storing the constant pool.
+ *  - Primitive name section, containing the function name of the primitive ops
+ *  used by the virtual machine.
+ *  - Code section, handling the VM functions and bytecode.
  */
 class Executable : public ModuleNode {
  public:
@@ -448,6 +454,24 @@ class Executable : public ModuleNode {
    */
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+
+  /*!
+   * \brief Serialize the executable into global section, constant section, and
+   * code section.
+   *
+   * \return The binary representation of the VM.
+   */
+  TVMByteArray Save();
+
+  /*!
+   * \brief Load the saved VM executable.
+   *
+   * \param code The bytecode in string.
+   * \param lib The compiled runtime library.
+   *
+   * \return exe The constructed executable.
+   */
+  static runtime::Module Load(const std::string& code, const runtime::Module lib);
 
   /*!
    * \brief Get the serialized form of the `functions`. This is
@@ -466,6 +490,18 @@ class Executable : public ModuleNode {
    * Each instruction is printed in the following format:
    *   opcode num_fields field1 ... fieldX # The text format.
    *
+   * Serializing an `Instruction` requires us to deal with the bytecode. Each line
+   * of the instructions could be serialized as the following format:
+   *   hash, opcode, f1, f2, ..., fX, field with variable length
+   *   1. hash: the hash of the instruction. This number will be used to help us
+   * validate if an instruction is well-formed during deserialization.
+   *   2. opcode: the opcode code of the instruction.
+   *   3. f1, f2, ..., fX. These fields together represent the fixed fields in
+   * an instruction, e.g., `from` and `dst` fields of a `Move` instruction. For
+   * example, `DLDataType` will be unpacked into three fields (code, bits, lanes).
+   *   4. The rest of the line indicates the field with variable length, e.g.,
+   * the shape of a tensor, the args used by an `InvokPacked` instruction, etc.
+
    * The field starting from # is only used for debugging. The serialized code
    * doesn't contain it, therefore the deserializer doens't need to handle it.
    */
@@ -503,6 +539,37 @@ class Executable : public ModuleNode {
   std::unordered_map<std::string, Index> primitive_map;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
+
+ private:
+    /*! \brief Save the globals. */
+  void SaveGlobalSection();
+
+  /*! \brief Save the constant pool. */
+  void SaveConstantSection();
+
+  /*! \brief Save primitive op names. */
+  void SavePrimitiveOpNames();
+
+  /*! \brief Save the vm functions. */
+  void SaveCodeSection();
+
+  /*! \brief Load the globals. */
+  void LoadGlobalSection();
+
+  /*! \brief Load the constant pool. */
+  void LoadConstantSection();
+
+  /*! \brief Load primitive op names. */
+  void LoadPrimitiveOpNames();
+
+  /*! \brief Load the vm functions.*/
+  void LoadCodeSection();
+
+  /*! \brief The stream used for serialization. */
+  dmlc::Stream* strm_;
+
+  /*! \brief The serialized code. */
+  std::string code_;
 };
 
 /*! \brief The virtual machine.
