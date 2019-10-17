@@ -53,6 +53,7 @@ def _lower(func,
     grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
     return grc.codegen(mod["main"])
 
+
 def extract_from_program(func, params, ops, target, target_host=None):
     """ Extract tuning tasks from a relay program.
 
