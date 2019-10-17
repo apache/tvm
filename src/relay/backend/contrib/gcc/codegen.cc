@@ -165,7 +165,7 @@ class GccBuilder : public ExprVisitor {
 
 class GccModuleNode : public ExternModuleNodeBase {
  public:
-  const std::string GetPrefix() const override {
+  const std::string GetPrefix() {
     return "gcc_";
   }
 

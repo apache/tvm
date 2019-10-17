@@ -48,13 +48,6 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
   }
 
   /*!
-   * \brief Get the function prefix of this compiler.
-   *
-   * \return A string of the function name prefix in the library.
-   */
-  virtual const std::string GetPrefix() const = 0;
-
-  /*!
    * \brief Compile the external library.
    */
   virtual void CompileExternLib() = 0;

@@ -240,7 +240,7 @@ class DnnlBuilder : public ExprVisitor {
 class DNNLModuleNode : public ExternModuleNodeBase {
  public:
 
-  const std::string GetPrefix() const override {
+  const std::string GetPrefix() {
     return "dnnl_";
   }
 
