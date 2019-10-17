@@ -315,7 +315,7 @@ def _conv(opname):
 
         # Not needed in the Relay API for `conv`.
         # Consumed only if `padding` was set to `EXPLICIT`.
-        if opname == 'conv':
+        if opname == 'conv' and 'explicit_paddings' in attr:
             del attr['explicit_paddings']
 
         if 'kernel_layout' not in attr:
