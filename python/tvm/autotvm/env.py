@@ -25,5 +25,6 @@ class AutotvmGlobalScope(object):
 
         self.cuda_target_arch = None
         self.in_tuning = False
+        self.tuning_job = None
 
 GLOBAL_SCOPE = AutotvmGlobalScope()

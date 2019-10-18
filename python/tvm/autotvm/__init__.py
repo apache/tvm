@@ -36,6 +36,7 @@ from . import tuner
 from . import util
 from . import env
 from . import tophub
+from . import config_library
 
 # some shortcuts
 from .measure import measure_option, MeasureInput, MeasureResult, MeasureErrorNo, \

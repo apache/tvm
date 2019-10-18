@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-argument, no-self-use, invalid-name
 """Base class of tuner"""
+import json
 import logging
 
 import numpy as np
@@ -86,8 +87,7 @@ class Tuner(object):
             result for measurement
         """
 
-
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), allow_skipping=True):
         """Begin tuning
 
         Parameters
@@ -104,13 +104,25 @@ class Tuner(object):
             (Tuner, List of MeasureInput, List of MeasureResult)
             with no return value. These callback functions will be called on
             every measurement pair. See autotvm/tuner/callback.py for some examples.
+        allow_skipping: bool, optional
+            Allow the tuner to skip a task if a sufficiently well-tuned entry already
+            exists in a config library.
+
         """
+        early_stopping = early_stopping or 1e9
+        if GLOBAL_SCOPE.tuning_job:
+            job = GLOBAL_SCOPE.tuning_job
+            callbacks = callbacks + (job.log_configs, )
+            if job.config_library:
+                trials_pretuned = self.load_library(job.config_library)
+                if allow_skipping and (trials_pretuned >= early_stopping or \
+                   trials_pretuned >= len(self.task.config_space)):
+                    return
+
+        self.early_stopping = early_stopping
         measure_batch = create_measure_batch(self.task, measure_option)
         n_parallel = getattr(measure_batch, 'n_parallel', 1)
-        early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
-        self.early_stopping = early_stopping
-
         old_level = logger.level
 
         GLOBAL_SCOPE.in_tuning = True
@@ -164,6 +176,33 @@ class Tuner(object):
 
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
+
+    def load_library(self, config_library):
+        """Initialise the tuner with configs from a config library.
+
+        Returns the number of trials the current task has already
+        been tuned for in the library.
+
+        Parameters
+        ----------
+        config_library: ConfigLibrary
+            The library to check for existing tuned configs.
+
+        Returns
+        -------
+        trials_pretuned: int
+            How many trials the current task has already been tuned
+            for in the config library.
+
+        """
+        target = str(self.task.target)
+        workload = json.loads(json.dumps(self.task.workload))
+        config = config_library.get_config(target, workload)
+        if not config:
+            return 0
+
+        trials_pretuned = config["t"][2]
+        return trials_pretuned
 
     def reset(self):
         """reset the status of tuner"""
