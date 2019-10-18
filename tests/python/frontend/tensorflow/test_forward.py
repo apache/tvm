@@ -60,13 +60,19 @@ def vmobj_to_list(o):
             result.append(vmobj_to_list(f))
         return result
     elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
-        if o.constructor.name_hint == 'cons':
+        if o.constructor.name_hint == 'Cons':
             tl = vmobj_to_list(o.fields[1])
             hd = vmobj_to_list(o.fields[0])
             hd.extend(tl)
             return hd
-        elif o.constructor.name_hint == 'nil':
+        elif o.constructor.name_hint == 'Nil':
             return []
+        elif 'tensor_nil' in o.constructor.name_hint:
+            return [0]
+        elif 'tensor' in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
         return [o.data.asnumpy()]
     else:
@@ -77,14 +83,11 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
-
     layout = None
     if target == "cuda":
         layout = "NCHW"
     target_host = None
-
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
-
     mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
@@ -580,6 +583,111 @@ def test_forward_squeeze():
     _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-1])
     _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5])
     _test_squeeze(np.arange(6).reshape((1, 2, 1, 3, 1)), [-3, -5, -1])
+
+def test_tensor_array_constructor():
+    def run(dtype_str):
+        with tf.Graph().as_default():
+            dtype =  {
+                'float32': tf.float32,
+                'int32'  : tf.int32
+            }[dtype_str]
+            t = tf.constant(np.array([[1.0, 2.0], [3.0, 4.0]]).astype(dtype_str), dtype=dtype)
+            t2 = tf.constant(np.array([[1.0, 2.0], [3.0, 4.0]]).astype(dtype_str), dtype=dtype)
+            ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=False, dynamic_size=False)
+            ta2 = ta1.write(0, t)
+            ta3 = ta2.write(1, t2)
+            out = ta3.read(0)
+            g = tf.get_default_graph()
+            compare_tf_with_tvm([], [], 'TensorArrayReadV3:0', mode='debug')
+    run('float32')
+    run('int32')
+
+def test_tensor_array_scatter():
+    def run(dtype_str):
+        with tf.Graph().as_default():
+            dtype =  {
+                'float32': tf.float32,
+                'int32'  : tf.int32
+            }[dtype_str]
+            t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
+            indices = tf.constant([2, 1, 0])
+            ta1 = tf.TensorArray(dtype=dtype, size=3, infer_shape=False, dynamic_size=False)
+            ta2 = ta1.scatter(indices, t)
+            out0 = ta2.read(0)
+            out1 = ta2.read(1)
+            out2 = ta2.read(2)
+            g = tf.get_default_graph()
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3:0'], mode='debug')
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3_1:0'], mode='debug')
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3_2:0'], mode='debug')
+    run('float32')
+    run('int32')
+
+# TODO(wweic): Fix gather issue with PartialEvaluate
+# def test_tensor_array_gather():
+#     with tf.Graph().as_default():
+#         dtype = 'float32'
+#         t = tf.constant([[1.0], [2.0], [3.0]])
+#         scatter_indices = tf.constant([2, 1, 0])
+#         gather_indices = tf.constant([1, 2])
+#         ta1 = tf.TensorArray(dtype=tf.float32, size=3, infer_shape=False, dynamic_size=False)
+#         ta2 = ta1.scatter(scatter_indices, t)
+#         t1 = ta2.gather(gather_indices)
+#         g = tf.get_default_graph()
+#         compare_tf_with_tvm([], [], ['TensorArrayGatherV3:0'], mode='debug')
+
+def test_tensor_array_split():
+    def run(dtype_str):
+        with tf.Graph().as_default():
+            dtype =  {
+                'float32': tf.float32,
+                'int32'  : tf.int32
+            }[dtype_str]
+            t = tf.constant(np.array([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]).astype(dtype_str), dtype=dtype)
+            split_length = tf.constant([2, 2, 2, 2], dtype=tf.int32)
+            ta1 = tf.TensorArray(dtype=dtype, size=4, infer_shape=False, dynamic_size=False)
+            ta2 = ta1.split(t, split_length)
+            out0 = ta2.read(0)
+            out1 = ta2.read(1)
+            out2 = ta2.read(2)
+            out3 = ta2.read(3)
+            g = tf.get_default_graph()
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3:0'], mode='debug')
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3_1:0'], mode='debug')
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3_2:0'], mode='debug')
+            compare_tf_with_tvm([], [], ['TensorArrayReadV3_3:0'], mode='debug')
+    run('float32')
+    run('int32')
+
+def test_tensor_array_concat():
+    def run(dtype_str):
+        with tf.Graph().as_default():
+            dtype = {
+                'float32': tf.float32,
+                'int32'  : tf.int32
+            }[dtype_str]
+            t = tf.constant(np.array([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]).astype(dtype_str), dtype=dtype)
+            split_length = tf.constant([2, 2, 2, 2], dtype=tf.int32)
+            ta1 = tf.TensorArray(dtype=dtype, size=4, infer_shape=False, dynamic_size=False)
+            ta2 = ta1.split(t, split_length)
+            t = ta2.concat()
+            compare_tf_with_tvm([], [], ['TensorArrayConcatV3:0'], mode='debug')
+    run('float32')
+    run('int32')
+
+def test_tensor_array_size():
+    def run(dtype_str):
+        with tf.Graph().as_default():
+            dtype =  {
+                'float32': tf.float32,
+                'int32'  : tf.int32
+            }[dtype_str]
+            ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=False, dynamic_size=False)
+            out = ta1.size()
+            g = tf.get_default_graph()
+            compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
+    run('float32')
+    run('int32')
 
 #######################################################################
 # ConcatV2

@@ -203,8 +203,12 @@ class PythonConverter(ExprFunctor):
         for var, func in self.mod.functions.items():
             # optimize the definition so any operators used are lowered
             opt_func = self.optimize(func)
-            converted_func, _ = self.convert_func_node(opt_func, var)
-            defs.append(converted_func)
+            try:
+                converted_func, _ = self.convert_func_node(opt_func, var)
+                defs.append(converted_func)
+            except TypeError:
+                # TODO(wweic): fix conversion for Any
+                pass
         return defs
 
 
