@@ -55,7 +55,7 @@ TVM has minimal support for dynamic tensor shapes. Dimensions that are ``None`` 
 Export
 ~~~~~~
 
-TensorFlow frontend expects a freezed protobuf (.pb) or saved model as input. It currently does not support checkpoint (.ckpt). The graphdef needed by the TensorFlow frontend can be extracted from the active session, or by using the `TFParser`_ helper class.
+TensorFlow frontend expects a frozen protobuf (.pb) or saved model as input. It currently does not support checkpoint (.ckpt). The graphdef needed by the TensorFlow frontend can be extracted from the active session, or by using the `TFParser`_ helper class.
 
 .. _TFParser: https://github.com/dmlc/tvm/blob/77445311540c0dfa7b124304b5cf89da6f2c210f/python/tvm/relay/frontend/tensorflow_parser.py
 
