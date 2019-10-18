@@ -28,7 +28,7 @@ from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_type, infer_value, get_name
+from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_type, infer_value, infer_value_simulated, get_name
 from onnx.numpy_helper import to_array
 
 __all__ = ['from_onnx']
@@ -120,7 +120,7 @@ class Elemwise(OnnxOpConverter):
             axis = int(attr.get('axis', 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_relay_op(op_name)(*inputs)
-
+  
 
 class Pool(OnnxOpConverter):
     """ A helper class for pool op converters.
@@ -280,8 +280,24 @@ class MatMul(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
-        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-        return _op.nn.dense(inputs[0], input_1_t)
+        # Need to check input shape as batch matmul must be supported.
+        a_shape = infer_shape(inputs[0])
+        # When performing a batch matmul, we need to properly handle N-dim shapes.
+        if len(a_shape) > 2:
+            b_shape = infer_shape(inputs[1])
+            # Convert a and b into 3 dimensional tensors.
+            a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
+            b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
+            # Transpose matrix dimensions of b.
+            b = _op.transpose(b, [0, 2, 1])
+            # Perform a batch matmul.
+            output = _op.nn.batch_matmul(a, b)
+            # Reshape output to original dimensions.
+            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+        # Otherwise a simple dense op will get the job done.
+        else:
+            input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+            return _op.nn.dense(inputs[0], input_1_t)
 
 
 class MaxPool(Pool):
@@ -436,23 +452,9 @@ class Reshape(OnnxOpConverter):
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
-            shape_params = analysis.free_vars(shape)
-            fake_params = []
-            for sp in shape_params:
-                if sp.name_hint not in params:
-                    sp_dtype = sp.type_annotation.dtype
-                    sp_shape = [s.value for s in sp.type_annotation.shape]
-                    # Add a fake copy of this parameter for shape inference.
-                    fake_params.append(sp)
-                    params[sp.name_hint] = tvm.nd.array(
-                        np.random.rand(*sp_shape).astype(sp_dtype))
-            # Infer value of shape
-            print("\n\nShape Graph: ", infer_type(shape))
-            static_shape = infer_value(shape, params)
-            # Remove fake params from param dictionary.
-            for sp in fake_params:
-                params.pop(sp.name_hint, None)
-            out = _op.reshape(data, newshape=tuple(static_shape.asnumpy()))
+            static_shape = infer_value_simulated(shape, params)
+            out = _op.reshape(data, newshape=tuple(
+                static_shape.asnumpy().astype('int32')))
         return out
 
 class Concat(OnnxOpConverter):
@@ -933,7 +935,10 @@ class ConstantOfShape(OnnxOpConverter):
         else:
             value = _expr.const(0)
             dtype = 'float32'
-        return _op.full_like(_op.cast(inputs[0], dtype), value)
+        static_shape = infer_value_simulated(inputs[0], params)
+        output = _op.full(
+            value, shape=tuple(static_shape.asnumpy().astype('int32')), dtype=dtype)
+        return output
 
 class Sign(OnnxOpConverter):
     """ Operator converter for Sign.

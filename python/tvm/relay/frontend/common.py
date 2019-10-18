@@ -19,6 +19,7 @@ from __future__ import absolute_import as _abs
 import logging
 
 import tvm
+import numpy as np
 from topi.util import get_const_tuple
 from .. import expr as _expr
 from .. import module as _module
@@ -488,6 +489,26 @@ def infer_value(input_val, params):
     m.set_input(**params)
     m.run()
     return m.get_output(0)
+
+
+def infer_value_simulated(input_val, params):
+    # Keep track of which params we need to simulate
+    fake_params = []
+    # Add a fake copy of all missing params.
+    for free_param in analysis.free_vars(input_val):
+        if free_param.name_hint not in params:
+            fp_dtype = free_param.type_annotation.dtype
+            fp_shape = [s.value for s in free_param.type_annotation.shape]
+            fake_params.append(free_param)
+            params[free_param.name_hint] = tvm.nd.array(
+                np.random.rand(*fp_shape).astype(fp_dtype)
+            )
+    # Now infer the value.
+    output_value = infer_value(input_val, params)
+    # Clean fake params out of param dictionary.
+    for fp in fake_params:
+        params.pop(fp.name_hint, None)
+    return output_value
 
 
 def new_var(name_hint,
