@@ -378,6 +378,13 @@ Stmt LowerStorageAccessInfo(Stmt stmt);
 Stmt DecorateDeviceScope(Stmt stmt);
 
 /*!
+ * \brief Loop invariant code motion which locates and hoists if statements.
+ * \param stmt The stmt to do if statement hoisting.
+ * \return Transformed stmt.
+ */
+Stmt HoistIfThenElse(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
