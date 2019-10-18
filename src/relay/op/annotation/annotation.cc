@@ -165,7 +165,7 @@ Mark a checkpoint for checkpointing memory optimization.
                        [](const Attrs& attrs, const Array<Tensor>& inputs,
                           const Type& out_dtype, const Target& target) -> Array<Tensor> {
                          return {topi::identity(inputs[0])};
-                          });
+                       });
 
 }  // namespace relay
 }  // namespace tvm

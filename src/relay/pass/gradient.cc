@@ -324,7 +324,7 @@ void TransferGrads(const Type& forward_type,
                     ll);
     }
   } else {
-    LOG(FATAL) << "Unsupported input/output type: " << t;
+    LOG(FATAL) << "Unsupported input/output type: " << forward_type;
     throw;
   }
 }
