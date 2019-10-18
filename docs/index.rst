@@ -47,6 +47,12 @@ Developer Guide
    dev/index
    nnvm_top
 
+Frontends
+----------------
+.. toctree::
+   :maxdepth: 1
+
+   frontend/tensorflow
 
 Index
 -----
