@@ -150,6 +150,22 @@ int64_t DenseMacCount(const Call& call_node) {
   return count;
 }
 
+int64_t BatchMatmulMacCount(const Call& call_node) {
+  if (!call_node->checked_type_.defined()) {
+    LOG(WARNING) << "The infer type pass should be called before the mac count pass";
+    return 0;
+  }
+  Array<Expr> args = call_node->args;
+  CHECK(args.size() == 2);
+  Array<IndexExpr> x_shape = args[0]->checked_type().as<TensorTypeNode>()->shape;
+  Array<IndexExpr> y_shape = args[1]->checked_type().as<TensorTypeNode>()->shape;
+  int64_t batch = x_shape[0].as<IntImm>()->value;
+  int64_t m = x_shape[1].as<IntImm>()->value;
+  int64_t k = x_shape[2].as<IntImm>()->value;
+  int64_t n = y_shape[1].as<IntImm>()->value;
+  return batch * m * k * n;
+}
+
 RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FMacCount>("FMacCount", ConvMacCount);
 
@@ -158,6 +174,9 @@ RELAY_REGISTER_OP("nn.conv2d_transpose")
 
 RELAY_REGISTER_OP("nn.dense")
 .set_attr<FMacCount>("FMacCount", DenseMacCount);
+
+RELAY_REGISTER_OP("nn.batch_matmul")
+.set_attr<FMacCount>("FMacCount", BatchMatmulMacCount);
 
 class MacCounter : private ExprVisitor {
  public:

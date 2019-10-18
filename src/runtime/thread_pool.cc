@@ -29,7 +29,7 @@
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
-#ifdef USE_OMP
+#if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
 #include <thread>
@@ -397,7 +397,7 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
-#ifndef USE_OMP
+#if !TVM_THREADPOOL_USE_OPENMP
   int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(
       flambda, cdata, num_task, 1);
   return res;
@@ -422,7 +422,7 @@ int TVMBackendParallelLaunch(
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
-#ifdef USE_OMP
+#if TVM_THREADPOOL_USE_OPENMP
   #pragma omp barrier
 #else
   using tvm::runtime::kSyncStride;

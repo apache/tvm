@@ -116,7 +116,7 @@ set(USE_BLAS none)
 set(USE_MKL_PATH none)
 
 # Whether use OpenMP thread pool
-set(USE_OMP OFF)
+set(USE_OPENMP OFF)
 
 # Whether use contrib.random in runtime
 set(USE_RANDOM OFF)
