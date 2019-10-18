@@ -639,11 +639,17 @@ class Split(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        attr['indices_or_sections'] = []
-        index = 0
-        for i in attr['split'][:-1]:
-            index += i
-            attr['indices_or_sections'].append(index)
+        splits = attr.get('split', False)
+        if splits:
+            attr['indices_or_sections'] = []
+            index = 0
+            for i in splits[:-1]:
+                index += i
+                attr['indices_or_sections'].append(index)
+        # When splits isnt specified divide evenly over axis.
+        else:
+            in_shape = infer_shape(inputs[0])
+            attr['indices_or_sections'] = in_shape[attr['axis']]
         return AttrCvt(
             'split',
             ignores=['split'])(inputs, attr, params)
