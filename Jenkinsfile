@@ -38,9 +38,15 @@
 // - Tag the new version as the lates
 // - Periodically cleanup the old versions on local workers
 //
+
+// Hashtag in the source to build current CI docker builds
+//
+// - ci-cpu:v0.54: e7c88a99f830de30814df14eaa980547ecbd61c1
+//
+
 ci_lint = "tvmai/ci-lint:v0.51"
 ci_gpu = "tvmai/ci-gpu:v0.54"
-ci_cpu = "tvmai/ci-cpu:v0.52"
+ci_cpu = "tvmai/ci-cpu:v0.54"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
