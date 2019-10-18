@@ -278,9 +278,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
                 LetList* ll) {
   CHECK(IsAtomic(e)) << e;
   if (t.as<TensorTypeNode>()) {
-    auto ret = f(e);
-    ret->checked_type_ = t;
-    return ret;
+    return f(e);
   } else if (auto* tt = t.as<TupleTypeNode>()) {
     tvm::Array<Expr> fields;
     for (size_t i = 0; i < tt->fields.size(); ++i) {
@@ -289,11 +287,35 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
                                   ll->Push(GetField(e, i)),
                                   ll));
     }
-    auto ret = TupleNode::make(fields);
-    ret->checked_type_ = t;
-    return std::move(ret);
+    return TupleNode::make(fields);
   } else {
     LOG(FATAL) << "unsupported input/output type: " << tt;
+    throw;
+  }
+}
+
+/*! \brief Transfers the gradients from an Expr to a deep duplication of the Expr,
+ * by stitching the references in the AD values.
+ */
+void TransferGrads(const Type& t,
+                   const Expr& from,
+                   const Expr& to,
+                   LetList* ll) {
+  CHECK(IsAtomic(from)) << from;
+  CHECK(IsAtomic(to)) << to;
+  if (t.as<TensorTypeNode>()) {
+    auto from_ref = TupleGetItemNode::make(from, 1);
+    auto to_ref = TupleGetItemNode::make(to, 1);
+    ll->Push(RefWriteNode::make(to_ref, RefReadNode::make(from_ref)));
+  } else if (auto* tt = t.as<TupleTypeNode>()) {
+    for (size_t i = 0; i < tt->fields.size(); ++i) {
+      TransferGrads(tt->fields[i],
+                    ll->Push(TupleGetItemNode::make(from, i)),
+                    ll->Push(TupleGetItemNode::make(to, i)),
+                    ll);
+    }
+  } else {
+    LOG(FATAL) << "Unsupported input/output type: " << t;
     throw;
   }
 }
@@ -337,42 +359,79 @@ void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
   }
 }
 
+Expr BPEmpty() {
+  Expr unitF = FunctionNode::make({}, TupleNode::make({}), TupleTypeNode::make({}), {});
+  return RefCreateNode::make(unitF);
+}
+
 struct ReverseAD : ExprMutator {
+  using ADVarMap = std::unordered_map<Var, Var, NodeHash, NodeEqual>;
+
   Var bp;
+  std::shared_ptr<ADVarMap> ad_vars;
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
 
-  explicit ReverseAD(const Var& bp) : bp(bp) { }
+  explicit ReverseAD(const Var& bp, std::shared_ptr<ADVarMap> ad_vars)
+      : bp(bp), ad_vars(ad_vars) { }
 
   Expr VisitExpr_(const OpNode* op) final {
     LOG(FATAL) << "op should only be inside call";
     throw;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
-    if (const OpNode* op_node = op->op.as<OpNode>()) {
+  Expr VisitExpr_(const CallNode* call) final {
+    if (const OpNode* op_node = call->op.as<OpNode>()) {
       Op op_ref = GetRef<Op>(op_node);
+
+      if (op_ref->name == "annotation.checkpoint") {
+        auto x = call->args[0];
+        return LetList::With([&](LetList* ll) {
+          auto x_var = ll->Push(x);
+          auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
+          auto bpv = ll->Push(RefReadNode::make(bp));
+          Expr nbp = FunctionNode::make(
+            {},
+            LetList::With([&](LetList* ll) {
+              // we need a new ReverseAD visitor to avoid clobbering the bp local var
+              auto dup_bp = ll->Push(BPEmpty());
+              ReverseAD dup_diff(dup_bp, ad_vars);
+              auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
+
+              TransferGrads(call->checked_type(), ret, dup_ad, ll);
+              ll->Push(CallNode::make(RefReadNode::make(dup_bp), {}));
+              return CallNode::make(bpv, {});
+            }),
+            TupleTypeNode::make({}),
+            {});
+          ll->Push(RefWriteNode::make(bp, nbp));
+          return ret;
+        });
+      }
+
+      CHECK(rev_map.count(op_ref))
+        << op_node->name << " does not have reverse mode defined";
       return LetList::With([&](LetList* ll) {
         std::vector<Var> args;
-        for (const auto& arg : op->args) {
+        for (const auto& arg : call->args) {
           args.push_back(ll->Push(VisitExpr(arg)));
         }
         std::vector<Expr> orig_args;
         for (size_t i = 0; i < args.size(); i++) {
-          orig_args.push_back(GetValue(op->args[i]->checked_type(), args[i], ll));
+          orig_args.push_back(GetValue(call->args[i]->checked_type(), args[i], ll));
         }
-        Expr orig = CallNode::make(op->op, orig_args, op->attrs, op->type_args);
-        orig->checked_type_ = op->checked_type();
+        Expr orig = CallNode::make(call->op, orig_args, call->attrs, call->type_args);
+        orig->checked_type_ = call->checked_type();
         Var orig_var = ll->Push(orig);
-        orig_var->checked_type_ = op->checked_type();
-        auto ret = ll->Push(GetRev(op->checked_type(), orig_var, ll));
+        orig_var->checked_type_ = call->checked_type();
+        auto ret = ll->Push(GetRev(call->checked_type(), orig_var, ll));
         auto bpv = ll->Push(RefReadNode::make(bp));
         Expr nbp = FunctionNode::make(
           {},
           LetList::With([&](LetList* ll) {
-            tvm::Array<Expr> rev = rev_map[op_ref](orig, GetGrad(op->checked_type(), ret, ll));
+            tvm::Array<Expr> rev = rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
             CHECK(args.size() == rev.size());
             for (size_t i = 0; i < args.size(); ++i) {
-              UpdateGrad(op->args[i]->checked_type(), args[i], rev[i], ll);
+              UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
             }
             return CallNode::make(bpv, {});
           }),
@@ -382,7 +441,7 @@ struct ReverseAD : ExprMutator {
         return ret;
       });
     }
-    return ExprMutator::VisitExpr_(op);
+    return ExprMutator::VisitExpr_(call);
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
@@ -396,15 +455,21 @@ struct ReverseAD : ExprMutator {
                         VisitExpr(op->false_branch));
   }
 
+  Expr VisitExpr_(const VarNode* var) final {
+    // memoize Var -> ADVar so we don't end up with free Vars when checkpointing
+    auto var_ref = GetRef<Var>(var);
+    if (!ad_vars->count(var_ref)) {
+      auto res = Downcast<Var>(ExprMutator::VisitExpr_(var));
+      (*ad_vars)[var_ref] = res;
+    }
+
+    return ad_vars->at(var_ref);
+  }
+
   Type VisitType(const Type& t) final {
     return t.defined() ? ReverseType(t) : t;
   }
 };
-
-Expr BPEmpty() {
-  Expr unitF = FunctionNode::make({}, TupleNode::make({}), TupleTypeNode::make({}), {});
-  return RefCreateNode::make(unitF);
-}
 
 bool MissingGrad(const Expr& e) {
   struct MGVisitor : ExprVisitor {
@@ -445,7 +510,7 @@ Expr Gradient(const Expr& re, const Module& mod) {
   CHECK(!MissingGrad(e)) << "input has operators with missing gradients";
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty());
-    Expr rev = ReverseAD(bp)(e);
+    Expr rev = ReverseAD(bp, std::make_shared<ReverseAD::ADVarMap>())(e);
     std::vector<Expr> args;
     for (const auto& p : f->params) {
       args.push_back(ll->Push(Pair(p, RefCreateNode::make(ZerosLike(p)))));

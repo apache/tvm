@@ -31,6 +31,24 @@ def run_infer_type(expr):
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
+def test_checkpoint():
+    dtype = "float32"
+    xs = [relay.var("x{}".format(i), dtype) for i in range(4)]
+    f = relay.multiply(relay.add(xs[0], xs[1]), relay.add(xs[2], xs[3]))
+    f_checkpoint = relay.annotation.checkpoint(f)
+
+    func, func_checkpoint = relay.Function(xs, f), relay.Function(xs, f_checkpoint)
+    f, f_checkpoint = run_infer_type(func), run_infer_type(func_checkpoint)
+    assert f.checked_type == f_checkpoint.checked_type
+
+    inputs = [np.random.uniform() for _ in range(len(xs))]
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            f_res = intrp.evaluate(f)(*inputs)
+            f_checkpoint_res = intrp.evaluate(f_checkpoint)(*inputs)
+            tvm.testing.assert_allclose(f_res.asnumpy(), f_checkpoint_res.asnumpy(), 0, 0)
+
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
     shape_like = (4, 5, 6)

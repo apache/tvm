@@ -30,6 +30,12 @@ def test_cross_entropy_with_logits_grad():
     x = relay.var("x", shape=(2, 5))
     y = relay.var("y", shape=(2, 5))
     check_grad(relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)), eps=0.01, scale=0.1, mean=1)
+    
+def test_checkpoint():
+    inputs = [relay.var("x{}".format(i), shape=(1,)) for i in range(4)]
+    output = relay.multiply(relay.add(inputs[0], inputs[1]),
+                            relay.add(inputs[2], inputs[3]))
+    check_grad(relay.Function(inputs, relay.annotation.checkpoint(output)))
 
 
 if __name__ == "__main__":

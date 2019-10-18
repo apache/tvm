@@ -52,7 +52,9 @@ Expr DeDup(const Expr& e) {
     }
 
     Expr VisitExpr(const Expr& e) final {
-      return ExprMutator::VisitExpr(e);
+      auto ret = ExprMutator::VisitExpr(e);
+      ret->checked_type_ = e->checked_type_;
+      return ret;
     }
 
     Expr VisitExpr_(const VarNode* op) final {
