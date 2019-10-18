@@ -16,38 +16,55 @@
 <!--- under the License. -->
 
 # Tensorflow Frontend
-Tensorflow frontend helps in importing tensorflow released model into TVM.
+The Tensorflow frontend helps in importing TensorFlow models into TVM.
 
-This document helps few steps while importing various different models from
-[tensorflow research/slim](https://github.com/tensorflow/models/tree/master/research/slim).
+Supported versions:
+- 1.12 and below
 
-Current frontend is tested with all versions of below models
+Tested models:
 - Inception (V1/V2/V3/V4)
 - Resnet (All)
 - Mobilenet (V1/V2 All)
 - Vgg (16/19)
+- BERT (Base/3-layer)
 
-Tensorflow frontend expects a freezed protobuf format as input.
+## Preparing a Model for Inference
 
-Not all models are released as freezed protobuf. Some of them are checkpoints (.ckpt).
-Please refer to [export](https://github.com/tensorflow/models/tree/master/research/slim#exporting-the-inference-graph) 
-and [freeze](https://github.com/tensorflow/models/tree/master/research/slim#freezing-the-exported-graph) 
-instructions to generate protobuf from checkpoint.
+### Remove Unneeded Nodes
 
-## General Instructions
+The export process will remove many nodes that are not needed for inference, but unfortunately will leave some remaining.
+The nodes that should be manually removed are:
+- Dropout, including the [dropout node](https://www.tensorflow.org/api_docs/python/tf/nn/dropout) and [dropout wrapper](https://www.tensorflow.org/versions/r1.12/api_docs/python/tf/nn/rnn_cell/DropoutWrapper?hl=hr)
+- Assert
 
-### Add Shapes:
-While freezing of protobuf add additional option ```add_shapes=True``` to embed output shapes of each node into graph.
-You may use ```tvm.relay.testing.tf.AddShapesToGraphDef``` from nnvm for the same.
-Please refer to [tensorflow tutorial](https://github.com/dmlc/tvm/blob/master/tutorials/nnvm/from_tensorflow.py).
+### Convert None Dimensions to Constants
 
-### Explicit Shape:
-There might be situations where the add_shapes=True may not provide sufficient information about shape.
-You may pass explicit dictionary of input shapes argument for ```from_tensorflow```.
-Please refer to [test cases](https://github.com/dmlc/tvm/blob/master/nnvm/tests/python/frontend/tensorflow/test_forward.py#L36).
+TVM has minimal support for dynamic tensor shapes. Dimensions that are ```None``` should be replaced with constants. For example, a model may accept an input with shape ```(None,20)```. This should be converted to something like ```(1,20)```. The model should be modified accordingly to ensure that these shapes match throughout the graph.
 
-### GPU:
-Most of these tensorflow models are released for CPU with NHWC layout.
-To compile for GPU we need to pass extra argument ```layout='NCHW'``` for from_tensorflow.
-This option will do a layout conversion before and after for neural network ops.
-Remaining nnvm build options for GPU compilation remain as it is.
+### Export
+
+TensorFlow frontend expects a freezed protobuf (.pb) or saved model as input. It currently does not support checkpoint (.ckpt).
+The graphdef needed to pass into the TensorFlow frontend can be extracted using the [TFParser](https://github.com/dmlc/tvm/blob/77445311540c0dfa7b124304b5cf89da6f2c210f/python/tvm/relay/frontend/tensorflow_parser.py) helper class.
+
+The model should be exported with a number of transformations to prepare the model for inference. It is also important to set ```add_shapes=True```. This will embed the output shapes of each node into the graph. Here is one function to export a model as a protobuf given a session:
+
+```TODO: code example```
+
+Another method is to [export and freeze the graph](https://github.com/tensorflow/models/tree/master/research/slim#exporting-the-inference-graph).
+
+## Import the Model
+
+## Explicit Shape:
+```add_shapes=True``` might not provide sufficient shape information. Passing an explicit dictionary of input names to shape in ```from_tensorflow``` will help ensure that the shapes can be known throughout the entire graph. Please refer to these [test cases](https://github.com/dmlc/tvm/blob/master/nnvm/tests/python/frontend/tensorflow/test_forward.py#L36) as an example.
+
+## Data Layout
+Most TensorFlow models are released with NHWC layout. NCHW layout often provides better performance, especially on GPU. The TensorFlow frontend can automatically convert the model's data layout by passing the argument ```layout='NCHW'``` to ```from_tensorflow```.
+
+## Best Practices
+
+- Use static tensor shapes instead of dynamic shapes (remove ```None``` dimensions).
+- Use static RNN instead of dynamic RNN, as ```TensorArray``` isn't supported yet.
+
+## Supported Ops
+
+
