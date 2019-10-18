@@ -230,7 +230,7 @@ class BuiltinLower : public IRMutator {
                      cast(Int(32), device_type_)));
     return TVMStructGet(Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
-  // call packled.
+  // call packed.
   Expr MakeCallPacked(const Call* op, const Expr& e) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
