@@ -563,7 +563,7 @@ def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
         input_rank = len(inputs[1].type_annotation.shape)
         dtype_str = attr.get('T').name
-        v = prelude.get_var("tensor{}".format(input_rank), dtype_str)
+        v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
         lengths = _op.cast(inputs[2], 'int32')
         split_var = prelude.get_var('tensor_array_split', dtype_str)
         return split_var(inputs[0], v, lengths)
