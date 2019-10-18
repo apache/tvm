@@ -29,28 +29,6 @@
 namespace tvm {
 namespace runtime {
 
-class CallbackChannel final : public RPCChannel {
- public:
-  explicit CallbackChannel(PackedFunc fsend)
-      : fsend_(fsend) {}
-
-  size_t Send(const void* data, size_t size) final {
-    TVMByteArray bytes;
-    bytes.data = static_cast<const char*>(data);
-    bytes.size = size;
-    uint64_t ret = fsend_(bytes);
-    return static_cast<size_t>(ret);
-  }
-
-  size_t Recv(void* data, size_t size) final {
-    LOG(FATAL) << "Do not allow explicit receive for";
-    return 0;
-  }
-
- private:
-  PackedFunc fsend_;
-};
-
 PackedFunc CreateEventDrivenServer(PackedFunc fsend,
                                    std::string name,
                                    std::string remote_key) {

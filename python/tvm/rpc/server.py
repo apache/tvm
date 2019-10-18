@@ -81,9 +81,15 @@ def _server_env(load_library, work_path=None):
 
 def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
-    sockfd = sock.fileno()
     temp = _server_env(load_library, work_path)
-    base._ServerLoop(sockfd)
+
+    def _fsend(data):
+        return sock.send(bytes(data))
+
+    def _frecv(size):
+        return bytearray(sock.recv(size))
+
+    base._ServerLoop(_fsend, _frecv)
     if not work_path:
         temp.remove()
     logger.info("Finish serving %s", addr)

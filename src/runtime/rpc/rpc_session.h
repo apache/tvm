@@ -87,7 +87,7 @@ class RPCChannel {
    */
   virtual size_t Send(const void* data, size_t size) = 0;
   /*!
-e   * \brief Recv data from channel.
+   * \brief Recv data from channel.
    *
    * \param data The data pointer.
    * \param size The size fo the data.
@@ -251,6 +251,41 @@ class RPCSession {
   std::string name_;
   // The remote key
   std::string remote_key_;
+};
+
+class CallbackChannel final : public RPCChannel {
+ public:
+  explicit CallbackChannel(PackedFunc fsend, PackedFunc frecv)
+      : fsend_(std::move(fsend)), frecv_(std::move(frecv)) {}
+
+  explicit CallbackChannel(PackedFunc fsend)
+      : fsend_(std::move(fsend)) {
+    PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
+      LOG(FATAL) << "Do not allow explicit receive";
+      return 0;
+    });
+    frecv_ = frecv;
+  }
+  ~CallbackChannel() {}
+  /*!
+   * \brief Send data over to the channel.
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes sent.
+   */
+  size_t Send(const void* data, size_t size) final;
+  /*!
+   * \brief Recv data from channel.
+   *
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes received.
+   */
+  size_t Recv(void* data, size_t size) final;
+
+ private:
+  PackedFunc fsend_;
+  PackedFunc frecv_;
 };
 
 /*!

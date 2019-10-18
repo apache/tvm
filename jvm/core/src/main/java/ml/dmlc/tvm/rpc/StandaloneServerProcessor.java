@@ -17,6 +17,10 @@
 
 package ml.dmlc.tvm.rpc;
 
+import ml.dmlc.tvm.Function;
+import ml.dmlc.tvm.TVMValue;
+import ml.dmlc.tvm.TVMValueBytes;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,12 +32,9 @@ import java.net.Socket;
  */
 public class StandaloneServerProcessor implements ServerProcessor {
   private final ServerSocket server;
-  private final SocketFileDescriptorGetter socketFileDescriptorGetter;
 
-  public StandaloneServerProcessor(int serverPort,
-      SocketFileDescriptorGetter sockFdGetter) throws IOException {
+  public StandaloneServerProcessor(int serverPort) throws IOException {
     this.server = new ServerSocket(serverPort);
-    this.socketFileDescriptorGetter = sockFdGetter;
   }
 
   @Override public void terminate() {
@@ -46,9 +47,9 @@ public class StandaloneServerProcessor implements ServerProcessor {
 
   @Override public void run() {
     try {
-      Socket socket = server.accept();
-      InputStream in = socket.getInputStream();
-      OutputStream out = socket.getOutputStream();
+      final Socket socket = server.accept();
+      final InputStream in = socket.getInputStream();
+      final OutputStream out = socket.getOutputStream();
       int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
       if (magic != RPC.RPC_MAGIC) {
         Utils.closeQuietly(socket);
@@ -66,12 +67,34 @@ public class StandaloneServerProcessor implements ServerProcessor {
         out.write(Utils.toBytes(serverKey));
       }
 
+      Function fsend = Function.convertFunc(new Function.Callback() {
+        @Override public Object invoke(TVMValue... args) {
+          byte[] data = args[0].asBytes();
+          try {
+            out.write(data);
+          } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+          }
+          return data.length;
+        }
+      });
+
+      Function frecv = Function.convertFunc(new Function.Callback() {
+        @Override public Object invoke(TVMValue... args) {
+          long size = args[0].asLong();
+          try {
+            return new TVMValueBytes(Utils.recvAll(in, (int) size));
+          } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+          }
+        }
+      });
+
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-      final int sockFd = socketFileDescriptorGetter.get(socket);
-      if (sockFd != -1) {
-        new NativeServerLoop(sockFd).run();
-        System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
-      }
+      new NativeServerLoop(fsend, frecv).run();
+      System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       Utils.closeQuietly(socket);
     } catch (Throwable e) {
       e.printStackTrace();

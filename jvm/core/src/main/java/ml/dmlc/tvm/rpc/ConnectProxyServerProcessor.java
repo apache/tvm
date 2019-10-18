@@ -17,6 +17,11 @@
 
 package ml.dmlc.tvm.rpc;
 
+import ml.dmlc.tvm.Function;
+import ml.dmlc.tvm.TVMValue;
+import ml.dmlc.tvm.TVMValueBytes;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -30,7 +35,6 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
   private final String host;
   private final int port;
   private final String key;
-  private final SocketFileDescriptorGetter socketFileDescriptorGetter;
 
   private volatile Socket currSocket = new Socket();
   private Runnable callback;
@@ -40,14 +44,11 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
    * @param host Proxy server host.
    * @param port Proxy server port.
    * @param key Proxy server key.
-   * @param sockFdGetter Method to get file descriptor from Java socket.
    */
-  public ConnectProxyServerProcessor(String host, int port, String key,
-      SocketFileDescriptorGetter sockFdGetter) {
+  public ConnectProxyServerProcessor(String host, int port, String key) {
     this.host = host;
     this.port = port;
     this.key = "server:" + key;
-    socketFileDescriptorGetter = sockFdGetter;
   }
   
   /** 
@@ -70,8 +71,8 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
     try {
       SocketAddress address = new InetSocketAddress(host, port);
       currSocket.connect(address, 6000);
-      InputStream in = currSocket.getInputStream();
-      OutputStream out = currSocket.getOutputStream();
+      final InputStream in = currSocket.getInputStream();
+      final OutputStream out = currSocket.getOutputStream();
       out.write(Utils.toBytes(RPC.RPC_MAGIC));
       out.write(Utils.toBytes(key.length()));
       out.write(Utils.toBytes(key));
@@ -91,11 +92,32 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       if (callback != null) {
         callback.run();
       }
-      final int sockFd = socketFileDescriptorGetter.get(currSocket);
-      if (sockFd != -1) {
-        new NativeServerLoop(sockFd).run();
-        System.err.println("Finish serving " + address);
-      }
+      Function fsend = Function.convertFunc(new Function.Callback() {
+        @Override public Object invoke(TVMValue... args) {
+          byte[] data = args[0].asBytes();
+          try {
+            out.write(data);
+          } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+          }
+          return data.length;
+        }
+      });
+
+      Function frecv = Function.convertFunc(new Function.Callback() {
+        @Override public Object invoke(TVMValue... args) {
+          long size = args[0].asLong();
+          try {
+            return new TVMValueBytes(Utils.recvAll(in, (int) size));
+          } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+          }
+        }
+      });
+      new NativeServerLoop(fsend, frecv).run();
+      System.err.println("Finish serving " + address);
     } catch (Throwable e) {
       e.printStackTrace();
       throw new RuntimeException(e);
