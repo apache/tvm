@@ -80,7 +80,6 @@ class MicroModuleNode final : public ModuleNode {
   }
 
  private:
-  //std::string binary_path_;
   SymbolMap symbol_map_;
   /*! \brief global session pointer */
   ObjectPtr<MicroSession> session_;
@@ -95,6 +94,7 @@ class MicroWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
+    std::cout << "pushing func_ptr " << func_ptr_.cast_to<void*>() << std::endl;
     session_->PushToExecQueue(func_ptr_, args);
   }
 

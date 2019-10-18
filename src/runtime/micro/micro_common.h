@@ -46,9 +46,9 @@ enum class SectionKind : size_t {
   kData,
   kBss,
   kArgs,
-  kStack,
   kHeap,
   kWorkspace,
+  kStack,
   kNumKinds,
 };
 

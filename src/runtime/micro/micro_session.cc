@@ -57,15 +57,31 @@ void MicroSession::ExitWithScope() {
 }
 
 MicroSession::MicroSession() {
-  //DevBaseOffset curr_start_offset = kDeviceStart;
-  //for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
-  //  size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
-  //  section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-  //    .start = curr_start_offset,
-  //    .size = section_size,
-  //  });
-  //  curr_start_offset += section_size;
-  //}
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
+  for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
+    size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
+    section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = section_size,
+    });
+    curr_start_offset += section_size;
+  }
+
+
+  CHECK(curr_start_offset.value() < 0x20050000) << "exceeded available RAM on device (" << std::endl;
+
+  std::cout << "[Memory Layout]" << std::endl;
+  std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  rodata (size = " << (section_allocators_[1]->capacity() / 1000.0) << " KB): " << section_allocators_[1]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  data (size = " << (section_allocators_[2]->capacity() / 1000.0) << " KB): " << section_allocators_[2]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  bss (size = " << (section_allocators_[3]->capacity() / 1000.0) << " KB): " << section_allocators_[3]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  args (size = " << (section_allocators_[4]->capacity() / 1000.0) << " KB): " << section_allocators_[4]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  heap (size = " << (section_allocators_[5]->capacity() / 1000.0) << " KB): " << section_allocators_[5]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  workspace (size = " << (section_allocators_[6]->capacity() / 1000.0) << " KB): " << section_allocators_[6]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  stack (size = " << (section_allocators_[7]->capacity() / 1000.0) << " KB): " << section_allocators_[7]->start_offset().cast_to<void*>() << std::endl;
+
+  // NOTE: we don't use this for openocd
+  memory_size_ = 0;
   //memory_size_ = curr_start_offset.cast_to<size_t>();
 
   /* Linker script sample
@@ -134,53 +150,64 @@ MicroSession::MicroSession() {
   memory_size_ = 0;
   */
 
+  /*
   // TODO: why do we need to start 0x1c8 bytes after the start of ram?
   //curr_start_offset = DevBaseOffset(0x200001C8);
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
   size_t one_eighth_ram_size = 40000;
-   section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kRodata)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kData)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kBss)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kArgs)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kStack)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kHeap)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
-   section_allocators_[static_cast<size_t>(SectionKind::kWorkspace)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-     .start = curr_start_offset,
-     .size = one_eighth_ram_size,
-   });
-   curr_start_offset += one_eighth_ram_size;
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
 
-   // NOTE: we don't use this for openocd
-   memory_size_ = 0;
+  std::cout << "[Memory Layout]" << std::endl;
+  std::cout << "text start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  size_t text_size
+  section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "rodata start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kRodata)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "data start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kData)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "bss start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kBss)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "args start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kArgs)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "stack start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kStack)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "heap start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kHeap)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "workspace start: " << curr_start_offset.cast_to<void*>() << std::endl;
+  section_allocators_[static_cast<size_t>(SectionKind::kWorkspace)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+      .start = curr_start_offset,
+      .size = one_eighth_ram_size,
+      });
+  curr_start_offset += one_eighth_ram_size;
+  std::cout << "WHAT THE FUCK" << std::endl;
+  */
 }
 
 MicroSession::~MicroSession() {
@@ -208,8 +235,8 @@ void MicroSession::CreateSession(const std::string& device_type,
   }
 
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
-  std::cout << runtime_symbol_map_["UTVMMain"].value() << std::endl;
-  std::cout << runtime_symbol_map_["utvm_task"].value() << std::endl;
+  std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
+  std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
   //if (device_type == "openocd") {
   //  // Set OpenOCD device's stack pointer.
@@ -242,26 +269,31 @@ void MicroSession::CreateSession(const std::string& device_type,
 // whether it's a "thumb mode" function (TODO: figure out what that means).
 const bool kRequiresThumbModeBit = true;
 void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
-  int32_t (*func_dev_addr)(void*, void*, int32_t) =
-      reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(func_ptr.value());
   // TODO: make this a parameter.
   if (kRequiresThumbModeBit) {
-    func_dev_addr += 1;
+    func_ptr += 1;
   }
+  int32_t (*func_dev_addr)(void*, void*, int32_t) =
+      reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(func_ptr.value());
 
+  std::cout << "AA" << std::endl;
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
   DevPtr args_addr =
       low_level_device()->ToDevPtr(GetAllocator(SectionKind::kArgs)->curr_end_offset());
   TargetDataLayoutEncoder encoder(args_addr);
+  std::cout << "BB" << std::endl;
 
   std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&encoder, args);
+  std::cout << "BBB" << std::endl;
   // Flush `stream` to device memory.
   DevBaseOffset stream_dev_offset =
       GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
+  std::cout << "BBBB" << std::endl;
   low_level_device()->Write(stream_dev_offset,
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
+  std::cout << "CC" << std::endl;
 
   //UTVMTask task = {
   //  .func = func_dev_addr,
@@ -289,12 +321,14 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   };
   // Write the task.
   DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+  std::cout << "DD" << std::endl;
 
   DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
   DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
   if (kRequiresThumbModeBit) {
     utvm_main_loc += 1;
   }
+  std::cout << "EE" << std::endl;
 
   // TODO: figure out why it's not running anymore when we compile it with "-c"
   // instead of "-shared". we should be relocating the binary.
@@ -379,10 +413,13 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
+  std::cout << "AYY" << std::endl;
   auto tvm_vals_slot = encoder->Alloc<TVMValue>(num_args);
   auto type_codes_slot = encoder->Alloc<const int>(num_args);
+  std::cout << "LMAO" << std::endl;
 
   for (int i = 0; i < num_args; i++) {
+  std::cout << "WAZ " << i << std::endl;
     switch (type_codes[i]) {
       case kNDArrayContainer:
       case kArrayHandle: {
@@ -393,8 +430,10 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
         void* old_data = base_arr_handle->data;
         // Mutate the array to unwrap the `data` field.
         base_arr_handle->data = reinterpret_cast<MicroDevSpace*>(old_data)->data;
+        std::cout << "  GLOMO" << std::endl;
         // Now, encode the unwrapped version.
         void* arr_ptr = EncoderAppend(encoder, *base_arr_handle).cast_to<void*>();
+        std::cout << "  FOMO" << std::endl;
         // And restore the original wrapped version.
         base_arr_handle->data = old_data;
 
@@ -434,6 +473,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
   auto tvm_arr_slot = encoder->Alloc<ARMTVMArray>();
   auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
+  std::cout << "WRITE" << std::endl;
   // `shape` and `strides` are stored on the host, so we need to write them to
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
@@ -445,6 +485,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     stride_slot.WriteArray(arr.strides, arr.ndim);
     strides_addr = stride_slot.start_addr();
   }
+  std::cout << "ON" << std::endl;
 
   int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
   int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
@@ -460,13 +501,17 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     .pad2 = 0,
   };
 
+  std::cout << "DIDDLY" << std::endl;
+
   // Copy `arr`, update the copy's pointers to be device pointers, then
   // write the copy to `tvm_arr_slot`.
   //TVMArray dev_arr = arr;
   // Update the device type to look like a host, because codegen generates
   // checks that it is a host array.
-  CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
-    << "attempt to write TVMArray with non-micro device type";
+  std::cout << "DEV TYPE: " << dev_arr.ctx.device_type << std::endl;
+  std::cout << "DEV TYPE == MICRO: " << (dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << std::endl;
+  CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
+  std::cout << "FRICKIN" << std::endl;
   dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
   // Add the base address of the device to the array's data's device offset to
   // get a device address.
@@ -474,7 +519,9 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
   //dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
   //dev_arr.shape = shape_addr.cast_to<int64_t*>();
   //dev_arr.strides = strides_addr.cast_to<int64_t*>();
+  std::cout << "DANG" << std::endl;
   tvm_arr_slot.WriteValue(dev_arr);
+  std::cout << "TIME" << std::endl;
   return tvm_arr_slot.start_addr();
 }
 
@@ -497,10 +544,16 @@ void MicroSession::CheckDeviceError() {
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
-  void* runtime_impl_addr = runtime_symbol_map_[func_name].cast_to<void*>();
+  //void* runtime_impl_addr = runtime_symbol_map_[func_name].cast_to<void*>();
+  DevPtr runtime_impl_addr = runtime_symbol_map_[func_name];
+  if (kRequiresThumbModeBit) {
+    runtime_impl_addr += 1;
+  }
+  std::cout << "patching " << func_name << " with addr " << runtime_impl_addr.cast_to<void*>() << std::endl;
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
-  DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
+  DevSymbolWrite(symbol_map, func_name_underscore.str(), (int32_t) runtime_impl_addr.value());
+  std::cout << "finished patching" << std::endl;
 }
 
 std::string MicroSession::ReadString(DevBaseOffset str_offset) {

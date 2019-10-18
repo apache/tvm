@@ -59,7 +59,7 @@ class MicroSectionAllocator {
     size_ = UpperAlignValue(size_, 8);
     CHECK(size_ + size < capacity_)
         << "cannot alloc " << size << " bytes in section with start_addr " <<
-        start_offset_.value();
+        start_offset_.cast_to<void*>();
     DevBaseOffset alloc_ptr = start_offset_ + size_;
     size_ += size;
     alloc_map_[alloc_ptr.value()] = size;

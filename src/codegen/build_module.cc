@@ -230,6 +230,9 @@ Target Target::Create(const std::string& target_str) {
     options.push_back(item);
   }
 
+  std::cout << "target str: " << target_str << std::endl;
+  std::cout << "target name: " << target_name << std::endl;
+
   return CreateTarget(target_name, options);
 }
 

@@ -47,6 +47,18 @@ typedef struct {
   int32_t num_args;
 } UTVMTask;
 
+extern void UTVMInit();
+
+extern void UTVMTimerStart();
+
+extern void UTVMTimerStop();
+
+extern int32_t UTVMTimerRead();
+
+void UTVMMain();
+
+void UTVMDone();
+
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

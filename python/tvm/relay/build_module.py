@@ -100,7 +100,20 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
+        print(type(target))
+        print(target)
+        print(type(list(target.keys())[0]))
+        print(list(target.keys())[0])
+        print(type(list(target.values())[0]))
+        print(list(target.values())[0])
         target = _update_target(target)
+        print('WEEEEEEEEE')
+        print(type(target))
+        print(target)
+        print(type(list(target.keys())[0]))
+        print(list(target.keys())[0])
+        print(type(list(target.values())[0]))
+        print(list(target.values())[0])
 
         # Setup the params.
         if params:

@@ -127,15 +127,25 @@ def tvm_callback_relocate_binary(
     rel_bin : bytearray
         the relocated binary
     """
+    global TEMPDIR_REFS
     tmp_dir = util.tempdir()
-    #rel_obj_path = tmp_dir.relpath("relocated.o")
-    rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
+    TEMPDIR_REFS.append(tmp_dir)
+    rel_obj_path = tmp_dir.relpath("relocated.o")
+    #rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
+    with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'r') as f:
+        gdbinit_contents = f.read().split('\n')
+    new_contents = []
+    for line in gdbinit_contents:
+        new_contents.append(line)
+        if line.startswith('target'):
+            new_contents.append(f'add-symbol-file {rel_obj_path}')
+    with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'w') as f:
+        f.write('\n'.join(new_contents))
 
     #ld_script_contents = ""
     ## TODO(weberlo): There should be a better way to configure this for different archs.
     #if "riscv" in toolchain_prefix:
     #    ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
-    print(f'binary path: {binary_path}')
 
     # TODO(weberlo): Generate the script in a more procedural manner.
     ld_script_contents = """
@@ -196,9 +206,6 @@ SECTIONS
 }
     """ % (text_addr, rodata_addr, data_addr, bss_addr)
 
-    print(ld_script_contents)
-
-
 #"""
 #SECTIONS
 #{
@@ -243,10 +250,6 @@ SECTIONS
     rel_ld_script_path = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script_path, "w") as f:
         f.write(ld_script_contents)
-    ld_cmd = ' '.join(["{}ld".format(toolchain_prefix), binary_path,
-                                "-T", rel_ld_script_path,
-                                "-o", rel_obj_path])
-    print(f'runnin ld cmd: {ld_cmd}')
     ld_proc = subprocess.Popen(["{}ld".format(toolchain_prefix), binary_path,
                                 "-T", rel_ld_script_path,
                                 "-o", rel_obj_path],
@@ -258,6 +261,7 @@ SECTIONS
         msg += py_str(out)
         raise RuntimeError(msg)
 
+    print(f'relocated obj path is {rel_obj_path}')
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
     return rel_bin

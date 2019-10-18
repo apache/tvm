@@ -126,7 +126,6 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   }
 
   void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
-    std::cout << "here and writing " << std::dec << num_bytes << " bytes" << std::endl;
     if (num_bytes == 0) {
       return;
     }

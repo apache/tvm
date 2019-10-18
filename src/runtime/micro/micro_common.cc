@@ -38,21 +38,21 @@ namespace runtime {
 size_t GetDefaultSectionSize(SectionKind kind) {
   switch (kind) {
     case SectionKind::kText:
-      return 0xF000;
+      return 0x5000;
     case SectionKind::kRodata:
-      return 0xF000;
+      return 0x5000;
     case SectionKind::kData:
-      return 0xF00;
+      return 0x300;
     case SectionKind::kBss:
-      return 0xF00;
+      return 0x300;
     case SectionKind::kArgs:
-      return 0xF0000;
-    case SectionKind::kStack:
-      return 0xF000;
+      return 0x500;
     case SectionKind::kHeap:
-      return 0xF00000;
+      return 0x40000;
     case SectionKind::kWorkspace:
-      return 0xF0000;
+      return 0x5000;
+    case SectionKind::kStack:
+      return 0x50;
     default:
       LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
       return 0;
@@ -66,9 +66,9 @@ const char* SectionToString(SectionKind section) {
     case SectionKind::kData: return "data";
     case SectionKind::kBss: return "bss";
     case SectionKind::kArgs: return "args";
-    case SectionKind::kStack: return "stack";
     case SectionKind::kHeap: return "heap";
     case SectionKind::kWorkspace: return "workspace";
+    case SectionKind::kStack: return "stack";
     default: return "";
   }
 }

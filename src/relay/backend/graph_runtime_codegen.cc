@@ -201,6 +201,7 @@ class GraphRuntimeCodegen
     auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
     storage_device_map_ = (*pf)(func);
     // First we convert all the parameters into input nodes.
+    std::cout << "we have " << func->params.size() << " params" << std::endl;
     for (auto param : func->params) {
       auto node_ptr = GraphInputNode::make_node_ptr(param->name_hint(), GraphAttrs());
       var_map_[param.get()] = AddNode(node_ptr, param);
@@ -212,6 +213,7 @@ class GraphRuntimeCodegen
     LoweredOutput ret;
     ret.graph_json = os.str();
     ret.params = params_;
+    std::cout << "we have " << lowered_funcs_.size() << " lowered funcs" << std::endl;
     for (auto& kv : lowered_funcs_) {
       if (ret.lowered_funcs.count(kv.first) == 0) {
         ret.lowered_funcs.Set(kv.first, Array<LoweredFunc>());
@@ -226,6 +228,7 @@ class GraphRuntimeCodegen
       }
       ret.lowered_funcs.Set(kv.first, tmp);
     }
+    std::cout << "finished codegen" << std::endl;
     return ret;
   }
 

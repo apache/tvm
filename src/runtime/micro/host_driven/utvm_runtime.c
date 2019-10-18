@@ -52,10 +52,6 @@ size_t utvm_num_active_allocs = 0;
 const char* utvm_last_error = NULL;  // NOLINT(*)
 int32_t utvm_return_code = 0;  // NOLINT(*)
 
-// We use a dummy function to signal execution is finished for device
-// backends which require breakpoints.
-void UTVMDone() { }
-
 void UTVMMain() {
   utvm_workspace_curr = utvm_workspace_begin;
   utvm_num_active_allocs = 0;
@@ -65,6 +61,10 @@ void UTVMMain() {
                                utvm_task.num_args);
   UTVMDone();
 }
+
+// We use a dummy function to signal execution is finished for device
+// backends which require breakpoints.
+void UTVMDone() { }
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {

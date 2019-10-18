@@ -51,9 +51,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
     c_mod.export_library(
             lib_obj_path,
             fcompile=tvm.micro.cross_compiler(toolchain_prefix=toolchain_prefix))
-    print("BEFORE")
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
-    print("AFTER")
     return micro_mod
 
 
@@ -80,6 +78,26 @@ def relay_micro_build(func, toolchain_prefix, params=None):
     mod = graph_runtime.create(graph, micro_mod, ctx)
     mod.set_input(**params)
     return mod
+
+
+def reset_gdbinit():
+    with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'w') as f:
+        gdbinit_contents = """
+layout asm
+target remote localhost:3333
+print "(*((TVMValue*) utvm_task.arg_values)).v_handle"
+print (*((TVMValue*) utvm_task.arg_values)).v_handle
+print "*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))"
+print *((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))
+print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]"
+print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]
+print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]"
+print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]
+break UTVMMain
+break UTVMDone
+jump UTVMMain
+        """
+        f.write(gdbinit_contents)
 
 
 # TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
@@ -117,18 +135,13 @@ def test_add():
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
     with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        print("A")
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
-        print("B")
         micro_func = micro_mod[func_name]
-        print("C")
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        print("D")
         micro_func(a, b, c)
-        print("E")
 
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + b.asnumpy())
@@ -140,6 +153,8 @@ def test_workspace_add():
         return
     shape = (1024,)
     dtype = "float32"
+
+    reset_gdbinit()
 
     # Construct TVM expression.
     tvm_shape = tvm.convert(shape)
@@ -186,6 +201,53 @@ def test_graph_runtime():
 
         tvm.testing.assert_allclose(
                 result, x_in * x_in + 1.0)
+
+
+def test_conv2d():
+    if not tvm.module.enabled("micro_dev"):
+        return
+
+    from tvm.relay import create_executor
+    from tvm.relay import transform
+
+    reset_gdbinit()
+
+    dshape = (1, 4, 16, 16)
+    for dtype, func_name in [('float32', 'fused_nn_conv2d'), ('int8', 'fused_nn_conv2d_2')]:
+        # Construct Relay program.
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        conv_expr = relay.nn.conv2d(
+                x, relay.var("w"),
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                channels=4)
+        func = relay.Function(relay.analysis.free_vars(conv_expr), conv_expr)
+        mod = relay.Module.from_expr(func) 
+        mod = transform.InferType()(mod)
+
+        x_shape = list(map(lambda x: x.value, mod['main'].params[0].checked_type.shape))
+        w_shape = list(map(lambda x: x.value, mod['main'].params[1].checked_type.shape))
+        out_shape = list(map(lambda x: x.value, mod['main'].ret_type.shape))
+
+        with tvm.build_config(disable_vectorize=True):
+            graph, c_mod, params = relay.build(mod, target="c")
+
+        with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+            micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+            micro_func = micro_mod[func_name]
+            ctx = tvm.micro_dev(0)
+
+            x_data = tvm.nd.array(np.random.uniform(size=x_shape).astype(dtype), ctx)
+            w_data = tvm.nd.array(np.random.uniform(size=w_shape).astype(dtype), ctx)
+            result = tvm.nd.array(np.zeros(shape=out_shape, dtype=dtype), ctx)
+            micro_func(x_data, w_data, result)
+
+            out_data = np.zeros(out_shape, dtype=dtype)
+            params = { 'x': x_data.asnumpy(), 'w': w_data.asnumpy() }
+            intrp = create_executor('debug')
+            expected_result = intrp.evaluate(mod['main'])(x_data, w_data).data
+
+            tvm.testing.assert_allclose(result.asnumpy(), expected_result.asnumpy())
 
 
 def test_multiple_modules():
@@ -308,87 +370,16 @@ def test_inactive_session_use():
                 add_result, np_tensor_a + 1.0)
 
 
-#--------------------------------------------------------------------------------
-#--------------------------------------------------------------------------------
-#--------------------------------------------------------------------------------
-
-
-def test_arm_add():
-    """Test a module which performs addition."""
-    #import tvm
-    if not tvm.module.enabled("micro_dev"):
-        return
-    shape = (1024,)
-    dtype = "float32"
-
-    #import subprocess
-    #import os
-    #import copy
-    #from shutil import copyfile
-
-    #from tvm._ffi.libinfo import find_include_path
-    #from tvm.micro import _get_micro_device_dir
-    #from tvm.contrib import binutil
-
-    print('constructing tvm expr')
-    # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = tvm.create_schedule(C.op)
-
-    func_name = "fadd"
-    c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
-
-    print('starting session')
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX) as sess:
-        # TODO: since we're adding modules with `sess.add_module`, we're not
-        # creating micro modules (like below). how do we get packed funcs from
-        # the session though? we might need to do the enqueueing in C++ and
-        # call into a Python function that does all of the baking. If that's
-        # the case, then we'll need to create all of the micro mods we want,
-        # *then* call sess.bake, which should just execute the same Python code
-        # as in micro/base.py, but with a trip to C++ in between.
-        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
-        micro_func = micro_mod[func_name]
-
-        #sess.add_module(c_mod)
-        print('baking session')
-        #sess.bake()
-        print(f'grabbing {func_name} from session')
-        #micro_func = sess.get_func(func_name)
-        print(f'grabbed it')
-
-        ctx = tvm.micro_dev(0)
-        a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-        c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        print(a)
-        print(b)
-        print(c)
-        # TODO: the fadd example is leaving the C vector with all zeros. the
-        # device must not be executing the fadd. do a GDB stepthrough. could
-        # also try loading in the original blinky program (or some slight
-        # variant of it) to see if we're loading shit onto the device
-        # correctly.
-        input('not gon work')
-        micro_func(a, b, c)
-        print('--------------------------------------------------------------------------------')
-        print(c)
-
-
-        #tvm.testing.assert_allclose(
-        #        c.asnumpy(), a.asnumpy() + b.asnumpy())
-
-
 if __name__ == "__main__":
     #test_alloc()
     #test_add()
     #test_workspace_add()
     #test_graph_runtime()
+
+    test_conv2d()
+
     #test_multiple_modules()
     #test_interleave_sessions()
     #test_nested_sessions()
     #test_inactive_session_use()
-    test_arm_add()
+    #test_arm_add()

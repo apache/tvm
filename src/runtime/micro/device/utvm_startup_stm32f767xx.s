@@ -5,7 +5,7 @@
   * @brief     STM32F767xx Devices vector table for GCC based toolchain.
   *            This module performs:
   *                - Set the initial SP
-  *                - Set the initial PC == Reset_Handler,
+  *                - Set the initial PC == UTVMInit,
   *                - Set the vector table entries with the exceptions ISR address
   *                - Branches to main in the C library (which eventually
   *                  calls main()).
@@ -46,20 +46,12 @@
 .fpu softvfp
 .thumb
 
-/**
- * @brief  This is the code that gets called when the processor first
- *          starts execution following a reset event. Only the absolutely
- *          necessary set is performed, after which the application
- *          supplied main() routine is called.
- * @param  None
- * @retval : None
-*/
-.section .text.Reset_Handler
-.weak Reset_Handler
-.type Reset_Handler, %function
-Reset_Handler:
+.section .text.UTVMInit
+.weak UTVMInit
+.type UTVMInit, %function
+UTVMInit:
   ldr sp, =_estack      /* set stack pointer */
-  bl main
+  bl UTVMMain
 
 /**
  * @brief  This is the code that gets called when the processor receives an

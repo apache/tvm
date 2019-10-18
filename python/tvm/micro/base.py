@@ -89,89 +89,6 @@ class Session:
         self._exit = self.module["exit"]
         print('finished session init')
 
-    def bake(self):
-        import subprocess
-        import os
-        import copy
-        from shutil import copyfile
-
-        from tvm._ffi.libinfo import find_include_path
-        from tvm.contrib import binutil
-
-        op_srcs = []
-        for op_module in self.op_modules:
-            op_src = op_module.get_source()
-            op_src = op_src[op_src.index("TVM_DLL"):]
-            op_srcs.append(op_src)
-        op_srcs = "\n\n".join(op_srcs)
-
-        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
-        with open(runtime_src_path) as f:
-            runtime_src = f.read()
-
-        merged_src = self.gen_merged_src(runtime_src, op_srcs)
-
-        tmp_dir = _util.tempdir()
-
-        temp_src_path = tmp_dir.relpath("temp.c")
-        with open(temp_src_path, "w") as f:
-            f.write(merged_src)
-
-        paths = [('-I', path) for path in find_include_path()]
-        paths += [('-I', _get_micro_device_dir())]
-
-        print('compiling bin')
-        compile_cmd = [
-                'arm-none-eabi-gcc',
-                '-std=c11',
-                '-Wall',
-                '-Wextra',
-                '--pedantic',
-                '-fstack-usage',
-                '-mcpu=cortex-m7',
-                '-mlittle-endian',
-                '-mfloat-abi=hard',
-                '-mfpu=fpv5-sp-d16',
-                '-O0',
-                '-g',
-                '-gdwarf-5',
-                '-nostartfiles',
-                '-nodefaultlibs',
-                '-nostdlib',
-                '-fdata-sections',
-                '-ffunction-sections',
-                '-c']
-        for s, path in paths:
-            compile_cmd += [s, path]
-        temp_obj_path = tmp_dir.relpath('temp.o')
-        compile_cmd += ['-o', temp_obj_path, temp_src_path]
-
-        proc = subprocess.Popen(
-                compile_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-        if proc.returncode != 0:
-            msg = "Compilation error:\n"
-            msg += out.decode("utf-8")
-            raise RuntimeError(msg)
-
-        print('finished')
-
-        _BakeSession(temp_obj_path)
-
-    #def add_module(self, c_mod):
-    #    self.op_modules.append(c_mod)
-
-    def gen_merged_src(self, runtime_src, op_srcs):
-        include_str = "#include \"utvm_runtime.h\""
-        split_idx = runtime_src.index(include_str) + len(include_str) + 2
-        merged_src = runtime_src[:split_idx] + op_srcs + runtime_src[split_idx:]
-        return merged_src
-
-    #def get_func(self, func_name):
-    #    return _GetFunction(func_name);
-
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
 
@@ -345,7 +262,6 @@ def create_arm_micro_lib(
     paths = [('-I', path) for path in find_include_path()]
     paths += [('-I', _get_micro_device_dir())]
 
-    print('compiling bin')
     compile_cmd = [
             'arm-none-eabi-gcc',
             '-std=c11',
