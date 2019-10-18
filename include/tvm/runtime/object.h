@@ -51,7 +51,7 @@ enum TypeIndex  {
   kRoot = 0,
   kVMTensor = 1,
   kVMClosure = 2,
-  kVMDatatype = 3,
+  kVMADT = 3,
   kStaticIndexEnd,
   /*! \brief Type index is allocated during runtime. */
   kDynamic = kStaticIndexEnd

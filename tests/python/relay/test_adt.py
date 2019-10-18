@@ -742,7 +742,7 @@ def vmobj_to_list(o):
         return [o.asnumpy().tolist()]
     elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
         return [o.asnumpy()]
-    elif isinstance(o, tvm.relay.backend.vmobj.Datatype):
+    elif isinstance(o, tvm.relay.backend.vmobj.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))

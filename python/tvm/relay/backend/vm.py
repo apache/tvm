@@ -31,7 +31,7 @@ from . import vmobj as _obj
 from .interpreter import Executor
 
 Tensor = _obj.Tensor
-Datatype = _obj.Datatype
+ADT = _obj.ADT
 
 def _convert(arg, cargs):
     if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):

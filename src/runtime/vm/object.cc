@@ -39,15 +39,15 @@ Tensor::Tensor(NDArray data) {
   data_ = std::move(ptr);
 }
 
-Datatype::Datatype(size_t tag, std::vector<ObjectRef> fields) {
-  auto ptr = make_object<DatatypeObj>();
+ADT::ADT(size_t tag, std::vector<ObjectRef> fields) {
+  auto ptr = make_object<ADTObj>();
   ptr->tag = tag;
   ptr->fields = std::move(fields);
   data_ = std::move(ptr);
 }
 
-Datatype Datatype::Tuple(std::vector<ObjectRef> fields) {
-  return Datatype(0, fields);
+ADT ADT::Tuple(std::vector<ObjectRef> fields) {
+  return ADT(0, fields);
 }
 
 Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
@@ -66,28 +66,28 @@ TVM_REGISTER_GLOBAL("_vmobj.GetTensorData")
   *rv = cell->data;
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeTag")
+TVM_REGISTER_GLOBAL("_vmobj.GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<DatatypeObj>();
+  const auto* cell = obj.as<ADTObj>();
   CHECK(cell != nullptr);
   *rv = static_cast<int64_t>(cell->tag);
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeNumberOfFields")
+TVM_REGISTER_GLOBAL("_vmobj.GetADTNumberOfFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<DatatypeObj>();
+  const auto* cell = obj.as<ADTObj>();
   CHECK(cell != nullptr);
   *rv = static_cast<int64_t>(cell->fields.size());
 });
 
 
-TVM_REGISTER_GLOBAL("_vmobj.GetDatatypeFields")
+TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
-  const auto* cell = obj.as<DatatypeObj>();
+  const auto* cell = obj.as<ADTObj>();
   CHECK(cell != nullptr);
   CHECK_LT(idx, cell->fields.size());
   *rv = cell->fields[idx];
@@ -104,10 +104,10 @@ TVM_REGISTER_GLOBAL("_vmobj.Tuple")
   for (auto i = 0; i < args.size(); ++i) {
     fields.push_back(args[i]);
   }
-  *rv = Datatype::Tuple(fields);
+  *rv = ADT::Tuple(fields);
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.Datatype")
+TVM_REGISTER_GLOBAL("_vmobj.ADT")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   int itag = args[0];
   size_t tag = static_cast<size_t>(itag);
@@ -115,11 +115,11 @@ TVM_REGISTER_GLOBAL("_vmobj.Datatype")
   for (int i = 1; i < args.size(); i++) {
     fields.push_back(args[i]);
   }
-  *rv = Datatype(tag, fields);
+  *rv = ADT(tag, fields);
 });
 
 TVM_REGISTER_OBJECT_TYPE(TensorObj);
-TVM_REGISTER_OBJECT_TYPE(DatatypeObj);
+TVM_REGISTER_OBJECT_TYPE(ADTObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 }  // namespace vm
 }  // namespace runtime

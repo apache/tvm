@@ -239,7 +239,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     DLOG(INFO) << "VMCompiler::Emit: instr=" << instr;
     CHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
-      case Opcode::AllocDatatype:
+      case Opcode::AllocADT:
       case Opcode::AllocTensor:
       case Opcode::AllocTensorReg:
       case Opcode::GetField:
@@ -287,7 +287,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     // TODO(@jroesch): use correct tag
-    Emit(Instruction::AllocDatatype(
+    Emit(Instruction::AllocADT(
       0,
       tuple->fields.size(),
       fields_registers,
@@ -626,7 +626,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       for (size_t i = arity - return_count; i < arity; ++i) {
         fields_registers.push_back(unpacked_arg_regs[i]);
       }
-      Emit(Instruction::AllocDatatype(0, return_count, fields_registers, NewRegister()));
+      Emit(Instruction::AllocADT(0, return_count, fields_registers, NewRegister()));
     }
   }
 
@@ -659,7 +659,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     } else if (auto constructor_node = op.as<ConstructorNode>()) {
       auto constructor = GetRef<Constructor>(constructor_node);
-      Emit(Instruction::AllocDatatype(constructor->tag, call_node->args.size(), args_registers,
+      Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
                                       NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
       VisitExpr(GetRef<Var>(var_node));

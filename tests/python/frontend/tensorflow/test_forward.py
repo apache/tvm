@@ -49,7 +49,7 @@ def convert_to_list(x):
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.vmobj.Tensor):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vmobj.Datatype):
+    elif isinstance(o, tvm.relay.backend.vmobj.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))

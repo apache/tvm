@@ -74,7 +74,7 @@ Instruction::Instruction(const Instruction& instr) {
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       this->constructor_tag = instr.constructor_tag;
       this->num_fields = instr.num_fields;
       this->datatype_fields = Duplicate<RegName>(instr.datatype_fields, instr.num_fields);
@@ -159,7 +159,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return *this;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       this->constructor_tag = instr.constructor_tag;
       this->num_fields = instr.num_fields;
       FreeIf(this->datatype_fields);
@@ -229,7 +229,7 @@ Instruction::~Instruction() {
     case Opcode::AllocTensor:
       delete this->alloc_tensor.shape;
       return;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       delete this->datatype_fields;
       return;
     case Opcode::AllocClosure:
@@ -301,10 +301,10 @@ Instruction Instruction::AllocTensorReg(RegName shape_register, DLDataType dtype
   return instr;
 }
 
-Instruction Instruction::AllocDatatype(Index tag, Index num_fields,
+Instruction Instruction::AllocADT(Index tag, Index num_fields,
                                        const std::vector<RegName>& datatype_fields, Index dst) {
   Instruction instr;
-  instr.op = Opcode::AllocDatatype;
+  instr.op = Opcode::AllocADT;
   instr.dst = dst;
   instr.constructor_tag = tag;
   instr.num_fields = num_fields;
@@ -485,7 +485,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
     }
-    case Opcode::AllocDatatype: {
+    case Opcode::AllocADT: {
       os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
          << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
       break;
@@ -691,7 +691,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
                                   const std::vector<ObjectRef>& args) {
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (const auto* obj = args[i].as<DatatypeObj>()) {
+    if (const auto* obj = args[i].as<ADTObj>()) {
       arity += obj->fields.size();
     } else {
       ++arity;
@@ -703,7 +703,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   int idx = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (const auto* dt_cell = args[i].as<DatatypeObj>()) {
+    if (const auto* dt_cell = args[i].as<ADTObj>()) {
       for (auto obj : dt_cell->fields) {
         const auto* tensor = obj.as<TensorObj>();
         CHECK(tensor != nullptr);
@@ -849,7 +849,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetField: {
         auto object = ReadRegister(instr.object);
-        const auto* tuple = object.as<DatatypeObj>();
+        const auto* tuple = object.as<ADTObj>();
         CHECK(tuple != nullptr)
             << "Object is not data type object, register " << instr.object << ", Object tag "
             << object->type_index();
@@ -860,7 +860,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetTag: {
         auto object = ReadRegister(instr.get_tag.object);
-        const auto* data = object.as<DatatypeObj>();
+        const auto* data = object.as<ADTObj>();
         CHECK(data != nullptr)
             << "Object is not data type object, register "
             << instr.get_tag.object << ", Object tag "
@@ -925,12 +925,12 @@ void VirtualMachine::RunLoop() {
         pc++;
         goto main_loop;
       }
-      case Opcode::AllocDatatype: {
+      case Opcode::AllocADT: {
         std::vector<ObjectRef> fields;
         for (Index i = 0; i < instr.num_fields; ++i) {
           fields.push_back(ReadRegister(instr.datatype_fields[i]));
         }
-        ObjectRef obj = Datatype(instr.constructor_tag, fields);
+        ObjectRef obj = ADT(instr.constructor_tag, fields);
         WriteRegister(instr.dst, obj);
         pc++;
         goto main_loop;
