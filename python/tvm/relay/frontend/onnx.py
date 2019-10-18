@@ -427,35 +427,32 @@ class Reshape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'shape' in attr:
-            return _op.reshape(inputs[0], attr['shape'])
+        return _op.reshape(inputs[0], attr['shape'])
 
+    @classmethod
+    def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].asnumpy())
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
-            logging.warning("Constant evaluating Reshape's shape argument, may reduce performance")
             shape_params = analysis.free_vars(shape)
-            func = _expr.Function(shape_params, shape)
-            mod = _module.Module.from_expr(func)
-            seq = _transform.Sequential([_transform.InferType(),
-                                         _transform.FoldConstant(),
-                                         _transform.FuseOps(0),
-                                         _transform.InferType()])
-            with tvm.relay.PassContext(opt_level=2):
-                mod = seq(mod)
-            with tvm.relay.build_config(opt_level=0):
-                ex = tvm.relay.create_executor("debug", mod=mod)
-                inputs = []
-                for sp in shape_params:
-                    if not sp.name_hint in params:
-                        sh = [int(i) for i in sp.type_annotation.shape]
-                        inputs.append(
-                            tvm.nd.array(np.random.rand(*sh).astype('float32')))
-                static_shape = ex.evaluate()(*inputs, **params)
+            fake_params = []
+            for sp in shape_params:
+                if sp.name_hint not in params:
+                    sp_dtype = sp.type_annotation.dtype
+                    sp_shape = [s.value for s in sp.type_annotation.shape]
+                    # Add a fake copy of this parameter for shape inference.
+                    fake_params.append(sp)
+                    params[sp.name_hint] = tvm.nd.array(
+                        np.random.rand(*sp_shape).astype(sp_dtype))
+            # Infer value of shape
+            print("\n\nShape Graph: ", infer_type(shape))
+            static_shape = infer_value(shape, params)
+            # Remove fake params from param dictionary.
+            for sp in fake_params:
+                params.pop(sp.name_hint, None)
             out = _op.reshape(data, newshape=tuple(static_shape.asnumpy()))
-
         return out
 
 class Concat(OnnxOpConverter):
@@ -655,7 +652,6 @@ class Slice(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        print(attr)
         if isinstance(attr['starts'], int):
             attr['starts'] = (attr['starts'],)
             attr['ends'] = (attr['ends'],)
@@ -886,7 +882,8 @@ class OneHot(OnnxOpConverter):
         # Extract relay one_hot inputs.
         indices, depth, values = inputs
         # Split onnx on off values into two separate expressions.
-        on_value, off_value = _op.split(values, 2)
+        on_value, off_value = _op.take(
+            values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
         # Convert depth into an integer.
