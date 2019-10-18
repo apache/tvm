@@ -273,21 +273,30 @@ Type ReverseType(const Type& t) {
  * by doing a structure preserving map.
  */
 Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
-                const Type& t,
+                const std::function<Type(const Type&)>& tf,
+                const Type& forward_type,
                 const Expr& e,
                 LetList* ll) {
   CHECK(IsAtomic(e)) << e;
-  if (t.as<TensorTypeNode>()) {
-    return f(e);
-  } else if (auto* tt = t.as<TupleTypeNode>()) {
+  if (forward_type.as<TensorTypeNode>()) {
+    auto ret = f(e);
+    ret->checked_type_ = tf(forward_type);
+    return ret;
+  } else if (auto* tt = forward_type.as<TupleTypeNode>()) {
     tvm::Array<Expr> fields;
+    tvm::Array<Type> types;
     for (size_t i = 0; i < tt->fields.size(); ++i) {
-      fields.push_back(LiftTensor(f,
-                                  tt->fields[i],
-                                  ll->Push(GetField(e, i)),
-                                  ll));
+      auto field = LiftTensor(f,
+                              tf,
+                              tt->fields[i],
+                              ll->Push(GetField(e, i)),
+                              ll);
+      fields.push_back(field);
+      types.push_back(field->checked_type_);
     }
-    return TupleNode::make(fields);
+    auto ret = TupleNode::make(fields);
+    ret->checked_type_ = TupleTypeNode::make(types);
+    return std::move(ret);
   } else {
     LOG(FATAL) << "unsupported input/output type: " << tt;
     throw;
@@ -297,17 +306,17 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
 /*! \brief Transfers the gradients from an Expr to a deep duplication of the Expr,
  * by stitching the references in the AD values.
  */
-void TransferGrads(const Type& t,
+void TransferGrads(const Type& forward_type,
                    const Expr& from,
                    const Expr& to,
                    LetList* ll) {
   CHECK(IsAtomic(from)) << from;
   CHECK(IsAtomic(to)) << to;
-  if (t.as<TensorTypeNode>()) {
+  if (forward_type.as<TensorTypeNode>()) {
     auto from_ref = TupleGetItemNode::make(from, 1);
     auto to_ref = TupleGetItemNode::make(to, 1);
     ll->Push(RefWriteNode::make(to_ref, RefReadNode::make(from_ref)));
-  } else if (auto* tt = t.as<TupleTypeNode>()) {
+  } else if (auto* tt = forward_type.as<TupleTypeNode>()) {
     for (size_t i = 0; i < tt->fields.size(); ++i) {
       TransferGrads(tt->fields[i],
                     ll->Push(TupleGetItemNode::make(from, i)),
@@ -321,24 +330,36 @@ void TransferGrads(const Type& t,
 }
 
 /*! \brief t -> ReverseType(t). Transform to Reverse Mode Value. */
-Expr GetRev(const Type& t, const Expr& e, LetList* ll) {
+Expr GetRev(const Type& forward_type, const Expr& e, LetList* ll) {
   auto rev = [&](const Expr& e) {
     return Pair(e, ll->Push(RefCreateNode::make(ZerosLike(e))));
   };
-  return LiftTensor(rev, t, e, ll);
+  auto rev_type = [&](const Type& forward_type) {
+    return ReverseType(forward_type);
+  };
+  return LiftTensor(rev, rev_type, forward_type, e, ll);
 }
 
 /*! \brief ReverseType(t) -> t. Get the original value. */
-Expr GetValue(const Type& t, const Expr& e, LetList* ll) {
-  return LiftTensor([&](const Expr& e) { return GetField(e, 0); }, t, e, ll);
+Expr GetValue(const Type& forward_type, const Expr& e, LetList* ll) {
+  auto val = [&](const Expr& e) {
+    return GetField(e, 0);
+  };
+  auto val_type = [&](const Type& forward_type) {
+    return forward_type;
+  };
+  return LiftTensor(val, val_type, forward_type, e, ll);
 }
 
 /*! \brief ReverseType(t) -> t. Get the gradient. */
-Expr GetGrad(const Type& t, const Expr& e, LetList* ll) {
+Expr GetGrad(const Type& forward_type, const Expr& e, LetList* ll) {
   auto grad = [&](const Expr& e) {
     return ll->Push(RefReadNode::make(GetField(e, 1)));
   };
-  return LiftTensor(grad, t, e, ll);
+  auto grad_type = [&](const Type& forward_type) {
+    return forward_type;
+  };
+  return LiftTensor(grad, grad_type, forward_type, e, ll);
 }
 
 void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
