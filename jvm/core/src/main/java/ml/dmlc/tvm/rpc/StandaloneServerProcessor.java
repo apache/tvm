@@ -17,10 +17,6 @@
 
 package ml.dmlc.tvm.rpc;
 
-import ml.dmlc.tvm.Function;
-import ml.dmlc.tvm.TVMValue;
-import ml.dmlc.tvm.TVMValueBytes;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -67,33 +63,9 @@ public class StandaloneServerProcessor implements ServerProcessor {
         out.write(Utils.toBytes(serverKey));
       }
 
-      Function fsend = Function.convertFunc(new Function.Callback() {
-        @Override public Object invoke(TVMValue... args) {
-          byte[] data = args[0].asBytes();
-          try {
-            out.write(data);
-          } catch (IOException e) {
-            e.printStackTrace();
-            return -1;
-          }
-          return data.length;
-        }
-      });
-
-      Function frecv = Function.convertFunc(new Function.Callback() {
-        @Override public Object invoke(TVMValue... args) {
-          long size = args[0].asLong();
-          try {
-            return new TVMValueBytes(Utils.recvAll(in, (int) size));
-          } catch (IOException e) {
-            e.printStackTrace();
-            return -1;
-          }
-        }
-      });
-
+      SocketChannel sockChannel = new SocketChannel(socket);
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-      new NativeServerLoop(fsend, frecv).run();
+      new NativeServerLoop(sockChannel.getFsend(), sockChannel.getFrecv()).run();
       System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       Utils.closeQuietly(socket);
     } catch (Throwable e) {

@@ -200,6 +200,7 @@ public class RPCSession {
    * Upload file to remote runtime temp folder.
    * @param data The file in local to upload.
    * @param target The path in remote.
+   * @throws java.io.IOException for network failure.
    */
   public void upload(File data, String target) throws IOException {
     byte[] blob = getBytesFromFile(data);
@@ -209,6 +210,7 @@ public class RPCSession {
   /**
    * Upload file to remote runtime temp folder.
    * @param data The file in local to upload.
+   * @throws java.io.IOException for network failure.
    */
   public void upload(File data) throws IOException {
     upload(data, data.getName());
