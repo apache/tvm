@@ -81,7 +81,7 @@ class ThreadGroup::Impl {
     num_workers_used = std::min(num_workers_, num_workers_used);
 
     const char *val = getenv("TVM_BIND_THREADS");
-    if (val == nullptr || atoi(val) == 1) {
+    if (val != nullptr && atoi(val) == 1) {
       // Do not set affinity if there are more workers than found cores
       if (sorted_order_.size() >= static_cast<unsigned int>(num_workers_)) {
           SetAffinity(exclude_worker0, mode == kLittle);
