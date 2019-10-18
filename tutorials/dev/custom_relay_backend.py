@@ -23,22 +23,23 @@ Design a New Relay Backend for Third-Parties
 **Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Hao Yu <https:://github.com/comaniac>`_
 
 As the hardware devices targeted by deep learning workloads keep increasing, the required knowledge
-for users to achieve high performance on vary devices keeps increasing as well. To free data scientists
-from worrying about the performance when developing a new model, hardware vendors either provide
-libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks
-such as TensorRT to let users describle their models in a certain way to achieve high performance.
-However, users have to learn a new programming interface when they attempt to work on a new libaray
-or device. As a result, the demeand of a unified programming interface becomes more and more important
-to 1) let all users and hardware vendors stand on the same page, and 2) provide a feasbile solution to
-allow a specialized hardware or library to only support widely used operators with extremely high
-perofrmance, but fallback unsupported operators to general devices like CPU/GPU.
+for users to achieve high performance on vary devices keeps increasing as well. To free data
+scientists from worrying about the performance when developing a new model, hardware vendors either
+provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators,
+or provide frameworks such as TensorRT to let users describle their models in a certain way to
+achieve high performance. However, users have to learn a new programming interface when they
+attempt to work on a new libaray or device. As a result, the demeand of a unified programming
+interface becomes more and more important to 1) let all users and hardware vendors stand on the
+same page, and 2) provide a feasbile solution to allow a specialized hardware or library to only
+support widely used operators with extremely high perofrmance, but fallback unsupported operators
+to general devices like CPU/GPU.
 
 In this tutorial, we introduce how a hardware vendor can easily implement a Relay backend to support
 a specialized hardware device/library. It mainly takes three steps: 1) define whether an operator is
 supported, 2) specify how to compile and serialize the supported operators, and 3) specify how to
-execute the compiled operators on a certain device. We will demonstrate how to add a new backend that
-uses GCC compiler to execute a subgraph of a model. Note that you will need to add the specialized Relay
-backend to the TVM codebase and rebuild TVM for enabling.
+execute the compiled operators on a certain device. We will demonstrate how to add a new backend
+that uses GCC compiler to execute a subgraph of a model. Note that you will need to add the
+specialized Relay backend to the TVM codebase and rebuild TVM for enabling.
 
 """
 
@@ -79,12 +80,106 @@ def multiply(attrs, args):
 # data type or with kernel size 1x1.
 
 ######################################################################
-# In the last step of the first part, we
-# create python/relay/backend/op/contrib/gcc/__init__.py to allow rule functions to
-# be used by the TVM.
+# Customize Subgraph Annotations
+# ------------------------------
+# In addition to specifying a set of rules for supported operators, we can also implement
+# a Relay IR mutator to find the supported subgraphs, which may include multiple operators,
+# for the target backend. Here we implement an annotator that includes an entire Relay graph
+# to be offloaded. Specifically, we are going
+# to do two tasks: 1) insert `aubgraph_begin` after all input variables, and 2) insert
+# `subgraph_end` before the primary output. For example, given a Relay graph as follows:
+#       input_a
+#          |
+#         add    --- input_b
+#          |
+#       subtract --- input_c
+#          |
+#       multiply --- input_d
+#          |
+#         out
+#
+# Our goal is to mutate the graph to the following:
+#
+#       input_a
+#          |
+#     subgraph_begin
+#          |
+#         add    --- subgraph_begin --- input_b
+#          |
+#       subtract --- subgraph_begin --- input_c
+#          |
+#       multiply --- subgraph_begin --- input_d
+#          |
+#      subgraph_end
+#          |
+#         out
+#
+# The implementation is shown as follows. As can be seen, the annotator is derived from
+# `ExprMutator` that traverses a Relay graph and allows we to mutate it. We know that all ops
+# are `call` nodes in Relay graph, so we override the call node mutator `visit_call` in
+# `ExprMutator` and insert annotations.
 
-from __future__ import absolute_import as _abs
-from .extern_op import *
+import tvm
+from tvm import relay
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.annotation import subgraph_begin, subgraph_end
+
+class WholeGraphAnnotator(ExprMutator):
+    """
+    An annotator that creates a subgraph for an entire graph.
+    """
+    def __init__(self, compiler):
+        super(WholeGraphAnnotator, self).__init__()
+        self.compiler = compiler
+        self.last_call = True
+
+    def visit_call(self, call):
+        curr_last = self.last_call
+        self.last_call = False
+
+        params = []
+        for arg in call.args:
+            param = super().visit(arg)
+            if isinstance(param, relay.expr.Var):
+                param = subgraph_begin(param, self.compiler)
+            params.append(param)
+
+        new_call = relay.Call(call.op, params, call.attrs)
+        if curr_last:
+            new_call = subgraph_end(new_call, self.compiler)
+        return new_call
+
+######################################################################
+# Finally, we apply the annotator to our workload. Let's first build a Relay function:
+
+input_a = relay.var('a', shape=(10, 10))
+input_b = relay.var('b', shape=(10, 10))
+input_c = relay.var('c', shape=(10, 10))
+input_d = relay.var('d', shape=(10, 10))
+
+temp_1 = relay.add(input_a, input_b)
+temp_2 = relay.subtract(temp_1, input_c)
+out = relay.multiply(temp_2, input_d)
+func = relay.Function([input_a, input_b, input_c, input_d], out)
+
+######################################################################
+# The above Relay function results in the following IR:
+
+print(func)
+
+######################################################################
+# Then we apply the annotator to the IR and partition the graph:
+
+mod = relay.Module()
+mod['main'] = WholeGraphAnnotator('gcc').visit(func)
+mod = relay.transform.PartitionGraph()(mod)
+
+######################################################################
+# Accordingly, the IR is transformed to the following. We can see that the entire Relay graph
+# is enclosed to a function with `External="gcc"` attribute. This indicates that this function
+# will be offloaded to an external backend during the runtime.
+
+print(mod['main'])
 
 ######################################################################
 # Implement The Codegen
@@ -117,4 +212,32 @@ from .extern_op import *
 # graph runtime, and VM, meaning that this one implemtation works for all
 # kinds of Relay runtimes.
 
+######################################################################
+# Add Codegen to TVM Building Process
+# -----------------------------------
+# Finally, we include the implemented codegen to the cmake config so that
+# it will be built along with the TVM. To do so, we add two lines to
+# cmake/modules/contrib/Extern.cmake:
+# file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
+# list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
 
+
+######################################################################
+# We can now test the correctness of the external GCC backend:
+#
+# .. note::
+#     The complete GCC backend implementation is in the TVM codebase
+#     so we can directly use it in this tutorial for demonstration.
+
+import numpy as np
+
+a_data = np.random.rand(10, 10).astype('float32')
+b_data = np.random.rand(10, 10).astype('float32')
+c_data = np.random.rand(10, 10).astype('float32')
+d_data = np.random.rand(10, 10).astype('float32')
+
+ex = relay.create_executor('debug', mod=mod, ctx=tvm.cpu(0))
+result = ex.evaluate()(a_data, b_data, c_data, d_data)
+tvm.testing.assert_allclose(result.asnumpy(), (a_data + b_data - c_data) * d_data)
+
+print('Results are correct!')
