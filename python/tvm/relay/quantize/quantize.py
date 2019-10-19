@@ -83,6 +83,7 @@ class QConfig(NodeBase):
         "do_simulation": False,
         "round_for_shift": True,
         "debug_enabled_ops": None,
+        "rounding": "UPWARD"
     }
 
     # pylint: disable=no-member
@@ -159,6 +160,9 @@ def qconfig(**kwargs):
         Partially quantize specified operators for debugging. The default value
         is None, which means will try to call all operartors' annotate rewrite
         function.
+
+    rounding: "UPWARD" or "TONEAREST"
+        Rounding direction for fixed point multiplications.
 
     Returns
     -------
