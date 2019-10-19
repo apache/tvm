@@ -342,7 +342,8 @@ def test_tuple_match():
 
 def test_fatal():
     msg = "user-defined fatal message"
-    assert alpha_equal(dcpe(Fatal(msg)), Fatal(msg))
+    UnitType = TupleType([])
+    assert alpha_equal(dcpe(Fatal(msg, UnitType)), Fatal(msg, UnitType))
     mod = Module()
     p = Prelude(mod)
     orig = Function([], p.hd(p.nil()), TupleType([]))
@@ -350,4 +351,4 @@ def test_fatal():
 
 
 if __name__ == '__main__':
-    pytest.main()
+    pytest.main([__file__])

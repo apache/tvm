@@ -55,7 +55,7 @@ enum Feature : int {
   fLetRec = 17
 };
 
-constexpr size_t feature_count = 17;
+constexpr size_t feature_count = 18;
 
 /*!
  * \brief A finite set of Feature.
