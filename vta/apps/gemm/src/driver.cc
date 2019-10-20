@@ -117,7 +117,6 @@ class Device {
 
   void Launch(uint32_t length, uint32_t shiftVal, uint32_t reset) {
     dpi_->WriteReg(0x08, shiftVal);
-
     dpi_->WriteReg(0x0c, length); // tensor size
     dpi_->WriteReg(0x18, this->MemGetPhyAddr(inp1_));
     dpi_->WriteReg(0x20, this->MemGetPhyAddr(inp2_));
