@@ -28,13 +28,13 @@ def test_tensor():
     assert isinstance(x.data, tvm.nd.NDArray)
 
 
-def test_datatype():
+def test_adt():
     arr = tvm.nd.array([1,2,3])
     x = vm.Tensor(arr)
-    y = vm.Datatype(0, [x, x])
+    y = vm.ADT(0, [x, x])
 
     assert len(y) == 2
-    assert isinstance(y, vm.Datatype)
+    assert isinstance(y, vm.ADT)
     y[0:1][-1].data == x.data
     assert y.tag == 0
     assert isinstance(x.data, tvm.nd.NDArray)
@@ -43,4 +43,4 @@ def test_datatype():
 
 if __name__ == "__main__":
     test_tensor()
-    test_datatype()
+    test_adt()

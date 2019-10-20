@@ -57,31 +57,31 @@ class Tensor : public ObjectRef {
 
 
 /*! \brief An object representing a structure or enumeration. */
-class DatatypeObj : public Object {
+class ADTObj : public Object {
  public:
   /*! \brief The tag representing the constructor used. */
   size_t tag;
   /*! \brief The fields of the structure. */
   std::vector<ObjectRef> fields;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kVMDatatype;
-  static constexpr const char* _type_key = "vm.Datatype";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DatatypeObj, Object);
+  static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
+  static constexpr const char* _type_key = "vm.ADT";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
 };
 
-/*! \brief reference to data type. */
-class Datatype : public ObjectRef {
+/*! \brief reference to algebraic data type objects. */
+class ADT : public ObjectRef {
  public:
-  Datatype(size_t tag, std::vector<ObjectRef> fields);
+  ADT(size_t tag, std::vector<ObjectRef> fields);
 
   /*!
    * \brief construct a tuple object.
    * \param fields The fields of the tuple.
    * \return The constructed tuple type.
    */
-  static Datatype Tuple(std::vector<ObjectRef> fields);
+  static ADT Tuple(std::vector<ObjectRef> fields);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Datatype, ObjectRef, DatatypeObj);
+  TVM_DEFINE_OBJECT_REF_METHODS(ADT, ObjectRef, ADTObj);
 };
 
 /*! \brief An object representing a closure. */
@@ -129,7 +129,7 @@ enum class Opcode {
   InvokePacked = 4U,
   AllocTensor = 5U,
   AllocTensorReg = 6U,
-  AllocDatatype = 7U,
+  AllocADT = 7U,
   AllocClosure = 8U,
   GetField = 9U,
   If = 10U,
@@ -237,7 +237,7 @@ struct Instruction {
       /*! \brief The register to project from. */
       RegName object;
     } get_tag;
-    struct /* AllocDatatype Operands */ {
+    struct /* AllocADT Operands */ {
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
       /*! \brief The number of fields to store in the datatype. */
@@ -294,7 +294,7 @@ struct Instruction {
    *  \param dst The register name of the destination.
    *  \return The allocate instruction tensor.
    */
-  static Instruction AllocDatatype(Index tag, Index num_fields, const std::vector<RegName>& fields,
+  static Instruction AllocADT(Index tag, Index num_fields, const std::vector<RegName>& fields,
                                    RegName dst);
   /*! \brief Construct an allocate closure instruction.
    *  \param func_index The index of the function table.

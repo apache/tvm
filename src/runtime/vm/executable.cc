@@ -315,7 +315,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(instr.dst);
       break;
     }
-    case Opcode::AllocDatatype: {
+    case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields
       fields.assign({instr.constructor_tag, instr.num_fields, instr.dst});
 
@@ -551,7 +551,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
 
       return Instruction::AllocTensorReg(shape_register, dtype, dst);
     }
-    case Opcode::AllocDatatype: {
+    case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields
       DCHECK_GE(instr.fields.size(), 3U);
       DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
@@ -561,7 +561,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       RegName dst = instr.fields[2];
       std::vector<Index> fields = ExtractFields(instr.fields, 3, num_fields);
 
-      return Instruction::AllocDatatype(constructor_tag, num_fields, fields, dst);
+      return Instruction::AllocADT(constructor_tag, num_fields, fields, dst);
     }
     case Opcode::AllocClosure: {
       // Number of fields = 3 + instr.num_freevar
