@@ -569,7 +569,7 @@ llvm::Value* CodeGenLLVM::CreateCast(Type from, Type to, llvm::Value* value) {
       return builder_->CreateICmpNE(value, zero);
     }
   } else if (!from.is_float() && !to.is_float()) {
-    return builder_->CreateIntCast(value, target, to.is_int());
+    return builder_->CreateIntCast(value, target, from.is_int());
   } else if (from.is_float() && to.is_int()) {
     return builder_->CreateFPToSI(value, target);
   } else if (from.is_float() && to.is_uint()) {

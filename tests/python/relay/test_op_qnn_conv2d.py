@@ -641,7 +641,7 @@ def test_broadcast_layout():
         graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
 
-def test_conv2d_int():
+def test_conv2d_int8():
     data = relay.var("data", shape=(1, 28, 28, 128), dtype='uint8')
     kernel = relay.var("w", shape=(3, 3, 128, 256), dtype='int8')
     conv = relay.nn.conv2d(
@@ -655,7 +655,12 @@ def test_conv2d_int():
 
     with relay.build_config(opt_level=0):
         params = {"w": np.zeros((3, 3, 128, 256)).astype("int8")}
-        graph, lib, params = relay.build(func, 'llvm', params=params)
+        # -mcpu should be specified to avoid the llvm jitting error here:
+        # https://discuss.tvm.ai/t/segfault-in-llvm/3567
+        # To use VNNI, we need to specify the micro-architecture that supports
+        # it, e.g. cascadelake.
+        graph, lib, params = relay.build(func, 'llvm -mcpu=core-avx2',
+                                         params=params)
         mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
         mod.set_input("data", np.zeros((1, 28, 28, 128)).astype("uint8"))
         mod.set_input(**params)
