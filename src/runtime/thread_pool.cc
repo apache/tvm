@@ -29,6 +29,9 @@
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
+#if TVM_THREADPOOL_USE_OPENMP
+#include <omp.h>
+#endif
 #include <thread>
 #include <condition_variable>
 #include <mutex>
@@ -394,12 +397,34 @@ int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
     void* cdata,
     int num_task) {
+#if !TVM_THREADPOOL_USE_OPENMP
   int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(
       flambda, cdata, num_task, 1);
   return res;
+#else
+  int num_workers = tvm::runtime::threading::MaxConcurrency();
+  if (num_task == 0) num_task = num_workers;
+  omp_set_num_threads(num_workers);
+  #pragma omp parallel num_threads(num_workers)
+  {
+    TVMParallelGroupEnv env;
+    env.num_task = num_task;
+    std::atomic<int32_t>* sync_counter = new std::atomic<int>[num_task * tvm::runtime::kSyncStride];
+    for (int i = 0; i < num_task; ++i) {
+      sync_counter[i * tvm::runtime::kSyncStride].store(
+          0, std::memory_order_relaxed);
+    }
+    env.sync_handle = sync_counter;
+    (*flambda)(omp_get_thread_num(), &env, cdata);
+  }
+  return 0;
+#endif
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
+#if TVM_THREADPOOL_USE_OPENMP
+  #pragma omp barrier
+#else
   using tvm::runtime::kSyncStride;
   int num_task = penv->num_task;
   std::atomic<int>* sync_counter =
@@ -415,5 +440,6 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
     }
   }
   std::atomic_thread_fence(std::memory_order_acquire);
+#endif
   return 0;
 }

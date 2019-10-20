@@ -115,6 +115,10 @@ set(USE_BLAS none)
 # set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL_PATH none)
 
+# Whether use OpenMP thread pool, choices: gnu, intel
+# Note: "gnu" uses gomp library, "intel" uses iomp5 library
+set(USE_OPENMP none)
+
 # Whether use contrib.random in runtime
 set(USE_RANDOM OFF)
 
