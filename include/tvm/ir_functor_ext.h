@@ -84,18 +84,18 @@ class StmtFunctor;
   }
 #define STMT_FUNCTOR_DEFAULT {                                      \
     return VisitStmtDefault_(op, std::forward<Args>(args)...);      \
-}
+  }
 
 #define IR_EXPR_FUNCTOR_DISPATCH(OP)                                    \
   vtable.template set_dispatch<OP>(                                     \
-      [](const ObjectRef& n, TSelf* self, Args... args) {                 \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
         return self->VisitExpr_(static_cast<const OP*>(n.get()),        \
                                 std::forward<Args>(args)...);           \
       });                                                               \
 
 #define IR_STMT_FUNCTOR_DISPATCH(OP)                                    \
   vtable.template set_dispatch<OP>(                                     \
-      [](const ObjectRef& n, TSelf* self, Args... args) {                 \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
         return self->VisitStmt_(static_cast<const OP*>(n.get()),        \
                                 std::forward<Args>(args)...);           \
       });                                                               \

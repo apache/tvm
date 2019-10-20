@@ -561,7 +561,7 @@ class ObjectRef {
   }
   /*!
    * \brief Internal helper function downcast a ref without check.
-   * \note Only used for internal dev purpoes.
+   * \note Only used for internal dev purposes.
    * \tparam T The target reference type.
    * \return The casted result.
    */
@@ -571,7 +571,7 @@ class ObjectRef {
   }
   /*!
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
-   * \note only used for internal dev purpsoes.
+   * \note only used for internal dev purpose.
    * \tparam ObjectType The corresponding object type.
    * \return the corresponding type.
    */

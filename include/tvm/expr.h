@@ -145,7 +145,7 @@ class Var : public Expr {
    * \return the corresponding Variable.
    */
   const Variable* get() const {
-    return static_cast<Variable*>(data_.get());
+    return static_cast<const Variable*>(data_.get());
   }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
@@ -205,7 +205,7 @@ class Integer : public Expr {
    * \return the content of the integer.
    */
   const IntImm* operator->() const {
-    return static_cast<const IntImm*>(data_.get());
+    return static_cast<const IntImm*>(get());
   }
   /*!
    * \brief convert to int64_t

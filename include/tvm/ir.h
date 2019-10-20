@@ -664,10 +664,10 @@ class CommReducerNode : public Node {
 };
 
 inline const CommReducerNode* CommReducer::get() const {
-  return static_cast<CommReducerNode*>(data_.get());
+  return static_cast<const CommReducerNode*>(data_.get());
 }
 inline const CommReducerNode* CommReducer::operator->() const {
-  return static_cast<CommReducerNode*>(data_.get());
+  return get();
 }
 
 /*! \brief Reduction operator operator */
