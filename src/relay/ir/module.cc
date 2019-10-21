@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file  module.cc
  * \brief The global module in Relay.
  */
@@ -208,7 +207,7 @@ void ModuleNode::UpdateDef(const GlobalTypeVar& var, const TypeData& type) {
 
 void ModuleNode::Remove(const GlobalVar& var) {
   auto functions_node = this->functions.CopyOnWrite();
-  functions_node->data.erase(var.node_);
+  functions_node->data.erase(var);
   auto gvar_node = global_var_map_.CopyOnWrite();
   gvar_node->data.erase(var->name_hint);
 }
@@ -321,10 +320,10 @@ TVM_REGISTER_API("relay._module.Module_Add")
   GlobalVar var = args[1];
   NodeRef val = args[2];
   bool update = args[3];
-  CHECK(val->derived_from<ExprNode>());
-  if (val->derived_from<FunctionNode>()) {
+  CHECK(val->IsInstance<ExprNode>());
+  if (val->IsInstance<FunctionNode>()) {
     mod->Add(var, Downcast<Function>(val), update);
-  } else if (val->derived_from<GlobalVarNode>()) {
+  } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
     mod_copy = transform::EtaExpand()(mod_copy);

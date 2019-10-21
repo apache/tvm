@@ -1173,7 +1173,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
 
 void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);

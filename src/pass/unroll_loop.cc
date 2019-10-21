@@ -151,8 +151,7 @@ class LoopUnroller : public IRMutator {
     Map<Var, Expr> vmap;
     Stmt unrolled;
     for (int i = 0; i < value; ++i) {
-      Var lv(op->loop_var.node_);
-      vmap.Set(lv, op->min + make_const(op->loop_var.type(), i));
+      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.type(), i));
       Stmt step = Substitute(body, vmap);
       if (unrolled.defined()) {
         unrolled = Block::make(unrolled, step);

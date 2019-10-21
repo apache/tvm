@@ -39,7 +39,7 @@ ConstIntBound::ConstIntBound(
   auto node = make_node<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
-  node_ = std::move(node);
+  data_ = std::move(node);
 }
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {

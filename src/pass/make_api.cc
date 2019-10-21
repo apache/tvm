@@ -143,12 +143,12 @@ LoweredFunc MakeAPI(Stmt body,
     }
     // add checks for functions.
     if (api_args[i].as<Variable>()) {
-      var_defs.emplace_back(std::make_pair(Var(api_args[i].node_), v_arg));
+      var_defs.emplace_back(std::make_pair(Downcast<Var>(api_args[i]), v_arg));
     } else {
       // Buffer checks
       CHECK(api_args[i].as<BufferNode>())
           << "api_args can only be Buffer or Var";
-      buf_defs.emplace_back(std::make_pair(Buffer(api_args[i].node_), v_arg));
+      buf_defs.emplace_back(std::make_pair(Downcast<Buffer>(api_args[i]), v_arg));
     }
   }
 

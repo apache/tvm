@@ -533,8 +533,7 @@ class LoopVectorizer : public IRMutator {
       if (!succ || lanes < 1) {
         LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
       }
-      Var var(op->loop_var.node_);
-      return Vectorizer(var, lanes).Mutate(op->body);
+      return Vectorizer(op->loop_var, lanes).Mutate(op->body);
     } else {
       return IRMutator::Mutate_(op, s);
     }

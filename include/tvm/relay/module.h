@@ -281,10 +281,10 @@ class ModuleNode : public RelayNode {
 
 struct Module : public NodeRef {
   Module() {}
-  explicit Module(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Module(ObjectPtr<::tvm::Object> p) : NodeRef(p) {}
 
-  inline ModuleNode* operator->() const {
-    return static_cast<ModuleNode*>(node_.get());
+  ModuleNode* operator->() const {
+    return static_cast<ModuleNode*>(get_mutable());
   }
 
   using ContainerType = ModuleNode;

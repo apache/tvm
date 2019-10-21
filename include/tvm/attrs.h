@@ -163,7 +163,7 @@ class AttrsEqual {
     return lhs == rhs;
   }
   // node comparator
-  TVM_DLL bool operator()(const NodeRef& lhs, const NodeRef& rhs) const;
+  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
 
  protected:
   friend class AttrsEqualHandler;
@@ -203,7 +203,7 @@ class AttrsHash {
         (static_cast<int>(value.bits()) << 8) |
         (static_cast<int>(value.lanes()) << 16));
   }
-  TVM_DLL size_t operator()(const NodeRef& value) const;
+  TVM_DLL size_t operator()(const ObjectRef& value) const;
 
  private:
   friend class AttrsHashHandler;
@@ -260,7 +260,7 @@ class BaseAttrsNode : public Node {
    * \return The comparison result.
    */
   TVM_DLL virtual bool ContentEqual(
-      const Node* other, AttrsEqual equal) const = 0;
+      const Object* other, AttrsEqual equal) const = 0;
   /*!
    * \brief Content aware hash.
    * \param hasher The hasher to run the hash.
@@ -290,7 +290,7 @@ class Attrs : public NodeRef {
  private:
   /*! \return the internal attribute node */
   const BaseAttrsNode* ptr() const {
-    return static_cast<const BaseAttrsNode*>(node_.get());
+    return static_cast<const BaseAttrsNode*>(get());
   }
 };
 
@@ -315,7 +315,7 @@ class DictAttrsNode : public BaseAttrsNode {
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
-  bool ContentEqual(const Node* other, AttrsEqual equal) const final;
+  bool ContentEqual(const Object* other, AttrsEqual equal) const final;
   size_t ContentHash(AttrsHash hasher) const final;
   // type info
   static constexpr const char* _type_key = "DictAttrs";
@@ -369,7 +369,7 @@ class AttrsEqualVisitor {
  public:
   bool result_{true};
   // constructor
-  AttrsEqualVisitor(const Node* lhs, const Node* rhs, const AttrsEqual& equal)
+  AttrsEqualVisitor(const Object* lhs, const Object* rhs, const AttrsEqual& equal)
       : lhs_(lhs), rhs_(rhs), equal_(equal) {
   }
   template<typename T>
@@ -387,8 +387,8 @@ class AttrsEqualVisitor {
   }
 
  private:
-  const Node* lhs_;
-  const Node* rhs_;
+  const Object* lhs_;
+  const Object* rhs_;
   const AttrsEqual& equal_;
 };
 
@@ -488,7 +488,7 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
     } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
       *ptr = static_cast<T>(op->value);
     } else {
-      LOG(FATAL) << "Expect int value, but get " << expr->type_key();
+      LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
     }
   }
 }
@@ -521,7 +521,7 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
     } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
       *ptr = static_cast<double>(op->value);
     } else {
-      LOG(FATAL) << "Expect float value, but get " << expr->type_key();
+      LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();
     }
   }
 }
@@ -827,7 +827,7 @@ class AttrsNode : public BaseAttrsNode {
     return visitor.fields_;
   }
 
-  bool ContentEqual(const Node* other, AttrsEqual equal) const final {
+  bool ContentEqual(const Object* other, AttrsEqual equal) const final {
     DerivedType* pself = self();
     if (pself == other) return true;
     if (other == nullptr) return false;
@@ -839,7 +839,7 @@ class AttrsNode : public BaseAttrsNode {
 
   size_t ContentHash(AttrsHash hasher) const final {
     ::tvm::detail::AttrsHashVisitor visitor(hasher);
-    visitor.result_ = std::hash<std::string>()(this->type_key());
+    visitor.result_ = this->GetTypeKeyHash();
     self()->__VisitAttrs__(visitor);
     return visitor.result_;
   }

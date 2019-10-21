@@ -51,7 +51,7 @@ enum BufferType : int {
 class Buffer : public NodeRef {
  public:
   Buffer() {}
-  explicit Buffer(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Buffer(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief Return a new buffer that is equivalent with current one
    *  but always add stride field.
@@ -171,7 +171,7 @@ class BufferNode : public Node {
 };
 
 inline const BufferNode* Buffer::operator->() const {
-  return static_cast<const BufferNode*>(node_.get());
+  return static_cast<const BufferNode*>(get());
 }
 
 /*!

@@ -176,7 +176,7 @@ bool DetectClipBound(
     if (const Variable* v = n.as<Variable>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
-          var = Var(n.node_);
+          var = Downcast<Var>(n);
           flag = 1;
         } else if (flag == 1) {
           if (!var.same_as(n)) {

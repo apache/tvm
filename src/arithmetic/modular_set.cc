@@ -41,7 +41,7 @@ ModularSet::ModularSet(int64_t coeff, int64_t base) {
   node->coeff = coeff;
   node->base = base;
   // finish construction.
-  node_ = std::move(node);
+  data_ = std::move(node);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
