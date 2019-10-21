@@ -40,7 +40,7 @@ IntervalSet::IntervalSet(Expr min_value, Expr max_value) {
   auto node = make_node<IntervalSetNode>();
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
-  node_ = std::move(node);
+  data_ = std::move(node);
 }
 
 IntervalSet MakeIntervalSet(Expr min_value, Expr max_value) {
@@ -506,7 +506,7 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExprDefault_(const Node* op) final {
-    DLOG(WARNING) << "cannot evaluate set type " << op->type_key();
+    DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
   }
 

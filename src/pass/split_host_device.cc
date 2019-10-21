@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -38,7 +38,7 @@ class IRUseDefAnalysis : public IRMutator {
  public:
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
       // use the first appearance as def.
@@ -57,7 +57,7 @@ class IRUseDefAnalysis : public IRMutator {
       return AttrStmt::make(op->node, op->attr_key, value, body);
     } else if (op->attr_key == attr::channel_write_scope ||
                op->attr_key == attr::channel_read_scope) {
-      Channel ch(op->node.node_);
+      Channel ch = Downcast<Channel>(op->node);
       if (!use_count_.count(ch->handle_var.get())) {
         this->HandleDef(ch->handle_var.get());
       }
@@ -141,7 +141,7 @@ class IRUseDefAnalysis : public IRMutator {
 
   void HandleUse(const Expr& v) {
     CHECK(v.as<Variable>());
-    Var var(v.node_);
+    Var var = Downcast<Var>(v);
     auto it = use_count_.find(var.get());
     if (it != use_count_.end()) {
       if (it->second >= 0) {

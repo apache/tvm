@@ -47,9 +47,10 @@ using ::tvm::AttrVisitor;
  */
 #define TVM_DEFINE_NODE_REF_METHODS(TypeName, BaseTypeName, NodeName)   \
   TypeName() {}                                                         \
-  explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseTypeName(n) {} \
+  explicit TypeName(::tvm::ObjectPtr<::tvm::Object> n)                  \
+      : BaseTypeName(n) {}                                              \
   const NodeName* operator->() const {                                  \
-    return static_cast<const NodeName*>(node_.get());                   \
+    return static_cast<const NodeName*>(data_.get());                   \
   }                                                                     \
   operator bool() const { return this->defined(); }                     \
   using ContainerType = NodeName;
@@ -75,12 +76,12 @@ using ::tvm::AttrVisitor;
  */
 #define TVM_DEFINE_NODE_REF_COW(NodeName)                               \
   NodeName* CopyOnWrite() {                                             \
-      CHECK(node_ != nullptr);                                          \
-      if (!node_.unique())  {                                           \
+      CHECK(data_ != nullptr);                                          \
+      if (!data_.unique())  {                                           \
         NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
-        NodePtr<Node>(std::move(n)).swap(node_);                        \
+        ObjectPtr<Object>(std::move(n)).swap(data_);                    \
       }                                                                 \
-      return static_cast<NodeName*>(node_.get());                       \
+      return static_cast<NodeName*>(data_.get());                       \
     }
 
 /*! \brief Macro to make it easy to define node ref type given node */
@@ -160,7 +161,7 @@ std::string SaveJSON(const NodeRef& node);
  *
  * \return The shared_ptr of the Node.
  */
-NodePtr<Node> LoadJSON_(std::string json_str);
+ObjectPtr<Object> LoadJSON_(std::string json_str);
 
 /*!
  * \brief Load the node from json string.
@@ -233,6 +234,7 @@ struct NodeFactoryReg {
  * \note This is necessary to enable serialization of the Node.
  */
 #define TVM_REGISTER_NODE_TYPE(TypeName)                                \
+  TVM_REGISTER_OBJECT_TYPE(TypeName);                                   \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::NodeFactoryReg & __make_Node ## _ ## TypeName ## __ = \
       ::tvm::NodeFactoryReg::Registry()->__REGISTER__(TypeName::_type_key) \
       .set_creator([](const std::string&) { return ::tvm::make_node<TypeName>(); })
