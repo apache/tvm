@@ -368,7 +368,7 @@ class Vectorizer : public IRMutator {
     CHECK(!op->extent.type().is_vector());
     Expr extent = Mutate(op->extent);
     if (extent.type().is_vector()) {
-      LOG(WARNING) << "Detect vectorized extent type, scalarizing...";
+      // LOG(WARNING) << "Detect vectorized extent type, scalarizing...";
       return Scalarize(s);
     }
     Stmt body = Mutate(op->body);
@@ -386,7 +386,7 @@ class Vectorizer : public IRMutator {
     CHECK(!op->condition.type().is_vector());
     Expr condition = this->Mutate(op->condition);
     if (condition.type().is_vector()) {
-      //LOG(WARNING) << "Detect vector condition in Vectorized Loop, scalarizing...";
+      // LOG(WARNING) << "Detect vector condition in Vectorized Loop, scalarizing...";
       return Scalarize(s);
     }
     Stmt then_case = this->Mutate(op->then_case);

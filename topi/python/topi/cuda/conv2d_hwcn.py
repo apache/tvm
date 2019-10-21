@@ -20,7 +20,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 
-from .. import generic, nn, tag
+from .. import generic, tag
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_hwcn, ["cuda", "gpu"], ["direct"])
