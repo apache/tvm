@@ -101,6 +101,14 @@ Module RPCClientConnect(std::string url, int port, std::string key) {
   return CreateRPCModule(RPCConnect(url, port, "client:" + key));
 }
 
+void RPCServerLoop(int sockfd) {
+  common::TCPSocket sock(
+      static_cast<common::TCPSocket::SockType>(sockfd));
+  RPCSession::Create(
+      std::unique_ptr<SockChannel>(new SockChannel(sock)),
+      "SockServerLoop", "")->ServerLoop();
+}
+
 void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
   RPCSession::Create(std::unique_ptr<CallbackChannel>(
       new CallbackChannel(fsend, frecv)),
@@ -112,9 +120,14 @@ TVM_REGISTER_GLOBAL("rpc._Connect")
 
 TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerLoop(
-        args[0].operator tvm::runtime::PackedFunc(),
-        args[1].operator tvm::runtime::PackedFunc());
+    if (args.size() == 1) {
+      RPCServerLoop(args[0]);
+    } else {
+      CHECK_EQ(args.size(), 2);
+      RPCServerLoop(
+          args[0].operator tvm::runtime::PackedFunc(),
+          args[1].operator tvm::runtime::PackedFunc());
+    }
   });
 }  // namespace runtime
 }  // namespace tvm
