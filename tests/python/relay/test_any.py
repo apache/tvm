@@ -309,6 +309,7 @@ if __name__ == "__main__":
     test_any_take()
     test_any_shape_of()
     test_fused_ops()
+    test_any_argwhere()
     test_arange_with_dynamic_shape()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()

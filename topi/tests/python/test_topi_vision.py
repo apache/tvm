@@ -114,6 +114,9 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
             s = topi.generic.schedule_nms(out)
             indices_s = topi.generic.schedule_nms(indices_out)
 
+        print("s:\n{}".format(out))
+        print("indices_out:\n{}".format(indices_out))
+
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
 
@@ -122,10 +125,12 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
         f(tvm_data, tvm_valid_count, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
-        tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        f = tvm.build(indices_s, [data, valid_count, indices_out], device)
-        f(tvm_data, tvm_valid_count, tvm_indices_out)
-        tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
+
+        tvm_indices_out = (tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx),
+                           tvm.nd.array(np.zeros((batch, 1), dtype="int32"), ctx))
+        f = tvm.build(indices_s, [data, valid_count, indices_out[0]], device)
+        f(tvm_data, tvm_valid_count, tvm_indices_out[0])
+        tvm.testing.assert_allclose(tvm_indices_out[0].asnumpy(), np_indices_result, rtol=1e-4)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
@@ -429,9 +434,10 @@ def test_proposal():
 
 
 if __name__ == "__main__":
-    test_get_valid_counts()
+
+    #test_get_valid_counts()
     test_non_max_suppression()
-    test_multibox_prior()
-    test_multibox_detection()
-    test_roi_align()
-    test_proposal()
+    #test_multibox_prior()
+    #test_multibox_detection()
+    #test_roi_align()
+    #test_proposal()

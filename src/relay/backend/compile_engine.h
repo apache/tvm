@@ -42,6 +42,7 @@ enum ShapeFuncParamState {
   kNeedInputData = 1,
   kNeedInputShape = 2,
   kNeedBoth = 3,
+  kNeedUpperBound = 4,
 };
 
 /*! \brief Node container to represent a cached function. */

@@ -208,6 +208,8 @@ def verify_split(src_shape, indices_or_sections, axis):
         foo = tvm.build(s, [A] + list(tensor_l), device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npys = np.split(data_npy, indices_or_sections, axis=axis)
+        print("split output: {}".format(np.shape(out_npys)))
+
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys]
         foo(*([data_nd] + out_nds))

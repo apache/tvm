@@ -339,6 +339,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       param_states_[param] = kNoNeed;
       Array<tvm::Tensor> data_inputs;
       Array<tvm::Tensor> shape_inputs;
+      //TODO (yongwww): Array<tvm::Tensor> data_upper;
 
       auto add_placeholder = [&data_inputs, &shape_inputs](const TensorTypeNode* ttype) {
         // Add data placeholder
@@ -388,6 +389,11 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     for (auto param : prim_func->params) {
       int state = param_states_[param];
       cache_node->shape_func_param_states.push_back(IntImm::make(Int(32), state));
+      if (state & kNeedUpperBound){
+        for (auto t : param_data_[param]) {
+          cache_node->inputs.push_back(t);
+        }
+      }
       if (state & kNeedInputData) {
         for (auto t : param_data_[param]) {
           cache_node->inputs.push_back(t);
@@ -439,23 +445,37 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       LOG(FATAL) << "Free variable " << var->name_hint();
       return {};
     } else {
-      CHECK(data_dependants_.size());
-      bool data_dependant = data_dependants_.back();
-      if (data_dependant) {
+      CHECK(data_dependents_.size());
+      auto data_dependent = data_dependents_.back();
+      if (data_dependent == 0) {
+        param_states_[var] |= kNeedInputShape;
+        return param_shapes_[var];
+      } else if (data_dependent == 1) {
+        param_states_[var] |= kNeedInputData;
+        return param_data_[var];
+      } else if (data_dependent == 2){
+        // TODO(yongwww): handle upper bound case
+        // param_states_[var] |= kNeedUpperBound;
         param_states_[var] |= kNeedInputData;
         return param_data_[var];
       } else {
-        param_states_[var] |= kNeedInputShape;
-        return param_shapes_[var];
+         LOG(FATAL) << "not handled";
+         return param_shapes_[var];
       }
     }
   }
 
   Array<Tensor> VisitExpr_(const ConstantNode* op) final {
-    CHECK(data_dependants_.size());
+    CHECK(data_dependents_.size());
     CHECK(op->is_scalar());
-    bool data_dependant = data_dependants_.back();
-    if (data_dependant) {
+    auto data_dependent = data_dependents_.back();
+    if (data_dependent == 0){
+      Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
+          return make_const(Int(64), 0);
+      }, "shape_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
+    } else if (data_dependent == 1) {
       void* data = op->data->data;
       DataType dtype = TVMType2Type(op->data->dtype);
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
@@ -477,9 +497,26 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       scalars_.push_back(value);
       return {value};
     } else {
+      // TODO(yongwww): handle upper bound case
+      // LOG(FATAL) << "not handled";
+      void* data = op->data->data;
+      DataType dtype = TVMType2Type(op->data->dtype);
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-          return make_const(Int(64), 0);
-      }, "shape_const", topi::kBroadcast);
+          if (dtype == Int(32)) {
+            return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+          } else if (dtype == Int(64)) {
+            return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+          } else if (dtype == Float(32)) {
+            return make_const(dtype, static_cast<const float*>(data)[0]);
+          } else if (dtype == Float(64)) {
+            return make_const(dtype, static_cast<const double*>(data)[0]);
+          } else if (dtype == Bool()) {
+            return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+          } else {
+            LOG(FATAL) << "not handled";
+            return tvm::Expr();
+          }
+      }, "data_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
     }
@@ -487,20 +524,20 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
 
   Array<Tensor> VisitExpr_(const CallNode* call_node) final {
     static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
-    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
-        "TShapeDataDependant");
+    static auto tshape_data_dependent = Op::GetAttr<TShapeDataDependent>(
+        "TShapeDataDependent");
     CHECK(call_node->op.as<OpNode>())
       << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    CHECK(data_dependants_.empty() || !data_dependants_.back())
+    CHECK(data_dependents_.empty() || !data_dependents_.back())
       << "Error in op fusion: output of the shape func is fed to a "
-      << "data-dependant shape func";
+      << "data-dependent shape func";
     CHECK_GT(fshape_func.count(op), 0)
       << "Internal error, cannot find ShapeFunc for " << op->name;
-    CHECK_GT(tshape_data_dependant.count(op), 0)
-      << "Internal error, cannot find TShapeDataDependant for " << op->name;
+    CHECK_GT(tshape_data_dependent.count(op), 0)
+      << "Internal error, cannot find TShapeDataDependent for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    data_dependents_.push_back(tshape_data_dependent[op]);
     // Visit all inputs
     Array<Tensor> inputs;
     int count_tuple = 0;
@@ -533,7 +570,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     }
     // Call shape function
     auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
-    data_dependants_.pop_back();
+    data_dependents_.pop_back();
     readable_name_stream_ << "_" << op->name;
     return outputs;
   }
@@ -574,7 +611,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
   /*! \brief Memoized visit result */
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
   /*! \brief Stack of data dependencies for shape function */
-  std::vector<bool> data_dependants_;
+  std::vector<int> data_dependents_;
   /*! \brief Scalars used in the shape function */
   Array<Tensor> scalars_;
 };

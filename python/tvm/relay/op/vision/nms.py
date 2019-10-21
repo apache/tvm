@@ -112,17 +112,24 @@ def non_max_suppression(data,
     Returns
     -------
     out : relay.Expr
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, 6] or
+        [batch_size, num_anchors, 6]. if return_indices is True,
+        out is a tuple of tvm.Tensor, the Tensor in the tuple is
+        2-D tensor with shape [batch_size, num_anchors] and shape
+        [batch_size, num_valid_anchors] respectively.
     """
-    return _make.non_max_suppression(data,
-                                     valid_count,
-                                     max_output_size,
-                                     score_threshold,
-                                     iou_threshold,
-                                     force_suppress,
-                                     top_k,
-                                     coord_start,
-                                     score_index,
-                                     id_index,
-                                     return_indices,
-                                     invalid_to_bottom)
+    out = _make.non_max_suppression(data,
+                                    valid_count,
+                                    max_output_size,
+                                    score_threshold,
+                                    iou_threshold,
+                                    force_suppress,
+                                    top_k,
+                                    coord_start,
+                                    score_index,
+                                    id_index,
+                                    return_indices,
+                                    invalid_to_bottom)
+    if return_indices:
+        return TupleWrapper(out, 2)
+    return out

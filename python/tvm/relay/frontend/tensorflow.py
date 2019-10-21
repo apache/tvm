@@ -359,7 +359,7 @@ def _nms():
         # get the number of anchors
         data_shape = attr['_input_shapes'][inputs[1]]
         # "valid_count = None" to disable the get dynamic output
-        valid_cnt = tvm.relay.const(data_shape)
+        valid_cnt = _expr.const(data_shape)
 
 
         print("max_output_size: {}\n iou_threshold: {}\n score_threshold: {}\n"
@@ -370,20 +370,36 @@ def _nms():
 
         # score_index is 0 since we don't have class id here
         score_index = 0
-        ret = get_relay_op('non_max_suppression')(data=data,
-                                                  valid_count=valid_cnt,
-                                                  max_output_size=max_output_size,
-                                                  score_threshold=score_threshold,
-                                                  iou_threshold=iou_threshold,
-                                                  force_suppress=False,
-                                                  top_k=top_k,
-                                                  coord_start=1,
-                                                  score_index=score_index,
-                                                  id_index=-1,
-                                                  return_indices=True,
-                                                  invalid_to_bottom=False)
+        nms_ret = get_relay_op('non_max_suppression')(data=data,
+                                                      valid_count=valid_cnt,
+                                                      max_output_size=max_output_size,
+                                                      score_threshold=score_threshold,
+                                                      iou_threshold=iou_threshold,
+                                                      force_suppress=False,
+                                                      top_k=top_k,
+                                                      coord_start=1,
+                                                      score_index=score_index,
+                                                      id_index=-1,
+                                                      return_indices=True,
+                                                      invalid_to_bottom=False)
 
-        # print("ret: {}".format(ret.astext(show_meta_data=True)))
+        # print("ret: {}".format(nms_ret.astext()))
+        # ret = ret.astuple()
+
+        count = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        indices = get_relay_op("arange")(_expr.const(5, dtype="int32"), dtype='int32')
+        indices = get_relay_op("arange")(count, dtype='int32')
+        #return indices
+        end = get_relay_op("squeeze")(nms_ret[0], axis=[0])
+        ret = get_relay_op('take')(end, indices)
+        return ret
+
+
+        # end is for end index of strided_slice
+        end = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        # end = get_relay_op("squeeze")(end, axis=[1,])
+        ret = get_relay_op("strided_slice")(nms_ret[0], (0, 0), (1, end))
+        ret = get_relay_op("squeeze")(ret, axis=[0])
         return ret
 
     return _impl

@@ -204,18 +204,22 @@ def test_non_max_suppression():
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
-        z = relay.vision.non_max_suppression(x0, x1, max_output_size = -1, \
-            iou_threshold = iou_threshold, force_suppress = force_suppress, \
-            top_k = top_k, return_indices=False)
-        z_indices = relay.vision.non_max_suppression(x0, x1, max_output_size = -1, \
-                    iou_threshold = iou_threshold, force_suppress = force_suppress, \
-                    top_k = top_k)
+        z = relay.vision.non_max_suppression(x0, x1, max_output_size=-1, \
+            iou_threshold=iou_threshold, force_suppress=force_suppress, \
+            top_k=top_k, return_indices=False)
+        z_indices = relay.vision.non_max_suppression(x0, x1, max_output_size=-1, \
+                    iou_threshold=iou_threshold, force_suppress=force_suppress, \
+                    top_k=top_k)
+        if isinstance(z_indices, relay.expr.TupleWrapper):
+            z_indices = z_indices.astuple()
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
         zz = run_infer_type(z)
         zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
-        assert zz_indices.checked_type == relay.ty.TensorType((dshape[0], dshape[1]), "int32")
+        assert zz_indices.checked_type == relay.ty.TupleType(
+            [relay.ty.TensorType((dshape[0], dshape[1]), "int32"),
+             relay.ty.TensorType((dshape[0], 1), "int32")])
 
         if check_type_only:
             return
@@ -229,12 +233,12 @@ def test_non_max_suppression():
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            tvm.testing.assert_allclose(op_indices_res1.asnumpy(), ref_indices_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data)
             op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            tvm.testing.assert_allclose(op_indices_res2.asnumpy(), ref_indices_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],

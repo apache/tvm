@@ -256,10 +256,11 @@ def hybrid_nms(data, sorted_index, valid_count, max_output_size,
     Returns
     -------
     output : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
 
     box_indices: tvm.Tensor
-        2-D tensor with shape [batch_size, num_anchors].
+        2-D tensor with shape [batch_size, num_anchors]
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
@@ -392,7 +393,11 @@ def non_max_suppression(data, valid_count, max_output_size=-1, score_threshold=0
     Returns
     -------
     out : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 6]. Out is a tuple of tvm.Tensor
+        if return_indices is True, the Tensor in the tuple is 2-D tensor
+        with shape [batch_size, num_anchors] and shape
+        [batch_size, num_valid_anchors] respectively.
 
     Example
     --------
@@ -444,7 +449,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1, score_threshold=0
         out = hybrid_rearrange_out(out, one=tvm.const(1, dtype=data.dtype))
     if return_indices:
         box_indices, out_shape = hybrid_rearrange_idx(box_indices)
-        return box_indices
+        return [box_indices, out_shape]
     return out
 
 @hybrid.script
@@ -533,8 +538,6 @@ def hybrid_tf_nms(data, sorted_index, valid_count, max_output_size,
             box_start_idx = 1#coord_start
             batch_idx = i
 
-            expected_boxes = 0
-
             for j in range(valid_count[i]):
                 # index sorted
                 j_sorted = sorted_index[i, j]
@@ -580,7 +583,6 @@ def hybrid_tf_nms(data, sorted_index, valid_count, max_output_size,
                     # output[i, k, sorted_index] = iou
 
                     if iou >= score_threshold:
-                        expected_boxes = min(k, expected_boxes)
                         box_indices[i, k] = -1
 
         else:

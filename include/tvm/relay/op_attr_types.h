@@ -75,9 +75,12 @@ using TOpIsStateful = bool;
 using TNonComputational = bool;
 
 /*!
- * \brief Mark the operator whether output shape is data dependant.
+ * \brief Mark the operator whether output shape is data dependent.
+ *
+ * 0 if not data dependent, 1 if data dependent and shape can be figured out in relay op,
+ * 2 if data dependent and need to set shape at runtime
  */
-using TShapeDataDependant = bool;
+using TShapeDataDependent = int;
 
 /*!
  * \brief Computation description interface.
