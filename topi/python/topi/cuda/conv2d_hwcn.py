@@ -82,7 +82,7 @@ def schedule_conv2d_hwcn(cfg, outs):
         # Scheduling
         step = 8
 
-        bz = sch[Out].fuse(hi, wi)  # FIXME: Does it assume square images?
+        bz = sch[Out].fuse(hi, wi)
         by, tyz, ty, fi = cfg['tile_fi'].apply(sch, Out, fi)
         bx, txz, tx, ni = cfg['tile_ni'].apply(sch, Out, ni)
         sch[Out].reorder(bz, by, bx, tyz, txz, ty, tx, fi, ni)
