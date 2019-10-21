@@ -113,7 +113,7 @@ class Compute(implicit config: AccelConfig) extends Module {
         state := sReadBReq
       }
     }
-    // Both input is processde
+    // Both input is processed
     is (sInpDone) {
       state := sWait
     }
