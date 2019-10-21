@@ -22,6 +22,7 @@ from __future__ import absolute_import
 import logging
 import os
 import sys
+from enum import Enum
 
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
@@ -30,6 +31,11 @@ from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
 
 SUPPORTED_DEVICE_TYPES = ["host", "openocd"]
+
+class LibType(Enum):
+    RUNTIME = 0
+    OPERATOR = 1
+
 
 class Session:
     """MicroTVM Device Session
@@ -68,11 +74,11 @@ class Session:
         #self._check_args(device_type, kwargs)
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(_get_micro_device_dir(), "utvm_runtime.c")
+        runtime_src_path = os.path.join(_get_micro_host_driven_dir(), "utvm_runtime.c")
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
         create_micro_lib(
-            runtime_obj_path, runtime_src_path, toolchain_prefix, include_dev_lib_header=False)
+            runtime_obj_path, runtime_src_path, toolchain_prefix, LibType.RUNTIME)
 
         self.op_modules = []
 
@@ -118,7 +124,7 @@ class Session:
         self._exit()
 
 
-def _get_micro_device_dir():
+def _get_micro_host_driven_dir():
     """Get directory path for uTVM host-driven runtime source files.
 
     Return
@@ -127,12 +133,26 @@ def _get_micro_device_dir():
         directory path
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
+    micro_host_driven_dir = os.path.join(micro_dir, "..", "..", "..",
                                     "src", "runtime", "micro", "host_driven")
+    return micro_host_driven_dir
+
+
+def _get_micro_device_dir():
+    """Get directory path for TODO
+
+    Return
+    ------
+    micro_device_dir : str
+        directory path
+    """
+    micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+    micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
+                                    "src", "runtime", "micro", "device")
     return micro_device_dir
 
 
-def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
+def cross_compiler(toolchain_prefix, lib_type):
     """Creates a cross compile function that wraps `create_micro_lib`.
 
     For use in `tvm.module.Module.export_library`.
@@ -166,12 +186,12 @@ def cross_compiler(toolchain_prefix, include_dev_lib_header=True):
         if isinstance(src_path, list):
             src_path = src_path[0]
         create_micro_lib(obj_path, src_path, toolchain_prefix,
-                         kwargs.get("options", None), include_dev_lib_header)
+                         lib_type, kwargs.get("options", None))
     return _cc.cross_compiler(compile_func)
 
 
 def create_micro_lib(
-        obj_path, src_path, toolchain_prefix, options=None, include_dev_lib_header=True):
+        obj_path, src_path, toolchain_prefix, lib_type, options=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -190,12 +210,12 @@ def create_micro_lib(
         library functions.
     """
     if toolchain_prefix == '':
-        create_host_micro_lib(obj_path, src_path, toolchain_prefix, options, include_dev_lib_header)
+        create_host_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
     elif toolchain_prefix == 'arm-none-eabi-':
-        create_arm_micro_lib(obj_path, src_path, toolchain_prefix, options, include_dev_lib_header)
+        create_arm_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
 
 def create_host_micro_lib(
-        obj_path, src_path, toolchain_prefix, options, include_dev_lib_header):
+        obj_path, src_path, toolchain_prefix, lib_type, options):
     def replace_suffix(s, new_suffix):
         if "." in os.path.basename(s):
             # There already exists an extension.
@@ -214,7 +234,7 @@ def create_host_micro_lib(
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()]
-    options += ["-I{}".format(_get_micro_device_dir())]
+    options += ["-I{}".format(_get_micro_host_driven_dir())]
     options += ["-fno-stack-protector"]
     # TODO(weberlo): Don't rely on the toolchain prefix to identify if this is the host
     # device.
@@ -237,8 +257,9 @@ def create_host_micro_lib(
 
     _cc.create_shared(obj_path, src_path, options, compile_cmd)
 
+
 def create_arm_micro_lib(
-        obj_path, src_path, toolchain_prefix, options, include_dev_lib_header):
+        obj_path, src_path, toolchain_prefix, lib_type, options):
     import subprocess
     import os
     import copy
@@ -247,8 +268,59 @@ def create_arm_micro_lib(
     from tvm._ffi.libinfo import find_include_path
     from tvm.contrib import binutil
 
+    def replace_suffix(s, new_suffix):
+        if "." in os.path.basename(s):
+            # There already exists an extension.
+            return os.path.join(
+                os.path.dirname(s),
+                ".".join(os.path.basename(s).split(".")[:-1] + [new_suffix]))
+        # No existing extension; we can just append.
+        return s + "." + new_suffix
+
+    def run_cmd(cmd):
+        proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+        if proc.returncode != 0:
+            msg = "Compilation error:\n"
+            msg += out.decode("utf-8")
+            raise RuntimeError(msg)
+
+    base_compile_cmd = [
+            'arm-none-eabi-gcc',
+            '-std=c11',
+            '-Wall',
+            '-Wextra',
+            '--pedantic',
+            '-mcpu=cortex-m7',
+            '-mlittle-endian',
+            '-mfloat-abi=hard',
+            '-mfpu=fpv5-sp-d16',
+            '-mthumb',
+            '-c',
+            '-O0',
+            '-g',
+            '-gdwarf-5',
+            '-nostartfiles',
+            '-nodefaultlibs',
+            '-nostdlib',
+            '-fdata-sections',
+            '-ffunction-sections']
+
+    src_paths = []
+    ld_script_path = None
     tmp_dir = _util.tempdir()
-    if include_dev_lib_header:
+    if lib_type == LibType.RUNTIME:
+        import glob
+        DEVICE_ID = 'stm32f746'
+        dev_dir = _get_micro_device_dir() + '/' + DEVICE_ID
+
+        dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
+        assert dev_src_paths
+        src_paths += dev_src_paths
+    elif lib_type == LibType.OPERATOR:
         # Create a temporary copy of the source, so we can inject the dev lib
         # header without modifying the original.
         temp_src_path = tmp_dir.relpath("temp.c")
@@ -259,45 +331,33 @@ def create_arm_micro_lib(
             f.write("\n".join(src_lines))
         src_path = temp_src_path
 
-    paths = [('-I', path) for path in find_include_path()]
-    paths += [('-I', _get_micro_device_dir())]
+        base_compile_cmd += ['-c']
+    else:
+        raise RuntimeError('unknown lib type')
 
-    compile_cmd = [
-            'arm-none-eabi-gcc',
-            '-std=c11',
-            '-Wall',
-            '-Wextra',
-            '--pedantic',
-            '-fstack-usage',
-            '-mcpu=cortex-m7',
-            '-mlittle-endian',
-            '-mfloat-abi=hard',
-            '-mfpu=fpv5-sp-d16',
-            '-O0',
-            '-g',
-            '-gdwarf-5',
-            '-nostartfiles',
-            '-nodefaultlibs',
-            '-nostdlib',
-            '-fdata-sections',
-            '-ffunction-sections',
-            '-c']
-    for s, path in paths:
-        compile_cmd += [s, path]
-    temp_obj_path = tmp_dir.relpath('temp.o')
-    compile_cmd += ['-o', obj_path, src_path]
+    src_paths += [src_path]
 
-    proc = subprocess.Popen(
-            compile_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
-    if proc.returncode != 0:
-        msg = "Compilation error:\n"
-        msg += out.decode("utf-8")
-        raise RuntimeError(msg)
+    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
+    for path in include_paths:
+        base_compile_cmd += ['-I', path]
 
-    print('finished')
+    prereq_obj_paths = []
+    for src_path in src_paths:
+        print(f'compiling {src_path}')
+        curr_obj_path = replace_suffix(src_path, 'o')
+        prereq_obj_paths.append(curr_obj_path)
+        curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
+
+        #compile_cmd_str = ' '.join(curr_compile_cmd)
+        #print(f'running "{compile_cmd_str}"')
+        run_cmd(curr_compile_cmd)
+        print(f'finished compiling {src_path}')
+
+    ld_cmd = ['arm-none-eabi-ld', '-relocatable']
+    ld_cmd += prereq_obj_paths
+    ld_cmd += ['-o', obj_path]
+    run_cmd(ld_cmd)
+    input(f'check obj {obj_path}')
 
 
 _init_api("tvm.micro", "tvm.micro.base")

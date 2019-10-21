@@ -50,7 +50,9 @@
 .weak UTVMInit
 .type UTVMInit, %function
 UTVMInit:
-  ldr sp, =_estack      /* set stack pointer */
+  /* ldr sp, =_estack */      /* set stack pointer */
+  /* ldr sp, =0x20050000 */      /* set stack pointer */
+  ldr sp, =0x2004fffc      /* set stack pointer */
   bl UTVMMain
 
 /**

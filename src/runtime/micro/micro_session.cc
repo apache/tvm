@@ -323,7 +323,8 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
   std::cout << "DD" << std::endl;
 
-  DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
+  //DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
+  DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMInit"].value());
   DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
   if (kRequiresThumbModeBit) {
     utvm_main_loc += 1;

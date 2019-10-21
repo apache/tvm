@@ -30,7 +30,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <tvm/runtime/c_runtime_api.h>
-// TODO(weberlo): do we need this?
 #include <tvm/runtime/c_backend_api.h>
 
 /*!
@@ -52,6 +51,8 @@ extern void UTVMInit();
 extern void UTVMTimerStart();
 
 extern void UTVMTimerStop();
+
+extern void UTVMTimerReset();
 
 extern int32_t UTVMTimerRead();
 

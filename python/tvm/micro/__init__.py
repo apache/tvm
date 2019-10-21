@@ -23,4 +23,4 @@ and JTAG-based openocd device which allows actual interfacing with microdevices.
 """
 
 from ..contrib import binutil
-from .base import Session, cross_compiler, create_micro_lib
+from .base import LibType, Session, cross_compiler, create_micro_lib

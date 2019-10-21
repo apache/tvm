@@ -50,7 +50,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
     c_mod.export_library(
             lib_obj_path,
-            fcompile=tvm.micro.cross_compiler(toolchain_prefix=toolchain_prefix))
+            fcompile=tvm.micro.cross_compiler(toolchain_prefix, micro.LibType.OPERATOR))
     micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     return micro_mod
 
@@ -82,21 +82,21 @@ def relay_micro_build(func, toolchain_prefix, params=None):
 
 def reset_gdbinit():
     with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'w') as f:
-        gdbinit_contents = """
-layout asm
+        gdbinit_contents = (
+"""layout asm
 target remote localhost:3333
-print "(*((TVMValue*) utvm_task.arg_values)).v_handle"
-print (*((TVMValue*) utvm_task.arg_values)).v_handle
-print "*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))"
-print *((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))
-print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]"
-print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]
-print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]"
-print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]
-break UTVMMain
-break UTVMDone
-jump UTVMMain
-        """
+
+#print "(*((TVMValue*) utvm_task.arg_values)).v_handle"
+#print (*((TVMValue*) utvm_task.arg_values)).v_handle
+#print "*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))"
+#print *((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))
+#print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]"
+#print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[0]
+#print "((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]"
+#print ((float*) (*((TVMArray*) ((*((TVMValue*) utvm_task.arg_values)).v_handle))).data)[1]
+#break UTVMMain
+#break UTVMDone
+#jump UTVMMain""")
         f.write(gdbinit_contents)
 
 
@@ -123,6 +123,8 @@ def test_add():
         return
     shape = (1024,)
     dtype = "float32"
+
+    reset_gdbinit()
 
     # Construct TVM expression.
     tvm_shape = tvm.convert(shape)
@@ -210,10 +212,11 @@ def test_conv2d():
     from tvm.relay import create_executor
     from tvm.relay import transform
 
-    reset_gdbinit()
-
     dshape = (1, 4, 16, 16)
-    for dtype, func_name in [('float32', 'fused_nn_conv2d'), ('int8', 'fused_nn_conv2d_2')]:
+    #for dtype, func_name in [('float32', 'fused_nn_conv2d'), ('int8', 'fused_nn_conv2d_2')]:
+    for dtype, func_name in [('int8', 'fused_nn_conv2d')]:
+        reset_gdbinit()
+
         # Construct Relay program.
         x = relay.var("x", shape=dshape, dtype=dtype)
         conv_expr = relay.nn.conv2d(
@@ -222,7 +225,7 @@ def test_conv2d():
                 padding=(1, 1),
                 channels=4)
         func = relay.Function(relay.analysis.free_vars(conv_expr), conv_expr)
-        mod = relay.Module.from_expr(func) 
+        mod = relay.Module.from_expr(func)
         mod = transform.InferType()(mod)
 
         x_shape = list(map(lambda x: x.value, mod['main'].params[0].checked_type.shape))

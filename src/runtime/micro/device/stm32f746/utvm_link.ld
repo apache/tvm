@@ -30,7 +30,7 @@
 */
 
 /* Entry Point */
-ENTRY(Reset_Handler)
+ENTRY(UTVMInit)
 
 /* Highest address of the user mode stack */
 _estack = 0x20050000;   /* end of RAM */
@@ -45,45 +45,43 @@ FLASH (rx)     : ORIGIN = 0x8000000, LENGTH = 1024K
 /* Define output sections */
 SECTIONS
 {
+  /* . = %s; */
+  . = ALIGN(4);
   .text :
   {
     . = ALIGN(4);
-    *(.text)           /* .text sections (code) */
-    *(.text*)          /* .text* sections (code) */
+    *(.text)
+    *(.text*)
     . = ALIGN(4);
   } >RAM
 
+  /* . = %s; */
+  . = ALIGN(4);
   .rodata :
   {
     . = ALIGN(4);
-    *(.rodata)         /* .rodata sections (constants, strings, etc.) */
-    *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
+    *(.rodata)
+    *(.rodata*)
     . = ALIGN(4);
   } >RAM
 
+  /* . = %s; */
+  . = ALIGN(4);
   .data :
   {
     . = ALIGN(4);
-    *(.data)           /* .data sections */
-    *(.data*)          /* .data* sections */
+    *(.data)
+    *(.data*)
     . = ALIGN(4);
   } >RAM
 
-  /* Uninitialized data section */
+  /* . = %s; */
   . = ALIGN(4);
   .bss :
   {
+    . = ALIGN(4);
     *(.bss)
     *(.bss*)
     . = ALIGN(4);
   } >RAM
-
-  /* Remove information from the standard libraries */
-  /DISCARD/ :
-  {
-    libc.a ( * )
-    libm.a ( * )
-    libgcc.a ( * )
-  }
 }
-
