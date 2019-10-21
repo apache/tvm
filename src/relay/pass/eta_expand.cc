@@ -36,14 +36,14 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
   tvm::Array<TypeVar> original_type_params;
   Type ret_type;
 
-  if (e->is_type<GlobalVarNode>()) {
+  if (e->IsInstance<GlobalVarNode>()) {
     auto gvar_node = e.as_derived<GlobalVarNode>();
     auto func = mod->Lookup(GetRef<GlobalVar>(gvar_node));
     original_params = func->params;
     original_type_params = func->type_params;
     ret_type = func->ret_type;
   } else {
-    CHECK(e->is_type<FunctionNode>());
+    CHECK(e->IsInstance<FunctionNode>());
     auto func = GetRef<Function>(e.as_derived<FunctionNode>());
     original_params = func->params;
     original_type_params = func->type_params;

@@ -84,7 +84,7 @@ RELAY_REGISTER_OP("nn.sparse_dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SparseDenseAttrs")
+.set_attrs_type<SparseDenseAttrs>()
 .set_num_inputs(4)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight_data", "1D Tensor", "Weight data matrix.")
@@ -131,7 +131,7 @@ RELAY_REGISTER_OP("nn.sparse_transpose")
 - **out**: `(N, N)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SparseTransposeAttrs")
+.set_attrs_type<SparseTransposeAttrs>()
 .set_num_inputs(3)
 .add_argument("sparse_data", "1D Tensor", "Sparse data matrix.")
 .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")

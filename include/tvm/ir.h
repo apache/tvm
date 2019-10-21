@@ -664,10 +664,10 @@ class CommReducerNode : public Node {
 };
 
 inline const CommReducerNode* CommReducer::get() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return static_cast<const CommReducerNode*>(data_.get());
 }
 inline const CommReducerNode* CommReducer::operator->() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return get();
 }
 
 /*! \brief Reduction operator operator */
@@ -1576,7 +1576,7 @@ namespace std {
 template <>
 struct hash<::tvm::ir::TensorKey> {
   std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
-    size_t lhs = k.f.hash();
+    size_t lhs = ::tvm::NodeHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;

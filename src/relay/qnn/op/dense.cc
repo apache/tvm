@@ -115,7 +115,7 @@ RELAY_REGISTER_OP("qnn.dense")
 - **weight**: quantized(int8, unit8) `(units, input_dim)`
 - **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.qnn.QnnDenseAttrs")
+.set_attrs_type<QnnDenseAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "quantized nD Tensor", "Input data.")
 .add_argument("weight", "quantized 2D Tensor", "Weight matrix.")

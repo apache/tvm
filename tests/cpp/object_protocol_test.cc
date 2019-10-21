@@ -72,7 +72,7 @@ TEST(ObjectHierachy, Basic) {
   using namespace tvm::test;
 
   ObjectRef refA(make_object<ObjA>());
-  CHECK_EQ(refA->type_index(), ObjA::type_index());
+  CHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
   CHECK(refA.as<Object>() != nullptr);
   CHECK(refA.as<ObjA>() != nullptr);
   CHECK(refA.as<ObjBase>() != nullptr);
@@ -80,7 +80,7 @@ TEST(ObjectHierachy, Basic) {
   CHECK(refA.as<ObjAA>() == nullptr);
 
   ObjectRef refAA(make_object<ObjAA>());
-  CHECK_EQ(refAA->type_index(), ObjAA::type_index());
+  CHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
   CHECK(refAA.as<Object>() != nullptr);
   CHECK(refAA.as<ObjBase>() != nullptr);
   CHECK(refAA.as<ObjA>() != nullptr);
@@ -88,7 +88,7 @@ TEST(ObjectHierachy, Basic) {
   CHECK(refAA.as<ObjB>() == nullptr);
 
   ObjectRef refB(make_object<ObjB>());
-  CHECK_EQ(refB->type_index(), ObjB::type_index());
+  CHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
   CHECK(refB.as<Object>() != nullptr);
   CHECK(refB.as<ObjBase>() != nullptr);
   CHECK(refB.as<ObjA>() == nullptr);

@@ -119,7 +119,7 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 RELAY_REGISTER_OP("qnn.concatenate")
 .describe(R"code(Concatenate the quantized input tensors along the given axis.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.QnnConcatenateAttrs")
+.set_attrs_type<QnnConcatenateAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The tensor to concatenate.")
 .set_support_level(11)

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file codegen_hybrid.h
  * \brief Common utilities to generated C style code.
  */

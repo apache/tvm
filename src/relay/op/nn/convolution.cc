@@ -99,7 +99,7 @@ with the layer input to produce a tensor of outputs.
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DAttrs")
+.set_attrs_type<Conv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -261,7 +261,7 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
                 out_width = (width-1)*strides[1]-2*padding[1]+kernel_size[1]+output_padding[1]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DTransposeAttrs")
+.set_attrs_type<Conv2DTransposeAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -391,7 +391,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
 
 - **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DWinograd")
+.set_attrs_type<Conv2DWinogradAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -450,7 +450,7 @@ weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DWinogradWeightTransformAttrs")
+.set_attrs_type<Conv2DWinogradWeightTransformAttrs>()
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
@@ -501,7 +501,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
 
 - **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DAttrs")
+.set_attrs_type<Conv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -564,7 +564,7 @@ weight transformation in advance.
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2DWinogradNNPACKWeightTransformAttrs")
+.set_attrs_type<Conv2DWinogradNNPACKWeightTransformAttrs>()
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
@@ -610,7 +610,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc_int8")
 
 - **out**:  Output is 5D packed tensor
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2D")
+.set_attrs_type<Conv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -659,7 +659,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 
 - **out**:  Output is 5D packed tensor
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.Conv2D")
+.set_attrs_type<Conv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -709,7 +709,7 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
 
 - **out**:  Output is 5D packed tensor
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DepthwiseConv2D")
+.set_attrs_type<Conv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -818,7 +818,7 @@ along the channel axis, and also evenly split `weight` along the first dimension
 the convolution on the *i*-th part of the data with the *i*-th weight part. The output is obtained
 by concating all the *g* results.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DeformableConv2D")
+.set_attrs_type<DeformableConv2DAttrs>()
 .set_num_inputs(3)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("offset", "Tensor", "The offset tensor.")

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -97,7 +97,7 @@ class MarkChannelAccess : public IRMutator {
   }
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == ir::attr::storage_scope) {
-      Var buf_var(op->node.node_);
+      Var buf_var = Downcast<Var>(op->node);
       if (cmap_.count(buf_var.get())) return Mutate(op->body);
     }
     return IRMutator::Mutate_(op, s);
@@ -251,7 +251,7 @@ class StageSplitter : public IRMutator {
             op->condition, no_op, op->new_expr, op->free_function));
         MarkChannel(op);
       } else {
-        LOG(FATAL) << "not supported nest type " << s->type_key();
+        LOG(FATAL) << "not supported nest type " << s->GetTypeKey();
       }
     }
     body = Substitute(MergeNest(nest, body), subst);

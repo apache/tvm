@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -304,7 +304,7 @@ class ThreadSyncInserter : public IRMutator {
       CHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();
       for (const AttrStmt* attr : thread_extents_) {
-        IterVar iv(attr->node.node_);
+        IterVar iv = Downcast<IterVar>(attr->node);
         runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
         if (s.rank == 0) {
           num_blocks_ = (num_blocks_.defined() ?

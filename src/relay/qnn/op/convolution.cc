@@ -478,7 +478,7 @@ operator to understand how to scale back the int32 output to (u)int8.
 - **out**:  This depends on the `layout` parameter. Output is 4D array of shape
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.QnnConv2DAttrs")
+.set_attrs_type<QnnConv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The quantized input data tensor.")
 .add_argument("weight", "Tensor", "The quantized weight tensor.")

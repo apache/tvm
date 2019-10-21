@@ -122,14 +122,14 @@ class TextMetaDataContext {
     if (it != meta_repr_.end()) {
       return it->second;
     }
-    std::string type_key = node->type_key();
+    std::string type_key = node->GetTypeKey();
     CHECK(!type_key.empty());
     Array<NodeRef>& mvector =
         meta_data_[type_key];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);
     Doc doc;
-    doc << "meta[" << node->type_key() << "][" << index << "]";
+    doc << "meta[" << type_key << "][" << index << "]";
     meta_repr_[node] = doc;
     return meta_repr_[node];
   }
@@ -163,7 +163,7 @@ class PrettyPrinter :
     public ExprFunctor<Doc(const Expr&)>,
     public PatternFunctor<Doc(const Pattern&)>,
     public TypeFunctor<Doc(const Type&)>,
-    public AttrFunctor<Doc(const NodeRef&)> {
+    public AttrFunctor<Doc(const ObjectRef&)> {
  public:
   explicit PrettyPrinter(bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate) :
@@ -809,13 +809,13 @@ class PrettyPrinter :
   // Overload of Attr printing functions
   //------------------------------------
 
-  Doc PrintAttr(const NodeRef& value, bool meta = false) {
+  Doc PrintAttr(const ObjectRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
       if (value.as<tvm::ir::Any>()) {
         printed_attr << "?";
       } else if (meta) {
-        printed_attr = meta_.GetMetaNode(value);
+        printed_attr = meta_.GetMetaNode(Downcast<NodeRef>(value));
       } else {
         printed_attr = VisitAttr(value);
       }
@@ -825,16 +825,16 @@ class PrettyPrinter :
     }
   }
 
-  Doc VisitAttrDefault_(const Node* op) final {
-    return PrintAttr(GetRef<NodeRef>(op), true);
+  Doc VisitAttrDefault_(const Object* op) final {
+    return PrintAttr(GetRef<ObjectRef>(op), true);
   }
 
   Doc VisitAttr_(const ArrayNode* op) final {
     Doc doc;
     doc << "[";
     std::vector<Doc> arr_vals;
-    for (NodePtr<Node> val : op->data) {
-      arr_vals.push_back(PrintAttr(NodeRef(val)));
+    for (auto val : op->data) {
+      arr_vals.push_back(PrintAttr(val));
     }
     doc << PrintSep(arr_vals);
     doc << "]";

@@ -35,7 +35,7 @@ class Channel : public NodeRef {
  public:
   /*! \brief default constructor  */
   Channel() {}
-  explicit Channel(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Channel(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -67,7 +67,7 @@ struct ChannelNode : public Node {
 
 // Inline implementations
 inline const ChannelNode* Channel::operator->() const {
-  return static_cast<const ChannelNode*>(node_.get());
+  return static_cast<const ChannelNode*>(get());
 }
 }  // namespace tvm
 #endif  // TVM_CHANNEL_H_

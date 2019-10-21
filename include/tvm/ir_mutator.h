@@ -65,9 +65,9 @@ class TVM_DLL IRMutator {
   /*! \brief destructor */
   virtual ~IRMutator() {}
   /*! \brief functor type of expr mutation */
-  using FMutateExpr = IRFunctor<Expr(const NodeRef&, const Expr&, IRMutator*)>;
+  using FMutateExpr = IRFunctor<Expr(const ObjectRef&, const Expr&, IRMutator*)>;
   /*! \brief functor type of stmt mutation */
-  using FMutateStmt = IRFunctor<Stmt(const NodeRef&, const Stmt&, IRMutator*)>;
+  using FMutateStmt = IRFunctor<Stmt(const ObjectRef&, const Stmt&, IRMutator*)>;
   /*! \return internal vtable of expr */
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   /*! \return internal stmt of expr */

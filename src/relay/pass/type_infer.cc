@@ -211,8 +211,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
     if (!tuple_getitem_rel_.defined())  {
-      tuple_getitem_rel_ = TypeRelationFn(
-          EnvFunc::Get("tvm.relay.type_relation.TupleGetItem").node_);
+      tuple_getitem_rel_ = Downcast<TypeRelationFn>(
+          EnvFunc::Get("tvm.relay.type_relation.TupleGetItem"));
     }
     Type tuple_type = GetType(op->tuple);
     Type rtype = IncompleteTypeNode::make(Kind::kType);
@@ -682,13 +682,13 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
     // Compiler optimization will likely fold these away for other nodes.
     CallNode* new_call =(
         std::is_base_of<CallNode, T>::value ?
-        static_cast<CallNode*>(new_e.node_.get()) : nullptr);
+        const_cast<CallNode*>(static_cast<const CallNode*>(new_e.get())) : nullptr);
     VarNode* new_var =(
         std::is_base_of<VarNode, T>::value ?
-        static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+        const_cast<VarNode*>(static_cast<const VarNode*>(new_e.get())) : nullptr);
     FunctionNode* new_fn =(
         std::is_base_of<FunctionNode, T>::value ?
-        static_cast<FunctionNode*>(new_e.node_.get()) : nullptr);
+        const_cast<FunctionNode*>(static_cast<const FunctionNode*>(new_e.get())) : nullptr);
 
     // check if we need update the new_e
     bool need_update_type = !checked_type.same_as(new_e->checked_type_);
@@ -713,20 +713,21 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
       return new_e;
     }
 
-    if (!new_e.node_.unique()) {
+    if (!new_e.unique()) {
       // Copy on write optimization
       // If new_e is an old expression,
       // we make a copy mutating an existing reference.
-      new_e = Expr(make_node<T>(*new_e.as<T>()));
+      NodePtr<ExprNode> ptr = make_node<T>(*new_e.as<T>());
+      new_e = Expr(ptr);
       new_call = (
           std::is_base_of<CallNode, T>::value ?
-          static_cast<CallNode*>(new_e.node_.get()) : nullptr);
+          static_cast<CallNode*>(ptr.get()) : nullptr);
       new_var = (
           std::is_base_of<VarNode, T>::value ?
-          static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+          static_cast<VarNode*>(ptr.get()) : nullptr);
       new_fn = (
           std::is_base_of<FunctionNode, T>::value ?
-          static_cast<FunctionNode*>(new_e.node_.get()) : nullptr);
+          static_cast<FunctionNode*>(ptr.get()) : nullptr);
     }
 
     // attach the information.

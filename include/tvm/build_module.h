@@ -93,7 +93,7 @@ class TargetNode : public Node {
 class Target : public NodeRef {
  public:
   Target() {}
-  explicit Target(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Target(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
   * \brief Create a Target given a string
   * \param target_str the string to parse
@@ -110,7 +110,7 @@ class Target : public NodeRef {
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
   const TargetNode* operator->() const {
-      return static_cast<const TargetNode*>(node_.get());
+      return static_cast<const TargetNode*>(get());
   }
 
   using ContainerType = TargetNode;
@@ -256,12 +256,12 @@ class BuildConfigNode : public Node {
 class BuildConfig : public ::tvm::NodeRef {
  public:
   BuildConfig() {}
-  explicit BuildConfig(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  explicit BuildConfig(ObjectPtr<Object> n) : NodeRef(n) {}
   const BuildConfigNode* operator->() const {
-    return static_cast<const BuildConfigNode*>(node_.get());
+    return static_cast<const BuildConfigNode*>(get());
   }
   BuildConfigNode* operator->() {
-    return static_cast<BuildConfigNode*>(node_.get());
+    return static_cast<BuildConfigNode*>(get_mutable());
   }
   /*!
    * \brief Construct a BuildConfig containing a empty build config node.
@@ -371,7 +371,7 @@ class GenericFuncNode;
 class GenericFunc : public NodeRef {
  public:
   GenericFunc() {}
-  explicit GenericFunc(NodePtr<Node> n) : NodeRef(n) {}
+  explicit GenericFunc(ObjectPtr<Object> n) : NodeRef(n) {}
 
   /*!
    * \brief Set the default function implementaiton.
@@ -478,10 +478,10 @@ class GenericFuncNode : public Node {
 };
 
 inline GenericFuncNode* GenericFunc::operator->() {
-  return static_cast<GenericFuncNode*>(node_.get());
+  return static_cast<GenericFuncNode*>(get_mutable());
 }
 
-#define TVM_GENERIC_FUNC_REG_VAR_DEF                               \
+#define TVM_GENERIC_FUNC_REG_VAR_DEF                            \
   static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM
 
 /*!

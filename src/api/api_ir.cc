@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to IR build
  * \file api_ir.cc
  */

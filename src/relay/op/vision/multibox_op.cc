@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -79,7 +79,7 @@ TVM_REGISTER_API("relay.op.vision._make.multibox_prior")
 RELAY_REGISTER_OP("vision.multibox_prior")
 .describe(R"doc("Generate prior(anchor) boxes from data, sizes and ratios."
 )doc" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MultiBoxPriorAttrs")
+.set_attrs_type<MultiBoxPriorAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(5)
@@ -150,7 +150,7 @@ TVM_REGISTER_API("relay.op.vision._make.multibox_transform_loc")
 RELAY_REGISTER_OP("vision.multibox_transform_loc")
 .describe(R"doc("Location transformation for multibox detection."
 )doc" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MultiBoxTransformLocAttrs")
+.set_attrs_type<MultiBoxTransformLocAttrs>()
 .set_num_inputs(3)
 .add_argument("cls_prob", "Tensor", "Class probabilities.")
 .add_argument("loc_pred", "Tensor", "Location regression predictions.")

@@ -187,7 +187,7 @@ class ChannelAccessRewriter : public IRMutator {
     const Expr& window = e->window->value;
     bool read_access = e->read_access;
     Var var(for_op->loop_var);
-    Channel ch(adv_op->node.node_);
+    Channel ch = Downcast<Channel>(adv_op->node);
     ChannelAccessBound acc(ch->handle_var.get(), read_access);
     IntSet iset = acc.Eval(for_op->body);
     Range r = iset.cover_range(Range::make_by_min_extent(0, window));

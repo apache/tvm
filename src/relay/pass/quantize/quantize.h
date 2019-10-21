@@ -18,8 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
- *
  * \file tvm/relay/pass/quantize.h
  * \brief Header of definitions for quantization
  */
@@ -102,14 +100,14 @@ class QConfigNode : public Node {
 class QConfig : public NodeRef {
  public:
   QConfig() {}
-  explicit QConfig(NodePtr<Node> n) : NodeRef(n) {}
+  explicit QConfig(ObjectPtr<Object> n) : NodeRef(n) {}
 
   const QConfigNode* operator->() const {
-    return static_cast<const QConfigNode*>(node_.get());
+    return static_cast<const QConfigNode*>(get());
   }
 
   QConfigNode* operator->() {
-    return static_cast<QConfigNode*>(node_.get());
+    return static_cast<QConfigNode*>(get_mutable());
   }
 
   /*!

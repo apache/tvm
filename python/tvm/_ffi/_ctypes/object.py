@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import ctypes
 from ..base import _LIB, check_call
 from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from ..node_generic import _set_class_node_base
 
 
 ObjectHandle = ctypes.c_void_p
@@ -28,6 +29,13 @@ __init_by_constructor__ = None
 
 """Maps object type to its constructor"""
 OBJECT_TYPE = {}
+
+_CLASS_NODE = None
+
+def _set_class_node(node_class):
+    global _CLASS_NODE
+    _CLASS_NODE = node_class
+
 
 def _register_object(index, cls):
     """register object class"""
@@ -40,7 +48,7 @@ def _return_object(x):
         handle = ObjectHandle(handle)
     tindex = ctypes.c_uint()
     check_call(_LIB.TVMObjectGetTypeIndex(handle, ctypes.byref(tindex)))
-    cls = OBJECT_TYPE.get(tindex.value, ObjectBase)
+    cls = OBJECT_TYPE.get(tindex.value, _CLASS_NODE)
     # Avoid calling __init__ of cls, instead directly call __new__
     # This allows child class to implement their own __init__
     obj = cls.__new__(cls)
@@ -83,3 +91,6 @@ class ObjectBase(object):
         if not isinstance(handle, ObjectHandle):
             handle = ObjectHandle(handle)
         self.handle = handle
+
+
+_set_class_node_base(ObjectBase)

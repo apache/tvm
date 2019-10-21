@@ -89,7 +89,7 @@ RELAY_REGISTER_OP("qnn.dequantize")
 The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DequantizeAttrs")
+.set_attrs_type<DequantizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The tensor to dequantize.")
 .set_support_level(11)

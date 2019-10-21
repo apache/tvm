@@ -54,7 +54,7 @@ bool ArgBinder::Bind_(const Expr& arg,
   if (const Variable* v = arg.as<Variable>()) {
     auto it = def_map_->find(v);
     if (it == def_map_->end()) {
-      Var v_arg(arg.node_);
+      Var v_arg = Downcast<Var>(arg);
       defs_.emplace_back(v_arg);
       if (with_lets) {
         (*def_map_)[v] = arg;

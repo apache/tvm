@@ -62,6 +62,10 @@ def compile(mod, target=None, target_host=None, params=None):
         compiler._compile(mod, target, target_host)
     return vm.Executable(compiler._get_exec())
 
+def enabled():
+    """Whether vm profiler is enabled."""
+    return hasattr(_vm, "_VMCompilerProfiler")
+
 class VMCompilerProfiler(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
     def __init__(self):

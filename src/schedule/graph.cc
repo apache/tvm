@@ -62,7 +62,7 @@ namespace std {
 template <>
 struct hash<::tvm::schedule::TensorDimKey> {
   std::size_t operator()(const ::tvm::schedule::TensorDimKey& k) const {
-    size_t lhs = k.f.hash();
+    size_t lhs = ::tvm::NodeHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index) << 16UL |
         static_cast<size_t>(k.dim);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -257,12 +257,12 @@ class RewriteAnnotation : public ExprMutator {
         // Here we need across device data transferring only when `src` is a
         // CallNode or FunctionNode and the `dst` is annotated with any device
         // id other than fallback_device_.
-        if (src->is_type<CallNode>() || src->is_type<FunctionNode>()) {
+        if (src->IsInstance<CallNode>() || src->IsInstance<FunctionNode>()) {
           return annotation_map_.at(dst) != fallback_device_;
         } else {
           // There shouldn't be any copy nodes between var/constant and another
           // expression.
-          return !(src->is_type<VarNode>() || src->is_type<ConstantNode>());
+          return !(src->IsInstance<VarNode>() || src->IsInstance<ConstantNode>());
         }
       } else {
         return false;
@@ -349,7 +349,7 @@ class AnnotatationVisitor : private ExprVisitor {
  *           ancestors until encountering another copy op. For example, this way
  *           provides add, x, and y device types from the copy operator, `copy1`.
  *  -Pass 2: Propagating the destination device type of "the last" copy op to the
- *           remain nodes. For instance, this offers `subtract` and `exp` the 
+ *           remain nodes. For instance, this offers `subtract` and `exp` the
  *           same device type as `copy3`.
  */
 

@@ -49,7 +49,7 @@ TEST(PackedFunc, Node) {
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 1);
-      CHECK(args.type_codes[0] == kNodeHandle);
+      CHECK(args.type_codes[0] == kObjectHandle);
       Var b = args[0];
       CHECK(x.same_as(b));
       *rv = b;

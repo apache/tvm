@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -100,7 +100,7 @@ var tvm_runtime = tvm_runtime || {};
     var kTVMType = 5;
     var kTVMContext = 6;
     var kArrayHandle = 7;
-    var kNodeHandle = 8;
+    var kObjectHandle = 8;
     var kModuleHandle = 9;
     var kFuncHandle = 10;
     var kStr = 11;
@@ -497,7 +497,7 @@ var tvm_runtime = tvm_runtime || {};
       for (var i = 0; i < nargs; ++i) {
         var vptr = arg_value + i * SIZEOF_TVMVALUE;
         var tcode = Module.getValue(arg_tcode + i * SIZEOF_INT, "i32");
-        if (tcode == kNodeHandle ||
+        if (tcode == kObjectHandle ||
             tcode == kFuncHandle ||
             tcode == kModuleHandle) {
           TVM_CALL(TVMCbArgToReturn(vptr, tcode));

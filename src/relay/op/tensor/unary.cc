@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -177,7 +177,7 @@ This function takes a tensor, a minimum value `a_min`, and a maximum value `a_ma
 .set_attr<TOpPattern>("TOpPattern", kElemWise)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-.set_attrs_type_key("relay.attrs.ClipAttrs")
+.set_attrs_type<ClipAttrs>()
 .set_support_level(3);
 
 
@@ -314,7 +314,7 @@ RELAY_REGISTER_OP("shape_of")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ShapeOfAttrs")
+.set_attrs_type<ShapeOfAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("ShapeOf", ShapeOfRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -365,7 +365,7 @@ RELAY_REGISTER_OP("contrib.ndarray_size")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.NdarraySizeAttrs")
+.set_attrs_type<NdarraySizeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("NdarraySize", NdarraySizeRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)

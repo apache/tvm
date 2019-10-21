@@ -112,7 +112,7 @@ class TensorIntrinNode : public Node {
 };
 
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
-  return static_cast<const TensorIntrinNode*>(node_.get());
+  return static_cast<const TensorIntrinNode*>(get());
 }
 
 // Internal node container of tensor intrinsic calling.
@@ -170,7 +170,7 @@ class TensorIntrinCallNode : public Node {
 };
 
 inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
-  return static_cast<const TensorIntrinCallNode*>(node_.get());
+  return static_cast<const TensorIntrinCallNode*>(get());
 }
 
 }  // namespace tvm
