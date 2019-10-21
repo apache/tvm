@@ -795,9 +795,18 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::LoadConst: {
         auto constant_obj = exec->constants[instr.const_index];
-        // TODO(wweic) ctx could be obtained from the ctxs list.
-        auto device_obj = CopyTo(constant_obj, ctxs[0]);
-        WriteRegister(instr.dst, device_obj);
+        // We cache the allocated object in the constant pool. To measure, the
+        // first iteration will set the pool up. The other iterations will
+        // directly reuse the allocated objects.
+        if (const_pool_.size() <= static_cast<size_t>(instr.const_index)) {
+          const_pool_.resize(instr.const_index + 1);
+        }
+
+        if (!const_pool_[instr.const_index].defined()) {
+          // TODO(wweic) ctx could be obtained from the ctxs list.
+          const_pool_[instr.const_index] = CopyTo(constant_obj, ctxs[0]);
+        }
+        WriteRegister(instr.dst, const_pool_[instr.const_index]);
         pc++;
         goto main_loop;
       }
