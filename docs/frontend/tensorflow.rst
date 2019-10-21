@@ -57,7 +57,7 @@ Export
 
 TensorFlow frontend expects a frozen protobuf (.pb) or saved model as input. It currently does not support checkpoint (.ckpt). The graphdef needed by the TensorFlow frontend can be extracted from the active session, or by using the `TFParser`_ helper class.
 
-.. _TFParser: https://github.com/dmlc/tvm/blob/77445311540c0dfa7b124304b5cf89da6f2c210f/python/tvm/relay/frontend/tensorflow_parser.py
+.. _TFParser: https://github.com/dmlc/tvm/blob/master/python/tvm/relay/frontend/tensorflow_parser.py
 
 The model should be exported with a number of transformations to prepare the model for inference. It is also important to set ```add_shapes=True```, as this will embed the output shapes of each node into the graph. Here is one function to export a model as a protobuf given a session:
 
@@ -132,13 +132,16 @@ Supported Ops
 - Concat
 - ConcatV2
 - Conv2D
+- Cos
 - CropAndResize
 - DecodeJpeg
 - DepthwiseConv2dNative
 - DepthToSpace
 - Equal
 - Elu
+- Enter
 - Erf
+- Exit
 - Exp
 - ExpandDims
 - Fill
@@ -158,24 +161,26 @@ Supported Ops
 - LessEqual
 - Log
 - Log1p
-- Cos
-- Sin
+- LoopCond
 - LogicalAnd
 - LogicalOr
 - LogicalNot
 - LogSoftmax
 - LRN
+- LSTMBlockCell
 - MatMul
 - Max
 - MaxPool
 - Maximum
 - Mean
+- Merge
 - Min
 - Minimum
 - MirrorPad
 - Mod
 - Mul
 - Neg
+- NextIteration
 - NotEqual
 - OneHot
 - Pack
@@ -183,7 +188,7 @@ Supported Ops
 - PadV2
 - Pow
 - Prod
-- range
+- Range
 - Rank
 - RealDiv
 - Relu
@@ -201,6 +206,7 @@ Supported Ops
 - Shape
 - Sigmoid
 - Sign
+- Sin
 - Size
 - Slice
 - Softmax
@@ -216,7 +222,16 @@ Supported Ops
 - StridedSlice
 - Sub
 - Sum
+- Switch
 - Tanh
+- TensorArrayV3
+- TensorArrayScatterV3
+- TensorArrayGatherV3
+- TensorArraySizeV3
+- TensorArrayWriteV3
+- TensorArrayReadV3
+- TensorArraySplitV3
+- TensorArrayConcatV3
 - Tile
 - TopKV2
 - Transpose
