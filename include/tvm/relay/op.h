@@ -24,6 +24,8 @@
 #ifndef TVM_RELAY_OP_H_
 #define TVM_RELAY_OP_H_
 
+#include <dmlc/registry.h>
+
 #include <functional>
 #include <limits>
 #include <string>
@@ -82,7 +84,7 @@ class OpNode : public relay::ExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);

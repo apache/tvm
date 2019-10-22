@@ -132,7 +132,7 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
     if (const TypeVarNode* tin = new_type_param.as<TypeVarNode>()) {
       type_params.push_back(GetRef<TypeVar>(tin));
     } else {
-      LOG(FATAL) << new_type_param << std::endl;
+      LOG(FATAL) << new_type_param;
     }
   }
 
@@ -141,10 +141,10 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
     auto new_type_cs = VisitType(type_cs);
     changed = changed || !new_type_cs.same_as(type_cs);
     if (const TypeConstraintNode* tin =
-        new_type_cs.as_derived<TypeConstraintNode>()) {
+        new_type_cs.as<TypeConstraintNode>()) {
       type_constraints.push_back(GetRef<TypeConstraint>(tin));
     } else {
-      LOG(FATAL) << new_type_cs << std::endl;
+      LOG(FATAL) << new_type_cs;
     }
   }
 

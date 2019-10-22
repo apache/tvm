@@ -280,7 +280,7 @@ TVM_REGISTER_API("relay._analysis.free_vars")
 TVM_REGISTER_API("relay._analysis.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
-      if (x.as_derived<ExprNode>()) {
+      if (x.as<ExprNode>()) {
         *ret = BoundVars(Downcast<Expr>(x));
       } else {
         *ret = BoundVars(Downcast<Pattern>(x));
@@ -294,7 +294,7 @@ TVM_REGISTER_API("relay._analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef x = args[0];
     Module mod = args[1];
-    if (x.as_derived<TypeNode>()) {
+    if (x.as<TypeNode>()) {
       *ret = FreeTypeVars(Downcast<Type>(x), mod);
     } else {
       *ret = FreeTypeVars(Downcast<Expr>(x), mod);
@@ -305,7 +305,7 @@ TVM_REGISTER_API("relay._analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
       Module mod = args[1];
-      if (x.as_derived<TypeNode>()) {
+      if (x.as<TypeNode>()) {
         *ret = BoundTypeVars(Downcast<Type>(x), mod);
       } else {
         *ret = BoundTypeVars(Downcast<Expr>(x), mod);
@@ -316,7 +316,7 @@ TVM_REGISTER_API("relay._analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
       Module mod = args[1];
-      if (x.as_derived<TypeNode>()) {
+      if (x.as<TypeNode>()) {
         *ret = AllTypeVars(Downcast<Type>(x), mod);
       } else {
         *ret = AllTypeVars(Downcast<Expr>(x), mod);

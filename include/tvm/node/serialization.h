@@ -18,33 +18,34 @@
  */
 
 /*!
- * \file target_info.cc
+ * Utility functions for serialization.
+ * \file tvm/node/serialization.h
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/target_info.h>
-#include <tvm/packed_func_ext.h>
+#ifndef TVM_NODE_SERIALIZATION_H_
+#define TVM_NODE_SERIALIZATION_H_
+
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/object.h>
+
+#include <string>
 
 namespace tvm {
+/*!
+ * \brief save the node as well as all the node it depends on as json.
+ *  This can be used to serialize any TVM object
+ *
+ * \return the string representation of the node.
+ */
+TVM_DLL std::string SaveJSON(const runtime::ObjectRef& node);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const MemoryInfoNode *op, IRPrinter *p) {
-    p->stream << "mem-info("
-              << "unit_bits=" << op->unit_bits << ", "
-              << "max_num_bits=" << op->max_num_bits << ", "
-              << "max_simd_bits=" << op->max_simd_bits << ", "
-              << "head_address=" << op->head_address << ")";
-});
-
-TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
-
-MemoryInfo GetMemoryInfo(const std::string& scope) {
-  std::string fname = "tvm.info.mem." + scope;
-  const runtime::PackedFunc* f = runtime::Registry::Get(fname);
-  if (f == nullptr) {
-    return MemoryInfo();
-  } else {
-    return (*f)();
-  }
-}
+/*!
+ * \brief Internal implementation of LoadJSON
+ * Load tvm Node object from json and return a shared_ptr of Node.
+ * \param json_str The json string to load from.
+ *
+ * \return The shared_ptr of the Node.
+ */
+TVM_DLL runtime::ObjectRef LoadJSON(std::string json_str);
 
 }  // namespace tvm
+#endif  // TVM_NODE_SERIALIZATION_H_

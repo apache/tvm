@@ -18,113 +18,68 @@
  */
 /*!
  * \file tvm/node/node.h
- * \brief Node system data structure.
+ * \brief Definitions and helper macros for IR/AST nodes.
+ *
+ *  The node folder contains base utilities for IR/AST nodes,
+ *  invariant of which specific language dialect.
+ *
+ *  We implement AST/IR nodes as sub-classes of runtime::Object.
+ *  The base class Node is just an alias of runtime::Object.
+ *
+ *  Besides the runtime type checking provided by Object,
+ *  node folder contains additional functionalities such as
+ *  reflection and serialization, which are important features
+ *  for building a compiler INFRA.
  */
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/node/reflection.h>
+
 #include <string>
 #include <vector>
 #include <utility>
 #include <type_traits>
 
-
 namespace tvm {
-// forward declaration
-class DataType;
-class Node;
-class NodeRef;
+
+using runtime::TypeIndex;
+using runtime::Object;
+using runtime::ObjectPtr;
+using runtime::ObjectRef;
+using runtime::GetRef;
+using runtime::Downcast;
+using runtime::ObjectHash;
+using runtime::ObjectEqual;
+using runtime::make_object;
+
+using NodeHash = ObjectHash;
+using NodeEqual = ObjectEqual;
+using Node = Object;
 
 /*!
- * \brief Visitor class to each node content.
- *  The content is going to be called for each field.
+ * \brief Base class of all references to AST/IR nodes.
  */
-class TVM_DLL AttrVisitor {
+class NodeRef : public ObjectRef {
  public:
-//! \cond Doxygen_Suppress
-  virtual ~AttrVisitor() = default;
-  virtual void Visit(const char* key, double* value) = 0;
-  virtual void Visit(const char* key, int64_t* value) = 0;
-  virtual void Visit(const char* key, uint64_t* value) = 0;
-  virtual void Visit(const char* key, int* value) = 0;
-  virtual void Visit(const char* key, bool* value) = 0;
-  virtual void Visit(const char* key, std::string* value) = 0;
-  virtual void Visit(const char* key, void** value) = 0;
-  virtual void Visit(const char* key, DataType* value) = 0;
-  virtual void Visit(const char* key, NodeRef* value) = 0;
-  virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
-  template<typename ENum,
-           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
-  void Visit(const char* key, ENum* ptr) {
-    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
-                  "declare enum to be enum int to use visitor");
-    this->Visit(key, reinterpret_cast<int*>(ptr));
-  }
-//! \endcond
+  NodeRef() {}
+  explicit NodeRef(ObjectPtr<Object> n) : ObjectRef(n) {}
 };
-
-/*! \brief Reuse the type index in he runtime. */
-using TypeIndex = runtime::TypeIndex;
 
 /*!
- * \brief base class of node container in DSL AST.
+ * \brief Allocate a node object.
+ * \param args arguments to the constructor.
+ * \tparam T the node type.
+ * \return The NodePtr to the allocated object.
+ * \note This function is an alias of make_object.
  */
-class Node : public runtime::Object {
- public:
-  /*! \brief virtual destructor */
-  virtual ~Node() {}
-
-  /*!
-   * \brief Apply visitor to each field of the Node
-   *  Visitor could mutate the content of the node.
-   *  override if Node contains attribute fields.
-   * \param visitor The visitor
-   */
-  virtual void VisitAttrs(AttrVisitor* visitor) {}
-
-  static constexpr const char* _type_key = "Node";
-  static constexpr uint32_t _type_index = TypeIndex::kDynamic;
-
-  TVM_DECLARE_BASE_OBJECT_INFO(Node, runtime::Object);
-};
-
-
-/*!
- * \brief Base class of all node reference object
- *  NodeRef is just a alias of ObjectRef.
- */
-class NodeRef : public runtime::ObjectRef {
- public:
-  /*! \brief type indicate the container type */
-  using ContainerType = Node;
-
-  /*! \return the internal node pointer */
-  const Node* get() const {
-    return static_cast<const Node*>(ObjectRef::get());
-  }
-  /*! \return the internal node pointer */
-  const Node* operator->() const {
-    return get();
-  }
-  /*!
-   * \brief A more powerful version of as that also works with
-   *  intermediate base types.
-   * \tparam T the target type, must be subtype of IRNode
-   */
-  template<typename T>
-  const T *as_derived() const {
-    return as<T>();
-  }
-  /*! \brief default constructor */
-  NodeRef() = default;
-  explicit NodeRef(runtime::ObjectPtr<runtime::Object> ptr) : ObjectRef(ptr) {}
-};
+template<typename T, typename... Args>
+inline NodePtr<T> make_node(Args&&... args) {
+  return runtime::make_object<T>(std::forward<Args>(args)...);
+}
 
 /*!
  * \brief helper macro to declare type information in a base node.
@@ -139,27 +94,67 @@ class NodeRef : public runtime::ObjectRef {
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeName, Parent);
 
 
-using runtime::Object;
-using runtime::ObjectPtr;
-using runtime::ObjectRef;
-using runtime::GetRef;
-using runtime::Downcast;
-using runtime::make_object;
-using runtime::ObjectHash;
-using runtime::ObjectEqual;
-
-using NodeHash = ObjectHash;
-using NodeEqual = ObjectEqual;
+/*!
+ * \brief Macro to define common node ref methods.
+ * \param TypeName The name of the NodeRef.
+ * \param BaseTypeName The Base type.
+ * \param NodeName The node container type.
+ */
+#define TVM_DEFINE_NODE_REF_METHODS(TypeName, BaseTypeName, NodeName)   \
+  TypeName() {}                                                         \
+  explicit TypeName(::tvm::ObjectPtr<::tvm::Object> n)                  \
+      : BaseTypeName(n) {}                                              \
+  const NodeName* operator->() const {                                  \
+    return static_cast<const NodeName*>(data_.get());                   \
+  }                                                                     \
+  operator bool() const { return this->defined(); }                     \
+  using ContainerType = NodeName;
 
 /*!
- * \brief Allocate a node object.
- * \param args arguments to the constructor.
- * \tparam T the node type.
- * \return The NodePtr to the allocated object.
+ * \brief Macro to define CopyOnWrite function in a NodeRef.
+ * \param NodeName The Type of the Node.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWNodeRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
  */
-template<typename T, typename... Args>
-inline NodePtr<T> make_node(Args&&... args) {
-  return runtime::make_object<T>(std::forward<Args>(args)...);
-}
+#define TVM_DEFINE_NODE_REF_COW(NodeName)                               \
+  NodeName* CopyOnWrite() {                                             \
+      CHECK(data_ != nullptr);                                          \
+      if (!data_.unique())  {                                           \
+        NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
+        ObjectPtr<Object>(std::move(n)).swap(data_);                    \
+      }                                                                 \
+      return static_cast<NodeName*>(data_.get());                       \
+    }
+
+/*! \brief Macro to make it easy to define node ref type given node */
+#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                      \
+  class TypeName : public ::tvm::NodeRef {                           \
+   public:                                                           \
+    TVM_DEFINE_NODE_REF_METHODS(TypeName, ::tvm::NodeRef, NodeName); \
+  };                                                                 \
+
+/*!
+ * \brief Macro to make it easy to define node ref type that
+ *  has a CopyOnWrite member function.
+ */
+#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
+  class TypeName : public BaseType {                                    \
+   public:                                                              \
+    TVM_DEFINE_NODE_REF_METHODS(TypeName, BaseType, NodeName);          \
+    TVM_DEFINE_NODE_REF_COW(NodeName);                                  \
+  };
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

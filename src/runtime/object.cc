@@ -73,13 +73,12 @@ class TypeContext {
     return child_tindex == parent_tindex;
   }
 
-  uint32_t GetOrAllocRuntimeTypeIndex(const char* key,
+  uint32_t GetOrAllocRuntimeTypeIndex(const std::string& skey,
                                       uint32_t static_tindex,
                                       uint32_t parent_tindex,
                                       uint32_t num_child_slots,
                                       bool child_slots_can_overflow) {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::string skey = key;
     auto it = type_key2index_.find(skey);
     if (it != type_key2index_.end()) {
       return it->second;
@@ -106,7 +105,7 @@ class TypeContext {
           << "Conflicting static index " << static_tindex
           << " between " << type_table_[allocated_tindex].name
           << " and "
-          << key;
+          << skey;
     } else if (pinfo.allocated_slots + num_slots < pinfo.num_slots) {
       // allocate the slot from parent's reserved pool
       allocated_tindex = parent_tindex + pinfo.allocated_slots;
@@ -152,11 +151,10 @@ class TypeContext {
     return type_table_[tindex].name_hash;
   }
 
-  uint32_t TypeKey2Index(const char* key) {
-    std::string skey = key;
+  uint32_t TypeKey2Index(const std::string& skey) {
     auto it = type_key2index_.find(skey);
     CHECK(it != type_key2index_.end())
-        << "Cannot find type " << key;
+        << "Cannot find type " << skey;
     return it->second;
   }
 
@@ -176,7 +174,7 @@ class TypeContext {
   std::unordered_map<std::string, uint32_t> type_key2index_;
 };
 
-uint32_t Object::GetOrAllocRuntimeTypeIndex(const char* key,
+uint32_t Object::GetOrAllocRuntimeTypeIndex(const std::string& key,
                                             uint32_t static_tindex,
                                             uint32_t parent_tindex,
                                             uint32_t num_child_slots,
@@ -198,7 +196,7 @@ size_t Object::TypeIndex2KeyHash(uint32_t tindex) {
   return TypeContext::Global()->TypeIndex2KeyHash(tindex);
 }
 
-uint32_t Object::TypeKey2Index(const char* key) {
+uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
@@ -210,7 +208,7 @@ class TVMObjectCAPI {
     }
   }
 
-  static uint32_t TypeKey2Index(const char* type_key) {
+  static uint32_t TypeKey2Index(const std::string& type_key) {
     return Object::TypeKey2Index(type_key);
   }
 };

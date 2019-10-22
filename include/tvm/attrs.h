@@ -115,7 +115,7 @@ class AttrFieldInfoNode : public Node {
   /*! \brief detailed description of the type */
   std::string description;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("type_info", &type_info);
     v->Visit("description", &description);
@@ -197,7 +197,7 @@ class AttrsHash {
   size_t operator()(const std::string& value) const {
     return std::hash<std::string>()(value);
   }
-  size_t operator()(const Type& value) const {
+  size_t operator()(const DataType& value) const {
     return std::hash<int>()(
         static_cast<int>(value.code()) |
         (static_cast<int>(value.bits()) << 8) |
@@ -221,6 +221,8 @@ class BaseAttrsNode : public Node {
  public:
   using TVMArgs = runtime::TVMArgs;
   using TVMRetValue = runtime::TVMRetValue;
+  // visit function
+  virtual void VisitAttrs(AttrVisitor* v) {}
   /*!
    * \brief Initialize the attributes by sequence of arguments
    * \param args The postional arguments in the form
@@ -753,12 +755,12 @@ class AttrNonDefaultVisitor {
 template<typename DerivedType>
 class AttrsNode : public BaseAttrsNode {
  public:
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNormalVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
 
-  void VisitNonDefaultAttrs(AttrVisitor* v) final {
+  void VisitNonDefaultAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNonDefaultVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }

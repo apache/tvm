@@ -47,7 +47,7 @@ class IntervalSetNode : public IntSetNode {
   Expr max_value;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("min_value", &min_value);
     v->Visit("max_value", &max_value);
   }

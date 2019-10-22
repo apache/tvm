@@ -119,7 +119,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
   int num_outputs() const final {
     return 1;
   }
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("thread_axis", &thread_axis);

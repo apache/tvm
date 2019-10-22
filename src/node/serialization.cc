@@ -18,50 +18,42 @@
  */
 
 /*!
- * \file reflection.cc
- * \brief Utilities to save/load/construct TVM objects
+ * \file node/serialization.cc
+ * \brief Utilities to serialize TVM AST/IR objects.
  */
-#include <tvm/base.h>
-#include <tvm/expr.h>
-#include <tvm/attrs.h>
-#include <tvm/node/container.h>
-#include <tvm/packed_func_ext.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-#include <string>
-#include "../common/base64.h"
 
-namespace dmlc {
-DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
-}  // namespace dmlc
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/node/container.h>
+#include <tvm/node/reflection.h>
+#include <tvm/node/serialization.h>
+#include <tvm/attrs.h>
+
+#include <string>
+#include <map>
+
+#include "../common/base64.h"
 
 namespace tvm {
 
-::dmlc::Registry<NodeFactoryReg>* NodeFactoryReg::Registry() {
-  return ::dmlc::Registry<NodeFactoryReg>::Get();
-}
-
-inline std::string Type2String(const Type& t) {
+inline std::string Type2String(const DataType& t) {
   return runtime::TVMType2String(Type2TVMType(t));
 }
-
 
 inline Type String2Type(std::string s) {
   return TVMType2Type(runtime::String2TVMType(s));
 }
 
-using runtime::Object;
-using runtime::ObjectRef;
-
 // indexer to index all the nodes
 class NodeIndexer : public AttrVisitor {
  public:
-  std::unordered_map<Object*, size_t> node_index{{nullptr, 0}};
-  std::vector<Object*> node_list{nullptr};
-  std::unordered_map<DLTensor*, size_t> tensor_index;
-  std::vector<DLTensor*> tensor_list;
+  std::unordered_map<Object*, size_t> node_index_{{nullptr, 0}};
+  std::vector<Object*> node_list_{nullptr};
+  std::unordered_map<DLTensor*, size_t> tensor_index_;
+  std::vector<DLTensor*> tensor_list_;
+  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   void Visit(const char* key, double* value) final {}
   void Visit(const char* key, int64_t* value) final {}
@@ -70,17 +62,14 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, bool* value) final {}
   void Visit(const char* key, std::string* value) final {}
   void Visit(const char* key, void** value) final {}
-  void Visit(const char* key, Type* value) final {}
-  void Visit(const char* key, NodeRef* value) final {
-    MakeIndex(const_cast<Node*>(value->get()));
-  }
+  void Visit(const char* key, DataType* value) final {}
 
   void Visit(const char* key, runtime::NDArray* value) final {
     DLTensor* ptr = const_cast<DLTensor*>((*value).operator->());
-    if (tensor_index.count(ptr)) return;
-    CHECK_EQ(tensor_index.size(), tensor_list.size());
-    tensor_index[ptr] = tensor_list.size();
-    tensor_list.push_back(ptr);
+    if (tensor_index_.count(ptr)) return;
+    CHECK_EQ(tensor_index_.size(), tensor_list_.size());
+    tensor_index_[ptr] = tensor_list_.size();
+    tensor_list_.push_back(ptr);
   }
 
   void Visit(const char* key, ObjectRef* value) final {
@@ -88,15 +77,14 @@ class NodeIndexer : public AttrVisitor {
   }
 
   // make index of all the children of node
-  void MakeIndex(Object* ptr) {
-    if (ptr == nullptr) return;
-    CHECK(ptr->IsInstance<Node>());
-    auto* node = static_cast<Node*>(ptr);
+  void MakeIndex(Object* node) {
+    if (node == nullptr) return;
+    CHECK(node->IsInstance<Node>());
 
-    if (node_index.count(node)) return;
-    CHECK_EQ(node_index.size(), node_list.size());
-    node_index[node] = node_list.size();
-    node_list.push_back(node);
+    if (node_index_.count(node)) return;
+    CHECK_EQ(node_index_.size(), node_list_.size());
+    node_index_[node] = node_list_.size();
+    node_list_.push_back(node);
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
@@ -115,7 +103,7 @@ class NodeIndexer : public AttrVisitor {
         MakeIndex(const_cast<Object*>(kv.second.get()));
       }
     } else {
-      static_cast<Node*>(node)->VisitAttrs(this);
+      reflection_->VisitAttrs(node, this);
     }
   }
 };
@@ -123,17 +111,17 @@ class NodeIndexer : public AttrVisitor {
 // use map so attributes are ordered.
 using AttrMap = std::map<std::string, std::string>;
 
-// A Node structure for JSON node.
+/*! \brief Node structure for json format. */
 struct JSONNode {
-  // The type key of the data
+  /*! \brief The type of key of the object. */
   std::string type_key;
-  // The global key for global object
+  /*! \brief The global key for global object. */
   std::string global_key;
-  // the attributes
+  /*! \brief the attributes */
   AttrMap attrs;
-  // container keys
+  /*! \brief keys of a map. */
   std::vector<std::string> keys;
-  // container data
+  /*! \brief values of a map or array. */
   std::vector<size_t> data;
 
   void Save(dmlc::JSONWriter *writer) const {
@@ -169,11 +157,14 @@ struct JSONNode {
   }
 };
 
+// Helper class to populate the json node
+// using the existing index.
 class JSONAttrGetter : public AttrVisitor {
  public:
   const std::unordered_map<Object*, size_t>* node_index_;
   const std::unordered_map<DLTensor*, size_t>* tensor_index_;
   JSONNode* node_;
+  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   void Visit(const char* key, double* value) final {
     node_->attrs[key] = std::to_string(*value);
@@ -196,40 +187,36 @@ class JSONAttrGetter : public AttrVisitor {
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
-  void Visit(const char* key, Type* value) final {
+  void Visit(const char* key, DataType* value) final {
     node_->attrs[key] = Type2String(*value);
   }
-  void Visit(const char* key, NodeRef* value) final {
-    node_->attrs[key] = std::to_string(
-        node_index_->at(const_cast<Node*>(value->get())));
-  }
+
   void Visit(const char* key, runtime::NDArray* value) final {
     node_->attrs[key] = std::to_string(
         tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
   }
+
   void Visit(const char* key, ObjectRef* value) final {
-    LOG(FATAL) << "Do not support json serialize non-node object";
+    node_->attrs[key] = std::to_string(
+        node_index_->at(const_cast<Object*>(value->get())));
   }
+
   // Get the node
-  void Get(Object* ptr) {
-    if (ptr == nullptr) {
+  void Get(Object* node) {
+    if (node == nullptr) {
       node_->type_key.clear();
       return;
     }
-    CHECK(ptr->IsInstance<Node>());
-    auto* node = static_cast<Node*>(ptr);
     node_->type_key = node->GetTypeKey();
+    node_->global_key = reflection_->GetGlobalKey(node);
+    // No need to recursively visit fields of global singleton
+    // They are registered via the environment.
+    if (node_->global_key.length() != 0) return;
 
-    // sepcially handle global object
-    auto* f = dmlc::Registry<NodeFactoryReg>::Find(node_->type_key);
-    CHECK(f != nullptr)
-        << "Node type \'" << node_->type_key << "\' is not registered in TVM";
-    if (f->fglobal_key != nullptr) {
-      node_->global_key = f->fglobal_key(node);
-      return;
-    }
+    // populates the fields.
     node_->attrs.clear();
     node_->data.clear();
+
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
       for (size_t i = 0; i < n->data.size(); ++i) {
@@ -252,22 +239,21 @@ class JSONAttrGetter : public AttrVisitor {
             node_index_->at(const_cast<Object*>(kv.second.get())));
       }
     } else {
-      // do not need to recover content of global singleton object
-      // they are registered via the environment
-      auto* f = dmlc::Registry<NodeFactoryReg>::Find(node->GetTypeKey());
-      if (f != nullptr && f->fglobal_key != nullptr) return;
       // recursively index normal object.
-      node->VisitAttrs(this);
+      reflection_->VisitAttrs(node, this);
     }
   }
 };
 
+// Helper class to set the attributes of a node
+// from given json node.
 class JSONAttrSetter : public AttrVisitor {
  public:
   const std::vector<ObjectPtr<Object> >* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
-
   JSONNode* node_;
+
+  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   std::string GetValue(const char* key) const {
     auto it = node_->attrs.find(key);
@@ -305,15 +291,9 @@ class JSONAttrSetter : public AttrVisitor {
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to deserialize a pointer";
   }
-  void Visit(const char* key, Type* value) final {
+  void Visit(const char* key, DataType* value) final {
     std::string stype = GetValue(key);
     *value = String2Type(stype);
-  }
-  void Visit(const char* key, NodeRef* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    CHECK_LE(index, node_list_->size());
-    *value = NodeRef(node_list_->at(index));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     size_t index;
@@ -322,14 +302,15 @@ class JSONAttrSetter : public AttrVisitor {
     *value = tensor_list_->at(index);
   }
   void Visit(const char* key, ObjectRef* value) final {
-    LOG(FATAL) << "Do not support json serialize non-node object";
+    size_t index;
+    ParseValue(key, &index);
+    CHECK_LE(index, node_list_->size());
+    *value = ObjectRef(node_list_->at(index));
   }
   // set node to be current JSONNode
-  void Set(Object* ptr) {
-    if (ptr == nullptr) return;
+  void Set(Object* node) {
+    if (node == nullptr) return;
 
-    CHECK(ptr->IsInstance<Node>());
-    auto* node = static_cast<Node*>(ptr);
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
       n->data.clear();
@@ -351,7 +332,7 @@ class JSONAttrSetter : public AttrVisitor {
             = ObjectRef(node_list_->at(node_->data[i]));
       }
     } else {
-      node->VisitAttrs(this);
+      reflection_->VisitAttrs(node, this);
     }
   }
 };
@@ -393,18 +374,18 @@ struct JSONGraph {
     NodeIndexer indexer;
     indexer.MakeIndex(const_cast<Object*>(root.get()));
     JSONAttrGetter getter;
-    getter.node_index_ = &indexer.node_index;
-    getter.tensor_index_ = &indexer.tensor_index;
-    for (Object* n : indexer.node_list) {
+    getter.node_index_ = &indexer.node_index_;
+    getter.tensor_index_ = &indexer.tensor_index_;
+    for (Object* n : indexer.node_list_) {
       JSONNode jnode;
       getter.node_ = &jnode;
       getter.Get(n);
       g.nodes.emplace_back(std::move(jnode));
     }
     g.attrs["tvm_version"] = TVM_VERSION;
-    g.root = indexer.node_index.at(const_cast<Object*>(root.get()));
+    g.root = indexer.node_index_.at(const_cast<Object*>(root.get()));
     // serialize tensor
-    for (DLTensor* tensor : indexer.tensor_list) {
+    for (DLTensor* tensor : indexer.tensor_list_) {
       std::string blob;
       dmlc::MemoryStringStream mstrm(&blob);
       common::Base64OutStream b64strm(&mstrm);
@@ -416,7 +397,7 @@ struct JSONGraph {
   }
 };
 
-std::string SaveJSON(const NodeRef& n) {
+std::string SaveJSON(const ObjectRef& n) {
   auto jgraph = JSONGraph::Create(n);
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
@@ -424,8 +405,7 @@ std::string SaveJSON(const NodeRef& n) {
   return os.str();
 }
 
-ObjectPtr<Object> LoadJSON_(std::string json_str) {
-  LOG(INFO) << json_str;
+ObjectRef LoadJSON(std::string json_str) {
   std::istringstream is(json_str);
   dmlc::JSONReader reader(&is);
   JSONGraph jgraph;
@@ -442,16 +422,18 @@ ObjectPtr<Object> LoadJSON_(std::string json_str) {
     CHECK(temp.Load(&b64strm));
     tensors.emplace_back(temp);
   }
+  ReflectionVTable* reflection = ReflectionVTable::Global();
+
   // node 0 is always null
   nodes.reserve(jgraph.nodes.size());
+
   for (const JSONNode& jnode : jgraph.nodes) {
     if (jnode.type_key.length() != 0) {
-      auto* f = dmlc::Registry<NodeFactoryReg>::Find(jnode.type_key);
-      CHECK(f != nullptr)
-          << "Node type \'" << jnode.type_key << "\' is not registered in TVM";
-      nodes.emplace_back(f->fcreator(jnode.global_key));
+      ObjectPtr<Object> node =
+          reflection->CreateInitObject(jnode.type_key, jnode.global_key);
+      nodes.emplace_back(node);
     } else {
-      nodes.emplace_back(NodePtr<Node>());
+      nodes.emplace_back(ObjectPtr<Object>());
     }
   }
   CHECK_EQ(nodes.size(), jgraph.nodes.size());
@@ -467,101 +449,6 @@ ObjectPtr<Object> LoadJSON_(std::string json_str) {
       setter.Set(nodes[i].get());
     }
   }
-  return nodes.at(jgraph.root);
+  return ObjectRef(nodes.at(jgraph.root));
 }
-
-class NodeAttrSetter : public AttrVisitor {
- public:
-  std::string type_key;
-  std::unordered_map<std::string, runtime::TVMArgValue> attrs;
-
-  void Visit(const char* key, double* value) final {
-    *value = GetAttr(key).operator double();
-  }
-  void Visit(const char* key, int64_t* value) final {
-    *value = GetAttr(key).operator int64_t();
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    *value = GetAttr(key).operator uint64_t();
-  }
-  void Visit(const char* key, int* value) final {
-    *value = GetAttr(key).operator int();
-  }
-  void Visit(const char* key, bool* value) final {
-    *value = GetAttr(key).operator bool();
-  }
-  void Visit(const char* key, std::string* value) final {
-    *value = GetAttr(key).operator std::string();
-  }
-  void Visit(const char* key, void** value) final {
-    *value = GetAttr(key).operator void*();
-  }
-  void Visit(const char* key, Type* value) final {
-    *value = GetAttr(key).operator Type();
-  }
-  void Visit(const char* key, NodeRef* value) final {
-    *value = GetAttr(key).operator NodeRef();
-  }
-  void Visit(const char* key, runtime::NDArray* value) final {
-    *value = GetAttr(key).operator runtime::NDArray();
-  }
-  void Visit(const char* key, ObjectRef* value) final {
-    *value = GetAttr(key).operator ObjectRef();
-  }
-
- private:
-  runtime::TVMArgValue GetAttr(const char* key) {
-    auto it = attrs.find(key);
-    if (it == attrs.end()) {
-      LOG(FATAL) << type_key << ": require field " << key;
-    }
-    runtime::TVMArgValue v = it->second;
-    attrs.erase(it);
-    return v;
-  }
-};
-
-
-void InitNodeByPackedArgs(Node* n, const TVMArgs& args) {
-  NodeAttrSetter setter;
-  setter.type_key = n->GetTypeKey();
-  CHECK_EQ(args.size() % 2, 0);
-  for (int i = 0; i < args.size(); i += 2) {
-    setter.attrs.emplace(args[i].operator std::string(),
-                         args[i + 1]);
-  }
-  n->VisitAttrs(&setter);
-  if (setter.attrs.size() != 0) {
-    std::ostringstream os;
-    os << setter.type_key << " does not contain field ";
-    for (const auto &kv : setter.attrs) {
-      os << " " << kv.first;
-    }
-    LOG(FATAL) << os.str();
-  }
-}
-
-// API function to make node.
-// args format:
-//   key1, value1, ..., key_n, value_n
-void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
-  std::string type_key = args[0];
-  std::string empty_str;
-  auto* f = dmlc::Registry<NodeFactoryReg>::Find(type_key);
-  CHECK(f != nullptr)
-      << "Node type \'" << type_key << "\' is not registered in TVM";
-  TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
-  CHECK(f->fglobal_key == nullptr)
-      << "Cannot make node type \'" << type_key << "\' with global_key.";
-  NodePtr<Node> n = f->fcreator(empty_str);
-  if (n->IsInstance<BaseAttrsNode>()) {
-    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
-  } else {
-    InitNodeByPackedArgs(n.get(), kwargs);
-  }
-  *rv = NodeRef(n);
-}
-
-TVM_REGISTER_GLOBAL("make._Node")
-.set_body(MakeNode);
 }  // namespace tvm

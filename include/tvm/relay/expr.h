@@ -95,7 +95,7 @@ class ConstantNode : public ExprNode {
     return data->ndim == 0;
   }
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -117,7 +117,7 @@ class TupleNode : public ExprNode {
   /*! \brief the fields of the tuple */
   tvm::Array<relay::Expr> fields;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -165,7 +165,7 @@ class VarNode : public ExprNode {
     return vid->name_hint;
   }
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
@@ -197,7 +197,7 @@ class GlobalVarNode : public ExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   std::string name_hint;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -243,7 +243,7 @@ class FunctionNode : public ExprNode {
    */
   tvm::Attrs attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
@@ -327,7 +327,7 @@ class CallNode : public ExprNode {
    */
   tvm::Array<Type> type_args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
@@ -369,7 +369,7 @@ class LetNode : public ExprNode {
   /*! \brief The body of the let binding */
   Expr body;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -407,7 +407,7 @@ class IfNode : public ExprNode {
   /*! \brief The expression evaluated when condition is false */
   Expr false_branch;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
@@ -432,7 +432,7 @@ class TupleGetItemNode : public ExprNode {
   /*! \brief which value to get */
   int index;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
     v->Visit("span", &span);
@@ -454,7 +454,7 @@ class RefCreateNode : public ExprNode {
   /*! \brief The initial value of the Reference. */
   Expr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -475,7 +475,7 @@ class RefReadNode : public ExprNode {
   /*! \brief The Reference Expression. */
   Expr ref;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -498,7 +498,7 @@ class RefWriteNode : public ExprNode {
   /*! \brief The value to write into. */
   Expr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
     v->Visit("span", &span);

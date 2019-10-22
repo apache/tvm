@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file quantize.cc
  *
  * \brief transform a graph to a low-bit graph

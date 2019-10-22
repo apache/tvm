@@ -54,7 +54,7 @@ struct ChannelNode : public Node {
   /*! \brief default data type in read/write */
   Type dtype;
   // visit all attributes
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("handle_var", &handle_var);
     v->Visit("dtype", &dtype);
   }
