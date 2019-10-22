@@ -986,6 +986,12 @@ class Tile(Elemwise):
         reps = attr.pop('repeats')  # The number of times repeating the tensor data.
         return _op.tile(inputs[0], reps)
 
+    @classmethod
+    def _impl_v6(cls, inputs, attr, params):
+        reps = tuple(infer_value_simulated(
+            inputs[1], params).asnumpy().astype('int32'))
+        return _op.tile(inputs[0], reps)
+
 class Erf(OnnxOpConverter):
     """Operator converter for Erf
     """
@@ -1273,6 +1279,8 @@ class GraphProto(object):
         if outputs is None:
             outputs = [
                 self._nodes[self._parse_value_proto(i)] for i in graph.output]
+        else:
+            outputs = [self._nodes[i] for i in outputs]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
         func = _expr.Function(analysis.free_vars(outputs), outputs)
         return _module.Module.from_expr(func), self._params

@@ -305,7 +305,7 @@ def test_gather():
     verify_gather((4, 3, 5, 6), [[2, 1, 0, 0]], 0, 'float32')
 
 
-def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
+def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
     if axes:
         y = helper.make_node(
             "Slice", ['in'], ['out'], axes=axes, starts=starts, ends=ends)
@@ -331,10 +331,10 @@ def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
 
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
-    _test_slice_iteration(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
-    _test_slice_iteration(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
-    _test_slice_iteration(x, x[:, 1:1000], (1), (1000), (1))
-    _test_slice_iteration(x, x[:, 0:-1], (0), (-1), (1))
+    _test_slice_iteration_v1(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
+    _test_slice_iteration_v1(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
+    _test_slice_iteration_v1(x, x[:, 1:1000], (1), (1000), (1))
+    _test_slice_iteration_v1(x, x[:, 0:-1], (0), (-1), (1))
 
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
@@ -1370,7 +1370,7 @@ def test_and():
     verify_and(indata=[x, y], dtype=bool)
 
 
-def verify_tile(indata, outdata, **kwargs):
+def verify_tile_v1(indata, outdata, **kwargs):
     node = helper.make_node('Tile', inputs=['in'], outputs=['out'], **kwargs)
     graph = helper.make_graph([node],
                               'tile_test',
@@ -1381,7 +1381,7 @@ def verify_tile(indata, outdata, **kwargs):
     model = helper.make_model(graph, producer_name='tile_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
+        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape, opset=1)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
@@ -1390,7 +1390,7 @@ def test_tile():
     repeats = np.random.randint(
         low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
     z = np.tile(x, repeats)
-    verify_tile(x, z, repeats=repeats)
+    verify_tile_v1(x, z, repeats=repeats)
 
 
 def verify_erf(indata, outdata):
