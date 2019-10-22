@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import attr
 import numpy as np
 import math
 import torch
@@ -27,8 +26,8 @@ from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto
-import unittest
 import scipy
+
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32', opset=None):
     """ Generic function to execute and get tvm output"""
@@ -53,14 +52,15 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
                                          params=params)
 
     ctx = tvm.cpu(0)
-    from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_names):
-            m.set_input(input_names[i], tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
+            m.set_input(input_names[i], tvm.nd.array(
+                input_data[i].astype(input_data[i].dtype)))
     else:
-        m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))
+        m.set_input(input_names, tvm.nd.array(
+            input_data.astype(input_data.dtype)))
 
     m.set_input(**params)
     # execute
@@ -76,11 +76,11 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         tvm_output = m.get_output(0)
         return tvm_output.asnumpy()
 
-def get_caffe2_output(model, x, dtype='float32'):
-    import caffe2.python.onnx.backend
-    prepared_backend = caffe2.python.onnx.backend.prepare(model)
-    W = {model.graph.input[0].name: x.astype(dtype)}
-    c2_out = prepared_backend.run(W)[0]
+
+def get_onnx_output(model, x, dtype='float32'):
+    import onnxruntime.backend as backend
+    prepared_backend = backend.prepare(model)
+    c2_out = prepared_backend.run(x.astype(dtype))[0]
     return c2_out
 
 
@@ -88,19 +88,24 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     dtype = 'float32'
     x = np.random.uniform(size=data_shape)
     model = onnx.load_model(graph_file)
-    c2_out = get_caffe2_output(model, x, dtype)
+    c2_out = get_onnx_output(model, x, dtype)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def verify_super_resolution_example():
-    verify_onnx_forward_impl(super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
+    verify_onnx_forward_impl(
+        super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
+
 
 def verify_squeezenet1_1():
     verify_onnx_forward_impl(squeezenet1_1, (1, 3, 224, 224), (1, 1000))
 
+
 def verify_lenet():
     verify_onnx_forward_impl(lenet, (1, 1, 28, 28), (1, 10))
+
 
 def verify_resnet18():
     verify_onnx_forward_impl(resnet18_1_0, (1, 3, 224, 224), (1, 1000))
@@ -112,20 +117,20 @@ def test_reshape():
 
     ref_array = np.array(ref_shape)
     ref_node = onnx.helper.make_node('Constant',
-                                 inputs=[],
-                                 outputs=['ref_in'],
-                                 value=onnx.helper.make_tensor(name = 'const_tensor',
-                                                               data_type = onnx.TensorProto.INT32,
-                                                               dims = ref_array.shape,
-                                                               vals = ref_array.flatten().astype(int)))
+                                     inputs=[],
+                                     outputs=['ref_in'],
+                                     value=onnx.helper.make_tensor(name='const_tensor',
+                                                                   data_type=onnx.TensorProto.INT32,
+                                                                   dims=ref_array.shape,
+                                                                   vals=ref_array.flatten().astype(int)))
     reshape_node = helper.make_node("Reshape", ["in", "ref_in"], ["out"])
 
     graph = helper.make_graph([ref_node, reshape_node],
                               "reshape_test",
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(ref_shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(ref_shape))])
 
     model = helper.make_model(graph, producer_name='reshape_test')
 
@@ -135,28 +140,29 @@ def test_reshape():
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
+
 def test_shape():
     in_shape = (4, 3, 3, 4)
     ref_shape = (6, 2, 4, 3)
 
     ref_array = np.array(ref_shape)
     ref_node = onnx.helper.make_node('Constant',
-                                 inputs=[],
-                                 outputs=['ref_in'],
-                                 value=onnx.helper.make_tensor(name = 'const_tensor',
-                                                               data_type = onnx.TensorProto.INT32,
-                                                               dims = ref_array.shape,
-                                                               vals = ref_array.flatten().astype(int)))
+                                     inputs=[],
+                                     outputs=['ref_in'],
+                                     value=onnx.helper.make_tensor(name='const_tensor',
+                                                                   data_type=onnx.TensorProto.INT32,
+                                                                   dims=ref_array.shape,
+                                                                   vals=ref_array.flatten().astype(int)))
     reshape_node = helper.make_node("Reshape", ["in", "ref_in"], ["out"])
 
     shape_node = helper.make_node("Shape", ['out'], ['final_out'])
 
     graph = helper.make_graph([ref_node, reshape_node, shape_node],
                               "shape_test",
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("final_out",
-                                            TensorProto.FLOAT, list(ref_shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("final_out",
+                                                                     TensorProto.FLOAT, list(ref_shape))])
 
     model = helper.make_model(graph, producer_name='shape_test')
 
@@ -165,6 +171,7 @@ def test_shape():
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'int32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out)
+
 
 def _test_power_iteration(x_shape, y_shape):
     if isinstance(y_shape, int):
@@ -179,12 +186,12 @@ def _test_power_iteration(x_shape, y_shape):
 
     graph = helper.make_graph([res],
                               'power_test',
-                              inputs = [helper.make_tensor_value_info("x",
-                                            TensorProto.FLOAT, list(x_shape)),
-                                        helper.make_tensor_value_info("y",
-                                            TensorProto.FLOAT, list(y_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(np_res.shape))])
+                              inputs=[helper.make_tensor_value_info("x",
+                                                                    TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("y",
+                                                                    TensorProto.FLOAT, list(y_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(np_res.shape))])
 
     model = helper.make_model(graph, producer_name='power_test')
 
@@ -192,10 +199,12 @@ def _test_power_iteration(x_shape, y_shape):
         tvm_out = get_tvm_output(model, [x, y], target, ctx, np_res.shape)
         tvm.testing.assert_allclose(np_res, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def test_power():
     _test_power_iteration((1, 3), (1))
     _test_power_iteration((2, 3), (2, 3))
     _test_power_iteration((2, 3), (1, 3))
+
 
 def test_squeeze():
     in_shape = (1, 3, 1, 3, 1, 1)
@@ -204,10 +213,10 @@ def test_squeeze():
 
     graph = helper.make_graph([y],
                               'squeeze_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(out_shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_shape))])
 
     model = helper.make_model(graph, producer_name='squeeze_test')
 
@@ -217,20 +226,21 @@ def test_squeeze():
 
     tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
+
 def test_flatten():
 
     in_shape = (1, 3, 4, 4)
     axis = 1
     ref_shape = (1, 48)
 
-    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis = axis)
+    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
 
     graph = helper.make_graph([flatten_node],
                               "flatten_test",
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(ref_shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(ref_shape))])
 
     model = helper.make_model(graph, producer_name='flatten_test')
 
@@ -240,6 +250,7 @@ def test_flatten():
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
+
 def test_unsqueeze():
     in_shape = (3, 3)
     axis = (0, 3, 4)
@@ -248,10 +259,10 @@ def test_unsqueeze():
 
     graph = helper.make_graph([y],
                               'squeeze_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(out_shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_shape))])
 
     model = helper.make_model(graph, producer_name='squeeze_test')
 
@@ -260,6 +271,7 @@ def test_unsqueeze():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
 
     tvm.testing.assert_allclose(out_shape, tvm_out.shape)
+
 
 def verify_gather(in_shape, indices, axis, dtype):
     x = np.random.uniform(size=in_shape).astype(dtype)
@@ -270,38 +282,43 @@ def verify_gather(in_shape, indices, axis, dtype):
 
     graph = helper.make_graph([y],
                               'gather_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(in_shape)),
-                                        helper.make_tensor_value_info("indices",
-                                            TensorProto.INT32, list(indices.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(out_np.shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape)),
+                                      helper.make_tensor_value_info("indices",
+                                                                    TensorProto.INT32, list(indices.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_np.shape))])
     model = helper.make_model(graph, producer_name='gather_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [x, indices], target, ctx, out_np.shape)
+        tvm_out = get_tvm_output(
+            model, [x, indices], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out)
+
 
 def test_gather():
     verify_gather((4,), [1], 0, 'int32')
-    verify_gather((1,4), [0], 0, 'int32')
-    verify_gather((4,), [[[1,0],[0,1]]], 0, 'float32')
-    verify_gather((2,2), [[[1,0],[0,1]]], 1, 'int32')
-    verify_gather((3,3,3), [[[1,0]]], -1, 'int32')
-    verify_gather((4,3,5,6), [[2,1,0,0]], 0, 'float32')
+    verify_gather((1, 4), [0], 0, 'int32')
+    verify_gather((4,), [[[1, 0], [0, 1]]], 0, 'float32')
+    verify_gather((2, 2), [[[1, 0], [0, 1]]], 1, 'int32')
+    verify_gather((3, 3, 3), [[[1, 0]]], -1, 'int32')
+    verify_gather((4, 3, 5, 6), [[2, 1, 0, 0]], 0, 'float32')
+
 
 def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
     if axes:
-        y = helper.make_node("Slice", ['in'], ['out'], axes=axes, starts=starts, ends=ends)
+        y = helper.make_node(
+            "Slice", ['in'], ['out'], axes=axes, starts=starts, ends=ends)
     else:
-        y = helper.make_node("Slice", ['in'], ['out'], starts=starts, ends=ends)
+        y = helper.make_node(
+            "Slice", ['in'], ['out'], starts=starts, ends=ends)
 
     graph = helper.make_graph([y],
                               'slice_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(outdata.shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(outdata.shape))])
 
     model = helper.make_model(graph, producer_name='slice_test')
 
@@ -311,12 +328,14 @@ def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
+
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
     _test_slice_iteration(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
     _test_slice_iteration(x, x[:, 1:1000], (1), (1000), (1))
     _test_slice_iteration(x, x[:, 0:-1], (0), (-1), (1))
+
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
@@ -326,23 +345,28 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
 
     graph = helper.make_graph([y],
                               opname+'_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(outdata.shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(outdata.shape))])
 
     model = helper.make_model(graph, producer_name=opname+'_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outdata.shape, dtype)
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
+
 def test_floor():
-    _test_onnx_op_elementwise((2, 4, 5, 6), np.floor, {}, 'float32', 'Floor', {})
+    _test_onnx_op_elementwise((2, 4, 5, 6), np.floor,
+                              {}, 'float32', 'Floor', {})
+
 
 def test_ceil():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.ceil, {}, 'float32', 'Ceil', {})
+
 
 def test_clip():
     _test_onnx_op_elementwise((2, 4, 5, 6),
@@ -351,6 +375,7 @@ def test_clip():
                               'float32',
                               'Clip',
                               {'min': -1.0, 'max': 1.0})
+
 
 def test_matmul():
     a_shape = (4, 3)
@@ -364,52 +389,57 @@ def test_matmul():
 
     graph = helper.make_graph([mul_node],
                               "matmul_test",
-                              inputs = [helper.make_tensor_value_info("a",
-                                            TensorProto.FLOAT, list(a_shape)),
-                                        helper.make_tensor_value_info("b",
-                                            TensorProto.FLOAT, list(b_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(out_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a",
+                                                                    TensorProto.FLOAT, list(a_shape)),
+                                      helper.make_tensor_value_info("b",
+                                                                    TensorProto.FLOAT, list(b_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_np.shape))])
 
     model = helper.make_model(graph, producer_name='matmul_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_array, b_array], target, ctx, out_np.shape)
+        tvm_out = get_tvm_output(
+            model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
 
-    if alpha == None and beta == None and bias==None:
+    if alpha == None and beta == None and bias == None:
         alpha = 0.0001
         beta = 0.75
         bias = 1.0
-        node = onnx.helper.make_node('LRN', inputs=['in'], outputs=['out'], size=nsize)
+        node = onnx.helper.make_node(
+            'LRN', inputs=['in'], outputs=['out'], size=nsize)
     else:
         node = onnx.helper.make_node('LRN', inputs=['in'], outputs=['out'], alpha=alpha,
                                      beta=beta, bias=bias, size=nsize)
 
     graph = helper.make_graph([node],
                               "lrn_test",
-                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(shape))],
-                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(shape))])
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(shape))])
     model = helper.make_model(graph, producer_name='lrn_test')
 
     def _get_python_lrn():
         square_sum = np.zeros(shape).astype(dtype)
         for n, c, h, w in np.ndindex(in_array.shape):
             square_sum[n, c, h, w] = sum(in_array[n,
-                                         max(0, c - int(math.floor((nsize - 1) / 2))): \
-                                             min(5, c + int(math.ceil((nsize - 1) / 2)) + 1),
-                                         h,
-                                         w] ** 2)
+                                                  max(0, c - int(math.floor((nsize - 1) / 2))):
+                                                  min(5, c + int(math.ceil((nsize - 1) / 2)) + 1),
+                                                  h,
+                                                  w] ** 2)
         py_out = in_array / ((bias + (alpha / nsize) * square_sum) ** beta)
         return py_out
 
     for target, ctx in ctx_list():
         input_name = model.graph.input[0].name
         py_out = _get_python_lrn()
-        tvm_out = get_tvm_output(model, in_array, target, ctx, py_out.shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, py_out.shape, 'float32')
         tvm.testing.assert_allclose(py_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -437,20 +467,22 @@ def verify_instance_norm(shape, axis=1):
     y = _get_python_instance_norm(x, gamma, beta, epsilon).astype(np.float32)
 
     node = onnx.helper.make_node(
-            'InstanceNormalization',
-            inputs=['x', 'gamma', 'beta'],
-            outputs=['y'],
-            epsilon=epsilon,
-        )
+        'InstanceNormalization',
+        inputs=['x', 'gamma', 'beta'],
+        outputs=['y'],
+        epsilon=epsilon,
+    )
     graph = helper.make_graph([node],
                               "instance_norm_test",
                               inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(shape)),
-                                      helper.make_tensor_value_info("gamma", TensorProto.FLOAT, (shape[1],)),
+                                      helper.make_tensor_value_info(
+                                          "gamma", TensorProto.FLOAT, (shape[1],)),
                                       helper.make_tensor_value_info("beta", TensorProto.FLOAT, (shape[1],))],
                               outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(shape))])
     model = helper.make_model(graph, producer_name='instance_norm_test')
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [x, gamma, beta], target, ctx, shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, [x, gamma, beta], target, ctx, shape, 'float32')
         tvm.testing.assert_allclose(y, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -465,75 +497,91 @@ def _test_upsample_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
-    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
+    y = helper.make_node("Upsample", ['in'], [
+                         'out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.upsampling_python(in_array, (scale, scale), "NCHW")
+    out_array = topi.testing.upsampling_python(
+        in_array, (scale, scale), "NCHW")
 
     graph = helper.make_graph([y],
                               'upsample_nearest_test',
-                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
 
     model = helper.make_model(graph, producer_name='upsample_nearest_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out)
+
 
 def _test_upsample_bilinear():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
-    y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
+    y = helper.make_node("Upsample", ['in'], [
+                         'out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+    out_array = topi.testing.bilinear_resize_python(
+        in_array, (3*scale, 3*scale), "NCHW")
 
     graph = helper.make_graph([y],
                               'upsample_bilinear_test',
-                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
 
     model = helper.make_model(graph, producer_name='upsample_bilinear_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def _test_upsample_bilinear_opset9():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
-    y = helper.make_node("Upsample", ['in','scales'], ['out'], mode='linear')
-    scales=[1.0, 1.0, 2.0, 2.0]
+    y = helper.make_node("Upsample", ['in', 'scales'], ['out'], mode='linear')
+    scales = [1.0, 1.0, 2.0, 2.0]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+    out_array = topi.testing.bilinear_resize_python(
+        in_array, (3*scale, 3*scale), "NCHW")
 
     ref_array = np.array(scales)
     ref_node = helper.make_node('Constant',
-                                 inputs=[],
-                                 outputs=['scales'],
-                                 value=onnx.helper.make_tensor(name = 'const_tensor',
-                                                               data_type = TensorProto.FLOAT,
-                                                               dims = ref_array.shape,
-                                                               vals = ref_array.flatten().astype(float)))
+                                inputs=[],
+                                outputs=['scales'],
+                                value=onnx.helper.make_tensor(name='const_tensor',
+                                                              data_type=TensorProto.FLOAT,
+                                                              dims=ref_array.shape,
+                                                              vals=ref_array.flatten().astype(float)))
 
     graph = helper.make_graph([ref_node, y],
                               'upsample_bilinear_opset9_test',
-                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
 
-    model = helper.make_model(graph, producer_name='upsample_bilinear_opset9_test')
+    model = helper.make_model(
+        graph, producer_name='upsample_bilinear_opset9_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
     _test_upsample_bilinear_opset9()
+
 
 def _test_softmax(inshape, axis):
     opname = 'Softmax'
@@ -541,26 +589,29 @@ def _test_softmax(inshape, axis):
     outshape = inshape
     outdata = topi.testing.softmax_python(indata)
     if isinstance(axis, int):
-        y = helper.make_node(opname, ['in'], ['out'], axis = axis)
+        y = helper.make_node(opname, ['in'], ['out'], axis=axis)
     elif axis is None:
         y = helper.make_node(opname, ['in'], ['out'])
 
     graph = helper.make_graph([y],
                               opname+'_test',
-                              inputs = [helper.make_tensor_value_info("in",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(outdata.shape))])
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(outdata.shape))])
 
     model = helper.make_model(graph, producer_name=opname+'_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outshape, 'float32')
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outshape, 'float32')
         tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_softmax():
     _test_softmax((1, 10), None)
     _test_softmax((1, 10), 1)
+
 
 def verify_min(input_dim):
     dtype = 'float32'
@@ -575,24 +626,27 @@ def verify_min(input_dim):
 
     graph = helper.make_graph([min_node],
                               "Min_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np2",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np3",
-                                            TensorProto.FLOAT, list(input_dim))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np2",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np3",
+                                                                    TensorProto.FLOAT, list(input_dim))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='Min_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
+        tvm_out = get_tvm_output(
+            model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_forward_min():
     verify_min((1, 3, 20, 20))
     verify_min((20, 20))
+
 
 def verify_max(input_dim):
     dtype = 'float32'
@@ -607,24 +661,27 @@ def verify_max(input_dim):
 
     graph = helper.make_graph([max_node],
                               "Max_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np2",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np3",
-                                            TensorProto.FLOAT, list(input_dim))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np2",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np3",
+                                                                    TensorProto.FLOAT, list(input_dim))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='Max_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
+        tvm_out = get_tvm_output(
+            model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_forward_max():
     verify_max((1, 3, 20, 20))
     verify_max((20, 20))
+
 
 def verify_mean(input_dim):
     dtype = 'float32'
@@ -639,24 +696,27 @@ def verify_mean(input_dim):
 
     graph = helper.make_graph([mean_node],
                               "Mean_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np2",
-                                            TensorProto.FLOAT, list(input_dim)),
-                                        helper.make_tensor_value_info("a_np3",
-                                            TensorProto.FLOAT, list(input_dim))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np2",
+                                                                    TensorProto.FLOAT, list(input_dim)),
+                                      helper.make_tensor_value_info("a_np3",
+                                                                    TensorProto.FLOAT, list(input_dim))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='Mean_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
+        tvm_out = get_tvm_output(
+            model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_forward_mean():
     verify_mean((1, 3, 20, 20))
     verify_mean((20, 20))
+
 
 def verify_hardsigmoid(input_dim, alpha, beta):
     dtype = 'float32'
@@ -665,14 +725,15 @@ def verify_hardsigmoid(input_dim, alpha, beta):
 
     b_np = np.clip(a_np1 * alpha + beta, 0, 1)
 
-    hardsigmoid_node = helper.make_node("HardSigmoid", ["a_np1"], ["out"], alpha=alpha, beta=beta)
+    hardsigmoid_node = helper.make_node("HardSigmoid", ["a_np1"], [
+                                        "out"], alpha=alpha, beta=beta)
 
     graph = helper.make_graph([hardsigmoid_node],
                               "HardSigmoid_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.FLOAT, list(input_dim))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.FLOAT, list(input_dim))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='HardSigmoid_test')
 
@@ -680,9 +741,11 @@ def verify_hardsigmoid(input_dim, alpha, beta):
         tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def test_forward_hardsigmoid():
     verify_hardsigmoid((1, 3, 20, 20), 0.5, 0.6)
     verify_hardsigmoid((20, 20), 0.3, 0.4)
+
 
 def verify_argmin(input_dim, axis=None, keepdims=None):
     def _argmin_numpy(data, axis=0, keepdims=True):
@@ -718,16 +781,18 @@ def verify_argmin(input_dim, axis=None, keepdims=None):
                                      keepdims=keepdims)
     graph = helper.make_graph([node],
                               "argmin_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.INT32, list(a_np1.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.INT32, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.INT32, list(a_np1.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.INT32, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='argmin_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
+        tvm_out = get_tvm_output(
+            model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def verify_argmax(input_dim, axis=None, keepdims=None):
     def _argmax_numpy(data, axis=0, keepdims=True):
@@ -764,29 +829,32 @@ def verify_argmax(input_dim, axis=None, keepdims=None):
 
     graph = helper.make_graph([node],
                               "argmax_test",
-                              inputs = [helper.make_tensor_value_info("a_np1",
-                                            TensorProto.INT32, list(a_np1.shape))],
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.INT32, list(b_np.shape))])
+                              inputs=[helper.make_tensor_value_info("a_np1",
+                                                                    TensorProto.INT32, list(a_np1.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.INT32, list(b_np.shape))])
 
     model = helper.make_model(graph, producer_name='argmax_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
+        tvm_out = get_tvm_output(
+            model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
         tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_forward_arg_min_max():
     '''Verify argmin and argmax'''
-    verify_argmin([3,4,4])
-    verify_argmax([3,4,4])
-    verify_argmin([3,4,4], axis=1)
-    verify_argmax([3,4,4], axis=0)
-    verify_argmin([3,4,4], keepdims=0)
-    verify_argmax([3,4,4], keepdims=1)
-    for axis in [None, 0,1,2]:
-        for keepdims in [None, True,False]:
-            verify_argmin([3,4,4], axis, keepdims)
-            verify_argmax([3,4,4], axis, keepdims)
+    verify_argmin([3, 4, 4])
+    verify_argmax([3, 4, 4])
+    verify_argmin([3, 4, 4], axis=1)
+    verify_argmax([3, 4, 4], axis=0)
+    verify_argmin([3, 4, 4], keepdims=0)
+    verify_argmax([3, 4, 4], keepdims=1)
+    for axis in [None, 0, 1, 2]:
+        for keepdims in [None, True, False]:
+            verify_argmin([3, 4, 4], axis, keepdims)
+            verify_argmax([3, 4, 4], axis, keepdims)
+
 
 def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
     input_a = np.random.uniform(size=input_dim).astype(dtype)
@@ -794,21 +862,23 @@ def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
     out.fill(value)
 
     if is_shape == True:
-        fill_node = helper.make_node("ConstantFill", [], ["out"], shape=input_dim, value=value, **kwargs)
+        fill_node = helper.make_node(
+            "ConstantFill", [], ["out"], shape=input_dim, value=value, **kwargs)
     else:
-        fill_node = helper.make_node("ConstantFill", ["input_a"], ["out"], value=value, dtype=dtype, **kwargs)
+        fill_node = helper.make_node("ConstantFill", ["input_a"], [
+                                     "out"], value=value, dtype=dtype, **kwargs)
 
     if is_shape == True:
         inputs = []
     else:
         inputs = [helper.make_tensor_value_info("input_a",
-                  TensorProto.FLOAT, list(input_dim))]
+                                                TensorProto.FLOAT, list(input_dim))]
 
     graph = helper.make_graph([fill_node],
                               "fill_test",
                               inputs,
-                              outputs = [helper.make_tensor_value_info("out",
-                                            TensorProto.FLOAT, list(out.shape))])
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out.shape))])
 
     model = helper.make_model(graph, producer_name='fill_test')
 
@@ -820,10 +890,12 @@ def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
 
         tvm.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def test_constantfill():
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
     verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
-    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
+    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4,
+                                             5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
 
 def verify_pad(indata, pads, mode='constant', value=0.0):
@@ -842,7 +914,8 @@ def verify_pad(indata, pads, mode='constant', value=0.0):
             pads=pads,
         )
     else:
-        outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
+        outdata = np.pad(indata, pad_width=np_pads,
+                         mode='constant', constant_values=value)
         node = helper.make_node(
             'Pad',
             inputs=['input'],
@@ -853,22 +926,30 @@ def verify_pad(indata, pads, mode='constant', value=0.0):
         )
     graph = helper.make_graph([node],
                               'pad_test',
-                              inputs = [helper.make_tensor_value_info("input",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("output",
-                                            TensorProto.FLOAT, list(outdata.shape))])
+                              inputs=[helper.make_tensor_value_info("input",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("output",
+                                                                     TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='pad_test')
     #  tvm result
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outdata.shape, 'float32')
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def test_pad():
-    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 'constant', 0.0)
-    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 'constant', 0.0)
-    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 'constant', 5.0)
-    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
-    verify_pad(np.random.randn(1, 3, 4, 5).astype(np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
+    verify_pad(np.random.randn(2, 2).astype(
+        np.float32), [0, 1, 0, 0], 'constant', 0.0)
+    verify_pad(np.random.randn(2, 3).astype(
+        np.float32), [1, 0, 0, 1], 'constant', 0.0)
+    verify_pad(np.random.randn(3, 2).astype(
+        np.float32), [0, 0, 1, 0], 'constant', 5.0)
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
+    verify_pad(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
+
 
 def verify_reduce_x(name, indata, axis, keepdims):
     indata = np.array(indata).astype(np.float32)
@@ -894,15 +975,17 @@ def verify_reduce_x(name, indata, axis, keepdims):
                                 axes=axis, keepdims=keepdims)
     graph = helper.make_graph([node],
                               '{}_test'.format(name),
-                              inputs = [helper.make_tensor_value_info("input",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("output",
-                                            TensorProto.FLOAT, list(outdata.shape))])
+                              inputs=[helper.make_tensor_value_info("input",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("output",
+                                                                     TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='{}_test'.format(name))
     #  tvm result
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outdata.shape, 'float32')
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_reduce_max():
     verify_reduce_x("ReduceMax",
@@ -915,6 +998,7 @@ def test_reduce_max():
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
 
+
 def test_reduce_min():
     verify_reduce_x("ReduceMin",
                     np.random.randn(3, 2, 2).astype(np.float32),
@@ -925,6 +1009,7 @@ def test_reduce_min():
     verify_reduce_x("ReduceMin",
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
+
 
 def test_reduce_sum():
     verify_reduce_x("ReduceSum",
@@ -937,6 +1022,7 @@ def test_reduce_sum():
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
 
+
 def test_reduce_mean():
     verify_reduce_x("ReduceMean",
                     np.random.randn(3, 2, 2).astype(np.float32),
@@ -947,6 +1033,7 @@ def test_reduce_mean():
     verify_reduce_x("ReduceMean",
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
+
 
 def verify_split(indata, outdatas, split, axis=0):
     indata = np.array(indata).astype(np.float32)
@@ -960,28 +1047,33 @@ def verify_split(indata, outdatas, split, axis=0):
     )
     graph = helper.make_graph([node],
                               'split_test',
-                              inputs = [helper.make_tensor_value_info("input",
-                                            TensorProto.FLOAT, list(indata.shape))],
-                              outputs = [helper.make_tensor_value_info("output_{}".format(i),
-                                            TensorProto.FLOAT, list(outdatas[i].shape))
-                                            for i in range(len(split))
-                                         ])
+                              inputs=[helper.make_tensor_value_info("input",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("output_{}".format(i),
+                                                                     TensorProto.FLOAT, list(outdatas[i].shape))
+                                       for i in range(len(split))
+                                       ])
     model = helper.make_model(graph, producer_name='split_test')
 
     for target, ctx in ctx_list():
         output_shape = [o.shape for o in outdatas]
         output_type = ['float32', 'float32', 'float32']
-        tvm_out = get_tvm_output(model, indata, target, ctx, output_shape, output_type)
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, output_shape, output_type)
     for o, t in zip(outdatas, tvm_out):
         tvm.testing.assert_allclose(o, t)
 
+
 def test_split():
     # 1D
-    verify_split([1., 2., 3., 4., 5., 6.], [[1., 2.], [3., 4.], [5., 6.]], [2, 2, 2], 0)
-    verify_split([1., 2., 3., 4., 5., 6.], [[1., 2.], [3.], [4., 5., 6.]], [2, 1, 3], 0)
+    verify_split([1., 2., 3., 4., 5., 6.], [
+                 [1., 2.], [3., 4.], [5., 6.]], [2, 2, 2], 0)
+    verify_split([1., 2., 3., 4., 5., 6.], [
+                 [1., 2.], [3.], [4., 5., 6.]], [2, 1, 3], 0)
     # 2D
     verify_split([[1., 2., 3., 4.], [7., 8., 9., 10.]],
                  [[[1., 2.], [7., 8.]], [[3., 4.], [9., 10.]]], [2, 2], 1)
+
 
 def test_binary_ops():
     in_shape = (1, 2, 3, 3)
@@ -994,13 +1086,13 @@ def test_binary_ops():
         else:
             z = helper.make_node(op, ['in1', 'in2'], ['out'], broadcast=1)
         graph = helper.make_graph([z],
-                                   '_test',
-                                  inputs = [helper.make_tensor_value_info("in1",
-                                                TensorProto.FLOAT, list(in_shape)),
-                                            helper.make_tensor_value_info("in2",
-                                                TensorProto.FLOAT, list(in_shape))],
-                                  outputs = [helper.make_tensor_value_info("out",
-                                                TensorProto.FLOAT, list(out_shape))])
+                                  '_test',
+                                  inputs=[helper.make_tensor_value_info("in1",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("in2",
+                                                                        TensorProto.FLOAT, list(in_shape))],
+                                  outputs=[helper.make_tensor_value_info("out",
+                                                                         TensorProto.FLOAT, list(out_shape))])
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x, y], target, ctx)
@@ -1009,11 +1101,11 @@ def test_binary_ops():
     x = np.random.uniform(size=in_shape).astype(dtype)
     y = np.random.uniform(size=in_shape).astype(dtype)
     z = np.random.uniform(size=(3,)).astype(dtype)
-    verify_binary_ops("Add",x, y, x + y, broadcast=None)
+    verify_binary_ops("Add", x, y, x + y, broadcast=None)
     verify_binary_ops("Add", x, z,  x + z, broadcast=True)
     verify_binary_ops("Sub", x, y, x - y, broadcast=None)
     verify_binary_ops("Sub", x, z, x - z, broadcast=True)
-    verify_binary_ops("Mul",x, y, x * y, broadcast=None)
+    verify_binary_ops("Mul", x, y, x * y, broadcast=None)
     verify_binary_ops("Mul", x, z,  x * z, broadcast=True)
     verify_binary_ops("Div", x, y, x / y, broadcast=None)
     verify_binary_ops("Div", x, z, x / z, broadcast=True)
@@ -1021,6 +1113,7 @@ def test_binary_ops():
     verify_binary_ops("Greater", x, y, x > y, broadcast=True)
     verify_binary_ops("Less", x, y, x < y, broadcast=True)
     verify_binary_ops("Equal", x, y, x == y, broadcast=True)
+
 
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
@@ -1030,29 +1123,30 @@ def test_single_ops():
     def verify_single_ops(op, x, out_np, rtol=1e-5, atol=1e-5):
         z = helper.make_node(op, ['in1'], ['out'])
         graph = helper.make_graph([z],
-                                   '_test',
-                                  inputs = [helper.make_tensor_value_info("in1",
-                                                TensorProto.FLOAT, list(in_shape)),],
-                                  outputs = [helper.make_tensor_value_info("out",
-                                                TensorProto.FLOAT, list(out_shape))])
+                                  '_test',
+                                  inputs=[helper.make_tensor_value_info("in1",
+                                                                        TensorProto.FLOAT, list(in_shape)), ],
+                                  outputs=[helper.make_tensor_value_info("out",
+                                                                         TensorProto.FLOAT, list(out_shape))])
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x], target, ctx)
             tvm.testing.assert_allclose(out_np, tvm_out, rtol=rtol, atol=atol)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
-    verify_single_ops("Neg",x, -x)
-    verify_single_ops("Abs",x, np.abs(x))
-    verify_single_ops("Reciprocal",x, 1/x)
-    verify_single_ops("Sqrt",x, np.sqrt(x))
-    verify_single_ops("Relu",x, np.maximum(x, 0))
-    verify_single_ops("Exp",x, np.exp(x))
-    verify_single_ops("Log",x, np.log(x))
-    verify_single_ops("Log",x, np.log(x))
-    verify_single_ops("Tanh",x, np.tanh(x))
-    verify_single_ops("Sigmoid",x, 1 / (1 + np.exp(-x)))
-    verify_single_ops("Softsign",x, x / (1 + np.abs(x)))
-    verify_single_ops("SoftPlus",x, np.log(1 + np.exp(x)))
+    verify_single_ops("Neg", x, -x)
+    verify_single_ops("Abs", x, np.abs(x))
+    verify_single_ops("Reciprocal", x, 1/x)
+    verify_single_ops("Sqrt", x, np.sqrt(x))
+    verify_single_ops("Relu", x, np.maximum(x, 0))
+    verify_single_ops("Exp", x, np.exp(x))
+    verify_single_ops("Log", x, np.log(x))
+    verify_single_ops("Log", x, np.log(x))
+    verify_single_ops("Tanh", x, np.tanh(x))
+    verify_single_ops("Sigmoid", x, 1 / (1 + np.exp(-x)))
+    verify_single_ops("Softsign", x, x / (1 + np.abs(x)))
+    verify_single_ops("SoftPlus", x, np.log(1 + np.exp(x)))
+
 
 def test_leaky_relu():
     def leaky_relu_x(x, alpha):
@@ -1064,6 +1158,7 @@ def test_leaky_relu():
                               'LeakyRelu',
                               {'alpha': 0.25})
 
+
 def test_elu():
     def elu_x(x, alpha):
         return np.where(x > 0, x, alpha * (np.exp(x) - 1.0))
@@ -1074,6 +1169,7 @@ def test_elu():
                               'Elu',
                               {'alpha': 0.25})
 
+
 def test_selu():
     def selu_x(x, alpha, gamma):
         return gamma * np.where(x > 0, x, alpha * (np.exp(x) - 1.0))
@@ -1083,6 +1179,7 @@ def test_selu():
                               'float32',
                               'Selu',
                               {'alpha': 0.25, 'gamma': 0.3})
+
 
 def test_ThresholdedRelu():
     def ThresholdedRelu_x(x, alpha):
@@ -1096,6 +1193,7 @@ def test_ThresholdedRelu():
                               'ThresholdedRelu',
                               {'alpha': 0.25})
 
+
 def test_ScaledTanh():
     def ScaledTanh_x(x, alpha, beta):
         return alpha * np.tanh(beta * x)
@@ -1105,6 +1203,7 @@ def test_ScaledTanh():
                               'float32',
                               'ScaledTanh',
                               {'alpha': 0.25, 'beta': 0.3})
+
 
 def test_ParametricSoftplus():
     def ParametricSoftplus_x(x, alpha, beta):
@@ -1116,6 +1215,7 @@ def test_ParametricSoftplus():
                               'ParametricSoftplus',
                               {'alpha': 0.25, 'beta': 0.3})
 
+
 def test_Scale():
     def Scale_x(x, scale):
         return scale * x
@@ -1125,6 +1225,7 @@ def test_Scale():
                               'float32',
                               'Scale',
                               {'scale': 0.25})
+
 
 def test_LogSoftmax():
     _test_onnx_op_elementwise((1, 4),
@@ -1139,16 +1240,18 @@ def check_torch_conversion(model, input_size):
     dummy_input = torch.randn(*input_size)
     file_name = '{}.onnx'.format(model.__name__)
     # Set verbose=True for more output
-    torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
+    torch.onnx.export(model(), dummy_input, file_name,
+                      export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
     for target, ctx in ctx_list():
         input_data = np.random.uniform(size=input_size).astype('int32')
-        c2_out = get_caffe2_output(onnx_model, input_data)
+        c2_out = get_onnx_output(onnx_model, input_data)
         tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
         tvm.testing.assert_allclose(c2_out, tvm_out)
 
+
 def test_resnet():
-    check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
+    check_torch_conversion(torchvision.models.resnet18, (1, 3, 224, 224))
     # check_torch_conversion(torchvision.models.resnet101, (1,3,224,224))
 
 # def test_alexnet():
@@ -1164,11 +1267,13 @@ def test_resnet():
 #     # Torch's ONNX export does not support the max pooling used by Squezenet
 #     check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
 
+
 def test_densenet():
-    check_torch_conversion(torchvision.models.densenet161, (1,3,224,224))
+    check_torch_conversion(torchvision.models.densenet161, (1, 3, 224, 224))
+
 
 def test_inception():
-    check_torch_conversion(torchvision.models.inception_v3, (1,3,224,224))
+    check_torch_conversion(torchvision.models.inception_v3, (1, 3, 224, 224))
 
 # TODO(@jroesch): Update Torch + ONNX to support this import.
 # def test_googlenet():
@@ -1177,6 +1282,7 @@ def test_inception():
 # TODO(@jroesch): Update Torch + ONNX to support this import.
 # def test_shufflenetv2():
 #     check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
+
 
 def test_sign():
     def Sign_x(x):
@@ -1197,7 +1303,8 @@ def verify_not(indata, dtype):
 
     graph = helper.make_graph([node],
                               'not_test',
-                              inputs=[helper.make_tensor_value_info("in", TensorProto.BOOL, list(x.shape))],
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.BOOL, list(x.shape))],
                               outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
 
     model = helper.make_model(graph, producer_name='not_test')
@@ -1267,7 +1374,8 @@ def verify_tile(indata, outdata, **kwargs):
     node = helper.make_node('Tile', inputs=['in'], outputs=['out'], **kwargs)
     graph = helper.make_graph([node],
                               'tile_test',
-                              inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(indata.shape))],
                               outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))])
 
     model = helper.make_model(graph, producer_name='tile_test')
@@ -1279,21 +1387,25 @@ def verify_tile(indata, outdata, **kwargs):
 
 def test_tile():
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
-    repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
+    repeats = np.random.randint(
+        low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
     z = np.tile(x, repeats)
     verify_tile(x, z, repeats=repeats)
+
 
 def verify_erf(indata, outdata):
     node = helper.make_node('Erf', inputs=['in'], outputs=['out'])
     graph = helper.make_graph([node],
                               'erf_test',
-                              inputs=[helper.make_tensor_value_info('in', TensorProto.FLOAT, list(indata.shape))],
+                              inputs=[helper.make_tensor_value_info(
+                                  'in', TensorProto.FLOAT, list(indata.shape))],
                               outputs=[helper.make_tensor_value_info('out', TensorProto.FLOAT, list(outdata.shape))])
     model = helper.make_model(graph, producer_name='erf_test')
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
+
 
 def test_erf():
     x = np.random.rand(2, 3, 4, 6).astype(np.float32)
