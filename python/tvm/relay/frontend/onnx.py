@@ -1368,7 +1368,8 @@ class GraphProto(object):
 
 def from_onnx(model,
               shape=None,
-              dtype="float32"):
+              dtype="float32",
+              opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -1388,6 +1389,10 @@ def from_onnx(model,
 
     dtype : str or dict of str to str
         The input types to the graph
+
+    opset : int
+        Optional override to autodetected opset.
+        This can be helpful for some testing.
 
     Returns
     -------
@@ -1411,9 +1416,10 @@ def from_onnx(model,
         pass
     g = GraphProto(shape, dtype)
     graph = model.graph
-    try:
-        opset = model.opset_import[0].version if model.opset_import else 1
-    except AttributeError:
-        opset = 1
+    if opset is None:
+        try:
+            opset = model.opset_import[0].version if model.opset_import else 1
+        except AttributeError:
+            opset = 1
     mod, params = g.from_onnx(graph, opset)
     return mod, params

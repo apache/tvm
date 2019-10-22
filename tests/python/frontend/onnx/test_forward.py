@@ -30,7 +30,7 @@ from onnx import helper, TensorProto
 import unittest
 import scipy
 
-def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
+def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32', opset=None):
     """ Generic function to execute and get tvm output"""
     target = 'llvm'
     if isinstance(input_data, list):
@@ -46,7 +46,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
 
-    mod, params = relay.frontend.from_onnx(graph_def, shape_dict)
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
@@ -306,7 +306,8 @@ def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
     model = helper.make_model(graph, producer_name='slice_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outdata.shape, 'float32', opset=1)
 
     tvm.testing.assert_allclose(outdata, tvm_out)
 
