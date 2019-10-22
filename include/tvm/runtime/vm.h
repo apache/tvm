@@ -747,6 +747,12 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*! \brief The parameter name to data mapping. */
   std::unordered_map<std::string, ObjectRef> params_;
+
+  /*!
+   * \brief The constant pool for runtime. It caches the device dependent
+   * object to avoid rellocation of constants during inference.
+   */
+  std::vector<ObjectRef> const_pool_;
 };
 
 }  // namespace vm
