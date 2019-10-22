@@ -395,7 +395,7 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
         CHECK(op->type == Float(16) || op->type == Float(32) || op->type == Int(32))
           << "Accumulator only support half, float and int type for now";
       }
-      constant_size /= 256;
+      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
       PrintWmmaScope(scope, op->type, buffer, stream);
     } else {
       PrintStorageScope(scope, stream);
@@ -531,6 +531,28 @@ void CodeGenCUDA::PrintWmmaScope(const std::string &scope, Type t,
     os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, "
        << shape_str << ", "<< type.str() << ">";
   }
+}
+
+int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string &scope,
+                                         const Variable* variable, int32_t size) {
+  std::string shape_str = fragment_shapes[variable];
+  size_t m, n, k;
+  size_t last_pos = 0, pos = 0;
+  pos = shape_str.find(", ", last_pos);
+  m = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  pos = shape_str.find(", ", last_pos);
+  n = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  k = std::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  if (scope == "wmma.matrix_a") {
+    return size / m / k;
+  } else if (scope == "wmma.matrix_b") {
+    return size / n / k;
+  } else if (scope == "wmma.accumulator") {
+    return size / m / n;
+  }
+  return 0;
 }
 
 }  // namespace codegen

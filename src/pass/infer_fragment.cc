@@ -183,8 +183,8 @@ class InferFragmenter : public IRMutator {
       FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       // Add shape attribute to all fragments
-      std::string shape = std::to_string(info.n) + ", " +
-                          std::to_string(info.m) + ", " +
+      std::string shape = std::to_string(info.m) + ", " +
+                          std::to_string(info.n) + ", " +
                           std::to_string(info.k);
       Expr shape_expr = StringImm::make(shape);
       Stmt shape_attr = AttrStmt::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
