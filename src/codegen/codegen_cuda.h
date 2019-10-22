@@ -41,7 +41,7 @@ class CodeGenCUDA final : public CodeGenC {
   void AddFunction(LoweredFunc f);
   std::string Finish();
   bool need_include_path() {
-    return (enable_fp16_ || enable_int8_ || need_math_constants_h_);
+    return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
