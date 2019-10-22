@@ -1305,6 +1305,13 @@ def _squared_difference():
         return _op.multiply(difference, difference)
     return _impl
 
+def _size():
+    def _impl(inputs, attr, params):
+        new_attr = attr
+        new_attr['out_type'] = attr['out_type'].name
+        return AttrCvt('ndarray_size', transforms={'out_type' : 'dtype'})(inputs, new_attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1410,7 +1417,7 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
-    'Size'                              : AttrCvt('ndarray_size'),
+    'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
