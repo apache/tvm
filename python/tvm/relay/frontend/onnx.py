@@ -1149,7 +1149,7 @@ class GraphProto(object):
         self._shape = shape if shape else {}
         self._dtype = dtype
 
-    def from_onnx(self, graph, opset):
+    def from_onnx(self, graph, opset, outputs):
         """Construct Relay expression from ONNX graph.
 
         Onnx graph is a python protobuf object.
@@ -1165,6 +1165,10 @@ class GraphProto(object):
             The loaded onnx graph
 
         opset : opset version
+
+        outputs : list of str
+            List of names to output, if not provided
+            then default graph outputs are used.
 
         Returns
         -------
@@ -1264,7 +1268,11 @@ class GraphProto(object):
                         self._nodes[k] = op[i]
 
         # now return the outputs
-        outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
+        # If we havent prespecified output nodes,
+        # just use the default graph outputs.
+        if outputs is None:
+            outputs = [
+                self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
         func = _expr.Function(analysis.free_vars(outputs), outputs)
         return _module.Module.from_expr(func), self._params
@@ -1369,7 +1377,8 @@ class GraphProto(object):
 def from_onnx(model,
               shape=None,
               dtype="float32",
-              opset=None):
+              opset=None,
+              outputs=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -1390,9 +1399,13 @@ def from_onnx(model,
     dtype : str or dict of str to str
         The input types to the graph
 
-    opset : int
-        Optional override to autodetected opset.
+    opset : int, optional
+        Override to autodetected opset.
         This can be helpful for some testing.
+
+    outputs : list of str, optional
+        Names of output nodes. If not defined then the default
+        outputs of the onnx graph will be used.
 
     Returns
     -------
@@ -1421,5 +1434,5 @@ def from_onnx(model,
             opset = model.opset_import[0].version if model.opset_import else 1
         except AttributeError:
             opset = 1
-    mod, params = g.from_onnx(graph, opset)
+    mod, params = g.from_onnx(graph, opset, outputs)
     return mod, params
