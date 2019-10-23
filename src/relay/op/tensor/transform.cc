@@ -797,8 +797,18 @@ bool ReshapeLikeRel(const Array<Type>& types,
   if (reshape_like == nullptr) {
     return false;
   }
-  CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
-    << "Reshape inputs size should be compatible.";
+  // Only check When input data has static shape.
+  bool is_static_shape = true;
+  for (size_t i = 0; i < data->shape.size(); ++i) {
+    if (!data->shape[i].as<IntImm>()) {
+      is_static_shape = false;
+      break;
+    }
+  }
+  if (is_static_shape) {
+    CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
+      << "Reshape inputs size should be compatible.";
+  }
   reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
   return true;
 }

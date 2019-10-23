@@ -41,6 +41,13 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     """
     Get default schedule config for the workload
     """
+    static_data_shape = []
+    for dim in get_const_tuple(data.shape):
+        if isinstance(dim, tvm.expr.Var):
+            static_data_shape.append(1)
+        else:
+            static_data_shape.append(dim)
+    data = tvm.placeholder(static_data_shape, dtype=data.dtype)
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
         from .depthwise_conv2d import _fallback_schedule

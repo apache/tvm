@@ -18,7 +18,11 @@
 from __future__ import absolute_import
 
 import topi
+
+from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
+from ...api import convert
+from ...hybrid import script
 
 
 def _schedule_reduce(_, outs, target):
@@ -39,3 +43,67 @@ _reg.register_schedule("mean", _schedule_reduce)
 _reg.register_schedule("variance", _schedule_reduce)
 _reg.register_schedule("nn.cross_entropy", _schedule_reduce)
 _reg.register_schedule("nn.cross_entropy_with_logits", _schedule_reduce)
+
+
+def _create_axis_record(attrs, inputs):
+    axes = attrs.axis if attrs.axis is None else list(get_const_tuple(attrs.axis))
+    exclude = get_const_int(attrs.exclude) > 0
+    keepdims = get_const_int(attrs.keepdims) > 0
+    data_shape = inputs[0]
+    shape_size = data_shape.shape[0].value
+    axis_record = [-1] * shape_size
+    if axes is None:
+        axes = list(range(shape_size))
+
+    for i, axis in enumerate(axes):
+        if axis < 0:
+            axes[i] = shape_size + axis
+
+    if exclude:
+        ex_axes = []
+        for i in range(shape_size):
+            if i not in axes:
+                ex_axes.append(i)
+        axes = ex_axes
+
+    for i in range(shape_size):
+        if i not in axes:
+            axis_record[i] = i
+
+    if not keepdims:
+        tmp = []
+        for i in axis_record:
+            if i >= 0:
+                tmp.append(i)
+        axis_record = tmp
+
+    return axis_record
+
+
+@script
+def _reduce_shape_func(data_shape, axis_record):
+    out = output_tensor((len(axis_record),), "int64")
+    for i in const_range(len(axis_record)):
+        if axis_record[i] >= 0:
+            out[i] = data_shape[axis_record[i]]
+        else:
+            out[i] = int64(1)
+
+    return out
+
+def reduce_shape_func(attrs, inputs, _):
+    """
+    Shape function for reduce op.
+    """
+    axis_record = _create_axis_record(attrs, inputs)
+    return [_reduce_shape_func(inputs[0], convert(axis_record))]
+
+_reg.register_shape_func("argmax", False, reduce_shape_func)
+_reg.register_shape_func("argmin", False, reduce_shape_func)
+_reg.register_shape_func("all", False, reduce_shape_func)
+_reg.register_shape_func("sum", False, reduce_shape_func)
+_reg.register_shape_func("max", False, reduce_shape_func)
+_reg.register_shape_func("min", False, reduce_shape_func)
+_reg.register_shape_func("prod", False, reduce_shape_func)
+_reg.register_shape_func("mean", False, reduce_shape_func)
+_reg.register_shape_func("variance", False, reduce_shape_func)
