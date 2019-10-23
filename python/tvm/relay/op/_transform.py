@@ -394,8 +394,8 @@ def layout_transform_shape_func(attrs, inputs, _):
                                          convert(dst_mix_list))]
 
 @script
-def _expand_dim_shape_func(data_shape, axis, num_newaxis):
-    out = output_tensor((data_shape.shape[0] + num_newaxis,), "int64")
+def _expand_dim_shape_func(data_shape, ndim, axis, num_newaxis):
+    out = output_tensor((ndim + num_newaxis,), "int64")
     for i in const_range(out.shape[0]):
         if i < axis:
             out[i] = data_shape[i]
@@ -415,7 +415,11 @@ def expand_dim_shape_func(attrs, inputs, _):
     num_newaxis = get_const_int(attrs.num_newaxis)
     if axis < 0:
         axis = inputs[0].shape[0] + axis + 1
-    return [_expand_dim_shape_func(inputs[0], convert(axis), convert(num_newaxis))]
+    ndim = inputs[0].shape[0] if inputs[0].shape else 0
+    return [_expand_dim_shape_func(inputs[0],
+                                   convert(ndim),
+                                   convert(axis),
+                                   convert(num_newaxis))]
 
 @script
 def _transpose_shape_func(data_shape, axes):
