@@ -253,19 +253,15 @@ class RPCSession {
   std::string remote_key_;
 };
 
+/*!
+ * \brief RPC channel which callback
+ * frontend (Python/Java/etc.)'s send & recv function
+ */
 class CallbackChannel final : public RPCChannel {
  public:
   explicit CallbackChannel(PackedFunc fsend, PackedFunc frecv)
       : fsend_(std::move(fsend)), frecv_(std::move(frecv)) {}
 
-  explicit CallbackChannel(PackedFunc fsend)
-      : fsend_(std::move(fsend)) {
-    PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
-      LOG(FATAL) << "Do not allow explicit receive";
-      return 0;
-    });
-    frecv_ = frecv;
-  }
   ~CallbackChannel() {}
   /*!
    * \brief Send data over to the channel.

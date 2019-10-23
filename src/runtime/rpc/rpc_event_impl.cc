@@ -32,7 +32,11 @@ namespace runtime {
 PackedFunc CreateEventDrivenServer(PackedFunc fsend,
                                    std::string name,
                                    std::string remote_key) {
-  std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend));
+  static PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
+    LOG(FATAL) << "Do not allow explicit receive";
+    return 0;
+  });
+  std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend, frecv));
   std::shared_ptr<RPCSession> sess =
       RPCSession::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
