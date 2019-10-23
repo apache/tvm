@@ -315,12 +315,15 @@ def _layout_transform_shape_func(data_shape,
     for i in const_range(len(dst_equal_list)):
         out[dst_equal_list[i][0]] = data_shape[dst_equal_list[i][1]]
     for i in const_range(len(dst_mul_list)):
-        out[dst_mul_list[i][0]] = data_shape[dst_mul_list[i][1]] * data_shape[dst_mul_list[i][2]]
+        out[dst_mul_list[i][0]] = data_shape[dst_mul_list[i][1]] * \
+                                  data_shape[dst_mul_list[i][2]]
     for i in const_range(len(dst_div_list)):
-        out[dst_div_list[i][0]] = data_shape[dst_div_list[i][1]] // dst_div_list[i][3]
+        out[dst_div_list[i][0]] = data_shape[dst_div_list[i][1]] \
+                                  // dst_div_list[i][3]
         out[dst_div_list[i][2]] = int64(dst_div_list[i][3])
     for i in const_range(len(dst_mix_list)):
-        out[dst_mix_list[i][0]] = data_shape[dst_mix_list[i][1]] * dst_mix_list[i][2] // dst_mix_list[i][4]
+        out[dst_mix_list[i][0]] = data_shape[dst_mix_list[i][1]] * \
+                                  dst_mix_list[i][2] // dst_mix_list[i][4]
         out[dst_mix_list[i][3]] = int64(dst_mix_list[i][4])
 
     return out
