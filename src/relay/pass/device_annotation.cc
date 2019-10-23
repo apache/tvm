@@ -415,7 +415,6 @@ class DeviceInfo {
 
     void VisitExpr_(const TupleGetItemNode* op) final {
       ExprVisitor::VisitExpr_(op);
-      std::make_pair(op, has_copy_);
     }
 
     void VisitExpr_(const VarNode* vn) final {
