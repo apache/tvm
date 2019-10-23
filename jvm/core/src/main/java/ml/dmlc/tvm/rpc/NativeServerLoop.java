@@ -28,14 +28,17 @@ import java.io.IOException;
  * Call native ServerLoop on socket file descriptor.
  */
 public class NativeServerLoop implements Runnable {
-  private final int sockFd;
+  private final Function fsend;
+  private final Function frecv;
 
   /**
    * Constructor for NativeServerLoop.
-   * @param nativeSockFd native socket file descriptor.
+   * @param fsend socket.send function.
+   * @param frecv socket.recv function.
    */
-  public NativeServerLoop(final int nativeSockFd) {
-    sockFd = nativeSockFd;
+  public NativeServerLoop(final Function fsend, final Function frecv) {
+    this.fsend = fsend;
+    this.frecv = frecv;
   }
 
   @Override public void run() {
@@ -43,7 +46,7 @@ public class NativeServerLoop implements Runnable {
     try {
       tempDir = serverEnv();
       System.err.println("starting server loop...");
-      RPC.getApi("_ServerLoop").pushArg(sockFd).invoke();
+      RPC.getApi("_ServerLoop").pushArg(fsend).pushArg(frecv).invoke();
       System.err.println("done server loop...");
     } catch (IOException e) {
       e.printStackTrace();

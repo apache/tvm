@@ -436,6 +436,24 @@ def _check_numerics():
         return AttrCvt(op_name="copy", ignores=['message'])(inputs, attr)
     return _impl
 
+def _assert():
+    # ToDo: In general people want asserts to be gone from TensorFlow graphs
+    # when they are optimizing them, so converting it to a no-op is
+    # reasonable. However, it would be nice to have the option to keep them
+    # once Relay gets a Halt or Assert op.
+    return _no_op()
+
+def _no_op():
+    def _impl(inputs, attr, params):
+        # ToDo: This should really be an op that returns nothing, which could
+        # be represented as an empty tuple. It turns out that TVM
+        # infrastructure doesn't like running functions that return None and
+        # also don't like running functions that return an empty tuple. So it
+        # doesn't work, but it should be made to work and then this could be
+        # improved. In the mean time, it is hard to imagine a case where it
+        # matters in any real way that a no-op is converted to a constant 0.
+        return tvm.relay.const(0)
+    return _impl
 
 def _matmul():
     def _impl(inputs, attr, params):
@@ -1305,6 +1323,13 @@ def _squared_difference():
         return _op.multiply(difference, difference)
     return _impl
 
+def _size():
+    def _impl(inputs, attr, params):
+        new_attr = attr
+        new_attr['out_type'] = attr['out_type'].name
+        return AttrCvt('ndarray_size', transforms={'out_type' : 'dtype'})(inputs, new_attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1319,6 +1344,7 @@ _convert_map = {
     'All'                               : _reduce('all'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
+    'Assert'                            : _assert(),
     'AvgPool'                           : _pooling('avg_pool'),
     'BatchMatMul'                       : _batch_matmul(),
     'BatchMatMulV2'                     : _batch_matmul(),
@@ -1377,6 +1403,7 @@ _convert_map = {
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
+    'NoOp'                              : _no_op(),
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
@@ -1410,7 +1437,7 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
-    'Size'                              : AttrCvt('ndarray_size'),
+    'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
@@ -2189,8 +2216,11 @@ class GraphProto(object):
             if np_array.dtype == np.dtype(object):
                 # Object types are generally tensorflow DT_STRING (DecodeJpeg op).
                 # Just leave it as placeholder.
-                self._nodes[name] = [_expr.var(name, shape=shape[name], dtype='uint8')]
-
+                if shape:
+                    var_shape = shape[name]
+                else:
+                    var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)
+                self._nodes[name] = [_expr.var(name, shape=var_shape, dtype='uint8')]
                 return
 
             array_ndim = len(np_array.shape)

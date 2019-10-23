@@ -552,6 +552,9 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             if "-device=arm_cpu" in target.options:
                 tile_size = 4
                 VC = cfg['tile_k'].size[-1]
+            elif "-device=bifrost" in target.options:
+                tile_size = 2
+                VC = 0
             else:
                 from ..mali.conv2d import _pick_tile_size
                 tile_size = _pick_tile_size(tinfos[0], tinfos[1])
@@ -559,21 +562,28 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
             weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
                                                                    tile_size=tile_size)
-            weight = F.reshape(weight,
-                               newshape=(KH + tile_size - 1,
-                                         KW + tile_size - 1,
-                                         idxd(CO, VC), VC, CI))
-            weight = F.transpose(weight, axes=[0, 1, 2, 4, 3])
+            if VC > 0:
+                weight = F.reshape(weight,
+                                   newshape=(KH + tile_size - 1,
+                                             KW + tile_size - 1,
+                                             idxd(CO, VC), VC, CI))
+                weight = F.transpose(weight, axes=[0, 1, 2, 4, 3])
+                new_weight = tvm.placeholder((KH + tile_size - 1,
+                                              KW + tile_size -1,
+                                              idxd(CO, VC), CI, VC),
+                                             kernel.dtype)
+            else:
+                weight = F.reshape(weight,
+                                   newshape=(KH + tile_size - 1, KW + tile_size - 1, CO, CI))
+                new_weight = tvm.placeholder(
+                    (KH + tile_size - 1, KW + tile_size -1, CO, CI), kernel.dtype
+                )
 
             copy_inputs[1] = weight
             new_attrs['tile_size'] = tile_size
 
             # Store the same config for the altered operator (workload)
             new_data = data
-            new_weight = tvm.placeholder((KH + tile_size - 1,
-                                          KH + tile_size -1,
-                                          idxd(CO, VC), CI, VC),
-                                         kernel.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_weight, strides, padding, dilation,
                  new_attrs[data_layout_key], out_dtype, tile_size],

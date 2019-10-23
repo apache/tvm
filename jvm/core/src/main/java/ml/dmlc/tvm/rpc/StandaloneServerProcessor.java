@@ -28,12 +28,9 @@ import java.net.Socket;
  */
 public class StandaloneServerProcessor implements ServerProcessor {
   private final ServerSocket server;
-  private final SocketFileDescriptorGetter socketFileDescriptorGetter;
 
-  public StandaloneServerProcessor(int serverPort,
-      SocketFileDescriptorGetter sockFdGetter) throws IOException {
+  public StandaloneServerProcessor(int serverPort) throws IOException {
     this.server = new ServerSocket(serverPort);
-    this.socketFileDescriptorGetter = sockFdGetter;
   }
 
   @Override public void terminate() {
@@ -46,9 +43,9 @@ public class StandaloneServerProcessor implements ServerProcessor {
 
   @Override public void run() {
     try {
-      Socket socket = server.accept();
-      InputStream in = socket.getInputStream();
-      OutputStream out = socket.getOutputStream();
+      final Socket socket = server.accept();
+      final InputStream in = socket.getInputStream();
+      final OutputStream out = socket.getOutputStream();
       int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
       if (magic != RPC.RPC_MAGIC) {
         Utils.closeQuietly(socket);
@@ -66,12 +63,10 @@ public class StandaloneServerProcessor implements ServerProcessor {
         out.write(Utils.toBytes(serverKey));
       }
 
+      SocketChannel sockChannel = new SocketChannel(socket);
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-      final int sockFd = socketFileDescriptorGetter.get(socket);
-      if (sockFd != -1) {
-        new NativeServerLoop(sockFd).run();
-        System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
-      }
+      new NativeServerLoop(sockChannel.getFsend(), sockChannel.getFrecv()).run();
+      System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       Utils.closeQuietly(socket);
     } catch (Throwable e) {
       e.printStackTrace();

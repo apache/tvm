@@ -2184,15 +2184,18 @@ def test_forward_mean():
 def test_forward_size():
     def check_size(ishape):
         np_input = np.random.uniform(size=ishape).astype(np.float32)
+
+        # if all dimensions are constant, TF will optimize away size operator into constant
+        tf_input_shape = list(np_input.shape)
+        tf_input_shape[0] = None
+
         with tf.Graph().as_default():
-            input = tf.placeholder(shape=np_input.shape, dtype=np_input.dtype, name='input')
+            input = tf.placeholder(shape=tf_input_shape, dtype=np_input.dtype, name='input')
             tf.size(input, name='size')
             compare_tf_with_tvm([np_input], ['input:0'], 'size:0')
 
-    if tf.__version__ < LooseVersion('1.1'):
-        check_size((10, 8, 16, 32))
-        check_size((10,))
-        check_size(())
+    check_size((10, 8, 16, 32))
+    check_size((10,))
 
 #######################################################################
 # All, Max, Min

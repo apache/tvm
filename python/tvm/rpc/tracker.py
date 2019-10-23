@@ -230,7 +230,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
             port, matchkey = args[2]
             self.pending_matchkeys.add(matchkey)
             # got custom address (from rpc server)
-            if args[3] is not None:
+            if len(args) >= 4 and args[3] is not None:
                 value = (self, args[3], port, matchkey)
             else:
                 value = (self, self._addr[0], port, matchkey)

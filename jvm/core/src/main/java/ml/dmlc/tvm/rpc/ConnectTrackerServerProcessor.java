@@ -37,7 +37,6 @@ import java.net.SocketTimeoutException;
  */
 public class ConnectTrackerServerProcessor implements ServerProcessor {
   private ServerSocket server;
-  private final SocketFileDescriptorGetter socketFileDescriptorGetter;
   private final String trackerHost;
   private final int trackerPort;
   // device key
@@ -62,10 +61,11 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
    * @param trackerHost Tracker host.
    * @param trackerPort Tracker port.
    * @param key Device key.
-   * @param sockFdGetter Method to get file descriptor from Java socket.
+   * @param watchdog watch for timeout, etc.
+   * @throws java.io.IOException when socket fails to open.
    */
   public ConnectTrackerServerProcessor(String trackerHost, int trackerPort, String key,
-      SocketFileDescriptorGetter sockFdGetter, RPCWatchdog watchdog) throws IOException {
+      RPCWatchdog watchdog) throws IOException {
     while (true) {
       try {
         this.server = new ServerSocket(serverPort);
@@ -81,7 +81,6 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       }
     }
     System.err.println("using port: " + serverPort);
-    this.socketFileDescriptorGetter = sockFdGetter;
     this.trackerHost = trackerHost;
     this.trackerPort = trackerPort;
     this.key = key;
@@ -163,11 +162,9 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
       // received timeout in seconds
       watchdog.startTimeout(timeout * 1000);
-      final int sockFd = socketFileDescriptorGetter.get(socket);
-      if (sockFd != -1) {
-        new NativeServerLoop(sockFd).run();
-        System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
-      }
+      SocketChannel sockChannel = new SocketChannel(socket);
+      new NativeServerLoop(sockChannel.getFsend(), sockChannel.getFrecv()).run();
+      System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       Utils.closeQuietly(socket);
     } catch (ConnectException e) {
       // if the tracker connection failed, wait a bit before retrying
