@@ -119,7 +119,7 @@ class ClosureNode : public ValueNode {
 
 RELAY_DEFINE_NODE_REF(Closure, ClosureNode, Value);
 
-/*! \brief A Relay Recursive Closure. A closure that have a name. */
+/*! \brief A Relay Recursive Closure. A closure that has a name. */
 class RecClosure;
 
 /*! \brief The container type of RecClosure. */
