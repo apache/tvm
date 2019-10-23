@@ -612,6 +612,11 @@ def _slice():
 def _reshape():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(1)
+
+        # We use reshape_like directly to deal with dynamic shape.
+        if isinstance(pop_node, tvm.relay.expr.Call):
+            return _op.reshape_like(inputs[0], pop_node.args[0])
+
         try:
             shape_arg = _get_tuple_param(params, pop_node)
         except AttributeError:
@@ -788,7 +793,7 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
+        return _op.shape_of(inputs[0], dtype='int32')
     return _impl
 
 def _fill():
