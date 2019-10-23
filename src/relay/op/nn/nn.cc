@@ -410,8 +410,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
     if (data->shape[i].as<IntImm>()) {
       target_dim = target_dim * data->shape[i];
-    }
-    else {
+    } else {
       target_dim = data->shape[i];
       break;
     }

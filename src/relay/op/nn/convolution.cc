@@ -331,12 +331,14 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
   if (dshape_nchw[2].as<IntImm>()) {
-    oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1);
+    oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2
+                   - dilated_ksize_y) / param->strides[0] + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
   if (dshape_nchw[3].as<IntImm>()) {
-    oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1);
+    oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2
+                   - dilated_ksize_x) / param->strides[1] + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
   }
