@@ -324,8 +324,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
     } else {
       if (symbolic_var_set.count(axis->var->name_hint)) {
         result.push_back(ir::Any::make());
-      }
-      else {
+      } else {
         result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
       }
     }

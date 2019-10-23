@@ -104,8 +104,7 @@ bool Pool2DRel(const Array<Type>& types,
 
   if (!dshape[hidx].as<IntImm>()) {
     oshape[hidx] = dshape[hidx];
-  }
-  else {
+  } else {
     if (param->ceil_mode) {
       oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
                        param->strides[0] - 1) / param->strides[0]) + 1;
@@ -115,8 +114,7 @@ bool Pool2DRel(const Array<Type>& types,
   }
   if (!dshape[widx].as<IntImm>()) {
     oshape[widx] = dshape[widx];
-  }
-  else {
+  } else {
     if (param->ceil_mode) {
       oshape[widx] = ((dshape[widx] + pad_h - param->pool_size[0] +
                        param->strides[0] - 1) / param->strides[0]) + 1;

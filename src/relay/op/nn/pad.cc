@@ -151,8 +151,7 @@ bool PadRel(const Array<Type>& types,
     if (data->shape[i].as<IntImm>()) {
       auto padding = make_const(data->shape[i].type(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
-    }
-    else {
+    } else {
       oshape.push_back(data->shape[i]);
     }
   }

@@ -177,11 +177,11 @@ def get_const_tuple(in_tuple):
     """
     ret = []
     for elem in in_tuple:
-        if isinstance(elem, expr.Var):
+        if isinstance(elem, tvm.expr.Var):
             ret.append(elem)
-        elif not isinstance(elem, (expr.IntImm, expr.UIntImm)):
-            elem = ir_pass.Simplify(elem)
-            if not isinstance(elem, (expr.IntImm, expr.UIntImm)):
+        elif not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm, int)):
+            elem = tvm.ir_pass.Simplify(elem)
+            if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
                 ret.append(elem)
         else:
             ret.append(get_const_int(elem))
