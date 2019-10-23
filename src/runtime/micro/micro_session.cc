@@ -341,6 +341,9 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
 
+  int32_t task_time = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_task_time");
+  std::cout << "TASK TIME WAS " << task_time << std::endl;
+
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
 }
 

@@ -52,13 +52,20 @@ size_t utvm_num_active_allocs = 0;
 const char* utvm_last_error = NULL;  // NOLINT(*)
 int32_t utvm_return_code = 0;  // NOLINT(*)
 
+int32_t utvm_task_time = 0;
+
+// Gets called by UTVMInit, after device-specific initialization is finished.
 void UTVMMain() {
   utvm_workspace_curr = utvm_workspace_begin;
   utvm_num_active_allocs = 0;
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
+  UTVMTimerReset();
+  UTVMTimerStart();
   utvm_return_code = utvm_task.func((void*) utvm_task.arg_values, (void*) utvm_task.arg_type_codes,  // NOLINT(*)
                                utvm_task.num_args);
+  UTVMTimerStop();
+  utvm_task_time = UTVMTimerRead();
   UTVMDone();
 }
 

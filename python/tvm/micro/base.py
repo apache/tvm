@@ -353,6 +353,28 @@ def create_arm_micro_lib(
         run_cmd(curr_compile_cmd)
         print(f'finished compiling {src_path}')
 
+    #base_compile_cmd = [
+    #        'arm-none-eabi-gcc',
+    #        '-std=c11',
+    #        '-Wall',
+    #        '-Wextra',
+    #        '--pedantic',
+    #        '-mcpu=cortex-m7',
+    #        '-mlittle-endian',
+    #        '-mfloat-abi=hard',
+    #        '-mfpu=fpv5-sp-d16',
+    #        '-mthumb',
+    #        '-O0',
+    #        '-g',
+    #        '-gdwarf-5',
+    #        '-nostartfiles',
+    #        '-nodefaultlibs',
+    #        '-nostdlib',
+    #        '-fdata-sections',
+    #        '-ffunction-sections']
+    #curr_compile_cmd = base_compile_cmd + prereq_obj_paths + ['-o', obj_path]
+    #run_cmd(curr_compile_cmd)
+
     ld_cmd = ['arm-none-eabi-ld', '-relocatable']
     ld_cmd += prereq_obj_paths
     ld_cmd += ['-o', obj_path]

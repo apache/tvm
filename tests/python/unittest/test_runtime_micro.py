@@ -213,8 +213,7 @@ def test_conv2d():
     from tvm.relay import transform
 
     dshape = (1, 4, 16, 16)
-    #for dtype, func_name in [('float32', 'fused_nn_conv2d'), ('int8', 'fused_nn_conv2d_2')]:
-    for dtype, func_name in [('int8', 'fused_nn_conv2d')]:
+    for dtype, func_name in [('float32', 'fused_nn_conv2d'), ('int8', 'fused_nn_conv2d_2')]:
         reset_gdbinit()
 
         # Construct Relay program.

@@ -23,7 +23,8 @@ unsigned long stop_time = 0;
 unsigned long duration = 0;
 
 void UTVMTimerStart() {
-    SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
+    //SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
+    SYST_CSR = (1 << SYST_CSR_ENABLE);
     // wait until timer starts
     while (SYST_CVR == 0);
     start_time = SYST_CVR;
