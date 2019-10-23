@@ -148,7 +148,7 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    if (data->shape[i].as<IntImm>()) {
+    if (!data->shape[i].as<ir::Any>()) {
       auto padding = make_const(data->shape[i].type(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
     } else {
