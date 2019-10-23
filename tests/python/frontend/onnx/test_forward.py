@@ -1326,36 +1326,35 @@ def test_where():
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
 
-def verify_constantofshape(indata, outdata, out_value):
-    in_tensor = onnx.helper.make_tensor(name='in',
-                                        data_type=TensorProto.FLOAT,
-                                        dims=indata.shape,
-                                        vals=indata)
+def test_constantofshape_with_input_shape():
+    ref_node = helper.make_node('Constant',
+                                inputs=['x'],
+                                outputs=['y'],
+                                value=onnx.helper.make_tensor('value', TensorProto.INT32, (1,), (2,)))
 
-    value_tensor = onnx.helper.make_tensor(name='value',
-                                           data_type=TensorProto.FLOAT,
-                                           dims=[1],
-                                           vals=[out_value])
+    node = helper.make_node("ConstantOfShape",
+                            inputs=['y'],
+                            outputs=['z'],
+                            value=onnx.helper.make_tensor('value', TensorProto.INT64, (3,), (3, 4, 5)))
 
-    node = helper.make_node('ConstantOfShape', inputs=['in'], outputs=['out'], value=value_tensor,)
-    graph = helper.make_graph([node],
+    graph = helper.make_graph([ref_node, node],
                               'ConstantOfShape_test',
-                              inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
-                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))],
-                              initializer=[in_tensor])
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.INT64, list((1,)))],
+                              outputs=[helper.make_tensor_value_info("z", TensorProto.INT32, list((3, 4, 5)))],
+                              initializer=None,
+                              value_info=[])
+
     model = helper.make_model(graph, producer_name='ConstantOfShape_test')
+
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape)
-        tvm.testing.assert_allclose(outdata, tvm_out)
+        x = np.array([1]).astype(np.int64)
+        tvm_out = get_tvm_output(model, x, target, ctx, (3, 4, 5))
+        tvm.testing.assert_allclose((2,), tvm_out)
 
 
 def test_constantofshape():
     # test cases: https://github.com/onnx/onnx/blob/master/docs/Operators.md#ConstantOfShape
-    # float ones
-    x = np.array([4, 3, 2]).astype(np.int64)
-    y = np.ones(x, dtype=np.float32)
-    value = 1
-    verify_constantofshape(x, y, out_value=value)
+    test_constantofshape_with_input_shape()
 
 
 if __name__ == '__main__':

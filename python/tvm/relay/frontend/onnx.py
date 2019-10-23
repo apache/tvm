@@ -939,8 +939,8 @@ class ConstantOfShape(Elemwise):
         if not isinstance(inputs, list) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         # reps: The number of times repeating the tensor data.
-        shape = tuple(params[inputs[0].name_hint].asnumpy().astype('int').tolist())
-        return _op.tile(inputs[1], reps=shape)
+        shape = tuple(params[inputs[1].name_hint].asnumpy().astype('int').tolist())
+        return _op.tile(inputs[0], reps=shape)
 
 
 # compatible operators that do NOT require any conversion.
@@ -1188,9 +1188,9 @@ class GraphProto(object):
                     t_proto = self._parse_attr(node.attribute)["value"]
                     i_name = node.output[0]
                     self._params[i_name] = self._parse_array(t_proto)
-                    self._nodes[i_name] = new_var(node.input[0],
-                                                  shape=self._params[node.input[0]].shape,
-                                                  dtype=self._params[node.input[0]].dtype)
+                    self._nodes[i_name] = new_var(i_name,
+                                                  shape=list(t_proto.dims),
+                                                  dtype=self._params[i_name].dtype)
                     inputs.append(self._nodes[i_name])
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}
