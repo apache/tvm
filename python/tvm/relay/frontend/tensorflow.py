@@ -1315,9 +1315,9 @@ def _size():
 def _add_n():
     def _impl(inputs, attr, params):
         assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
-        _res=inputs[0]
+        _res = inputs[0]
         for each in inputs[1:]:
-            _res = _op.add(_res,each)
+            _res = _op.add(_res, each)
         return  _res
     return _impl
 
