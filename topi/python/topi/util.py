@@ -165,7 +165,7 @@ def get_const_tuple(in_tuple):
             if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
                 ret.append(elem)
         else:
-          ret.append(get_const_int(elem))
+            ret.append(get_const_int(elem))
     return tuple(ret)
 
 
