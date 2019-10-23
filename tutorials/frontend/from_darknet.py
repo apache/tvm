@@ -72,7 +72,7 @@ if sys.platform in ['linux', 'linux2']:
     DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
 elif sys.platform == 'darwin':
     DARKNET_LIB = 'libdarknet_mac2.0.so'
-    DARKNET_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib_osx/' + DARKNET_LIB + '?raw=true'
+    DARKNET_URL = REPO_URL + 'lib_osx/' + DARKNET_LIB + '?raw=true'
 else:
     err = "Darknet lib is not supported on {} platform".format(sys.platform)
     raise NotImplementedError(err)
