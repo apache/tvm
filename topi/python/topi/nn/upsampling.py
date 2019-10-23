@@ -17,10 +17,11 @@
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
 import topi
+import tvm
 from ..util import simplify
 
 
-def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corners=False):
+def upsampling(data, scale, scale2, layout="NCHW", method='nearest_neighbor', align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -48,9 +49,10 @@ def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corn
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(data.shape[2] * scale), simplify(data.shape[3] * scale))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale), data.shape[2].dtype)), simplify(topi.cast(tvm.round(data.shape[3] * scale2), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale), data.shape[1].dtype)), simplify(topi.cast(tvm.round(data.shape[2] * scale2), data.shape[2].dtype)))
+
     else:
         raise ValueError("not support this layout {} yet".format(layout))
     return topi.image.resize(data, out_shape, layout=layout,

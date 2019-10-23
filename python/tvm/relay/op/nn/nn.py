@@ -484,6 +484,7 @@ def global_avg_pool2d(data,
 
 def upsampling(data,
                scale=1,
+               scale2=1,
                layout="NCHW",
                method="nearest_neighbor",
                align_corners=False):
@@ -519,7 +520,7 @@ def upsampling(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.upsampling(data, scale, layout, method, align_corners)
+    return _make.upsampling(data, scale, scale2, layout, method, align_corners)
 
 
 def batch_flatten(data):

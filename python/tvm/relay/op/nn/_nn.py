@@ -410,10 +410,11 @@ def schedule_upsampling(_, outs, target):
 @reg.register_compute("nn.upsampling")
 def compute_upsampling(attrs, inputs, out_dtype, target):
     scale = attrs.scale
+    scale2 = attrs.scale2
     layout = attrs.layout
     method = attrs.method
     align_corners = attrs.align_corners
-    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
+    return [topi.nn.upsampling(inputs[0], scale, scale2, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
