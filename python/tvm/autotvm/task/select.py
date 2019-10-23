@@ -14,20 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-variable
+# pylint: disable=unused-variable, invalid-name
 """Functions to cluster and select tasks for selective tuning.
 """
 
 import logging
 
 import numpy as np
-import networkx as nx
 
 logger = logging.getLogger('autotvm')
 
 
 def compute_similarity(task1, task2):
-    """Compute the similarity of two tasks.
+    """Compute the similarity of two tasks' tuning spaces.
 
     Parameters
     ----------
@@ -71,9 +70,9 @@ def compute_psm(tasks):
         a NxN PSM. PSM(i, j) is the similarity of task i and task j.
     """
     psm = [[1.0 for _ in range(len(tasks))] for _ in range(len(tasks))]
-    for idx1 in range(len(tasks)):
+    for idx1, task1 in enumerate(tasks):
         for idx2 in range(idx1 + 1, len(tasks)):
-            psm[idx1][idx2] = psm[idx2][idx1] = compute_similarity(tasks[idx1], tasks[idx2])
+            psm[idx1][idx2] = psm[idx2][idx1] = compute_similarity(task1, tasks[idx2])
 
     if logger.isEnabledFor(logging.DEBUG):
         print('Pairwise Similarity Matrix:')
@@ -84,8 +83,17 @@ def compute_psm(tasks):
     return psm
 
 
-def clustering(tasks):
-    """Cluster given tasks to several groups and select one task per group.
+def psm_clustering(tasks):
+    """Cluster given tasks to several groups and select one task per group using
+    pairwise simularity matrix (PSM) and graph cliques. We first compute the PSM
+    that includes simularity rate (SM) of any two tasks. The simularity rate is the
+    ratio of overlapped tuning space between tasks. Accordingly, we create a graph
+    with tasks as nodes and SM (>=0.01) as edge weight, and then find all cliques
+    in the graph as clusters. For the task that has been included by more than one
+    cliques, we assign it to the clique with higher weight sum between the task and
+    other tasks in the clique. Finally, every non-empty clique is a cluster, and
+    the task with the highest weight sum is the representative task of that cluster,
+    meaning that all other tasks in the cluster will depend on it.
 
     Parameters
     ----------
@@ -97,8 +105,10 @@ def clustering(tasks):
     (centroids, labels): Tuple[List[int], List[int]]
         the index of selected tasks and the cluster each task belongs to.
     """
+    import networkx as nx
+
     def weight_sum(psm, prim, targets):
-        """"""
+        """Sum of the simularity rates of prim task to target tasks"""
         return sum([psm[prim][t] for t in targets])
 
     # Precompute the pairwise similarity matrix (PSM)
@@ -157,23 +167,24 @@ def clustering(tasks):
             centroids.append(-1)
     return centroids, labels
 
-def mark_depend(tasks, num=3):
-    """Mark the dependency of some tasks to other representative tasks.
+def mark_depend(tasks):
+    """Mark some tasks to depend on other tasks by assigning task.depend = other_task.
+    It means the tuner will only use the top schedules of the dependent task when
+    that task has been tuned already.
 
     Parameters
     ----------
     tasks: List[tvm.autotvm.task.Task]
         the tasks to be analyzed and marked.
-
-    num: int
-        the number of representatives (centroids).
-        when default value is used, mean shift is leveraged to determine the cluster number.
     """
 
     assert all([t.workload is not None
                 for t in tasks]), "One or more tasks have undefined workload"
 
-    centroids, labels = clustering(tasks)
+    if not tasks or tasks[0].target.target_name != 'cuda':
+        logging.warning('Make dependent tasks for CPU is unstable')
+
+    centroids, labels = psm_clustering(tasks)
 
     if logger.isEnabledFor(logging.DEBUG):
         print('Selected task index: %s' % ', '.join([str(c) for c in centroids]))
@@ -183,7 +194,7 @@ def mark_depend(tasks, num=3):
         if labels[idx] != -1:
             task.depend = tasks[centroids[labels[idx]]]
         else:  # Outliers depend on itself to guarantee the performance
-            logger.debug('task %s does not have dependent' % str(task))
+            logger.debug('task %s does not have dependent', str(task))
 
-    logger.info('Select %d tasks over %d tasks ' %
-                (sum([1 if t.depend == t else 0 for t in tasks]), len(tasks)))
+    logger.info('Select %d tasks over %d tasks ',
+                sum([1 if t.depend == t else 0 for t in tasks]), len(tasks))

@@ -182,6 +182,10 @@ class VirtualAxis(TransformSpace):
             raise RuntimeError("Invalid type of axis: " + str(type(var)))
 
     @staticmethod
+    def hash_entity(entity):
+        return self.name
+
+    @staticmethod
     def get_num_output(var, name=None):
         return 1
 
