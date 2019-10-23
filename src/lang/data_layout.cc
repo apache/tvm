@@ -293,7 +293,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
-    if (orig_shape->type_key() == ir::Any().type_key()) {
+    if (orig_shape.as<ir::Any>()) {
       symbolic_var_set.insert(orig_axis->var->name_hint);
     }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
