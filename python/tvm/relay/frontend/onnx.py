@@ -658,6 +658,25 @@ class Split(OnnxOpConverter):
 class Slice(OnnxOpConverter):
     """ Operator converter for Slice.
     """
+
+    @classmethod
+    def _common(cls, starts, ends, axes):
+        new_axes = []
+        new_starts = []
+        new_ends = []
+        pop_index = 0
+        for i in range(max(axes) + 1):
+            if i in axes:
+                new_axes.append(i)
+                new_starts.append(starts[pop_index])
+                new_ends.append(ends[pop_index])
+                pop_index += 1
+            else:
+                new_axes.append(i)
+                new_starts.append(0)
+                new_ends.append(np.iinfo(np.int32).max)
+        return new_starts, new_ends, new_axes
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if isinstance(attr['starts'], int):
@@ -668,22 +687,9 @@ class Slice(OnnxOpConverter):
             # Update the starts and ends according to axes if required.
             if isinstance(attr['axes'], int):
                 attr['axes'] = (attr['axes'],)
-
             if (max(attr['axes']) + 1) != len(attr['axes']):
-                new_axes = []
-                new_starts = []
-                new_ends = []
-                pop_index = 0
-                for i in range(max(attr['axes']) + 1):
-                    if i in attr['axes']:
-                        new_axes.append(i)
-                        new_starts.append(attr['starts'][pop_index])
-                        new_ends.append(attr['ends'][pop_index])
-                        pop_index += 1
-                    else:
-                        new_axes.append(i)
-                        new_starts.append(0)
-                        new_ends.append(np.iinfo(np.int32).max)
+                new_starts, new_ends, new_axes = cls._common(
+                    cls, attr['starts'], attr['ends'], attr['axes'])
                 attr['axes'] = new_axes
                 attr['starts'] = new_starts
                 attr['ends'] = new_ends
@@ -705,23 +711,12 @@ class Slice(OnnxOpConverter):
             axes = params[get_name(inputs[3])].asnumpy()
 
             if (max(axes + 1) != len(axes)):
-                new_axes = []
-                new_starts = []
-                new_ends = []
-                pop_index = 0
-                for i in range(max(axes) + 1):
-                    if i in axes:
-                        new_axes.append(i)
-                        new_starts.append(starts[pop_index])
-                        new_ends.append(ends[pop_index])
-                        pop_index += 1
-                    else:
-                        new_axes.append(i)
-                        new_starts.append(0)
-                        new_ends.append(np.iinfo(np.int32).max)
+                new_starts, new_ends, new_axes = cls._common(
+                    cls, starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
         return _op.strided_slice(inputs[0], begin=starts, end=ends)
+
 
 class Gather(OnnxOpConverter):
     """ Operator converter for Gather.
@@ -731,7 +726,6 @@ class Gather(OnnxOpConverter):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
                        extras={'axis':axis})(inputs, {})
-        #return _op.take(inputs[0], inputs[1], axis)
 
 
 class Greater(OnnxOpConverter):
@@ -901,6 +895,7 @@ class OneHot(OnnxOpConverter):
             attr['axis'] = -1
         return _op.one_hot(indices, on_value, off_value, depth, attr['axis'], dtype=dtype)
 
+
 class ConstantFill(OnnxOpConverter):
     """ Operator converter for ConstantFill.
     """
@@ -929,6 +924,7 @@ class ConstantFill(OnnxOpConverter):
             shape = shape + attr.pop('extra_shape')
         return _op.full(inputs[0], shape)
 
+
 class ConstantOfShape(OnnxOpConverter):
     """ Operator converter for ConstantOfShape.
     """
@@ -945,6 +941,7 @@ class ConstantOfShape(OnnxOpConverter):
         output = _op.full(
             value, shape=tuple(static_shape.asnumpy().astype('int32')), dtype=dtype)
         return output
+
 
 class Sign(OnnxOpConverter):
     """ Operator converter for Sign.
@@ -1035,7 +1032,7 @@ def _get_convert_map(opset):
         # 'MeanVarianceNormalization'
         # 'Crop'
         # 'Embedding'
-        'Upsample' : Upsample.get_converter(opset),
+        'Upsample': Upsample.get_converter(opset),
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
