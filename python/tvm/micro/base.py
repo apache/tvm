@@ -67,6 +67,7 @@ class Session:
           micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
     """
 
+    # TODO(weberlo): remove required trailing dash in toolchain_prefix
     def __init__(self, device_type, toolchain_prefix, **kwargs):
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
@@ -89,8 +90,12 @@ class Session:
         self.port = kwargs.get("port", 0)
 
         print('creating session')
-        self.module = _CreateSession(
-            self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
+        if 'remote_create_func' in kwargs:
+            self.module = kwargs['remote_create_func'](
+                self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
+        else:
+            self.module = _CreateSession(
+                self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
         print('finished session init')
@@ -243,7 +248,7 @@ def create_host_micro_lib(
         options += ["-mcmodel=large"]
     compile_cmd = "{}gcc".format(toolchain_prefix)
 
-    if include_dev_lib_header:
+    if lib_type == LibType.OPERATOR:
         # Create a temporary copy of the source, so we can inject the dev lib
         # header without modifying the original.
         tmp_dir = _util.tempdir()
@@ -348,6 +353,8 @@ def create_arm_micro_lib(
         curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
         run_cmd(curr_compile_cmd)
 
+    # TODO(weberlo): adding '-fPIC' here causes the pc-relative data pools to
+    # not be updated when the obj is reloced. why?
     ld_cmd = ['arm-none-eabi-ld', '-relocatable']
     ld_cmd += prereq_obj_paths
     ld_cmd += ['-o', obj_path]

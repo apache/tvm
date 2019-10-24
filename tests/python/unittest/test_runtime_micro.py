@@ -52,7 +52,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
     c_mod.export_library(
             lib_obj_path,
             fcompile=tvm.micro.cross_compiler(toolchain_prefix, micro.LibType.OPERATOR))
-    micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
+    micro_mod = tvm.module.load(lib_obj_path)
     return micro_mod
 
 
@@ -126,16 +126,8 @@ def test_add():
     #dtype = "float32"
     dtype = "int32"
 
-    # int32: 47049
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
-    # int32: 46780
+    # int32: 47049, 46780, 46780, 46780, 46780, 46780, 46780, 46780, 46780, 46780
+    # float32: 46803 46780 46780 46780 46780 46780 46780 46780 46780 46780
 
     reset_gdbinit()
 
@@ -203,6 +195,7 @@ def test_int_workspace_add():
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         print(c)
         micro_func(a, c)
+        print(c)
 
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + 2)
@@ -237,6 +230,7 @@ def test_float_workspace_add():
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         print(c)
         micro_func(a, c)
+        print(c)
 
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + 2.0)
