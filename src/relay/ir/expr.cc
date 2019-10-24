@@ -163,7 +163,7 @@ Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) cons
   return FunctionSetAttr(GetRef<Function>(this), "__params__", parameters);
 }
 
-TVM_REGISTER_API("relay._expr.FunctionSetParms")
+TVM_REGISTER_API("relay._expr.FunctionSetParams")
 .set_body_typed<Function(const Function&, const tvm::Map<Var, Constant>&)>(
   [](const Function& func, const tvm::Map<Var, Constant>& parameters) {
     return func->SetParams(parameters);
@@ -174,7 +174,7 @@ tvm::Map<Var, Constant> FunctionNode::GetParams() const {
   return Downcast<tvm::Map<Var, Constant>>(node_ref);
 }
 
-TVM_REGISTER_API("relay._expr.FunctionGetParms")
+TVM_REGISTER_API("relay._expr.FunctionGetParams")
 .set_body_typed<tvm::Map<Var, Constant>(const Function&)>([](const Function& func) {
   return func->GetParams();
 });

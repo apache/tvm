@@ -160,7 +160,6 @@ def test_global_var():
     str(gv)
     check_json_roundtrip(gv)
 
-
 def test_function():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.convert([relay.Var(n) for n in param_names])
@@ -184,7 +183,8 @@ def test_function_attrs():
     fn = relay.Function(params, body, ret_type, type_params)
     model_params = {}
     for param in params[:1]:
-        tensor = np.random.rand(*param.shape).astype(param.dtype)
+        cty = param.type_annotation
+        tensor = np.random.rand(*[int(sh) for sh in cty.shape]).astype(cty.dtype)
         model_params[param] = tvm.nd.array(tensor)
     fn = fn.set_params(model_params)
     assert fn.params == params
@@ -196,8 +196,12 @@ def test_function_attrs():
     json_str = tvm.save_json(fn)
     fn_after = tvm.load_json(json_str)
     model_params_after = fn_after.get_params()
-    for p1, p2 in zip(model_params, model_params_after):
-        assert p1.asnumpy() == p2.asnumpy()
+    after_keys = [item[0] for item in model_params_after.items()]
+    for key1, key2 in zip(model_params, after_keys):
+        assert key1.name_hint == key2.name_hint
+        p1 = model_params[key1]
+        p2 = model_params_after[key2]
+        np.testing.assert_allclose(p1.data.asnumpy(), p2.data.asnumpy())
 
 def test_call():
     op = relay.Var('f')
@@ -280,9 +284,11 @@ if __name__ == "__main__":
     test_local_var()
     test_global_var()
     test_function()
+    test_function_attrs()
     test_call()
     test_let()
     test_if()
     test_tuple_get_item()
     test_op()
     test_conv2d_attrs()
+

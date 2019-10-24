@@ -27,6 +27,7 @@ from . import ty as _ty
 from .._ffi import base as _base
 from .. import nd as _nd
 from .. import convert
+from ..ndarray import NDArray
 
 # will be registered afterwards
 _op_make = None
@@ -305,10 +306,15 @@ class Function(Expr):
         """
         return Call(self, args, None, None)
 
-    def get_params(self, params):
-        return _expr.FunctionGet(self, params)
+    def get_params(self):
+        return _expr.FunctionGetParams(self)
 
     def set_params(self, params):
+        for key in params:
+            value = params[key]
+            if isinstance(value, NDArray):
+                params[key] = Constant(value)
+
         return _expr.FunctionSetParams(self, params)
 
 
