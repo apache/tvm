@@ -413,7 +413,6 @@ def lower(sch,
 
     # Phase 3
     stmt = ir_pass.Simplify(stmt)
-    stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
     if not cfg.disable_select_rewriting:
         stmt = ir_pass.RewriteUnsafeSelect(stmt)
@@ -465,6 +464,7 @@ def _build_for_device(flist, target, target_host):
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
             func = ir_pass.ThreadSync(func, "warp")
+            func = ir_pass.InferFragment(func)
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
@@ -494,6 +494,8 @@ def _build_for_device(flist, target, target_host):
         assert not fdevice
 
     target_host = _target.create(target_host)
+    fdevice = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fdevice]
+    fhost = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fhost]
     fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
