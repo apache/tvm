@@ -474,9 +474,13 @@ def infer_channels(inputs, transpose=False):
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
-    
+
 
 def infer_value(input_val, params):
+    """A hack for getting the value of an expression by evaluating a
+    portion of the relay graph. This is often needed for functions that
+    whose output shape depends on the value of a tensor.
+    """
     from tvm.contrib import graph_runtime
     # Check that all free variables have associated parameters.
     assert all(var.name_hint in params.keys() for var in analysis.free_vars(
@@ -492,7 +496,12 @@ def infer_value(input_val, params):
 
 
 def infer_value_simulated(input_val, params):
-    # Keep track of which params we need to simulate
+    """Extention to infer_value that can be used when some input
+    values are missing. This function creats dummy inputs with the same
+    shape and random values then calls infer_value. This is helpful when
+    implementing certain onnx operators where we need to evaluate the graph
+    to determine a static shape.
+    """
     fake_params = []
     # Add a fake copy of all missing params.
     for free_param in analysis.free_vars(input_val):
@@ -506,8 +515,8 @@ def infer_value_simulated(input_val, params):
     # Now infer the value.
     output_value = infer_value(input_val, params)
     # Clean fake params out of param dictionary.
-    for fp in fake_params:
-        params.pop(fp.name_hint, None)
+    for fake_p in fake_params:
+        params.pop(fake_p.name_hint, None)
     return output_value
 
 

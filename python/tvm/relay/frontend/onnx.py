@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 
 import logging
 import numpy as np
+from onnx.numpy_helper import to_array
 import tvm
 from ... import nd as _nd
 from .. import analysis
@@ -29,7 +30,6 @@ from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_type, infer_value, infer_value_simulated, get_name
-from onnx.numpy_helper import to_array
 
 __all__ = ['from_onnx']
 
@@ -120,7 +120,7 @@ class Elemwise(OnnxOpConverter):
             axis = int(attr.get('axis', 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_relay_op(op_name)(*inputs)
-  
+
 
 class Pool(OnnxOpConverter):
     """ A helper class for pool op converters.
@@ -295,9 +295,8 @@ class MatMul(OnnxOpConverter):
             # Reshape output to original dimensions.
             return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
         # Otherwise a simple dense op will get the job done.
-        else:
-            input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-            return _op.nn.dense(inputs[0], input_1_t)
+        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+        return _op.nn.dense(inputs[0], input_1_t)
 
 
 class MaxPool(Pool):
@@ -710,8 +709,8 @@ class Slice(OnnxOpConverter):
         if len(inputs) >= 4:
             axes = params[get_name(inputs[3])].asnumpy()
 
-            if (max(axes + 1) != len(axes)):
-                new_starts, new_ends, new_axes = cls._common(
+            if max(axes + 1) != len(axes):
+                new_starts, new_ends, _ = cls._common(
                     starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
