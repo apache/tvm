@@ -1065,10 +1065,14 @@ def test_reduce_mean():
 def verify_split(indata, outdatas, split, axis=0):
     indata = np.array(indata).astype(np.float32)
     outdatas = [np.array(o).astype(np.float32) for o in outdatas]
+    if split:
+        split_index = range(len(split))
+    else:
+        split_index = range(len(outdatas))
     node = helper.make_node(
         'Split',
         inputs=['input'],
-        outputs=['output_{}'.format(i) for i in range(len(split))],
+        outputs=['output_{}'.format(i) for i in range(len(split_index))],
         axis=axis,
         split=split
     )
@@ -1078,7 +1082,7 @@ def verify_split(indata, outdatas, split, axis=0):
                                                                     TensorProto.FLOAT, list(indata.shape))],
                               outputs=[helper.make_tensor_value_info("output_{}".format(i),
                                                                      TensorProto.FLOAT, list(outdatas[i].shape))
-                                       for i in range(len(split))
+                                       for i in range(len(split_index))
                                        ])
     model = helper.make_model(graph, producer_name='split_test')
 
@@ -1100,6 +1104,8 @@ def test_split():
     # 2D
     verify_split([[1., 2., 3., 4.], [7., 8., 9., 10.]],
                  [[[1., 2.], [7., 8.]], [[3., 4.], [9., 10.]]], [2, 2], 1)
+    # Split evenly (unstack)
+    verify_split([1, 2, 3], [[1], [2], [3]], False)
 
 
 def test_binary_ops():
