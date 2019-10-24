@@ -926,7 +926,7 @@ class Where(OnnxOpConverter):
     """Operator converter for Where
     """
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
+    def _impl_v9(cls, inputs, attr, params):
         return _op.where(inputs[0], inputs[1], inputs[2])
 
 
