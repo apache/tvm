@@ -499,7 +499,7 @@ bool MissingGrad(const Expr& e) {
 
     void VisitExpr_(const OpNode* op) final {
       Op op_ref = GetRef<Op>(op);
-      if (!rev_map.count(op_ref)) {
+      if (op_ref->name != "annotation.checkpoint" && !rev_map.count(op_ref)) {
         op_names.insert(op_ref->name);
       }
       ExprVisitor::VisitExpr_(op);
