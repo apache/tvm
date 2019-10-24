@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 
 import numpy as np
-from onnx.numpy_helper import to_array
 import tvm
 from ... import nd as _nd
 from .. import analysis
@@ -32,6 +31,17 @@ from .common import infer_type, infer_value, infer_value_simulated, get_name
 
 __all__ = ['from_onnx']
 
+
+def get_numpy(tensor_proto):
+    """Grab data in TensorProto and convert to numpy array."""
+    try:
+        from onnx.numpy_helper import to_array
+    except ImportError as e:
+        raise ImportError(
+            "Unable to import onnx which is required {}".format(e))
+    return to_array(tensor_proto)
+
+
 def dimension_picker(prefix, surfix=''):
     def _impl(attr):
         kernel = attr['kernel_shape']
@@ -42,6 +52,7 @@ def dimension_picker(prefix, surfix=''):
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
+
 
 def revert_caffe2_pad(pads):
     """Caffe2 requires two times the normal padding."""
@@ -900,7 +911,7 @@ class ConstantOfShape(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if 'value' in attr:
-            np_value = to_array(attr.pop('value'))[0]
+            np_value = get_numpy(attr.pop('value'))[0]
             value = _expr.const(np_value)
             dtype = np_value.dtype.name
         else:
@@ -1249,8 +1260,7 @@ class GraphProto(object):
             return dtype
 
     def _parse_array(self, tensor_proto):
-        """Grab data in TensorProto and convert to numpy array."""
-        np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
+        np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return _nd.array(np_array)
 
     def _parse_attr(self, attr_proto):
