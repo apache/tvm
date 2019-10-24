@@ -119,6 +119,32 @@ class ClosureNode : public ValueNode {
 
 RELAY_DEFINE_NODE_REF(Closure, ClosureNode, Value);
 
+/*! \brief A Relay Recursive Closure. A closure that has a name. */
+class RecClosure;
+
+/*! \brief The container type of RecClosure. */
+class RecClosureNode : public ValueNode {
+ public:
+  /*! \brief The closure. */
+  Closure clos;
+  /*! \brief variable the closure bind to. */
+  Var bind;
+
+  RecClosureNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("clos", &clos);
+    v->Visit("bind", &bind);
+  }
+
+  TVM_DLL static RecClosure make(Closure clos, Var bind);
+
+  static constexpr const char* _type_key = "relay.RecClosure";
+  TVM_DECLARE_NODE_TYPE_INFO(RecClosureNode, ValueNode);
+};
+
+RELAY_DEFINE_NODE_REF(RecClosure, RecClosureNode, Value);
+
 /*! \brief A tuple value. */
 class TupleValue;
 
