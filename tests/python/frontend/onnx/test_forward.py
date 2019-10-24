@@ -329,12 +329,75 @@ def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
     tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+def _test_slice_iteration_v10(indata, outdata, starts, ends, axes=None):
+    if isinstance(starts, int):
+        starts = (starts, )
+    if isinstance(ends, int):
+        ends = (ends, )
+    if isinstance(axes, int):
+        axes = (axes, )
+    starts = np.asarray(starts)
+    ends = np.asarray(ends)
+    inputs = [
+        helper.make_tensor_value_info("data", TensorProto.FLOAT,
+                                      list(indata.shape)),
+        helper.make_tensor_value_info("starts", TensorProto.INT32,
+                                      list(starts.shape)),
+        helper.make_tensor_value_info("ends", TensorProto.INT32,
+                                      list(ends.shape))
+    ]
+    initializer = [
+        helper.make_tensor("starts", TensorProto.INT32, list(starts.shape),
+                           starts),
+        helper.make_tensor("ends", TensorProto.INT32, list(ends.shape), ends)
+    ]
+
+    if axes:
+        axes = np.asarray(axes)
+        y = helper.make_node("Slice", ["data", "starts", "ends", "axes"],
+                             ["out"])
+        inputs.append(
+            helper.make_tensor_value_info("axes", TensorProto.INT32,
+                                          list(axes.shape)))
+        initializer.append(
+            helper.make_tensor("axes", TensorProto.INT32, list(axes.shape),
+                               axes))
+    else:
+        y = helper.make_node("Slice", ["data", "starts", "ends"], ["out"])
+
+    graph = helper.make_graph([y],
+                              'slice_test',
+                              inputs=inputs,
+                              outputs=[
+                                  helper.make_tensor_value_info(
+                                      "out", TensorProto.FLOAT,
+                                      list(outdata.shape))
+                              ],
+                              initializer=initializer)
+    model = helper.make_model(graph, producer_name='slice_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model,
+                                 indata,
+                                 target,
+                                 ctx,
+                                 outdata.shape,
+                                 'float32',
+                                 opset=10)
+
+    tvm.testing.assert_allclose(outdata, tvm_out)
+
+
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
     _test_slice_iteration_v1(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
     _test_slice_iteration_v1(x, x[:, 1:1000], (1), (1000), (1))
     _test_slice_iteration_v1(x, x[:, 0:-1], (0), (-1), (1))
+    _test_slice_iteration_v10(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
+    _test_slice_iteration_v10(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
+    _test_slice_iteration_v10(x, x[:, 1:1000], (1), (1000), (1))
+    _test_slice_iteration_v10(x, x[:, 0:-1], (0), (-1), (1))
 
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
@@ -1449,12 +1512,46 @@ def verify_tile_v1(indata, outdata, **kwargs):
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
+def verify_tile_v6(indata, repeats, outdata):
+    node = helper.make_node('Tile',
+                            inputs=['input', 'repeats'],
+                            outputs=['out'])
+    graph = helper.make_graph(
+        [node],
+        'tile_test',
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT,
+                                          list(indata.shape)),
+            helper.make_tensor_value_info("repeats", TensorProto.INT64,
+                                          list(repeats.shape))
+        ],
+        outputs=[
+            helper.make_tensor_value_info("out", TensorProto.FLOAT,
+                                          list(outdata.shape))
+        ],
+        initializer=[
+            helper.make_tensor("repeats", TensorProto.INT64,
+                               list(repeats.shape), repeats)
+        ])
+
+    model = helper.make_model(graph, producer_name='tile_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [indata],
+                                 target,
+                                 ctx,
+                                 outdata.shape,
+                                 opset=6)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
 def test_tile():
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.random.randint(
         low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
     z = np.tile(x, repeats)
     verify_tile_v1(x, z, repeats=repeats)
+    verify_tile_v6(x, repeats, z)
 
 
 def verify_erf(indata, outdata):
