@@ -153,14 +153,14 @@ def compute_conv2d(attrs, inputs, out_type, target):
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
-    assert layout in ["NCHW", "NHWC", "NCHW4c"]
+    assert layout in ["NCHW", "NHWC", "NCHW4c", "HWCN"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
-        if kernel_layout == "HWOI":
+        if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
         return weight_shape[0] * weight_shape[1]
 
@@ -192,11 +192,13 @@ def schedule_conv2d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NCHW4c":
+        elif groups == 1 and layout == "NCHW4c":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NHWC":
+        elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        if groups != 1:
+        elif groups == 1 and layout == "HWCN":
+            return topi.generic.schedule_conv2d_hwcn(outs)
+        elif groups != 1:
             # collect in_channels to distinguish depthwise and group conv2d
             op = _find_conv2d_op(outs[0].op)
             assert op is not None
