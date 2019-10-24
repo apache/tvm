@@ -59,7 +59,7 @@ struct CachedFuncNode : public Node {
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("target", &target);
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
@@ -84,7 +84,7 @@ class CCacheKeyNode : public Node {
   /*! \brief The hardware target.*/
   Target target;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
   }
@@ -141,7 +141,7 @@ class CCacheValueNode : public Node {
   /*! \brief usage statistics */
   int use_count{0};
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("cached_func", &cached_func);
     v->Visit("use_count", &use_count);
   }
@@ -191,7 +191,7 @@ class CompileEngineNode : public Node {
   virtual void Clear() = 0;
 
   // VisitAttrs
-  void VisitAttrs(AttrVisitor*) final {}
+  void VisitAttrs(AttrVisitor*) {}
 
   static constexpr const char* _type_key = "relay.CompileEngine";
   TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);

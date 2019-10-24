@@ -106,7 +106,7 @@ class ClosureNode : public ValueNode {
 
   ClosureNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("env", &env);
     v->Visit("func", &func);
   }
@@ -154,7 +154,7 @@ struct TupleValueNode : ValueNode {
 
   TupleValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("fields", &fields); }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
 
   TVM_DLL static TupleValue make(tvm::Array<Value> value);
 
@@ -173,7 +173,7 @@ struct TensorValueNode : ValueNode {
 
   TensorValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("data", &data); }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("data", &data); }
 
   /*! \brief Build a value from an NDArray. */
   TVM_DLL static TensorValue make(runtime::NDArray data);
@@ -192,7 +192,7 @@ struct RefValueNode : ValueNode {
 
   RefValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
   }
 
@@ -215,7 +215,7 @@ struct ConstructorValueNode : ValueNode {
   /*! \brief Optional field tracking ADT constructor. */
   Constructor constructor;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tag", &tag);
     v->Visit("fields", &fields);
     v->Visit("constructor", &constructor);

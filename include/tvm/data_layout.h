@@ -104,7 +104,7 @@ class LayoutNode : public Node {
    */
   Array<IterVar> axes;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("axes", &axes);
   }
@@ -325,7 +325,7 @@ class BijectiveLayoutNode : public Node {
   /*! \brief The destination layout */
   Layout dst_layout;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("src_layout", &src_layout);
     v->Visit("dst_layout", &dst_layout);
     v->Visit("forward_rule", &forward_rule);

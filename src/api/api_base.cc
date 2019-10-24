@@ -26,6 +26,7 @@
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
 #include <tvm/api_registry.h>
+#include <tvm/node/serialization.h>
 
 namespace tvm {
 TVM_REGISTER_API("_format_str")
@@ -43,10 +44,10 @@ TVM_REGISTER_API("_raw_ptr")
   });
 
 TVM_REGISTER_API("_save_json")
-.set_body_typed<std::string(NodeRef)>(SaveJSON);
+.set_body_typed<std::string(ObjectRef)>(SaveJSON);
 
 TVM_REGISTER_API("_load_json")
-.set_body_typed<NodeRef(std::string)>(LoadJSON<NodeRef>);
+.set_body_typed<ObjectRef(std::string)>(LoadJSON);
 
 TVM_REGISTER_API("_TVMSetStream")
 .set_body_typed(TVMSetStream);

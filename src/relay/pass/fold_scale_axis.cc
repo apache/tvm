@@ -176,7 +176,7 @@ class ScaledExprNode : public TempExprNode {
     return value;
   }
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("axes", &axes);
     v->Visit("scale", &scale);
@@ -664,7 +664,7 @@ class BackwardTransformerNode :
   }
 
   // solver is not serializable.
-  void VisitAttrs(tvm::AttrVisitor* v) final {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.fold_scale_axis.FBackwardTransformer";
   TVM_DECLARE_NODE_TYPE_INFO(BackwardTransformerNode, Node);

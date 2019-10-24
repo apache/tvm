@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
@@ -116,6 +115,8 @@ RefValue RefValueNode::make(Value value) {
 TVM_REGISTER_API("relay._make.RefValue")
 .set_body_typed(RefValueNode::make);
 
+TVM_REGISTER_NODE_TYPE(RefValueNode);
+
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<RefValueNode>([](const RefValueNode* node,
                                tvm::IRPrinter* p) {
@@ -134,6 +135,8 @@ ConstructorValue ConstructorValueNode::make(int32_t tag,
 
 TVM_REGISTER_API("relay._make.ConstructorValue")
 .set_body_typed(ConstructorValueNode::make);
+
+TVM_REGISTER_NODE_TYPE(ConstructorValueNode);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
@@ -207,7 +210,7 @@ class InterpreterStateNode : public Node {
   /*! \brief The call stack of the interpreter. */
   Stack stack;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("current_expr", &current_expr);
     v->Visit("stack", &stack);
   }

@@ -171,7 +171,7 @@ class TensorNode : public Node {
   /*! \brief constructor */
   TensorNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);

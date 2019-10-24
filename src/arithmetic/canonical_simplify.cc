@@ -43,6 +43,7 @@ class SplitExpr;
  */
 class CanonicalExprNode : public BaseExprNode {
  public:
+  virtual ~CanonicalExprNode() {}
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \note Can mutate the internal data structure.
@@ -51,7 +52,7 @@ class CanonicalExprNode : public BaseExprNode {
   virtual Expr Normalize() const = 0;
 
   // overrides
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
@@ -485,7 +486,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return Normalized expr.
    */
   Expr Normalize(Expr expr) {
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       return op->Normalize();
     } else {
       return expr;
@@ -503,7 +504,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       if (op->base == 0 && op->args.size() == 1) return op->args[0];
     }
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();

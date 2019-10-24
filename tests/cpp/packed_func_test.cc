@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 

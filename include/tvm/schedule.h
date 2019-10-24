@@ -495,7 +495,7 @@ class StageNode : public Node {
   /*! \brief Number of direct child stages, only used for group stage.*/
   int num_child_stages{0};
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("origin_op", &origin_op);
     v->Visit("all_iter_vars", &all_iter_vars);
@@ -540,7 +540,7 @@ class ScheduleNode : public Node {
    */
   std::unordered_map<const Node*, Stage> op2stage_cache_;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("outputs", &outputs);
     v->Visit("stages", &stages);
     v->Visit("groups", &groups);
@@ -617,7 +617,7 @@ class IterVarAttrNode : public Node {
    */
   Array<Expr> pragma_values;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter_type", &iter_type);
     v->Visit("bind_thread", &bind_thread);
     v->Visit("prefetch_data", &prefetch_data);
@@ -657,7 +657,7 @@ class SplitNode : public IterVarRelationNode {
   /*! \brief Number of parts, only factor or nparts can be given */
   Expr nparts;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("parent", &parent);
     v->Visit("outer", &outer);
     v->Visit("inner", &inner);
@@ -687,7 +687,7 @@ class FuseNode : public IterVarRelationNode {
   /*! \brief The target domain */
   IterVar fused;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("outer", &outer);
     v->Visit("inner", &inner);
     v->Visit("fused", &fused);
@@ -712,7 +712,7 @@ class RebaseNode : public IterVarRelationNode {
   /*! \brief The inner domain */
   IterVar rebased;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("parent", &parent);
     v->Visit("rebased", &rebased);
   }
@@ -732,7 +732,7 @@ class SingletonNode : public IterVarRelationNode {
   /*! \brief The singleton iterator */
   IterVar iter;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter", &iter);
   }
 

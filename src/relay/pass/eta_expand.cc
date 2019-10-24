@@ -37,14 +37,14 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
   Type ret_type;
 
   if (e->IsInstance<GlobalVarNode>()) {
-    auto gvar_node = e.as_derived<GlobalVarNode>();
+    auto gvar_node = e.as<GlobalVarNode>();
     auto func = mod->Lookup(GetRef<GlobalVar>(gvar_node));
     original_params = func->params;
     original_type_params = func->type_params;
     ret_type = func->ret_type;
   } else {
     CHECK(e->IsInstance<FunctionNode>());
-    auto func = GetRef<Function>(e.as_derived<FunctionNode>());
+    auto func = GetRef<Function>(e.as<FunctionNode>());
     original_params = func->params;
     original_type_params = func->type_params;
     ret_type = func->ret_type;

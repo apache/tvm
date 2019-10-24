@@ -40,8 +40,7 @@ class ArrayNode : public Node {
   /*! \brief the data content */
   std::vector<ObjectRef> data;
 
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to array have no effect.
+  void VisitAttrs(AttrVisitor* visitor) {
   }
 
   static constexpr const char* _type_key = "Array";
@@ -51,9 +50,9 @@ class ArrayNode : public Node {
 /*! \brief map node content */
 class MapNode : public Node {
  public:
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to map have no effect.
+  void VisitAttrs(AttrVisitor* visitor) {
   }
+
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<
     ObjectRef,
@@ -71,11 +70,11 @@ class MapNode : public Node {
 /*! \brief specialized map node with string as key */
 class StrMapNode : public Node {
  public:
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to map have no effect.
-  }
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<std::string, ObjectRef>;
+
+  void VisitAttrs(AttrVisitor* visitor) {
+  }
 
   /*! \brief the data content */
   ContainerType data;

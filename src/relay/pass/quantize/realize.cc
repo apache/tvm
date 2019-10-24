@@ -56,7 +56,7 @@ class QRealizeIntExprNode : public QRealizeExprNode {
   Expr dom_scale;
   DataType dtype;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("dom_scale", &dom_scale);
     v->Visit("dtype", &dtype);
