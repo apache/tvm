@@ -171,11 +171,11 @@ TVM_REGISTER_API("relay._expr.FunctionSetParms")
 
 tvm::Map<Var, Constant> FunctionNode::GetParams() const {
   auto node_ref = FunctionGetAttr(GetRef<Function>(this), "__params__");
-  return Downcast<tvm::Map<Var, runtime::NDArray>>(node_ref);
+  return Downcast<tvm::Map<Var, Constant>>(node_ref);
 }
 
 TVM_REGISTER_API("relay._expr.FunctionGetParms")
-.set_body_typed<tvm::Map<Var, runtime::NDArray>(const Function&)>([](const Function& func) {
+.set_body_typed<tvm::Map<Var, Constant>(const Function&)>([](const Function& func) {
   return func->GetParams();
 });
 
