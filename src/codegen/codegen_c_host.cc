@@ -109,7 +109,7 @@ void CodeGenCHost::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   if (t.is_float()) {
     switch (t.bits()) {
       case 16:
-        os << "half";
+        os << "_Float16";
         break;
       case 32: os << "float"; break;
       case 64:
@@ -237,17 +237,17 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
 }
 
 void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
-  std::string cond = PrintExpr(op->condition);
-  PrintIndent();
-  stream << "if (!(" << cond << ")) {\n";
-  int assert_if_scope = this->BeginScope();
-  PrintIndent();
-  stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
-  PrintIndent();
-  stream << "return -1;\n";
-  this->EndScope(assert_if_scope);
-  PrintIndent();
-  stream << "}\n";
+  //std::string cond = PrintExpr(op->condition);
+  //PrintIndent();
+  //stream << "if (!(" << cond << ")) {\n";
+  //int assert_if_scope = this->BeginScope();
+  //PrintIndent();
+  //stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
+  //PrintIndent();
+  //stream << "return -1;\n";
+  //this->EndScope(assert_if_scope);
+  //PrintIndent();
+  //stream << "}\n";
   this->PrintStmt(op->body);
 }
 

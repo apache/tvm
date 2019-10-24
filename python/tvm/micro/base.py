@@ -343,43 +343,16 @@ def create_arm_micro_lib(
 
     prereq_obj_paths = []
     for src_path in src_paths:
-        print(f'compiling {src_path}')
-        curr_obj_path = replace_suffix(src_path, 'o')
+        curr_obj_path = tmp_dir.relpath(replace_suffix(os.path.basename(src_path), 'o'))
         prereq_obj_paths.append(curr_obj_path)
         curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
-
-        #compile_cmd_str = ' '.join(curr_compile_cmd)
-        #print(f'running "{compile_cmd_str}"')
         run_cmd(curr_compile_cmd)
-        print(f'finished compiling {src_path}')
-
-    #base_compile_cmd = [
-    #        'arm-none-eabi-gcc',
-    #        '-std=c11',
-    #        '-Wall',
-    #        '-Wextra',
-    #        '--pedantic',
-    #        '-mcpu=cortex-m7',
-    #        '-mlittle-endian',
-    #        '-mfloat-abi=hard',
-    #        '-mfpu=fpv5-sp-d16',
-    #        '-mthumb',
-    #        '-O0',
-    #        '-g',
-    #        '-gdwarf-5',
-    #        '-nostartfiles',
-    #        '-nodefaultlibs',
-    #        '-nostdlib',
-    #        '-fdata-sections',
-    #        '-ffunction-sections']
-    #curr_compile_cmd = base_compile_cmd + prereq_obj_paths + ['-o', obj_path]
-    #run_cmd(curr_compile_cmd)
 
     ld_cmd = ['arm-none-eabi-ld', '-relocatable']
     ld_cmd += prereq_obj_paths
     ld_cmd += ['-o', obj_path]
     run_cmd(ld_cmd)
-    input(f'check obj {obj_path}')
+    print(f'compiled obj {obj_path}')
 
 
 _init_api("tvm.micro", "tvm.micro.base")

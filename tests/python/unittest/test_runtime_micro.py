@@ -48,6 +48,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
     """
     temp_dir = util.tempdir()
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
+    print(c_mod.get_source())
     c_mod.export_library(
             lib_obj_path,
             fcompile=tvm.micro.cross_compiler(toolchain_prefix, micro.LibType.OPERATOR))
@@ -122,7 +123,19 @@ def test_add():
     if not tvm.module.enabled("micro_dev"):
         return
     shape = (1024,)
-    dtype = "float32"
+    #dtype = "float32"
+    dtype = "int32"
+
+    # int32: 47049
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
+    # int32: 46780
 
     reset_gdbinit()
 
@@ -140,16 +153,62 @@ def test_add():
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
-        a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        def run_func():
+            a = tvm.nd.array(np.random.randint(1, 10000, size=shape).astype(dtype), ctx)
+            b = tvm.nd.array(np.random.randint(1, 10000, size=shape).astype(dtype), ctx)
+            #a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+            #b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+            c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+            micro_func(a, b, c)
+
+        for _ in range(10):
+            run_func()
+
+        #a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        #b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        #c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        #micro_func(a, b, c)
+        #tvm.testing.assert_allclose(
+        #        c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+
+def test_int_workspace_add():
+    """Test a module which uses a workspace to compute an intermediate value."""
+    if not tvm.module.enabled("micro_dev"):
+        return
+    shape = (1024,)
+    dtype = "int32"
+
+    reset_gdbinit()
+
+    # Construct TVM expression.
+    tvm_shape = tvm.convert(shape)
+    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    # TODO: need to force the dtype of `C` to be int8 instead of int32 somehow,
+    # if we want to benchmark int8.
+    C = tvm.compute(A.shape, lambda *i: B(*i) + 1, name="C")
+    s = tvm.create_schedule(C.op)
+
+    func_name = "fadd_two_workspace"
+    c_mod = tvm.build(s, [A, C], target="c", name=func_name)
+
+    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+        micro_func = micro_mod[func_name]
+        ctx = tvm.micro_dev(0)
+        a = tvm.nd.array(np.random.randint(1, 50, size=shape).astype(dtype), ctx)
+        print(a)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        micro_func(a, b, c)
+        print(c)
+        micro_func(a, c)
 
         tvm.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + b.asnumpy())
+                c.asnumpy(), a.asnumpy() + 2)
 
 
-def test_workspace_add():
+def test_float_workspace_add():
     """Test a module which uses a workspace to compute an intermediate value."""
     if not tvm.module.enabled("micro_dev"):
         return
@@ -174,7 +233,9 @@ def test_workspace_add():
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        print(a)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        print(c)
         micro_func(a, c)
 
         tvm.testing.assert_allclose(
@@ -374,11 +435,14 @@ def test_inactive_session_use():
 
 if __name__ == "__main__":
     #test_alloc()
-    #test_add()
-    #test_workspace_add()
+    test_add()
+
+    #test_int_workspace_add()
+    #test_float_workspace_add()
+
     #test_graph_runtime()
 
-    test_conv2d()
+    #test_conv2d()
 
     #test_multiple_modules()
     #test_interleave_sessions()

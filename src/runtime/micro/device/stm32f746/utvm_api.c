@@ -20,11 +20,9 @@ extern "C" {
 
 unsigned long start_time = 0;
 unsigned long stop_time = 0;
-unsigned long duration = 0;
 
 void UTVMTimerStart() {
-    //SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
-    SYST_CSR = (1 << SYST_CSR_ENABLE);
+    SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
     // wait until timer starts
     while (SYST_CVR == 0);
     start_time = SYST_CVR;
@@ -50,6 +48,45 @@ int32_t UTVMTimerRead() {
       return -1;
     }
 }
+
+/*
+#define DWT_CTRL    (*((volatile unsigned long *) 0xE0001000))
+#define DWT_CYCCNT  (*((volatile unsigned long *) 0xE0001004))
+
+#define DWT_CTRL_NOCYCCNT   25
+#define DWT_CTRL_CYCCNTENA  0
+
+unsigned long start_time = 0;
+unsigned long stop_time = 0;
+
+void UTVMTimerReset() {
+  DWT_CYCCNT = 0;
+}
+
+void UTVMTimerStart() {
+  // TODO: change API so we can return errors from here
+  //if (DWT_CTRL & DWT_CTRL_NOCYCCNT) {
+  //  TVMAPISetLastError("cycle counter not implemented on device");
+  //  return -1;
+  //}
+  start_time = DWT_CYCCNT;
+  DWT_CTRL |= (1 << DWT_CTRL_CYCCNTENA);
+}
+
+void UTVMTimerStop() {
+  stop_time = DWT_CYCCNT;
+  DWT_CTRL &= ~(1 << DWT_CTRL_CYCCNTENA);
+}
+
+int32_t UTVMTimerRead() {
+  if (stop_time > stop_time) {
+    return stop_time - start_time;
+  } else {
+    unsigned long largest = ~0;
+    return (largest - start_time) + stop_time;
+  }
+}
+*/
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
