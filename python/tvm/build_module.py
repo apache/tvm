@@ -569,7 +569,7 @@ def build(inputs,
         C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s1 = tvm.create_schedule(C.op)
         with tvm.target.cuda() as cuda_tgt:
-          s2 = topi.cpp.cuda.schedule_injective(cuda_tgt, [C])
+          s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
           f1 = tvm.lower(s1, [A, B, C], name="test_add1")
           f2 = tvm.lower(s2, [A, B, C], name="test_add2")
           m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
