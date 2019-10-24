@@ -714,6 +714,14 @@ def _test_reduce_prod(data, keep_dims=None):
     """ One iteration of reduce_prod """
     return _test_reduce(math_ops.reduce_prod, data, keep_dims)
 
+#######################################################################
+# Reduce_sum
+# -----------
+
+def _test_reduce_sum(data, keep_dims=None):
+    """ One iteration of reduce_sum """
+    return _test_reduce(math_ops.reduce_sum, data, keep_dims)
+
 
 def _test_forward_reduce(testop):
     """ Reduce """
@@ -732,6 +740,7 @@ def test_all_reduce():
     _test_forward_reduce(_test_reduce_max)
     _test_forward_reduce(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
+    _test_forward_reduce(_test_reduce_sum)
 
 
 #######################################################################
