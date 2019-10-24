@@ -896,35 +896,6 @@ class OneHot(OnnxOpConverter):
         return _op.one_hot(indices, on_value, off_value, depth, attr['axis'], dtype=dtype)
 
 
-class ConstantFill(OnnxOpConverter):
-    """ Operator converter for ConstantFill.
-    """
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        num_inputs = len(inputs)
-        if 'shape' in attr:
-            if num_inputs > 1:
-                raise ImportError(
-                    "Can't set shape and input tensor at a time")
-            shape = attr.pop('shape')
-        else:
-            if num_inputs == 1:
-                raise ImportError(
-                    "Either shape attribute or input should be set")
-            if 'input_as_shape' in attr and attr['input_as_shape']:
-                shape = params[get_name(inputs[0])].asnumpy()
-            else:
-                if 'extra_shape' in attr:
-                    raise tvm.error.OpAttributeInvalid('Attribute "extra_shape" not '
-                                                       'supported with "fill_like" for '
-                                                       'operator ConstantFill.')
-                return _op.full_like(inputs[0], inputs[1])
-
-        if 'extra_shape' in attr:
-            shape = shape + attr.pop('extra_shape')
-        return _op.full(inputs[0], shape)
-
-
 class ConstantOfShape(OnnxOpConverter):
     """ Operator converter for ConstantOfShape.
     """
@@ -1021,7 +992,6 @@ def _get_convert_map(opset):
         'ThresholdedRelu': ThresholdedRelu.get_converter(opset),
         'ScaledTanh': ScaledTanh.get_converter(opset),
         'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
-        'ConstantFill': ConstantFill.get_converter(opset),
         'ConstantOfShape': ConstantOfShape.get_converter(opset),
         # 'GivenTensorFill'
         'FC': AttrCvt('dense', ignores=['axis', 'axis_w']),
@@ -1239,14 +1209,6 @@ class GraphProto(object):
                     shape=list(t_proto.dims),
                     dtype=array.dtype)
             else:
-                if op_name == "ConstantFill":
-                    fill_value = attr.get('value', 0.0)
-                    dtype = attr.get('dtype', b'int32').decode("utf-8")
-                    i_name = node.output[0]
-                    self._params[i_name] = fill_value
-                    self._nodes[i_name] = new_var(node.output[0], shape=(), dtype=dtype)
-                    inputs.append(self._nodes[i_name])
-
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}
                 attr['tvm_custom']['name'] = i_name

@@ -25,7 +25,7 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
 import onnx
-from onnx import helper, TensorProto
+from onnx import helper, TensorProto, mapping
 import scipy
 
 
@@ -914,46 +914,45 @@ def test_forward_arg_min_max():
             verify_argmax([3, 4, 4], axis, keepdims)
 
 
-def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
-    input_a = np.random.uniform(size=input_dim).astype(dtype)
-    out = np.empty(shape=out_dim, dtype=dtype)
+def verify_constantofshape(input_dim, value, dtype):
+    out = np.empty(shape=input_dim, dtype=dtype)
     out.fill(value)
 
-    if is_shape == True:
-        fill_node = helper.make_node(
-            "ConstantFill", [], ["out"], shape=input_dim, value=value, **kwargs)
-    else:
-        fill_node = helper.make_node("ConstantFill", ["input_a"], [
-                                     "out"], value=value, dtype=dtype, **kwargs)
+    fill_node = helper.make_node("ConstantOfShape", ["input"], ["output"],
+                                 value=helper.make_tensor(
+                                     'value',
+                                     mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)],
+                                     (1, ), (value, )))
 
-    if is_shape == True:
-        inputs = []
-    else:
-        inputs = [helper.make_tensor_value_info("input_a",
-                                                TensorProto.FLOAT, list(input_dim))]
+    inputs = [
+        helper.make_tensor_value_info("input", TensorProto.FLOAT, input_dim)
+    ]
 
-    graph = helper.make_graph([fill_node],
-                              "fill_test",
-                              inputs,
-                              outputs=[helper.make_tensor_value_info("out",
-                                                                     TensorProto.FLOAT, list(out.shape))])
+    graph = helper.make_graph(
+        [fill_node],
+        "fill_test",
+        inputs,
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT,
+                                          list(out.shape))
+        ],
+        initializer=[
+            helper.make_tensor("input", TensorProto.INT32, (len(input_dim), ),
+                               input_dim)
+        ])
 
     model = helper.make_model(graph, producer_name='fill_test')
 
     for target, ctx in ctx_list():
-        if is_shape == True:
-            tvm_out = get_tvm_output(model, [], target, ctx, out.shape)
-        else:
-            tvm_out = get_tvm_output(model, [input_a], target, ctx, out.shape)
+        tvm_out = get_tvm_output(model, [], target, ctx, out.shape)
 
         tvm.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def test_constantfill():
-    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
-    verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
-    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4,
-                                             5, 6), 10, 'float32', extra_shape=(4, 5, 6))
+def test_constantofshape():
+    verify_constantofshape((2, 3, 4, 5), 10, 'float32')
+    verify_constantofshape((3, 3), 0, 'int32')
+    verify_constantofshape((1, 2, 3), -1, 'float32')
 
 
 def verify_pad(indata, pads, mode='constant', value=0.0):
@@ -1319,8 +1318,8 @@ def test_resnet():
     # check_torch_conversion(torchvision.models.resnet101, (1,3,224,224))
 
 # def test_alexnet():
-    # Torch's ONNX export does not support the adaptive pooling used by AlexNet?
-    # check_torch_conversion(torchvision.models.alexnet, (1,3,224,224))
+# Torch's ONNX export does not support the adaptive pooling used by AlexNet?
+# check_torch_conversion(torchvision.models.alexnet, (1,3,224,224))
 
 # Torch's ONNX export does not support the adaptive pooling used by vgg16?
 # def test_vgg16():
@@ -1445,7 +1444,8 @@ def verify_tile_v1(indata, outdata, **kwargs):
     model = helper.make_model(graph, producer_name='tile_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape, opset=1)
+        tvm_out = get_tvm_output(
+            model, [indata], target, ctx, outdata.shape, opset=1)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
@@ -1527,7 +1527,7 @@ if __name__ == '__main__':
     test_forward_hardsigmoid()
     test_forward_arg_min_max()
     test_softmax()
-    test_constantfill()
+    test_constantofshape()
     test_reduce_max()
     test_reduce_min()
     test_reduce_sum()
