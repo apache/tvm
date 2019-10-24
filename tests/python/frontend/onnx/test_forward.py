@@ -404,6 +404,33 @@ def test_matmul():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def test_batch_matmul():
+    a_shape = (2, 3, 4, 3)
+    b_shape = (2, 3, 3, 4)
+
+    a_array = np.random.uniform(size=a_shape).astype('float32')
+    b_array = np.random.uniform(size=b_shape).astype('float32')
+    out_np = np.matmul(a_array, b_array)
+
+    mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+
+    graph = helper.make_graph([mul_node],
+                              "matmul_test",
+                              inputs=[helper.make_tensor_value_info("a",
+                                                                    TensorProto.FLOAT, list(a_shape)),
+                                      helper.make_tensor_value_info("b",
+                                                                    TensorProto.FLOAT, list(b_shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_np.shape))])
+
+    model = helper.make_model(graph, producer_name='matmul_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, [a_array, b_array], target, ctx, out_np.shape)
+        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
 
@@ -1451,6 +1478,7 @@ if __name__ == '__main__':
     test_ceil()
     test_clip()
     test_matmul()
+    test_batch_matmul()
     test_gather()
     test_lrn()
     test_instance_norm()

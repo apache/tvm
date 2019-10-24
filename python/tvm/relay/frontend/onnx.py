@@ -689,7 +689,7 @@ class Slice(OnnxOpConverter):
                 attr['axes'] = (attr['axes'],)
             if (max(attr['axes']) + 1) != len(attr['axes']):
                 new_starts, new_ends, new_axes = cls._common(
-                    cls, attr['starts'], attr['ends'], attr['axes'])
+                    attr['starts'], attr['ends'], attr['axes'])
                 attr['axes'] = new_axes
                 attr['starts'] = new_starts
                 attr['ends'] = new_ends
@@ -712,7 +712,7 @@ class Slice(OnnxOpConverter):
 
             if (max(axes + 1) != len(axes)):
                 new_starts, new_ends, new_axes = cls._common(
-                    cls, starts, ends, axes)
+                    starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
         return _op.strided_slice(inputs[0], begin=starts, end=ends)
