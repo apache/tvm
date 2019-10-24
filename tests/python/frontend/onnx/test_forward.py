@@ -377,6 +377,37 @@ def test_clip():
                               {'min': -1.0, 'max': 1.0})
 
 
+def test_onehot():
+    indices_shape = [10]
+    indices_array = np.random.randint(
+        low=0, high=9, size=indices_shape, dtype='int32')
+    depth = 10
+    values = np.asarray([0, 1])
+    out_np = np.eye(depth)[indices_array.reshape(-1)]
+
+    onehot_node = helper.make_node(
+        "OneHot", ["indices", "depth", "values"], ["out"])
+
+    graph = helper.make_graph([onehot_node],
+                              "onehot_test",
+                              inputs=[helper.make_tensor_value_info("indices",
+                                                                    TensorProto.INT32, indices_shape),
+                                      helper.make_tensor_value_info("depth",
+                                                                    TensorProto.INT32, [1]),
+                                      helper.make_tensor_value_info("values",
+                                                                    TensorProto.INT32, values.shape)],
+                              initializer=[helper.make_tensor("depth", TensorProto.INT32, [1], [depth]),
+                                           helper.make_tensor("values", TensorProto.INT32, values.shape, values)],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.INT32, out_np.shape)])
+
+    model = helper.make_model(graph, producer_name="onehot_test")
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, [indices_array], target, ctx, out_np.shape)
+        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+
 def test_matmul():
     a_shape = (4, 3)
     b_shape = (3, 4)
@@ -1483,6 +1514,7 @@ if __name__ == '__main__':
     test_floor()
     test_ceil()
     test_clip()
+    test_onehot()
     test_matmul()
     test_batch_matmul()
     test_gather()

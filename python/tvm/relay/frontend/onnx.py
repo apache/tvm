@@ -884,7 +884,7 @@ class OneHot(OnnxOpConverter):
         # Extract relay one_hot inputs.
         indices, depth, values = inputs
         # Split onnx on off values into two separate expressions.
-        on_value, off_value = _op.take(
+        off_value, on_value = _op.take(
             values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
