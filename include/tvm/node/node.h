@@ -29,7 +29,7 @@
  *  Besides the runtime type checking provided by Object,
  *  node folder contains additional functionalities such as
  *  reflection and serialization, which are important features
- *  for building a compiler INFRA.
+ *  for building a compiler infra.
  */
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
