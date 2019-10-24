@@ -102,7 +102,7 @@ class ModulePassNode : public PassNode {
 
   ModulePassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
   }
 
@@ -156,7 +156,7 @@ class FunctionPassNode : public PassNode {
 
   FunctionPassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
   }
 
@@ -211,7 +211,7 @@ class SequentialNode : public PassNode {
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
     v->Visit("passes", &passes);
   }

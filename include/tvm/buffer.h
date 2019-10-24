@@ -135,7 +135,7 @@ class BufferNode : public Node {
   /*! \brief constructor */
   BufferNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("dtype", &dtype);
     v->Visit("shape", &shape);
