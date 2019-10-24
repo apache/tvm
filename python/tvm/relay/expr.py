@@ -305,6 +305,12 @@ class Function(Expr):
         """
         return Call(self, args, None, None)
 
+    def get_params(self, params):
+        return _expr.FunctionGet(self, params)
+
+    def set_params(self, params):
+        return _expr.FunctionSetParams(self, params)
+
 
 @register_relay_node
 class Call(Expr):

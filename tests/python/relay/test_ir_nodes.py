@@ -20,7 +20,7 @@ from tvm import relay
 from tvm.expr import *
 from tvm.relay import op
 from tvm.relay.analysis import graph_equal
-
+import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.save_json(node)
@@ -175,6 +175,29 @@ def test_function():
     str(fn)
     check_json_roundtrip(fn)
 
+def test_function_attrs():
+    param_names = ['a', 'b', 'c', 'd']
+    params = tvm.convert([relay.var(n, shape=(5, 2)) for n in param_names])
+    ret_type = relay.TupleType(tvm.convert([]))
+    body = relay.Tuple(tvm.convert([]))
+    type_params = tvm.convert([])
+    fn = relay.Function(params, body, ret_type, type_params)
+    model_params = {}
+    for param in params[:1]:
+        tensor = np.random.rand(*param.shape).astype(param.dtype)
+        model_params[param] = tvm.nd.array(tensor)
+    fn = fn.set_params(model_params)
+    assert fn.params == params
+    assert fn.body == body
+    assert fn.type_params == type_params
+    assert fn.span == None
+    str(fn)
+    check_json_roundtrip(fn)
+    json_str = tvm.save_json(fn)
+    fn_after = tvm.load_json(json_str)
+    model_params_after = fn_after.get_params()
+    for p1, p2 in zip(model_params, model_params_after):
+        assert p1.asnumpy() == p2.asnumpy()
 
 def test_call():
     op = relay.Var('f')
