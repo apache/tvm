@@ -139,7 +139,7 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
             # wrap build call in thread to avoid multiprocessing problems
             mod = relay.Module.from_expr(func)
             build_thread = threading.Thread(target=_lower,
-                                            args=(mod, target, target_host, param))
+                                            args=(mod, target, param))
             build_thread.start()
             build_thread.join()
 
