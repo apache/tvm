@@ -18,18 +18,17 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
-import logging
 import numpy as np
 from onnx.numpy_helper import to_array
 import tvm
 from ... import nd as _nd
 from .. import analysis
-from .. import transform as _transform
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_shape, infer_channels, infer_type, infer_value, infer_value_simulated, get_name
+from .common import get_relay_op, new_var, infer_shape, infer_channels
+from .common import infer_type, infer_value, infer_value_simulated, get_name
 
 __all__ = ['from_onnx']
 
