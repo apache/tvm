@@ -132,7 +132,7 @@ class RecClosureNode : public ValueNode {
 
   RecClosureNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("clos", &clos);
     v->Visit("bind", &bind);
   }
