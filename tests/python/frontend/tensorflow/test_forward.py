@@ -2357,6 +2357,24 @@ def test_forward_one_hot():
     _test_forward_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     _test_forward_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+#######################################################################
+# AddN
+# ----------------------
+def _test_forward_add_n(inputs):
+    tf.reset_default_graph()
+    output = tf.add_n(inputs)
+    compare_tf_with_tvm(output, inputs.name, output.name)
+
+def test_forward_add_n():
+    x = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
+    y = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
+    z = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
+    in1 = [x,y]
+    in2 = (x,y,z)
+    in3 = [x, x, y, y, z, z]
+    _test_forward_add_n(in1)
+    _test_forward_add_n(in2)
+    _test_forward_add_n(in3)
 
 #######################################################################
 # Main
@@ -2425,6 +2443,7 @@ if __name__ == '__main__':
     test_forward_zeros_like()
     test_forward_erf()
     test_forward_squared_difference()
+    test_forward_add_n()
 
     # Reductions
     test_forward_argminmax()
