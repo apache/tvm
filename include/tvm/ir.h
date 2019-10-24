@@ -1311,6 +1311,16 @@ constexpr const char* opengl_stage_scope = "opengl_stage_scope";
 constexpr const char* device_scope = "device_scope";
 
 /*!
+ * \brief Mark that the shape of TensorCore fragment
+ */
+constexpr const char* fragment_shape = "fragment_shape";
+
+/*!
+ * \brief Mark that the layout of TensorCore fragment
+ */
+constexpr const char* fragment_layout = "fragment_layout";
+
+/*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
  * \return true if it is a pragma key
@@ -1552,6 +1562,54 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
+/*!
+ * \brief tvm intrinsic for tensor core load operators.
+ *
+ *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                            Expr index, Expr buffer_ptr, Expr stride,
+ *                            StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment.
+ *    // Determine fragment layout(column-major or row major) by layout.
+ *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
+ *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
+ *  }
+ */
+constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
+/*!
+ * \brief tvm intrinsic for tensor core mma_sync operators.
+ *
+ *  void tvm_mma_sync(Var fragment_d, Expr index_d,
+ *                    Var fragment_a, Expr index_a,
+ *                    Var fragment_b, Expr index_b,
+ *                    Var fragment_c, Expr index_c) {
+ *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
+ *                           fragment_b[index_b], fragment_c[index_c]);
+ *  }
+ */
+constexpr const char* tvm_mma_sync = "tvm_mma_sync";
+/*!
+ * \brief tvm intrinsic for tensor core fill_fragment operators.
+ *
+ *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                         Expr index, Expr value) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::fill_fragment(fragment[index], value);
+ *  }
+ */
+constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
+/*!
+ * \brief tvm intrinsic for tensor core store operators.
+ *
+ *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                             Expr index, Expr buffer_ptr, Expr stride,
+ *                             StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
+ *  }
+ */
+constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
 
 }   // namespace intrinsic
 
