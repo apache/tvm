@@ -1314,7 +1314,7 @@ def _size():
 
 def _add_n():
     def _impl(inputs, attr, params):
-        if type(inputs) == tuple:
+        if not isinstance(inputs, tuple):
             inputs = list(inputs)
         assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
         _res = inputs[0]
