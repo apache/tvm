@@ -15,25 +15,25 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
-
-/*!
- *  Copyright (c) 2018 by Contributors
+ *
  * \file pynq_driver.c
- * \brief VTA driver for Pynq board.
+ * \brief VTA driver for Zynq SoC boards with Pynq support (see pynq.io).
  */
 
 #include <vta/driver.h>
 #include <thread>
-#include "pynq_driver.h"
+#include "../../../src/pynq/pynq_driver.h"
 
 #define VTA_BASE_ADDR 0x43c00000
 
 void* VTAMemAlloc(size_t size, int cached) {
+  assert(size <= VTA_MAX_XFER);
+  // Rely on the pynq-specific cma library
   return cma_alloc(size, cached);
 }
 
 void VTAMemFree(void* buf) {
+  // Rely on the pynq-specific cma library
   cma_free(buf);
 }
 
@@ -41,32 +41,46 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
   return cma_get_phy_addr(buf);
 }
 
-void VTAFlushCache(vta_phy_addr_t buf, int size) {
-  xlnkFlushCache(reinterpret_cast<void*>(buf), size);
+void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
 }
 
-void VTAInvalidateCache(vta_phy_addr_t buf, int size) {
-  xlnkInvalidateCache(reinterpret_cast<void*>(buf), size);
+void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
+  // For SoC-based FPGAs that used shared memory with the CPU, use memcopy()
+  memcpy(dst, src, size);
 }
 
-void *VTAMapRegister(uint32_t addr, size_t length) {
+void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  // Call the cma_flush_cache on the CMA buffer
+  // so that the FPGA can read the buffer data.
+  cma_flush_cache(vir_addr, phy_addr, size);
+}
+
+void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  // Call the cma_invalidate_cache on the CMA buffer
+  // so that the host needs to read the buffer data.
+  cma_invalidate_cache(vir_addr, phy_addr, size);
+}
+
+void *VTAMapRegister(uint32_t addr) {
   // Align the base address with the pages
   uint32_t virt_base = addr & ~(getpagesize() - 1);
   // Calculate base address offset w.r.t the base address
   uint32_t virt_offset = addr - virt_base;
   // Open file and mmap
-  uint32_t mmap_file = open(VTA_PYNQ_DEV_MEM_PATH, O_RDWR|O_SYNC);
+  uint32_t mmap_file = open("/dev/mem", O_RDWR|O_SYNC);
   return mmap(NULL,
-              (length+virt_offset),
+              (VTA_IP_REG_MAP_RANGE + virt_offset),
               PROT_READ|PROT_WRITE,
               MAP_SHARED,
               mmap_file,
               virt_base);
 }
 
-void VTAUnmapRegister(void *vta, size_t length) {
+void VTAUnmapRegister(void *vta) {
   // Unmap memory
-  int status = munmap(vta, length);
+  int status = munmap(vta, VTA_IP_REG_MAP_RANGE);
   assert(status == 0);
 }
 
@@ -82,12 +96,12 @@ class VTADevice {
  public:
   VTADevice() {
     // VTA stage handles
-    vta_handle_ = VTAMapRegister(VTA_BASE_ADDR, VTA_RANGE);
+    vta_handle_ = VTAMapRegister(VTA_BASE_ADDR);
   }
 
   ~VTADevice() {
     // Close VTA stage handle
-    VTAUnmapRegister(vta_handle_, VTA_RANGE);
+    VTAUnmapRegister(vta_handle_);
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,

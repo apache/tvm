@@ -30,9 +30,9 @@
 #include <time.h>
 #include <vta/driver.h>
 #ifdef VTA_TARGET_PYNQ
-#  include "../../../src/pynq/pynq_driver.h"
+#include "../../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
-#include "../common/test_lib.h"
+#include "../../../../tests/hardware/common/test_lib.h"
 
 #define VTA_BASE_ADDR 0x43c00000
 #define VTA_INS_COUNT 1
@@ -51,7 +51,7 @@ int main(void) {
 
   gen_finish(reinterpret_cast<uint64_t*>(insn));
 
-  void* vta_handle = VTAMapRegister(VTA_BASE_ADDR, 0x100);
+  void* vta_handle = VTAMapRegister(VTA_BASE_ADDR);
 
   VTAWriteMappedReg(vta_handle, 0x04, 0x0);
   VTAWriteMappedReg(vta_handle, 0x08, VTA_INS_COUNT);
@@ -66,7 +66,7 @@ int main(void) {
 
   cycles = VTAReadMappedReg(vta_handle, 0x4);
 
-  VTAUnmapRegister(vta_handle, VTA_RANGE);
+  VTAUnmapRegister(vta_handle);
 
   printf("cycles:%d\n", cycles);
 

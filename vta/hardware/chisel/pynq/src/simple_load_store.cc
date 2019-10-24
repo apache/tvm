@@ -30,16 +30,16 @@
 #include <time.h>
 #include <vta/driver.h>
 #ifdef VTA_TARGET_PYNQ
-#  include "../../../src/pynq/pynq_driver.h"
+#include "../../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
-#include "../common/test_lib.h"
+#include "../../../../tests/hardware/common/test_lib.h"
 
 #define VTA_BASE_ADDR 0x43c00000
 #define VTA_ENABLE_CACHE 1
 
 int main() {
 
-  int vec_size = 36;;
+  int vec_size = 16;
   int insn_count = 7;
   int insn_idx = 0;
   int block_size = 16;
@@ -71,7 +71,7 @@ int main() {
       VTA_OPCODE_LOAD,                                    // opcode
       VTA_MEM_ID_ACC,                                     // type
       0,                                                  // sram offset
-      VTAMemGetPhyAddr(acc_buf),                          // dram offset
+      VTAMemGetPhyAddr(acc_buf) / 64,                     // dram offset
       vec_size,                                           // size
       0,                                                  // pop prev dep
       0,                                                  // pop next dep
@@ -82,7 +82,7 @@ int main() {
       VTA_OPCODE_LOAD,                                    // opcode
       VTA_MEM_ID_UOP,                                     // type
       0,                                                  // sram offset
-      VTAMemGetPhyAddr(uop_buf),                          // dram offset
+      VTAMemGetPhyAddr(uop_buf) / 4,                      // dram offset
       1,                                                  // size
       0,                                                  // pop prev dep
       0,                                                  // pop next dep
@@ -104,7 +104,7 @@ int main() {
       VTA_OPCODE_STORE,                                   // opcode
       VTA_MEM_ID_OUT,                                     // type
       0,                                                  // sram offset
-      VTAMemGetPhyAddr(out_buf),                          // dram offset
+      VTAMemGetPhyAddr(out_buf) / 16,                     // dram offset
       vec_size,                                           // size
       1,                                                  // pop prev dep
       0,                                                  // pop next dep
@@ -136,14 +136,6 @@ int main() {
   insn_buf[insn_idx++] = getFinishInsn(0, 0);
   printInstruction(insn_count, insn_buf);
 
-  for (i = 0; i < insn_count; i++) {
-    printf("i:%x inst:%016llx%016llx\n", i, insn_buf[i].word_1, insn_buf[i].word_0);
-  }
-
-  VTAFlushCache(VTAMemGetPhyAddr(insn_buf), sizeof(VTAGenericInsn) * insn_count);
-  VTAFlushCache(VTAMemGetPhyAddr(uop_buf), sizeof(VTAUop) * vec_size);
-  VTAFlushCache(VTAMemGetPhyAddr(acc_buf), sizeof(uint32_t) * block_size * vec_size);
-
   VTADeviceHandle vta_handle = VTADeviceAlloc();
 
   int vta_timeout = 0;
@@ -153,8 +145,6 @@ int main() {
   if (vta_timeout) {
     printf("VTA timeout\n");
   }
-
-  VTAInvalidateCache(VTAMemGetPhyAddr(out_buf), sizeof(uint8_t) * block_size * vec_size);
 
   for (i = 0; i < (block_size * vec_size); i++) {
     printf("i:%x acc:%08x out:%02x\n", i, acc_buf[i], out_buf[i]);
