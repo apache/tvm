@@ -114,7 +114,11 @@ class SimpleObjAllocator :
       // because objptr and tptr may not be the same
       // depending on how sub-class allocates the space.
       T* tptr = static_cast<T*>(objptr);
-      tptr->~T();
+      // It is important to do tptr->T::~T(),
+      // so that we explicitly call the specific destructor
+      // instead of tptr->~T(), which could mean the intention
+      // call a virtual destructor(which may not be available and is not required).
+      tptr->T::~T();
       delete reinterpret_cast<StorageType*>(tptr);
     }
   };
