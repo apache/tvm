@@ -400,33 +400,41 @@ struct ReverseAD : ExprMutator {
     throw;
   }
 
+  Expr VisitCheckpoint(const CallNode *call) {
+    const OpNode* op_node = call->op.as<OpNode>();
+    CHECK(op_node) << "expected op in call";
+    Op op_ref = GetRef<Op>(op_node);
+    CHECK(op_ref->name == "annotation.checkpoint") << "expected checkpoint annotation";
+    auto x = call->args[0];
+    return LetList::With([&](LetList* ll) {
+      auto x_var = ll->Push(x);
+      auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
+      auto bpv = ll->Push(RefReadNode::make(bp));
+      Expr nbp = FunctionNode::make(
+        {},
+        LetList::With([&](LetList* ll) {
+          // we need a new ReverseAD visitor to avoid clobbering the bp local var
+          auto dup_bp = ll->Push(BPEmpty());
+          ReverseAD dup_diff(dup_bp, ad_vars);
+          auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
+
+          TransferGrads(call->checked_type(), ret, dup_ad, ll);
+          ll->Push(CallNode::make(RefReadNode::make(dup_bp), {}));
+          return CallNode::make(bpv, {});
+        }),
+        TupleTypeNode::make({}),
+        {});
+      ll->Push(RefWriteNode::make(bp, nbp));
+      return ret;
+    });
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     if (const OpNode* op_node = call->op.as<OpNode>()) {
       Op op_ref = GetRef<Op>(op_node);
 
       if (op_ref->name == "annotation.checkpoint") {
-        auto x = call->args[0];
-        return LetList::With([&](LetList* ll) {
-          auto x_var = ll->Push(x);
-          auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
-          auto bpv = ll->Push(RefReadNode::make(bp));
-          Expr nbp = FunctionNode::make(
-            {},
-            LetList::With([&](LetList* ll) {
-              // we need a new ReverseAD visitor to avoid clobbering the bp local var
-              auto dup_bp = ll->Push(BPEmpty());
-              ReverseAD dup_diff(dup_bp, ad_vars);
-              auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
-
-              TransferGrads(call->checked_type(), ret, dup_ad, ll);
-              ll->Push(CallNode::make(RefReadNode::make(dup_bp), {}));
-              return CallNode::make(bpv, {});
-            }),
-            TupleTypeNode::make({}),
-            {});
-          ll->Push(RefWriteNode::make(bp, nbp));
-          return ret;
-        });
+        return VisitCheckpoint(call);
       }
 
       CHECK(rev_map.count(op_ref))

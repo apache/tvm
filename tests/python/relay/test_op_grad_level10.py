@@ -37,6 +37,12 @@ def test_checkpoint():
                             relay.add(inputs[2], inputs[3]))
     check_grad(relay.Function(inputs, relay.annotation.checkpoint(output)))
 
+    out_tuple = relay.Tuple([relay.add(inputs[0], inputs[1]),
+                             relay.multiply(inputs[2], inputs[3])])
+    out_single = relay.subtract(relay.TupleGetItem(relay.annotation.checkpoint(out_tuple), 0),
+                                relay.TupleGetItem(out_tuple, 1))
+    check_grad(relay.Function(inputs, out_single))
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

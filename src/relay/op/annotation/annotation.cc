@@ -164,7 +164,11 @@ Mark a checkpoint for checkpointing memory optimization.
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<Tensor>& inputs,
                           const Type& out_dtype, const Target& target) -> Array<Tensor> {
-                         return {topi::identity(inputs[0])};
+                         Array<Tensor> outputs;
+                         for (size_t i = 0; i < inputs.size(); ++i) {
+                           outputs.push_back(topi::identity(inputs[i]));
+                         }
+                         return outputs;
                        });
 
 }  // namespace relay

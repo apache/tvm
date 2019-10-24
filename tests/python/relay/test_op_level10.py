@@ -105,6 +105,53 @@ def test_checkpoint_alpha_equal():
 
     relay.analysis.assert_alpha_equal(df, df_parsed)
 
+def test_checkpoint_alpha_equal_tuple():
+    xs = [relay.var("x{}".format(i), relay.TensorType((1,), "float32")) for i in range(4)]
+    f = relay.Function(xs, relay.annotation.checkpoint(
+        relay.Tuple([relay.add(xs[0], xs[1]), relay.add(xs[2], xs[3])])
+    ))
+    df = transform.gradient(run_infer_type(f))
+
+    # run PE and DCE
+    with transform.PassContext(opt_level=3):
+        passes = [transform.PartialEvaluate(),
+                  transform.DeadCodeElimination(inline_once=True)]
+        mod = transform.Sequential(passes)(relay.Module.from_expr(df))
+        df = mod["main"]
+
+    df_parsed = relay.parser.fromtext(
+        """
+        v0.0.4
+        fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
+            %z: Tensor[(1), float32], %w: Tensor[(1), float32])
+            -> ((Tensor[(1), float32], Tensor[(1), float32]),
+                (Tensor[(1), float32], Tensor[(1), float32],
+                 Tensor[(1), float32], Tensor[(1), float32])) {
+        let %x1: Tensor[(1), float32] = add(%x, %y) /* ty=Tensor[(1), float32] */;
+        let %x2: Tensor[(1), float32] = add(%z, %w) /* ty=Tensor[(1), float32] */;
+        let %x3: Tensor[(1), float32] = zeros_like(%x2) /* ty=Tensor[(1), float32] */;
+        let %x4: Tensor[(1), float32] = ones_like(%x1) /* ty=Tensor[(1), float32] */;
+        %0 = (%x1, %x2);
+        %1 = zeros_like(%x) /* ty=Tensor[(1), float32] */;
+        %2 = collapse_sum_like(%x4, %x) /* ty=Tensor[(1), float32] */;
+        %3 = add(%1, %2) /* ty=Tensor[(1), float32] */;
+        %4 = zeros_like(%y) /* ty=Tensor[(1), float32] */;
+        %5 = collapse_sum_like(%x4, %y) /* ty=Tensor[(1), float32] */;
+        %6 = add(%4, %5) /* ty=Tensor[(1), float32] */;
+        %7 = zeros_like(%z) /* ty=Tensor[(1), float32] */;
+        %8 = collapse_sum_like(%x3, %z) /* ty=Tensor[(1), float32] */;
+        %9 = add(%7, %8) /* ty=Tensor[(1), float32] */;
+        %10 = zeros_like(%w) /* ty=Tensor[(1), float32] */;
+        %11 = collapse_sum_like(%x3, %w) /* ty=Tensor[(1), float32] */;
+        %12 = add(%10, %11) /* ty=Tensor[(1), float32] */;
+        %13 = (%3, %6, %9, %12);
+        (%0, %13)
+        }
+        """
+    )
+
+    relay.analysis.assert_alpha_equal(df, df_parsed)
+
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
     shape_like = (4, 5, 6)
