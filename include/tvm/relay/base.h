@@ -107,7 +107,7 @@ class SourceNameNode : public Node {
   /*! \brief The source name. */
   std::string name;
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) final { v->Visit("name", &name); }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relay.SourceName";
   TVM_DECLARE_NODE_TYPE_INFO(SourceNameNode, Node);
@@ -160,7 +160,7 @@ class SpanNode : public Node {
   /*! \brief column offset */
   int col_offset;
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("source", &source);
     v->Visit("lineno", &lineno);
     v->Visit("col_offset", &col_offset);
@@ -204,7 +204,7 @@ class IdNode : public Node {
    */
   std::string name_hint;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
   }
 

@@ -58,7 +58,7 @@ class EnvFuncNode : public Node {
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
   }
 

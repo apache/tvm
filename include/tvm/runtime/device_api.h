@@ -230,6 +230,7 @@ inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
   return os;
 }
+
 #endif
 }  // namespace runtime
 }  // namespace tvm
