@@ -105,7 +105,12 @@ def psm_clustering(tasks):
     (centroids, labels): Tuple[List[int], List[int]]
         the index of selected tasks and the cluster each task belongs to.
     """
-    import networkx as nx
+    try:
+        import networkx as nx
+    except ImportError:
+        raise ImportError(
+            'Missing required package for task selection. Please run "pip3 install networkx" '
+            'and try again')
 
     def weight_sum(psm, prim, targets):
         """Sum of the simularity rates of prim task to target tasks"""

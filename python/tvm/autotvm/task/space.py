@@ -183,7 +183,7 @@ class VirtualAxis(TransformSpace):
 
     @staticmethod
     def hash_entity(entity):
-        return self.name
+        return entity.name
 
     @staticmethod
     def get_num_output(var, name=None):
