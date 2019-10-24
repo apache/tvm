@@ -2362,8 +2362,8 @@ def test_forward_one_hot():
 # ----------------------
 def _test_forward_add_n(inputs):
     tf.reset_default_graph()
-    output = tf.add_n(inputs)
-    compare_tf_with_tvm(output, inputs.name, output.name)
+    output = tf.add_n(inputs,name="out")
+    compare_tf_with_tvm(output, "tensors_lst", output.name)
 
 def test_forward_add_n():
     x = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
