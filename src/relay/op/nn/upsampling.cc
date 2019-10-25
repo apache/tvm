@@ -82,7 +82,6 @@ bool UpSamplingRel(const Array<Type>& types,
   auto oshape = layout_converter.ForwardShape(data->shape);
   oshape.Set(2, ir::Cast::make(oshape[2].type(), tvm::round(oshape[2] * param->scaleH)));
   oshape.Set(3, ir::Cast::make(oshape[3].type(), tvm::round(oshape[3] * param->scaleW)));
-  
 
   // assign output type
   reporter->Assign(types[1],
