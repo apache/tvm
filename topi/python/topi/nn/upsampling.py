@@ -21,7 +21,7 @@ import tvm
 from ..util import simplify
 
 
-def upsampling(data, scale, scale2, layout="NCHW", method='nearest_neighbor', align_corners=False):
+def upsampling(data, scaleH, scaleW, layout="NCHW", method='nearest_neighbor', align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -32,8 +32,11 @@ def upsampling(data, scale, scale2, layout="NCHW", method='nearest_neighbor', al
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    scale : int
-        Scaling factor
+    scaleH : float
+        Scaling factor for height
+
+    scaleW : float
+        Scaling factor for width
 
     layout : string, optional
         either "NCHW" or "NHWC"
@@ -44,14 +47,14 @@ def upsampling(data, scale, scale2, layout="NCHW", method='nearest_neighbor', al
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, channel, in_height*scale, in_width*scale]
+        4-D with shape [batch, channel, in_height*scaleH, in_width*scaleW]
         or [batch, in_height*scale, in_width*scale, channel]
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale), data.shape[2].dtype)), simplify(topi.cast(tvm.round(data.shape[3] * scale2), data.shape[3].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scaleH), data.shape[2].dtype)), simplify(topi.cast(tvm.round(data.shape[3] * scaleW), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale), data.shape[1].dtype)), simplify(topi.cast(tvm.round(data.shape[2] * scale2), data.shape[2].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scaleH), data.shape[1].dtype)), simplify(topi.cast(tvm.round(data.shape[2] * scaleW), data.shape[2].dtype)))
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))

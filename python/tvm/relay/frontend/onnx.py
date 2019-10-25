@@ -590,7 +590,7 @@ class Upsample(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale':scales[-2], 'scale2':scales[-1], 'method':method, 'layout':'NCHW', 'align_corners':True}
+        attr = {'scaleH':scales[-2], 'scaleW':scales[-1], 'method':method, 'layout':'NCHW', 'align_corners':True}
         return AttrCvt('upsampling')(inputs, attr)
 
 

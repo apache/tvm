@@ -81,8 +81,8 @@ bool UpSamplingRel(const Array<Type>& types,
     << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, ir::Cast::make(oshape[2].type(), tvm::round(oshape[2] * param->scale)));
-  oshape.Set(3, ir::Cast::make(oshape[3].type(), tvm::round(oshape[3] * param->scale2)));
+  oshape.Set(2, ir::Cast::make(oshape[2].type(), tvm::round(oshape[2] * param->scaleH)));
+  oshape.Set(3, ir::Cast::make(oshape[3].type(), tvm::round(oshape[3] * param->scaleW)));
   
 
   // assign output type
@@ -96,16 +96,16 @@ bool UpSamplingRel(const Array<Type>& types,
 // Positional relay function to create upsampling operator
 // used by frontend FFI.
 Expr MakeUpSampling(Expr data,
-                    double scale,
-                    double scale2,
+                    double scaleH,
+                    double scaleW,
                     std::string layout,
                     std::string method,
                     bool align_corners) {
   auto attrs = make_node<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
-  attrs->scale = scale;
-  attrs->scale2 = scale2;
+  attrs->scaleH = scaleH;
+  attrs->scaleW = scaleW;
   attrs->align_corners = align_corners;
   static const Op& op = Op::Get("nn.upsampling");
   return CallNode::make(op, {data}, Attrs(attrs), {});
