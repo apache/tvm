@@ -77,10 +77,11 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         return tvm_output.asnumpy()
 
 
-def get_onnx_output(model, x, dtype='float32'):
-    import onnxruntime.backend as backend
-    prepared_backend = backend.prepare(model)
-    c2_out = prepared_backend.run(x.astype(dtype))[0]
+def get_caffe2_output(model, x, dtype='float32'):
+    import caffe2.python.onnx.backend
+    prepared_backend = caffe2.python.onnx.backend.prepare(model)
+    W = {model.graph.input[0].name: x.astype(dtype)}
+    c2_out = prepared_backend.run(W)[0]
     return c2_out
 
 
@@ -88,7 +89,7 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     dtype = 'float32'
     x = np.random.uniform(size=data_shape)
     model = onnx.load_model(graph_file)
-    c2_out = get_onnx_output(model, x, dtype)
+    c2_out = get_caffe2_output(model, x, dtype)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
@@ -1371,7 +1372,7 @@ def check_torch_conversion(model, input_size):
     onnx_model = onnx.load(file_name)
     for target, ctx in ctx_list():
         input_data = np.random.uniform(size=input_size).astype('int32')
-        c2_out = get_onnx_output(onnx_model, input_data)
+        c2_out = get_caffe2_output(onnx_model, input_data)
         tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
         tvm.testing.assert_allclose(c2_out, tvm_out)
 
