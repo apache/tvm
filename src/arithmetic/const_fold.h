@@ -28,6 +28,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
+#include <cmath>
 #include "int_operator.h"
 
 namespace tvm {
