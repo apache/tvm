@@ -238,7 +238,8 @@ def test_upsampling_infer_type():
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(w*scale))), "float32")
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+                                                "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
     y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")

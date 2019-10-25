@@ -23,7 +23,8 @@ import math
 
 from common import get_all_backend
 
-def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w, layout='NCHW', method="nearest_neighbor"):
+def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
+                      layout='NCHW', method="nearest_neighbor"):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         dtype = A.dtype

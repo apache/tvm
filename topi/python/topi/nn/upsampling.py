@@ -21,7 +21,8 @@ import tvm
 from ..util import simplify
 
 
-def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor', align_corners=False):
+def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
+               align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
