@@ -426,7 +426,6 @@ def _resize_bilinear():
         attr['layout'] = 'NHWC'
 
         # Ignore the new attribute `half_pixel_centers` from TF2.0, for now.
-        #   The semantics of the attribute is not very clear at this point.
         return AttrCvt(op_name="resize",
                        ignores=['Tdim', 'half_pixel_centers'],
                        extras={'method': "bilinear"})(inputs, attr)
