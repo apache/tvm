@@ -2302,6 +2302,8 @@ RELAY_REGISTER_OP("slice_like")
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.layout_transform
+TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
+
 Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
