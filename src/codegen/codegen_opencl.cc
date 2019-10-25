@@ -22,6 +22,7 @@
  * \file codegen_opencl.cc
  */
 #include <tvm/packed_func_ext.h>
+#include <cmath>
 #include <vector>
 #include <string>
 #include "codegen_opencl.h"
