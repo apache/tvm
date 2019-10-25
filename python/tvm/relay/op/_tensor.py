@@ -154,19 +154,11 @@ def broadcast_shape_func(attrs, inputs, out_ndims):
     """
     return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
-@script
-def _elemwise_shape_func(data_shape):
-    out = output_tensor((data_shape.shape[0],), "int64")
-    for i in const_range(data_shape.shape[0]):
-        out[i] = data_shape[i]
-
-    return out
-
 def elemwise_shape_func(attrs, inputs, _):
     """
     Shape function for elemwise op.
     """
-    return [_elemwise_shape_func(inputs[0])]
+    return [topi.math.identity(inputs[0])]
 
 register_shape_func("cast", False, cast_shape_func)
 

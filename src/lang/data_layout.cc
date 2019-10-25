@@ -289,12 +289,12 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
   std::unordered_map<const Variable*, Expr> bind_map;
-  std::unordered_set<std::string> symbolic_var_set;
+  std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
     if (orig_shape.as<ir::Any>()) {
-      symbolic_var_set.insert(orig_axis->var->name_hint);
+      symbolic_var_set.insert(i);
     }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
@@ -322,7 +322,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      if (symbolic_var_set.count(axis->var->name_hint)) {
+      if (symbolic_var_set.count(i)) {
         result.push_back(ir::Any::make());
       } else {
         result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));

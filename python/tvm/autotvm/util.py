@@ -180,7 +180,7 @@ def get_const_tuple(in_tuple):
         if isinstance(elem, expr.Var):
             ret.append(elem)
         elif not isinstance(elem, (expr.IntImm, expr.UIntImm, int)):
-            elem = tvm.ir_pass.Simplify(elem)
+            elem = ir_pass.Simplify(elem)
             if not isinstance(elem, (expr.IntImm, expr.UIntImm)):
                 ret.append(elem)
         else:
