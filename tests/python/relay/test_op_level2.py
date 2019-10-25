@@ -546,9 +546,11 @@ def test_conv2d_int8_intrinsics():
 
         n, h, w, ch, cw = 1, 64, 64, 3, 3
         if data_layout == 'NCHW':
-            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+            data_shape = (n, ic, h, w)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         elif data_layout == 'NHWC':
-            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+            data_shape = (n, h, w, ic)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         else:
             raise ValueError('Not supported')
 
@@ -559,8 +561,8 @@ def test_conv2d_int8_intrinsics():
         else:
             raise ValueError('Not supported')
 
-        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
-        y = relay.nn.conv2d(x, w,
+        weight = relay.var("weight", relay.TensorType(kernel_shape, weight_dtype))
+        y = relay.nn.conv2d(x, weight,
                             kernel_size=(ch, cw),
                             channels=oc,
                             padding=(1, 1),
@@ -568,11 +570,13 @@ def test_conv2d_int8_intrinsics():
                             data_layout=data_layout,
                             kernel_layout=kernel_layout,
                             out_dtype=output_dtype)
-        func = relay.Function([x, w], y)
+        func = relay.Function([x, weight], y)
         wdata = np.random.rand(*kernel_shape) * 10
-        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
+
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
+
         assembly = lib.get_source("asm")
         return assembly
 
@@ -589,58 +593,63 @@ def test_conv2d_int8_intrinsics():
     llvm_version = tvm.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
-            fast_int8_dtypes = ('uint8', 'int8', 'int32')
+            dtypes = ('uint8', 'int8', 'int32')
             # Sweep the input channels to check int8 robustness
             # Input channels should be a multiple of 4 internally.
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
-
 
             # Sweep the output channels to check int8 robustness
             # Output channels should be a multiple of 16 internally.
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             # Check that both non-divisible oc and ic work
             asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
             asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('int8', 'int8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+    # Check that int8 x int8 goes through legalization so that fast instructions can be picked up.
+    for target in targets:
+        if llvm_version >= 8:
+            dtypes = (('int8', 'int8', 'int32'))
+            # Check that both non-divisible oc and ic work
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('uint8', 'uint8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
+
+    # Ensure that code is generated when datatypes are not HW supported.
+    dtypes = ('uint8', 'uint8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                   dtypes=dtypes)
+    # Check that intrinisic is not present in the assembly.
+    assert not _has_fast_int8_instructions(asm, target)
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.

@@ -192,23 +192,71 @@ def _conv2d_legalize(attrs, inputs, arg_types):
         The legalized expr
     """
 
+    # Dilation not supported yet. Return None if dilation is not (1, 1)
+    dilation = attrs.get_int_tuple("dilation")
+    if not (dilation[0] == 1 and dilation[1] == 1):
+        return None
+
     # Collect the input tensors.
     data_tensor, kernel_tensor = arg_types[0], arg_types[1]
+    data_dtype = data_tensor.dtype
+    kernel_dtype = kernel_tensor.dtype
 
     # Collect the output tensor.
     output_tensor = arg_types[2]
+
+    # Collect the input exprs.
+    data, kernel = inputs
+
+    # Get the conv attrs
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    is_int8_inputs = False
+    # If both the inputs are int8, we can add 128 to make the input dtype uint8, and then adjust the
+    # output. This will help picking up Intel VNNI instructions.
+    # Original --> C = A (conv) B
+    # A and B are int8
+    #   C = (A + 128 - 128) (conv) B
+    #   C = (A' conv B) - 128 (conv) B
+    # where A' = A + 128
+    # and 128 (conv) B is basically a reduce on CRS axis for weights.
+    if data_tensor.dtype == 'int8' and kernel_tensor.dtype == 'int8':
+        is_int8_inputs = True
+        padding = attrs.get_int_tuple("padding")
+
+        if attrs['data_layout'] == 'NHWC' and attrs['kernel_layout'] == 'HWIO':
+            adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(0, 1, 2))
+            pad_width = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+        elif attrs['data_layout'] == 'NCHW' and attrs['kernel_layout'] == 'OIHW':
+            pad_width = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
+            adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(1, 2, 3))
+            adjust_shift = relay.expand_dims(adjust_shift, axis=1, num_newaxis=2)
+        else:
+            return None
+
+        data = relay.cast(data, 'int32')
+        data = relay.add(data, relay.const(128, 'int32'))
+        data = relay.cast(data, 'uint8')
+
+        # Do external padding as pad value has to be 128.
+        if not (padding[0] == 0 and padding[1] == 0):
+            data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
+        new_attrs['padding'] = (0, 0)
+
+        # The data type is now shifted to uint8
+        data_dtype = 'uint8'
+
+        # Multiply 128 to adjust shift.
+        adjust_shift = relay.multiply(adjust_shift, relay.const(128, 'int32'))
 
     # Legalize if the datatypes are suitable for fast Int8 instructions.  Int8 instructions require
     # input channel to be a multiple of 4 and output channels to be a multiple of 16. For input
     # channels, we pad both the inputs and weights input channels. For output channels, we pad the
     # weight and stride_slice the output.
-    if _is_int8_hw_support(data_tensor.dtype, kernel_tensor.dtype):
+    if _is_int8_hw_support(data_dtype, kernel_dtype):
         # Flags to remember if the expr is modified
         ic_modified = False
         oc_modified = False
-
-        # Collect the input exprs.
-        data, kernel = inputs
 
         # Find the value of input and output channel.
         in_channel = -1
@@ -250,16 +298,16 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 return None
 
-        if not (ic_modified or oc_modified):
-            return None
-
-        if ic_modified and not oc_modified:
-            return relay.nn.conv2d(data, kernel, **attrs)
-
         if oc_modified:
-            new_attrs = {k: attrs[k] for k in attrs.keys()}
             new_attrs['channels'] = new_out_channel
             out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
             original_out_shape = [x.value for x in output_tensor.shape]
-            return relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+            out = relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+        else:
+            out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+        if is_int8_inputs:
+            out = relay.subtract(out, adjust_shift)
+
+        return out
     return None
