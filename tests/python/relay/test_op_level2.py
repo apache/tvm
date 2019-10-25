@@ -237,7 +237,8 @@ def test_upsampling_infer_type():
     y = relay.nn.upsampling(x, scaleH=2, scaleW=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)), tvm.expr.Cast("int32", tvm.round(w*scale))), "float32")
+    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))), "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
     y = relay.nn.upsampling(x, scaleH=2, scaleW=2, layout="NCHW", method="bilinear")
@@ -528,7 +529,8 @@ def _test_upsampling(layout, method, align_corners=False):
     if method == "nearest_neighbor":
         ref = topi.testing.upsampling_python(data, (scaleH, scaleW), layout)
     else:
-        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scaleH)), int(round(w*scaleW))), layout)
+        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scaleH)),
+                                                  int(round(w*scaleW))), layout)
     for target, ctx in ctx_list():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)

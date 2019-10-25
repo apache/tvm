@@ -313,7 +313,8 @@ def _UpsampleLayerParams(op, inexpr, etab):
         raise tvm.error.OpAttributeUnimplemented(
             'Upsample height and width must be equal.')
     interpolationMode = 'nearest_neighbor' if op.mode == 0 else 'bilinear'
-    return _op.nn.upsampling(inexpr, scaleH=op.scalingFactor[0], scaleW=op.scalingFactor[1], method=interpolationMode)
+    return _op.nn.upsampling(inexpr, scaleH=op.scalingFactor[0],
+                             scaleW=op.scalingFactor[1], method=interpolationMode)
 
 
 def _L2NormalizeLayerParams(op, inexpr, etab):

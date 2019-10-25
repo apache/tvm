@@ -52,9 +52,11 @@ def upsampling(data, scaleH, scaleW, layout="NCHW", method='nearest_neighbor', a
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scaleH), data.shape[2].dtype)), simplify(topi.cast(tvm.round(data.shape[3] * scaleW), data.shape[3].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scaleH), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scaleW), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scaleH), data.shape[1].dtype)), simplify(topi.cast(tvm.round(data.shape[2] * scaleW), data.shape[2].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scaleH), data.shape[1].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[2] * scaleW), data.shape[2].dtype)))
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))
