@@ -14,15 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 from tvm import relay
 from tvm.relay.testing import check_grad
 
 
 def test_cross_entropy_grad():
-    x = relay.var("x", shape=(1, 5))
-    y = relay.var("y", shape=(1, 5))
+    x = relay.var("x", shape=(2, 5))
+    y = relay.var("y", shape=(2, 5))
     check_grad(relay.Function([x, y], relay.op.nn.cross_entropy(x, y)), eps=0.01, scale=0.1, mean=1)
 
 
+def test_cross_entropy_with_logits_grad():
+    x = relay.var("x", shape=(2, 5))
+    y = relay.var("y", shape=(2, 5))
+    check_grad(relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)), eps=0.01, scale=0.1, mean=1)
+
+
 if __name__ == "__main__":
-    test_cross_entropy_grad()
+    pytest.main([__file__])
