@@ -21,7 +21,7 @@ import tvm
 from ..util import simplify
 
 
-def upsampling(data, scaleH, scaleW, layout="NCHW", method='nearest_neighbor', align_corners=False):
+def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor', align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -32,10 +32,10 @@ def upsampling(data, scaleH, scaleW, layout="NCHW", method='nearest_neighbor', a
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    scaleH : float
+    scale_h : float
         Scaling factor for height
 
-    scaleW : float
+    scale_w : float
         Scaling factor for width
 
     layout : string, optional
@@ -47,16 +47,16 @@ def upsampling(data, scaleH, scaleW, layout="NCHW", method='nearest_neighbor', a
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, channel, in_height*scaleH, in_width*scaleW]
+        4-D with shape [batch, channel, in_height*scale_h, in_width*scale_w]
         or [batch, in_height*scale, in_width*scale, channel]
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scaleH), data.shape[2].dtype)),
-                     simplify(topi.cast(tvm.round(data.shape[3] * scaleW), data.shape[3].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale_h), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scale_w), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scaleH), data.shape[1].dtype)),
-                     simplify(topi.cast(tvm.round(data.shape[2] * scaleW), data.shape[2].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale_h), data.shape[1].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[2] * scale_w), data.shape[2].dtype)))
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))

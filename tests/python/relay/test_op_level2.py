@@ -234,14 +234,14 @@ def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     scale = tvm.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scaleH=2, scaleW=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
                                                 tvm.expr.Cast("int32", tvm.round(w*scale))), "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scaleH=2, scaleW=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
@@ -506,31 +506,31 @@ def test_batch_flatten():
 
 def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
-    scaleH = 2.0
-    scaleW = 2.0
+    scale_h = 2.0
+    scale_w = 2.0
     dtype = "float32"
     def get_shape():
         if layout == "NCHW":
-            return (c, h, w), (c, int(round(h*scaleH)), int(round(w*scaleW)))
+            return (c, h, w), (c, int(round(h*scale_h)), int(round(w*scale_w)))
         else:
-            return (h, w, c), (int(round(h*scaleH)), int(round(w*scaleW)), c)
+            return (h, w, c), (int(round(h*scale_h)), int(round(w*scale_w)), c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scaleH=scaleH, scaleW=scaleW, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scaleH=scaleH, scaleW=scaleW, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
-        ref = topi.testing.upsampling_python(data, (scaleH, scaleW), layout)
+        ref = topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
     else:
-        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scaleH)),
-                                                  int(round(w*scaleW))), layout)
+        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scale_h)),
+                                                  int(round(w*scale_w))), layout)
     for target, ctx in ctx_list():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)

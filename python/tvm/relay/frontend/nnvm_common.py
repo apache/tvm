@@ -112,7 +112,7 @@ def _transpose(inputs, attrs):
 
 def _upsampling(inputs, attrs):
     scale = attrs.get_int("scale")
-    return _op.nn.upsampling(inputs[0], scaleH=scale, scaleW=scale)
+    return _op.nn.upsampling(inputs[0], scale_h=scale, scale_w=scale)
 
 
 def _elemwise_sum(inputs, _, _dtype='float32'):

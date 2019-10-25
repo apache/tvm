@@ -23,28 +23,28 @@ import math
 
 from common import get_all_backend
 
-def verify_upsampling(batch, in_channel, in_height, in_width, scaleH, scaleW, layout='NCHW', method="nearest_neighbor"):
+def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w, layout='NCHW', method="nearest_neighbor"):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         dtype = A.dtype
-        out_shape = (batch, in_channel, int(round(in_height*scaleH)), int(round(in_width*scaleW)))
+        out_shape = (batch, in_channel, int(round(in_height*scale_h)), int(round(in_width*scale_w)))
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
     elif layout == 'NHWC':
         A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
         dtype = A.dtype
-        out_shape = (batch, int(round(in_height*scaleH)), int(round(in_width*scaleW)), in_channel)
+        out_shape = (batch, int(round(in_height*scale_h)), int(round(in_width*scale_w)), in_channel)
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)
     else:
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    B = topi.nn.upsampling(A, scaleH, scaleW, layout=layout, method=method, align_corners=False)
+    B = topi.nn.upsampling(A, scale_h, scale_w, layout=layout, method=method, align_corners=False)
 
     if method == "bilinear":
-        out_size = (int(round(in_height*scaleH)), int(round(in_width*scaleW)))
+        out_size = (int(round(in_height*scale_h)), int(round(in_width*scale_w)))
         b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout, align_corners=False)
     else:
-        b_np = topi.testing.upsampling_python(a_np, (scaleH, scaleW), layout)
+        b_np = topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
