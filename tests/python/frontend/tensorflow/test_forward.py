@@ -2380,9 +2380,13 @@ def test_forward_add_n():
     in3 = m
     in4 = [m, n]
     in5 = (m, n, o)
+    _test_froward_add_n(in0)
     _test_forward_add_n(in1)
     _test_forward_add_n(in2)
     _test_forward_add_n(in3)
+    _test_forward_add_n(in4)
+    _test_forward_add_n(in5)
+
 
 #######################################################################
 # Main
