@@ -1342,6 +1342,7 @@ _convert_map = {
     'Abs'                               : AttrCvt('abs'),
     'Add'                               : _elemwise('add'),
     'All'                               : _reduce('all'),
+    'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),

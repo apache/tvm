@@ -52,6 +52,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
         B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif type == "all":
         B = topi.all(A, axis=axis, keepdims=keepdims)
+    elif type == "any":
+        B = topi.any(A, axis=axis, keepdims=keepdims)
     elif type == "max":
         B = topi.max(A1, axis=axis, keepdims=keepdims)
     elif type == "min":
@@ -86,6 +88,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
         elif type == "all" and dtype == 'bool':
             out_npy = in_npy_map.all(axis=axis, keepdims=keepdims)
+        elif type == "any" and dtype == "bool":
+            out_npy = in_npy_map.any(axis=axis, keepdims=keepdims)
         elif type == "max":
             out_npy = in_npy_map.max(axis=axis, keepdims=keepdims)
         elif type == "min":
@@ -173,6 +177,26 @@ def test_reduce_map():
                           keepdims=True,
                           type="sum",
                           dtype="float64")
+    verify_reduce_map_ele(in_shape=(2, 3),
+                          axis=None,
+                          keepdims=True,
+                          type="any",
+                          dtype="bool")
+    verify_reduce_map_ele(in_shape=(32, 128, 24),
+                          axis=None,
+                          keepdims=True,
+                          type="any",
+                          dtype="bool")
+    verify_reduce_map_ele(in_shape=(1, 4, 7),
+                          axis=1,
+                          keepdims=True,
+                          type="any",
+                          dtype="bool")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
+                          axis=2,
+                          keepdims=False,
+                          type="any",
+                          dtype="bool")
 
 if __name__ == "__main__":
     test_reduce_map()

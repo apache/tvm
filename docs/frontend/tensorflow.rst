@@ -116,6 +116,7 @@ Supported Ops
 - Abs
 - Add
 - All
+- Any
 - ArgMax
 - ArgMin
 - AvgPool
