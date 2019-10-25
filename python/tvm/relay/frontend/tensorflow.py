@@ -22,10 +22,14 @@ from __future__ import print_function
 
 import warnings
 from collections import defaultdict
+
 # Numpy support
 import numpy as np
 
 import tvm
+
+from tvm.relay.prelude import Prelude
+
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
@@ -452,6 +456,24 @@ def _check_numerics():
         return AttrCvt(op_name="copy", ignores=['message'])(inputs, attr)
     return _impl
 
+def _assert():
+    # ToDo: In general people want asserts to be gone from TensorFlow graphs
+    # when they are optimizing them, so converting it to a no-op is
+    # reasonable. However, it would be nice to have the option to keep them
+    # once Relay gets a Halt or Assert op.
+    return _no_op()
+
+def _no_op():
+    def _impl(inputs, attr, params):
+        # ToDo: This should really be an op that returns nothing, which could
+        # be represented as an empty tuple. It turns out that TVM
+        # infrastructure doesn't like running functions that return None and
+        # also don't like running functions that return an empty tuple. So it
+        # doesn't work, but it should be made to work and then this could be
+        # improved. In the mean time, it is hard to imagine a case where it
+        # matters in any real way that a no-op is converted to a constant 0.
+        return tvm.relay.const(0)
+    return _impl
 
 def _matmul():
     def _impl(inputs, attr, params):
@@ -526,6 +548,69 @@ def _pack():
         axis = int(attr["axis"])
         inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
         return _op.concatenate(inputs_reshaped, axis)
+    return _impl
+
+def _tensor_array():
+    def _impl(inputs, attr, params, prelude):
+        dtype_str = attr.get('dtype').name
+        tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
+        return tensor_array_constructor(_op.take(inputs[0], tvm.relay.const(0)))
+    return _impl
+
+def _tensor_array_scatter():
+    def _impl(inputs, attr, params, prelude):
+        dtype_str = attr.get('T').name
+        values_rank = len(inputs[2].type_annotation.shape)
+        unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
+        unstack_function = prelude.get_var(unstack_name, dtype_str)
+        values = unstack_function(inputs[2])
+        tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
+        return tensor_array_scatter_func(inputs[0], inputs[1], values)
+    return _impl
+
+def _tensor_array_gather():
+    def _impl(inputs, attr, params, prelude):
+        return prelude.tensor_array_gather(inputs[2], inputs[1])
+    return _impl
+
+def _tensor_array_size():
+    def _impl(inputs, attr, params, prelude):
+        return prelude.length(inputs[0])
+    return _impl
+
+def _tensor_array_write():
+    def _impl(inputs, attr, params, prelude):
+        input_rank = len(inputs[2].type_annotation.shape)
+        dtype = attr.get('T').name
+
+        tensor_name = 'tensor{}'.format(input_rank)
+        tensor_func = prelude.get_var(tensor_name, dtype)
+        v = tensor_func(inputs[2])
+        write_func = prelude.get_var('tensor_array_write', dtype)
+
+        return write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
+    return _impl
+
+def _tensor_array_read():
+    def _impl(inputs, attr, params, prelude):
+        read_func = prelude.get_var('tensor_array_read', attr.get('dtype').name)
+        return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+    return _impl
+
+def _tensor_array_split():
+    def _impl(inputs, attr, params, prelude):
+        input_rank = len(inputs[1].type_annotation.shape)
+        dtype_str = attr.get('T').name
+        v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
+        lengths = _op.cast(inputs[2], 'int32')
+        split_var = prelude.get_var('tensor_array_split', dtype_str)
+        return split_var(inputs[0], v, lengths)
+    return _impl
+
+def _tensor_array_concat():
+    def _impl(inputs, attr, params, prelude):
+        concat_func = prelude.get_var('tensor_array_concat', attr['dtype'].name)
+        return concat_func(inputs[1])
     return _impl
 
 def _tile():
@@ -1258,6 +1343,13 @@ def _squared_difference():
         return _op.multiply(difference, difference)
     return _impl
 
+def _size():
+    def _impl(inputs, attr, params):
+        new_attr = attr
+        new_attr['out_type'] = attr['out_type'].name
+        return AttrCvt('ndarray_size', transforms={'out_type' : 'dtype'})(inputs, new_attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1272,6 +1364,7 @@ _convert_map = {
     'All'                               : _reduce('all'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
+    'Assert'                            : _assert(),
     'AvgPool'                           : _pooling('avg_pool'),
     'BatchMatMul'                       : _batch_matmul(),
     'BatchMatMulV2'                     : _batch_matmul(),
@@ -1330,9 +1423,18 @@ _convert_map = {
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
+    'NoOp'                              : _no_op(),
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
+    'TensorArrayV3'                     : _tensor_array(),
+    'TensorArrayScatterV3'              : _tensor_array_scatter(),
+    'TensorArrayGatherV3'               : _tensor_array_gather(),
+    'TensorArraySizeV3'                 : _tensor_array_size(),
+    'TensorArrayWriteV3'                : _tensor_array_write(),
+    'TensorArrayReadV3'                 : _tensor_array_read(),
+    'TensorArraySplitV3'                : _tensor_array_split(),
+    'TensorArrayConcatV3'               : _tensor_array_concat(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
@@ -1355,7 +1457,7 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
-    'Size'                              : AttrCvt('ndarray_size'),
+    'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
     'Softplus'                          : _softplus(),
@@ -1880,6 +1982,7 @@ class GraphProto(object):
         self._loops = {}
         self._branches = {}
         self._mod = _module.Module({})
+        self._prelude = Prelude(self._mod)
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2133,8 +2236,11 @@ class GraphProto(object):
             if np_array.dtype == np.dtype(object):
                 # Object types are generally tensorflow DT_STRING (DecodeJpeg op).
                 # Just leave it as placeholder.
-                self._nodes[name] = [_expr.var(name, shape=shape[name], dtype='uint8')]
-
+                if shape:
+                    var_shape = shape[name]
+                else:
+                    var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)
+                self._nodes[name] = [_expr.var(name, shape=var_shape, dtype='uint8')]
                 return
 
             array_ndim = len(np_array.shape)
@@ -2355,7 +2461,11 @@ class GraphProto(object):
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
-            sym = convert_map[op_name](inputs, attrs, self._params)
+            if 'TensorArray' in op_name:
+                sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
+            else:
+                sym = convert_map[op_name](inputs, attrs, self._params)
+
         elif op_name in convert_map_rnn:
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
                                              self._params, graph,

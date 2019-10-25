@@ -47,6 +47,8 @@ class VirtualMachineDebug : public VirtualMachine {
   void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
                     Index output_size, const std::vector<ObjectRef>& args) final;
 
+  void LoadExecutable(const Executable* exec);
+
   ~VirtualMachineDebug() {}
 
  private:

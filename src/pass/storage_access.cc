@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -114,12 +114,12 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
     }
     double_buffer_write_ = nullptr;
   } else if (op->attr_key == attr::coproc_scope) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     IRVisitor::Visit_(op);
     env_threads_.CopyOnWrite()->data.pop_back();
   } else if (op->attr_key == attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     if (!in_device_env_) {
       in_device_env_ = true;
@@ -199,7 +199,7 @@ void StorageAccessVisitor::Visit_(const Call* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = VarExpr(op->args[1].node_);
+      e.buffer = Downcast<VarExpr>(op->args[1]);
       e.touched = arith::IntSet::range(
           Range::make_by_min_extent(offset, extent));
       e.scope = scope;
@@ -295,7 +295,7 @@ class StorageAccessInfoLower : public IRMutator {
     CHECK_EQ(op->args.size(), 5U);
     Type dtype = op->args[0].type();
     const Variable* buffer = op->args[1].as<Variable>();
-    Var buffer_var(op->args[1].node_);
+    Var buffer_var = Downcast<Var>(op->args[1]);
     Expr offset = op->args[2];
     auto it = storage_info_.find(buffer);
     if (it != storage_info_.end() && it->second.info.defined()) {
@@ -339,6 +339,12 @@ class StorageAccessInfoLower : public IRMutator {
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower().Mutate(stmt);
+}
+
+LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc f) {
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  n->body = LowerStorageAccessInfo(f->body);
+  return LoweredFunc(n);
 }
 
 }  // namespace ir

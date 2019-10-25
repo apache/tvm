@@ -87,7 +87,7 @@ class TensorIntrinNode : public Node {
   /*! \brief constructor */
   TensorIntrinNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op", &op);
     v->Visit("inputs", &inputs);
@@ -112,7 +112,7 @@ class TensorIntrinNode : public Node {
 };
 
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
-  return static_cast<const TensorIntrinNode*>(node_.get());
+  return static_cast<const TensorIntrinNode*>(get());
 }
 
 // Internal node container of tensor intrinsic calling.
@@ -152,7 +152,7 @@ class TensorIntrinCallNode : public Node {
   /*! \brief scalar expression inputs */
   Array<Expr> scalar_inputs;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("intrin", &intrin);
     v->Visit("tensors", &tensors);
     v->Visit("regions", &regions);
@@ -170,7 +170,7 @@ class TensorIntrinCallNode : public Node {
 };
 
 inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
-  return static_cast<const TensorIntrinCallNode*>(node_.get());
+  return static_cast<const TensorIntrinCallNode*>(get());
 }
 
 }  // namespace tvm

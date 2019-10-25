@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,7 +28,6 @@
 #include <nnvm/graph.h>
 #include <tvm/base.h>
 #include <tvm/expr.h>
-#include <tvm/node/memory.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
 #include <vector>
@@ -62,13 +61,13 @@ struct NDArrayWrapperNode : public ::tvm::Node {
   std::string name;
   tvm::runtime::NDArray array;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("array", &array);
   }
 
   static constexpr const char* _type_key = "NDArrayWrapper";
-  TVM_DECLARE_NODE_TYPE_INFO(NDArrayWrapperNode, Node);
+  TVM_DECLARE_NODE_TYPE_INFO(NDArrayWrapperNode, tvm::Node);
 };
 
 TVM_DEFINE_NODE_REF(NDArrayWrapper, NDArrayWrapperNode);

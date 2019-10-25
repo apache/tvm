@@ -19,11 +19,11 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/backend/vm/serialize_util.h
+ * \file src/runtime/vm/serialize_util.h
  * \brief Definitions of helpers for serializing and deserializing a Relay VM.
  */
-#ifndef TVM_RELAY_BACKEND_VM_SERIALIZE_UTIL_H_
-#define TVM_RELAY_BACKEND_VM_SERIALIZE_UTIL_H_
+#ifndef TVM_RUNTIME_VM_SERIALIZE_UTIL_H_
+#define TVM_RUNTIME_VM_SERIALIZE_UTIL_H_
 
 #include <dmlc/common.h>
 #include <dmlc/memory_io.h>
@@ -34,7 +34,7 @@
 #include <vector>
 
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace vm {
 
 /*! \brief The magic number for the serialized VM bytecode file  */
@@ -158,7 +158,7 @@ struct VMInstructionSerializer {
 };
 
 }  // namespace vm
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_VM_SERIALIZE_UTIL_H_
+#endif  // TVM_RUNTIME_VM_SERIALIZE_UTIL_H_

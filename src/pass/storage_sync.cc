@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -263,6 +263,28 @@ class ThreadSyncInserter : public IRMutator {
     }
   }
 
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      Expr expr = IRMutator::Mutate_(op, e);
+      op = expr.as<Call>();
+      CHECK_EQ(op->args.size(), 5U);
+      const Variable* buffer_var = op->args[1].as<Variable>();
+      Var var(GetRef<Var>(buffer_var));
+      const IntImm* flag = op->args[4].as<IntImm>();
+      if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].read_count;
+      }
+      if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].write_count;
+      }
+      return expr;
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+
  private:
   // RW statistics about data
   struct Entry {
@@ -304,7 +326,7 @@ class ThreadSyncInserter : public IRMutator {
       CHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();
       for (const AttrStmt* attr : thread_extents_) {
-        IterVar iv(attr->node.node_);
+        IterVar iv = Downcast<IterVar>(attr->node);
         runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
         if (s.rank == 0) {
           num_blocks_ = (num_blocks_.defined() ?

@@ -69,7 +69,7 @@ class ObjAllocatorBase {
                   "make_node can only be used to create NodeBase");
     T* ptr = Handler::New(static_cast<Derived*>(this),
                          std::forward<Args>(args)...);
-    ptr->type_index_ = T::type_index();
+    ptr->type_index_ = T::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
     return ObjectPtr<T>(ptr);
   }
@@ -82,6 +82,8 @@ class SimpleObjAllocator :
   template<typename T>
   class Handler {
    public:
+    using StorageType = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+
     template<typename... Args>
     static T* New(SimpleObjAllocator*, Args&&... args) {
       // NOTE: the first argument is not needed for SimpleObjAllocator
@@ -91,7 +93,15 @@ class SimpleObjAllocator :
       // In the case of an object pool, an allocator needs to create
       // a special chunk memory that hides reference to the allocator
       // and call allocator's release function in the deleter.
-      return new T(std::forward<Args>(args)...);
+
+      // NOTE2: Use inplace new to allocate
+      // This is used to get rid of warning when deleting a virtual
+      // class with non-virtual destructor.
+      // We are fine here as we captured the right deleter during construction.
+      // This is also the right way to get storage type for an object pool.
+      StorageType* data = new StorageType();
+      new (data) T(std::forward<Args>(args)...);
+      return reinterpret_cast<T*>(data);
     }
 
     static Object::FDeleter Deleter() {
@@ -99,8 +109,17 @@ class SimpleObjAllocator :
     }
 
    private:
-    static void Deleter_(Object* ptr) {
-      delete static_cast<T*>(ptr);
+    static void Deleter_(Object* objptr) {
+      // NOTE: this is important to cast back to T*
+      // because objptr and tptr may not be the same
+      // depending on how sub-class allocates the space.
+      T* tptr = static_cast<T*>(objptr);
+      // It is important to do tptr->T::~T(),
+      // so that we explicitly call the specific destructor
+      // instead of tptr->~T(), which could mean the intention
+      // call a virtual destructor(which may not be available and is not required).
+      tptr->T::~T();
+      delete reinterpret_cast<StorageType*>(tptr);
     }
   };
 };

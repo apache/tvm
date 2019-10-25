@@ -128,7 +128,7 @@ RELAY_REGISTER_OP("nn.upsampling")
            (batch_size, in_height*scale, in_width*scale, channels)
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.UpSamplingAttrs")
+.set_attrs_type<UpSamplingAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

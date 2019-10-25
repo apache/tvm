@@ -1061,7 +1061,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
       if (i != 0) {
         p->stream << ", ";
       }
-      p->Print(NodeRef(op->data[i]));
+      p->Print(op->data[i]);
     }
     p->stream << ']';
 });
@@ -1073,9 +1073,9 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
       if (it != op->data.begin()) {
         p->stream << ", ";
       }
-      p->Print(NodeRef(it->first));
+      p->Print(it->first);
       p->stream << ": ";
-      p->Print(NodeRef(it->second));
+      p->Print(it->second);
     }
     p->stream << '}';
   });
@@ -1088,7 +1088,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
         p->stream << ", ";
       }
       p->stream << '\"' << it->first << "\": ";
-      p->Print(NodeRef(it->second));
+      p->Print(it->second);
     }
     p->stream << '}';
   });
@@ -1150,6 +1150,8 @@ TVM_REGISTER_NODE_TYPE(Select);
 TVM_REGISTER_NODE_TYPE(Load);
 TVM_REGISTER_NODE_TYPE(Ramp);
 TVM_REGISTER_NODE_TYPE(Broadcast);
+TVM_REGISTER_NODE_TYPE(Shuffle);
+TVM_REGISTER_NODE_TYPE(Prefetch);
 TVM_REGISTER_NODE_TYPE(Call);
 TVM_REGISTER_NODE_TYPE(Let);
 TVM_REGISTER_NODE_TYPE(LetStmt);

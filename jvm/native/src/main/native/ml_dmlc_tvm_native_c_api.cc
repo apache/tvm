@@ -242,7 +242,7 @@ extern "C" int funcInvokeCallback(TVMValue *args,
   for (int i = 0; i < numArgs; ++i) {
     TVMValue arg = args[i];
     int tcode = typeCodes[i];
-    if (tcode == kNodeHandle || tcode == kFuncHandle || tcode == kModuleHandle) {
+    if (tcode == kObjectHandle || tcode == kFuncHandle || tcode == kModuleHandle) {
       TVMCbArgToReturn(&arg, tcode);
     }
     jobject jarg = tvmRetValueToJava(env, arg, tcode);
@@ -259,8 +259,8 @@ extern "C" int funcInvokeCallback(TVMValue *args,
       reinterpret_cast<jobject>(resourceHandle), jargs);
 
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
-  const int prevNumStrArg = e->tvmFuncArgPushedStrs.size();
-  const int prevNumBytesArg = e->tvmFuncArgPushedBytes.size();
+  const size_t prevNumStrArg = e->tvmFuncArgPushedStrs.size();
+  const size_t prevNumBytesArg = e->tvmFuncArgPushedBytes.size();
 
   // convert returned (java) TVMValue to (C) TVMValue
   env->CallStaticVoidMethod(clsFunc, pushArgToStack, jretValue);

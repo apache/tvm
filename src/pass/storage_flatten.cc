@@ -72,7 +72,7 @@ class StorageFlattener : public IRMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
-      VarExpr buf_var(it->second.node_);
+      VarExpr buf_var = Downcast<VarExpr>(it->second);
       return Store::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
@@ -84,8 +84,8 @@ class StorageFlattener : public IRMutator {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
     } else if (op->attr_key == attr::double_buffer_scope &&
-               op->node.node_->derived_from<OperationNode>()) {
-      Operation func(op->node.node_);
+               op->node->IsInstance<OperationNode>()) {
+      Operation func = Downcast<Operation>(op->node);
       Stmt body = Mutate(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
         TensorKey key{func, i};
@@ -97,7 +97,7 @@ class StorageFlattener : public IRMutator {
       }
       return body;
     } else if (op->attr_key == attr::thread_extent) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
       Stmt stmt = IRMutator::Mutate_(op, s);
@@ -106,7 +106,7 @@ class StorageFlattener : public IRMutator {
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
     } else if (op->attr_key == attr::buffer_dim_align) {
-      Tensor tensor(op->node.node_);
+      Tensor tensor = Downcast<Tensor>(op->node);
       const Call* tuple = op->value.as<Call>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       TensorKey key{tensor->op, tensor->value_index};
@@ -271,7 +271,7 @@ class StorageFlattener : public IRMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
-      VarExpr buf_var(it->second.node_);
+      VarExpr buf_var = Downcast<VarExpr>(it->second);
       return Load::make(op->type, buf_var, op->index, op->predicate);
     } else {
       return expr;
@@ -401,7 +401,7 @@ class StorageFlattener : public IRMutator {
   // We do support a few relaxed case, such as bindingx
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmt* op) {
-    Array<NodeRef> arr(op->node.node_);
+    Array<NodeRef> arr = Downcast<Array<NodeRef> > (op->node);
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const TensorNode* tensor = arr[1].as<TensorNode>();
@@ -438,7 +438,7 @@ class StorageFlattener : public IRMutator {
     }
     // start binding
     ArgBinder binder(&var_remap_);
-    binder.BindBuffer(Buffer(arr[0].node_), slice, buffer->name, true);
+    binder.BindBuffer(Downcast<Buffer>(arr[0]), slice, buffer->name, true);
     // Apply the remaps
     Stmt body = MergeNest(binder.asserts(), op->body);
     body = MergeNest(binder.init_nest(), body);

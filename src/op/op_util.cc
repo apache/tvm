@@ -193,7 +193,7 @@ class TensorReplacer : public ir::IRMutator {
 
   Expr Mutate_(const ir::Call* op, const Expr& e) {
     if (op->call_type == ir::Call::Halide) {
-      Tensor t = Operation(op->func.node_).output(op->value_index);
+      Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
         Expr ret = ir::Call::make(

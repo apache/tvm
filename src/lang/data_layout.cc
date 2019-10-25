@@ -69,8 +69,7 @@ const LayoutAxis& LayoutAxis::make(const std::string& name) {
 }
 
 Layout::Layout(const Array<IterVar>& axes) {
-  node_ = make_node<LayoutNode>();
-  LayoutNode *node = operator->();
+  auto node = make_node<LayoutNode>();
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
@@ -85,13 +84,13 @@ Layout::Layout(const Array<IterVar>& axes) {
     repr << axis->var.get()->name_hint;
   }
   node->name = repr.str();
+  data_ = std::move(node);
 }
 
 Layout::Layout(const std::string& name) { // NOLINT(*)
   if (name == "__undef__") return;
 
-  node_ = make_node<LayoutNode>();
-  LayoutNode *node = operator->();
+  auto node = make_node<LayoutNode>();
   node->name = name;
 
   if (name.empty()) return;  // scalar
@@ -140,6 +139,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
                                       << std::toupper(axis);
     }
   }
+  data_ = std::move(node);
 }
 
 Layout LayoutNode::make(const std::string& layout) {

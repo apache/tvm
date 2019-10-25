@@ -16,6 +16,8 @@
 # under the License.
 
 """Maps object type to its constructor"""
+from ..node_generic import _set_class_node_base
+
 OBJECT_TYPE = []
 
 def _register_object(int index, object cls):
@@ -27,6 +29,7 @@ def _register_object(int index, object cls):
 
 cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE
+    global _CLASS_NODE
     cdef unsigned tindex
     cdef list object_type
     cdef object cls
@@ -39,9 +42,11 @@ cdef inline object make_ret_object(void* chandle):
         if cls is not None:
             obj = cls.__new__(cls)
         else:
-            obj = ObjectBase.__new__(ObjectBase)
+            # default use node base class
+            # TODO(tqchen) change to object after Node unifies with Object
+            obj = _CLASS_NODE.__new__(_CLASS_NODE)
     else:
-        obj = ObjectBase.__new__(ObjectBase)
+        obj = _CLASS_NODE.__new__(_CLASS_NODE)
     (<ObjectBase>obj).chandle = chandle
     return obj
 
@@ -94,3 +99,6 @@ cdef class ObjectBase:
             (<FunctionBase>fconstructor).chandle,
             kObjectHandle, args, &chandle)
         self.chandle = chandle
+
+
+_set_class_node_base(ObjectBase)

@@ -49,7 +49,7 @@ namespace ir {
  * // The use case is to count number of Variables in the ir tree.
  * class MyCounter : public IRVisitor {
  *  public:
- *   int Count(const NodeRef& n) {
+ *   int Count(const ObjectRef& n) {
  *     ret_ = 0;
  *     this->Visit(n);
  *     return ret_;
@@ -94,7 +94,7 @@ class TVM_DLL IRVisitor {
   /*! \brief destructor */
   virtual ~IRVisitor() {}
   /*! \brief functor type of visitor */
-  using FVisit = IRFunctor<void(const NodeRef&, IRVisitor*)>;
+  using FVisit = IRFunctor<void(const ObjectRef&, IRVisitor*)>;
   /*! \return internal vtable*/
   static FVisit& vtable();
   // overloadable visit function.

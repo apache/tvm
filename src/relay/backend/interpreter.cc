@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
@@ -56,8 +55,26 @@ TVM_REGISTER_API("relay._make.Closure")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ClosureNode>([](const ClosureNode* node, tvm::IRPrinter* p) {
-    p->stream << "ClosureNode(" << node->func << ")";
+    p->stream << "ClosureNode(" << node->func << ", " << node->env << ")";
   });
+
+
+// TODO(@jroesch): this doesn't support mutual letrec
+/* Value Implementation */
+RecClosure RecClosureNode::make(Closure clos, Var bind) {
+  NodePtr<RecClosureNode> n = make_node<RecClosureNode>();
+  n->clos = std::move(clos);
+  n->bind = std::move(bind);
+  return RecClosure(n);
+}
+
+TVM_REGISTER_API("relay._make.RecClosure")
+.set_body_typed(RecClosureNode::make);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RecClosureNode>([](const RecClosureNode* node, tvm::IRPrinter* p) {
+                                p->stream << "RecClosureNode(" << node->clos << ")";
+                              });
 
 TupleValue TupleValueNode::make(tvm::Array<Value> value) {
   NodePtr<TupleValueNode> n = make_node<TupleValueNode>();
@@ -98,6 +115,8 @@ RefValue RefValueNode::make(Value value) {
 TVM_REGISTER_API("relay._make.RefValue")
 .set_body_typed(RefValueNode::make);
 
+TVM_REGISTER_NODE_TYPE(RefValueNode);
+
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<RefValueNode>([](const RefValueNode* node,
                                tvm::IRPrinter* p) {
@@ -116,6 +135,8 @@ ConstructorValue ConstructorValueNode::make(int32_t tag,
 
 TVM_REGISTER_API("relay._make.ConstructorValue")
 .set_body_typed(ConstructorValueNode::make);
+
+TVM_REGISTER_NODE_TYPE(ConstructorValueNode);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
@@ -189,7 +210,7 @@ class InterpreterStateNode : public Node {
   /*! \brief The call stack of the interpreter. */
   Stack stack;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("current_expr", &current_expr);
     v->Visit("stack", &stack);
   }
@@ -281,7 +302,6 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  // TODO(@jroesch): this doesn't support mutual letrec
   inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
@@ -298,10 +318,8 @@ class Interpreter :
 
     // We must use mutation here to build a self referential closure.
     auto closure = ClosureNode::make(captured_mod, func);
-    auto mut_closure =
-        static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
     if (letrec_name.defined()) {
-      mut_closure->env.Set(letrec_name, closure);
+      return RecClosureNode::make(closure, letrec_name);
     }
     return std::move(closure);
   }
@@ -559,7 +577,7 @@ class Interpreter :
   }
 
   // Invoke the closure
-  Value Invoke(const Closure& closure, const tvm::Array<Value>& args) {
+  Value Invoke(const Closure& closure, const tvm::Array<Value>& args, const Var& bind = Var()) {
     // Get a reference to the function inside the closure.
     if (closure->func->IsPrimitive()) {
       return InvokePrimitiveOp(closure->func, args);
@@ -575,10 +593,14 @@ class Interpreter :
       locals.Set(func->params[i], args[i]);
     }
 
-    // Add the var to value mappings from the Closure's modironment.
+    // Add the var to value mappings from the Closure's environment.
     for (auto it = closure->env.begin(); it != closure->env.end(); ++it) {
       CHECK_EQ(locals.count((*it).first), 0);
       locals.Set((*it).first, (*it).second);
+    }
+
+    if (bind.defined()) {
+      locals.Set(bind, RecClosureNode::make(closure, bind));
     }
 
     return WithFrame<Value>(Frame(locals), [&]() { return Eval(func->body); });
@@ -607,6 +629,8 @@ class Interpreter :
     if (const ClosureNode* closure_node = fn_val.as<ClosureNode>()) {
       auto closure = GetRef<Closure>(closure_node);
       return this->Invoke(closure, args);
+    } else if (const RecClosureNode* closure_node = fn_val.as<RecClosureNode>()) {
+      return this->Invoke(closure_node->clos, args, closure_node->bind);
     } else {
       LOG(FATAL) << "internal error: type error, expected function value in the call "
                  << "position";

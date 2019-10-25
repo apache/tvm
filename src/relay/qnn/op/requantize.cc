@@ -183,7 +183,7 @@ point. The computation looks like this
 Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.RequantizeAttrs")
+.set_attrs_type<RequantizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The quantized input tensor.")
 .set_support_level(11)

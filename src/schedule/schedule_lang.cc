@@ -77,12 +77,12 @@ void Split(StageNode* self,
   size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
   self->relations.push_back(SplitNode::make(parent, outer, inner, factor, nparts));
   // add vars to all vars
-  all_vars->data.push_back(outer.node_);
-  all_vars->data.push_back(inner.node_);
+  all_vars->data.push_back(outer);
+  all_vars->data.push_back(inner);
   // replace the position.
   leaf_vars->data.erase(leaf_vars->data.begin() + pos);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner.node_);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer.node_);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer);
 }
 
 }  // namespace
@@ -102,7 +102,7 @@ Stage::Stage(Operation op) {
   } else {
     n->leaf_iter_vars = clean;
   }
-  node_ = n;
+  data_ = std::move(n);
 }
 
 bool Stage::is_scheduled() const {
@@ -206,9 +206,9 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
       << "Already set env_threads";
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  std::vector<NodePtr<Node> > temp;
+  std::vector<ObjectRef> temp;
   for (IterVar iv : threads) {
-    temp.push_back(iv.node_);
+    temp.push_back(iv);
   }
   leaf_vars->data.insert(
       leaf_vars->data.begin(), temp.begin(), temp.end());
@@ -265,13 +265,13 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
     std::swap(pos_inner, pos_outer);
   }
   self->relations.push_back(FuseNode::make(outer, inner, fused));
-  all_vars->data.push_back(fused.node_);
+  all_vars->data.push_back(fused);
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
   leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
                         leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
-                         fused.node_);
+                         fused);
   *p_target = fused;
   return *this;
 }
@@ -293,8 +293,8 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     self->relations.push_back(SingletonNode::make(singleton));
     ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
     ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-    all_vars->data.push_back(singleton.node_);
-    leaf_vars->data.insert(leaf_vars->data.begin(), singleton.node_);
+    all_vars->data.push_back(singleton);
+    leaf_vars->data.insert(leaf_vars->data.begin(), singleton);
     *p_target = singleton;
   }
   return *this;
@@ -321,7 +321,7 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   for (size_t i = 0; i < order.size(); ++i) {
     pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
   }
-  std::vector<NodePtr<Node> > temp;
+  std::vector<ObjectRef> temp;
   for (size_t i = 0; i < pos.size(); ++i) {
     temp.emplace_back(leaf_vars->data[pos[i]]);
   }

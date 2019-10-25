@@ -101,7 +101,7 @@ class PassContextNode : public RelayNode {
 
   PassContextNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
@@ -134,16 +134,16 @@ class PassContext : public NodeRef {
    * \return const access pointer.
    */
   const PassContextNode* operator->() const {
-    CHECK(node_.get() != nullptr);
-    return static_cast<const PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<const PassContextNode*>(get());
   }
   /*!
    * \brief mutable accessor.
    * \return mutable access pointer.
    */
   PassContextNode* operator->() {
-    CHECK(node_.get() != nullptr);
-    return static_cast<PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<PassContextNode*>(get_mutable());
   }
   /*!
    * \brief Construct a PassContext containing the default configurations.
@@ -196,7 +196,7 @@ class PassInfoNode : public RelayNode {
 
   PassInfoNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
@@ -221,6 +221,7 @@ class Pass;
  */
 class PassNode : public RelayNode {
  public:
+  virtual ~PassNode() {}
   /*!
    * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
@@ -247,7 +248,7 @@ class PassNode : public RelayNode {
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(tvm::AttrVisitor* v) override {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.Pass";
   TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);

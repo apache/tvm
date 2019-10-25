@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -1237,7 +1237,7 @@ Array<Integer> GetIntArray(Array<Expr> arr) {
     CHECK(!arr[i].defined() || arr[i].as<IntImm>())
         << "Expect an int array";
   }
-  return Array<Integer>(arr.node_);
+  return Downcast<Array<Integer> >(arr);
 }
 
 NNVM_REGISTER_OP(slice_like)

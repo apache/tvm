@@ -40,7 +40,6 @@
 #include "module.h"
 #include "ndarray.h"
 #include "object.h"
-#include "node_base.h"
 
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
@@ -490,9 +489,12 @@ class TVMPODValue_ {
     return NDArray(static_cast<NDArray::Container*>(value_.v_handle));
   }
   operator ObjectRef() const {
-    if (type_code_ == kNull) return ObjectRef(ObjectPtr<Object>(nullptr));
+    if (type_code_ == kNull) {
+      return ObjectRef(ObjectPtr<Object>(nullptr));
+    }
     TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
-    return ObjectRef(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
+    return ObjectRef(
+        ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
@@ -512,9 +514,14 @@ class TVMPODValue_ {
     CHECK_LT(type_code_, kExtEnd);
     return static_cast<TExtension*>(value_.v_handle)[0];
   }
+  template<typename TObjectRef,
+           typename = typename std::enable_if<
+             std::is_class<TObjectRef>::value>::type>
+  inline bool IsObjectRef() const;
   int type_code() const {
     return type_code_;
   }
+
   /*!
    * \brief return handle as specific pointer type.
    * \tparam T the data type.
@@ -567,6 +574,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator ObjectRef;
+  using TVMPODValue_::IsObjectRef;
 
   // conversion operator.
   operator std::string() const {
@@ -610,21 +618,15 @@ class TVMArgValue : public TVMPODValue_ {
     return value_;
   }
   // Deferred extension handler.
-  template<typename TNodeRef>
-  inline TNodeRef AsNodeRef() const;
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
   template<typename T,
            typename = typename std::enable_if<
            std::is_class<T>::value>::type>
   inline operator T() const;
-  template<typename TNodeRef,
-           typename = typename std::enable_if<
-             std::is_class<TNodeRef>::value>::type>
-  inline bool IsNodeType() const;
   inline operator tvm::DataType() const;
   inline operator tvm::Expr() const;
   inline operator tvm::Integer() const;
-  // get internal node ptr, if it is node
-  inline NodePtr<Node>& node_sptr();
 };
 
 /*!
@@ -663,6 +665,8 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator ObjectRef;
+  using TVMPODValue_::IsObjectRef;
+
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
@@ -760,11 +764,19 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(ObjectRef other) {
-    this->Clear();
-    type_code_ = kObjectHandle;
-    // move the handle out
-    value_.v_handle = other.data_.data_;
-    other.data_.data_ = nullptr;
+    return operator=(std::move(other.data_));
+  }
+  template<typename T>
+  TVMRetValue& operator=(ObjectPtr<T> other) {
+    if (other.data_ != nullptr) {
+      this->Clear();
+      type_code_ = kObjectHandle;
+      // move the handle out
+      value_.v_handle = other.data_;
+      other.data_ = nullptr;
+    } else {
+      SwitchToPOD(kNull);
+    }
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
@@ -814,21 +826,19 @@ class TVMRetValue : public TVMPODValue_ {
   }
   /*! \return The value field, if the data is POD */
   const TVMValue& value() const {
-    CHECK(type_code_ != kNodeHandle &&
+    CHECK(type_code_ != kObjectHandle &&
           type_code_ != kFuncHandle &&
           type_code_ != kModuleHandle &&
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
-  // NodeRef related extenstions: in tvm/packed_func_ext.h
+  // ObjectRef related extenstions: in tvm/packed_func_ext.h
   template<typename T,
            typename = typename std::enable_if<
              std::is_class<T>::value>::type>
   inline operator T() const;
-  template<typename TNodeRef>
-  inline TNodeRef AsNodeRef() const;
-  inline TVMRetValue& operator=(const NodeRef& other);
-  inline TVMRetValue& operator=(const NodePtr<Node>& other);
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
   // type related
   inline operator tvm::DataType() const;
   inline TVMRetValue& operator=(const tvm::DataType& other);
@@ -855,11 +865,6 @@ class TVMRetValue : public TVMPODValue_ {
       }
       case kNDArrayContainer: {
         *this = other.operator NDArray();
-        break;
-      }
-      case kNodeHandle: {
-        SwitchToClass<NodePtr<Node> >(
-            kNodeHandle, *other.template ptr<NodePtr<Node> >());
         break;
       }
       case kObjectHandle: {
@@ -908,7 +913,6 @@ class TVMRetValue : public TVMPODValue_ {
       case kStr: delete ptr<std::string>(); break;
       case kFuncHandle: delete ptr<PackedFunc>(); break;
       case kModuleHandle: delete ptr<Module>(); break;
-      case kNodeHandle: delete ptr<NodePtr<Node> >(); break;
       case kNDArrayContainer: {
         static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;
@@ -939,7 +943,6 @@ inline const char* TypeCode2Str(int type_code) {
     case kBytes: return "bytes";
     case kHandle: return "handle";
     case kNull: return "NULL";
-    case kNodeHandle: return "NodeHandle";
     case kArrayHandle: return "ArrayHandle";
     case kTVMType: return "TVMType";
     case kTVMContext: return "TVMContext";
@@ -1057,8 +1060,6 @@ inline PackedFunc::FType PackedFunc::body() const {
   return body_;
 }
 
-
-
 // internal namespace
 namespace detail {
 
@@ -1163,8 +1164,12 @@ class TVMArgsSetter {
     type_codes_[i] = kNDArrayContainer;
   }
   void operator()(size_t i, const ObjectRef& value) const {  // NOLINT(*)
-    values_[i].v_handle = value.data_.data_;
-    type_codes_[i] = kObjectHandle;
+    if (value.defined()) {
+      values_[i].v_handle = value.data_.data_;
+      type_codes_[i] = kObjectHandle;
+    } else {
+      type_codes_[i] = kNull;
+    }
   }
   void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {
@@ -1181,8 +1186,6 @@ class TVMArgsSetter {
            typename = typename std::enable_if<
              extension_type_info<T>::code != 0>::type>
   inline void operator()(size_t i, const T& value) const;
-  // NodeRef related extenstions: in tvm/packed_func_ext.h
-  inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
   inline void operator()(size_t i, const tvm::DataType& t) const;
 
  private:
@@ -1301,7 +1304,7 @@ template<typename T, typename TSrc, bool is_ext, bool is_nd>
 struct TVMValueCast {
   static T Apply(const TSrc* self) {
     static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
-    return self->template AsNodeRef<T>();
+    return self->template AsObjectRef<T>();
   }
 };
 

@@ -17,31 +17,12 @@
 
 package ml.dmlc.tvm.rpc;
 
-import sun.misc.SharedSecrets;
-
-import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.Socket;
 
 /**
  * RPC Server.
  */
 public class Server {
-  private static SocketFileDescriptorGetter defaultSocketFdGetter
-      = new SocketFileDescriptorGetter() {
-          @Override public int get(Socket socket) {
-            try {
-              InputStream is = socket.getInputStream();
-              FileDescriptor fd = ((FileInputStream) is).getFD();
-              return SharedSecrets.getJavaIOFileDescriptorAccess().get(fd);
-            } catch (IOException e) {
-              e.printStackTrace();
-              return -1;
-            }
-          }
-        };
   private final WorkerThread worker;
 
   private static class WorkerThread extends Thread {
@@ -72,35 +53,10 @@ public class Server {
   /**
    * Start a standalone server.
    * @param serverPort Port.
-   * @param socketFdGetter Method to get system file descriptor of the server socket.
-   * @throws IOException if failed to bind localhost:port.
-   */
-  public Server(int serverPort, SocketFileDescriptorGetter socketFdGetter) throws IOException {
-    worker = new WorkerThread(new StandaloneServerProcessor(serverPort, socketFdGetter));
-  }
-
-  /**
-   * Start a standalone server.
-   * Use sun.misc.SharedSecrets.getJavaIOFileDescriptorAccess
-   * to get file descriptor for the socket.
-   * @param serverPort Port.
    * @throws IOException if failed to bind localhost:port.
    */
   public Server(int serverPort) throws IOException {
-    this(serverPort, defaultSocketFdGetter);
-  }
-
-  /**
-   * Start a server connected to proxy.
-   * @param proxyHost The proxy server host.
-   * @param proxyPort The proxy server port.
-   * @param key The key to identify the server.
-   * @param socketFdGetter Method to get system file descriptor of the server socket.
-   */
-  public Server(String proxyHost, int proxyPort, String key,
-      SocketFileDescriptorGetter socketFdGetter) {
-    worker = new WorkerThread(
-      new ConnectProxyServerProcessor(proxyHost, proxyPort, key, socketFdGetter));
+    worker = new WorkerThread(new StandaloneServerProcessor(serverPort));
   }
 
   /**
@@ -112,7 +68,8 @@ public class Server {
    * @param key The key to identify the server.
    */
   public Server(String proxyHost, int proxyPort, String key) {
-    this(proxyHost, proxyPort, key, defaultSocketFdGetter);
+    worker = new WorkerThread(
+        new ConnectProxyServerProcessor(proxyHost, proxyPort, key));
   }
 
   /**

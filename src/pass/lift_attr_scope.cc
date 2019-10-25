@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -198,7 +198,7 @@ class AttrScopeLifter : public IRMutator {
   // value comparison that also compares content of int constant
   static bool ValueSame(const Expr& a, const Expr& b) {
     if (a.same_as(b)) return true;
-    if (a->type_key() != b->type_key()) return false;
+    if (a->type_index() != b->type_index()) return false;
     if (a.type() != b.type()) return false;
     if (const IntImm* op = a.as<IntImm>()) {
       return op->value == b.as<IntImm>()->value;

@@ -17,7 +17,10 @@
 
 package ml.dmlc.tvm.contrib;
 
-import ml.dmlc.tvm.*;
+import ml.dmlc.tvm.Module;
+import ml.dmlc.tvm.NDArray;
+import ml.dmlc.tvm.TVMContext;
+import ml.dmlc.tvm.TestUtils;
 import ml.dmlc.tvm.rpc.Client;
 import ml.dmlc.tvm.rpc.RPCSession;
 import ml.dmlc.tvm.rpc.Server;

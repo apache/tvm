@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file schedule_dataflow_rewrite.cc
  */
 #include <tvm/schedule.h>
@@ -178,7 +177,7 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos + 1,
-                      cache_stage.node_);
+                      cache_stage);
   (*this)->stage_map.Set(cache->op, cache_stage);
   // Update group
   cache_stage->group = op_stage->group;
@@ -281,7 +280,7 @@ Array<Tensor> ReplaceOriginalOp(Schedule sch,
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos,
-                      cache_stage.node_);
+                      cache_stage);
   sch->stage_map.Set(cache_op, cache_stage);
   // Update group
   cache_stage->group = orig_stage->group;
@@ -322,7 +321,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     body = VarReplacer(vsub2newvar).Mutate(body);
     // Reduce nodes in ONE computeOp must be the same except value_index
     // This is right only if the original body ensures Reduce nodes are the same
-    if (body->is_type<ir::Reduce>()) {
+    if (body->IsInstance<ir::Reduce>()) {
       const ir::Reduce* reduce_body = body.as<ir::Reduce>();
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
@@ -486,10 +485,9 @@ Tensor Schedule::cache_write(const Tensor& tensor,
                              const std::string& scope) {
   // support original compute and tensor compute both
   (*this)->InvalidateCache();
-  const char* type_key = tensor->op->type_key();
-  if (!strcmp(type_key, "ComputeOp")) {
+  if (tensor->op.as<ComputeOpNode>()) {
     return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
-  } else if (!strcmp(type_key, "TensorComputeOp")) {
+  } else if (tensor->op.as<TensorComputeOpNode>()) {
     return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
   } else {
     LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
@@ -521,7 +519,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
         }
-        leaf_vars->data[idx] = rebased.node_;
+        leaf_vars->data[idx] = rebased;
         rebase_map[iv] = rebased;
       }
     }
@@ -575,7 +573,7 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
           }
-          if (new_body[j][0]->is_type<ir::Reduce>()) {
+          if (new_body[j][0]->IsInstance<ir::Reduce>()) {
             // specially handle reduction inline for multiplre reductions.
             const ir::Reduce* reduce = new_body[j][0].as<ir::Reduce>();
             for (size_t k = 1; k < new_body[j].size(); ++k) {
@@ -826,7 +824,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   factor_stage->relations = rels;
   CHECK_LT(stage_pos, stages->data.size());
   stages->data.insert(stages->data.begin() + stage_pos,
-                      factor_stage.node_);
+                      factor_stage);
   (*this)->stage_map.Set(factor_op, factor_stage);
   factor_stage->group = reduce_stage->group;
   if (factor_stage->group.defined()) {

@@ -106,7 +106,7 @@ scale and zero point.
 - **data**: Tensor of any shape to quantize. The input data can be of floating point
           or quantized.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.QuantizeAttrs")
+.set_attrs_type<QuantizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The tensor to quantize.")
 .set_support_level(11)

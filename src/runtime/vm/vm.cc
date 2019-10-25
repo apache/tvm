@@ -74,7 +74,7 @@ Instruction::Instruction(const Instruction& instr) {
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       this->constructor_tag = instr.constructor_tag;
       this->num_fields = instr.num_fields;
       this->datatype_fields = Duplicate<RegName>(instr.datatype_fields, instr.num_fields);
@@ -159,7 +159,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return *this;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       this->constructor_tag = instr.constructor_tag;
       this->num_fields = instr.num_fields;
       FreeIf(this->datatype_fields);
@@ -229,7 +229,7 @@ Instruction::~Instruction() {
     case Opcode::AllocTensor:
       delete this->alloc_tensor.shape;
       return;
-    case Opcode::AllocDatatype:
+    case Opcode::AllocADT:
       delete this->datatype_fields;
       return;
     case Opcode::AllocClosure:
@@ -301,10 +301,10 @@ Instruction Instruction::AllocTensorReg(RegName shape_register, DLDataType dtype
   return instr;
 }
 
-Instruction Instruction::AllocDatatype(Index tag, Index num_fields,
+Instruction Instruction::AllocADT(Index tag, Index num_fields,
                                        const std::vector<RegName>& datatype_fields, Index dst) {
   Instruction instr;
-  instr.op = Opcode::AllocDatatype;
+  instr.op = Opcode::AllocADT;
   instr.dst = dst;
   instr.constructor_tag = tag;
   instr.num_fields = num_fields;
@@ -485,7 +485,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
     }
-    case Opcode::AllocDatatype: {
+    case Opcode::AllocADT: {
       os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
          << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
       break;
@@ -575,11 +575,12 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const std::shared_ptr<ModuleNode>& sptr_to_self) {
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(exec) << "The executable is not created yet.";
       std::string func_name = args[0];
-      auto gvit = this->global_map.find(func_name);
-      CHECK(gvit != this->global_map.end()) << "Cannot find function " << func_name;
+      auto gvit = exec->global_map.find(func_name);
+      CHECK(gvit != exec->global_map.end()) << "Cannot find function " << func_name;
       auto func_index = gvit->second;
-      const auto& vm_func = this->functions[func_index];
+      const auto& vm_func = exec->functions[func_index];
       const auto& param_names = vm_func.params;
       auto ctx = this->GetParamsContext();
 
@@ -617,10 +618,6 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       this->Init(contexts);
     });
-  } else if (name == "load_params") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->LoadParams(args[0].operator std::string());
-    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -628,41 +625,18 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 }
 
 TVMContext VirtualMachine::GetParamsContext() const {
+  CHECK(!ctxs.empty()) << "Context has not been initialized yet."
+                       << "\n";
+
   // Use the fallback device if no device index is available.
   int fallback_device_type = static_cast<int>(ctxs[0].device_type);
   // TODO(wweic): For heterogeneous execution, get device information from byte
 
   const auto& cit =
-    std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
-      return fallback_device_type == static_cast<int>(c.device_type);
-    });
+      std::find_if(ctxs.begin(), ctxs.end(), [&fallback_device_type](const TVMContext& c) {
+        return fallback_device_type == static_cast<int>(c.device_type);
+      });
   return (cit == ctxs.end() ? ctxs[0] : *cit);
-}
-
-void VirtualMachine::LoadParams(const std::string& params) {
-  dmlc::MemoryStringStream mss(const_cast<std::string*>(&params));
-  dmlc::Stream* strm = &mss;
-  uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid parameter file";
-  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameter file";
-  CHECK(strm->Read(&reserved)) << "Invalid parameter file";
-
-  std::vector<std::string> names;
-  CHECK(strm->Read(&names)) << "Invalid parameter file";
-
-  uint64_t sz;
-  strm->Read(&sz);
-  size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size()) << "Invalid parameter file";
-
-  auto ctx = GetParamsContext();
-  for (size_t i = 0; i < size; i++) {
-    NDArray arr;
-    CHECK(arr.Load(strm)) << "Invalid parameter file";
-    ObjectRef obj = Tensor(arr);
-    auto copy = CopyTo(obj, ctx);
-    params_.emplace(std::make_pair(names[i], copy));
-  }
 }
 
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
@@ -699,15 +673,17 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
 
   InvokeGlobal(func, args);
   RunLoop();
+  // TODO(wweic) ctx could be obtained from the ctxs list.
   auto alloc = MemoryManager::Global()->GetAllocator(ctxs[0]);
   DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B";
   return return_register;
 }
 
 ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
-  auto func_index = this->global_map[name];
+  CHECK(exec) << "The executable has not been created yet.";
+  auto func_index = exec->global_map.at(name);
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index;
-  return Invoke(this->functions[func_index], args);
+  return Invoke(exec->functions[func_index], args);
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
@@ -715,7 +691,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
                                   const std::vector<ObjectRef>& args) {
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (const auto* obj = args[i].as<DatatypeObj>()) {
+    if (const auto* obj = args[i].as<ADTObj>()) {
       arity += obj->fields.size();
     } else {
       ++arity;
@@ -727,7 +703,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   int idx = 0;
   for (Index i = 0; i < arg_count; i++) {
-    if (const auto* dt_cell = args[i].as<DatatypeObj>()) {
+    if (const auto* dt_cell = args[i].as<ADTObj>()) {
       for (auto obj : dt_cell->fields) {
         const auto* tensor = obj.as<TensorObj>();
         CHECK(tensor != nullptr);
@@ -744,14 +720,16 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
-void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
-  this->ctxs = ctxs;
+void VirtualMachine::LoadExecutable(const Executable* exec) {
+  CHECK(exec) << "The executable is not created yet.";
+  this->exec = exec;
 
+  runtime::Module lib = this->exec->lib;
   // Get the list of packed functions.
-  CHECK(primitive_map.empty() || lib.operator->())
+  CHECK(exec->primitive_map.empty() || lib.operator->())
       << "runtime module should have been built for primitive functions"
       << "\n";
-  for (const auto& it : primitive_map) {
+  for (const auto& it : this->exec->primitive_map) {
     const auto& packed_name = it.first;
     auto packed_index = static_cast<size_t>(it.second);
     if (packed_funcs.size() <= packed_index) {
@@ -759,6 +737,11 @@ void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
     }
     packed_funcs[packed_index] = lib.GetFunction(packed_name);
   }
+}
+
+
+void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
+  this->ctxs = ctxs;
 }
 
 inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
@@ -788,6 +771,7 @@ inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
 
 void VirtualMachine::RunLoop() {
   CHECK(this->code);
+  CHECK(this->exec);
   this->pc = 0;
   Index frame_start = frames.size();
   while (true) {
@@ -810,9 +794,19 @@ void VirtualMachine::RunLoop() {
         throw std::runtime_error("VM encountered fatal error");
       }
       case Opcode::LoadConst: {
-        auto constant_obj = this->constants[instr.const_index];
-        auto device_obj = CopyTo(constant_obj, ctxs[0]);
-        WriteRegister(instr.dst, device_obj);
+        auto constant_obj = exec->constants[instr.const_index];
+        // We cache the allocated object in the constant pool. To measure, the
+        // first iteration will set the pool up. The other iterations will
+        // directly reuse the allocated objects.
+        if (const_pool_.size() <= static_cast<size_t>(instr.const_index)) {
+          const_pool_.resize(instr.const_index + 1);
+        }
+
+        if (!const_pool_[instr.const_index].defined()) {
+          // TODO(wweic) ctx could be obtained from the ctxs list.
+          const_pool_[instr.const_index] = CopyTo(constant_obj, ctxs[0]);
+        }
+        WriteRegister(instr.dst, const_pool_[instr.const_index]);
         pc++;
         goto main_loop;
       }
@@ -828,7 +822,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_args; ++i) {
           args.push_back(ReadRegister(instr.invoke_args_registers[i]));
         }
-        InvokeGlobal(this->functions[instr.func_index], args);
+        InvokeGlobal(exec->functions[instr.func_index], args);
         frames.back().caller_return_register = instr.dst;
         goto main_loop;
       }
@@ -858,13 +852,13 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_closure_args; ++i) {
           args.push_back(ReadRegister(instr.closure_args[i]));
         }
-        InvokeGlobal(this->functions[closure->func_index], args);
+        InvokeGlobal(exec->functions[closure->func_index], args);
         frames.back().caller_return_register = instr.dst;
         goto main_loop;
       }
       case Opcode::GetField: {
         auto object = ReadRegister(instr.object);
-        const auto* tuple = object.as<DatatypeObj>();
+        const auto* tuple = object.as<ADTObj>();
         CHECK(tuple != nullptr)
             << "Object is not data type object, register " << instr.object << ", Object tag "
             << object->type_index();
@@ -875,7 +869,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetTag: {
         auto object = ReadRegister(instr.get_tag.object);
-        const auto* data = object.as<DatatypeObj>();
+        const auto* data = object.as<ADTObj>();
         CHECK(data != nullptr)
             << "Object is not data type object, register "
             << instr.get_tag.object << ", Object tag "
@@ -910,6 +904,7 @@ void VirtualMachine::RunLoop() {
         for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
           shape[i] = instr.alloc_tensor.shape[i];
         }
+        // TODO(wweic) ctx could be obtained from the ctxs list.
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, ctxs[0]);
         auto obj = Tensor(data);
@@ -931,6 +926,7 @@ void VirtualMachine::RunLoop() {
         auto num_dims = shape_tensor->shape[0];
         auto shape = std::vector<int64_t>(shape_tensor->shape[0]);
         shape.assign(dims, dims + num_dims);
+        // TODO(wweic) ctx could be obtained from the ctxs list.
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, ctxs[0]);
         auto obj = Tensor(data);
@@ -938,12 +934,12 @@ void VirtualMachine::RunLoop() {
         pc++;
         goto main_loop;
       }
-      case Opcode::AllocDatatype: {
+      case Opcode::AllocADT: {
         std::vector<ObjectRef> fields;
         for (Index i = 0; i < instr.num_fields; ++i) {
           fields.push_back(ReadRegister(instr.datatype_fields[i]));
         }
-        ObjectRef obj = Datatype(instr.constructor_tag, fields);
+        ObjectRef obj = ADT(instr.constructor_tag, fields);
         WriteRegister(instr.dst, obj);
         pc++;
         goto main_loop;
@@ -975,6 +971,21 @@ void VirtualMachine::RunLoop() {
     }
   }
 }
+
+runtime::Module CreateVirtualMachine(const Executable* exec) {
+  std::shared_ptr<VirtualMachine> vm = std::make_shared<VirtualMachine>();
+  vm->LoadExecutable(exec);
+  return runtime::Module(vm);
+}
+
+TVM_REGISTER_GLOBAL("relay._vm._VirtualMachine")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  runtime::Module mod = args[0];
+  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  CHECK(exec) << "The virtual machine executable has not been defined yet."
+              << "\n";
+  *rv = CreateVirtualMachine(exec);
+});
 
 }  // namespace vm
 }  // namespace runtime

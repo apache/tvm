@@ -34,6 +34,7 @@
 namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(TargetNode);
+TVM_REGISTER_NODE_TYPE(GenericFuncNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
@@ -51,9 +52,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 */
 Target CreateTarget(const std::string& target_name,
                     const std::vector<std::string>& options) {
-  auto target = Target(make_node<TargetNode>());
-  auto t = static_cast<TargetNode*>(target.node_.get());
-
+  auto t = make_node<TargetNode>();
   t->target_name = target_name;
 
   std::string libs_flag = "-libs=";
@@ -137,7 +136,7 @@ Target CreateTarget(const std::string& target_name,
     return target::stackvm();
   }
 
-  return target;
+  return Target(t);
 }
 
 TVM_REGISTER_API("_TargetCreate")
@@ -423,7 +422,6 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 2
   stmt = ir::Simplify(stmt);
-  stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
@@ -518,6 +516,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -525,6 +524,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
@@ -674,7 +674,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 struct GenericFunc::Manager {
-  std::unordered_map<std::string, NodePtr<Node> > fmap;
+  std::unordered_map<std::string, GenericFunc> fmap;
   // mutex
   std::mutex mutex;
 
@@ -694,10 +694,11 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   if (it == m->fmap.end()) {
     auto f = make_node<GenericFuncNode>();
     f->name_ = name;
-    m->fmap[name] = f;
-    return GenericFunc(f);
+    auto gf = GenericFunc(f);
+    m->fmap[name] = gf;
+    return gf;
   } else {
-    return GenericFunc(it->second);
+    return it->second;
   }
 }
 
@@ -707,12 +708,12 @@ void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name)
   auto it = m->fmap.find(name);
   CHECK(it == m->fmap.end()) << "GenericFunc already registered " << name;
   func->name_ = name;
-  m->fmap[name] = func.node_;
+  m->fmap[name] = func;
 }
 
 GenericFunc& GenericFunc::set_default(const PackedFunc value,
-                                           bool allow_override) {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+                                      bool allow_override) {
+  auto node = static_cast<GenericFuncNode*>(operator->());
   if (!allow_override) {
     CHECK(node->generic_func_ == nullptr)
       << "Generic function already registered for " << node->name_;
@@ -736,7 +737,7 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 }
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+  auto node = static_cast<const GenericFuncNode*>(get());
   auto target = Target::Current(true);
   PackedFunc func;
 

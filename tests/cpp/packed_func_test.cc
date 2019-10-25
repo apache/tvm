@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 
@@ -49,7 +50,7 @@ TEST(PackedFunc, Node) {
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 1);
-      CHECK(args.type_codes[0] == kNodeHandle);
+      CHECK(args.type_codes[0] == kObjectHandle);
       Var b = args[0];
       CHECK(x.same_as(b));
       *rv = b;

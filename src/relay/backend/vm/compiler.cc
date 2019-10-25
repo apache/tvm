@@ -239,7 +239,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     DLOG(INFO) << "VMCompiler::Emit: instr=" << instr;
     CHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
-      case Opcode::AllocDatatype:
+      case Opcode::AllocADT:
       case Opcode::AllocTensor:
       case Opcode::AllocTensorReg:
       case Opcode::GetField:
@@ -287,7 +287,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     // TODO(@jroesch): use correct tag
-    Emit(Instruction::AllocDatatype(
+    Emit(Instruction::AllocADT(
       0,
       tuple->fields.size(),
       fields_registers,
@@ -626,7 +626,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       for (size_t i = arity - return_count; i < arity; ++i) {
         fields_registers.push_back(unpacked_arg_regs[i]);
       }
-      Emit(Instruction::AllocDatatype(0, return_count, fields_registers, NewRegister()));
+      Emit(Instruction::AllocADT(0, return_count, fields_registers, NewRegister()));
     }
   }
 
@@ -659,7 +659,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     } else if (auto constructor_node = op.as<ConstructorNode>()) {
       auto constructor = GetRef<Constructor>(constructor_node);
-      Emit(Instruction::AllocDatatype(constructor->tag, call_node->args.size(), args_registers,
+      Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
                                       NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
       VisitExpr(GetRef<Var>(var_node));
@@ -783,9 +783,9 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
       Module mod = args[0];
       this->Compile(mod, args[1], args[2]);
     });
-  } else if (name == "get_vm") {
+  } else if (name == "get_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = runtime::Module(vm_);
+      *rv = runtime::Module(exec_);
     });
   } else if (name == "set_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -864,7 +864,7 @@ void VMCompiler::Compile(Module mod,
 
   // Next we get ready by allocating space for
   // the global state.
-  vm_->functions.resize(context_.module->functions.size());
+  exec_->functions.resize(context_.module->functions.size());
 
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
@@ -873,25 +873,25 @@ void VMCompiler::Compile(Module mod,
     auto vm_func = func_compiler.Compile(gvar, func);
 
     size_t func_index = context_.global_map.at(gvar);
-    CHECK(func_index < vm_->functions.size());
-    vm_->functions[func_index] = vm_func;
+    CHECK(func_index < exec_->functions.size());
+    exec_->functions[func_index] = vm_func;
   }
 
 #if USE_RELAY_DEBUG
-  for (auto vm_func : vm_->functions) {
+  for (auto vm_func : exec_->functions) {
     DLOG(INFO) << vm_func << "-------------";
   }
 #endif  // USE_RELAY_DEBUG
 
   // populate constants
   for (auto data : context_.constants) {
-    vm_->constants.push_back(runtime::vm::Tensor(data));
+    exec_->constants.push_back(runtime::vm::Tensor(data));
   }
 
   LibraryCodegen();
 
   for (auto gv : context_.global_map) {
-    vm_->global_map.insert({gv.first->name_hint, gv.second});
+    exec_->global_map.insert({gv.first->name_hint, gv.second});
   }
 }
 
@@ -987,13 +987,13 @@ void VMCompiler::LibraryCodegen() {
     // therefore target won't be used in the build function
     runtime::Module mod = (*f)(funcs, Target(), target_host_);
     CHECK(mod.operator->());
-    vm_->lib = mod;
+    exec_->lib = mod;
   } else {
     LOG(FATAL) << "relay.backend.build is not registered";
   }
   size_t primitive_index = 0;
   for (auto cfunc : cached_funcs) {
-    vm_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
   }
 }
 

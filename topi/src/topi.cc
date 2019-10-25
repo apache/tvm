@@ -86,8 +86,9 @@ Array<Integer> ArrayOrInt(TVMArgValue arg) {
 }
 
 inline bool IsTensorType(TVMArgValue arg) {
-  return (arg.type_code() == kNodeHandle &&
-          arg.node_sptr()->is_type<tvm::TensorNode>());
+  return (arg.type_code() == kObjectHandle &&
+          static_cast<Object*>(
+              arg.value().v_handle)->IsInstance<tvm::TensorNode>());
 }
 
 

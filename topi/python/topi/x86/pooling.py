@@ -147,6 +147,11 @@ def schedule_adaptive_pool(outs):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('adaptive_pool'):
+            if OP != outs[0].op:
+                output = outs[0]
+                output_fused = s[output].fuse(output.op.axis[0], output.op.axis[1])
+                s[output].parallel(output_fused)
+
             Pool = OP.output(0)
             _parallel_sch(s[Pool], outs[0].shape)
         else:

@@ -36,6 +36,7 @@
 #include <algorithm>
 #include "rpc_session.h"
 #include "../../common/ring_buffer.h"
+#include "../../common/socket.h"
 
 namespace tvm {
 namespace runtime {
@@ -1258,6 +1259,27 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
     *rv = arr;
   };
   return PackedFunc(ftimer);
+}
+
+size_t CallbackChannel::Send(const void* data, size_t size) {
+  TVMByteArray bytes;
+  bytes.data = static_cast<const char*>(data);
+  bytes.size = size;
+  int64_t n = fsend_(bytes);
+  if (n == -1) {
+    common::Socket::Error("CallbackChannel::Send");
+  }
+  return static_cast<size_t>(n);
+}
+
+size_t CallbackChannel::Recv(void* data, size_t size) {
+  TVMRetValue ret = frecv_(size);
+  if (ret.type_code() != kBytes) {
+    common::Socket::Error("CallbackChannel::Recv");
+  }
+  std::string* bytes = ret.ptr<std::string>();
+  memcpy(static_cast<char*>(data), bytes->c_str(), bytes->length());
+  return bytes->length();
 }
 
 }  // namespace runtime

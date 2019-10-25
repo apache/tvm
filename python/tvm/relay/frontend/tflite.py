@@ -82,6 +82,7 @@ class OperatorConverter(object):
             'REDUCE_MAX': self._convert_reduce_max,
             'MEAN': self._convert_reduce_mean,
             'REDUCE_PROD': self._convert_reduce_prod,
+            'SUM': self._convert_reduce_sum,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
             'PACK': self.convert_pack,
@@ -223,6 +224,18 @@ class OperatorConverter(object):
     def has_same_qnn_params(self, lhs_tensor, rhs_tensor):
         return lhs_tensor.qnn_params['scale'] == rhs_tensor.qnn_params['scale'] and \
                 lhs_tensor.qnn_params['zero_point'] == rhs_tensor.qnn_params['zero_point']
+
+    def is_quantized(self, op):
+        """Check if an input tensor is quantized."""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        first_tensor = input_tensors[0]
+        return first_tensor.qnn_params is not None
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -498,7 +511,25 @@ class OperatorConverter(object):
             rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
             rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
                                               dtype=rhs_type_str)
-        out = relay_op(lhs_expr, rhs_expr)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        # If quantized, extracts qnn params and call QNN add operator.
+        if lhs_tensor.qnn_params:
+            assert rhs_tensor.qnn_params, "Both tensors should be quantized."
+            assert output_tensor.qnn_params, "Output tensor should be quantized."
+            out = relay_op(lhs=lhs_expr,
+                           rhs=rhs_expr,
+                           lhs_scale=lhs_tensor.qnn_params['scale'],
+                           lhs_zero_point=lhs_tensor.qnn_params['zero_point'],
+                           rhs_scale=rhs_tensor.qnn_params['scale'],
+                           rhs_zero_point=rhs_tensor.qnn_params['zero_point'],
+                           output_scale=output_tensor.qnn_params['scale'],
+                           output_zero_point=output_tensor.qnn_params['zero_point'])
+        else:
+            out = relay_op(lhs_expr, rhs_expr)
 
         # Options (fused_activation_function)
         options = None
@@ -517,36 +548,70 @@ class OperatorConverter(object):
             fused_activation_fn = options.FusedActivationFunction()
             # if we have activation fn
             if fused_activation_fn != ActivationFunctionType.NONE:
+                if output_tensor.qnn_params:
+                    raise tvm.error.OpNotImplemented(
+                        'Elemwise operators with fused activation are not supported yet.')
                 out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
 
     def convert_add(self, op):
         """Convert TFLite ADD"""
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            return self._convert_elemwise(_qnn.op.add, op)
         return self._convert_elemwise(_op.add, op)
 
     def convert_sub(self, op):
         """Convert TFLite SUB"""
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized sub operator is not supported yet.')
         return self._convert_elemwise(_op.subtract, op)
 
     def convert_mul(self, op):
         """Convert TFLite MUL"""
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized mul operator is not supported yet.')
         return self._convert_elemwise(_op.multiply, op)
 
     def convert_div(self, op):
         """Convert TFLite DIV"""
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized div operator is not supported yet.')
         return self._convert_elemwise(_op.divide, op)
 
     def convert_pow(self, op):
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized pow operator is not supported yet.')
         return self._convert_elemwise(_op.power, op)
 
     def convert_maximum(self, op):
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized maximum operator is not supported yet.')
         return self._convert_elemwise(_op.maximum, op)
 
     def convert_minimum(self, op):
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized minimum operator is not supported yet.')
         return self._convert_elemwise(_op.minimum, op)
 
     def convert_greater(self, op):
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized greater operator is not supported yet.')
         return self._convert_elemwise(_op.greater, op)
 
     def convert_zeros_like(self, op):
@@ -607,6 +672,9 @@ class OperatorConverter(object):
 
     def _convert_reduce_prod(self, op):
         return self._convert_reduce(_op.reduce.prod, op)
+
+    def _convert_reduce_sum(self, op):
+        return self._convert_reduce(_op.reduce.sum, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""

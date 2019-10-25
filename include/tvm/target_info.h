@@ -47,7 +47,7 @@ struct MemoryInfoNode : public Node {
    */
   Expr head_address;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("unit_bits", &unit_bits);
     v->Visit("max_num_bits", &max_num_bits);
     v->Visit("max_simd_bits", &max_simd_bits);

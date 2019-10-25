@@ -24,14 +24,14 @@ import numpy as np
 
 import tvm
 from tvm import autotvm
-from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm.relay import expr as _expr
+from tvm._ffi.runtime_ctypes import TVMByteArray
 from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
 
 Tensor = _obj.Tensor
-Datatype = _obj.Datatype
+ADT = _obj.ADT
 
 def _convert(arg, cargs):
     if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
@@ -44,6 +44,7 @@ def _convert(arg, cargs):
     else:
         raise "unsupported type"
 
+
 def convert(args):
     cargs = []
     for arg in args:
@@ -52,12 +53,202 @@ def convert(args):
     return cargs
 
 
+class Executable(object):
+    """Relay VM executable"""
+    def __init__(self, mod):
+        self.mod = mod
+        self._save = self.mod["save"]
+        self._get_lib = self.mod["get_lib"]
+        self._get_bytecode = self.mod["get_bytecode"]
+        self._get_stats = self.mod["get_stats"]
+
+    def save(self):
+        """Save the Relay VM Executable.
+
+        Returns
+        -------
+        code : bytearray
+            The binary blob representing a serialized Relay VM executable. It
+            can then be saved to disk and later deserialized into a new
+            Executable.
+
+        lib : :py:class:`~tvm.module.Module`
+            The runtime module that contains the generated code. It is
+            basically a library that is composed of hardware dependent code.
+
+        Notes
+        -----
+        The returned code is organized with the following sections in order.
+         - Global section. This section contains the globals used by the
+         virtual machine.
+         - Constant section. This section is used to store the constant pool of
+         a virtual machine.
+         - Primitive name section. This section is introduced to accommodate
+         the list of primitive operator names that will be invoked by the
+         virtual machine.
+         - Code section. The VM functions, including bytecode, are sitting in
+         this section.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            import numpy as np
+            import tvm
+            from tvm import relay
+            # define a simple network.
+            x = relay.var('x', shape=(10, 10))
+            f = relay.Function([x], x + x)
+            mod = relay.Module({"main": f})
+            # create a Relay VM.
+            ctx = tvm.cpu()
+            target = "llvm"
+            executable = relay.vm.compile(mod, target)
+            code, lib = executable.save()
+            # save and load the code and lib file.
+            tmp = tvm.contrib.util.tempdir()
+            path_lib = tmp.relpath("lib.so")
+            lib.export_library(path_lib)
+            with open(tmp.relpath("code.ro"), "wb") as fo:
+                fo.write(code)
+            loaded_lib = tvm.module.load(path_lib)
+            loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
+            # deserialize.
+            des_exec = relay.vm.Executable.load_exec(loaded_code, loaded_code)
+            # execute the deserialized executable.
+            x_data = np.random.rand(10, 10).astype('float32')
+            des_vm = relay.vm.VirtualMachine(des_exec)
+            des_vm.init(ctx)
+            res = des_vm.run(x_data)
+            print(res.asnumpy())
+        """
+        return self._save(), self._get_lib()
+
+    @staticmethod
+    def load_exec(bytecode, lib):
+        """Construct an executable from saved artifacts.
+
+        Parameters
+        ----------
+        bytecode : bytearray
+            The binary blob representing a the Relay VM bytecode.
+
+        lib : :py:class:`~tvm.module.Module`
+            The runtime module that contains the generated code.
+
+        Returns
+        -------
+        exec: Executable
+            An executable constructed using the provided artifacts.
+        """
+        if isinstance(bytecode, (bytes, str)):
+            code = bytearray(bytecode)
+        elif not isinstance(bytecode, (bytearray, TVMByteArray)):
+            raise TypeError("bytecode is expected to be the type of bytearray " +
+                            "or TVMByteArray, but received {}".format(type(code)))
+
+        if not isinstance(lib, tvm.module.Module):
+            raise TypeError("lib is expected to be the type of tvm.module.Module" +
+                            ", but received {}".format(type(lib)))
+
+        return Executable(_vm.Load_Executable(bytecode, lib))
+
+    @property
+    def lib(self):
+        """Get the library that contains hardware dependent code.
+
+        Returns
+        -------
+        ret : :py:class:`~tvm.Module`
+            The runtime module that contains hardware dependent code.
+        """
+        return self._get_lib()
+
+    @property
+    def stats(self):
+        """Get the statistics of the Relay VM executable.
+
+        Returns
+        -------
+        ret : String
+            The statistic information of the VM executable.
+        """
+        return self._get_stats()
+
+    @property
+    def primitive_ops(self):
+        """Get the name of the primitive ops contained in the executable.
+
+        Returns
+        -------
+        ret : List[String]
+            The list of primitive ops.
+        """
+        ret = []
+        num_primitives = _vm.GetNumOfPrimitives(self.module)
+        for i in range(num_primitives):
+            ret.append(_vm.GetPrimitiveFields(self.module, i))
+        return ret
+
+    @property
+    def bytecode(self):
+        """Get the bytecode of the Relay VM executable.
+
+        Returns
+        -------
+        ret : String
+            The bytecode of the executable.
+
+        Notes
+        -----
+        The bytecode is in the following format:
+          func_name reg_file_size num_instructions
+          param1 param2 ... paramM
+          instruction1
+          instruction2
+          ...
+          instructionN
+
+        Each instruction is printed in the following format:
+          hash opcode field1 ... fieldX # The text format.
+
+        The part starting from # is only used for visualization and debugging.
+        The real serialized code doesn't contain it, therefore the deserializer
+        doesn't need to deal with it as well.
+        """
+        return self._get_bytecode()
+
+    @property
+    def globals(self):
+        """Get the globals used by the Relay VM executable.
+
+        Returns
+        -------
+        ret : List[String]
+            The globals contained in the executable.
+        """
+        ret = []
+        num_globals = _vm.GetNumOfGlobals(self.module)
+        for i in range(num_globals):
+            ret.append(_vm.GetGlobalFields(self.module, i))
+        return ret
+
+    @property
+    def module(self):
+        """Return the runtime module contained in a virtual machine executable."""
+        return self.mod
+
+
 class VirtualMachine(object):
     """Relay VM runtime."""
     def __init__(self, mod):
-        self.mod = mod
+        if not isinstance(mod, (Executable, tvm.module.Module)):
+            raise TypeError("mod is expected to be the type of Executable or " +
+                            "tvm.Module, but received {}".format(type(mod)))
+        m = mod.module if isinstance(mod, Executable) else mod
+        self.mod = _vm._VirtualMachine(m)
         self._init = self.mod["init"]
-        self._load_params = self.mod["load_params"]
         self._invoke = self.mod["invoke"]
 
     def init(self, ctx):
@@ -70,23 +261,6 @@ class VirtualMachine(object):
         """
         args = [ctx.device_type, ctx.device_id]
         self._init(*args)
-
-    def load_params(self, params):
-        """Load parameters for the VM.
-
-        Parameters
-        ----------
-        params : Union[bytearray, Dict]
-            The dictionary that contains serialized parameters.
-        """
-        if isinstance(params, dict):
-            params = tvm.relay.save_param_dict(params)
-        elif isinstance(params, (bytes, str)):
-            params = bytearray(params)
-        if not isinstance(params, (bytearray, TVMByteArray)):
-            raise TypeError("params must be a bytearray")
-
-        self._load_params(bytearray(params))
 
     def invoke(self, func_name, *args):
         """Invoke a function.
@@ -122,11 +296,6 @@ class VirtualMachine(object):
         """
         return self.invoke("main", *args)
 
-    @property
-    def module(self):
-        """Return the runtime module contained in a virtual machine."""
-        return self.mod
-
 
 def compile(mod, target=None, target_host=None, params=None):
     """
@@ -155,8 +324,8 @@ def compile(mod, target=None, target_host=None, params=None):
 
     Returns
     -------
-    vm : VirtualMachine
-        The VM runtime.
+    exec : Executable
+        The VM executable that contains both library code and bytecode.
     """
     compiler = VMCompiler()
 
@@ -167,14 +336,14 @@ def compile(mod, target=None, target_host=None, params=None):
     tophub_context = compiler.tophub_context(target)
     with tophub_context:
         compiler._compile(mod, target, target_host)
-    return VirtualMachine(compiler._get_vm())
+    return Executable(compiler._get_exec())
 
 class VMCompiler(object):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._compile = self.mod["compile"]
-        self._get_vm = self.mod["get_vm"]
+        self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
 
     def set_params(self, params):
@@ -240,7 +409,7 @@ class VMExecutor(Executor):
     mod : :py:class:`~tvm.relay.module.Module`
         The module to support the execution.
 
-    ctx : :py:class:`TVMContext`
+    ctx : :py:class:`~tvm.TVMContext`
         The runtime context to run the code on.
 
     target : :py:class:`Target`
@@ -252,7 +421,8 @@ class VMExecutor(Executor):
         self.mod = mod
         self.ctx = ctx
         self.target = target
-        self.vm = compile(mod, target)
+        self.executable = compile(mod, target)
+        self.vm = VirtualMachine(self.executable)
         self.vm.init(ctx)
 
     def _make_executor(self, expr=None):

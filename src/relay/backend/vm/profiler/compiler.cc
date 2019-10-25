@@ -33,7 +33,6 @@ namespace vm {
 class VMCompilerDebug : public VMCompiler {
  public:
   VMCompilerDebug() {}
-  void InitVM() override { vm_ = std::make_shared<VirtualMachineDebug>(); }
   virtual ~VMCompilerDebug() {}
 };
 

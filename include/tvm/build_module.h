@@ -61,7 +61,7 @@ class TargetNode : public Node {
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("target_name", &target_name);
     v->Visit("device_name", &device_name);
     v->Visit("device_type", &device_type);
@@ -93,7 +93,7 @@ class TargetNode : public Node {
 class Target : public NodeRef {
  public:
   Target() {}
-  explicit Target(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Target(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
   * \brief Create a Target given a string
   * \param target_str the string to parse
@@ -110,7 +110,7 @@ class Target : public NodeRef {
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
   const TargetNode* operator->() const {
-      return static_cast<const TargetNode*>(node_.get());
+      return static_cast<const TargetNode*>(get());
   }
 
   using ContainerType = TargetNode;
@@ -229,7 +229,7 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to disable loop vectorization. */
   bool disable_vectorize = false;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
     v->Visit("double_buffer_split_loop", &double_buffer_split_loop);
@@ -256,12 +256,12 @@ class BuildConfigNode : public Node {
 class BuildConfig : public ::tvm::NodeRef {
  public:
   BuildConfig() {}
-  explicit BuildConfig(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  explicit BuildConfig(ObjectPtr<Object> n) : NodeRef(n) {}
   const BuildConfigNode* operator->() const {
-    return static_cast<const BuildConfigNode*>(node_.get());
+    return static_cast<const BuildConfigNode*>(get());
   }
   BuildConfigNode* operator->() {
-    return static_cast<BuildConfigNode*>(node_.get());
+    return static_cast<BuildConfigNode*>(get_mutable());
   }
   /*!
    * \brief Construct a BuildConfig containing a empty build config node.
@@ -371,7 +371,7 @@ class GenericFuncNode;
 class GenericFunc : public NodeRef {
  public:
   GenericFunc() {}
-  explicit GenericFunc(NodePtr<Node> n) : NodeRef(n) {}
+  explicit GenericFunc(ObjectPtr<Object> n) : NodeRef(n) {}
 
   /*!
    * \brief Set the default function implementaiton.
@@ -473,15 +473,17 @@ class GenericFuncNode : public Node {
   /* \brief map from keys to registered functions */
   std::unordered_map<std::string, runtime::PackedFunc> dispatch_dict_;
 
+  void VisitAttrs(AttrVisitor* v) {}
+
   static constexpr const char* _type_key = "GenericFunc";
   TVM_DECLARE_NODE_TYPE_INFO(GenericFuncNode, Node);
 };
 
 inline GenericFuncNode* GenericFunc::operator->() {
-  return static_cast<GenericFuncNode*>(node_.get());
+  return static_cast<GenericFuncNode*>(get_mutable());
 }
 
-#define TVM_GENERIC_FUNC_REG_VAR_DEF                               \
+#define TVM_GENERIC_FUNC_REG_VAR_DEF                            \
   static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM
 
 /*!

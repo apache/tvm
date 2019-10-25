@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file src/relay/pass/pass_manager.cc
  * \brief Relay pass manager implementation.
  */
@@ -103,7 +102,7 @@ class ModulePassNode : public PassNode {
 
   ModulePassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
   }
 
@@ -157,7 +156,7 @@ class FunctionPassNode : public PassNode {
 
   FunctionPassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
   }
 
@@ -212,7 +211,7 @@ class SequentialNode : public PassNode {
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pass_info", &pass_info);
     v->Visit("passes", &passes);
   }
@@ -342,7 +341,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
   auto n = make_node<SequentialNode>();
   n->passes = std::move(passes);
   n->pass_info = std::move(pass_info);
-  node_ = std::move(n);
+  data_ = std::move(n);
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
@@ -350,11 +349,11 @@ Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
   n->passes = std::move(passes);
   PassInfo pass_info = PassInfoNode::make(2, std::move(name), {});
   n->pass_info = std::move(pass_info);
-  node_ = std::move(n);
+  data_ = std::move(n);
 }
 
 const SequentialNode* Sequential::operator->() const {
-  return static_cast<const SequentialNode*>(this->node_.get());
+  return static_cast<const SequentialNode*>(get());
 }
 
 void SequentialNode::ResolveDependency(const Module& mod) {

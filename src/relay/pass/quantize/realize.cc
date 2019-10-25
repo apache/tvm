@@ -56,7 +56,7 @@ class QRealizeIntExprNode : public QRealizeExprNode {
   Expr dom_scale;
   DataType dtype;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("dom_scale", &dom_scale);
     v->Visit("dtype", &dtype);
@@ -173,7 +173,7 @@ Expr QuantizeRealize(const Call& ref_call,
   }
 
   // quantize from real
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   Expr data = new_args[0];
   Expr scaled_data = Multiply(data, MakeConstantScalar(Float(32), 1 / dom_scale_imm));
   Expr round_data = Clip(Round(scaled_data), clip_min_imm, clip_max_imm);
@@ -196,7 +196,7 @@ Expr Conv2dRealize(const Call& ref_call,
                    const NodeRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
-  if (!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>()) {
+  if (!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>()) {
     return Expr(nullptr);
   }
   const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
@@ -232,7 +232,7 @@ Expr DenseRealize(const Call& ref_call,
                   const NodeRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
-  if (!new_args[0]->derived_from<TempExprNode>() || !new_args[1]->derived_from<TempExprNode>()) {
+  if (!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>()) {
     return Expr(nullptr);
   }
   const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
@@ -290,7 +290,7 @@ Expr MulRealize(const Call& ref_call,
     Expr dom_scale = FoldConstantOpt(mul);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -375,7 +375,7 @@ Expr AddRealize(const Call& ref_call,
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
 
-  CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -397,7 +397,7 @@ Expr ClipRealize(const Call& ref_call,
       {n->data}, Attrs(attrs), ref_call->type_args);
     return QRealizeIntExprNode::make(ret, n->dom_scale, n->dtype);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -426,7 +426,7 @@ Expr ConcatenateRealize(const Call& ref_call,
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   } else {
     for (auto arg : new_args) {
-      CHECK(!arg->derived_from<TempExprNode>());
+      CHECK(!arg->IsInstance<TempExprNode>());
     }
     return Expr(nullptr);
   }
@@ -445,7 +445,7 @@ Expr IdentityRealize(const Call& ref_call,
     Expr ret = ForwardOp(ref_call, {n->data});
     return QRealizeIntExprNode::make(ret, n->dom_scale, n->dtype);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -469,7 +469,7 @@ Expr CastDtypeInputRealize(const Call& ref_call,
     Expr ret = ForwardOp(ref_call, {data});
     return QRealizeIntExprNode::make(ret, n->dom_scale, cfg->dtype_input);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -490,7 +490,7 @@ Expr AvgPoolRealize(const Call& ref_call,
     Expr ret = ForwardOp(ref_call, {data});
     return QRealizeIntExprNode::make(ret, n->dom_scale, cfg->dtype_activation);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -506,7 +506,7 @@ Expr CastHintRealize(const Call& ref_call,
     Expr ret = Cast(n->data, param->dtype);
     return QRealizeIntExprNode::make(ret, n->dom_scale, param->dtype);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  CHECK(!new_args[0]->IsInstance<TempExprNode>());
   return Expr(nullptr);
 }
 

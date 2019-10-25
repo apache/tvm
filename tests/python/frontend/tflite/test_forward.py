@@ -714,6 +714,14 @@ def _test_reduce_prod(data, keep_dims=None):
     """ One iteration of reduce_prod """
     return _test_reduce(math_ops.reduce_prod, data, keep_dims)
 
+#######################################################################
+# Reduce_sum
+# -----------
+
+def _test_reduce_sum(data, keep_dims=None):
+    """ One iteration of reduce_sum """
+    return _test_reduce(math_ops.reduce_sum, data, keep_dims)
+
 
 def _test_forward_reduce(testop):
     """ Reduce """
@@ -732,6 +740,7 @@ def test_all_reduce():
     _test_forward_reduce(_test_reduce_max)
     _test_forward_reduce(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
+    _test_forward_reduce(_test_reduce_sum)
 
 
 #######################################################################
@@ -1037,6 +1046,26 @@ def test_forward_qnn_mobilenet_v1_net():
     tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
+def test_forward_qnn_mobilenet_v2_net():
+    """Test the Quantized TFLite Mobilenet V2 model."""
+    # MobilenetV2
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+        "mobilenet_v2_1.0_224_quant.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    # Checking the labels because the requantize implementation is different between TFLite and
+    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
+    np.random.seed(0)
+    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
 #######################################################################
 # SSD Mobilenet
 # -------------
@@ -1111,6 +1140,6 @@ if __name__ == '__main__':
     test_forward_ssd_mobilenet_v1()
 
     # End to End quantized
-    # TODO - MobilenetV2 fails for now. Remove when fixed.
     test_forward_qnn_inception_v1_net()
     test_forward_qnn_mobilenet_v1_net()
+    test_forward_qnn_mobilenet_v2_net()

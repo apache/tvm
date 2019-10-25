@@ -378,6 +378,13 @@ Stmt LowerStorageAccessInfo(Stmt stmt);
 Stmt DecorateDeviceScope(Stmt stmt);
 
 /*!
+ * \brief Loop invariant code motion which locates and hoists if statements.
+ * \param stmt The stmt to do if statement hoisting.
+ * \return Transformed stmt.
+ */
+Stmt HoistIfThenElse(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
@@ -507,6 +514,15 @@ LoweredFunc CombineContextCall(LoweredFunc f);
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 
 /*!
+ * \brief Lower attached storage access information on device.
+ * Do this pass after all storage access analysis finish.
+ *
+ * \param func The device function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc func);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.
@@ -524,6 +540,14 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
  * \return Transformed function.
  */
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Infer the TensorCore fragment infomation using tensor intrinsics
+ *
+ * \param f The device function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc InferFragment(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

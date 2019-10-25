@@ -368,7 +368,6 @@ class Vectorizer : public IRMutator {
     CHECK(!op->extent.type().is_vector());
     Expr extent = Mutate(op->extent);
     if (extent.type().is_vector()) {
-      LOG(WARNING) << "Detect vectorized extent type, scalarizing...";
       return Scalarize(s);
     }
     Stmt body = Mutate(op->body);
@@ -386,7 +385,6 @@ class Vectorizer : public IRMutator {
     CHECK(!op->condition.type().is_vector());
     Expr condition = this->Mutate(op->condition);
     if (condition.type().is_vector()) {
-      LOG(WARNING) << "Detect vector condition in Vectorized Loop, scalarizing...";
       return Scalarize(s);
     }
     Stmt then_case = this->Mutate(op->then_case);
@@ -533,8 +531,7 @@ class LoopVectorizer : public IRMutator {
       if (!succ || lanes < 1) {
         LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
       }
-      Var var(op->loop_var.node_);
-      return Vectorizer(var, lanes).Mutate(op->body);
+      return Vectorizer(op->loop_var, lanes).Mutate(op->body);
     } else {
       return IRMutator::Mutate_(op, s);
     }

@@ -471,7 +471,7 @@ int TVMFuncCall(TVMFunctionHandle func,
       TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
   if (rv.type_code() == kStr ||
-     rv.type_code() == kTVMType ||
+      rv.type_code() == kTVMType ||
       rv.type_code() == kBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
     if (rv.type_code() != kTVMType) {

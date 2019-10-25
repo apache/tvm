@@ -44,8 +44,8 @@ var KTVMType                = int32(C.kTVMType)
 var KTVMContext             = int32(C.kTVMContext)
 // KArrayHandle is golang type code for TVM kArrayHandle.
 var KArrayHandle            = int32(C.kArrayHandle)
-// KNodeHandle is golang type code for TVM kNodeHandle.
-var KNodeHandle             = int32(C.kNodeHandle)
+// KObjectHandle is golang type code for TVM kObjectHandle.
+var KObjectHandle             = int32(C.kObjectHandle)
 // KModuleHandle is gonag type code for TVM kModuleHandle.
 var KModuleHandle           = int32(C.kModuleHandle)
 // KFuncHandle is gonalg type code for TVM kFuncHandle.

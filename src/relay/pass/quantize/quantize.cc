@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file quantize.cc
  *
  * \brief transform a graph to a low-bit graph
@@ -64,7 +62,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .add_argument("dom_scale", "Tensor", "The domain scale of input data. It should be a scalar")
 .add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
 .add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
-.set_attrs_type_key("relay.attrs.SimulatedQuantizeAttrs")
+.set_attrs_type<SimulatedQuantizeAttrs>()
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 

@@ -57,8 +57,8 @@ class PatternFunctor;
 
 #define RELAY_PATTERN_FUNCTOR_DISPATCH(OP)                                \
   vtable.template set_dispatch<OP>(                                       \
-      [](const NodeRef& n, TSelf* self, Args... args) {                   \
-        return self->VisitPattern_(static_cast<const OP*>(n.node_.get()), \
+      [](const ObjectRef& n, TSelf* self, Args... args) {                   \
+        return self->VisitPattern_(static_cast<const OP*>(n.get()), \
                                    std::forward<Args>(args)...);          \
       });
 
@@ -66,7 +66,7 @@ template <typename R, typename... Args>
 class PatternFunctor<R(const Pattern& n, Args...)> {
  private:
   using TSelf = PatternFunctor<R(const Pattern& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const NodeRef& n, TSelf* self, Args...)>;
+  using FType = tvm::IRFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -103,7 +103,7 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
   virtual R VisitPattern_(const PatternTupleNode* op,
                           Args... args) PATTERN_FUNCTOR_DEFAULT;
   virtual R VisitPatternDefault_(const Node* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->type_key();
+    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
 

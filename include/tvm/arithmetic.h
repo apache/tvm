@@ -60,7 +60,7 @@ class ConstIntBoundNode : public Node {
   int64_t min_value;
   int64_t max_value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("min_value", &min_value);
     v->Visit("max_value", &max_value);
   }
@@ -162,7 +162,7 @@ class ModularSetNode : public Node {
   /*! \brief The base */
   int64_t base;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("coeff", &coeff);
     v->Visit("base", &base);
   }
@@ -351,7 +351,7 @@ enum SignType {
  */
 struct IntSetNode : public Node {
   static constexpr const char* _type_key = "IntSet";
-  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
+  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Object);
 };
 
 /*!
@@ -362,7 +362,7 @@ class IntSet : public NodeRef {
   /*! \brief constructor */
   IntSet() {}
   // constructor from not container.
-  explicit IntSet(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IntSet(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -692,7 +692,7 @@ Array<Expr> DetectClipBound(const Expr& e,
 
 // implementation
 inline const IntSetNode* IntSet::operator->() const {
-  return static_cast<const IntSetNode*>(node_.get());
+  return static_cast<const IntSetNode*>(get());
 }
 }  // namespace arith
 }  // namespace tvm

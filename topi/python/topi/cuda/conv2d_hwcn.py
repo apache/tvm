@@ -17,9 +17,14 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
-from .. import tag
+from tvm import autotvm
+from tvm.autotvm.task.space import SplitEntity
 
-def schedule_conv2d_hwcn(outs):
+from .. import generic, tag
+
+
+@autotvm.register_topi_schedule(generic.schedule_conv2d_hwcn, ["cuda", "gpu"], ["direct"])
+def schedule_conv2d_hwcn(cfg, outs):
     """Schedule for conv2d_hwcn and any element-wise operations.
 
     Parameters
@@ -51,36 +56,44 @@ def schedule_conv2d_hwcn(outs):
             sch[B].set_scope("local")
             BL = B
 
-        tile = 8
-        num_thread = 8
-        block_factor = tile * num_thread
-        step = 8
-        vthread = 2
-
-        block_x = tvm.thread_axis("blockIdx.x")
-        block_y = tvm.thread_axis("blockIdx.y")
-        block_z = tvm.thread_axis("blockIdx.z")
-        thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-        thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
-        thread_xz = tvm.thread_axis((0, vthread), "vthread", name="vx")
-        thread_yz = tvm.thread_axis((0, vthread), "vthread", name="vy")
-
         hi, wi, fi, ni = sch[Out].op.axis
+
+        # Create tuning space
+        n_thread_cand = [1, 2, 4, 8, 16, 32]
+        vthread_cand = [1, 2, 4, 8]
+
+        cfg.define_split(
+            'tile_fi',
+            fi,
+            num_outputs=4,
+            filter=lambda x:
+            (x.size[1] in vthread_cand and x.size[2] in n_thread_cand))
+        cfg.define_split(
+            'tile_ni',
+            ni,
+            num_outputs=4,
+            filter=lambda x:
+            (x.size[1] in vthread_cand and x.size[2] in n_thread_cand))
+
+        if cfg.is_fallback:
+            cfg['tile_fi'] = SplitEntity([-1, 2, 8, 4])
+            cfg['tile_ni'] = SplitEntity([-1, 2, 8, 4])
+
+        # Scheduling
+        step = 8
+
         bz = sch[Out].fuse(hi, wi)
-        by, fi = sch[Out].split(fi, factor=block_factor)
-        bx, ni = sch[Out].split(ni, factor=block_factor)
-        tyz, fi = sch[Out].split(fi, nparts=vthread)
-        txz, ni = sch[Out].split(ni, nparts=vthread)
-        ty, fi = sch[Out].split(fi, nparts=num_thread)
-        tx, ni = sch[Out].split(ni, nparts=num_thread)
+        by, tyz, ty, fi = cfg['tile_fi'].apply(sch, Out, fi)
+        bx, txz, tx, ni = cfg['tile_ni'].apply(sch, Out, ni)
         sch[Out].reorder(bz, by, bx, tyz, txz, ty, tx, fi, ni)
-        sch[Out].bind(bz, block_z)
-        sch[Out].bind(by, block_y)
-        sch[Out].bind(bx, block_x)
-        sch[Out].bind(tyz, thread_yz)
-        sch[Out].bind(txz, thread_xz)
-        sch[Out].bind(ty, thread_y)
-        sch[Out].bind(tx, thread_x)
+
+        sch[Out].bind(bz, tvm.thread_axis('blockIdx.z'))
+        sch[Out].bind(by, tvm.thread_axis('blockIdx.y'))
+        sch[Out].bind(bx, tvm.thread_axis('blockIdx.x'))
+        sch[Out].bind(tyz, tvm.thread_axis('vthread'))
+        sch[Out].bind(txz, tvm.thread_axis('vthread'))
+        sch[Out].bind(ty, tvm.thread_axis('threadIdx.y'))
+        sch[Out].bind(tx, tvm.thread_axis('threadIdx.x'))
 
         # Schedule BL local write
         sch[BL].compute_at(sch[Out], tx)
@@ -98,21 +111,21 @@ def schedule_conv2d_hwcn(outs):
         sch[WL].compute_at(sch[BL], rci)
         # Schedule for A's shared memory load
         yi, xi, ci, ni = sch[AA].op.axis
-        ty, ci = sch[AA].split(ci, nparts=num_thread)
-        tx, ni = sch[AA].split(ni, nparts=num_thread)
+        ty, ci = sch[AA].split(ci, nparts=cfg['tile_fi'].size[2])
+        tx, ni = sch[AA].split(ni, nparts=cfg['tile_ni'].size[2])
         _, ni = sch[AA].split(ni, factor=4)
         sch[AA].reorder(ty, tx, yi, xi, ci, ni)
-        sch[AA].bind(ty, thread_y)
-        sch[AA].bind(tx, thread_x)
+        sch[AA].bind(ty, tvm.thread_axis('threadIdx.y'))
+        sch[AA].bind(tx, tvm.thread_axis('threadIdx.x'))
         sch[AA].vectorize(ni)
         # Schedule for W's shared memory load
         yi, xi, ci, fi = sch[WW].op.axis
-        ty, ci = sch[WW].split(ci, nparts=num_thread)
-        tx, fi = sch[WW].split(fi, nparts=num_thread)
+        ty, ci = sch[WW].split(ci, nparts=cfg['tile_fi'].size[2])
+        tx, fi = sch[WW].split(fi, nparts=cfg['tile_ni'].size[2])
         _, fi = sch[WW].split(fi, factor=4)
         sch[WW].reorder(ty, tx, yi, xi, ci, fi)
-        sch[WW].bind(ty, thread_y)
-        sch[WW].bind(tx, thread_x)
+        sch[WW].bind(ty, tvm.thread_axis('threadIdx.y'))
+        sch[WW].bind(tx, tvm.thread_axis('threadIdx.x'))
         sch[WW].vectorize(fi)
 
     scheduled_ops = []
