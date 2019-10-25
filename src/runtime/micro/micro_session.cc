@@ -318,16 +318,18 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
 
   //DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
-  DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMInit"].value());
+  DevBaseOffset utvm_init_loc = DevBaseOffset(runtime_symbol_map_["UTVMInit"].value());
   DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
   if (kRequiresThumbModeBit) {
-    utvm_main_loc += 1;
+    utvm_init_loc += 1;
   }
 
+  std::cout << "UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
+  std::cout << "UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
   //std::cout << "do execution things: ";
   //char tmp;
   //std::cin >> tmp;
-  low_level_device()->Execute(utvm_main_loc, utvm_done_loc);
+  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();

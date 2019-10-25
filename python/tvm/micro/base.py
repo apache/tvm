@@ -23,7 +23,9 @@ import logging
 import os
 import sys
 from enum import Enum
+from pathlib import Path
 
+import tvm
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
 
@@ -35,6 +37,12 @@ SUPPORTED_DEVICE_TYPES = ["host", "openocd"]
 class LibType(Enum):
     RUNTIME = 0
     OPERATOR = 1
+
+
+@tvm.register_func('micro.create_session')
+def create_session(device_type, toolchain_prefix, **kwargs):
+    res = Session(device_type, toolchain_prefix, **kwargs)
+    return res.module
 
 
 class Session:
@@ -89,16 +97,10 @@ class Session:
         self.server_addr = kwargs.get("server_addr", "")
         self.port = kwargs.get("port", 0)
 
-        print('creating session')
-        if 'remote_create_func' in kwargs:
-            self.module = kwargs['remote_create_func'](
-                self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
-        else:
-            self.module = _CreateSession(
-                self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
+        self.module = _CreateSession(
+            self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
-        print('finished session init')
 
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
@@ -139,7 +141,7 @@ def _get_micro_host_driven_dir():
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     micro_host_driven_dir = os.path.join(micro_dir, "..", "..", "..",
-                                    "src", "runtime", "micro", "host_driven")
+                                         "src", "runtime", "micro", "host_driven")
     return micro_host_driven_dir
 
 
@@ -214,29 +216,118 @@ def create_micro_lib(
         whether to include the device library header containing definitions of
         library functions.
     """
-    if toolchain_prefix == '':
-        create_host_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
-    elif toolchain_prefix == 'arm-none-eabi-':
-        create_arm_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
+    import subprocess
+    import os
+    import copy
+    from shutil import copyfile
+
+    from tvm._ffi.libinfo import find_include_path
+    from tvm.contrib import binutil
+
+    def run_cmd(cmd):
+        proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT)
+        (out, _) = proc.communicate()
+        if proc.returncode != 0:
+            msg = "Compilation error:\n"
+            msg += out.decode("utf-8")
+            raise RuntimeError(msg)
+
+    base_compile_cmd = [
+            f'{toolchain_prefix}gcc',
+            '-std=c11',
+            '-Wall',
+            '-Wextra',
+            '--pedantic',
+            '-c',
+            '-O0',
+            '-g',
+            '-nostartfiles',
+            '-nodefaultlibs',
+            '-nostdlib',
+            '-fdata-sections',
+            '-ffunction-sections']
+
+    if toolchain_prefix == 'arm-none-eabi-':
+        device_id = 'stm32f746'
+        base_compile_cmd += [
+            '-mcpu=cortex-m7',
+            '-mlittle-endian',
+            '-mfloat-abi=hard',
+            '-mfpu=fpv5-sp-d16',
+            '-mthumb',
+            '-gdwarf-5'
+            ]
+    elif toolchain_prefix == '':
+        device_id = 'host'
+        if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
+            base_compile_cmd += ['-mcmodel=large']
+    else:
+        assert False
+
+    src_paths = []
+    ld_script_path = None
+    tmp_dir = _util.tempdir()
+    if lib_type == LibType.RUNTIME:
+        import glob
+        dev_dir = _get_micro_device_dir() + '/' + device_id
+
+        dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
+        assert dev_src_paths
+        src_paths += dev_src_paths
+    elif lib_type == LibType.OPERATOR:
+        # Create a temporary copy of the source, so we can inject the dev lib
+        # header without modifying the original.
+        temp_src_path = tmp_dir.relpath('temp.c')
+        with open(src_path, 'r') as f:
+            src_lines = f.read().splitlines()
+        src_lines.insert(0, '#include "utvm_device_dylib_redirect.c"')
+        with open(temp_src_path, 'w') as f:
+            f.write("\n".join(src_lines))
+        src_path = temp_src_path
+
+        base_compile_cmd += ['-c']
+    else:
+        raise RuntimeError('unknown lib type')
+
+    src_paths += [src_path]
+
+    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
+    for path in include_paths:
+        base_compile_cmd += ['-I', path]
+
+    prereq_obj_paths = []
+    for src_path in src_paths:
+        curr_obj_path = tmp_dir.relpath(Path(src_path).with_suffix('.o').name)
+        prereq_obj_paths.append(curr_obj_path)
+        curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
+        run_cmd(curr_compile_cmd)
+
+    # TODO(weberlo): adding '-fPIC' here causes the pc-relative data pools to
+    # not be updated when the obj is reloced. why?
+    ld_cmd = [f'{toolchain_prefix}ld', '-relocatable']
+    ld_cmd += prereq_obj_paths
+    ld_cmd += ['-o', obj_path]
+    run_cmd(ld_cmd)
+    print(f'compiled obj {obj_path}')
+
+    #if toolchain_prefix == '':
+    #    create_host_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
+    #elif toolchain_prefix == 'arm-none-eabi-':
+    #    create_arm_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)
+
 
 def create_host_micro_lib(
         obj_path, src_path, toolchain_prefix, lib_type, options):
-    def replace_suffix(s, new_suffix):
-        if "." in os.path.basename(s):
-            # There already exists an extension.
-            return os.path.join(
-                os.path.dirname(s),
-                ".".join(os.path.basename(s).split(".")[:-1] + [new_suffix]))
-        # No existing extension; we can just append.
-        return s + "." + new_suffix
-
     # uTVM object files cannot have an ".o" suffix, because it triggers the
     # code path for creating shared objects in `tvm.module.load`.  So we replace
     # ".o" suffixes with ".obj".
     if obj_path.endswith(".o"):
         logging.warning(
             "\".o\" suffix in \"%s\" has been replaced with \".obj\"", obj_path)
-        obj_path = replace_suffix(obj_path, "obj")
+        obj_path = str(Path(obj_path).with_suffix("obj"))
 
     options = ["-I" + path for path in find_include_path()]
     options += ["-I{}".format(_get_micro_host_driven_dir())]
@@ -263,103 +354,94 @@ def create_host_micro_lib(
     _cc.create_shared(obj_path, src_path, options, compile_cmd)
 
 
-def create_arm_micro_lib(
-        obj_path, src_path, toolchain_prefix, lib_type, options):
-    import subprocess
-    import os
-    import copy
-    from shutil import copyfile
-
-    from tvm._ffi.libinfo import find_include_path
-    from tvm.contrib import binutil
-
-    def replace_suffix(s, new_suffix):
-        if "." in os.path.basename(s):
-            # There already exists an extension.
-            return os.path.join(
-                os.path.dirname(s),
-                ".".join(os.path.basename(s).split(".")[:-1] + [new_suffix]))
-        # No existing extension; we can just append.
-        return s + "." + new_suffix
-
-    def run_cmd(cmd):
-        proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-        if proc.returncode != 0:
-            msg = "Compilation error:\n"
-            msg += out.decode("utf-8")
-            raise RuntimeError(msg)
-
-    base_compile_cmd = [
-            'arm-none-eabi-gcc',
-            '-std=c11',
-            '-Wall',
-            '-Wextra',
-            '--pedantic',
-            '-mcpu=cortex-m7',
-            '-mlittle-endian',
-            '-mfloat-abi=hard',
-            '-mfpu=fpv5-sp-d16',
-            '-mthumb',
-            '-c',
-            '-O0',
-            '-g',
-            '-gdwarf-5',
-            '-nostartfiles',
-            '-nodefaultlibs',
-            '-nostdlib',
-            '-fdata-sections',
-            '-ffunction-sections']
-
-    src_paths = []
-    ld_script_path = None
-    tmp_dir = _util.tempdir()
-    if lib_type == LibType.RUNTIME:
-        import glob
-        DEVICE_ID = 'stm32f746'
-        dev_dir = _get_micro_device_dir() + '/' + DEVICE_ID
-
-        dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
-        assert dev_src_paths
-        src_paths += dev_src_paths
-    elif lib_type == LibType.OPERATOR:
-        # Create a temporary copy of the source, so we can inject the dev lib
-        # header without modifying the original.
-        temp_src_path = tmp_dir.relpath("temp.c")
-        with open(src_path, "r") as f:
-            src_lines = f.read().splitlines()
-        src_lines.insert(0, "#include \"utvm_device_dylib_redirect.c\"")
-        with open(temp_src_path, "w") as f:
-            f.write("\n".join(src_lines))
-        src_path = temp_src_path
-
-        base_compile_cmd += ['-c']
-    else:
-        raise RuntimeError('unknown lib type')
-
-    src_paths += [src_path]
-
-    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
-    for path in include_paths:
-        base_compile_cmd += ['-I', path]
-
-    prereq_obj_paths = []
-    for src_path in src_paths:
-        curr_obj_path = tmp_dir.relpath(replace_suffix(os.path.basename(src_path), 'o'))
-        prereq_obj_paths.append(curr_obj_path)
-        curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
-        run_cmd(curr_compile_cmd)
-
-    # TODO(weberlo): adding '-fPIC' here causes the pc-relative data pools to
-    # not be updated when the obj is reloced. why?
-    ld_cmd = ['arm-none-eabi-ld', '-relocatable']
-    ld_cmd += prereq_obj_paths
-    ld_cmd += ['-o', obj_path]
-    run_cmd(ld_cmd)
-    print(f'compiled obj {obj_path}')
+#def create_arm_micro_lib(
+#        obj_path, src_path, toolchain_prefix, lib_type, options):
+#    import subprocess
+#    import os
+#    import copy
+#    from shutil import copyfile
+#
+#    from tvm._ffi.libinfo import find_include_path
+#    from tvm.contrib import binutil
+#
+#    def run_cmd(cmd):
+#        proc = subprocess.Popen(
+#                cmd,
+#                stdout=subprocess.PIPE,
+#                stderr=subprocess.STDOUT)
+#        (out, _) = proc.communicate()
+#        if proc.returncode != 0:
+#            msg = "Compilation error:\n"
+#            msg += out.decode("utf-8")
+#            raise RuntimeError(msg)
+#
+#    base_compile_cmd = [
+#            'arm-none-eabi-gcc',
+#            '-std=c11',
+#            '-Wall',
+#            '-Wextra',
+#            '--pedantic',
+#            '-mcpu=cortex-m7',
+#            '-mlittle-endian',
+#            '-mfloat-abi=hard',
+#            '-mfpu=fpv5-sp-d16',
+#            '-mthumb',
+#            '-c',
+#            '-O0',
+#            '-g',
+#            '-gdwarf-5',
+#            '-nostartfiles',
+#            '-nodefaultlibs',
+#            '-nostdlib',
+#            '-fdata-sections',
+#            '-ffunction-sections']
+#
+#    src_paths = []
+#    ld_script_path = None
+#    tmp_dir = _util.tempdir()
+#    if lib_type == LibType.RUNTIME:
+#        import glob
+#        DEVICE_ID = 'stm32f746'
+#        dev_dir = _get_micro_device_dir() + '/' + DEVICE_ID
+#
+#        dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
+#        assert dev_src_paths
+#        src_paths += dev_src_paths
+#    elif lib_type == LibType.OPERATOR:
+#        # Create a temporary copy of the source, so we can inject the dev lib
+#        # header without modifying the original.
+#        temp_src_path = tmp_dir.relpath("temp.c")
+#        with open(src_path, "r") as f:
+#            src_lines = f.read().splitlines()
+#        src_lines.insert(0, "#include \"utvm_device_dylib_redirect.c\"")
+#        with open(temp_src_path, "w") as f:
+#            f.write("\n".join(src_lines))
+#        src_path = temp_src_path
+#
+#        base_compile_cmd += ['-c']
+#    else:
+#        raise RuntimeError('unknown lib type')
+#
+#    src_paths += [src_path]
+#
+#    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
+#    for path in include_paths:
+#        base_compile_cmd += ['-I', path]
+#
+#    prereq_obj_paths = []
+#    for src_path in src_paths:
+#        curr_obj_path = tmp_dir.relpath(Path(src_path).with_suffix('o').name)
+#        prereq_obj_paths.append(curr_obj_path)
+#        curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
+#        run_cmd(curr_compile_cmd)
+#
+#    # TODO(weberlo): adding '-fPIC' here causes the pc-relative data pools to
+#    # not be updated when the obj is reloced. why?
+#    ld_cmd = ['arm-none-eabi-ld', '-relocatable']
+#    ld_cmd += prereq_obj_paths
+#    ld_cmd += ['-o', obj_path]
+#    run_cmd(ld_cmd)
+#    print(f'compiled obj {obj_path}')
 
 
 _init_api("tvm.micro", "tvm.micro.base")
