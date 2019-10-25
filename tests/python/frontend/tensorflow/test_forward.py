@@ -2367,15 +2367,19 @@ def _test_forward_add_n(inputs):
         for each in inputs:
             temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
         output = tf.add_n(temp)
-        compare_tf_with_tvm([each for each in inputs],[each.name for each in inputs], output.name)
+        compare_tf_with_tvm([each for each in inputs],[each.name for each in temp], output.name)
 
 def test_forward_add_n():
-    x = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
-    y = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
-    z = np.random.randint(1, 100, size = (3,3,3), dtype = np.int32)
-    in1 = [x,y]
-    in2 = (x,y,z)
-    in3 = [x, x, y, y, z, z]
+    x = np.random.randint(1, 100, size = (3, 3, 3), dtype = np.int32)
+    y = np.random.randint(1, 100, size = (3, 3, 3), dtype = np.int32)
+    z = np.random.randint(1, 100, size = (3, 3, 3), dtype = np.int32)
+    m, n, o = x.astype(np.float32), y.astype(np.float32), z.astype(np.float32)
+    in0 = x
+    in1 = [x, y]
+    in2 = (x, y, z)
+    in3 = m
+    in4 = [m, n]
+    in5 = (m, n, o)
     _test_forward_add_n(in1)
     _test_forward_add_n(in2)
     _test_forward_add_n(in3)
