@@ -29,7 +29,6 @@
 #include <tvm/build_module.h>
 #include <vector>
 #include "../op_common.h"
-#include <typeinfo>
 
 namespace tvm {
 namespace relay {
