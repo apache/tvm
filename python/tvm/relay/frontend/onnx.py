@@ -922,6 +922,13 @@ class Erf(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _op.erf(inputs[0])
 
+class Where(OnnxOpConverter):
+    """Operator converter for Where
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        return _op.where(inputs[0], inputs[1], inputs[2])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1042,7 +1049,8 @@ def _get_convert_map(opset):
         'Not': Not.get_converter(opset),
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
-        'Erf': Erf.get_converter(opset)
+        'Erf': Erf.get_converter(opset),
+        'Where': Where.get_converter(opset)
     }
 
 
