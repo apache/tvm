@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,18 +18,17 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file Use external miopen utils function
  */
 
-#ifndef TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
-#define TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
+#ifndef TVM_RUNTIME_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
+#define TVM_RUNTIME_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
 
 #include <dmlc/logging.h>
 #include <miopen/miopen.h>
 #include <tvm/runtime/device_api.h>
 #include <string>
-#include "../../runtime/rocm/rocm_common.h"
+#include "../../rocm/rocm_common.h"
 
 namespace tvm {
 namespace contrib {
@@ -75,4 +74,4 @@ struct MIOpenThreadEntry {
 }  // namespace contrib
 }  // namespace tvm
 
-#endif  // TVM_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
+#endif  // TVM_RUNTIME_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
