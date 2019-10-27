@@ -395,9 +395,9 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
     TVM_ATTR_FIELD(scale_h)
-        .describe("Should be true to preserve the values at the corner pixels");
+        .describe("The upsampling factor for height");
     TVM_ATTR_FIELD(scale_w)
-        .describe("Should be true to preserve the values at the corner pixels");
+        .describe("The upsampling factor for width");
     TVM_ATTR_FIELD(layout).set_default("NCHW")
         .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
