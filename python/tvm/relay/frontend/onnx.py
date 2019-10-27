@@ -1081,10 +1081,7 @@ def _get_convert_map(opset):
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
-<<<<<<< HEAD
         'Where': Where.get_converter(opset),
-=======
->>>>>>> bc138a8991e8d13a08cd0b503ec7d4c37bbbea29
         'ConstantOfShape': ConstantOfShape.get_converter(opset)
     }
 

@@ -1434,8 +1434,5 @@ if __name__ == '__main__':
     test_and()
     test_tile()
     test_erf()
-<<<<<<< HEAD
     test_where()
-=======
->>>>>>> bc138a8991e8d13a08cd0b503ec7d4c37bbbea29
     test_constantofshape()
