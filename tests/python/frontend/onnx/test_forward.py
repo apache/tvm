@@ -1356,6 +1356,37 @@ def test_constantofshape():
     verify_constantofshape_with_input_shape()
 
 
+def verify_constantofshape_with_input_shape():
+    outdata = np.full((3, 4, 5), 2,  dtype=np.int32)
+
+    ref_node = helper.make_node('Constant',
+                                inputs=[],
+                                outputs=['y'],
+                                value=onnx.helper.make_tensor('value', TensorProto.INT32, (1, ), (2, )))
+
+    node = helper.make_node("ConstantOfShape",
+                            inputs=['y'],
+                            outputs=['z'],
+                            value=onnx.helper.make_tensor('value', TensorProto.INT64, (3,), (3, 4, 5)))
+
+    graph = helper.make_graph([ref_node, node],
+                              'ConstantOfShape_test',
+                              inputs=[],
+                              outputs=[helper.make_tensor_value_info("z", TensorProto.INT32, list((3, 4, 5)))],
+                              initializer=None,
+                              value_info=[])
+
+    model = helper.make_model(graph, producer_name='ConstantOfShape_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_constantofshape():
+    verify_constantofshape_with_input_shape()
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1403,5 +1434,8 @@ if __name__ == '__main__':
     test_and()
     test_tile()
     test_erf()
+<<<<<<< HEAD
     test_where()
+=======
+>>>>>>> bc138a8991e8d13a08cd0b503ec7d4c37bbbea29
     test_constantofshape()

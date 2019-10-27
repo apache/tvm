@@ -946,6 +946,21 @@ class ConstantOfShape(Elemwise):
         return _op.tile(inputs[0], reps=shape)
 
 
+class ConstantOfShape(Elemwise):
+    """Operator converter for ConstantOfShape
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError("Expect minimum 2 inputs")
+        # reps: The number of times repeating the tensor data.
+        try:
+            shape = tuple(params[inputs[1].name_hint].asnumpy().astype('int').tolist())
+        except Exception as e:
+            raise ValueError(e)
+        return _op.tile(inputs[0], reps=shape)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1066,7 +1081,10 @@ def _get_convert_map(opset):
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
+<<<<<<< HEAD
         'Where': Where.get_converter(opset),
+=======
+>>>>>>> bc138a8991e8d13a08cd0b503ec7d4c37bbbea29
         'ConstantOfShape': ConstantOfShape.get_converter(opset)
     }
 
