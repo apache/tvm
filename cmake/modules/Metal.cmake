@@ -24,7 +24,7 @@ if(USE_METAL)
   list(APPEND RUNTIME_SRCS ${RUNTIME_METAL_SRCS})
 
   if(USE_MPS)
-    file(GLOB MPS_CONTRIB_SRC src/contrib/mps/*.mm)
+    file(GLOB MPS_CONTRIB_SRC src/runtime/contrib/mps/*.mm)
     list(APPEND RUNTIME_SRCS ${MPS_CONTRIB_SRC})
     find_library(MPS_CONTRIB_LIB MetalPerformanceShaders)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${MPS_CONTRIB_LIB})
