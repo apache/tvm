@@ -51,6 +51,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         graph, lib, params = relay.build(mod,
                                          target,
                                          params=params)
+
     ctx = tvm.cpu(0)
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
@@ -1325,13 +1326,11 @@ def test_where():
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
 
-def verify_constantofshape_with_input_shape():
-    outdata = np.full((3, 4, 5), 2,  dtype=np.int32)
-
+def test_constantofshape_with_input_shape():
     ref_node = helper.make_node('Constant',
-                                inputs=[],
+                                inputs=['x'],
                                 outputs=['y'],
-                                value=onnx.helper.make_tensor('value', TensorProto.INT32, (1, ), (2, )))
+                                value=onnx.helper.make_tensor('value', TensorProto.INT32, (1,), (2,)))
 
     node = helper.make_node("ConstantOfShape",
                             inputs=['y'],
@@ -1340,7 +1339,7 @@ def verify_constantofshape_with_input_shape():
 
     graph = helper.make_graph([ref_node, node],
                               'ConstantOfShape_test',
-                              inputs=[],
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.INT64, list((1,)))],
                               outputs=[helper.make_tensor_value_info("z", TensorProto.INT32, list((3, 4, 5)))],
                               initializer=None,
                               value_info=[])
@@ -1348,12 +1347,14 @@ def verify_constantofshape_with_input_shape():
     model = helper.make_model(graph, producer_name='ConstantOfShape_test')
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, [], target, ctx, outdata.shape)
-        tvm.testing.assert_allclose(outdata, tvm_out)
+        x = np.array([1]).astype(np.int64)
+        tvm_out = get_tvm_output(model, x, target, ctx, (3, 4, 5))
+        tvm.testing.assert_allclose((2,), tvm_out)
 
 
 def test_constantofshape():
-    verify_constantofshape_with_input_shape()
+    # test cases: https://github.com/onnx/onnx/blob/master/docs/Operators.md#ConstantOfShape
+    test_constantofshape_with_input_shape()
 
 
 def verify_constantofshape_with_input_shape():

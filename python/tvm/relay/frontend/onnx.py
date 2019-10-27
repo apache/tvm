@@ -939,10 +939,7 @@ class ConstantOfShape(Elemwise):
         if not isinstance(inputs, list) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         # reps: The number of times repeating the tensor data.
-        try:
-            shape = tuple(params[inputs[1].name_hint].asnumpy().astype('int').tolist())
-        except Exception as e:
-            raise ValueError(e)
+        shape = tuple(params[inputs[1].name_hint].asnumpy().astype('int').tolist())
         return _op.tile(inputs[0], reps=shape)
 
 
