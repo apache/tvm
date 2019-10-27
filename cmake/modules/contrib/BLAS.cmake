@@ -16,7 +16,7 @@
 # under the License.
 
 # Plugin rules for cblas
-file(GLOB CBLAS_CONTRIB_SRC src/contrib/cblas/*.cc)
+file(GLOB CBLAS_CONTRIB_SRC src/runtime/contrib/cblas/*.cc)
 
 if(USE_BLAS STREQUAL "openblas")
   find_library(BLAS_LIBRARY openblas)

@@ -18,12 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file Use external mps utils function
  */
 
-#ifndef TVM_CONTRIB_MPS_MPS_UTILS_H_
-#define TVM_CONTRIB_MPS_MPS_UTILS_H_
+#ifndef TVM_RUNTIME_CONTRIB_MPS_MPS_UTILS_H_
+#define TVM_RUNTIME_CONTRIB_MPS_MPS_UTILS_H_
 
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #include <dmlc/logging.h>
@@ -32,7 +31,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <vector>
-#include "../../runtime/metal/metal_common.h"
+#include "../../metal/metal_common.h"
 
 namespace tvm {
 namespace contrib {
@@ -56,4 +55,4 @@ struct MetalThreadEntry {
 }  // namespace contrib
 }  // namespace tvm
 
-#endif  // TVM_CONTRIB_MPS_MPS_UTILS_H_
+#endif  // TVM_RUNTIME_CONTRIB_MPS_MPS_UTILS_H_

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file Use external cblas library call.
  */
 #include <dmlc/logging.h>
