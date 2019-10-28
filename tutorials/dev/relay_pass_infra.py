@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=line-too-long
 """
 .. _tutorial-relay-pass-infra
 
@@ -21,7 +22,7 @@ How to Use Relay Pass Infra
 ===========================
 **Author**: `Zhi Chen <https://github.com/zhiics>`_
 
-As the number of optimization increases in Relay, it becomes intractable to
+As the number of optimization passes increases in Relay, it becomes intractable to
 execute them and maintain their dependencies manually. Therefore, we have
 introduced an infrastructure to manage the optimization passes.
 
@@ -44,9 +45,9 @@ a certain optimization and create an optimization pipeline.
 .. _pass infra doc: https://docs.tvm.ai/dev/relay_pass_infra.html
 """
 
+import numpy as np
 import tvm
 import tvm.relay as relay
-import numpy as np
 
 ###############################################################################
 # Create An Example Relay Program
@@ -54,21 +55,9 @@ import numpy as np
 # First of all, we create a simple Relay program for the tutorial. This program
 # will be used by various optimizations of the examples in this tutorial.
 
-# Let us register layout alteration for a conv2d op so that we can apply the
-# layout alteration pass on the example. How alter layout pass works is out
-# the scope of this tutorial.
-
-@relay.op.register_alter_op_layout("nn.conv2d", level=101)
-def alter_conv2d(attrs, inputs, tinfos):
-    data, weight = inputs
-    new_attrs = dict(attrs)
-    new_attrs['data_layout'] = 'NCHW16c'
-    return relay.nn.conv2d(data, weight, **new_attrs)
-
 def example():
     shape = (1, 64, 54, 54)
     c_data = np.empty(shape).astype("float32")
-    tp = relay.TensorType(shape, "float32")
     c = relay.const(c_data)
     weight = relay.var('weight', shape=(64, 64, 3, 3))
     x = relay.var("x", relay.TensorType((1, 64, 56, 56), "float32"))
@@ -82,7 +71,19 @@ def example():
     return relay.Function([x], z2)
 
 ###############################################################################
-# Optimize the program
+# Let us register layout alteration for a conv2d op so that we can apply the
+# layout alteration pass on the example. How alter layout pass works is out
+# the scope of this tutorial.
+
+@relay.op.register_alter_op_layout("nn.conv2d", level=101)
+def alter_conv2d(attrs, inputs, tinfos):
+    data, weight = inputs
+    new_attrs = dict(attrs)
+    new_attrs['data_layout'] = 'NCHW16c'
+    return relay.nn.conv2d(data, weight, **new_attrs)
+
+###############################################################################
+# Optimize the Program
 # --------------------
 # Now we would like to optimize the program. Relay features a host of
 # optimizations. We will select some of them to apply on this example program.
@@ -90,29 +91,35 @@ def example():
 # There are multiple ways to optimize a Relay program. Below we will provide
 # examples for each of them.
 #
-# Manually Apply Optimization passes
+# Manually Apply Optimization Passes
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# Let's first create a relay Module which contains one or multiple function
-# expressions for optimization.
+# Let's first create a relay Module which contains one or multiple Relay
+# functions for optimization.
 f = example()
 mod = relay.Module.from_expr(f)
 
 # Now we can apply constant folding on the module.
-# `fold_const` here is a callback that doesn't take any parameters.
+# fold_const here is a callback that doesn't take any parameters.
 fold_const = relay.transform.FoldConstant()
-# Then, we can invoke the pass on the given module.
+# Then, we can invoke the pass on the given module. Note that the constant
+# folding pass works at the function-level. That being said, each function in
+# the module will be applied with the optimization. Users don't need to iterate
+# through individual functions manually to apply this pass.
 mod = fold_const(mod)
 # We can see from the updated program that the constants are folded.
 print(mod)
 
+###############################################################################
 # More optimizations can be applied in the similar manner. For instance, we can
 # eliminate the common expressions that used by `z` and `z1`.
 mod = relay.transform.EliminateCommonSubexpr()(mod)
 print(mod)
 
-# Some optimizations, such as fusion, can take parameters as well. For example,
-# opt level 0 will not allow operators to be used together.
+###############################################################################
+# Some optimizations, such as fusion, are parameteric as well. For example,
+# opt level 0 will not allow operators to be fused together. Users can pass the
+# `fuse_opt_level` to enable this.
 mod = relay.transform.FuseOps(fuse_opt_level=0)(mod)
 
 # We can observe that the optimized module contains functions that only have
@@ -120,20 +127,27 @@ mod = relay.transform.FuseOps(fuse_opt_level=0)(mod)
 print(mod)
 
 ###############################################################################
-# Use `Sequential`_ to Apply Passes
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Use `Sequential`_ to Apply a Sequence of Passes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Applying passes as above is actually tedious and it may require users to have
 # better understanding about the dependencies between them. For example, fusion
 # currently doesn't work well on let bindings. Therefore, we would not be able
 # to fuse operators that were fusable if ToANormalForm is applied before
-# fusion, as this pass generates let bindings for each expression for
-# simplification.
+# fusion, as this pass generates let bindings for each expression to
+# canonicalize a Relay program.
 #
 # Relay, hence, provides `Sequential`_ to alleviate developers from handling
 # these issues explicitly by specifying the required passes of each pass and
 # packing them as a whole to execute. For example, the same passes can now be
-# applied using this style as the following.
+# applied using the sequential style as the following. `Sequential`_ is
+# similiar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
+# and `mxnet.gluon.block <https://mxnet.incubator.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
+# For example, `torch.nn.sequential` is used to contain a sequence of PyTorch
+# `Modules` that will be added to build a network. It focuses on the network
+# layers. Instead, the `Sequential`_ in our pass infra works on the optimizing
+# pass.
 
+# Now let's execute some passes through `Sequential`_
 f = example()
 mod = relay.Module.from_expr(f)
 # Glob the interested passes.
@@ -146,7 +160,7 @@ print(mod1)
 ###############################################################################
 # From the transformed Relay program, we can see that there are still two
 # identical addition operations. This is because `EliminateCommonSubexpr`
-# was not actually performed. The reason is that only the passes that have
+# was not actually performed. The reason is because only the passes that have
 # optimization level less or equal to 2 will be executed by default under
 # `Sequential`_. The pass infra, however, provides a configuration interface
 # for users to customize the optimization level that they want to execute.
@@ -160,7 +174,9 @@ print(mod2)
 #
 # In addition, users can selectively disable some passes using the
 # `disabled_pass` config, which is similar to the `-fno-xxx` option used the
-# general purpose compilers, such as Clang and GCC.
+# general purpose compilers, such as Clang and GCC. For example, we can disable
+# EliminateCommonSubexpr as following. The printed module will again show two
+# identical addition operations.
 
 with relay.build_config(opt_level=3, disabled_pass=["EliminateCommonSubexpr"]):
     mod3 = seq(mod)
@@ -168,7 +184,8 @@ print(mod3)
 
 ###############################################################################
 # The passes applied so far are target independent. The pass infra also
-# provides a means to make pass target-aware.
+# provides a means to make pass target-aware. For example, the layout
+# alteration pass falls in such category.
 
 with relay.build_config(opt_level=3):
     mod4 = seq(mod)
@@ -181,12 +198,12 @@ with relay.build_config(opt_level=3):
 print(mod5)
 
 ##############################################################################
-# Optimize the program Using Python Syntax Sugar
-# ----------------------------------------------
+# Implement a Pass Using Python Syntax Sugar
+# ------------------------------------------
 # The next example illustrates how we can orchestrate a customized optimization
 # pipeline through the pass infra using Python decorators. This functionality
 # greatly eases the implementation of passes. For example, users can simply
-# define a decorated class to do function level optimizations as the following
+# define a decorated class to do function-level optimizations as the following
 # example shows. `transform_function` wraps a class to replace all constants
 # with a multiple of `c`. Later on, each function in a given module will be
 # visited and each constant in the function will be replaced when we invoke the
@@ -216,7 +233,7 @@ mod3 = custom_pass(mod)
 print(mod3)
 
 ##############################################################################
-# Debug a pass
+# Debug a Pass
 # ------------
 # Relay provides users a plug-and-play style debugging pass that print the IR
 # after a certain pass is done. For example, we can print out the IR on the

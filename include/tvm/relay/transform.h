@@ -571,7 +571,7 @@ TVM_DLL Pass EtaExpand();
  *
  * \return the pass.
  */
-TVM_DLL Pass PrintIR(bool show_meta_data=true);
+TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
 }  // namespace transform
 
