@@ -1299,6 +1299,32 @@ def test_erf():
     z = scipy.special.erf(x)
     verify_erf(x, z)
 
+def verify_where(condition, x, y, dtype, outdata):
+    node = helper.make_node('Where', inputs=['condition', 'x', 'y'], outputs=['out'])
+    graph = helper.make_graph([node],
+                              'where_test',
+                              inputs=[helper.make_tensor_value_info('condition', TensorProto.BOOL, list(condition.shape)),
+                                      helper.make_tensor_value_info('x', dtype, list(x.shape)),
+                                      helper.make_tensor_value_info('y', dtype, list(y.shape))],
+                              outputs=[helper.make_tensor_value_info('out', dtype, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='where_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [condition, x, y], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_where():
+    condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
+    x = np.array([[1, 2], [3, 4]], dtype=np.int64)
+    y = np.array([[9, 8], [7, 6]], dtype=np.int64)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.INT64, outdata)
+
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    y = np.array([[9, 8], [7, 6]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
 
 def verify_or(indata, dtype):
     x = indata[0].astype(dtype)
@@ -1394,4 +1420,5 @@ if __name__ == '__main__':
     test_and()
     test_tile()
     test_erf()
+    test_where()
     test_or()

@@ -922,6 +922,13 @@ class Erf(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _op.erf(inputs[0])
 
+class Where(OnnxOpConverter):
+    """Operator converter for Where
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        return _op.where(inputs[0], inputs[1], inputs[2])
+
 class Or(Elemwise):
     """ Operator converter for Or.
     """
@@ -1050,6 +1057,7 @@ def _get_convert_map(opset):
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
+        'Where': Where.get_converter(opset),
         'Or': Or.get_converter(opset)
     }
 

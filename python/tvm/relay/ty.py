@@ -56,8 +56,8 @@ class Type(RelayNode):
 class TensorType(Type):
     """A concrete TensorType in Relay.
 
-    This is the type assigned to tensor's with a known dype and shape. For
-    example a tensor of `float32` and `(5, 5)`.
+    This is the type assigned to tensors with a known dtype and shape. For
+    example, a tensor of `float32` and `(5, 5)`.
 
     Parameters
     ----------
@@ -119,13 +119,14 @@ class TypeVar(Type):
     functions which are generic over types.
     """
 
-    def __init__(self, var, kind=Kind.Type):
+    def __init__(self, name_hint, kind=Kind.Type):
         """Construct a TypeVar.
 
         Parameters
         ----------
-        var : tvm.expr.Var
-            The tvm.Var which backs the type parameter.
+        name_hint: str
+            The name of the type variable. This name only acts as a hint, and
+            is not used for equality.
 
         kind : Optional[Kind]
             The kind of the type parameter.
@@ -136,7 +137,7 @@ class TypeVar(Type):
         type_var : tvm.relay.TypeVar
             The type variable.
         """
-        self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
+        self.__init_handle_by_constructor__(_make.TypeVar, name_hint, kind)
 
 def ShapeVar(name):
     """A helper which constructs a type var of which the shape kind.
@@ -159,13 +160,15 @@ class GlobalTypeVar(Type):
     stored in the environment.
     """
 
-    def __init__(self, var, kind=Kind.AdtHandle):
+    def __init__(self, name_hint, kind=Kind.AdtHandle):
         """Construct a GlobalTypeVar.
 
         Parameters
         ----------
-        var: tvm.Var
-            The tvm.Var which backs the type parameter.
+        name_hint: str
+            The name of the global type variable. This name only acts as a
+            hint, and is not used for equality.
+
         kind: Kind, optional
             The kind of the type parameter, Kind.AdtHandle by default.
 
@@ -174,7 +177,7 @@ class GlobalTypeVar(Type):
         type_var: GlobalTypeVar
             The global type variable.
         """
-        self.__init_handle_by_constructor__(_make.GlobalTypeVar, var, kind)
+        self.__init_handle_by_constructor__(_make.GlobalTypeVar, name_hint, kind)
 
 
 @register_relay_node
