@@ -488,7 +488,7 @@ def infer_value(input_val, params):
     func = _expr.Function(analysis.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-    ctx = tvm.context("llvm", 0)
+    ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, lib, ctx)
     m.set_input(**params)
     m.run()
@@ -497,7 +497,7 @@ def infer_value(input_val, params):
 
 def infer_value_simulated(input_val, params):
     """Extention to infer_value that can be used when some input
-    values are missing. This function creats dummy inputs with the same
+    values are missing. This function creates dummy inputs with the same
     shape and random values then calls infer_value. This is helpful when
     implementing certain onnx operators where we need to evaluate the graph
     to determine a static shape.
