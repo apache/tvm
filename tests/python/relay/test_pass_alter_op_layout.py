@@ -487,7 +487,7 @@ def test_alter_layout_nchw_upsamping_op():
         x = relay.var("x", shape=(1, 32, 28, 28))
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
-        y = relay.nn.upsampling(y, scale=2)
+        y = relay.nn.upsampling(y, scale_h=2, scale_w=2)
         y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2))
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -506,7 +506,7 @@ def test_alter_layout_nchw_upsamping_op():
         x = relay.layout_transform(x, "NCHW", "NCHW16c")
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
                             data_layout="NCHW16c")
-        y = relay.nn.upsampling(y, scale=2, layout="NCHW16c")
+        y = relay.nn.upsampling(y, scale_h=2, scale_w=2, layout="NCHW16c")
         y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2), layout='NCHW16c')
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
         y = relay.Function(analysis.free_vars(y), y)

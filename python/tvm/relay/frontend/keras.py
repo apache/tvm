@@ -398,13 +398,14 @@ def _convert_upsample(inexpr, keras_layer, _):
     params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params['scale'] = h
+        params['scale_h'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
@@ -418,7 +419,8 @@ def _convert_upsample(inexpr, keras_layer, _):
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
