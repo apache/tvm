@@ -15,12 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """The type functor of Relay."""
-
 from .ty import (TypeVar, IncompleteType, TensorType, FuncType,
                  TupleType, TypeRelation, RefType, GlobalTypeVar, TypeCall)
 from .adt import TypeData
-
-from .adt import Constructor, Match, Clause
 
 class TypeFunctor:
     """
@@ -95,9 +92,6 @@ class TypeVisitor(TypeFunctor):
 
     The default behavior recursively traverses the AST.
     """
-    def __init__(self):
-        pass
-
     def visit_type_var(self, tv):
         pass
 
@@ -148,9 +142,6 @@ class TypeMutator(TypeFunctor):
     The default behavior recursively traverses the AST
     and reconstructs the AST.
     """
-    def __init__(self):
-        pass
-
     def visit_type_var(self, tv):
         return TypeVar(tv.var.name, tv.kind)
 
