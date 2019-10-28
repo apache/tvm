@@ -296,7 +296,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Perform Module->Module optimizations.
     relay::Module relay_module = relay::ModuleNode::FromExpr(func);
- 
+
     Array<Pass> pass_seqs;
 
     // Run all dialect legalization passes.
