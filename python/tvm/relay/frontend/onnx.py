@@ -898,11 +898,16 @@ class OneHot(OnnxOpConverter):
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
         # Convert depth into an integer.
-        depth = infer_value(depth, params).asnumpy()[0]
+        depth = int(infer_value(depth, params).asnumpy()[0])
         # set default value when axis is not set in the model
         if 'axis' not in attr:
             attr['axis'] = -1
-        return _op.one_hot(indices, on_value, off_value, depth, attr['axis'], dtype=dtype)
+        return _op.one_hot(indices,
+                           on_value,
+                           off_value,
+                           depth,
+                           int(attr['axis']),
+                           dtype=dtype)
 
 
 class ConstantOfShape(OnnxOpConverter):
