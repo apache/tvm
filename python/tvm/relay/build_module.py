@@ -147,7 +147,7 @@ class BuildModule(object):
         # Get artifacts
         params = self.get_params()
 
-        return graph_json, mod, params
+        return mod, params
 
 
     def _set_params(self, params):
