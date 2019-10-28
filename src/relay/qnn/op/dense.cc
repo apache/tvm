@@ -97,7 +97,7 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  * \node Lowering of the qnn.dense operator
  *       A quantized tensor is represented in following manner
  *          A = scale_a x (QA - zp_A)
- *       where QA is quantized tensor, scale_a and zp_A are quantizations
+ *       where QA is quantized tensor, scale_a and zp_A are quantization
  *       params.
  *
  *       Quantized dense multiplies two quantized tensors and returns a
@@ -107,10 +107,10 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  *       The lowering for asymmetric quantized dense looks as follows. More details at
  *       https://discuss.tvm.ai/t/tf-lite-quantized-conv2d-operator-conversion/2651/8?u=janimesh
  *       The computation gets unrolled into following 4 terms
- *          C(m, n) = Sigma(k) A(m, k) * W(n, k)
+ *          C(m, n) = Sigma(k) (A(m, k) * W(n, k))
  *
  *          RHS becomes
- *            Sigma(k) [QA(m, k) - zp_a] * [QW(n, k) - zp_w]
+ *            Sigma(k) ([QA(m, k) - zp_a] * [QW(n, k) - zp_w])
  *
  *          Unrolling leads to following sequence
  *            Sigma(k) QA(m, k) * QW(n, k)                         // Term1
@@ -119,18 +119,14 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  *          - Sigma(k) * zp_a * zp_w                               // Term4
  *
  *       Term3 and Term4 can be computed at compile time.
+ *       In case of symmetric quantization terms term2, term3 and term4 become 0.
  */
 Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
   CHECK_EQ(new_args.size(), 2);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
-  auto get_shape = [](const Type& type) {
-    auto input_tt = type.as<TensorTypeNode>();
-    CHECK(input_tt != nullptr) << "Type information missing."
-                               << " Please run infer_type pass.";
-    return input_tt->shape;
-  };
+
   const auto in_shape = get_shape(arg_types[0]);
   const int common_dim = get_const_int(in_shape[1]);
 
