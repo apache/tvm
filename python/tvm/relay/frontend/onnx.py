@@ -936,7 +936,6 @@ class Or(Elemwise):
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
 
-
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
