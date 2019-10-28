@@ -23,6 +23,7 @@ from ..api import register_func
 from . import base
 from . import ty
 from . import expr
+from . import type_functor
 from . import expr_functor
 from . import module
 from . import adt
@@ -117,6 +118,11 @@ bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
 alpha_equal = analysis.alpha_equal
+
+# TypeFunctor
+TypeFunctor = type_functor.TypeFunctor
+TypeVisitor = type_functor.TypeVisitor
+TypeMutator = type_functor.TypeMutator
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
