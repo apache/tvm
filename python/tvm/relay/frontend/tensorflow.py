@@ -615,6 +615,11 @@ def _reshape():
 
         # We use reshape_like directly to deal with dynamic shape.
         if isinstance(pop_node, tvm.relay.expr.Call):
+            if "shape_of" not in str(pop_node.op):
+                raise RuntimeError("If shape operator is used in reshape to "
+                                   "express reshape_like, shape_of must be "
+                                   "the direct ancestor of reshape when input "
+                                   "shape is symbolic.")
             return _op.reshape_like(inputs[0], pop_node.args[0])
 
         try:
@@ -793,7 +798,16 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return _op.shape_of(inputs[0], dtype='int32')
+        is_symbolic_shape = False
+        for axis in attr['_input_shapes'][inputs[0]]:
+            if not isinstance(axis, (int, tvm.expr.IntImm, tvm.expr.UIntImm)):
+                is_symbolic_shape = True
+                break
+
+        if is_symbolic_shape:
+            return _op.shape_of(inputs[0], dtype='int32')
+        else:
+            return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
     return _impl
 
 def _fill():
