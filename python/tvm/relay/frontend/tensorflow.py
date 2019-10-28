@@ -805,9 +805,11 @@ def _shape():
                 break
 
         if is_symbolic_shape:
-            return _op.shape_of(inputs[0], dtype='int32')
+            ret = _op.shape_of(inputs[0], dtype='int32')
         else:
-            return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
+            ret = np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
+        return ret
+
     return _impl
 
 def _fill():
