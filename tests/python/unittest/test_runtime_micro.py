@@ -49,6 +49,8 @@ def create_micro_mod(c_mod, toolchain_prefix):
     temp_dir = util.tempdir()
     lib_obj_path = temp_dir.relpath("dev_lib.obj")
     print(c_mod.get_source())
+    print(c_mod.entry_name)
+    input()
     c_mod.export_library(
             lib_obj_path,
             fcompile=tvm.micro.cross_compiler(toolchain_prefix, micro.LibType.OPERATOR))

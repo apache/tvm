@@ -269,6 +269,7 @@ void MicroSession::CreateSession(const std::string& device_type,
 // whether it's a "thumb mode" function (TODO: figure out what that means).
 const bool kRequiresThumbModeBit = true;
 void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
+  std::cout << "[MicroSession::PushToExecQueue]" << std::endl;
   // TODO: make this a parameter.
   if (kRequiresThumbModeBit) {
     func_ptr += 1;
@@ -282,13 +283,19 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
       low_level_device()->ToDevPtr(GetAllocator(SectionKind::kArgs)->curr_end_offset());
   TargetDataLayoutEncoder encoder(args_addr);
 
+  std::cout << "  after encoder alloc" << std::endl;
+
   std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&encoder, args);
+
+  std::cout << "  after encoder append" << std::endl;
   // Flush `stream` to device memory.
   DevBaseOffset stream_dev_offset =
       GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
+  std::cout << "  low-level device: " << low_level_device() << std::endl;
   low_level_device()->Write(stream_dev_offset,
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
+  std::cout << "  after encoder write" << std::endl;
 
   //UTVMTask task = {
   //  .func = func_dev_addr,
@@ -317,6 +324,8 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   // Write the task.
   DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
 
+  std::cout << "  after task write" << std::endl;
+
   //DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
   DevBaseOffset utvm_init_loc = DevBaseOffset(runtime_symbol_map_["UTVMInit"].value());
   DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
@@ -324,8 +333,8 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     utvm_init_loc += 1;
   }
 
-  std::cout << "UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
-  std::cout << "UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
+  std::cout << "  UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
+  std::cout << "  UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
   //std::cout << "do execution things: ";
   //char tmp;
   //std::cin >> tmp;
@@ -335,7 +344,7 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   CheckDeviceError();
 
   int32_t task_time = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_task_time");
-  std::cout << "TASK TIME WAS " << task_time << std::endl;
+  std::cout << "  TASK TIME WAS " << task_time << std::endl;
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
 }
@@ -407,12 +416,14 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
 
 std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
     TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
+  std::cout << "[MicroSession::EncoderAppend]" << std::endl;
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
   auto tvm_vals_slot = encoder->Alloc<TVMValue>(num_args);
   auto type_codes_slot = encoder->Alloc<const int>(num_args);
 
+  std::cout << "  num_args: " << num_args << std::endl;
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
       case kNDArrayContainer:
@@ -425,7 +436,9 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
         // Mutate the array to unwrap the `data` field.
         base_arr_handle->data = reinterpret_cast<MicroDevSpace*>(old_data)->data;
         // Now, encode the unwrapped version.
+        std::cout << "  before array encode" << std::endl;
         void* arr_ptr = EncoderAppend(encoder, *base_arr_handle).cast_to<void*>();
+        std::cout << "  after array encode" << num_args << std::endl;
         // And restore the original wrapped version.
         base_arr_handle->data = old_data;
 
@@ -443,7 +456,10 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
         break;
     }
   }
+  std::cout << "  past args loop" << std::endl;
   type_codes_slot.WriteArray(type_codes, num_args);
+  std::cout << "  tvm_vals_slot.start_addr(): " << tvm_vals_slot.start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  type_codes_slot.start_addr(): " << type_codes_slot.start_addr().cast_to<void*>() << std::endl;
 
   return std::make_tuple(tvm_vals_slot.start_addr(), type_codes_slot.start_addr());
 }

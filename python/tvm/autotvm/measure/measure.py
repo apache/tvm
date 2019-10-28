@@ -258,7 +258,13 @@ def create_measure_batch(task, option):
 
     def measure_batch(measure_inputs):
         build_results = builder.build(measure_inputs)
+        print(type(build_results))
+        print(build_results)
+        #input('check em')
         results = runner.run(measure_inputs, build_results)
+        print(type(results))
+        print(results)
+        #input('check em')
         return results
 
     measure_batch.n_parallel = builder.n_parallel

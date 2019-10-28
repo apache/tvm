@@ -76,7 +76,7 @@ class LocalBuilder(Builder):
         If is 'ndk', use function for android ndk
         If is callable, use it as custom build function, expect lib_format field.
     """
-    def __init__(self, timeout=10, n_parallel=None, build_func='default'):
+    def __init__(self, timeout=10, n_parallel=None, build_func='default', do_fork=True):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
@@ -87,7 +87,7 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _wrap_build_func(build_func)
-        self.executor = LocalExecutor(timeout=timeout)
+        self.executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
@@ -206,6 +206,7 @@ class RPCRunner(Runner):
         self.task = task
 
         if check_remote(task.target, self.key, self.host, self.port):
+            print('Get devices for measurement successfully!')
             logger.info("Get devices for measurement successfully!")
         else:
             raise RuntimeError("Cannot get remote devices from the tracker. "
@@ -463,8 +464,10 @@ def run_through_rpc(measure_input, build_result,
             from vta import program_fpga, reconfig_runtime
             program_fpga(remote, None)
             reconfig_runtime(remote)
+        print('zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
+        func.entry_name = 'default_function'
         ctx = remote.context(str(measure_input.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)

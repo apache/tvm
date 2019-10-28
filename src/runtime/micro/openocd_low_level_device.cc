@@ -44,6 +44,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   explicit OpenOCDLowLevelDevice(std::uintptr_t base_addr,
                                  const std::string& server_addr,
                                  int port) : socket_() {
+    std::cout << "[OpenOCDLowLevelDevice]" << std::endl;
     server_addr_ = server_addr;
     port_ = port;
     base_addr_ = base_addr;
@@ -52,6 +53,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
+    std::cout << "  finished init" << std::endl;
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {

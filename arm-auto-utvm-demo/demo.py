@@ -45,15 +45,30 @@ logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 import tvm.micro as micro
 
+def test_build_func(obj_path, src_paths, **kwargs):
+    assert len(src_paths) == 1
+    cross_compiler = tvm.micro.cross_compiler(TOOLCHAIN_PREFIX, micro.LibType.OPERATOR)
+    cross_compiler(obj_path, src_paths)
+    input('check obj')
+test_build_func.output_format = 'obj'
+
+# TODO(weberlo): look at `tune_relay_vta.py` and `vta.exec.rpc_server` to
+# figure out how to override the default rpc server with utvm infra. merge in
+# what you've done in `test_micro_rpc.py`.
+
 # There are two steps for measuring a config: build and run.
 # By default, we use all CPU cores to compile program. Then measure them sequentially.
 # We measure 5 times and take average to reduce variance.
+
+#measure_option = autotvm.measure_option(
+#    builder=autotvm.LocalBuilder(
+#        build_func=tvm.micro.cross_compiler(TOOLCHAIN_PREFIX, micro.LibType.OPERATOR), n_parallel=1, do_fork=False),
+#    runner=autotvm.LocalRunner(number=5))
 measure_option = autotvm.measure_option(
     builder=autotvm.LocalBuilder(
-        build_func=tvm.micro.cross_compiler(TOOLCHAIN_PREFIX, micro.LibType.OPERATOR)),
+        build_func=test_build_func, n_parallel=1, do_fork=False),
+    # TODO(webelrl)o: we need to make the local runner use utvm infra
     runner=autotvm.LocalRunner(number=5))
-print(measure_option)
-input()
 
 # begin tuning, log records to file `matmul.log`
 tuner = autotvm.tuner.RandomTuner(task)

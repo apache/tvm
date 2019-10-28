@@ -194,7 +194,7 @@ def cross_compiler(toolchain_prefix, lib_type):
             src_path = src_path[0]
         create_micro_lib(obj_path, src_path, toolchain_prefix,
                          lib_type, kwargs.get("options", None))
-    return _cc.cross_compiler(compile_func)
+    return _cc.cross_compiler(compile_func, output_format='obj')
 
 
 def create_micro_lib(

@@ -66,7 +66,9 @@ def _server_env(load_library, work_path=None):
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
+        print('[rpc.server] ABOUT TO LOAD MOD')
         m = _load_module(path)
+        print('[rpc.server] DONE LOADING MOD')
         logger.info("load_module %s", path)
         return m
 
