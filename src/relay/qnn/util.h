@@ -41,7 +41,7 @@ static inline Array<IndexExpr> get_shape(const Type& type) {
   CHECK(input_tt != nullptr) << "Type information missing."
                              << " Please run infer_type pass.";
   return input_tt->shape;
-};
+}
 
 static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
