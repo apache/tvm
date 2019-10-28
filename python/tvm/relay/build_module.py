@@ -132,9 +132,6 @@ class BuildModule(object):
 
         Returns
         -------
-        graph_json : str
-            The json string that can be accepted by graph runtime.
-
         mod : relay.Module
             The optimized relay module.
 
@@ -148,7 +145,6 @@ class BuildModule(object):
             self._set_params(params)
         mod = self._optimize(func, target)
         # Get artifacts
-        graph_json = self.get_json()
         params = self.get_params()
 
         return graph_json, mod, params
@@ -250,8 +246,7 @@ def build(mod, target=None, target_host=None, params=None):
 
 
 def optimize(mod, target=None, params=None):
-    """Helper function that builds a Relay function to run on TVM graph
-    runtime.
+    """Helper function that optimizes a Relay module.
 
     Parameters
     ----------
@@ -269,9 +264,6 @@ def optimize(mod, target=None, params=None):
 
     Returns
     -------
-    graph_json : str
-        The json string that can be accepted by graph runtime.
-
     mod : relay.Module
         The optimized relay module.
 
@@ -300,8 +292,8 @@ def optimize(mod, target=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.optimize(func, target, params)
-    return graph_json, mod, params
+        mod, params = bld_mod.optimize(func, target, params)
+    return mod, params
 
 
 class GraphExecutor(_interpreter.Executor):
