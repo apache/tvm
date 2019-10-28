@@ -16,6 +16,6 @@
 <!--- under the License. -->
 
 <resources>
-    <string name="app_name">TV8M Android Demo</string>
+    <string name="app_name">TVM Android Demo</string>
     <string name="modelLabel">Model:</string>
 </resources>
