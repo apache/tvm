@@ -700,6 +700,9 @@ inline Expr make_zero(Type t) {
   }                                                            \
   inline Expr Name(const Expr& a, int b) {                     \
     return Name(a, make_const(a.type(), b));                   \
+  }                                                            \
+  inline Expr Name(const Expr& a, double b) {                  \
+    return Name(a, make_const(Float(64), b));                  \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                  \
