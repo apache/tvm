@@ -51,8 +51,6 @@ namespace tvm {
 class Integer;
 class DataType;
 class Expr;
-class Node;
-class NodeRef;
 
 namespace runtime {
 
@@ -516,9 +514,9 @@ class TVMPODValue_ {
     CHECK_LT(type_code_, kExtEnd);
     return static_cast<TExtension*>(value_.v_handle)[0];
   }
-  template<typename TNodeRef,
+  template<typename TObjectRef,
            typename = typename std::enable_if<
-             std::is_class<TNodeRef>::value>::type>
+             std::is_class<TObjectRef>::value>::type>
   inline bool IsObjectRef() const;
   int type_code() const {
     return type_code_;
@@ -620,8 +618,8 @@ class TVMArgValue : public TVMPODValue_ {
     return value_;
   }
   // Deferred extension handler.
-  template<typename TNodeRef>
-  inline TNodeRef AsNodeRef() const;
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
   template<typename T,
            typename = typename std::enable_if<
            std::is_class<T>::value>::type>
@@ -834,13 +832,13 @@ class TVMRetValue : public TVMPODValue_ {
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
-  // NodeRef related extenstions: in tvm/packed_func_ext.h
+  // ObjectRef related extenstions: in tvm/packed_func_ext.h
   template<typename T,
            typename = typename std::enable_if<
              std::is_class<T>::value>::type>
   inline operator T() const;
-  template<typename TNodeRef>
-  inline TNodeRef AsNodeRef() const;
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
   // type related
   inline operator tvm::DataType() const;
   inline TVMRetValue& operator=(const tvm::DataType& other);
@@ -1306,7 +1304,7 @@ template<typename T, typename TSrc, bool is_ext, bool is_nd>
 struct TVMValueCast {
   static T Apply(const TSrc* self) {
     static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
-    return self->template AsNodeRef<T>();
+    return self->template AsObjectRef<T>();
   }
 };
 

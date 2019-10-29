@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/tvm/ir/adt.cc
  * \brief AST nodes for Relay algebraic data types (ADTs).
  */

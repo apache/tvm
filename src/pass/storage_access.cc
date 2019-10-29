@@ -341,5 +341,11 @@ Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower().Mutate(stmt);
 }
 
+LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc f) {
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  n->body = LowerStorageAccessInfo(f->body);
+  return LoweredFunc(n);
+}
+
 }  // namespace ir
 }  // namespace tvm

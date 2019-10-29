@@ -61,7 +61,7 @@ class TargetNode : public Node {
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("target_name", &target_name);
     v->Visit("device_name", &device_name);
     v->Visit("device_type", &device_type);
@@ -229,7 +229,7 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to disable loop vectorization. */
   bool disable_vectorize = false;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
     v->Visit("double_buffer_split_loop", &double_buffer_split_loop);
@@ -472,6 +472,8 @@ class GenericFuncNode : public Node {
   runtime::PackedFunc generic_func_;
   /* \brief map from keys to registered functions */
   std::unordered_map<std::string, runtime::PackedFunc> dispatch_dict_;
+
+  void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "GenericFunc";
   TVM_DECLARE_NODE_TYPE_INFO(GenericFuncNode, Node);

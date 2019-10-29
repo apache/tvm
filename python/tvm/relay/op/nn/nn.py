@@ -483,7 +483,8 @@ def global_avg_pool2d(data,
 
 
 def upsampling(data,
-               scale=1,
+               scale_h=1,
+               scale_w=1,
                layout="NCHW",
                method="nearest_neighbor",
                align_corners=False):
@@ -492,7 +493,7 @@ def upsampling(data,
     This operator takes data as input and does 2D scaling to the given scale factor.
     In the default case, where the data_layout is `NCHW`
     with data of shape (n, c, h, w)
-    out will have a shape (n, c, h*scale, w*scale)
+    out will have a shape (n, c, h*scale_h, w*scale_w)
 
     method indicates the algorithm to be used while calculating the out value
     and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
@@ -502,8 +503,11 @@ def upsampling(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
-    scale : tvm.relay.Expr
-        The scale factor for upsampling.
+    scale_h : tvm.relay.Expr
+        The scale factor for height upsampling.
+
+    scale_w : tvm.relay.Expr
+        The scale factor for width upsampling.
 
     layout : str, optional
         Layout of the input.
@@ -519,7 +523,7 @@ def upsampling(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.upsampling(data, scale, layout, method, align_corners)
+    return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
 
 
 def batch_flatten(data):
@@ -1807,3 +1811,22 @@ def cross_entropy(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy(predictions, targets)
+
+
+def cross_entropy_with_logits(predictions, targets):
+    """CrossEntropy with logits.
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The targets.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.cross_entropy_with_logits(predictions, targets)

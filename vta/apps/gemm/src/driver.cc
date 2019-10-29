@@ -66,10 +66,12 @@ class Device {
 
   uint32_t Run(DLTensor* inp1, DLTensor* inp2, uint32_t shiftVal, DLTensor* out, uint32_t reset) {
     uint32_t cycles;
-    uint32_t length = inp1->shape[0];
-    size_t size1 = (inp1->dtype.bits >> 3) * length;
+    uint32_t length = inp2->shape[0];
+    // 1 matrix 1 vector input
+    size_t size1 = (inp1->dtype.bits >> 3) * length * length;
     size_t size2 = (inp2->dtype.bits >> 3) * length;
-    size_t size3 = (64 >> 3);
+    // 1 vector output
+    size_t size3 = (32 >> 3) * length;
     inp1_ = this->MemAlloc(size1);
     inp2_ = this->MemAlloc(size2);
     out_ = this->MemAlloc(size3);
@@ -115,19 +117,17 @@ class Device {
 
   void Launch(uint32_t length, uint32_t shiftVal, uint32_t reset) {
     dpi_->WriteReg(0x08, shiftVal);
-    dpi_->WriteReg(0x0c, length); // vector length
+    dpi_->WriteReg(0x0c, length); // tensor size
     dpi_->WriteReg(0x18, this->MemGetPhyAddr(inp1_));
     dpi_->WriteReg(0x20, this->MemGetPhyAddr(inp2_));
     dpi_->WriteReg(0x28, this->MemGetPhyAddr(out_));
     dpi_->WriteReg(0x00, 0x1); // launch
-    dpi_->WriteReg(0x00, 0x0); // launch
+    dpi_->WriteReg(0x00, 0x0); 
 
     if (reset == 1) {
-      dpi_->WriteReg(0x10, 0x1); // reset accum
-      dpi_->WriteReg(0x10, 0x0); // stop reset accum
+      dpi_->WriteReg(0x10, 0x1); // reset accumulator
+      dpi_->WriteReg(0x10, 0x0); 
     }
-    dpi_->WriteReg(0x14, 0x1); // reset dot
-    dpi_->WriteReg(0x14, 0x0); // stop reset dot
   }
 
   uint32_t WaitForCompletion() {

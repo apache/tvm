@@ -36,7 +36,7 @@ class SockChannel final : public RPCChannel {
       : sock_(sock) {}
   ~SockChannel() {
     if (!sock_.BadSocket()) {
-        sock_.Close();
+      sock_.Close();
     }
   }
   size_t Send(const void* data, size_t size) final {
@@ -109,12 +109,25 @@ void RPCServerLoop(int sockfd) {
       "SockServerLoop", "")->ServerLoop();
 }
 
+void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
+  RPCSession::Create(std::unique_ptr<CallbackChannel>(
+      new CallbackChannel(fsend, frecv)),
+      "SockServerLoop", "")->ServerLoop();
+}
+
 TVM_REGISTER_GLOBAL("rpc._Connect")
 .set_body_typed(RPCClientConnect);
 
 TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerLoop(args[0]);
+    if (args.size() == 1) {
+      RPCServerLoop(args[0]);
+    } else {
+      CHECK_EQ(args.size(), 2);
+      RPCServerLoop(
+          args[0].operator tvm::runtime::PackedFunc(),
+          args[1].operator tvm::runtime::PackedFunc());
+    }
   });
 }  // namespace runtime
 }  // namespace tvm

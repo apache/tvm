@@ -807,6 +807,8 @@ IntSet EvalSet(Range r,
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
+TVM_REGISTER_NODE_TYPE(IntervalSetNode);
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IntervalSetNode>([](const IntervalSetNode *op, IRPrinter *p) {
     p->stream << "IntervalSet"

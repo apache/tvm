@@ -140,7 +140,7 @@ class LayoutAlternatedExprNode : public TempExprNode {
     return tmp_memorizer.Transform(value, new_layout, old_layout);
   }
 
-  void VisitAttrs(AttrVisitor *v) final {
+  void VisitAttrs(AttrVisitor *v) {
     v->Visit("value", &value);
     v->Visit("old_layout", &old_layout);
     v->Visit("new_layout", &new_layout);

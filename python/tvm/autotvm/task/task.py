@@ -226,7 +226,7 @@ def args_to_workload(x, topi_compute_func=None):
     elif x is None:
         workload = 0
     else:
-        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
+        raise RuntimeError('Do not support type "%s" in argument. Consider to use '
                            'primitive types only' % type(x))
     return (get_func_name(topi_compute_func), ) + workload  if topi_compute_func else workload
 

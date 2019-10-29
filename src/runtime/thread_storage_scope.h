@@ -50,7 +50,13 @@ enum class StorageRank {
    */
   kWarp = 2,
   /*! \brief thread local memory */
-  kLocal = 3
+  kLocal = 3,
+  /*! \brief wmma scope memory of matrix_a */
+  kWMMAMatrixA = 4,
+  /*! \brief wmma scope memory of matrix_b */
+  kWMMAMatrixB = 5,
+  /*! \brief wmma scope memory of accumulator */
+  kWMMAAccumulator = 6,
 };
 
 /*!
@@ -89,6 +95,9 @@ struct StorageScope {
       case StorageRank::kShared: return "shared" + tag;
       case StorageRank::kWarp: return "warp" + tag;
       case StorageRank::kLocal: return "local" + tag;
+      case StorageRank::kWMMAMatrixA: return "wmma.matrix_a" + tag;
+      case StorageRank::kWMMAMatrixB: return "wmma.matrix_b" + tag;
+      case StorageRank::kWMMAAccumulator: return "wmma.accumulator" + tag;
       default: LOG(FATAL) << "unknown storage scope"; return "";
     }
   }
@@ -111,6 +120,15 @@ struct StorageScope {
     } else if (s.compare(0, 5, "local") == 0) {
       r.rank = StorageRank::kLocal;
       r.tag = s.substr(5, std::string::npos);
+    } else if (s.compare(0, 13, "wmma.matrix_a") == 0) {
+      r.rank = StorageRank::kWMMAMatrixA;
+      r.tag = s.substr(13, std::string::npos);
+    } else if (s.compare(0, 13, "wmma.matrix_b") == 0) {
+      r.rank = StorageRank::kWMMAMatrixB;
+      r.tag = s.substr(13, std::string::npos);
+    } else if (s.compare(0, 16, "wmma.accumulator") == 0) {
+      r.rank = StorageRank::kWMMAAccumulator;
+      r.tag = s.substr(16, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }

@@ -75,8 +75,9 @@ class QConfigNode : public Node {
   bool do_simulation = false;
   bool round_for_shift = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
+  std::string rounding = "UPWARD";
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);
     v->Visit("nbit_weight", &nbit_weight);
     v->Visit("nbit_activation", &nbit_activation);
@@ -88,6 +89,7 @@ class QConfigNode : public Node {
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
+    v->Visit("rounding", &rounding);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";

@@ -115,9 +115,9 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMuliply(Expr tensor, double multiplier,
-                       const Array<IndexExpr>& input_shape,
-                       const std::string& rounding);
+Expr FixedPointMultiply(Expr tensor, double multiplier,
+                        const Array<IndexExpr>& input_shape,
+                        const std::string& rounding);
 
 }  // namespace qnn
 }  // namespace relay

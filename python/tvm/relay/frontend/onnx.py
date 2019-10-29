@@ -581,7 +581,7 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
             scales = params[inputs[1].name_hint].asnumpy()
             inputs = inputs[:1]
-        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
+        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0
         mode = attr.get('mode')
         if mode == b'nearest':
             method = "nearest_neighbor"
@@ -590,7 +590,8 @@ class Upsample(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW', 'align_corners':True}
+        attr = {'scale_h':scales[-2], 'scale_w':scales[-1], 'method':method,
+                'layout':'NCHW', 'align_corners':True}
         return AttrCvt('upsampling')(inputs, attr)
 
 
@@ -922,6 +923,13 @@ class Erf(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _op.erf(inputs[0])
 
+class Where(OnnxOpConverter):
+    """Operator converter for Where
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        return _op.where(inputs[0], inputs[1], inputs[2])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1042,7 +1050,8 @@ def _get_convert_map(opset):
         'Not': Not.get_converter(opset),
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
-        'Erf': Erf.get_converter(opset)
+        'Erf': Erf.get_converter(opset),
+        'Where': Where.get_converter(opset)
     }
 
 

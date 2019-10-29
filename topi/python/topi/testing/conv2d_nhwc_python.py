@@ -40,7 +40,7 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
     Returns
     -------
     b_np : np.ndarray
-        4-D with shape [out_height, out_width, out_channel, batch]
+        4-D with shape [batch, out_height, out_width, out_channel]
     """
     batch, in_height, in_width, in_channel = a_np.shape
     kernel_h, kernel_w, _, num_filter = w_np.shape

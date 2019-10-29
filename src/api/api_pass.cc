@@ -118,6 +118,14 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
       });
   });
 
+TVM_REGISTER_API("ir_pass.LowerStorageAccess")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  LoweredFunc f = args[0];
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  n->body = LowerStorageAccessInfo(f->body);
+  *ret = LoweredFunc(n);
+});
+
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
   TVM_REGISTER_API("ir_pass."#PassName)                           \
@@ -140,6 +148,7 @@ REGISTER_PASS(SplitHostDevice);
 REGISTER_PASS(StorageRewrite);
 REGISTER_PASS(CoProcSync);
 REGISTER_PASS(LowerStorageAccessInfo);
+REGISTER_PASS(LowerDeviceStorageAccessInfo)
 REGISTER_PASS(InjectVirtualThread);
 REGISTER_PASS(InjectPrefetch);
 REGISTER_PASS(InjectDoubleBuffer);
@@ -161,5 +170,6 @@ REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
+REGISTER_PASS(InferFragment)
 }  // namespace ir
 }  // namespace tvm
