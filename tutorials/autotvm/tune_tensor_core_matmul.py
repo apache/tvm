@@ -125,6 +125,8 @@ def test_gemm_nn(N, L, M, dtype, layout):
     s[AL].compute_at(s[CL], kl)
     s[BL].compute_at(s[CL], kl)
 
+    s[CL].pragma(ko, 'tensor_core')
+
     return s, [A, B, C]
 
 M, N, L = 512, 64, 512
@@ -139,8 +141,7 @@ if len(sys.argv) >= 6:
 
 print ("M=%d, N=%d, K=%d, dtype=%s, layout=%s" % (M, N, L, dtype, layout))
 
-s, args = test_gemm_nn(N, L, M, dtype, layout)
-
+# s, args = test_gemm_nn(N, L, M, dtype, layout)
 # print(tvm.lower(s, args, simple_mode=True))
 # func = tvm.build(s, args, target="cuda")
 # print(func.imported_modules[0].get_source())
