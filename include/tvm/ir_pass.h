@@ -206,14 +206,14 @@ Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size,
                     bool create_bound_attribute = false);
+
 /*!
  * \brief Try to modify the AST to support TensorCore
  *
  * \param stmt The stmt to be trasnformed.
+ * \param schedule The original schedule.
  * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
  * \return Transformed stmt.
  */
 Stmt TensorCore(Stmt stmt,

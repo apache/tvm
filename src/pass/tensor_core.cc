@@ -38,6 +38,15 @@
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
+std::string simplify_name(std::string input) {
+  auto pos = input.find(".");
+  if (pos != std::string::npos) {
+    return input.substr(0, pos);
+  } else {
+    return input;
+  }
+}
+
 namespace tvm {
 namespace ir {
 
@@ -343,17 +352,9 @@ class MMAMatcher: public IRVisitor {
     frag_reg_.insert(buffer_a.name);
     frag_reg_.insert(buffer_b.name);
 
-    std::string input0 = buffer_a.name;
-    auto pos0 = input0.find(".");
-    if (pos0 != std::string::npos) {
-      input0 = input0.substr(0, pos0);
-    }
+    std::string input0 = simplify_name(buffer_a.name);
     auto it0 = matrix_abc_.find(input0);
-    std::string input1 = buffer_b.name;
-    auto pos1 = input1.find(".");
-    if (pos1 != std::string::npos) {
-      input1 = input1.substr(0, pos1);
-    }
+    std::string input1 = simplify_name(buffer_b.name);
     auto it1 = matrix_abc_.find(input1);
     if (it0 == matrix_abc_.end() || it1 == matrix_abc_.end()) {
       return false;
@@ -453,7 +454,7 @@ class BufferAnalyser : public IRVisitor {
         invalid_ = true;
         return;
       }
-      for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
+      for (size_t i = strides.size() - 1; i >= strides.size() - 2; --i) {
         const IntImm* stride = strides[i].as<IntImm>();
         if (stride == nullptr || stride->value % 16 != 0) {
           invalid_ = true;
@@ -477,7 +478,7 @@ class BufferAnalyser : public IRVisitor {
         return;
       }
       std::vector<int> tile_size;
-      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
+      for (size_t i = op->args.size() - 1; i >= op->args.size() - 2; --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           tile_size.push_back(shape->value);
@@ -491,11 +492,7 @@ class BufferAnalyser : public IRVisitor {
         index_visitor.Visit(simplified_index);
       }
 
-      std::string input_name = bi.name;
-      auto pos = input_name.find(".");
-      if (pos != std::string::npos) {
-        input_name = input_name.substr(0, pos);
-      }
+      std::string input_name = simplify_name(bi.name);
       auto it = matrix_abc_.find(input_name);
       auto it2 = matrix_major_.find(input_name);
       bool ret = true;
@@ -559,7 +556,7 @@ class BufferAnalyser : public IRVisitor {
           invalid_ = true;
           return;
         }
-        for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
+        for (size_t i = strides.size() - 1; i >= strides.size() - 2; --i) {
           const IntImm* stride = strides[i].as<IntImm>();
           if (stride == nullptr || stride->value % 16 != 0) {
             invalid_ = true;
@@ -577,7 +574,7 @@ class BufferAnalyser : public IRVisitor {
         invalid_ = true;
         return;
       }
-      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
+      for (size_t i = op->args.size() - 1; i >= op->args.size() - 2; --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           index_visitor.scaling_factor_ = shape->value;
@@ -827,11 +824,7 @@ class TensorCoreIRMutator : public IRMutator {
           return stmt;
         }
 
-        auto input0 = node->name;
-        auto pos0 = input0.find(".");
-        if (pos0 != std::string::npos) {
-          input0 = input0.substr(0, pos0);
-        }
+        auto input0 = simplify_name(node->name);
         auto it0 = matrix_abc_.find(input0);
         if (it0 == matrix_abc_.end()) {
           std::cout << "Error!!!! matrix_abc_ not found" << std::endl;
@@ -945,11 +938,7 @@ class TensorCoreIRMutator : public IRMutator {
 
       auto call = dst.as<Call>();
       Expr matrix_major;
-      auto call_name = call->name;
-      auto pos = call_name.find(".");
-      if (pos != std::string::npos) {
-        call_name = call_name.substr(0, pos);
-      }
+      auto call_name = simplify_name(call->name);
       auto iter2 = matrix_major_.find(call_name);
       CHECK(iter2 != matrix_major_.end())
           << "Can not determine matrix major for " << call_name;
@@ -1045,11 +1034,7 @@ class TensorCoreIRMutator : public IRMutator {
     const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
     const std::function<Stmt(const Buffer &buffer)> &call_back,
     DataType datatype) {
-    auto call_name = call->name;
-    auto pos = call_name.find(".");
-    if (pos != std::string::npos) {
-      call_name = call_name.substr(0, pos);
-    }
+    auto call_name = simplify_name(call->name);
     auto it = matrix_abc_.find(call_name);
     if (it == matrix_abc_.end()) {
       std::cout << "Error!!!! matrix_abc_ not found" << std::endl;
