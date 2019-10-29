@@ -41,11 +41,11 @@ void UTVMTimerReset() {
 }
 
 uint32_t UTVMTimerRead() {
-    if (!(SYST_CSR & SYST_COUNTFLAG)) {
-      return start_time - stop_time;
-    } else {
+    if (SYST_CSR & SYST_COUNTFLAG) {
       TVMAPISetLastError("timer overflowed");
       return -1;
+    } else {
+      return start_time - stop_time;
     }
 }
 
