@@ -126,8 +126,8 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
 
-  const auto reduction_dim_size = get_shape(arg_types[0]);
-  const int common_dim = get_const_int(reduction_dim_size[1]);
+  const auto in_shape = get_shape(arg_types[0]);
+  const int reduction_dim_size = get_const_int(in_shape[1]);
 
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
   auto zp_kernel = MakeConstantScalar(Int(32), qnn_dense_attrs->kernel_zero_point);
@@ -137,7 +137,7 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
   auto term2 = DenseSecondTerm(quantized_data, zp_kernel);
   auto term3 = DenseThirdTerm(quantized_kernel, zp_data);
-  auto term4 = DenseFourthTerm(qnn_dense_attrs, common_dim);
+  auto term4 = DenseFourthTerm(qnn_dense_attrs, reduction_dim_size);
 
   // Combine those 4 terms depending on the zero points to get the best lowering.
   if (qnn_dense_attrs->input_zero_point == 0 && qnn_dense_attrs->kernel_zero_point == 0) {
