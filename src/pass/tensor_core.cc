@@ -61,12 +61,187 @@ struct Tile {
   int k{-1};
 };
 
+class MMAMatcher: public IRVisitor {
+ public:
+  explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
+                      double cuda_compute_capability, double cuda_version) {
+    for (auto kv : extern_buffer) {
+      BufferInfo bi;
+      bi.name = kv.second->name;
+      bi.dtype = kv.second->dtype;
+      bi.external = true;
+      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
+    }
+    // Int wmma is supported when cuda version >= 10.0 && cuda arch >= 720
+    if (cuda_compute_capability >= 7.20 && cuda_version >= 10.0) {
+      support_int_wmma_ = true;
+    }
+  }
+  using IRVisitor::Visit_;
+
+  void Visit_(const AttrStmt* op) final {
+    if (op->attr_key == attr::pragma_tensor_core) {
+      tensor_core_on_ = true;
+      IRVisitor::Visit_(op);
+    } else if (op->attr_key == attr::realize_scope) {
+      storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
+      Visit(op->body);
+    } else {
+      IRVisitor::Visit_(op);
+    }
+  }
+
+  void Visit_(const Provide* op) final {
+    IRVisitor::Visit_(op);
+    TensorKey key{op->func, op->value_index};
+    auto it = buf_map_.find(key);
+    if (it == buf_map_.end()) {
+      return;
+    }
+    const BufferInfo& bi = it->second;
+    if (bi.released) {
+      return;
+    }
+    if (tensor_core_on_ && mma_sync_match_(op, bi)) {
+      matched_ = true;
+    }
+  }
+
+  void Visit_(const Realize* op) final {
+    TensorKey key{op->func, op->value_index};
+    if (buf_map_.count(key)) {
+      if (!buf_map_.at(key).external) {
+        return;
+      }
+      Visit(op->body);
+    } else {
+      BufferInfo bi;
+      bi.name = key.GetName();
+      bi.dtype = op->type;
+
+      buf_map_[key] = bi;
+      Visit(op->body);
+      buf_map_[key].released = true;
+    }
+  }
+
+  bool Matched() {
+    return matched_;
+  }
+
+  friend class ScheduleAnalyser;
+  friend class BufferAnalyser;
+
+ private:
+  struct BufferInfo {
+    std::string name;
+    Type dtype;
+    bool external{false};
+    bool released{false};
+
+    bool same_as(const BufferInfo &bi) {
+      if (this->dtype != bi.dtype) return false;
+      if (this->name != bi.name) return false;
+      if (this->external != bi.external) return false;
+      if (this->released != bi.released) return false;
+      return true;
+    }
+  };
+  bool check_local_buffer_(const Call* op, BufferInfo* bi) {
+    if (op->call_type == Call::Halide) {
+      auto it = storage_scope_.find(op->func.get());
+      if (it == storage_scope_.end()) {
+        return false;
+      }
+      const std::string& strkey = it->second;
+      if (strkey != "local") {
+        return false;
+      }
+
+      TensorKey key{op->func, op->value_index};
+      auto it1 = buf_map_.find(key);
+      if (it1 == buf_map_.end()) {
+        return false;
+      }
+      *bi = it1->second;
+      if (bi->released) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool mma_sync_match_(const Provide* op, BufferInfo store_buffer) {
+    auto* add = op->value.as<Add>();
+    if (add == nullptr) {
+      return false;
+    }
+
+    auto* load_c = add->a.as<Call>();
+    BufferInfo buffer_c;
+    if (!check_local_buffer_(load_c, &buffer_c)
+        || !buffer_c.same_as(store_buffer)
+        || !(buffer_c.dtype == Float(32) ||
+             (support_int_wmma_ && buffer_c.dtype == Int(32)))) {
+      return false;
+    }
+
+    auto* cast = add->b.as<Cast>();
+    if (cast == nullptr ||
+        !(cast->type == Float(32) ||
+          (support_int_wmma_ && cast->type == Int(32)))) {
+      return false;
+    }
+
+    auto* mul = cast->value.as<Mul>();
+    if (mul == nullptr) {
+      return false;
+    }
+    auto* load_a = mul->a.as<Call>();
+    BufferInfo buffer_a;
+    if (!check_local_buffer_(load_a, &buffer_a)
+        || !(buffer_a.dtype == Float(16) ||
+             (support_int_wmma_ && buffer_a.dtype == Int(8)))) {
+      return false;
+    }
+
+    auto* load_b = mul->b.as<Call>();
+    BufferInfo buffer_b;
+    if (!check_local_buffer_(load_b, &buffer_b)
+        || !(buffer_b.dtype == Float(16) ||
+             (support_int_wmma_ && buffer_b.dtype == Int(8)))) {
+      return false;
+    }
+
+    frag_reg_.insert(buffer_c.name);
+    frag_reg_.insert(buffer_a.name);
+    frag_reg_.insert(buffer_b.name);
+    buf_name_.insert(std::make_pair(load_a, buffer_a.name));
+    buf_name_.insert(std::make_pair(load_b, buffer_b.name));
+
+    Array<Expr> operands({mul->a, mul->b, add->a});
+    mma_sync_.insert(std::make_pair(op, operands));
+
+    return true;
+  }
+
+  std::unordered_map<TensorKey, BufferInfo> buf_map_;
+  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_set<std::string> frag_reg_;
+  std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
+  std::unordered_map<const Node*, std::string> buf_name_;
+  bool matched_{false};
+  bool tensor_core_on_{false};
+  bool support_int_wmma_;
+};
+
 class BodyVisitor : public IRVisitor {
  public:
   BodyVisitor() {}
   using IRVisitor::Visit_;
 
-  void Visit_(const Reduce* op) override {
+  void Visit_(const Reduce* op) final {
     auto* comm_add = op->combiner->result[0].as<Add>();
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
@@ -88,7 +263,7 @@ class BodyVisitor : public IRVisitor {
     }
   }
 
-  void Visit_(const Call* op) override {
+  void Visit_(const Call* op) final {
     IRVisitor::Visit_(op);
     args_.insert(std::make_pair(op->name, op->args));
   }
@@ -102,9 +277,11 @@ class BodyVisitor : public IRVisitor {
 
 class ScheduleAnalyser {
  public:
-  ScheduleAnalyser() {}
+  explicit ScheduleAnalyser(const MMAMatcher &mma_matcher)
+    : mma_sync_(mma_matcher.mma_sync_),
+      buf_name_(mma_matcher.buf_name_) {}
 
-  void MatrixIdentify(Schedule schedule) {
+  bool MatrixIdentify(Schedule schedule) {
     // TODO(minmin): handle the case where MatMul is not the output stage
     for (Operation output : schedule->outputs) {
       const ComputeOpNode* compute = output.as<ComputeOpNode>();
@@ -161,15 +338,39 @@ class ScheduleAnalyser {
       matrix_abc_.insert(std::make_pair(compute->name, "accumulator"));
       matrix_major_.insert(std::make_pair(compute->name, "col_major"));
     }
+    for (auto &mma_sync : mma_sync_) {
+      auto &operands = mma_sync.second;
+      auto* load_a = operands[0].as<Call>();
+      auto* load_b = operands[1].as<Call>();
+      auto input0 = simplify_name(buf_name_.find(load_a)->second);
+      auto input1 = simplify_name(buf_name_.find(load_b)->second);
+
+      auto it0 = matrix_abc_.find(input0);
+      auto it1 = matrix_abc_.find(input1);
+
+      if (it0 == matrix_abc_.end() || it1 == matrix_abc_.end()) {
+        return false;
+      }
+      if (it0->second == "matrix_a" && it1->second == "matrix_b") {
+        return true;
+      } else if (it0->second == "matrix_b" && it1->second == "matrix_a") {
+        Array<Expr> new_operands({operands[1], operands[0], operands[2]});
+        mma_sync.second = new_operands;
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 
-  friend class MMAMatcher;
   friend class BufferAnalyser;
   friend class TensorCoreIRMutator;
 
  private:
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
+  std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
+  std::unordered_map<const Node*, std::string> buf_name_;
 };
 
 class IndexVisitor : public IRVisitor {
@@ -177,7 +378,7 @@ class IndexVisitor : public IRVisitor {
   IndexVisitor() {}
   using IRVisitor::Visit_;
 
-  void Visit_(const Variable* op) override {
+  void Visit_(const Variable* op) final {
     loop_scaling_.insert(std::make_pair(op, scaling_factor_));
   }
 
@@ -187,199 +388,6 @@ class IndexVisitor : public IRVisitor {
  private:
   std::unordered_map<const Variable*, unsigned> loop_scaling_;
   unsigned scaling_factor_;
-};
-
-class MMAMatcher: public IRVisitor {
- public:
-  explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
-                      const ScheduleAnalyser &schedule_analyser,
-                      double cuda_compute_capability, double cuda_version)
-        : matrix_abc_(schedule_analyser.matrix_abc_),
-          matched_(false) {
-    for (auto kv : extern_buffer) {
-      BufferInfo bi;
-      bi.name = kv.second->name;
-      bi.dtype = kv.second->dtype;
-      bi.external = true;
-      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
-    }
-    // Int wmma is supported when cuda version >= 10.0 && cuda arch >= 720
-    if (cuda_compute_capability >= 7.20 && cuda_version >= 10.0) {
-      support_int_wmma_ = true;
-    }
-  }
-  using IRVisitor::Visit_;
-
-  void Visit_(const AttrStmt* op) final {
-    if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      Visit(op->body);
-    } else {
-      IRVisitor::Visit_(op);
-    }
-  }
-
-  void Visit_(const Provide* op) final {
-    IRVisitor::Visit_(op);
-    TensorKey key{op->func, op->value_index};
-    auto it = buf_map_.find(key);
-    if (it == buf_map_.end()) {
-      return;
-    }
-    const BufferInfo& bi = it->second;
-    if (bi.released) {
-      return;
-    }
-
-    Expr a, b, c;
-    if (mma_sync_match_(op, bi, &a, &b, &c)) {
-      matched_ = true;
-      Array<Expr> operands({a, b, c});
-      mma_sync_.insert(std::make_pair(op, operands));
-    }
-  }
-
-  void Visit_(const Realize* op) final {
-    TensorKey key{op->func, op->value_index};
-    if (buf_map_.count(key)) {
-      if (!buf_map_.at(key).external) {
-        return;
-      }
-      Visit(op->body);
-    } else {
-      BufferInfo bi;
-      bi.name = key.GetName();
-      bi.dtype = op->type;
-
-      buf_map_[key] = bi;
-      Visit(op->body);
-      buf_map_[key].released = true;
-    }
-  }
-
-  bool Matched() {
-    return matched_;
-  }
-
-  friend class BufferAnalyser;
-  friend class TensorCoreIRMutator;
-
- private:
-  struct BufferInfo {
-    std::string name;
-    Type dtype;
-    bool external{false};
-    bool released{false};
-
-    bool same_as(const BufferInfo &bi) {
-      if (this->dtype != bi.dtype) return false;
-      if (this->name != bi.name) return false;
-      if (this->external != bi.external) return false;
-      if (this->released != bi.released) return false;
-      return true;
-    }
-  };
-
-  bool check_local_buffer_(const Call* op, BufferInfo* bi) {
-    if (op->call_type == Call::Halide) {
-      auto it = storage_scope_.find(op->func.get());
-      if (it == storage_scope_.end()) {
-        return false;
-      }
-      const std::string& strkey = it->second;
-      if (strkey != "local") {
-        return false;
-      }
-
-      TensorKey key{op->func, op->value_index};
-      auto it1 = buf_map_.find(key);
-      if (it1 == buf_map_.end()) {
-        return false;
-      }
-      *bi = it1->second;
-      if (bi->released) {
-        return false;
-      }
-      return true;
-    }
-    return false;
-  }
-
-  bool mma_sync_match_(const Provide* op, BufferInfo store_buffer,
-                        Expr* a, Expr* b, Expr* c) {
-    auto* add = op->value.as<Add>();
-    if (add == nullptr) {
-      return false;
-    }
-
-    auto* load_c = add->a.as<Call>();
-    BufferInfo buffer_c;
-    if (!check_local_buffer_(load_c, &buffer_c)
-        || !buffer_c.same_as(store_buffer)
-        || !(buffer_c.dtype == Float(32) ||
-             (support_int_wmma_ && buffer_c.dtype == Int(32)))) {
-      return false;
-    }
-
-    auto* cast = add->b.as<Cast>();
-    if (cast == nullptr ||
-        !(cast->type == Float(32) ||
-          (support_int_wmma_ && cast->type == Int(32)))) {
-      return false;
-    }
-
-    auto* mul = cast->value.as<Mul>();
-    if (mul == nullptr) {
-      return false;
-    }
-    auto* load_a = mul->a.as<Call>();
-    BufferInfo buffer_a;
-    if (!check_local_buffer_(load_a, &buffer_a)
-        || !(buffer_a.dtype == Float(16) ||
-             (support_int_wmma_ && buffer_a.dtype == Int(8)))) {
-      return false;
-    }
-
-    auto* load_b = mul->b.as<Call>();
-    BufferInfo buffer_b;
-    if (!check_local_buffer_(load_b, &buffer_b)
-        || !(buffer_b.dtype == Float(16) ||
-             (support_int_wmma_ && buffer_b.dtype == Int(8)))) {
-      return false;
-    }
-
-    frag_reg_.insert(buffer_c.name);
-    frag_reg_.insert(buffer_a.name);
-    frag_reg_.insert(buffer_b.name);
-
-    std::string input0 = simplify_name(buffer_a.name);
-    auto it0 = matrix_abc_.find(input0);
-    std::string input1 = simplify_name(buffer_b.name);
-    auto it1 = matrix_abc_.find(input1);
-    if (it0 == matrix_abc_.end() || it1 == matrix_abc_.end()) {
-      return false;
-    }
-    if (it0->second == "matrix_a" && it1->second == "matrix_b") {
-      *a = mul->a;
-      *b = mul->b;
-    } else if (it0->second == "matrix_b" && it1->second == "matrix_a") {
-      *a = mul->b;
-      *b = mul->a;
-    } else {
-      return false;
-    }
-    *c = add->a;
-    return true;
-  }
-
-  std::unordered_map<TensorKey, BufferInfo> buf_map_;
-  std::unordered_map<const Node*, std::string> storage_scope_;
-
-  std::unordered_map<std::string, std::string> matrix_abc_;
-  std::unordered_set<std::string> frag_reg_;
-  std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
-  bool matched_;
-  bool support_int_wmma_;
 };
 
 class BufferAnalyser : public IRVisitor {
@@ -454,7 +462,7 @@ class BufferAnalyser : public IRVisitor {
         invalid_ = true;
         return;
       }
-      for (size_t i = strides.size() - 1; i >= strides.size() - 2; --i) {
+      for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
         const IntImm* stride = strides[i].as<IntImm>();
         if (stride == nullptr || stride->value % 16 != 0) {
           invalid_ = true;
@@ -478,7 +486,7 @@ class BufferAnalyser : public IRVisitor {
         return;
       }
       std::vector<int> tile_size;
-      for (size_t i = op->args.size() - 1; i >= op->args.size() - 2; --i) {
+      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           tile_size.push_back(shape->value);
@@ -556,7 +564,7 @@ class BufferAnalyser : public IRVisitor {
           invalid_ = true;
           return;
         }
-        for (size_t i = strides.size() - 1; i >= strides.size() - 2; --i) {
+        for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
           const IntImm* stride = strides[i].as<IntImm>();
           if (stride == nullptr || stride->value % 16 != 0) {
             invalid_ = true;
@@ -574,7 +582,7 @@ class BufferAnalyser : public IRVisitor {
         invalid_ = true;
         return;
       }
-      for (size_t i = op->args.size() - 1; i >= op->args.size() - 2; --i) {
+      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           index_visitor.scaling_factor_ = shape->value;
@@ -767,11 +775,11 @@ class ThreadIdxMutator : public IRMutator {
 class TensorCoreIRMutator : public IRMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
-    const MMAMatcher &mma_matcher, const BufferAnalyser &buffer_analyser,
-    double cuda_compute_capability, double cuda_version)
+    const BufferAnalyser &buffer_analyser, double cuda_compute_capability,
+    double cuda_version)
       : matrix_abc_(schedule_analyser.matrix_abc_),
       matrix_major_(schedule_analyser.matrix_major_),
-      mma_sync_(mma_matcher.mma_sync_),
+      mma_sync_(schedule_analyser.mma_sync_),
       strides_(buffer_analyser.strides_),
       frag_reg_(buffer_analyser.frag_reg_),
       loop_scaling_(buffer_analyser.index_visitor.loop_scaling_),
@@ -824,12 +832,10 @@ class TensorCoreIRMutator : public IRMutator {
           return stmt;
         }
 
-        auto input0 = simplify_name(node->name);
-        auto it0 = matrix_abc_.find(input0);
-        if (it0 == matrix_abc_.end()) {
-          std::cout << "Error!!!! matrix_abc_ not found" << std::endl;
-        }
-        auto matrix_abc = "wmma." + it0->second;
+        auto it = matrix_abc_.find(simplify_name(node->name));
+        CHECK(it != matrix_abc_.end())
+              << "Cannot find matrix info for " << node->name;
+        auto matrix_abc = "wmma." + it->second;
         Stmt body = Mutate(op->body);
         return AttrStmt::make(op->node,
                               op->attr_key,
@@ -862,8 +868,6 @@ class TensorCoreIRMutator : public IRMutator {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
           Buffer buffer_c(buffer_node_c);
-
-          // Notice: index needs to be set, now hardcode to 0
           return Evaluate::make(
                   Call::make(Handle(),
                         intrinsic::tvm_mma_sync,
@@ -938,16 +942,15 @@ class TensorCoreIRMutator : public IRMutator {
 
       auto call = dst.as<Call>();
       Expr matrix_major;
-      auto call_name = simplify_name(call->name);
-      auto iter2 = matrix_major_.find(call_name);
+      auto iter2 = matrix_major_.find(simplify_name(call->name));
       CHECK(iter2 != matrix_major_.end())
-          << "Can not determine matrix major for " << call_name;
+          << "Can not determine matrix major for " << call->name;
       if (iter2->second == "col_major") {
         matrix_major = StringImm::make("col_major");
       } else if (iter2->second == "row_major") {
         matrix_major = StringImm::make("row_major");
       } else {
-        LOG(FATAL) << "invalid matrix major for " << call_name;
+        LOG(FATAL) << "invalid matrix major for " << call->name;
       }
 
       auto load_matrix_call =
@@ -1031,23 +1034,20 @@ class TensorCoreIRMutator : public IRMutator {
 
  private:
   Stmt add_buffer_bind_scope(const Call* call,
-    const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
-    const std::function<Stmt(const Buffer &buffer)> &call_back,
-    DataType datatype) {
-    auto call_name = simplify_name(call->name);
-    auto it = matrix_abc_.find(call_name);
-    if (it == matrix_abc_.end()) {
-      std::cout << "Error!!!! matrix_abc_ not found" << std::endl;
-    }
+      const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
+      const std::function<Stmt(const Buffer &buffer)> &call_back,
+      DataType datatype) {
+    auto it = matrix_abc_.find(simplify_name(call->name));
+    CHECK(it != matrix_abc_.end())
+          << "Cannot find matrix info for " << call->name;
 
     // TODO(chenfan): This should be same as the fragment shape
     auto shape = Array<Expr>{16, 16};
     auto strides = Array<Expr>{16, 1};
 
     auto bound_it = min_bounds_.find(key);
-    if (bound_it == min_bounds_.end()) {
-      std::cout << "Error!!!! bound not found" << std::endl;
-    }
+    CHECK(bound_it != min_bounds_.end());
+
     Array<Expr> min_bound = bound_it->second;
     Expr elem_offset = IntImm::make(Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
@@ -1084,14 +1084,11 @@ class TensorCoreIRMutator : public IRMutator {
                             intrinsic::tvm_tuple,
                             args,
                             Call::Intrinsic);
-
-    auto call_back_call = call_back(buffer);
-
     Array<NodeRef> node = {buffer, tensor};
     return AttrStmt::make(node,
                           "buffer_bind_scope",
                           tuple,
-                          call_back_call);
+                          call_back(buffer));
   }
 
   std::unordered_map<std::string, std::string> matrix_abc_;
@@ -1113,13 +1110,15 @@ Stmt TensorCore(Stmt stmt, Schedule schedule,
                 double cuda_compute_capability,
                 double cuda_version,
                 Map<Tensor, Buffer> extern_buffer) {
-  ScheduleAnalyser schedule_analyser;
-  schedule_analyser.MatrixIdentify(schedule);
-
-  MMAMatcher mma_matcher(extern_buffer, schedule_analyser,
+  MMAMatcher mma_matcher(extern_buffer,
                          cuda_compute_capability, cuda_version);
   mma_matcher.Visit(stmt);
   if (!mma_matcher.Matched()) {
+    return stmt;
+  }
+
+  ScheduleAnalyser schedule_analyser(mma_matcher);
+  if (!schedule_analyser.MatrixIdentify(schedule)) {
     return stmt;
   }
 
@@ -1130,9 +1129,8 @@ Stmt TensorCore(Stmt stmt, Schedule schedule,
     return stmt;
   }
 
-  TensorCoreIRMutator tensorcore_mutator(schedule_analyser, mma_matcher,
-                      buffer_analyser, cuda_compute_capability, cuda_version);
-  return tensorcore_mutator.Mutate(stmt);
+  return TensorCoreIRMutator(schedule_analyser, buffer_analyser,
+          cuda_compute_capability, cuda_version).Mutate(stmt);
 }
 
 }  // namespace ir
