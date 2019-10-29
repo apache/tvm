@@ -245,8 +245,8 @@ def have_int8(compute_version):
     compute_version : str
         compute capability of a GPU (e.g. "6.1")
     """
-    major, minor = parse_compute_version(compute_version)
-    if major == 6 and minor == 1:
+    major, _ = parse_compute_version(compute_version)
+    if major >= 6:
         return True
 
     return False
