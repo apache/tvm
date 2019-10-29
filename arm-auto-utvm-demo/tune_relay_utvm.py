@@ -174,7 +174,8 @@ def evaluate():
         c_np = a_np.dot(b_np)
 
         c_tvm = tvm.nd.empty(c_np.shape, ctx=ctx)
-        micro_func(tvm.nd.array(a_np, ctx), tvm.nd.array(b_np, ctx), c_tvm)
+        res = micro_func(tvm.nd.array(a_np, ctx), tvm.nd.array(b_np, ctx), c_tvm)
+        print(f'cycle count: {res}')
 
         tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 

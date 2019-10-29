@@ -1282,7 +1282,7 @@ PackedFunc MicroTimeEvaluator(
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      long speed = 0;
+      unsigned long speed = 0;
       for (int j = 0; j < number; ++j) {
         pf.CallPacked(args, &temp);
         DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);

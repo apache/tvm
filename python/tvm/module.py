@@ -199,12 +199,17 @@ class Module(ModuleBase):
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
+                print('[Module.time_evaluator.evaluator]')
                 # Wrap feval so we can add more stats in future.
                 blob = feval(*args)
-                if ctx.device_type == 13:  # micro device
-                    fmt = "@" + ("I" * repeat)
+                if ctx.device_type == 128 + 13:  # RPC micro device
+                    fmt = "@" + ("L" * repeat)
                     results = struct.unpack(fmt, blob)
+                    print(f'  results: {results}')
                     mean = sum(results) / float(repeat)
+                    print(f'  mean: {mean}')
+                    results = list(map(float, results))
+                    print(f'  floated results: {results}')
                     return ProfileResult(mean=mean, results=results)
                 else:
                     fmt = "@" + ("d" * repeat)
