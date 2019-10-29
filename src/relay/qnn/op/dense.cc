@@ -84,8 +84,8 @@ Expr DenseThirdTerm(const Expr& quantized_kernel, const Expr& zp_data) {
 }
 
 Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
-  int64_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * common_dim;
-  return MakeConstantScalar(Int(32), (int32_t)scalar_term);
+  int32_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * common_dim;
+  return MakeConstantScalar(Int(32), scalar_term);
 }
 
 /*
@@ -94,7 +94,7 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  * \param new_args The new mutated args to the call node.
  * \param arg_types The types of input and output.
  * \return The sequence of Relay ops for qnn cov2d op.
- * \node Lowering of the qnn.dense operator
+ * \note Lowering of the qnn.dense operator
  *       A quantized tensor is represented in following manner
  *          A = scale_a x (QA - zp_A)
  *       where QA is quantized tensor, scale_a and zp_A are quantization
@@ -105,7 +105,7 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  *       product of scales of input tensors, and a zero point of zero.
  *
  *       The lowering for asymmetric quantized dense looks as follows. More details at
- *       https://discuss.tvm.ai/t/tf-lite-quantized-conv2d-operator-conversion/2651/8?u=janimesh
+ *       https://discuss.tvm.ai/t/tf-lite-quantized-conv2d-operator-conversion/2651/8
  *       The computation gets unrolled into following 4 terms
  *          C(m, n) = Sigma(k) (A(m, k) * W(n, k))
  *
@@ -119,7 +119,6 @@ Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
  *          - Sigma(k) * zp_a * zp_w                               // Term4
  *
  *       Term3 and Term4 can be computed at compile time.
- *       In case of symmetric quantization terms term2, term3 and term4 become 0.
  */
 Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
@@ -127,8 +126,8 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
 
-  const auto in_shape = get_shape(arg_types[0]);
-  const int common_dim = get_const_int(in_shape[1]);
+  const auto reduction_dim_size = get_shape(arg_types[0]);
+  const int common_dim = get_const_int(reduction_dim_size[1]);
 
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
   auto zp_kernel = MakeConstantScalar(Int(32), qnn_dense_attrs->kernel_zero_point);
