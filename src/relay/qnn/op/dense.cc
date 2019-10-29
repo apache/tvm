@@ -83,8 +83,8 @@ Expr DenseThirdTerm(const Expr& quantized_kernel, const Expr& zp_data) {
   return Multiply(zp_data, Sum(Cast(quantized_kernel, Int(32)), axes, false, false));
 }
 
-Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int common_dim) {
-  int32_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * common_dim;
+Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int reduction_dim_size) {
+  int32_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * reduction_dim_size;
   return MakeConstantScalar(Int(32), scalar_term);
 }
 
