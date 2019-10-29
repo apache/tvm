@@ -39,7 +39,7 @@ TARGET = tvm.target.create('c -device=micro_dev')
 
 N, L, M = 32, 32, 32
 N_TRIAL = 5
-N_PER_TRIAL = 2
+N_PER_TRIAL = 1
 N_PARALLEL = 1
 
 SERVER_ADDR = '0.0.0.0'
@@ -167,7 +167,7 @@ def evaluate():
         micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
         micro_func = micro_mod['matmul']
         ctx = tvm.micro_dev(0)
-        
+
         # check correctness
         a_np = np.random.uniform(size=(N, L)).astype(np.float32)
         b_np = np.random.uniform(size=(L, M)).astype(np.float32)

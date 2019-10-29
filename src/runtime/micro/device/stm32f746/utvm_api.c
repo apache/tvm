@@ -40,7 +40,7 @@ void UTVMTimerReset() {
     SYST_CVR = 0;
 }
 
-int32_t UTVMTimerRead() {
+uint32_t UTVMTimerRead() {
     if (!(SYST_CSR & SYST_COUNTFLAG)) {
       return start_time - stop_time;
     } else {

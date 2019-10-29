@@ -1267,11 +1267,51 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
+PackedFunc MicroTimeEvaluator(
+    PackedFunc pf,
+    TVMContext ctx,
+    int number,
+    int repeat,
+    int min_repeat_ms) {
+  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
+    std::cout << "[WrapTimeEvaluator::MicroTimeEvaluator]" << std::endl;
+    TVMRetValue temp;
+    std::ostringstream os;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+
+    for (int i = 0; i < repeat; ++i) {
+      long speed = 0;
+      for (int j = 0; j < number; ++j) {
+        pf.CallPacked(args, &temp);
+        DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+        speed += (uint32_t) (temp.operator int());
+      }
+      speed /= number;
+      std::cout << "  [[TRIAL " << i << " AVERAGE IS " << speed << "]]" << std::endl;
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+    }
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  return PackedFunc(ftimer);
+}
+
 PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              TVMContext ctx,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
+  if (ctx.device_type == kDLMicroDev) {
+    return MicroTimeEvaluator(pf, ctx, number, repeat, min_repeat_ms);
+  }
+  CHECK(false) << "not using micro time eval";
+
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;

@@ -133,7 +133,7 @@ class MicroSession : public ModuleNode {
    * \param func address of the function to be executed
    * \param args args to the packed function
    */
-  void PushToExecQueue(DevPtr func, const TVMArgs& args);
+  uint32_t PushToExecQueue(DevPtr func, const TVMArgs& args);
 
   //void EnqueueBinary(const std::string& binary_path);
 

@@ -464,7 +464,6 @@ def run_through_rpc(measure_input, build_result,
             from vta import program_fpga, reconfig_runtime
             program_fpga(remote, None)
             reconfig_runtime(remote)
-        print('zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         func.entry_name = 'default_function'

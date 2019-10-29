@@ -268,7 +268,7 @@ void MicroSession::CreateSession(const std::string& device_type,
 // ARM and other manufacturers use the LSB of a function address to determine
 // whether it's a "thumb mode" function (TODO: figure out what that means).
 const bool kRequiresThumbModeBit = true;
-void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
+uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "[MicroSession::PushToExecQueue]" << std::endl;
   // TODO: make this a parameter.
   if (kRequiresThumbModeBit) {
@@ -343,10 +343,10 @@ void MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
 
-  int32_t task_time = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_task_time");
-  std::cout << "  TASK TIME WAS " << task_time << std::endl;
+  uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
+  return task_time;
 }
 
 BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {

@@ -52,7 +52,7 @@ size_t utvm_num_active_allocs = 0;
 const char* utvm_last_error = NULL;  // NOLINT(*)
 int32_t utvm_return_code = 0;  // NOLINT(*)
 
-int32_t utvm_task_time = 0;
+uint32_t utvm_task_time = 0;
 
 // Gets called by UTVMInit, after device-specific initialization is finished.
 void UTVMMain() {

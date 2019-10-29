@@ -72,15 +72,15 @@ class MicroModuleNode final : public ModuleNode {
     std::cout << "  end" << std::endl;
   }
 
-  /*!
-   * \brief runs selected function on the micro device
-   * \param func_name name of the function to be run
-   * \param func_ptr offset of the function to be run
-   * \param args type-erased arguments passed to the function
-   */
-  void RunFunction(DevPtr func_ptr, const TVMArgs& args) {
-    session_->PushToExecQueue(func_ptr, args);
-  }
+  ///*!
+  // * \brief runs selected function on the micro device
+  // * \param func_name name of the function to be run
+  // * \param func_ptr offset of the function to be run
+  // * \param args type-erased arguments passed to the function
+  // */
+  //void RunFunction(DevPtr func_ptr, const TVMArgs& args) {
+  //  session_->PushToExecQueue(func_ptr, args);
+  //}
 
  private:
   SymbolMap symbol_map_;
@@ -98,7 +98,7 @@ class MicroWrappedFunc {
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
     std::cout << "[MicroWrappedFunc::operator()]" << std::endl;
-    session_->PushToExecQueue(func_ptr_, args);
+    *rv = (int) session_->PushToExecQueue(func_ptr_, args);
   }
 
  private:

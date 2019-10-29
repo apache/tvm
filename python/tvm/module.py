@@ -201,10 +201,16 @@ class Module(ModuleBase):
                 """Internal wrapped evaluator."""
                 # Wrap feval so we can add more stats in future.
                 blob = feval(*args)
-                fmt = "@" + ("d" * repeat)
-                results = struct.unpack(fmt, blob)
-                mean = sum(results) / float(repeat)
-                return ProfileResult(mean=mean, results=results)
+                if ctx.device_type == 13:  # micro device
+                    fmt = "@" + ("I" * repeat)
+                    results = struct.unpack(fmt, blob)
+                    mean = sum(results) / float(repeat)
+                    return ProfileResult(mean=mean, results=results)
+                else:
+                    fmt = "@" + ("d" * repeat)
+                    results = struct.unpack(fmt, blob)
+                    mean = sum(results) / float(repeat)
+                    return ProfileResult(mean=mean, results=results)
 
             return evaluator
         except NameError:
