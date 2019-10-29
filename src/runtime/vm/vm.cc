@@ -843,23 +843,18 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     packed_funcs_[packed_index] = lib.GetFunction(packed_name);
   }
 
-  for (const auto& it : external_map) {
+  for (const auto& it : this->exec->external_map) {
     Index subgraph_id = it.first;
-    Index ext_lib_indx = it.second;
+    Index ext_lib_idx = it.second;
     if (external_funcs.size() <= static_cast<size_t>(subgraph_id)) {
       external_funcs.resize(subgraph_id + 1);
     }
-    CHECK_GT(external_func_map.count(subgraph_id), 0U);
-    external_funcs[subgraph_id] =
-        ext_libs[ext_lib_indx].GetFunction(external_func_map[subgraph_id]);
+    CHECK_GT(this->exec->external_func_map.count(subgraph_id), 0U);
+    const std::string& symb = exec->external_func_map.at(subgraph_id);
+    auto ext_mod = exec->ext_libs.at(ext_lib_idx);
+    CHECK(ext_mod.operator->()) << "external module is not defined." << "\n";
+    external_funcs[subgraph_id] = ext_mod.GetFunction(symb);
   }
-}
-
-// TODO(@zhiics) Invoke the external function/subgraph.
-void VirtualMachine::InvokeExternal(Index ext_index,
-                                    const relay::Function& func,
-                                    Index arg_count, Index output_size,
-                                    const std::vector<Object>& args) {
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
@@ -969,7 +964,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::InvokeExternal: {
         const auto& func = external_funcs[instr.ext_index];
         const auto& arity = instr.ext_arity;
-        std::vector<Object> args;
+        std::vector<ObjectRef> args;
         for (Index i = 0; i < arity; ++i) {
           args.push_back(ReadRegister(instr.ext_args[i]));
         }

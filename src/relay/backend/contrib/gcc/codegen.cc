@@ -260,9 +260,9 @@ class GccModuleNode : public ExternModuleNodeBase {
   }
 
   void Build(const NodeRef& ref) override {
-    if (ref->derived_from<FunctionNode>()) {
+    if (ref->IsInstance<FunctionNode>()) {
       CreateExternSignature(Downcast<Function>(ref), true);
-    } else if (ref->derived_from<relay::ModuleNode>()) {
+    } else if (ref->IsInstance<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
       bool update = true;
       for (const auto& it : mod->functions) {

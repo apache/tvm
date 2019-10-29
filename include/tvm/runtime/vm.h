@@ -611,9 +611,13 @@ class Executable : public ModuleNode {
     return "VMExecutable";
   }
 
-  /*! \brief The runtime module/library that contains both the host and also the device
-   * code when executing on non-CPU devices. */
+  /*!
+   * \brief The runtime module/library that contains both the host and also the device
+   * code when executing on non-CPU devices.
+   */
   runtime::Module lib;
+  /*! \brief The external module/library. */
+  std::vector<runtime::Module> ext_libs;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
   /*! \brief A map from globals (as strings) to their index in the function map. */
@@ -624,6 +628,13 @@ class Executable : public ModuleNode {
   std::unordered_map<std::string, Index> primitive_map;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
+  /*! \brief A mapping from the subgraph id to the external library index in the
+   * `ext_libs`.
+   */
+  std::unordered_map<Index, Index> external_map;
+  /*! \brief A mapping from the subgraph id to the external function name.
+   */
+  std::unordered_map<Index, std::string> external_func_map;
 
  private:
   /*!
@@ -737,9 +748,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
   /*! \brief The virtual machine's external function table. */
-  std::vector<relay::Function> external_funcs;
-  /*! \brief The external module/library. */
-  std::vector<runtime::Module> ext_libs;
+  std::vector<PackedFunc> external_funcs;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */
@@ -832,12 +841,6 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
-
-  std::unordered_map<Index, Index> external_map;
-
-  /*! \brief A mapping from the subgraph id to the external function name.
-   */
-  std::unordered_map<Index, std::string> external_func_map;
 
  private:
   /*!

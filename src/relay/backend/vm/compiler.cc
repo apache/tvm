@@ -1039,13 +1039,13 @@ void VMCompiler::ExternalFuncCodegen() {
     const auto *cg = runtime::Registry::Get("relay.ext." + it.first);
     CHECK(cg) << "relay.ext." << it.first << " is not registered";
     runtime::Module mod = (*cg)(it.second);
-    comp_map.emplace(it.first, vm_->ext_libs.size());
-    vm_->ext_libs.push_back(mod);
+    comp_map.emplace(it.first, exec_->ext_libs.size());
+    exec_->ext_libs.push_back(mod);
   }
 
   for (size_t i = 0; i < context_.external_funcs.size(); i++) {
-    vm_->external_func_map.emplace(i, std::get<0>(func_codgen[i]));
-    vm_->external_map.emplace(i, comp_map[std::get<1>(func_codgen[i])]);
+    exec_->external_func_map.emplace(i, std::get<0>(func_codgen[i]));
+    exec_->external_map.emplace(i, comp_map[std::get<1>(func_codgen[i])]);
   }
 }
 
