@@ -51,16 +51,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(pwd)"
 
 # Use nvidia-docker if the container is GPU.
-if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
-    DOCKER_BINARY="nvidia-docker"
-else
-    DOCKER_BINARY="docker"
-fi
-
 if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
     CUDA_ENV="-e CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
 else
     CUDA_ENV=""
+fi
+
+if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
+    if ! type "nvidia-docker" > /dev/null
+    then
+        DOCKER_BINARY="docker"
+        CUDA_ENV=" --gpus all "${CUDA_ENV}
+    else
+        DOCKER_BINARY="nvidia-docker"
+    fi
+else
+    DOCKER_BINARY="docker"
 fi
 
 # Print arguments.
