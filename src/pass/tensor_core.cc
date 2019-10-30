@@ -1070,7 +1070,17 @@ class TensorCoreIRMutator : public IRMutator {
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
 
-    auto shape = GetTileSize(simplify_name(call->name));
+    auto it = strides_.find(call->name);
+    CHECK(it != strides_.end());
+    CHECK(it->second.size() >= 2);
+    Array<Expr> shape;
+    for (size_t i = 0; i < it->second.size() - 2; ++i) {
+      shape.push_back(it->second[i]);
+    }
+    auto tile_size = GetTileSize(simplify_name(call->name));
+    shape.push_back(tile_size[0]);
+    shape.push_back(tile_size[1]);
+
     Array<Expr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
       strides.push_back(shape[i]);
@@ -1089,12 +1099,12 @@ class TensorCoreIRMutator : public IRMutator {
           strides[i], Sub::make(call->args[i], min_bound[i])));
     }
 
-    auto it = matrix_abc_.find(simplify_name(call->name));
-    CHECK(it != matrix_abc_.end())
+    auto it2 = matrix_abc_.find(simplify_name(call->name));
+    CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
     buffer_node->data = Variable::make(Handle(), call->name);
     buffer_node->name = call->name;
-    buffer_node->scope = "wmma." + it->second;
+    buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;
     buffer_node->strides = strides;
     buffer_node->shape = shape;
