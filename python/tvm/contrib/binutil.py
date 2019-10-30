@@ -22,6 +22,7 @@ from . import util
 from .._ffi.base import py_str
 from ..api import register_func
 
+
 @register_func("tvm_callback_get_section_size")
 def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     """Finds size of the section in the binary.
@@ -53,7 +54,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     size_output = size_output.decode("utf-8")
     if size_proc.returncode != 0:
         msg = "error in finding section size:\n"
-        msg += py_str(out)
+        msg += py_str(size_output)
         raise RuntimeError(msg)
 
     # TODO(weberlo): Refactor this method and `*relocate_binary` so they are
@@ -92,6 +93,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
         # isn't bulletproof.
         return section_size + 32
     return section_size
+
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
