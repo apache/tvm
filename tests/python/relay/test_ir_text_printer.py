@@ -231,10 +231,8 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
   Cons
 }
     """
-
     mod = relay.fromtext(SEMVER + type_def_str + main_def_str)
     mod_str = str(mod)
-
     # ensure constructors are printed correctly in type definitions (with their
     # signature) and as exprs (without their signature)
     assert type_def_str.strip() in mod_str

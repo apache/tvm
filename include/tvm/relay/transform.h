@@ -552,17 +552,20 @@ TVM_DLL Pass Legalize(const std::string& legalize_map_attr_name = "FTVMLegalize"
 TVM_DLL Pass CanonicalizeCast();
 
 /*!
- * \brief Add abstraction over a function
+ * \brief Add abstraction over a constructor or global variable bound to a function.
  *
  * For example: `square` is transformed to
- * `fun x -> square x`.
+ * `fn (%x: int32) -> int32 { square(x) }`.
  *
  * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
  * for more details.
  *
+ * \param expand_constructor Whether to expand constructors.
+ * \param expand_global_var Whether to expand global variables.
+ *
  * \return The pass.
  */
-TVM_DLL Pass EtaExpand();
+TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
 
 /*!
  * \brief Print the IR for a module to help debugging.

@@ -335,7 +335,8 @@ TVM_REGISTER_API("relay._module.Module_Add")
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
-    mod_copy = transform::EtaExpand()(mod_copy);
+    mod_copy = transform::EtaExpand(
+      /* expand_constructor */ false, /* expand_global_var */ true)(mod_copy);
     auto func = mod_copy->Lookup(gv->name_hint);
     mod->Add(var, Downcast<Function>(func), update);
   } else {
