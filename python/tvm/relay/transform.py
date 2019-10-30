@@ -1032,3 +1032,41 @@ class ChangeBatch:
                 else:
                     return var
         return ChangeBatchMutator().visit(func)
+
+def dispatch_global_func(mod, func_name, input_shape, dispatch_func):
+    """Dispatch a global function in module with symbolic input shape.
+
+    Parameters
+    ----------
+    mod: tvm.relay.Module
+        Module object contains global function.
+
+    func_name: str
+        Name of global function.
+
+    input_shape: dict from str to tuple of relay.Expr or int.
+        Input shapes dictionary from input name to tuple.
+
+    dispatch_func: Function
+        Function for dispatching logic.
+
+        The input argument is input shape dictionary. Return value
+        is a dict from input name to a dict from symbolic axis index to
+        list of intervals.
+
+        For example, for input shape {"data": (1, 3, h, w)}, the return
+        value should look like:
+        {
+            "data": {
+                2: [(1, 9), (9, 17), (17, 25), (25, 33), ...]
+                3: [(1, 17), (17, 33), (33, 49), ...]
+            }
+        {
+
+    Returns
+    -------
+    result: tvm.relay.Module
+        Module with updated global function.
+    """
+    return _transform.dispatch_global_func(mod, func_name, input_shape, dispatch_func)
+

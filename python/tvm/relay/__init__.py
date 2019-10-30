@@ -36,6 +36,7 @@ from . import parser
 from . import debug
 from . import param_dict
 from . import feature
+from . import utils
 from .backend import vm
 from .backend import profiler_vm
 from .backend import vmobj
