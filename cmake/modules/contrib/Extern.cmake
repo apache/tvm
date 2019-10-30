@@ -21,7 +21,12 @@ message(STATUS "Build with relay.backend.contrib")
 file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
 list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
 
+file(GLOB GCC_CONTRIB_SRC src/runtime/contrib/gcc/*.cc)
+list(APPEND RUNTIME_SRCS ${GCC_CONTRIB_SRC})
+
 # DNNL (for demo purpose)
 file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
 list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
 
+file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*.cc)
+list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})

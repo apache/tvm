@@ -1,4 +1,5 @@
-/* * Licensed to the Apache Software Foundation (ASF) under one
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -15,27 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <dlfcn.h>
-#include <stdlib.h>
-
-#include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
 
 #include <random>
+#include <fstream>
 #include <sstream>
-#include <unordered_map>
+#include <streambuf>
 
-#include "libs.h"
+#include "../contrib_codegen.h"
+#include "../../../../runtime/contrib/gcc/gcc.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
-
-typedef void (*GccSubgraphFunc)(GccPackedArgs in, float* out);
 
 // FIXME: This is an experimental implementation. We should implement all utilities
 // and make a base claaa such as ExternBuilder for users to implement.
@@ -118,7 +114,7 @@ class GccBuilder : public ExprVisitor {
     }
 
     // Write subgraph function declaration
-    code += "extern \\\"C\\\" void " + subgraph_id_ + "(GccPackedArgs args, float* out) {\n";
+    code += "extern  \"C\" void " + subgraph_id_ + "(GccPackedArgs args, float* out) {\n";
 
     // Unpack inputs
     for (size_t i = 0; i < subgraph_args_.size(); ++i) {
@@ -163,58 +159,10 @@ class GccBuilder : public ExprVisitor {
   }
 };
 
-class GccModuleNode : public ExternModuleNodeBase {
+class GccCodegen : public ExternCodegenBase {
  public:
-  const std::string GetPrefix() {
-    return "gcc_";
-  }
-
-  /*!
-   * \brief Get the source code of the external module.
-   *
-   * \param format The format of the source code.
-   *
-   * \return The source code of the external library module in the text form.
-   */
-  TVM_DLL std::string GetSource(const std::string& format = "") override {
-    return "";
-  }
-
-  const char* type_key() const override {
-    return "GccModule";
-  }
-
-  runtime::PackedFunc GetFunction(
-      const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    std::string curr_id = GetSubgraphID(name);
-
-    CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
-    // Generate an external packed function
-    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args,
-                                                    tvm::TVMRetValue* rv) {
-      const DLTensor* dptr = ((runtime::NDArray)args[0]).operator->();
-      runtime::NDArray out_arg = args[args.size() - 1];
-      auto out = reinterpret_cast<float*>(out_arg->data);
-
-      // Get function from the library
-      std::string encoded_name = GetPrefix() + curr_id;
-      auto func_s = reinterpret_cast<GccSubgraphFunc>(GetSymbol(encoded_name));
-
-      // Reinterpret data and function to the right type and invoke
-      if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-        GccPackedArgs packed_args;
-        packed_args.data = reinterpret_cast<float**>(malloc(sizeof(float*) * args.size()));
-        for (int i = 0; i < args.size() - 1; ++i) {
-          runtime::NDArray arg = args[i];
-          packed_args.data[i] = reinterpret_cast<float*>(arg->data);
-        }
-        (*func_s)(packed_args, out);
-      } else {
-        LOG(FATAL) << "Only support float32 type.";
-      }
-      *rv = out;
-    });
+  std::string GetLibPath() const {
+    return lib_path_;
   }
 
   void CreateExternSignature(const Function& func, bool update) {
@@ -233,30 +181,30 @@ class GccModuleNode : public ExternModuleNodeBase {
       std::uniform_int_distribution<uint64_t> distr;
       std::stringstream ss;
       ss << std::hex << distr(gen);
-      src_path_ = "/tmp/relay_gcc_lib_" + ss.str() + ".cc";
+      std::ifstream lib_file("src/relay/backend/contrib/gcc/libs.cc");
+      code_.assign((std::istreambuf_iterator<char>(lib_file)),
+                    std::istreambuf_iterator<char>());
       lib_path_ = "/tmp/relay_gcc_lib_" + ss.str() + ".so";
-      std::string cmd = "cp src/relay/backend/contrib/gcc/libs.cc " + src_path_;
-      CHECK_GE(std::system(cmd.c_str()), 0);
-      CHECK_GE(std::system("cp src/relay/backend/contrib/gcc/libs.h /tmp/"), 0);
     }
 
-    auto builder = GccBuilder(GetPrefix() + sid);
+    auto builder = GccBuilder(runtime::contrib::kGccPrefix + sid);
     builder.VisitExpr(func->body);
     std::string code = builder.build();
 
     // Append the signature.
-    auto cmd = "echo \"" + code + "\" >> " + src_path_;
-    CHECK_GE(std::system(cmd.c_str()), 0);
+    code_ = code_ + code;
   }
 
   void CompileExternLib() override {
-    std::string cmd =
-        "g++ -std=c++11 -shared -fPIC -ldl " + src_path_ + " -o " + lib_path_;
+    // Compile from pipe and generate the library.
+    std::string code = "echo \'" + code_ + "\'";
+    std::string cmd = "g++ -std=c++11 -shared -fPIC -ldl -o " + lib_path_ + " -xc++ -";
+    cmd = code + " | " + cmd;
+
     int ret = std::system(cmd.c_str());
     if (ret != 0) {
       LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
     }
-    Open({lib_path_});
   }
 
   void Build(const NodeRef& ref) override {
@@ -277,22 +225,23 @@ class GccModuleNode : public ExternModuleNodeBase {
   }
 
  private:
-  std::string src_path_;
+  std::string code_;
   std::string lib_path_;
 };
-
 
 /*!
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  *
  * The external codegen tool should have been registered similiarly to LLVM,
- * CUDA, etc, under TVM so the generated code could be packed in a runtime
+ * CUDA, etc, under TVM, so the generated code could be packed in a runtime
  * module. This module simplifies code serialization and invocation.
  */
 runtime::Module GccCompiler(const NodeRef& ref) {
-  std::shared_ptr<GccModuleNode> n = std::make_shared<GccModuleNode>();
-  n->Build(ref);
+  GccCodegen gcc;
+  gcc.Build(ref);
+  std::shared_ptr<runtime::contrib::GccModule> n =
+    std::make_shared<runtime::contrib::GccModule>(gcc.GetLibPath());
   return runtime::Module(n);
 }
 

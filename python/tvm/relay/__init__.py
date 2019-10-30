@@ -29,7 +29,7 @@ from . import module
 from . import adt
 from . import analysis
 from . import transform
-from .build_module import build, create_executor, optimize
+from .build_module import build, create_executor, optimize, build_extern
 from .transform import build_config
 from . import prelude
 from . import parser

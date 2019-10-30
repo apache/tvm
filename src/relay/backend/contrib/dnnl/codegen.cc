@@ -1,4 +1,5 @@
-/* * Licensed to the Apache Software Foundation (ASF) under one
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -15,34 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <stdlib.h>
-#include <dlpack/dlpack.h>
+
+/*!
+ * \file src/relay/backend/contrib/dnnl/codegen.cc
+ * \brief Implementation of DNNL codegen APIs.
+ */
+
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/util.h>
 
 #include <random>
+#include <fstream>
 #include <sstream>
-#include <unordered_map>
+#include <streambuf>
 
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
-
-#include "libs.h"
+#include "../../../../runtime/contrib/dnnl/dnnl.h"
+#include "../contrib_codegen.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
-
-typedef void (*DnnlSubgraphFunc)(DnnlPackedArgs in, float* out);
 
 // FIXME: This is an experimental implementation. We should implement all utilities
 // and make a base class such as ExternBuilder for users to implement.
@@ -184,7 +180,7 @@ class DnnlBuilder : public ExprVisitor {
     }
 
     // Write subgraph function declaration
-    code += "extern \\\"C\\\" void " + subgraph_id_ + "(DnnlPackedArgs args, float* out) {\n";
+    code += "extern \"C\" void " + subgraph_id_ + "(DnnlPackedArgs args, float* out) {\n";
 
     // Unpack inputs
     for (size_t i = 0; i < subgraph_args_.size(); ++i) {
@@ -237,65 +233,10 @@ class DnnlBuilder : public ExprVisitor {
   }
 };
 
-class DNNLModuleNode : public ExternModuleNodeBase {
+class DNNLCodegen : public ExternCodegenBase {
  public:
-  const std::string GetPrefix() {
-    return "dnnl_";
-  }
-
-  /*!
-   * \brief Get the source code of the external module.
-   *
-   * \param format The format of the source code.
-   *
-   * \return The source code of the external library module in the text form.
-   */
-  TVM_DLL std::string GetSource(const std::string& format = "") override {
-    return "";
-  }
-
-  const char* type_key() const override { return "DNNLModule"; }
-
-  /*!
-   * \brief Get a PackedFunc from module, which is a function ptr can be invoked
-   * for execution given some parameters.
-   *
-   * \param name the name of the external function.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   *
-   * \return PackedFunc(nullptr) when it is not available.
-   */
-  runtime::PackedFunc GetFunction(
-      const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) override {
-    std::string curr_id = GetSubgraphID(name);
-
-    CHECK(IsOpen()) << "The external module has not been built or failed to open.\n";
-
-    return PackedFunc([sptr_to_self, curr_id, this](tvm::TVMArgs args,
-                                                    tvm::TVMRetValue* rv) {
-      const DLTensor* dptr = ((runtime::NDArray)args[0]).operator->();
-      runtime::NDArray out_arg = args[args.size() - 1];
-      auto out = reinterpret_cast<float*>(out_arg->data);
-
-      // Get function from the library
-      std::string encoded_name = GetPrefix() + curr_id;
-      auto func_s = reinterpret_cast<DnnlSubgraphFunc>(GetSymbol(encoded_name));
-
-      // Reinterpret data and function to the right type and invoke
-      if (runtime::TypeMatch(dptr->dtype, kDLFloat, 32)) {
-        DnnlPackedArgs packed_args;
-        packed_args.data = reinterpret_cast<void**>(malloc(sizeof(float*) * args.size()));
-        for (int i = 0; i < args.size() - 1; ++i) {
-          runtime::NDArray arg = args[i];
-          packed_args.data[i] = reinterpret_cast<float*>(arg->data);
-        }
-        (*func_s)(packed_args, out);
-      } else {
-        LOG(FATAL) << "Only support float32 type.";
-      }
-      *rv = out;
-    });
+  std::string GetLibPath() const {
+    return lib_path_;
   }
 
   void CreateExternSignature(const Function& func, bool update) {
@@ -313,29 +254,27 @@ class DNNLModuleNode : public ExternModuleNodeBase {
       std::uniform_int_distribution<uint64_t> distr;
       std::stringstream ss;
       ss << std::hex << distr(gen);
-      src_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".cc";
+      std::ifstream lib_file("src/relay/backend/contrib/dnnl/libs.cc");
+      code_.assign((std::istreambuf_iterator<char>(lib_file)),
+                    std::istreambuf_iterator<char>());
       lib_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".so";
-      std::string cmd = "cp src/relay/backend/contrib/dnnl/libs.cc " + src_path_;
-      CHECK_GE(std::system(cmd.c_str()), 0);
-      CHECK_GE(std::system("cp src/relay/backend/contrib/dnnl/libs.h /tmp/"), 0);
     }
 
-    auto builder = DnnlBuilder(GetPrefix() + sid);
+    auto builder = DnnlBuilder(runtime::contrib::kDnnlPrefix + sid);
     builder.VisitExpr(func->body);
     std::string code = builder.build();
-
-    std::string cmd = "echo \"" + code + "\" >> " + src_path_;
-    CHECK_GE(std::system(cmd.c_str()), 0);
+    code_ = code_ + code;
   }
 
   void CompileExternLib() override {
-    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC " + src_path_ +
-                      " -o " + lib_path_ + " -ldl -lpthread -lm -ldnnl";
+    std::string code = "echo \'" + code_ + "\'";
+    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC -xc++ - -o " + lib_path_ +
+                      " -ldl -lpthread -lm -ldnnl";
+    cmd = code + " | " + cmd;
     int ret = std::system(cmd.c_str());
     if (ret < 0) {
       LOG(FATAL) << "Failed to compile DNNL library. Error code: " << ret;
     }
-    Open({lib_path_});
   }
 
   void Build(const NodeRef& ref) override {
@@ -357,7 +296,7 @@ class DNNLModuleNode : public ExternModuleNodeBase {
   }
 
  private:
-  std::string src_path_;
+  std::string code_;
   std::string lib_path_;
 };
 
@@ -366,12 +305,15 @@ class DNNLModuleNode : public ExternModuleNodeBase {
  * compile it into a runtime module.
  */
 runtime::Module DNNLCompiler(const NodeRef& ref) {
-  std::shared_ptr<DNNLModuleNode> n = std::make_shared<DNNLModuleNode>();
-  n->Build(ref);
+  DNNLCodegen dnnl;
+  dnnl.Build(ref);
+  std::shared_ptr<runtime::contrib::DNNLModule> n =
+      std::make_shared<runtime::contrib::DNNLModule>(dnnl.GetLibPath());
   return runtime::Module(n);
 }
 
-TVM_REGISTER_API("relay.ext.dnnl").set_body_typed(DNNLCompiler);
+TVM_REGISTER_API("relay.ext.dnnl")
+.set_body_typed(DNNLCompiler);
 
 }  // namespace contrib
 }  // namespace relay

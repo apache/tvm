@@ -1,4 +1,5 @@
-/* * Licensed to the Apache Software Foundation (ASF) under one
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -16,8 +17,6 @@
  * under the License.
  */
 
-#include "libs.h"
-
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -31,6 +30,10 @@
 #include "dnnl.hpp"
 
 using namespace dnnl;
+
+typedef struct {
+  void** data;
+} DnnlPackedArgs;
 
 // Read from memory, write to handle
 inline void read_from_dnnl_memory(void* handle, const memory& mem) {

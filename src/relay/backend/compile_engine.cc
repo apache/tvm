@@ -21,6 +21,8 @@
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
+#include "compile_engine.h"
+
 #include <tvm/schedule.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
@@ -28,7 +30,6 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/contrib_codegen.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/tags.h>
@@ -38,8 +39,9 @@
 #include <functional>
 #include <vector>
 #include <unordered_map>
+
+#include "contrib/contrib_codegen.h"
 #include "../ir/type_functor.h"
-#include "compile_engine.h"
 
 namespace tvm {
 namespace relay {
@@ -601,6 +603,7 @@ class CompileEngineImpl : public CompileEngineNode {
       auto name = FunctionGetAttr(key->source_func, "func_name");
       const tvm::ir::StringImm* func_name = name.as<tvm::ir::StringImm>();
       CHECK(func_name);
+      value->lib.GetFunction("init")();
       value->packed_func = value->lib.GetFunction(func_name->value);
     } else if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
       // build the function.

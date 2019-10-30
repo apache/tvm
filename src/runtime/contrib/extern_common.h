@@ -1,4 +1,5 @@
-/* * Licensed to the Apache Software Foundation (ASF) under one
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -15,14 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RELAY_CONTRIB_CODEGEN_H_
-#define TVM_RELAY_CONTRIB_CODEGEN_H_
+
+/*!
+ * \file src/runtime/contrib/extern_common.h
+ * \brief The definition of the base class for the external runtime.
+ */
+
+#ifndef TVM_RUNTIME_CONTRIB_EXTERN_COMMON_H_
+#define TVM_RUNTIME_CONTRIB_EXTERN_COMMON_H_
 
 #include <stdlib.h>
 #include <dlpack/dlpack.h>
-#include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/util.h>
@@ -37,28 +41,42 @@
 #endif
 
 namespace tvm {
-namespace relay {
+namespace runtime {
 namespace contrib {
 
-class ExternModuleNodeBase : public runtime:: ModuleNode {
+/*!
+ * \brief Split the encoded function name to tokens.
+ *
+ * \param the function name string.
+ *
+ * \return a vector of tokenized function name splitted by "_".
+ */
+static inline std::string GetSubgraphID(const std::string& name) {
+  std::string temp = name;
+  std::vector<std::string> tokens;
+  std::string delimiter = "_";
+  size_t pos = 0;
+  std::string token;
+  while ((pos = temp.find(delimiter)) != std::string::npos) {
+    token = temp.substr(0, pos);
+    tokens.push_back(token);
+    temp.erase(0, pos + delimiter.length());
+  }
+  tokens.push_back(temp);
+
+  CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
+  CHECK(tokens[0] == "subgraph")
+      << "Function name does not start with \"subgraph\": " << name;
+  return tokens[1];
+}
+
+class ExternModuleBase : public runtime:: ModuleNode {
  public:
-  ExternModuleNodeBase() = default;
-  ~ExternModuleNodeBase() {
+  ExternModuleBase() = default;
+
+  ~ExternModuleBase() {
     Close();
   }
-
-  /*!
-   * \brief Compile the external library.
-   */
-  virtual void CompileExternLib() = 0;
-
-  /*!
-   * \brief Build the shared library of external ops.
-   *
-   * \param ref The subgraph Relay expression/module to be executed using extern ops.
-   *
-   */
-  virtual void Build(const NodeRef& ref) = 0;
 
   /*!
    * \brief Get a PackedFunc from module, which is a function ptr can be invoked
@@ -73,53 +91,8 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) override = 0;
 
-  /*!
-   * \brief Get the source code of the external module.
-   *
-   * \param format The format of the source code.
-   *
-   * \return The source code of the external library module in the text form.
-   */
-  TVM_DLL std::string GetSource(const std::string& format = "") override {
-    return "";
-  }
-
   const char* type_key() const override {
-    return "ExternModule";
-  }
-
-  /*!
-   * \brief Split the encoded function name to tokens.
-   *
-   * \param the function name string.
-   *
-   * \return a vector of tokenized function name splitted by "_".
-   */
-  std::string GetSubgraphID(const Function& func) const {
-    const auto name_node =
-        FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
-    CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
-    std::string name = name_node->value;
-    return GetSubgraphID(name);
-  }
-
-  std::string GetSubgraphID(const std::string& name) const {
-    std::string temp = name;
-    std::vector<std::string> tokens;
-    std::string delimiter = "_";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = temp.find(delimiter)) != std::string::npos) {
-      token = temp.substr(0, pos);
-      tokens.push_back(token);
-      temp.erase(0, pos + delimiter.length());
-    }
-    tokens.push_back(temp);
-
-    CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
-    CHECK(tokens[0] == "subgraph")
-        << "Function name does not start with \"subgraph\": " << name;
-    return tokens[1];
+    return "ExternModuleBase";
   }
 
  protected:
@@ -195,9 +168,12 @@ class ExternModuleNodeBase : public runtime:: ModuleNode {
     }
   }
 #endif
+
+  // Initialize an external runtime module.
+  virtual void Init() = 0;
 };
 
 }  // namespace contrib
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RELAY_CONTRIB_CODEGEN_H_
+#endif  // TVM_RUNTIME_CONTRIB_EXTERN_COMMON_H_

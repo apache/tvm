@@ -1,4 +1,5 @@
-/* * Licensed to the Apache Software Foundation (ASF) under one
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -16,11 +17,13 @@
  * under the License.
  */
 
-#include "libs.h"
-
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+
+typedef struct {
+  float** data;
+} GccPackedArgs;
 
 #define GCC_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)           \
   extern "C" void p_ID_(float* a, float* b, float* out) { \

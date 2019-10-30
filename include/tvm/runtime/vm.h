@@ -301,7 +301,7 @@ struct Instruction {
    */
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
                                   const std::vector<RegName>& args);
-  /*!
+  /*! 
    * \brief Construct an allocate tensor instruction with constant shape.
    * \param storage The storage to allocate out of.
    * \param shape The shape of the tensor.

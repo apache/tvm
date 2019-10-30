@@ -853,6 +853,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     const std::string& symb = exec->external_func_map.at(subgraph_id);
     auto ext_mod = exec->ext_libs.at(ext_lib_idx);
     CHECK(ext_mod.operator->()) << "external module is not defined." << "\n";
+    ext_mod.GetFunction("init")();
     external_funcs[subgraph_id] = ext_mod.GetFunction(symb);
   }
 }

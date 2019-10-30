@@ -193,8 +193,7 @@ def test_extern_gcc_single_op():
     y_data = np.random.rand(8, 8).astype('float32')
     mod = relay.Module()
     mod["main"] = f
-    mod = relay.transform.ExternOp("gcc")(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.build_extern(mod, "gcc")
 
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
@@ -212,8 +211,7 @@ def test_extern_gcc():
     y_data = np.random.rand(2, 2).astype('float32')
     mod = relay.Module()
     mod["main"] = f
-    mod = relay.transform.ExternOp("gcc")(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.build_extern(mod, "gcc")
 
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
@@ -221,7 +219,6 @@ def test_extern_gcc():
         tvm.testing.assert_allclose(res.asnumpy(),
                                     (y_data * y_data) - (x_data + x_data))
 
-@nottest
 def test_extern_dnnl():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
@@ -268,9 +265,7 @@ def test_extern_dnnl_mobilenet():
     ishape = (1, 3, 224, 224)
     mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
 
-    #mod['main'] = MobileNetAnnotator('dnnl').visit(mod['main'])
-    mod = relay.transform.ExternOp('dnnl')(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.build_extern(mod, "dnnl")
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
