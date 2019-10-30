@@ -96,8 +96,8 @@ TVM_REGISTER_API("ir_pass.StorageFlatten")
 
 TVM_REGISTER_API("ir_pass.TensorCore")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args.size() == 5) {
-      *ret = TensorCore(args[0], args[1], args[2], args[3], args[4]);
+    if (args.size() == 3) {
+      *ret = TensorCore(args[0], args[1], args[2]);
     }
   });
 

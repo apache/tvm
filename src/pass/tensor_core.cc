@@ -1156,10 +1156,34 @@ class TensorCoreIRMutator : public IRMutator {
   double cuda_version_;
 };
 
-Stmt TensorCore(Stmt stmt, Schedule schedule,
-                double cuda_compute_capability,
-                double cuda_version,
+Stmt TensorCore(Stmt stmt,
+                Schedule schedule,
                 Map<Tensor, Buffer> extern_buffer) {
+  TVMContext ctx{kDLGPU, 0};
+  auto api = tvm::runtime::DeviceAPI::Get(ctx, true);
+  if (api == nullptr) {
+    return stmt;
+  }
+
+  tvm::runtime::TVMRetValue ret;
+  api->GetAttr(ctx, tvm::runtime::kComputeVersion, &ret);
+  std::string ret_str = ret;
+  double cuda_compute_capability = std::stod(ret_str);
+  if (cuda_compute_capability < 7.0) {
+    return stmt;
+  }
+
+  TVMFunctionHandle handle;
+  TVMFuncGetGlobal("tvm_find_cuda_path", &handle);
+  auto res = (*(tvm::runtime::PackedFunc*)(handle))();
+  TVMFuncGetGlobal("tvm_get_cuda_version", &handle);
+  res = (*(tvm::runtime::PackedFunc*)(handle))(res);
+  double cuda_version = res;
+
+  if (cuda_version < 9.0) {
+    return stmt;
+  }
+
   MMAMatcher mma_matcher(extern_buffer,
                          cuda_compute_capability, cuda_version);
   mma_matcher.Visit(stmt);

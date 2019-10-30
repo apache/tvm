@@ -218,8 +218,6 @@ Stmt StorageFlatten(Stmt stmt,
  */
 Stmt TensorCore(Stmt stmt,
                 Schedule schedule,
-                double cuda_compute_capability,
-                double cuda_version,
                 Map<Tensor, Buffer> extern_buffer);
 
 /*!

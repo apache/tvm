@@ -387,17 +387,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, compact, binds)
 
     # Phase 1
-    try:
-        # device_type 2 for GPU
-        # choose device 0
-        # attr type 4 for CUDA Compute Capability
-        cuda_compute_capability = _api_internal._GetDeviceAttr(2, 0, 4)
-        from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
-        cuda_version = float(get_cuda_version(find_cuda_path()))
-    except:
-        cuda_compute_capability = None
-    if cuda_compute_capability and float(cuda_compute_capability) >= 7.0 and cuda_version >= 9.0:
-        stmt = ir_pass.TensorCore(stmt, sch, float(cuda_compute_capability), float(cuda_version), binds)
+    stmt = ir_pass.TensorCore(stmt, sch, binds)
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
