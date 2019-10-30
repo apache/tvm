@@ -68,6 +68,10 @@ bool ModuleNode::ContainGlobalVar(const std::string& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
 }
 
+bool ModuleNode::ContainGlobalTypeVar(const std::string& name) const {
+  return global_type_var_map_.find(name) != global_type_var_map_.end();
+}
+
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
   auto it = global_var_map_.find(name);
   CHECK(it != global_var_map_.end())
@@ -237,11 +241,6 @@ TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
 TypeData ModuleNode::LookupDef(const std::string& name) const {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
   return this->LookupDef(id);
-}
-
-bool ModuleNode::HasDef(const std::string& name) const {
-  auto it = global_type_var_map_.find(name);
-  return it != global_type_var_map_.end();
 }
 
 Constructor ModuleNode::LookupTag(const int32_t tag) {
