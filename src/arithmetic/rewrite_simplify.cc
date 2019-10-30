@@ -1610,7 +1610,7 @@ Mutate_(const And* op, const Expr& self) {
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
   TVM_TRY_REWRITE(x <= y && y < x, cfalse);
-  TVM_TRY_REWRITE(y < x && y <= x, cfalse);
+  TVM_TRY_REWRITE(y < x && x <= y, cfalse);
 
   TVM_TRY_REWRITE_IF(x < c1 && c2 < x, cfalse,
                      c2.Eval()->value + 1 >= c1.Eval()->value);
