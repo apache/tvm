@@ -61,7 +61,7 @@ tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
-tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
+tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" ON)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})

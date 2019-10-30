@@ -182,6 +182,8 @@ Python dependencies
    .. code:: bash
 
        pip3 install --user numpy decorator attrs
+       # To parse Relay text format progams
+       pip3 install --user mypy orderedset antlr4-python3-runtime
 
    * If you want to use RPC Tracker
 
@@ -194,12 +196,6 @@ Python dependencies
    .. code:: bash
 
        pip3 install --user tornado psutil xgboost
-
-   * If you want to parse Relay text format progams, you must use Python 3 and run the following
-
-   .. code:: bash
-
-       pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
 Install Contrib Libraries
