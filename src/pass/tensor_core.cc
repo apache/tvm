@@ -804,17 +804,18 @@ class TensorCoreIRMutator : public IRMutator {
         return stmt;
       }
 
-      // TODO(chenfan): new_extent should be same as the fragment shape
-      Expr new_extent = make_const(Int(32), 16);
+      auto new_extents = GetTileSize(simplify_name(key.GetName()));
+
       Region new_bounds;
       for (size_t i = 0; i < op->bounds.size() - 2; ++i) {
         new_bounds.push_back(op->bounds[i]);
       }
-      for (size_t i = op->bounds.size() - 2; i < op->bounds.size(); ++i) {
-        auto min = op->bounds[i]->min;
-        new_bounds.push_back(
-            Range::make_by_min_extent(min, new_extent));
-      }
+      CHECK(op->bounds.size() >= 2)
+          << "Less than 2 dimensions for matrix " << key.GetName();
+      new_bounds.push_back(
+          Range::make_by_min_extent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
+      new_bounds.push_back(
+          Range::make_by_min_extent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
       return Realize::make(op->func, op->value_index,
                            op->type, new_bounds,
@@ -880,17 +881,17 @@ class TensorCoreIRMutator : public IRMutator {
 
       auto call_add_c =
         [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer &buffer) {
-          return add_buffer_bind_scope(cc, buffer_node_c,
+          return AddBufferBindScope(cc, buffer_node_c,
             TensorKey{cc->func, cc->value_index}, mma_sync_call, Float(32));
         };
 
       auto call_add_b =
         [this, &cb, &buffer_node_b, &call_add_c](const Buffer &buffer) {
-          return add_buffer_bind_scope(cb, buffer_node_b,
+          return AddBufferBindScope(cb, buffer_node_b,
             TensorKey{cb->func, cb->value_index}, call_add_c, Float(16));
         };
 
-      return add_buffer_bind_scope(ca, buffer_node_a,
+      return AddBufferBindScope(ca, buffer_node_a,
         TensorKey{ca->func, ca->value_index}, call_add_b, Float(16));
     }
 
@@ -915,7 +916,7 @@ class TensorCoreIRMutator : public IRMutator {
           };
 
         NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-        return add_buffer_bind_scope(call, buffer_node,
+        return AddBufferBindScope(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
                                       fill_fragment_call, Float(32));
       }
@@ -965,7 +966,7 @@ class TensorCoreIRMutator : public IRMutator {
       };
 
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-      return add_buffer_bind_scope(call, buffer_node,
+      return AddBufferBindScope(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
                                     load_matrix_call, Float(16));
     }
@@ -1004,7 +1005,7 @@ class TensorCoreIRMutator : public IRMutator {
         };
 
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-      return add_buffer_bind_scope(call, buffer_node,
+      return AddBufferBindScope(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
                                     store_matrix_call, Float(32));
     }
@@ -1033,17 +1034,48 @@ class TensorCoreIRMutator : public IRMutator {
   }
 
  private:
-  Stmt add_buffer_bind_scope(const Call* call,
+  Array<Expr> GetTileSize(std::string name) { 
+      auto it = matrix_abc_.find(name);
+      auto it2 = matrix_major_.find(name);
+      CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
+          << "Cannot find matrix info for " << name;
+      Expr size0 = make_const(Int(32), 16);
+      Expr size1 = make_const(Int(32), 16);
+      if (it->second == "matrix_a" && it2->second == "col_major") {
+        size0 = make_const(Int(32), warp_tile_.k);
+        size1 = make_const(Int(32), warp_tile_.m);
+      }
+      if (it->second == "matrix_a" && it2->second == "row_major") {
+        size0 = make_const(Int(32), warp_tile_.m);
+        size1 = make_const(Int(32), warp_tile_.k);
+      }
+      if (it->second == "matrix_b" && it2->second == "row_major") {
+        size0 = make_const(Int(32), warp_tile_.k);
+        size1 = make_const(Int(32), warp_tile_.n);
+      }
+      if (it->second == "matrix_b" && it2->second == "col_major") {
+        size0 = make_const(Int(32), warp_tile_.n);
+        size1 = make_const(Int(32), warp_tile_.k);
+      }
+      if (it->second == "matrix_c") {
+        size0 = make_const(Int(32), warp_tile_.n);
+        size1 = make_const(Int(32), warp_tile_.m);
+      }
+      Array<Expr> tile_size = {size0, size1};
+      return tile_size;
+  }
+
+  Stmt AddBufferBindScope(const Call* call,
       const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
-    auto it = matrix_abc_.find(simplify_name(call->name));
-    CHECK(it != matrix_abc_.end())
-          << "Cannot find matrix info for " << call->name;
 
-    // TODO(chenfan): This should be same as the fragment shape
-    auto shape = Array<Expr>{16, 16};
-    auto strides = Array<Expr>{16, 1};
+    auto shape = GetTileSize(simplify_name(call->name));
+    Array<Expr> strides;
+    for (size_t i = 1; i < shape.size(); ++i) {
+      strides.push_back(shape[i]);
+    }
+    strides.push_back(make_const(Int(32), 1));
 
     auto bound_it = min_bounds_.find(key);
     CHECK(bound_it != min_bounds_.end());
@@ -1057,12 +1089,15 @@ class TensorCoreIRMutator : public IRMutator {
           strides[i], Sub::make(call->args[i], min_bound[i])));
     }
 
+    auto it = matrix_abc_.find(simplify_name(call->name));
+    CHECK(it != matrix_abc_.end())
+          << "Cannot find matrix info for " << call->name;
     buffer_node->data = Variable::make(Handle(), call->name);
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it->second;
     buffer_node->dtype = datatype;
     buffer_node->strides = strides;
-    buffer_node->shape = Array<Expr>{16, 16};
+    buffer_node->shape = shape;
     buffer_node->data_alignment = 1;
     buffer_node->elem_offset = Simplify(elem_offset);
     buffer_node->offset_factor = 1;
