@@ -310,11 +310,12 @@ class ScheduleAnalyser {
       for (auto iter : body_visitor.args_) {
         auto name = iter.first;
         auto args = iter.second;
-        if (args.size() != 2) {
+        // batch matmul's args could be greater than 2
+        if (args.size() < 2) {
           continue;
         }
-        const Variable* var0 = args[0].as<Variable>();
-        const Variable* var1 = args[1].as<Variable>();
+        const Variable* var0 = args[args.size() - 2].as<Variable>();
+        const Variable* var1 = args[args.size() - 1].as<Variable>();
         if (var0 == nullptr || var1 == nullptr) {
           continue;
         }
@@ -1034,7 +1035,7 @@ class TensorCoreIRMutator : public IRMutator {
   }
 
  private:
-  Array<Expr> GetTileSize(std::string name) { 
+  Array<Expr> GetTileSize(std::string name) {
       auto it = matrix_abc_.find(name);
       auto it2 = matrix_major_.find(name);
       CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
@@ -1083,7 +1084,11 @@ class TensorCoreIRMutator : public IRMutator {
 
     Array<Expr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      strides.push_back(shape[i]);
+      Expr stride = IntImm::make(Int(32), 1);
+      for (size_t j = shape.size() - 1; j >= i; --j) {
+        stride = Mul::make(stride, shape[j]);
+      }
+      strides.push_back(stride);
     }
     strides.push_back(make_const(Int(32), 1));
 
