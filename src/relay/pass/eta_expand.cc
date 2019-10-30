@@ -23,10 +23,10 @@
  * \brief Add abstraction over a constructor or global variable bound to a function.
  *
  */
+#include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr_functor.h>
 #include "../ir/type_functor.h"
-#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
