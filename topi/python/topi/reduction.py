@@ -90,6 +90,31 @@ def all(data, axis=None, keepdims=False):
     return cpp.all(data, axis, keepdims)
 
 
+def any(data, axis=None, keepdims=False):
+    """Logical OR of array elements over a given axis or a list of axes
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        The input tvm boolean tensor
+
+    axis : None or int or tuple of int
+        Axis or axes along which a logical OR is performed.
+        The default, axis=None, will perform logical OR over all elements of the input array.
+        If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.any(data, axis, keepdims)
+
+
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 

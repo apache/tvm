@@ -1601,6 +1601,53 @@ def test_where():
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
 
+def verify_or(indata, dtype):
+    x = indata[0].astype(dtype)
+    y = indata[1].astype(dtype)
+    outdata = np.logical_or(x, y)
+
+    node = helper.make_node('Or', inputs=['in1', 'in2'], outputs=['out'], )
+
+    graph = helper.make_graph([node],
+                              'or_test',
+                              inputs=[helper.make_tensor_value_info("in1", TensorProto.BOOL, list(x.shape)),
+                                      helper.make_tensor_value_info("in2", TensorProto.BOOL, list(y.shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='or_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [x, y], target, ctx, outdata.shape)
+        tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_or():
+    # 2d
+    x = (np.random.randn(3, 4) > 0)
+    y = (np.random.randn(3, 4) > 0)
+    verify_or(indata=[x, y], dtype=bool)
+
+    # 3d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(3, 4, 5) > 0)
+    verify_or(indata=[x, y], dtype=bool)
+
+    # 4d
+    x = (np.random.randn(3, 4, 5, 6) > 0)
+    y = (np.random.randn(3, 4, 5, 6) > 0)
+    verify_or(indata=[x, y], dtype=bool)
+
+    # 3d vs 1d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(5) > 0)
+    verify_or(indata=[x, y], dtype=bool)
+
+    # 3d vs 2d
+    x = (np.random.randn(3, 4, 5) > 0)
+    y = (np.random.randn(4, 5) > 0)
+    verify_or(indata=[x, y], dtype=bool)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1651,3 +1698,4 @@ if __name__ == '__main__':
     test_tile()
     test_erf()
     test_where()
+    test_or()
