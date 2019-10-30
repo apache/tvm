@@ -65,17 +65,11 @@ def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
     if cfg.is_fallback:
         _default_batch_matmul_nopack_config(cfg, B, M, N, K)
 
-    vec = cfg["tile_k"].size[-1]
-    k = tvm.reduce_axis((0, K // vec), name='k')
-    CC = tvm.compute(
-        (B, M, N, vec),
-        lambda b, z, y, x: tvm.sum(in_A[b, z, k * vec + x] * in_B[b, y, k * vec + x],
-                                   axis=k),
+    k = tvm.reduce_axis((0, K), name='k')
+    C = tvm.compute(
+        (B, M, N),
+        lambda b, i, j: tvm.sum(in_A[b, i, k] * in_B[b, j, k], axis=k),
         tag='batch_matmul')
-    kk = tvm.reduce_axis((0, vec), "kk")
-    C = tvm.compute((B, M, N),
-                    lambda b, y, x: tvm.sum(CC[b, y, x, kk], axis=kk),
-                    tag="batch_matmul_nopack")
     return C
 
 
@@ -104,60 +98,33 @@ def schedule_batch_matmul(cfg, outs):
     def _callback(op):
         if "batch_matmul" in op.tag:
             C = op.output(0)
+            A, B = s[C].op.input_tensors
+            _, M, N = get_const_tuple(C.shape)
+            k, = s[C].op.reduce_axis
+            ko, ki = cfg["tile_k"].apply(s, C, k)
+            CC = s.rfactor(C, ki)
+
             b, y, x = s[C].op.axis
-            kk, = s[C].op.reduce_axis
             yo, yi = cfg["tile_y"].apply(s, C, y)
             xo, xi = cfg["tile_x"].apply(s, C, x)
             s[C].reorder(b, yo, xo, yi, xi)
-            xyo = s[C].fuse(yo, xo)
-            s[C].parallel(xyo)
-            s[C].unroll(kk)
+            bxyo = s[C].fuse(b, yo, xo)
+            s[C].parallel(bxyo)
+            s[C].fuse(yi, xi)
 
-            CC, = s[C].op.input_tensors
-            s[CC].compute_at(s[C], xyo)
-            b, z, y, x = s[CC].op.axis
-            k, = s[CC].op.reduce_axis
-            yz = s[CC].fuse(z, y)
-            s[CC].reorder(b, k, yz, x)
-            s[CC].unroll(yz)
-            s[CC].vectorize(x)
-            return s
-
-            #
-            #C = op.output(0)
-            #A, B = s[C].op.input_tensors
-            #_, M, N = get_const_tuple(C.shape)
-            #k, = s[C].op.reduce_axis
-            #ko, ki = s[C].split(k, 16)
-            #CC = s.rfactor(C, ki)
-
-            #b, y, x = s[C].op.axis
-            #y_bn = get_max_power2_factor(M, 8)
-            #x_bn = get_max_power2_factor(N, 8)
-            #yo, yi = s[C].split(y, y_bn)
-            #xo, xi = s[C].split(x, x_bn)
-            #s[C].reorder(b, yo, xo, yi, xi)
-            #bxyo = s[C].fuse(b, yo, xo)
-            #s[C].parallel(bxyo)
-            #s[C].fuse(yi, xi)
-
-            #s[CC].compute_at(s[C], bxyo)
-            #_, _, y, x = s[CC].op.axis
-            #s[CC].fuse(y, x)
-            #s[CC].vectorize(s[CC].op.axis[0])
-            #s[C].pragma(bxyo, 'auto_unroll_max_step', 16)
+            s[CC].compute_at(s[C], bxyo)
+            _, _, y, x = s[CC].op.axis
+            s[CC].fuse(y, x)
+            s[CC].vectorize(s[CC].op.axis[0])
+            s[C].pragma(bxyo, 'auto_unroll_max_step', 16)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
 def _default_batch_matmul_nopack_config(cfg, B, M, N, K):
-    vec_width = get_fp32_len()
-    tilek_bn = 1
-    for bn in range(vec_width*2, 0, -1):
-        if K % bn == 0:
-            tilek_bn = bn
-            break
-    cfg["tile_k"] = SplitEntity([K // tilek_bn, tilek_bn])
-    cfg["tile_x"] = SplitEntity([N, 1])
-    cfg["tile_y"] = SplitEntity([1, M])
+    cfg["tile_k"] = SplitEntity([K // 16, 16])
+    x_bn = get_max_power2_factor(N, 8)
+    cfg["tile_x"] = SplitEntity([N // x_bn, x_bn])
+    y_bn = get_max_power2_factor(M, 8)
+    cfg["tile_y"] = SplitEntity([M // y_bn, y_bn])
