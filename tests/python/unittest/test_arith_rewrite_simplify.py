@@ -783,7 +783,7 @@ def test_logical_simplify():
               tvm.const(False, "bool"))
     ck.verify(tvm.expr.And(x > 1, tvm.expr.Not(x > 1)), tvm.const(False, "bool"))
     ck.verify(tvm.expr.And(x <= y, y < x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(y < x, y <= x), tvm.const(False, "bool"))
+    ck.verify(tvm.expr.And(y < x, x <= y), tvm.const(False, "bool"))
     ck.verify(tvm.expr.And(x < 1, 0 < x), tvm.const(False, "bool"))
     ck.verify(tvm.expr.And(x < 0, 1 < x), tvm.const(False, "bool"))
     ck.verify(tvm.expr.And(x < 1, 1 <= x), tvm.const(False, "bool"))
