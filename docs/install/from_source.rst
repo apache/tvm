@@ -195,10 +195,11 @@ Python dependencies
 
        pip3 install --user tornado psutil xgboost
 
-   * If you want to parse Relay text format progams, you must use Python 3 and run the following
+   * If you want to build tvm to compile a model, you must use Python 3 and run the following
 
    .. code:: bash
 
+       sudo apt install antlr4
        pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
