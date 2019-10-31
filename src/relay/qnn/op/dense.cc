@@ -29,6 +29,7 @@
 #include <tvm/relay/qnn/attrs.h>
 #include "../../op/nn/nn.h"
 #include "../../pass/pattern_util.h"
+#include "../util.h"
 
 namespace tvm {
 namespace relay {
@@ -37,33 +38,27 @@ namespace qnn {
 // relay.op.qnn.dense
 TVM_REGISTER_NODE_TYPE(QnnDenseAttrs);
 
-bool QnnDenseRel(const Array<Type>& types,
-                 int num_inputs,
-                 const Attrs& attrs,
+bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnDenseAttrs>();
-  CHECK(param != nullptr) << "QnnConv2DAttrs cannot be nullptr.";
+  CHECK(param != nullptr) << "QnnDenseAttrs cannot be nullptr.";
   CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
-    << "Expected quantized dense type(int8, uint8) for input but was " <<  data->dtype;
+      << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
   CHECK(weight->dtype == Int(8) || weight->dtype == UInt(8))
-    << "Expected quantized dense type(int8, uint8) for weight but was " <<  weight->dtype;
+      << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
   CHECK(param->out_dtype == Int(32))
-    << "Expected quantized dense type(int32) for output but was " <<  param->out_dtype;
+      << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
   return DenseRel<QnnDenseAttrs>(types, num_inputs, attrs, reporter);
 }
 
 // Positional relay function to create quantized dense operator used by frontend FFI.
-Expr MakeQuantizedDense(Expr data,
-                        Expr weight,
-                        IndexExpr units,
-                        int32_t input_zero_point,
-                        int32_t kernel_zero_point,
-                        DataType out_dtype) {
+Expr MakeQuantizedDense(Expr data, Expr weight, IndexExpr units, int32_t input_zero_point,
+                        int32_t kernel_zero_point, DataType out_dtype) {
   auto attrs = make_node<QnnDenseAttrs>();
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
@@ -73,40 +68,93 @@ Expr MakeQuantizedDense(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-/**
- * \brief Lowers Qnn convolution in terms of core operators in relay.
- * Mathematically it is equals to -
- * Dense((quantized_input - input_zero_point;int32), (quantized_kernel - kernel_zero_point; int32))
- *
- * \param attrs QnnDenseAttrs for Qnn Dense layer.
+Expr DenseFirstTerm(const Expr& quantized_data, const Expr& quantized_kernel,
+                    const QnnDenseAttrs* attrs) {
+  return Dense(quantized_data, quantized_kernel, attrs->units, attrs->out_dtype);
+}
+
+Expr DenseSecondTerm(const Expr& quantized_data, const Expr& zp_kernel) {
+  Array<Integer> axes = {1};
+  return Multiply(zp_kernel, Sum(Cast(quantized_data, Int(32)), axes, true, false));
+}
+
+Expr DenseThirdTerm(const Expr& quantized_kernel, const Expr& zp_data) {
+  Array<Integer> axes = {1};
+  return Multiply(zp_data, Sum(Cast(quantized_kernel, Int(32)), axes, false, false));
+}
+
+Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int reduction_dim_size) {
+  int32_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * reduction_dim_size;
+  return MakeConstantScalar(Int(32), scalar_term);
+}
+
+/*
+ * \brief Forward rewrite the qnn dense op.
+ * \param attrs The QNN dense attrs.
  * \param new_args The new mutated args to the call node.
- * \param arg_types The data types of input and output.
- * \reutrn The sequence of Relay ops for qnn cov2d op.
+ * \param arg_types The types of input and output.
+ * \return The sequence of Relay ops for qnn cov2d op.
+ * \note Lowering of the qnn.dense operator
+ *       A quantized tensor is represented in following manner
+ *          A = scale_a x (QA - zp_A)
+ *       where QA is quantized tensor, scale_a and zp_A are quantization
+ *       params.
+ *
+ *       Quantized dense multiplies two quantized tensors and returns a
+ *       quantized tensor of default dtype of int32, with scale equaling to the
+ *       product of scales of input tensors, and a zero point of zero.
+ *
+ *       The lowering for asymmetric quantized dense looks as follows. More details at
+ *       https://discuss.tvm.ai/t/tf-lite-quantized-conv2d-operator-conversion/2651/8
+ *       The computation gets unrolled into following 4 terms
+ *          C(m, n) = Sigma(k) (A(m, k) * W(n, k))
+ *
+ *          RHS becomes
+ *            Sigma(k) ([QA(m, k) - zp_a] * [QW(n, k) - zp_w])
+ *
+ *          Unrolling leads to following sequence
+ *            Sigma(k) QA(m, k) * QW(n, k)                         // Term1
+ *          - Sigma(k) zp_w * QA(m, k)                             // Term2
+ *          - Sigma(k) zp_a * QW(n, k)                             // Term3
+ *          - Sigma(k) * zp_a * zp_w                               // Term4
+ *
+ *       Term3 and Term4 can be computed at compile time.
  */
-Expr QnnDenseCanonicalize(const Attrs& attrs,
-                          const Array<Expr>& new_args,
+Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
   CHECK_EQ(new_args.size(), 2);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
+
+  const auto in_shape = get_shape(arg_types[0]);
+  const int reduction_dim_size = get_const_int(in_shape[1]);
+
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
-  Expr quantized_data_int32 = Cast(quantized_data, Int(32));
-  if (qnn_dense_attrs->input_zero_point != 0) {
-    quantized_data_int32 = Subtract(quantized_data_int32,
-                                    MakeConstantScalar(Int(32),
-                                    qnn_dense_attrs->input_zero_point));
+  auto zp_kernel = MakeConstantScalar(Int(32), qnn_dense_attrs->kernel_zero_point);
+  auto zp_data = MakeConstantScalar(Int(32), qnn_dense_attrs->input_zero_point);
+
+  // Get all the terms as described in the comments.
+  auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
+  auto term2 = DenseSecondTerm(quantized_data, zp_kernel);
+  auto term3 = DenseThirdTerm(quantized_kernel, zp_data);
+  auto term4 = DenseFourthTerm(qnn_dense_attrs, reduction_dim_size);
+
+  // Combine those 4 terms depending on the zero points to get the best lowering.
+  if (qnn_dense_attrs->input_zero_point == 0 && qnn_dense_attrs->kernel_zero_point == 0) {
+    // term 2, 3 and 4 become zero.
+    return term1;
+  } else if (qnn_dense_attrs->input_zero_point == 0 && qnn_dense_attrs->kernel_zero_point != 0) {
+    // term 3 and term 4 become zero.
+    return Subtract(term1, term2);
+  } else if (qnn_dense_attrs->input_zero_point != 0 && qnn_dense_attrs->kernel_zero_point == 0) {
+    // term 2 and term 4 become zero.
+    return Subtract(term1, term3);
+  } else {
+    auto data_term = Subtract(term1, term2);
+    // Putting constant terms together, so that constant folding can fold it.
+    auto const_term = Subtract(term4, term3);
+    return Add(data_term, const_term);
   }
-  Expr quantized_kernel_int32 = Cast(quantized_kernel, Int(32));
-  if (qnn_dense_attrs->kernel_zero_point != 0) {
-    quantized_kernel_int32 = Subtract(quantized_kernel_int32,
-                                      MakeConstantScalar(Int(32),
-                                      qnn_dense_attrs->kernel_zero_point));
-  }
-  Expr int32_dense = Dense(quantized_data_int32,
-                           quantized_kernel_int32,
-                           qnn_dense_attrs->units,
-                           qnn_dense_attrs->out_dtype);
-  return int32_dense;
 }
 
 RELAY_REGISTER_OP("qnn.dense")
@@ -115,7 +163,7 @@ RELAY_REGISTER_OP("qnn.dense")
 - **weight**: quantized(int8, unit8) `(units, input_dim)`
 - **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.qnn.QnnDenseAttrs")
+.set_attrs_type<QnnDenseAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "quantized nD Tensor", "Input data.")
 .add_argument("weight", "quantized 2D Tensor", "Weight matrix.")

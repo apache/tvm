@@ -68,7 +68,7 @@ class ModuleNode : public RelayNode {
 
   ModuleNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
@@ -281,10 +281,10 @@ class ModuleNode : public RelayNode {
 
 struct Module : public NodeRef {
   Module() {}
-  explicit Module(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Module(ObjectPtr<::tvm::Object> p) : NodeRef(p) {}
 
-  inline ModuleNode* operator->() const {
-    return static_cast<ModuleNode*>(node_.get());
+  ModuleNode* operator->() const {
+    return static_cast<ModuleNode*>(get_mutable());
   }
 
   using ContainerType = ModuleNode;

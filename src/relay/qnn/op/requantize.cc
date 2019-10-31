@@ -37,8 +37,6 @@ TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
 // Lowering of qnn.requantize op
 
-
-
 /*
  * \brief Lower requantize to a sequence of ops.
  * \param input_tensor The input tensor to requantize op.
@@ -73,8 +71,8 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
   // 2) If the input and output scales are same, we can skip the fixed point multiplication.
   auto scaled_int64_t = tensor;
   if (param->input_scale != param->output_scale) {
-    scaled_int64_t = FixedPointMuliply(scaled_int64_t, double_multiplier, input_shape,
-                                       param->rounding);
+    scaled_int64_t =
+        FixedPointMultiply(scaled_int64_t, double_multiplier, input_shape, param->rounding);
   }
 
   // 3) Add the output zero point.
@@ -183,7 +181,7 @@ point. The computation looks like this
 Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.RequantizeAttrs")
+.set_attrs_type<RequantizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The quantized input tensor.")
 .set_support_level(11)

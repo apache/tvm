@@ -47,7 +47,7 @@ class IRVisitorWithAnalyzer final : public IRVisitor {
   void Visit_(const AttrStmt* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var,
                       Range::make_by_min_extent(0, op->value));

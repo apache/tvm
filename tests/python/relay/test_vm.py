@@ -47,21 +47,23 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        vm = relay.vm.compile(mod, target)
-        vm.init(tvm.cpu())
+        exe = relay.vm.compile(mod, target)
+        vm = relay.vm.VirtualMachine(exe)
+        vm.init(ctx)
         return vm.invoke("main", *args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        vm = relay.vm.compile(mod, target)
-        vm.init(tvm.cpu())
+        exe = relay.vm.compile(mod, target)
+        vm = relay.vm.VirtualMachine(exe)
+        vm.init(ctx)
         ret = vm.invoke("main", *args)
         return ret
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.vm.Tensor):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vm.Datatype):
+    elif isinstance(o, tvm.relay.backend.vm.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
@@ -573,25 +575,6 @@ def test_add_op_broadcast():
     mod["main"] = func
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
-def test_set_params():
-    mod = relay.Module()
-    x = relay.var('x', shape=(10, 5))
-    w = relay.var('w', shape=(6, 5))
-    b = relay.var('b', shape=(6,))
-    y = relay.nn.bias_add(relay.nn.dense(x, w), b)
-    mod["main"] = relay.Function([x, w, b], y)
-    vm = relay.vm.compile(mod, 'llvm')
-    vm.init(tvm.cpu())
-
-    x_np = np.random.uniform(size=(10, 5)).astype('float32')
-    w_np = np.random.uniform(size=(6, 5)).astype('float32')
-    b_np = np.random.uniform(size=(6,)).astype('float32')
-    ref_np = np.dot(x_np, w_np.T) + b_np
-    params = {'w': w_np}
-    vm.load_params(params)
-    out = vm.run(x_np, b_np)
-    tvm.testing.assert_allclose(out.asnumpy(), ref_np)
-
 
 if __name__ == "__main__":
     test_id()
@@ -626,4 +609,3 @@ if __name__ == "__main__":
     test_add_op_scalar()
     test_add_op_tensor()
     test_add_op_broadcast()
-    test_set_params()

@@ -85,19 +85,25 @@ PackedFunc VirtualMachineDebug::GetFunction(
   }
 }
 
-void VirtualMachineDebug::Init(const std::vector<TVMContext>& ctxs) {
-  VirtualMachine::Init(ctxs);
-  for (auto kv : primitive_map) {
+void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
+  VirtualMachine::LoadExecutable(exec);
+  CHECK(this->exec);
+  for (auto kv : this->exec->primitive_map) {
     packed_index_map[kv.second] = kv.first;
     op_invokes[kv.second] = 0;
   }
+}
+
+void VirtualMachineDebug::Init(const std::vector<TVMContext>& ctxs) {
+  VirtualMachine::Init(ctxs);
 }
 
 void VirtualMachineDebug::InvokePacked(Index packed_index,
                                        const PackedFunc& func, Index arg_count,
                                        Index output_size,
                                        const std::vector<ObjectRef>& args) {
-  auto ctx = VirtualMachine::GetParamsContext();
+  CHECK(this->exec);
+  auto ctx = this->GetParamsContext();
   // warmup
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size,
                                args);
@@ -116,6 +122,21 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
   op_durations[packed_index].push_back(op_duration * 1e6);
   op_invokes[packed_index] += 1;
 }
+
+runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
+  std::shared_ptr<VirtualMachineDebug> vm = std::make_shared<VirtualMachineDebug>();
+  vm->LoadExecutable(exec);
+  return runtime::Module(vm);
+}
+
+TVM_REGISTER_GLOBAL("relay._vm._VirtualMachineDebug")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  runtime::Module mod = args[0];
+  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  CHECK(exec) << "Virtual machine has not been defined yet."
+              << "\n";
+  *rv = CreateVirtualMachineDebug(exec);
+});
 
 }  // namespace vm
 }  // namespace runtime

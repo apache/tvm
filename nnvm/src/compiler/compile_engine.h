@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -55,7 +55,7 @@ struct GraphFuncNode : public tvm::Node {
   /*! \brief The lowered functions */
   tvm::Array<tvm::LoweredFunc> funcs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("target", &target);
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
@@ -78,7 +78,7 @@ struct GraphCacheEntryNode : public tvm::Node {
   /*! \brief Index of the master node for calling schedule*/
   int master_idx;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("graph_func", &graph_func);
     v->Visit("use_count", &use_count);
     v->Visit("master_idx", &master_idx);
@@ -92,7 +92,7 @@ class GraphCacheEntry : public ::tvm::NodeRef {
   GraphCacheEntry() {}
   explicit GraphCacheEntry(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {}
   GraphCacheEntryNode* operator->() {
-    return static_cast<GraphCacheEntryNode*>(node_.get());
+    return static_cast<GraphCacheEntryNode*>(get_mutable());
   }
   using ContainerType = GraphCacheEntryNode;
 };

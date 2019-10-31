@@ -28,6 +28,7 @@
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
 #include <string>
+#include <unordered_map>
 #include "codegen_c.h"
 
 namespace tvm {
@@ -40,7 +41,7 @@ class CodeGenCUDA final : public CodeGenC {
   void AddFunction(LoweredFunc f);
   std::string Finish();
   bool need_include_path() {
-    return (enable_fp16_ || enable_int8_ || need_math_constants_h_);
+    return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
@@ -60,7 +61,10 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const Shuffle* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final;
+  void VisitExpr_(const Call *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
+  void VisitStmt_(const Allocate *op) final;
+  void VisitStmt_(const AttrStmt *op) final;
 
  private:
   // Whether global barrier is needed.
@@ -75,7 +79,14 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_int8_{false};
   // whether need math_constants.h
   bool need_math_constants_h_{false};
+  // whether need mma.h
+  bool need_mma_h_{false};
+
+  std::unordered_map<const Variable*, std::string> fragment_shapes;
+  std::unordered_map<const Variable*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
+  void PrintWmmaScope(const std::string& scope, Type t, const Variable* variable, std::ostream& os);
+  int32_t GetWmmaFragmentSize(const std::string &scope, const Variable* variable, int32_t size);
 };
 
 }  // namespace codegen

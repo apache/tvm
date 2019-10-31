@@ -31,13 +31,12 @@ cdef enum TVMTypeCode:
     kTVMType = 5
     kTVMContext = 6
     kArrayHandle = 7
-    kNodeHandle = 8
+    kObjectHandle = 8
     kModuleHandle = 9
     kFuncHandle = 10
     kStr = 11
     kBytes = 12
     kNDArrayContainer = 13
-    kObjectHandle = 14
     kExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -78,7 +77,7 @@ ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
 ctypedef void* ObjectHandle
-ctypedef void* NodeHandle
+
 
 ctypedef struct TVMNDArrayContainer:
     DLTensor dl_tensor
@@ -133,18 +132,6 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMObjectFree(ObjectHandle obj)
     int TVMObjectGetTypeIndex(ObjectHandle obj, unsigned* out_index)
 
-
-cdef extern from "tvm/c_dsl_api.h":
-    int TVMNodeFree(NodeHandle handle)
-    int TVMNodeTypeKey2Index(const char* type_key,
-                             int* out_index)
-    int TVMNodeGetTypeIndex(NodeHandle handle,
-                            int* out_index)
-    int TVMNodeGetAttr(NodeHandle handle,
-                       const char* key,
-                       TVMValue* out_value,
-                       int* out_type_code,
-                       int* out_success)
 
 cdef inline py_str(const char* x):
     if PY_MAJOR_VERSION < 3:

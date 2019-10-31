@@ -212,7 +212,7 @@ class DoubleBufferInjector : public IRMutator {
 
  private:
   Stmt MakeProducer(const AttrStmt* op, const Stmt& s) {
-    const VarExpr buffer(op->node.node_);
+    const VarExpr buffer = Downcast<VarExpr>(op->node);
     CHECK_NE(loop_nest_.size(), 0U)
         << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());

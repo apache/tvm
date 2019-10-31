@@ -324,7 +324,7 @@ RELAY_REGISTER_REDUCE_OP("argmax")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
@@ -343,7 +343,7 @@ RELAY_REGISTER_REDUCE_OP("argmin")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
@@ -375,7 +375,7 @@ Example::
   [ 12.  19.  27.]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout)
@@ -413,10 +413,47 @@ Example::
    [False,  True, False]]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> AnyCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::any);
+}
+
+
+RELAY_REGISTER_REDUCE_OP("any")
+.describe(R"code(Computes the logical OR of boolean array elements over given axes.
+
+Example::
+
+  data = [[[ True,  True,  True],
+           [ True,  True,  True],
+           [False,  True, False]],
+          [[ True, False, False],
+           [ True,  True, False],
+           [False,  True,  True]]]
+
+  any(data, axis=1)
+  [[True,  True, True],
+   [True,  True, True]]
+
+  any(data, axis=0)
+  [[ True,  True, True],
+   [ True,  True, True],
+   [False,  True, True]]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<ReduceAttrs>()
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", AnyCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 
@@ -431,7 +468,7 @@ RELAY_REGISTER_REDUCE_OP("max")
 .describe(R"code(Computes the max of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MaxCompute)
@@ -450,7 +487,7 @@ RELAY_REGISTER_REDUCE_OP("min")
 .describe(R"code(Computes the min of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MinCompute)
@@ -480,7 +517,7 @@ Example::
   [ 36  480  2058]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ProdCompute)
@@ -521,7 +558,7 @@ Example::
   [ 2.  3.16666667  4.5]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
@@ -596,7 +633,7 @@ RELAY_REGISTER_OP("variance")
 .describe(R"code(Computes the variance of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")

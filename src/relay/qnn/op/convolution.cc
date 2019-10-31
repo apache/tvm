@@ -70,13 +70,6 @@ using WorkloadType = std::tuple<int, int, int, int, int>;
  */
 WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QnnConv2DAttrs* param) {
   // Get conv parameters.
-  auto get_shape = [](const Type& type) {
-    auto input_tt = type.as<TensorTypeNode>();
-    CHECK(input_tt != nullptr) << "Type information missing."
-                               << " Please run infer_type pass.";
-    return input_tt->shape;
-  };
-
   const auto in_shape = get_shape(arg_types[0]);
   int batch_size, in_channels;
   if (param->data_layout == "NCHW") {
@@ -478,7 +471,7 @@ operator to understand how to scale back the int32 output to (u)int8.
 - **out**:  This depends on the `layout` parameter. Output is 4D array of shape
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.QnnConv2DAttrs")
+.set_attrs_type<QnnConv2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The quantized input data tensor.")
 .add_argument("weight", "Tensor", "The quantized weight tensor.")

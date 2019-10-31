@@ -145,7 +145,7 @@ def test_where():
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
-    dtype = "bool" if ref_func in [np.all] else dtype
+    dtype = "bool" if ref_func in [np.all, np.any] else dtype
 
     x = relay.var("x", relay.TensorType(data, dtype))
     z = test_func(x, axis, keepdims, exclude)
@@ -207,6 +207,7 @@ def test_reduce_functions():
                  [relay.std, np.std],
                  [relay.prod, np.prod],
                  [relay.all, np.all],
+                 [relay.any, np.any],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())

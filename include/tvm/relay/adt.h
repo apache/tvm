@@ -52,7 +52,7 @@ class PatternNode : public RelayNode {
 class Pattern : public NodeRef {
  public:
   Pattern() {}
-  explicit Pattern(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Pattern(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
 
   using ContainerType = PatternNode;
 };
@@ -66,7 +66,7 @@ class PatternWildcardNode : public PatternNode {
 
   TVM_DLL static PatternWildcard make();
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("span", &span);
   }
 
@@ -88,7 +88,7 @@ class PatternVarNode : public PatternNode {
 
   TVM_DLL static PatternVar make(tvm::relay::Var var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("span", &span);
   }
@@ -122,7 +122,7 @@ class ConstructorNode : public ExprNode {
                                   tvm::Array<Type> inputs,
                                   GlobalTypeVar belong_to);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("inputs", &inputs);
     v->Visit("belong_to", &belong_to);
@@ -151,7 +151,7 @@ class PatternConstructorNode : public PatternNode {
 
   TVM_DLL static PatternConstructor make(Constructor constructor, tvm::Array<Pattern> var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("constructor", &constructor);
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
@@ -175,7 +175,7 @@ class PatternTupleNode : public PatternNode {
 
   TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
   }
@@ -213,7 +213,7 @@ class TypeDataNode : public TypeNode {
   /*! \brief The constructors. */
   tvm::Array<Constructor> constructors;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("header", &header);
     v->Visit("type_vars", &type_vars);
     v->Visit("constructors", &constructors);
@@ -240,7 +240,7 @@ class ClauseNode : public Node {
   /*! \brief The resulting value. */
   Expr rhs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("lhs", &lhs);
     v->Visit("rhs", &rhs);
   }
@@ -269,7 +269,7 @@ class MatchNode : public ExprNode {
    */
   bool complete;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("clauses", &clauses);
     v->Visit("complete", &complete);

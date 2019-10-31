@@ -19,11 +19,13 @@ from __future__ import absolute_import as _abs
 import logging
 
 import tvm
+import numpy as np
 from topi.util import get_const_tuple
 from .. import expr as _expr
 from .. import module as _module
 from .. import transform as _transform
 from .. import op as _op
+from .. import analysis
 
 
 class RequiredAttr(object):
@@ -259,7 +261,7 @@ def get_relay_op(op_name):
             op = None
     else:
         # try search op in various modules
-        for candidate in (_op, _op.nn, _op.image, _op.vision):
+        for candidate in (_op, _op.nn, _op.image, _op.vision, _op.contrib):
             op = getattr(candidate, op_name, None)
             if op is not None:
                 break
@@ -472,6 +474,50 @@ def infer_channels(inputs, transpose=False):
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
+
+
+def infer_value(input_val, params):
+    """A hack for getting the value of an expression by evaluating a
+    portion of the relay graph. This is often needed for functions that
+    whose output shape depends on the value of a tensor.
+    """
+    from tvm.contrib import graph_runtime
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+        input_val)), "All inputs to infer must be available in params."
+    func = _expr.Function(analysis.free_vars(input_val), input_val)
+    with tvm.relay.build_config(opt_level=0):
+        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+    ctx = tvm.cpu(0)
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+    m.run()
+    return m.get_output(0)
+
+
+def infer_value_simulated(input_val, params):
+    """Extention to infer_value that can be used when some input
+    values are missing. This function creates dummy inputs with the same
+    shape and random values then calls infer_value. This is helpful when
+    implementing certain onnx operators where we need to evaluate the graph
+    to determine a static shape.
+    """
+    fake_params = []
+    # Add a fake copy of all missing params.
+    for free_param in analysis.free_vars(input_val):
+        if free_param.name_hint not in params:
+            fp_dtype = free_param.type_annotation.dtype
+            fp_shape = [s.value for s in free_param.type_annotation.shape]
+            fake_params.append(free_param)
+            params[free_param.name_hint] = tvm.nd.array(
+                np.random.rand(*fp_shape).astype(fp_dtype)
+            )
+    # Now infer the value.
+    output_value = infer_value(input_val, params)
+    # Clean fake params out of param dictionary.
+    for fake_p in fake_params:
+        params.pop(fake_p.name_hint, None)
+    return output_value
 
 
 def new_var(name_hint,

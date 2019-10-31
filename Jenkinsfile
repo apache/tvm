@@ -38,9 +38,15 @@
 // - Tag the new version as the lates
 // - Periodically cleanup the old versions on local workers
 //
+
+// Hashtag in the source to build current CI docker builds
+//
+// - ci-cpu:v0.54: e7c88a99f830de30814df14eaa980547ecbd61c1
+//
+
 ci_lint = "tvmai/ci-lint:v0.51"
 ci_gpu = "tvmai/ci-gpu:v0.54"
-ci_cpu = "tvmai/ci-cpu:v0.52"
+ci_cpu = "tvmai/ci-cpu:v0.54"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -195,10 +201,10 @@ stage('Build') {
         make(ci_cpu, 'build', '-j4')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
         }
       }
     }

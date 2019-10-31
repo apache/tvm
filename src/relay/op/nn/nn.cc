@@ -87,7 +87,7 @@ RELAY_REGISTER_OP("nn.bias_add")
 .describe(R"code(Add bias to an axis of the input.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.BiasAddAttrs")
+.set_attrs_type<BiasAddAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("bias", "1D Tensor", "Bias.")
@@ -158,7 +158,7 @@ Useful for
 * Encoding explicit re-use of computation in convolution ops operated on a sliding window input
 * Implementing a FIFO queue to cache intermediate results, e.g. as in Fast WaveNet.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.FIFOBufferAttrs")
+.set_attrs_type<FIFOBufferAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "Latest input")
 .add_argument("buffer", "Tensor",
@@ -195,7 +195,7 @@ RELAY_REGISTER_OP("nn.dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DenseAttrs")
+.set_attrs_type<DenseAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight", "2D Tensor", "Weight matrix.")
@@ -225,7 +225,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 `y = x > 0 ? x : alpha * x`
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.LeakyReluAttrs")
+.set_attrs_type<LeakyReluAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3)
@@ -305,7 +305,7 @@ It accepts two arguments: an input ``x`` and a channelwise slope ``alpha``
 and computes the output as :math:`PReLU(x) y = x > 0 ? x : alpha * x`,
 where :math:`*` is an channelwise multiplication for each sample in the batch.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.PReluAttrs")
+.set_attrs_type<PReluAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
@@ -344,7 +344,7 @@ RELAY_REGISTER_OP("nn.softmax")
 
 - **data**: The input data
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SoftmaxAttrs")
+.set_attrs_type<SoftmaxAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
@@ -378,7 +378,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
 
 - **data**: The input data
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SoftmaxAttrs")
+.set_attrs_type<SoftmaxAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
@@ -526,7 +526,7 @@ centered at that value (zero padding is added where necessary).
 
 - **data**: The input tensor.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.LRNAttrs")
+.set_attrs_type<LRNAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -560,7 +560,7 @@ Normalizes along dimension axis using an L2 norm
 
 - **data**: The input tensor.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.L2NormalizeAttrs")
+.set_attrs_type<L2NormalizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -602,7 +602,7 @@ During training, each element of the input is set to zero with probability ``p``
 The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input unchanged.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DropoutAttrs")
+.set_attrs_type<DropoutAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input to which dropout will be applied.")
 .set_support_level(1)
@@ -696,7 +696,7 @@ axis to be the last item in the input shape.
 .. note::
     This operator can be optimized away for inference.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.BatchNormAttrs")
+.set_attrs_type<BatchNormAttrs>()
 .set_num_inputs(5)
 .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
 .add_argument("gamma", "Tensor", "The gamma scale factor.")
@@ -768,7 +768,7 @@ to be the last item in the input shape.
 
     This operator can be optimized away for inference.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InstanceNormAttrs")
+.set_attrs_type<InstanceNormAttrs>()
 .set_num_inputs(3)
 .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
 .add_argument("gamma", "Tensor", "The gamma scale factor.")
@@ -816,7 +816,7 @@ TVM_REGISTER_API("relay.op.nn._make.layer_norm")
 RELAY_REGISTER_OP("nn.layer_norm")
 .describe(R"code(
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.LayerNormAttrs")
+.set_attrs_type<LayerNormAttrs>()
 .set_num_inputs(3)
 .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
 .add_argument("gamma", "Tensor", "The gamma scale factor.")
@@ -910,7 +910,7 @@ bool CrossEntropyRel(const Array<Type>& types,
   return true;
 }
 
-// Positional relay function to create batch_matmul operator used by frontend FFI.
+// Positional relay function to create cross_entropy operator used by frontend FFI.
 Expr MakeCrossEntropy(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy");
   return CallNode::make(op, {predictions, targets}, Attrs(), {});
@@ -925,6 +925,29 @@ RELAY_REGISTER_OP("nn.cross_entropy")
 .describe(R"code(
 Computes cross entropy given predictions and targets.
 Do log on the data - do not accept logits.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "1D Tensor", "Predictions.")
+.add_argument("y", "1D Tensor", "Targets.")
+.set_support_level(10)
+.add_type_rel("CrossEntropy", CrossEntropyRel);
+
+
+// Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
+Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
+  static const Op& op = Op::Get("nn.cross_entropy_with_logits");
+  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.cross_entropy_with_logits")
+.set_body_typed(MakeCrossEntropyWithLogits);
+
+
+RELAY_REGISTER_OP("nn.cross_entropy_with_logits")
+.describe(R"code(
+Computes cross entropy given predictions and targets.
+Accept logits.
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .add_argument("x", "1D Tensor", "Predictions.")

@@ -159,6 +159,26 @@ bool FunctionNode::IsPrimitive() const {
   return pval && pval->value != 0;
 }
 
+Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) const {
+  return FunctionSetAttr(GetRef<Function>(this), "__params__", parameters);
+}
+
+TVM_REGISTER_API("relay._expr.FunctionSetParams")
+.set_body_typed<Function(const Function&, const tvm::Map<Var, Constant>&)>(
+  [](const Function& func, const tvm::Map<Var, Constant>& parameters) {
+    return func->SetParams(parameters);
+});
+
+tvm::Map<Var, Constant> FunctionNode::GetParams() const {
+  auto node_ref = FunctionGetAttr(GetRef<Function>(this), "__params__");
+  return Downcast<tvm::Map<Var, Constant>>(node_ref);
+}
+
+TVM_REGISTER_API("relay._expr.FunctionGetParams")
+.set_body_typed<tvm::Map<Var, Constant>(const Function&)>([](const Function& func) {
+  return func->GetParams();
+});
+
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
   if (!func->attrs.defined()) { return NodeRef(); }
 

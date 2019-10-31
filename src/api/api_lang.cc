@@ -57,25 +57,26 @@ TVM_REGISTER_API("_str")
 
 TVM_REGISTER_API("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    std::vector<NodePtr<Node> > data;
+    std::vector<ObjectRef> data;
     for (int i = 0; i < args.size(); ++i) {
       if (args[i].type_code() != kNull) {
-        data.push_back(args[i].node_sptr());
+        data.push_back(args[i].operator ObjectRef());
       } else {
-        data.push_back(NodePtr<Node>(nullptr));
+        data.push_back(ObjectRef(nullptr));
       }
     }
     auto node = make_node<ArrayNode>();
     node->data = std::move(data);
-    *ret = node;
+    *ret = runtime::ObjectRef(node);
   });
 
 TVM_REGISTER_API("_ArrayGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     int64_t i = args[1];
-    auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<ArrayNode>());
-    auto* n = static_cast<const ArrayNode*>(sptr.get());
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+    CHECK(ptr->IsInstance<ArrayNode>());
+    auto* n = static_cast<const ArrayNode*>(ptr);
     CHECK_LT(static_cast<size_t>(i), n->data.size())
         << "out of bound of array";
     *ret = n->data[static_cast<size_t>(i)];
@@ -83,10 +84,11 @@ TVM_REGISTER_API("_ArrayGetItem")
 
 TVM_REGISTER_API("_ArraySize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    auto& sptr = args[0].node_sptr();
-    CHECK(sptr->is_type<ArrayNode>());
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+    CHECK(ptr->IsInstance<ArrayNode>());
     *ret = static_cast<int64_t>(
-        static_cast<const ArrayNode*>(sptr.get())->data.size());
+        static_cast<const ArrayNode*>(ptr)->data.size());
   });
 
 TVM_REGISTER_API("_Map")
@@ -98,10 +100,10 @@ TVM_REGISTER_API("_Map")
       for (int i = 0; i < args.num_args; i += 2) {
         CHECK(args[i].type_code() == kStr)
             << "key of str map need to be str";
-        CHECK(args[i + 1].type_code() == kNodeHandle)
+        CHECK(args[i + 1].type_code() == kObjectHandle)
             << "value of the map to be NodeRef";
         data.emplace(std::make_pair(args[i].operator std::string(),
-                                    args[i + 1].node_sptr()));
+                                    args[i + 1].operator ObjectRef()));
       }
       auto node = make_node<StrMapNode>();
       node->data = std::move(data);
@@ -110,12 +112,12 @@ TVM_REGISTER_API("_Map")
       // Container node.
       MapNode::ContainerType data;
       for (int i = 0; i < args.num_args; i += 2) {
-        CHECK(args[i].type_code() == kNodeHandle)
+        CHECK(args[i].type_code() == kObjectHandle)
             << "key of str map need to be str";
-        CHECK(args[i + 1].type_code() == kNodeHandle)
+        CHECK(args[i + 1].type_code() == kObjectHandle)
             << "value of map to be NodeRef";
-        data.emplace(std::make_pair(args[i].node_sptr(),
-                                    args[i + 1].node_sptr()));
+        data.emplace(std::make_pair(args[i].operator ObjectRef(),
+                                    args[i + 1].operator ObjectRef()));
       }
       auto node = make_node<MapNode>();
       node->data = std::move(data);
@@ -125,31 +127,33 @@ TVM_REGISTER_API("_Map")
 
 TVM_REGISTER_API("_MapSize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    auto& sptr = args[0].node_sptr();
-    if (sptr->is_type<MapNode>()) {
-      auto* n = static_cast<const MapNode*>(sptr.get());
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+    if (ptr->IsInstance<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(ptr);
       *ret = static_cast<int64_t>(n->data.size());
     } else {
-      CHECK(sptr->is_type<StrMapNode>());
-      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      CHECK(ptr->IsInstance<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(ptr);
       *ret = static_cast<int64_t>(n->data.size());
     }
   });
 
 TVM_REGISTER_API("_MapGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK(args[0].type_code() == kNodeHandle);
-    auto& sptr = args[0].node_sptr();
-    if (sptr->is_type<MapNode>()) {
-      CHECK(args[1].type_code() == kNodeHandle);
-      auto* n = static_cast<const MapNode*>(sptr.get());
-      auto it = n->data.find(args[1].node_sptr());
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+
+    if (ptr->IsInstance<MapNode>()) {
+      CHECK(args[1].type_code() == kObjectHandle);
+      auto* n = static_cast<const MapNode*>(ptr);
+      auto it = n->data.find(args[1].operator ObjectRef());
       CHECK(it != n->data.end())
           << "cannot find the corresponding key in the Map";
       *ret = (*it).second;
     } else {
-      CHECK(sptr->is_type<StrMapNode>());
-      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      CHECK(ptr->IsInstance<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(ptr);
       auto it = n->data.find(args[1].operator std::string());
       CHECK(it != n->data.end())
           << "cannot find the corresponding key in the Map";
@@ -159,16 +163,17 @@ TVM_REGISTER_API("_MapGetItem")
 
 TVM_REGISTER_API("_MapCount")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK(args[0].type_code() == kNodeHandle);
-    auto& sptr = args[0].node_sptr();
-    if (sptr->is_type<MapNode>()) {
-      auto* n = static_cast<const MapNode*>(sptr.get());
-      CHECK(args[1].type_code() == kNodeHandle);
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+
+    if (ptr->IsInstance<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(ptr);
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
       *ret = static_cast<int64_t>(
-          n->data.count(args[1].node_sptr()));
+          n->data.count(args[1].operator ObjectRef()));
     } else {
-      CHECK(sptr->is_type<StrMapNode>());
-      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      CHECK(ptr->IsInstance<StrMapNode>());
+      auto* n = static_cast<const StrMapNode*>(ptr);
       *ret = static_cast<int64_t>(
           n->data.count(args[1].operator std::string()));
     }
@@ -176,9 +181,11 @@ TVM_REGISTER_API("_MapCount")
 
 TVM_REGISTER_API("_MapItems")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    auto& sptr = args[0].node_sptr();
-    if (sptr->is_type<MapNode>()) {
-      auto* n = static_cast<const MapNode*>(sptr.get());
+    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+
+    if (ptr->IsInstance<MapNode>()) {
+      auto* n = static_cast<const MapNode*>(ptr);
       auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(kv.first);
@@ -186,10 +193,10 @@ TVM_REGISTER_API("_MapItems")
       }
       *ret = rkvs;
     } else {
-      auto* n = static_cast<const StrMapNode*>(sptr.get());
+      auto* n = static_cast<const StrMapNode*>(ptr);
       auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
-        rkvs->data.push_back(ir::StringImm::make(kv.first).node_);
+        rkvs->data.push_back(ir::StringImm::make(kv.first));
         rkvs->data.push_back(kv.second);
       }
       *ret = rkvs;
@@ -426,7 +433,7 @@ TVM_REGISTER_API("_ScheduleCacheRead")
 
 TVM_REGISTER_API("_ScheduleCacheWrite")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    if (args[1].IsNodeType<Tensor>()) {
+    if (args[1].IsObjectRef<Tensor>()) {
       *ret = args[0].operator Schedule()
           .cache_write(args[1].operator Tensor(), args[2]);
     } else {

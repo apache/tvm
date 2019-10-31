@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file transform.cc
  * \brief Transform operators.
  */
@@ -92,7 +91,7 @@ RELAY_REGISTER_OP("cast")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.CastAttrs")
+.set_attrs_type<CastAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Cast", CastRel)
@@ -177,16 +176,16 @@ TVM_REGISTER_API("relay._make.reinterpret").set_body([](const TVMArgs& args, TVM
 });
 
 RELAY_REGISTER_OP("reinterpret")
-    .describe(R"code(Reinterpret the data into a new data type.
+.describe(R"code(Reinterpret the data into a new data type.
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .set_attrs_type_key("relay.attrs.CastAttrs")
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_support_level(3)
-    .add_type_rel("Reinterpret", CastRel)
-    .set_attr<FTVMCompute>("FTVMCompute", ReinterpretCompute)
-    .set_attr<TOpPattern>("TOpPattern", kElemWise)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+.set_num_inputs(1)
+.set_attrs_type<CastAttrs>()
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Reinterpret", CastRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReinterpretCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
@@ -260,7 +259,7 @@ RELAY_REGISTER_OP("expand_dims")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ExpandDimsAttrs")
+.set_attrs_type<ExpandDimsAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("ExpandDims", ExpandDimsRel)
@@ -346,7 +345,7 @@ RELAY_REGISTER_OP("concatenate")
 - **axis** : The axis along which the tensors are concatenated.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ConcatenateAttrs")
+.set_attrs_type<ConcatenateAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
@@ -441,7 +440,7 @@ RELAY_REGISTER_OP("stack")
 - **axis** : The axis along which the tensors are stacked.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.StackAttrs")
+.set_attrs_type<StackAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(3)
@@ -534,7 +533,7 @@ RELAY_REGISTER_OP("transpose")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.TransposeAttrs")
+.set_attrs_type<TransposeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Transpose", TransposeRel)
@@ -696,7 +695,7 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->is_type<ir::Any>()) {
+    if (val->IsInstance<ir::Any>()) {
       newshape.push_back(val.as<ir::Any>()->ToVar());
     } else {
       newshape.push_back(val);
@@ -769,7 +768,7 @@ Example::
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.set_attrs_type<ReshapeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel)
@@ -859,7 +858,7 @@ RELAY_REGISTER_OP("argwhere")
 .describe(R"doc(Find the indices of elements of a tensor that are
 non-zero)doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ArgWhereAttrs")
+.set_attrs_type<ArgWhereAttrs>()
 .add_argument("condition", "Tensor", "The input condition tensor.")
 .add_type_rel("ArgWhere", ArgWhereRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -962,7 +961,7 @@ Examples::
                               [ 4., 3.]]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.TakeAttrs")
+.set_attrs_type<TakeAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
@@ -1024,7 +1023,7 @@ RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(1)
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
@@ -1059,7 +1058,7 @@ RELAY_REGISTER_OP("zeros")
 .describe(R"code(Fill array with zeros.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
@@ -1080,7 +1079,7 @@ RELAY_REGISTER_OP("ones")
 .describe(R"code(Fill array with ones.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
@@ -1261,7 +1260,7 @@ RELAY_REGISTER_OP("arange")
 .describe(R"code(Returns evenly spaced values within a given interval.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ArangeAttrs")
+.set_attrs_type<ArangeAttrs>()
 .set_num_inputs(3)
 .set_support_level(3)
 .add_type_rel("Arange", ArangeRel)
@@ -1340,7 +1339,7 @@ RELAY_REGISTER_OP("repeat")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Repeat")
+.set_attrs_type<RepeatAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Repeat", RepeatRel)
@@ -1438,7 +1437,7 @@ RELAY_REGISTER_OP("tile")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Tile")
+.set_attrs_type<TileAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Tile", TileRel)
@@ -1499,7 +1498,7 @@ RELAY_REGISTER_OP("reverse")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Reverse")
+.set_attrs_type<ReverseAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reverse", ReverseRel)
@@ -1677,7 +1676,7 @@ RELAY_REGISTER_OP("squeeze")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.SqueezeAttrs")
+.set_attrs_type<SqueezeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Squeeze", SqueezeRel)
@@ -1814,7 +1813,7 @@ Array<Integer> GetIntArray(Array<IndexExpr> arr) {
     CHECK(!arr[i].defined() || arr[i].as<IntImm>())
       << "Expect an int array";
   }
-  return Array<Integer>(arr.node_);
+  return Downcast<Array<Integer> >(arr);
 }
 
 
@@ -2034,7 +2033,7 @@ Examples::
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(4)
-.set_attrs_type_key("relay.attrs.StridedSliceAttrs")
+.set_attrs_type<StridedSliceAttrs>()
 .add_type_rel("StridedSlice", StridedSliceRel)
 .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective)
@@ -2081,11 +2080,11 @@ bool SplitRel(const Array<Type>& types,
     auto begin = IndexExpr(make_zero(Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
-      CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
+      CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = IndexExpr(indices[i]) - begin;
-      begin = IndexExpr(indices[i]);
+      oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
+      begin = Downcast<IndexExpr>(indices[i]);
       auto vec_type = TensorTypeNode::make(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -2147,7 +2146,7 @@ If indices_or_sections is a tuple of sorted integers,
 the entries indicate where along axis the array is split.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SplitAttrs")
+.set_attrs_type<SplitAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
@@ -2283,7 +2282,7 @@ TVM_REGISTER_API("relay.op._make.slice_like")
 RELAY_REGISTER_OP("slice_like")
 .describe(R"code(Slice the first input respect to the second input.
 )code" TVM_ADD_FILELINE)
-  .set_attrs_type_key("relay.attrs.SlicelikeAttrs")
+.set_attrs_type<SliceLikeAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
@@ -2347,7 +2346,7 @@ For transforming from NCHW to N16cHWC, the `__layout_transform__` operator resha
 the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.LayoutTransformAttrs")
+.set_attrs_type<LayoutTransformAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("layout_transform", LayoutTransformRel)
@@ -2383,7 +2382,7 @@ example below::
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.set_attrs_type<ReshapeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
 .add_type_rel("Reshape", ReshapeRel)
@@ -2552,7 +2551,7 @@ Examples::
         [[  0.1,  0.1,  0.1],
          [  16.,  17.,  18.]]]
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SequenceMaskAttrs")
+.set_attrs_type<SequenceMaskAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("valid_length", "Tensor", "The real (valid) length of each sequence.")
@@ -2640,7 +2639,7 @@ RELAY_REGISTER_OP("one_hot")
     **axis** Axis to fill.
 
     **dtype**)code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.OneHotAttrs")
+.set_attrs_type<OneHotAttrs>()
 .set_num_inputs(3)
 .add_argument("indices", "Tensor", "Locations to set to on_value.")
 .add_argument("on_value", "Expr", "Value to fill at indices.")

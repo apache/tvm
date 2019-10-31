@@ -35,7 +35,7 @@ namespace ir {
 
 TVM_REGISTER_API("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsNodeType<Stmt>()) {
+    if (args[0].IsObjectRef<Stmt>()) {
       if (args.size() > 1) {
         *ret = Simplify(args[0].operator Stmt(), args[1]);
       } else {
@@ -52,7 +52,7 @@ TVM_REGISTER_API("ir_pass.Simplify")
 
 TVM_REGISTER_API("ir_pass.CanonicalSimplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsNodeType<Stmt>()) {
+    if (args[0].IsObjectRef<Stmt>()) {
       if (args.size() > 1) {
         *ret = CanonicalSimplify(args[0].operator Stmt(), args[1]);
       } else {
@@ -69,7 +69,7 @@ TVM_REGISTER_API("ir_pass.CanonicalSimplify")
 
 TVM_REGISTER_API("ir_pass.Substitute")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsNodeType<Stmt>()) {
+    if (args[0].IsObjectRef<Stmt>()) {
       *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, Expr>());
     } else {
       *ret = Substitute(args[0].operator Expr(), args[1].operator Map<Var, Expr>());
@@ -78,7 +78,7 @@ TVM_REGISTER_API("ir_pass.Substitute")
 
 TVM_REGISTER_API("ir_pass.Equal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsNodeType<Stmt>()) {
+    if (args[0].IsObjectRef<Stmt>()) {
       *ret = Equal(args[0].operator Stmt(), args[1].operator Stmt());
     } else {
       *ret = Equal(args[0].operator Expr(), args[1].operator Expr());
@@ -118,6 +118,14 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
       });
   });
 
+TVM_REGISTER_API("ir_pass.LowerStorageAccess")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  LoweredFunc f = args[0];
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  n->body = LowerStorageAccessInfo(f->body);
+  *ret = LoweredFunc(n);
+});
+
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
   TVM_REGISTER_API("ir_pass."#PassName)                           \
@@ -140,6 +148,7 @@ REGISTER_PASS(SplitHostDevice);
 REGISTER_PASS(StorageRewrite);
 REGISTER_PASS(CoProcSync);
 REGISTER_PASS(LowerStorageAccessInfo);
+REGISTER_PASS(LowerDeviceStorageAccessInfo)
 REGISTER_PASS(InjectVirtualThread);
 REGISTER_PASS(InjectPrefetch);
 REGISTER_PASS(InjectDoubleBuffer);
@@ -160,5 +169,7 @@ REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
+REGISTER_PASS(HoistIfThenElse);
+REGISTER_PASS(InferFragment)
 }  // namespace ir
 }  // namespace tvm

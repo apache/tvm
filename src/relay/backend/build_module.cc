@@ -148,6 +148,11 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
       });
+    } else if (name == "optimize") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.num_args, 2);
+        *rv = this->Optimize(args[0], args[1], this->params_);
+      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -273,19 +278,25 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Optimize a Relay module.
+   * \brief Optimize a Relay Function.
    *
-   * \param relay_module The input Relay module where optmization will be
-   *        applied on.
+   * \param func The input Function where optmization will be applied on.
    * \param targets The device type to `Target` mapping.
    * \param params The param name to value mapping.
    *
    * \return relay::Module The updated Relay module after optimization.
    */
   relay::Module Optimize(
-      relay::Module relay_module,
+      Function func,
       const TargetsMap& targets,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
+    if (params.size()) {
+      func = BindParamsByName(func, params);
+    }
+
+    // Perform Module->Module optimizations.
+    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
+
     Array<Pass> pass_seqs;
 
     // Run all dialect legalization passes.
@@ -345,6 +356,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
     relay_module = transform::InferType()(relay_module);
+    CHECK(relay_module.defined());
 
     return relay_module;
   }
@@ -440,14 +452,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   void BuildRelay(
       Function func,
       const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    if (params.size()) {
-      func = BindParamsByName(func, params);
-    }
-
-    // Perform Module->Module optimizations.
-    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
-    relay_module = Optimize(relay_module, targets_, params);
-    CHECK(relay_module.defined());
+    // Optimize input Relay Function and returns Relay Module
+    relay::Module relay_module = Optimize(func, targets_, params);
     // Get the updated function.
     func = relay_module->Lookup("main");
 

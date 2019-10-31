@@ -86,8 +86,9 @@ Array<Integer> ArrayOrInt(TVMArgValue arg) {
 }
 
 inline bool IsTensorType(TVMArgValue arg) {
-  return (arg.type_code() == kNodeHandle &&
-          arg.node_sptr()->is_type<tvm::TensorNode>());
+  return (arg.type_code() == kObjectHandle &&
+          static_cast<Object*>(
+              arg.value().v_handle)->IsInstance<tvm::TensorNode>());
 }
 
 
@@ -297,6 +298,11 @@ TVM_REGISTER_GLOBAL("topi.prod")
 TVM_REGISTER_GLOBAL("topi.all")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::all(args[0], ArrayOrInt(args[1]), args[2]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.any")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::any(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
 /* Ops from transform.h */

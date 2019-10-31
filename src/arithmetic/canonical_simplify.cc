@@ -43,6 +43,7 @@ class SplitExpr;
  */
 class CanonicalExprNode : public BaseExprNode {
  public:
+  virtual ~CanonicalExprNode() {}
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \note Can mutate the internal data structure.
@@ -51,7 +52,7 @@ class CanonicalExprNode : public BaseExprNode {
   virtual Expr Normalize() const = 0;
 
   // overrides
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
@@ -485,7 +486,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return Normalized expr.
    */
   Expr Normalize(Expr expr) {
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       return op->Normalize();
     } else {
       return expr;
@@ -503,7 +504,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       if (op->base == 0 && op->args.size() == 1) return op->args[0];
     }
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
@@ -629,7 +630,7 @@ Mutate_(const Mul* op, const Expr& self) {
   }
   if (const auto* bconst = b.as<IntImm>()) {
     if (a.as<SumExprNode>()) {
-      SumExpr ret(std::move(a.node_));
+      SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
       return std::move(ret);
     } else {
@@ -931,7 +932,7 @@ Mutate_(const Mod* op, const Expr& self) {
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 &&
           cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr(std::move(a.node_));
+        SumExpr sum_expr = Downcast<SumExpr>(a);
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
@@ -992,7 +993,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
       // Simplify the offset constant if necessary.
       // floormod(x - 5, 3) => floormod(x + 1, 3)
       int64_t new_base = floormod(psum->base, cval);
-      SumExpr sum_expr(std::move(a.node_));
+      SumExpr sum_expr = Downcast<SumExpr>(std::move(a));
       sum_expr.CopyOnWrite()->base = new_base;
       return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
     } else {

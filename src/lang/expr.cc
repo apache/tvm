@@ -156,7 +156,7 @@ Var var(std::string name_hint, Type t) {
   return Var(name_hint, t);
 }
 
-void IRPrinter::Print(const NodeRef& ir) {
+void IRPrinter::Print(const ObjectRef& ir) {
   static const FType& f = vtable();
   if (!ir.defined()) {
     stream << "(nullptr)";
@@ -165,7 +165,7 @@ void IRPrinter::Print(const NodeRef& ir) {
       f(ir, this);
     } else {
       // default value, output type key and addr.
-      stream << ir->type_key() << "(" << ir.get() << ")";
+      stream << ir->GetTypeKey() << "(" << ir.get() << ")";
     }
   }
 }

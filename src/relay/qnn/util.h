@@ -36,6 +36,13 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
+static inline Array<IndexExpr> get_shape(const Type& type) {
+  auto input_tt = type.as<TensorTypeNode>();
+  CHECK(input_tt != nullptr) << "Type information missing."
+                             << " Please run infer_type pass.";
+  return input_tt->shape;
+}
+
 static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
@@ -115,9 +122,9 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMuliply(Expr tensor, double multiplier,
-                       const Array<IndexExpr>& input_shape,
-                       const std::string& rounding);
+Expr FixedPointMultiply(Expr tensor, double multiplier,
+                        const Array<IndexExpr>& input_shape,
+                        const std::string& rounding);
 
 }  // namespace qnn
 }  // namespace relay

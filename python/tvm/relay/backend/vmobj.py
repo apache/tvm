@@ -61,14 +61,14 @@ class Tensor(Object):
         return self.data.asnumpy()
 
 
-@register_object("vm.Datatype")
-class Datatype(Object):
-    """Datatype object.
+@register_object("vm.ADT")
+class ADT(Object):
+    """Algebatic data type(ADT) object.
 
     Parameters
     ----------
     tag : int
-        The tag of datatype.
+        The tag of ADT.
 
     fields : list[Object] or tuple[Object]
         The source tuple.
@@ -77,22 +77,22 @@ class Datatype(Object):
         for f in fields:
             assert isinstance(f, Object)
         self.__init_handle_by_constructor__(
-            _vmobj.Datatype, tag, *fields)
+            _vmobj.ADT, tag, *fields)
 
     @property
     def tag(self):
-        return _vmobj.GetDatatypeTag(self)
+        return _vmobj.GetADTTag(self)
 
     def __getitem__(self, idx):
         return getitem_helper(
-            self, _vmobj.GetDatatypeFields, len(self), idx)
+            self, _vmobj.GetADTFields, len(self), idx)
 
     def __len__(self):
-        return _vmobj.GetDatatypeNumberOfFields(self)
+        return _vmobj.GetADTNumberOfFields(self)
 
 
 def tuple_object(fields):
-    """Create a datatype object from source tuple.
+    """Create a ADT object from source tuple.
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ def tuple_object(fields):
 
     Returns
     -------
-    ret : Datatype
+    ret : ADT
         The created object.
     """
     for f in fields:

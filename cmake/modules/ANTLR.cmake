@@ -15,29 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 if(USE_ANTLR)
-  find_program(ANTLR4 antlr4)
-
-  if (NOT ANTLR4)
-    file(GLOB_RECURSE ANTLR4JAR
-          /usr/local/lib/antlr-*-complete.jar
-          /usr/local/Cellar/*antlr-*-complete.jar)
-
-    # Get the first element of the list of antlr jars.
-    # Sort and reverse the list so the item selected is the highest
-    #   version in lib or else in Cellar if no lib installation exists.
-    list(SORT ANTLR4JAR)
-    list(REVERSE ANTLR4JAR)
-    list(GET ANTLR4JAR 0 ANTLR4JAR)
-
-    set(JAVA_HOME $ENV{JAVA_HOME})
-    if (NOT DEFINED JAVA_HOME)
-      # Hack to get system to search for Java itself.
-      set(JAVA_HOME "/usr")
-    endif()
-
-    set(ANTLR4 ${JAVA_HOME}/bin/java -jar ${ANTLR4JAR})
-  endif()
-
+  find_antlr(${USE_ANTLR})
   if(ANTLR4)
 
     set(RELAY_PARSER_DIR

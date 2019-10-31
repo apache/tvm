@@ -24,6 +24,8 @@
 #ifndef TVM_RELAY_OP_H_
 #define TVM_RELAY_OP_H_
 
+#include <dmlc/registry.h>
+
 #include <functional>
 #include <limits>
 #include <string>
@@ -82,7 +84,7 @@ class OpNode : public relay::ExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);
@@ -138,7 +140,7 @@ class Op : public relay::Expr {
   /*! \brief default constructor  */
   Op() {}
   /*! \brief constructor from node pointer */
-  explicit Op(NodePtr<Node> n) : Expr(n) {}
+  explicit Op(ObjectPtr<Object> n) : Expr(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -221,11 +223,12 @@ class OpRegistry {
                                     const Attrs&,
                                     const TypeReporter&)> type_rel_func);
   /*!
-   * \brief Set the type key of attributes.
-   * \param type_key The type of of the attrs field.
+   * \brief Set the the attrs type key and index to be AttrsType.
+   * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
-  inline OpRegistry& set_attrs_type_key(const std::string& type_key);
+  template<typename AttrsType>
+  inline OpRegistry& set_attrs_type();
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -397,7 +400,7 @@ class OpMap {
 
 // implementations
 inline const OpNode* Op::operator->() const {
-  return static_cast<const OpNode*>(node_.get());
+  return static_cast<const OpNode*>(get());
 }
 
 template <typename ValueType>
@@ -496,10 +499,10 @@ inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline OpRegistry& OpRegistry::set_attrs_type_key(  // NOLINT(*)
-    const std::string& type_key) {
-  get()->attrs_type_key = type_key;
-  get()->attrs_type_index = Node::TypeKey2Index(type_key.c_str());
+template<typename AttrsType>
+inline OpRegistry& OpRegistry::set_attrs_type() {  // NOLINT(*)
+  get()->attrs_type_key = AttrsType::_type_key;
+  get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
   return *this;
 }
 

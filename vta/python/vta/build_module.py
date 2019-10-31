@@ -80,6 +80,7 @@ def build_config(debug_flag=0, **kwargs):
     if debug_flag:
         pass_list.append((1, add_debug))
     pass_list.append((2, ir_pass.inject_alu_intrin))
+    pass_list.append((3, tvm.ir_pass.LowerStorageAccessInfo))
     pass_list.append((3, ir_pass.fold_uop_loop))
     pass_list.append((3, ir_pass.cpu_access_rewrite))
     return tvm.build_config(add_lower_pass=pass_list, **kwargs)

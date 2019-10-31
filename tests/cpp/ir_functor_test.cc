@@ -30,7 +30,7 @@ TEST(IRF, Basic) {
   Var x("x");
   auto z = x + 1;
 
-  IRFunctor<int(const NodeRef& n, int b)> f;
+  IRFunctor<int(const ObjectRef& n, int b)> f;
   LOG(INFO) << "x";
   f.set_dispatch<Variable>([](const Variable* n, int b) {
       return b;

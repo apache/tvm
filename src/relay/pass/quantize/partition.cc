@@ -35,13 +35,14 @@ namespace quantize {
 
 using namespace relay::transform;
 
+
 class QPartitionExpr;
 class QPartitionExprNode : public TempExprNode {
  public:
   /*! \brief The original expression */
   Expr expr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("expr", &expr);
   }
 
@@ -86,6 +87,8 @@ Pass QuantizePartition() {
 
 TVM_REGISTER_API("relay._quantize.QuantizePartition")
 .set_body_typed(QuantizePartition);
+
+TVM_REGISTER_NODE_TYPE(QPartitionExprNode);
 
 }  // namespace quantize
 }  // namespace relay

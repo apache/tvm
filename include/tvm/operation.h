@@ -188,7 +188,7 @@ class PlaceholderOpNode : public OperationNode {
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
@@ -259,7 +259,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
       bool debug_keep_trivial_loop) const final;
   size_t num_schedulable_dims() const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
@@ -312,7 +312,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
       bool debug_keep_trivial_loop) const final;
   size_t num_schedulable_dims() const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("axis", &axis);
@@ -394,7 +394,7 @@ class ScanOpNode : public OperationNode {
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
@@ -461,7 +461,7 @@ class ExternOpNode : public OperationNode {
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
@@ -529,7 +529,7 @@ class HybridOpNode : public OperationNode {
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
@@ -651,7 +651,7 @@ inline Tensor compute(Array<Expr> shape,
 
 // inline function.
 inline const OperationNode* Operation::operator->() const {
-  return static_cast<const OperationNode*>(node_.get());
+  return static_cast<const OperationNode*>(get());
 }
 }  // namespace tvm
 #endif  // TVM_OPERATION_H_

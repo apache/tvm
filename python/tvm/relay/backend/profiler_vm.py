@@ -49,8 +49,8 @@ def compile(mod, target=None, target_host=None, params=None):
 
     Returns
     -------
-    vm : VirtualMachineProfiler
-        The profile VM runtime.
+    exec : Executable
+        The executable with profiling code.
     """
     compiler = VMCompilerProfiler()
     target = compiler.update_target(target)
@@ -60,7 +60,11 @@ def compile(mod, target=None, target_host=None, params=None):
     tophub_context = compiler.tophub_context(target)
     with tophub_context:
         compiler._compile(mod, target, target_host)
-    return VirtualMachineProfiler(compiler._get_vm())
+    return vm.Executable(compiler._get_exec())
+
+def enabled():
+    """Whether vm profiler is enabled."""
+    return hasattr(_vm, "_VMCompilerProfiler")
 
 class VMCompilerProfiler(vm.VMCompiler):
     """Build Relay module to run on VM runtime."""
@@ -68,13 +72,17 @@ class VMCompilerProfiler(vm.VMCompiler):
         super().__init__()
         self.mod = _vm._VMCompilerProfiler()
         self._compile = self.mod["compile"]
-        self._get_vm = self.mod["get_vm"]
+        self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
 
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
     def __init__(self, mod):
         super().__init__(mod)
+        m = mod.module if isinstance(mod, vm.Executable) else mod
+        self.mod = _vm._VirtualMachineDebug(m)
+        self._init = self.mod["init"]
+        self._invoke = self.mod["invoke"]
         self._get_stat = self.mod["get_stat"]
 
     def get_stat(self):

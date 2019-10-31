@@ -190,8 +190,7 @@ class VTInjector : public IRMutator {
   }
   // Inject VTLoop when needed.
   Stmt Mutate(Stmt stmt) final {
-    CHECK(!visit_touched_var_)
-        << stmt->type_key() << stmt;
+    CHECK(!visit_touched_var_);
     stmt = IRMutator::Mutate(stmt);
     if (visit_touched_var_ || trigger_base_inject_) {
       if (!vt_loop_injected_)  {
@@ -485,7 +484,7 @@ class VirtualThreadInjector : public IRMutator {
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<AttrStmt>();
     if (op->attr_key == attr::virtual_thread) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       bool allow_share = iv->thread_tag == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImm>()->value);
       VarTouchedAnalysis vs;

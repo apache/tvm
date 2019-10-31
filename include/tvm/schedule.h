@@ -56,7 +56,7 @@ enum AttachType : int {
 class Stage : public NodeRef {
  public:
   Stage() {}
-  explicit Stage(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Stage(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
@@ -280,7 +280,7 @@ class Stage : public NodeRef {
 class Schedule : public NodeRef {
  public:
   Schedule() {}
-  explicit Schedule(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Schedule(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
@@ -403,7 +403,7 @@ class Schedule : public NodeRef {
 class IterVarRelation : public NodeRef {
  public:
   IterVarRelation() {}
-  explicit IterVarRelation(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVarRelation(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -417,7 +417,7 @@ class IterVarRelation : public NodeRef {
 class IterVarAttr : public NodeRef {
  public:
   IterVarAttr() {}
-  explicit IterVarAttr(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVarAttr(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -495,7 +495,7 @@ class StageNode : public Node {
   /*! \brief Number of direct child stages, only used for group stage.*/
   int num_child_stages{0};
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("origin_op", &origin_op);
     v->Visit("all_iter_vars", &all_iter_vars);
@@ -540,7 +540,7 @@ class ScheduleNode : public Node {
    */
   std::unordered_map<const Node*, Stage> op2stage_cache_;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("outputs", &outputs);
     v->Visit("stages", &stages);
     v->Visit("groups", &groups);
@@ -617,7 +617,7 @@ class IterVarAttrNode : public Node {
    */
   Array<Expr> pragma_values;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter_type", &iter_type);
     v->Visit("bind_thread", &bind_thread);
     v->Visit("prefetch_data", &prefetch_data);
@@ -657,7 +657,7 @@ class SplitNode : public IterVarRelationNode {
   /*! \brief Number of parts, only factor or nparts can be given */
   Expr nparts;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("parent", &parent);
     v->Visit("outer", &outer);
     v->Visit("inner", &inner);
@@ -687,7 +687,7 @@ class FuseNode : public IterVarRelationNode {
   /*! \brief The target domain */
   IterVar fused;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("outer", &outer);
     v->Visit("inner", &inner);
     v->Visit("fused", &fused);
@@ -712,7 +712,7 @@ class RebaseNode : public IterVarRelationNode {
   /*! \brief The inner domain */
   IterVar rebased;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("parent", &parent);
     v->Visit("rebased", &rebased);
   }
@@ -732,7 +732,7 @@ class SingletonNode : public IterVarRelationNode {
   /*! \brief The singleton iterator */
   IterVar iter;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter", &iter);
   }
 
@@ -745,25 +745,25 @@ class SingletonNode : public IterVarRelationNode {
 
 // implementations
 inline const StageNode* Stage::operator->() const {
-  return static_cast<const StageNode*>(node_.get());
+  return static_cast<const StageNode*>(get());
 }
 inline StageNode* Stage::operator->() {
-  return static_cast<StageNode*>(node_.get());
+  return static_cast<StageNode*>(get_mutable());
 }
 
 inline const ScheduleNode* Schedule::operator->() const {
-  return static_cast<const ScheduleNode*>(node_.get());
+  return static_cast<const ScheduleNode*>(get());
 }
 inline ScheduleNode* Schedule::operator->() {
-  return static_cast<ScheduleNode*>(node_.get());
+  return static_cast<ScheduleNode*>(get_mutable());
 }
 
 inline const IterVarRelationNode* IterVarRelation::operator->() const {
-  return static_cast<const IterVarRelationNode*>(node_.get());
+  return static_cast<const IterVarRelationNode*>(get());
 }
 
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
-  return static_cast<const IterVarAttrNode*>(node_.get());
+  return static_cast<const IterVarAttrNode*>(get());
 }
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_H_

@@ -157,7 +157,7 @@ class ConstantFolder : public ExprMutator {
       }
       return TupleNode::make(fields);
     } else {
-      LOG(FATAL) << "Cannot handle " << value->type_key();
+      LOG(FATAL) << "Cannot handle " << value->GetTypeKey();
       return Expr();
     }
   }

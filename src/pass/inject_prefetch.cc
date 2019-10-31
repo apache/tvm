@@ -40,7 +40,7 @@ class PrefetchInjector : public IRMutator {
     Stmt ret = IRMutator::Mutate_(op, s);
     op = ret.as<AttrStmt>();
     if (op && op->attr_key == attr::prefetch_scope) {
-      Tensor ts(op->node.node_);
+      Tensor ts = Downcast<Tensor>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);
       Domain domain = DomainTouched(op->body, ts, true, false);
       Region region;

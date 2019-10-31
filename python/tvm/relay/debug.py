@@ -17,12 +17,8 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from __future__ import absolute_import
-from .base import NodeBase, register_relay_node
 from ..api import register_func
 
-@register_relay_node
-class InterpreterState(NodeBase):
-    pass
 
 # pylint: disable=unused-argument
 def _debugger_init(expr, stack):

@@ -38,67 +38,49 @@ namespace tvm {
 class ArrayNode : public Node {
  public:
   /*! \brief the data content */
-  std::vector<NodePtr<Node> > data;
+  std::vector<ObjectRef> data;
 
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to array have no effect.
+  void VisitAttrs(AttrVisitor* visitor) {
   }
 
   static constexpr const char* _type_key = "Array";
-  TVM_DECLARE_NODE_TYPE_INFO(ArrayNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Node);
 };
 
 /*! \brief map node content */
 class MapNode : public Node {
  public:
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to map have no effect.
+  void VisitAttrs(AttrVisitor* visitor) {
   }
-  // hash function
-  struct Hash {
-    size_t operator()(const NodePtr<Node>& n) const {
-      return std::hash<Node*>()(n.get());
-    }
-  };
-  // comparator
-  struct Equal {
-    bool operator()(
-        const NodePtr<Node>& a,
-        const NodePtr<Node>& b) const {
-      return a.get() == b.get();
-    }
-  };
 
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<
-   NodePtr<Node>,
-   NodePtr<Node>,
-   Hash, Equal>;
+    ObjectRef,
+    ObjectRef,
+    ObjectHash, ObjectEqual>;
 
   /*! \brief the data content */
   ContainerType data;
 
   static constexpr const char* _type_key = "Map";
-  TVM_DECLARE_NODE_TYPE_INFO(MapNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Node);
 };
 
 
 /*! \brief specialized map node with string as key */
 class StrMapNode : public Node {
  public:
-  void VisitAttrs(AttrVisitor* visitor) final {
-     // Visitor to map have no effect.
-  }
   /*! \brief The corresponding conatiner type */
-  using ContainerType = std::unordered_map<
-    std::string,
-    NodePtr<Node> >;
+  using ContainerType = std::unordered_map<std::string, ObjectRef>;
+
+  void VisitAttrs(AttrVisitor* visitor) {
+  }
 
   /*! \brief the data content */
   ContainerType data;
 
   static constexpr const char* _type_key = "StrMap";
-  TVM_DECLARE_NODE_TYPE_INFO(StrMapNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StrMapNode, Node);
 };
 
 /*!
@@ -111,9 +93,9 @@ template<typename Converter,
 class IterAdapter {
  public:
   using difference_type = typename std::iterator_traits<TIter>::difference_type;
-  using value_type = typename std::iterator_traits<TIter>::value_type;
-  using pointer = typename std::iterator_traits<TIter>::pointer;
-  using reference = typename std::iterator_traits<TIter>::reference;
+  using value_type = typename Converter::ResultType;
+  using pointer = typename Converter::ResultType*;
+  using reference = typename Converter::ResultType&;   // NOLINT(*)
   using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
 
   explicit IterAdapter(TIter iter) : iter_(iter) {}
@@ -138,7 +120,7 @@ class IterAdapter {
   inline bool operator!=(IterAdapter other) const {
     return !(*this == other);
   }
-  inline const typename Converter::ResultType operator*() const {
+  inline const value_type operator*() const {
     return Converter::convert(*iter_);
   }
 
@@ -162,26 +144,27 @@ class Array : public NodeRef {
    * \brief default constructor
    */
   Array() {
-    node_ = make_node<ArrayNode>();
+    data_ = make_node<ArrayNode>();
   }
   /*!
    * \brief move constructor
    * \param other source
    */
   Array(Array<T> && other) {  // NOLINT(*)
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
   }
   /*!
    * \brief copy constructor
    * \param other source
    */
-  Array(const Array<T> &other) : NodeRef(other.node_) { // NOLINT(*)
+  Array(const Array<T> &other) { // NOLINT(*)
+    data_ = std::move(other.data_);
   }
   /*!
    * \brief constructor from pointer
    * \param n the container pointer
    */
-  explicit Array(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Array(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief constructor from iterator
    * \param begin begin of iterator
@@ -214,9 +197,9 @@ class Array : public NodeRef {
   explicit Array(size_t n, const T& val) {
     auto tmp_node = make_node<ArrayNode>();
     for (size_t i = 0; i < n; ++i) {
-      tmp_node->data.push_back(val.node_);
+      tmp_node->data.push_back(val);
     }
-    node_ = std::move(tmp_node);
+    data_ = std::move(tmp_node);
   }
   /*!
    * \brief move assign operator
@@ -224,7 +207,7 @@ class Array : public NodeRef {
    * \return reference to self.
    */
   Array<T>& operator=(Array<T> && other) {
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
     return *this;
   }
   /*!
@@ -233,7 +216,7 @@ class Array : public NodeRef {
    * \return reference to self.
    */
   Array<T>& operator=(const Array<T> & other) {
-    node_ = other.node_;
+    data_ = other.data_;
     return *this;
   }
   /*!
@@ -246,9 +229,9 @@ class Array : public NodeRef {
   void assign(IterType begin, IterType end) {
     auto n = make_node<ArrayNode>();
     for (IterType it = begin; it != end; ++it) {
-      n->data.push_back((*it).node_);
+      n->data.push_back(T(*it));
     }
-    node_ = std::move(n);
+    data_ = std::move(n);
   }
   /*!
    * \brief Read i-th element from array.
@@ -256,12 +239,13 @@ class Array : public NodeRef {
    * \return the i-th element.
    */
   inline const T operator[](size_t i) const {
-    return T(static_cast<const ArrayNode*>(node_.get())->data[i]);
+    return DowncastNoCheck<T>(
+        static_cast<const ArrayNode*>(data_.get())->data[i]);
   }
   /*! \return The size of the array */
   inline size_t size() const {
-    if (node_.get() == nullptr) return 0;
-    return static_cast<const ArrayNode*>(node_.get())->data.size();
+    if (data_.get() == nullptr) return 0;
+    return static_cast<const ArrayNode*>(data_.get())->data.size();
   }
   /*!
    * \brief copy on write semantics
@@ -272,12 +256,12 @@ class Array : public NodeRef {
    * \return Handle to the internal node container(which ganrantees to be unique)
    */
   inline ArrayNode* CopyOnWrite() {
-    if (node_.get() == nullptr || !node_.unique())  {
+    if (data_.get() == nullptr || !data_.unique())  {
       NodePtr<ArrayNode> n = make_node<ArrayNode>();
-      n->data = static_cast<ArrayNode*>(node_.get())->data;
-      NodePtr<Node>(std::move(n)).swap(node_);
+      n->data = static_cast<ArrayNode*>(data_.get())->data;
+      ObjectPtr<Object>(std::move(n)).swap(data_);
     }
-    return static_cast<ArrayNode*>(node_.get());
+    return static_cast<ArrayNode*>(data_.get());
   }
   /*!
    * \brief push a new item to the back of the list
@@ -285,7 +269,7 @@ class Array : public NodeRef {
    */
   inline void push_back(const T& item) {
     ArrayNode* n = this->CopyOnWrite();
-    n->data.push_back(item.node_);
+    n->data.push_back(item);
   }
   /*!
    * \brief set i-th element of the array.
@@ -294,7 +278,7 @@ class Array : public NodeRef {
    */
   inline void Set(size_t i, const T& value) {
     ArrayNode* n = this->CopyOnWrite();
-    n->data[i] = value.node_;
+    n->data[i] = value;
   }
   /*! \return whether array is empty */
   inline bool empty() const {
@@ -303,34 +287,34 @@ class Array : public NodeRef {
   /*! \brief specify container node */
   using ContainerType = ArrayNode;
 
-  struct Ptr2NodeRef {
+  struct ValueConverter {
     using ResultType = T;
-    static inline T convert(const NodePtr<Node>& n) {
-      return T(n);
+    static inline T convert(const ObjectRef& n) {
+      return DowncastNoCheck<T>(n);
     }
   };
-  using iterator = IterAdapter<Ptr2NodeRef,
-                               std::vector<NodePtr<Node> >::const_iterator>;
+  using iterator = IterAdapter<ValueConverter,
+                               std::vector<ObjectRef>::const_iterator>;
 
   using reverse_iterator = IterAdapter<
-    Ptr2NodeRef,
-    std::vector<NodePtr<Node> >::const_reverse_iterator>;
+    ValueConverter,
+    std::vector<ObjectRef>::const_reverse_iterator>;
 
   /*! \return begin iterator */
   inline iterator begin() const {
-    return iterator(static_cast<const ArrayNode*>(node_.get())->data.begin());
+    return iterator(static_cast<const ArrayNode*>(data_.get())->data.begin());
   }
   /*! \return end iterator */
   inline iterator end() const {
-    return iterator(static_cast<const ArrayNode*>(node_.get())->data.end());
+    return iterator(static_cast<const ArrayNode*>(data_.get())->data.end());
   }
   /*! \return rbegin iterator */
   inline reverse_iterator rbegin() const {
-    return reverse_iterator(static_cast<const ArrayNode*>(node_.get())->data.rbegin());
+    return reverse_iterator(static_cast<const ArrayNode*>(data_.get())->data.rbegin());
   }
   /*! \return rend iterator */
   inline reverse_iterator rend() const {
-    return reverse_iterator(static_cast<const ArrayNode*>(node_.get())->data.rend());
+    return reverse_iterator(static_cast<const ArrayNode*>(data_.get())->data.rend());
   }
 };
 
@@ -355,26 +339,26 @@ class Map : public NodeRef {
    * \brief default constructor
    */
   Map() {
-    node_ = make_node<MapNode>();
+    data_ = make_node<MapNode>();
   }
   /*!
    * \brief move constructor
    * \param other source
    */
   Map(Map<K, V> && other) {  // NOLINT(*)
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
   }
   /*!
    * \brief copy constructor
    * \param other source
    */
-  Map(const Map<K, V> &other) : NodeRef(other.node_) { // NOLINT(*)
+  Map(const Map<K, V> &other) : NodeRef(other.data_) { // NOLINT(*)
   }
   /*!
    * \brief constructor from pointer
    * \param n the container pointer
    */
-  explicit Map(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Map(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief constructor from iterator
    * \param begin begin of iterator
@@ -406,7 +390,7 @@ class Map : public NodeRef {
    * \return reference to self.
    */
   Map<K, V>& operator=(Map<K, V> && other) {
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
     return *this;
   }
   /*!
@@ -415,7 +399,7 @@ class Map : public NodeRef {
    * \return reference to self.
    */
   Map<K, V>& operator=(const Map<K, V> & other) {
-    node_ = other.node_;
+    data_ = other.data_;
     return *this;
   }
   /*!
@@ -428,10 +412,9 @@ class Map : public NodeRef {
   void assign(IterType begin, IterType end) {
     NodePtr<MapNode> n = make_node<MapNode>();
     for (IterType i = begin; i != end; ++i) {
-      n->data.emplace(std::make_pair(i->first.node_,
-                                     i->second.node_));
+      n->data.emplace(std::make_pair(i->first, i->second));
     }
-    node_ = std::move(n);
+    data_ = std::move(n);
   }
   /*!
    * \brief Read element from map.
@@ -439,7 +422,8 @@ class Map : public NodeRef {
    * \return the corresonding element.
    */
   inline const V operator[](const K& key) const {
-    return V(static_cast<const MapNode*>(node_.get())->data.at(key.node_));
+    return DowncastNoCheck<V>(
+        static_cast<const MapNode*>(data_.get())->data.at(key));
   }
   /*!
    * \brief Read element from map.
@@ -447,17 +431,18 @@ class Map : public NodeRef {
    * \return the corresonding element.
    */
   inline const V at(const K& key) const {
-    return V(static_cast<const MapNode*>(node_.get())->data.at(key.node_));
+    return DowncastNoCheck<V>(
+        static_cast<const MapNode*>(data_.get())->data.at(key));
   }
   /*! \return The size of the array */
   inline size_t size() const {
-    if (node_.get() == nullptr) return 0;
-    return static_cast<const MapNode*>(node_.get())->data.size();
+    if (data_.get() == nullptr) return 0;
+    return static_cast<const MapNode*>(data_.get())->data.size();
   }
   /*! \return The number of elements of the key */
   inline size_t count(const K& key) const {
-    if (node_.get() == nullptr) return 0;
-    return static_cast<const MapNode*>(node_.get())->data.count(key.node_);
+    if (data_.get() == nullptr) return 0;
+    return static_cast<const MapNode*>(data_.get())->data.count(key);
   }
   /*!
    * \brief copy on write semantics
@@ -468,12 +453,12 @@ class Map : public NodeRef {
    * \return Handle to the internal node container(which ganrantees to be unique)
    */
   inline MapNode* CopyOnWrite() {
-    if (node_.get() == nullptr || !node_.unique())  {
+    if (data_.get() == nullptr || !data_.unique())  {
       NodePtr<MapNode> n = make_node<MapNode>();
-      n->data = static_cast<const MapNode*>(node_.get())->data;
-      NodePtr<Node>(std::move(n)).swap(node_);
+      n->data = static_cast<const MapNode*>(data_.get())->data;
+      ObjectPtr<Object>(std::move(n)).swap(data_);
     }
-    return static_cast<MapNode*>(node_.get());
+    return static_cast<MapNode*>(data_.get());
   }
   /*!
    * \brief set the Map.
@@ -482,7 +467,7 @@ class Map : public NodeRef {
    */
   inline void Set(const K& key, const V& value) {
     MapNode* n = this->CopyOnWrite();
-    n->data[key.node_] = value.node_;
+    n->data[key] = value;
   }
 
   /*! \return whether array is empty */
@@ -492,29 +477,31 @@ class Map : public NodeRef {
   /*! \brief specify container node */
   using ContainerType = MapNode;
 
-  struct Ptr2NodeRef {
+  struct ValueConverter {
     using ResultType = std::pair<K, V>;
     static inline ResultType convert(const std::pair<
-                            NodePtr<Node>,
-                            NodePtr<Node> >& n) {
-      return std::make_pair(K(n.first), V(n.second));
+                                     ObjectRef,
+                                     ObjectRef>& n) {
+      return std::make_pair(DowncastNoCheck<K>(n.first),
+                            DowncastNoCheck<V>(n.second));
     }
   };
 
   using iterator = IterAdapter<
-    Ptr2NodeRef, MapNode::ContainerType::const_iterator>;
+    ValueConverter, MapNode::ContainerType::const_iterator>;
 
   /*! \return begin iterator */
   inline iterator begin() const {
-    return iterator(static_cast<const MapNode*>(node_.get())->data.begin());
+    return iterator(static_cast<const MapNode*>(data_.get())->data.begin());
   }
   /*! \return end iterator */
   inline iterator end() const {
-    return iterator(static_cast<const MapNode*>(node_.get())->data.end());
+    return iterator(static_cast<const MapNode*>(data_.get())->data.end());
   }
   /*! \return begin iterator */
   inline iterator find(const K& key) const {
-    return iterator(static_cast<const MapNode*>(node_.get())->data.find(key.node_));
+    return iterator(
+        static_cast<const MapNode*>(data_.get())->data.find(key));
   }
 };
 
@@ -524,14 +511,14 @@ class Map<std::string, V, T1, T2> : public NodeRef {
  public:
   // for code reuse
   Map() {
-    node_ = make_node<StrMapNode>();
+    data_ = make_node<StrMapNode>();
   }
   Map(Map<std::string, V> && other) {  // NOLINT(*)
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
   }
-  Map(const Map<std::string, V> &other) : NodeRef(other.node_) { // NOLINT(*)
+  Map(const Map<std::string, V> &other) : NodeRef(other.data_) { // NOLINT(*)
   }
-  explicit Map(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Map(ObjectPtr<Object> n) : NodeRef(n) {}
   template<typename IterType>
   Map(IterType begin, IterType end) {
     assign(begin, end);
@@ -545,76 +532,77 @@ class Map<std::string, V, T1, T2> : public NodeRef {
     assign(init.begin(), init.end());
   }
   Map<std::string, V>& operator=(Map<std::string, V> && other) {
-    node_ = std::move(other.node_);
+    data_ = std::move(other.data_);
     return *this;
   }
   Map<std::string, V>& operator=(const Map<std::string, V> & other) {
-    node_ = other.node_;
+    data_ = other.data_;
     return *this;
   }
   template<typename IterType>
   void assign(IterType begin, IterType end) {
     auto n = make_node<StrMapNode>();
     for (IterType i = begin; i != end; ++i) {
-      n->data.emplace(std::make_pair(i->first,
-                                     i->second.node_));
+      n->data.emplace(std::make_pair(i->first, i->second));
     }
-    node_ = std::move(n);
+    data_ = std::move(n);
   }
   inline const V operator[](const std::string& key) const {
-    return V(static_cast<const StrMapNode*>(node_.get())->data.at(key));
+    return DowncastNoCheck<V>(
+        static_cast<const StrMapNode*>(data_.get())->data.at(key));
   }
   inline const V at(const std::string& key) const {
-    return V(static_cast<const StrMapNode*>(node_.get())->data.at(key));
+    return DowncastNoCheck<V>(
+        static_cast<const StrMapNode*>(data_.get())->data.at(key));
   }
   inline size_t size() const {
-    if (node_.get() == nullptr) return 0;
-    return static_cast<const StrMapNode*>(node_.get())->data.size();
+    if (data_.get() == nullptr) return 0;
+    return static_cast<const StrMapNode*>(data_.get())->data.size();
   }
   inline size_t count(const std::string& key) const {
-    if (node_.get() == nullptr) return 0;
-    return static_cast<const StrMapNode*>(node_.get())->data.count(key);
+    if (data_.get() == nullptr) return 0;
+    return static_cast<const StrMapNode*>(data_.get())->data.count(key);
   }
   inline StrMapNode* CopyOnWrite() {
-    if (node_.get() == nullptr || !node_.unique())  {
+    if (data_.get() == nullptr || !data_.unique())  {
       NodePtr<StrMapNode> n = make_node<StrMapNode>();
-      n->data = static_cast<const StrMapNode*>(node_.get())->data;
-      NodePtr<Node>(std::move(n)).swap(node_);
+      n->data = static_cast<const StrMapNode*>(data_.get())->data;
+      ObjectPtr<Object>(std::move(n)).swap(data_);
     }
-    return static_cast<StrMapNode*>(node_.get());
+    return static_cast<StrMapNode*>(data_.get());
   }
   inline void Set(const std::string& key, const V& value) {
     StrMapNode* n = this->CopyOnWrite();
-    n->data[key] = value.node_;
+    n->data[key] = value;
   }
   inline bool empty() const {
     return size() == 0;
   }
   using ContainerType = StrMapNode;
 
-  struct Ptr2NodeRef {
+  struct ValueConverter {
     using ResultType = std::pair<std::string, V>;
     static inline ResultType convert(const std::pair<
-                            std::string,
-                            NodePtr<Node> >& n) {
-      return std::make_pair(n.first, V(n.second));
+                                     std::string,
+                                     ObjectRef>& n) {
+      return std::make_pair(n.first, DowncastNoCheck<V>(n.second));
     }
   };
 
   using iterator = IterAdapter<
-    Ptr2NodeRef, StrMapNode::ContainerType::const_iterator>;
+    ValueConverter, StrMapNode::ContainerType::const_iterator>;
 
   /*! \return begin iterator */
   inline iterator begin() const {
-    return iterator(static_cast<const StrMapNode*>(node_.get())->data.begin());
+    return iterator(static_cast<const StrMapNode*>(data_.get())->data.begin());
   }
   /*! \return end iterator */
   inline iterator end() const {
-    return iterator(static_cast<const StrMapNode*>(node_.get())->data.end());
+    return iterator(static_cast<const StrMapNode*>(data_.get())->data.end());
   }
   /*! \return begin iterator */
   inline iterator find(const std::string& key) const {
-    return iterator(static_cast<const StrMapNode*>(node_.get())->data.find(key));
+    return iterator(static_cast<const StrMapNode*>(data_.get())->data.find(key));
   }
 };
 

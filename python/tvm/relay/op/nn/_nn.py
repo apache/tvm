@@ -153,14 +153,14 @@ def compute_conv2d(attrs, inputs, out_type, target):
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
-    assert layout in ["NCHW", "NHWC", "NCHW4c"]
+    assert layout in ["NCHW", "NHWC", "NCHW4c", "HWCN"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
-        if kernel_layout == "HWOI":
+        if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
         return weight_shape[0] * weight_shape[1]
 
@@ -192,11 +192,13 @@ def schedule_conv2d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NCHW4c":
+        elif groups == 1 and layout == "NCHW4c":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NHWC":
+        elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        if groups != 1:
+        elif groups == 1 and layout == "HWCN":
+            return topi.generic.schedule_conv2d_hwcn(outs)
+        elif groups != 1:
             # collect in_channels to distinguish depthwise and group conv2d
             op = _find_conv2d_op(outs[0].op)
             assert op is not None
@@ -407,11 +409,12 @@ def schedule_upsampling(_, outs, target):
 
 @reg.register_compute("nn.upsampling")
 def compute_upsampling(attrs, inputs, out_dtype, target):
-    scale = attrs.scale
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
     layout = attrs.layout
     method = attrs.method
     align_corners = attrs.align_corners
-    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
+    return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -768,3 +771,12 @@ reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 def compute_cross_entropy(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(topi.log(x) * y) / x.shape[0]]
+
+
+reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
+
+
+@reg.register_compute("nn.cross_entropy_with_logits")
+def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
+    x, y = inputs
+    return [-topi.sum(x * y) / x.shape[0]]

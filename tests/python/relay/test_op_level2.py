@@ -232,14 +232,17 @@ def test_conv2d_transpose_run():
 
 def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    scale = tvm.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h*2, w*2), "float32")
+    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+                                                "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
@@ -504,29 +507,31 @@ def test_batch_flatten():
 
 def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
-    scale = 2
+    scale_h = 2.0
+    scale_w = 2.0
     dtype = "float32"
     def get_shape():
         if layout == "NCHW":
-            return (c, h, w), (c, h*scale, w*scale)
+            return (c, h, w), (c, int(round(h*scale_h)), int(round(w*scale_w)))
         else:
-            return (h, w, c), (h*scale, w*scale, c)
+            return (h, w, c), (int(round(h*scale_h)), int(round(w*scale_w)), c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
-        ref = topi.testing.upsampling_python(data, (scale, scale), layout)
+        ref = topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
     else:
-        ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
+        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scale_h)),
+                                                  int(round(w*scale_w))), layout)
     for target, ctx in ctx_list():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)
@@ -546,9 +551,11 @@ def test_conv2d_int8_intrinsics():
 
         n, h, w, ch, cw = 1, 64, 64, 3, 3
         if data_layout == 'NCHW':
-            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+            data_shape = (n, ic, h, w)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         elif data_layout == 'NHWC':
-            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+            data_shape = (n, h, w, ic)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         else:
             raise ValueError('Not supported')
 
@@ -559,8 +566,8 @@ def test_conv2d_int8_intrinsics():
         else:
             raise ValueError('Not supported')
 
-        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
-        y = relay.nn.conv2d(x, w,
+        weight = relay.var("weight", relay.TensorType(kernel_shape, weight_dtype))
+        y = relay.nn.conv2d(x, weight,
                             kernel_size=(ch, cw),
                             channels=oc,
                             padding=(1, 1),
@@ -568,11 +575,13 @@ def test_conv2d_int8_intrinsics():
                             data_layout=data_layout,
                             kernel_layout=kernel_layout,
                             out_dtype=output_dtype)
-        func = relay.Function([x, w], y)
+        func = relay.Function([x, weight], y)
         wdata = np.random.rand(*kernel_shape) * 10
-        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
+
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
+
         assembly = lib.get_source("asm")
         return assembly
 
@@ -589,58 +598,63 @@ def test_conv2d_int8_intrinsics():
     llvm_version = tvm.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
-            fast_int8_dtypes = ('uint8', 'int8', 'int32')
+            dtypes = ('uint8', 'int8', 'int32')
             # Sweep the input channels to check int8 robustness
             # Input channels should be a multiple of 4 internally.
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
-
 
             # Sweep the output channels to check int8 robustness
             # Output channels should be a multiple of 16 internally.
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             # Check that both non-divisible oc and ic work
             asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
             asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('int8', 'int8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+    # Check that int8 x int8 goes through legalization so that fast instructions can be picked up.
+    for target in targets:
+        if llvm_version >= 8:
+            dtypes = (('int8', 'int8', 'int32'))
+            # Check that both non-divisible oc and ic work
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('uint8', 'uint8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
+
+    # Ensure that code is generated when datatypes are not HW supported.
+    dtypes = ('uint8', 'uint8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                   dtypes=dtypes)
+    # Check that intrinisic is not present in the assembly.
+    assert not _has_fast_int8_instructions(asm, target)
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.

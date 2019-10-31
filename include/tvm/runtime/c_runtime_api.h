@@ -98,13 +98,12 @@ typedef enum {
   kTVMType = 5U,
   kTVMContext = 6U,
   kArrayHandle = 7U,
-  kNodeHandle = 8U,
+  kObjectHandle = 8U,
   kModuleHandle = 9U,
   kFuncHandle = 10U,
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
-  kObjectHandle = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.

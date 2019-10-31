@@ -520,6 +520,13 @@ TVM_DLL Expr sum(Expr source, Array<IterVar> axis);
 TVM_DLL Expr all(Expr source, Array<IterVar> axis);
 
 /*!
+ * \brief logical Or of of source expression over axis
+ * \param source The source expression.
+ * \param axis List of iteration variables that will be used for reduction.
+ */
+TVM_DLL Expr any(Expr source, Array<IterVar> axis);
+
+/*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
@@ -700,6 +707,9 @@ inline Expr make_zero(Type t) {
   }                                                            \
   inline Expr Name(const Expr& a, int b) {                     \
     return Name(a, make_const(a.type(), b));                   \
+  }                                                            \
+  inline Expr Name(const Expr& a, double b) {                  \
+    return Name(a, make_const(Float(64), b));                  \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                  \

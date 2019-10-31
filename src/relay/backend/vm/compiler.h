@@ -92,12 +92,8 @@ class VMCompiler : public runtime::ModuleNode {
     return "VMCompiler";
   }
 
-  std::shared_ptr<VirtualMachine> GetVirtualMachine() const {
-    return vm_;
-  }
-
-  virtual void InitVM() {
-    vm_ = std::make_shared<VirtualMachine>();
+  void InitVM() {
+    exec_ = std::make_shared<Executable>();
   }
 
   /*!
@@ -144,8 +140,8 @@ class VMCompiler : public runtime::ModuleNode {
   tvm::Target target_host_;
   /*! \brief Global shared meta data */
   VMCompilerContext context_;
-  /*! \brief Compiled virtual machine. */
-  std::shared_ptr<VirtualMachine> vm_;
+  /*! \brief Compiled executable. */
+  std::shared_ptr<Executable> exec_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
 };

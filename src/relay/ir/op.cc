@@ -164,7 +164,7 @@ TVM_REGISTER_API("relay.op._Register")
     if (attr_key == "num_inputs" && plevel > 128) {
       reg.set_num_inputs(value);
     } else if (attr_key == "attrs_type_key" && plevel > 128) {
-      reg.set_attrs_type_key(value);
+      LOG(FATAL) << "attrs type key no longer supported";
     } else {
       // normal attr table override.
       if (args[2].type_code() == kFuncHandle) {
@@ -179,15 +179,23 @@ TVM_REGISTER_API("relay.op._Register")
     }
   });
 
+// helper to get internal dev function in objectref.
+struct Op2NodePtr : public ObjectRef {
+  static NodePtr<Node> Get(const Op& op) {
+    return GetDataPtr<Node>(op);
+  }
+};
+
 NodePtr<Node> CreateOp(const std::string& name) {
+  // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
   CHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return op.node_;
+  return Op2NodePtr::Get(op);
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode)
 .set_creator(CreateOp)
-.set_global_key([](const Node* n) {
+.set_global_key([](const Object* n) {
     return static_cast<const OpNode*>(n)->name;
   });
 

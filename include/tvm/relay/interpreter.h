@@ -78,9 +78,9 @@ class ValueNode : public RelayNode {
 class Value : public NodeRef {
  public:
   Value() {}
-  explicit Value(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Value(ObjectPtr<Object> n) : NodeRef(n) {}
   const ValueNode* operator->() const {
-    return static_cast<const ValueNode*>(node_.get());
+    return static_cast<const ValueNode*>(get());
   }
 
   using ContainerType = ValueNode;
@@ -106,7 +106,7 @@ class ClosureNode : public ValueNode {
 
   ClosureNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("env", &env);
     v->Visit("func", &func);
   }
@@ -119,6 +119,32 @@ class ClosureNode : public ValueNode {
 
 RELAY_DEFINE_NODE_REF(Closure, ClosureNode, Value);
 
+/*! \brief A Relay Recursive Closure. A closure that has a name. */
+class RecClosure;
+
+/*! \brief The container type of RecClosure. */
+class RecClosureNode : public ValueNode {
+ public:
+  /*! \brief The closure. */
+  Closure clos;
+  /*! \brief variable the closure bind to. */
+  Var bind;
+
+  RecClosureNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("clos", &clos);
+    v->Visit("bind", &bind);
+  }
+
+  TVM_DLL static RecClosure make(Closure clos, Var bind);
+
+  static constexpr const char* _type_key = "relay.RecClosure";
+  TVM_DECLARE_NODE_TYPE_INFO(RecClosureNode, ValueNode);
+};
+
+RELAY_DEFINE_NODE_REF(RecClosure, RecClosureNode, Value);
+
 /*! \brief A tuple value. */
 class TupleValue;
 
@@ -128,7 +154,7 @@ struct TupleValueNode : ValueNode {
 
   TupleValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("fields", &fields); }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
 
   TVM_DLL static TupleValue make(tvm::Array<Value> value);
 
@@ -147,7 +173,7 @@ struct TensorValueNode : ValueNode {
 
   TensorValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("data", &data); }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("data", &data); }
 
   /*! \brief Build a value from an NDArray. */
   TVM_DLL static TensorValue make(runtime::NDArray data);
@@ -166,7 +192,7 @@ struct RefValueNode : ValueNode {
 
   RefValueNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
   }
 
@@ -189,7 +215,7 @@ struct ConstructorValueNode : ValueNode {
   /*! \brief Optional field tracking ADT constructor. */
   Constructor constructor;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tag", &tag);
     v->Visit("fields", &fields);
     v->Visit("constructor", &constructor);

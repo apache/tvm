@@ -80,7 +80,7 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_num_inputs(1)
 .set_support_level(5)
-.set_attrs_type_key("relay.attrs.YoloReorgAttrs")
+.set_attrs_type<YoloReorgAttrs>()
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,
