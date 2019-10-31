@@ -226,8 +226,17 @@ print(mod['main'])
 # Implement The Runtime Dispather
 # -------------------------------
 # The last step is invoking the generated external library in runtime.
-# Specifically, we need to implement tvm runtime `Module` compatible
-# `GetFunction()` in codegen.cc. The function takes a subgraph name and returns
+# We create a runtime module `GccModule` derived from `ExternModuleBase`
+# in src/runtime/contrib/gcc/gcc.h for Relay runtime to dispatch the
+# generated library/executable. Then, we implement the dispatcher in
+# src/runtime/contrib/gcc/gcc.cc. Note that altough the `GccModule` constructor
+# accepts the path of generated library/executable for runtime initialization,
+# it can be customized by each external backend to accept any types of required
+# artifacts.
+
+######################################################################
+# In addition, we implement tvm runtime `Module` compatible
+# `GetFunction()`. The function takes a subgraph name and returns
 # a `PackedFunc` that executes the subgraph with runtime input data. Note that
 # the runtime data in TVM is provided in the tvm `NDArray` format. It's
 # vendors' repsonsiblity to deserialize it into the format that they library
@@ -243,18 +252,30 @@ print(mod['main'])
 # Add Codegen to TVM Building Process
 # -----------------------------------
 # Finally, we include the implemented codegen to the cmake config so that
-# it will be built along with the TVM. To do so, we add two lines to
-# cmake/modules/contrib/Extern.cmake:
-# file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
-# list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
+# it will be built along with the TVM. In cmake/modules/contrib/Extern.cmake:
+#
+# list(FIND USE_EXTERN "gcc" _gcc_idx)
+# if(_gcc_idx GREATER -1)
+#     file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
+#     list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
+#     file(GLOB GCC_CONTRIB_SRC src/runtime/contrib/gcc/*.cc)
+#     list(APPEND RUNTIME_SRCS ${GCC_CONTRIB_SRC})
+#     message(STATUS "Use extern library: GCC")
+# endif()
 
 
 ######################################################################
-# We can now test the correctness of the external GCC backend:
+# We can now build TVM with the external GCC backedn and test the correctness:
+# 1. cd build
+# 2. set(USE_EXTERN gcc) in config.cmake
+# 3. cmake ..; make -j
 #
 # .. note::
 #     The complete GCC backend implementation is in the TVM codebase
 #     so we can directly use it in this tutorial for demonstration.
+#
+#     Multiple external backends can be eneabled simultaneously by ";".
+#     For example: set(USE_EXTERN gcc;dnnl)
 
 import numpy as np
 

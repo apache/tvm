@@ -57,17 +57,16 @@ class DnnlBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    std::string func_name = subgraph_id_ + "_" + std::to_string(func_idx_++);
 
     // Make function declaration
     std::string decl = "";
 
     // Args: ID
-    std::string macro = "";
+    std::string func_name = "";
     std::vector<std::string> args;
 
     if (IsOp(call, "nn.conv2d")) {
-      macro = "CONV2D";
+      func_name = "dnnl_conv2d";
       const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
 
       auto ishape = GetShape(call->args[0]->checked_type());
@@ -88,7 +87,7 @@ class DnnlBuilder : public ExprVisitor {
       args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
       args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
     } else if (IsOp(call, "nn.dense")) {
-      macro = "DENSE";
+      func_name = "dnnl_dense";
       auto ishape = GetShape(call->args[0]->checked_type());
       auto wshape = GetShape(call->args[1]->checked_type());
 
@@ -98,7 +97,7 @@ class DnnlBuilder : public ExprVisitor {
       args.push_back(std::to_string(wshape[0]));
 
     } else if (IsOp(call, "nn.relu")) {
-      macro = "RELU";
+      func_name = "dnnl_relu";
       auto ishape = GetShape(call->args[0]->checked_type());
 
       // Args: N, C, H, W
@@ -106,7 +105,7 @@ class DnnlBuilder : public ExprVisitor {
         args.push_back(std::to_string(s));
       }
     } else if (IsOp(call, "nn.batch_norm")) {
-      macro = "BN";
+      func_name = "dnnl_bn";
       const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
       auto ishape = GetShape(call->args[0]->checked_type());
 
@@ -118,7 +117,7 @@ class DnnlBuilder : public ExprVisitor {
       // Args: epilson
       args.push_back(std::to_string(bn_attr->epsilon));
     } else if (IsOp(call, "add")) {
-      macro = "ADD";
+      func_name = "dnnl_add";
       auto ishape = GetShape(call->args[0]->checked_type());
 
       // Args: H, W
@@ -129,14 +128,7 @@ class DnnlBuilder : public ExprVisitor {
       LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
     }
 
-    decl = macro + "(" + func_name;
-    for (size_t i = 0; i < args.size(); ++i) {
-      decl += ", " + args[i];
-    }
-    decl += ");";
-    func_decl_.push_back(decl);
-
-    // Make function call when visiting arguments
+    // Make function call with input buffers when visiting arguments
     bool first = true;
     std::string func_call = func_name + "(";
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -150,6 +142,7 @@ class DnnlBuilder : public ExprVisitor {
       }
     }
 
+    // Analyze the output buffer
     auto type_node = call->checked_type().as<TensorTypeNode>();
     CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
         << "Only support single output tensor with float type";
@@ -162,8 +155,13 @@ class DnnlBuilder : public ExprVisitor {
     std::string buf_decl =
         "float* " + out + " = (float*)malloc(4 * " + std::to_string(out_size) + ");";
     buf_decl_.push_back(buf_decl);
+    func_call += ", " + out;
 
-    func_call += ", " + out + ");";
+    // Attach attribute arguments
+    for (size_t i = 0; i < args.size(); ++i) {
+      func_call += ", " + args[i];
+    }
+    func_call += ");";
     subgraph_body.push_back(func_call);
 
     // Update output buffer
@@ -173,11 +171,6 @@ class DnnlBuilder : public ExprVisitor {
 
   std::string build() {
     std::string code = "";
-
-    // Write function macros
-    for (auto decl : func_decl_) {
-      code += decl + "\n";
-    }
 
     // Write subgraph function declaration
     code += "extern \"C\" void " + subgraph_id_ + "(DnnlPackedArgs args, float* out) {\n";
@@ -205,11 +198,9 @@ class DnnlBuilder : public ExprVisitor {
 
  private:
   std::string subgraph_id_ = "";
-  int func_idx_ = 0;
   int buf_idx_ = 0;
   std::vector<std::string> subgraph_args_;
   std::vector<std::string> subgraph_body;
-  std::vector<std::string> func_decl_;
   std::vector<std::string> buf_decl_;
   std::vector<std::pair<std::string, int>> out_;
 
@@ -262,8 +253,7 @@ class DNNLCodegen : public ExternCodegenBase {
 
     auto builder = DnnlBuilder(runtime::contrib::kDnnlPrefix + sid);
     builder.VisitExpr(func->body);
-    std::string code = builder.build();
-    code_ = code_ + code;
+    code_ += builder.build();
   }
 
   void CompileExternLib() override {
