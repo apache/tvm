@@ -1069,4 +1069,3 @@ def dispatch_global_func(mod, func_name, input_shape, dispatch_func):
         Module with updated global function.
     """
     return _transform.dispatch_global_func(mod, func_name, input_shape, dispatch_func)
-
