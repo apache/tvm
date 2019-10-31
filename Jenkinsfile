@@ -235,7 +235,7 @@ stage('Build') {
 
 stage('Unit Test') {
   parallel 'python3: GPU': {
-    node('GPU') {
+    node('TensorCore') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
