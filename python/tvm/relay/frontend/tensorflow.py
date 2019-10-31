@@ -286,29 +286,10 @@ def _conv(opname):
 
             attr['padding'] = [0, 0]
 
-        elif attr['padding'] == 'EXPLICIT':
-            warnings.warn(
-                'Explicit padding is for now only supporting same padding '
-                'before/after. It uses values 0 and 2, out of its 4 values.'
-            )
-            if 'explicit_paddings' not in attr:
-                raise tvm.error.OpAttributeInvalid(
-                    'EXPLICIT padding mode requires the'
-                    ' `explicit_padding` attribute.'
-                )
-            h = attr['explicit_paddings'][0]
-            v = attr['explicit_paddings'][2]
-            attr['padding'] = [h, v]
-
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' \
                   'valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
-
-        # Not needed in the Relay API for `conv`.
-        # Consumed only if `padding` was set to `EXPLICIT`.
-        if opname == 'conv' and 'explicit_paddings' in attr:
-            del attr['explicit_paddings']
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
@@ -417,9 +398,9 @@ def _resize_bilinear():
         # NHWC
         attr['layout'] = 'NHWC'
 
-        # Ignore the new attribute `half_pixel_centers` from TF2.0, for now.
+        # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(op_name="resize",
-                       ignores=['Tdim', 'half_pixel_centers'],
+                       ignores=['Tdim', 'half_pixel_centers', 'explicit_paddings'],
                        extras={'method': "bilinear"})(inputs, attr)
     return _impl
 
