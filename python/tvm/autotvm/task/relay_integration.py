@@ -31,23 +31,28 @@ from .topi_integration import TaskExtractEnv
 logger = logging.getLogger('autotvm')
 
 
-# TODO(moreau89) find a more elegant way to build for VTAs
-def _build(func,
+# TODO(moreau89) find a more elegant way to lower for VTAs
+def _lower(func,
            target,
-           target_host,
            params):
-    """ Helper to build VTA properly.
+    """ Helper to lower VTA properly.
     """
 
     from tvm import relay
+    from tvm.relay.backend import graph_runtime_codegen
 
     if hasattr(target, 'device_name') and target.device_name == "vta":
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             import vta
             with vta.build_config():
-                return relay.build(func, target, target_host, params)
+                mod, _ = relay.optimize(func, target, params)
+                grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+                return grc.codegen(mod["main"])
     # default case
-    return relay.build(func, target, target_host, params)
+    mod, _ = relay.optimize(func, target, params)
+    grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+    return grc.codegen(mod["main"])
+
 
 def extract_from_program(func, params, ops, target, target_host=None):
     """ Extract tuning tasks from a relay program.
@@ -133,8 +138,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             mod = relay.Module.from_expr(func)
-            build_thread = threading.Thread(target=_build,
-                                            args=(mod, target, target_host, param))
+            build_thread = threading.Thread(target=_lower,
+                                            args=(mod, target, param))
             build_thread.start()
             build_thread.join()
 

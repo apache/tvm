@@ -390,7 +390,7 @@ inline std::string TVMType2String(TVMType t);
 /*!
  * \brief Type traits to mark if a class is tvm extension type.
  *
- * To enable extension type in C++ must be register () ed via marco.
+ * To enable extension type in C++ must be registered via marco.
  * TVM_REGISTER_EXT_TYPE(TypeName) after defining this with this traits.
  *
  * Extension class can be passed and returned via PackedFunc in all tvm runtime.

@@ -219,7 +219,8 @@ def _upsampling(children, attrs, odtype='float32'):
     method = attrs.get_str('method', 'NEAREST_NEIGHBOR')
     return op.nn.upsampling(
         children[0],
-        scale=scale,
+        scale_h=scale,
+        scale_w=scale,
         layout=layout,
         method=method)
 

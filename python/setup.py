@@ -138,6 +138,10 @@ if include_libs:
         "data_files": [('tvm', LIB_LIST)]
     }
 
+def get_package_data_files():
+    # Relay standard libraries
+    return ['relay/std/prelude.rly']
+
 setup(name='tvm',
       version=__version__,
       description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
@@ -149,6 +153,8 @@ setup(name='tvm',
         'psutil',
         ],
       packages=find_packages(),
+      package_dir={'tvm': 'tvm'},
+      package_data={'tvm': get_package_data_files()},
       distclass=BinaryDistribution,
       url='https://github.com/dmlc/tvm',
       ext_modules=config_cython(),

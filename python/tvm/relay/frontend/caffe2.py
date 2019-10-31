@@ -280,7 +280,7 @@ class ResizeNearest(Caffe2OpConverter):
         assert width_scale == height_scale
 
         return _op.nn.upsampling(
-            inputs[0], scale=int(width_scale), method="NEAREST_NEIGHBOR")
+            inputs[0], scale_h=int(width_scale), scale_w=int(width_scale), method="NEAREST_NEIGHBOR")
 
 
 class Sum(Caffe2OpConverter):

@@ -409,11 +409,12 @@ def schedule_upsampling(_, outs, target):
 
 @reg.register_compute("nn.upsampling")
 def compute_upsampling(attrs, inputs, out_dtype, target):
-    scale = attrs.scale
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
     layout = attrs.layout
     method = attrs.method
     align_corners = attrs.align_corners
-    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
+    return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -770,3 +771,12 @@ reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 def compute_cross_entropy(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(topi.log(x) * y) / x.shape[0]]
+
+
+reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
+
+
+@reg.register_compute("nn.cross_entropy_with_logits")
+def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
+    x, y = inputs
+    return [-topi.sum(x * y) / x.shape[0]]

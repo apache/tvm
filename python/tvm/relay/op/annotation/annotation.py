@@ -17,9 +17,9 @@
 """Annotation operations."""
 from __future__ import absolute_import as _abs
 from . import _make
+from ..op import register_schedule, schedule_injective
 from .... import nd as _nd
 from .... import TVMContext as _TVMContext
-
 
 def on_device(data, device):
     """Annotate an expression with a certain device type.
@@ -61,3 +61,20 @@ def stop_fusion(data):
         The annotated expression.
     """
     return _make.stop_fusion(data)
+
+def checkpoint(data):
+    """Annotate an expression to be a checkpoint for the checkpointing memory optimization.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.checkpoint(data)
+
+register_schedule("annotation.checkpoint", schedule_injective)

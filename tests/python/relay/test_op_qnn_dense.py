@@ -193,29 +193,20 @@ def qnn_dense_driver(test_configuration):
 
 
 def test_qnn_dense_without_bias():
-    uint32_output_without_bias_paramas = \
-        make_uint_configuration(use_bias=False)
     int32_output_without_bias_params = \
         make_int_configuration(use_bias=False)
-    qnn_dense_driver(uint32_output_without_bias_paramas)
     qnn_dense_driver(int32_output_without_bias_params)
 
 
 def test_qnn_dense_with_bias():
-    uint32_output_with_bias_params = \
-        make_uint_configuration(use_bias=True)
     int32_output_with_bias_params = \
         make_int_configuration(use_bias=True)
-    qnn_dense_driver(uint32_output_with_bias_params)
     qnn_dense_driver(int32_output_with_bias_params)
 
 
 def test_qnn_dense_with_requantized_output():
-    uint8_requantized_output_with_bias_params = \
-        make_uint_configuration(use_bias=True, requantize_output=True)
     int8_requantized_output_with_bias_params = \
         make_int_configuration(use_bias=True, requantize_output=True)
-    qnn_dense_driver(uint8_requantized_output_with_bias_params)
     qnn_dense_driver(int8_requantized_output_with_bias_params)
 
 

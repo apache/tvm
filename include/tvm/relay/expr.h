@@ -274,6 +274,19 @@ class FunctionNode : public ExprNode {
                                tvm::Array<TypeVar> ty_params,
                                tvm::Attrs attrs = Attrs());
 
+  /*!
+   * \brief Attach the function's parameters to its attributes for use in analysis.
+   * \return The function with its parameters attached.
+   */
+  Function SetParams(const tvm::Map<Var, Constant>& parameters) const;
+
+  /*!
+   * \brief Retrieve the function's parameters.
+   *
+   * \return The function's parameter.
+   */
+  tvm::Map<Var, Constant> GetParams() const;
+
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);
 };
@@ -283,7 +296,6 @@ RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
 
 TVM_DLL NodeRef FunctionGetAttr(const Function& func, const std::string& key);
 TVM_DLL Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data);
-
 
 /*!
  * \brief Call corresponds to operator invocation.

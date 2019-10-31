@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/contrib/gemm.h
  * \brief Shared implementation of gemm
  */

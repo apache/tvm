@@ -22,3 +22,7 @@ from ...base import register_relay_attr_node
 @register_relay_attr_node
 class QnnConv2DAttrs(Attrs):
     """Attributes for qnn.conv2d"""
+
+@register_relay_attr_node
+class QnnDenseAttrs(Attrs):
+    """Attributes for qnn.dense"""

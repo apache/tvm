@@ -18,19 +18,29 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
-import logging
 import numpy as np
 import tvm
 from ... import nd as _nd
 from .. import analysis
-from .. import transform as _transform
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_shape, infer_channels, get_name
+from .common import get_relay_op, new_var, infer_shape, infer_channels
+from .common import infer_type, infer_value, infer_value_simulated, get_name
 
 __all__ = ['from_onnx']
+
+
+def get_numpy(tensor_proto):
+    """Grab data in TensorProto and convert to numpy array."""
+    try:
+        from onnx.numpy_helper import to_array
+    except ImportError as e:
+        raise ImportError(
+            "Unable to import onnx which is required {}".format(e))
+    return to_array(tensor_proto)
+
 
 def dimension_picker(prefix, surfix=''):
     def _impl(attr):
@@ -42,6 +52,7 @@ def dimension_picker(prefix, surfix=''):
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
+
 
 def revert_caffe2_pad(pads):
     """Caffe2 requires two times the normal padding."""
@@ -279,6 +290,21 @@ class MatMul(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
+        # Need to check input shape as batch matmul must be supported.
+        a_shape = infer_shape(inputs[0])
+        # When performing a batch matmul, we need to properly handle N-dim shapes.
+        if len(a_shape) > 2:
+            b_shape = infer_shape(inputs[1])
+            # Convert a and b into 3 dimensional tensors.
+            a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
+            b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
+            # Transpose matrix dimensions of b.
+            b = _op.transpose(b, [0, 2, 1])
+            # Perform a batch matmul.
+            output = _op.nn.batch_matmul(a, b)
+            # Reshape output to original dimensions.
+            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+        # Otherwise a simple dense op will get the job done.
         input_1_t = _op.transpose(inputs[1], axes=(1, 0))
         return _op.nn.dense(inputs[0], input_1_t)
 
@@ -426,35 +452,18 @@ class Reshape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if 'shape' in attr:
-            return _op.reshape(inputs[0], attr['shape'])
+        return _op.reshape(inputs[0], attr['shape'])
 
+    @classmethod
+    def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].asnumpy())
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
-            logging.warning("Constant evaluating Reshape's shape argument, may reduce performance")
-            shape_params = analysis.free_vars(shape)
-            func = _expr.Function(shape_params, shape)
-            mod = _module.Module.from_expr(func)
-            seq = _transform.Sequential([_transform.InferType(),
-                                         _transform.FoldConstant(),
-                                         _transform.FuseOps(0),
-                                         _transform.InferType()])
-            with tvm.relay.PassContext(opt_level=2):
-                mod = seq(mod)
-            with tvm.relay.build_config(opt_level=0):
-                ex = tvm.relay.create_executor("debug", mod=mod)
-                inputs = []
-                for sp in shape_params:
-                    if not sp.name_hint in params:
-                        sh = [int(i) for i in sp.type_annotation.shape]
-                        inputs.append(
-                            tvm.nd.array(np.random.rand(*sh).astype('float32')))
-                static_shape = ex.evaluate()(*inputs, **params)
-            out = _op.reshape(data, newshape=tuple(static_shape.asnumpy()))
-
+            static_shape = infer_value_simulated(shape, params)
+            out = _op.reshape(data, newshape=tuple(
+                static_shape.asnumpy().astype('int32')))
         return out
 
 class Concat(OnnxOpConverter):
@@ -581,7 +590,7 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
             scales = params[inputs[1].name_hint].asnumpy()
             inputs = inputs[:1]
-        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
+        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0
         mode = attr.get('mode')
         if mode == b'nearest':
             method = "nearest_neighbor"
@@ -590,7 +599,8 @@ class Upsample(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW', 'align_corners':True}
+        attr = {'scale_h':scales[-2], 'scale_w':scales[-1], 'method':method,
+                'layout':'NCHW', 'align_corners':True}
         return AttrCvt('upsampling')(inputs, attr)
 
 
@@ -639,11 +649,17 @@ class Split(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        attr['indices_or_sections'] = []
-        index = 0
-        for i in attr['split'][:-1]:
-            index += i
-            attr['indices_or_sections'].append(index)
+        splits = attr.get('split', False)
+        if splits:
+            attr['indices_or_sections'] = []
+            index = 0
+            for i in splits[:-1]:
+                index += i
+                attr['indices_or_sections'].append(index)
+        # When splits isnt specified divide evenly over axis.
+        else:
+            in_shape = infer_shape(inputs[0])
+            attr['indices_or_sections'] = in_shape[attr['axis']]
         return AttrCvt(
             'split',
             ignores=['split'])(inputs, attr, params)
@@ -652,6 +668,25 @@ class Split(OnnxOpConverter):
 class Slice(OnnxOpConverter):
     """ Operator converter for Slice.
     """
+
+    @classmethod
+    def _common(cls, starts, ends, axes):
+        new_axes = []
+        new_starts = []
+        new_ends = []
+        pop_index = 0
+        for i in range(max(axes) + 1):
+            if i in axes:
+                new_axes.append(i)
+                new_starts.append(starts[pop_index])
+                new_ends.append(ends[pop_index])
+                pop_index += 1
+            else:
+                new_axes.append(i)
+                new_starts.append(0)
+                new_ends.append(np.iinfo(np.int32).max)
+        return new_starts, new_ends, new_axes
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if isinstance(attr['starts'], int):
@@ -662,22 +697,9 @@ class Slice(OnnxOpConverter):
             # Update the starts and ends according to axes if required.
             if isinstance(attr['axes'], int):
                 attr['axes'] = (attr['axes'],)
-
             if (max(attr['axes']) + 1) != len(attr['axes']):
-                new_axes = []
-                new_starts = []
-                new_ends = []
-                pop_index = 0
-                for i in range(max(attr['axes']) + 1):
-                    if i in attr['axes']:
-                        new_axes.append(i)
-                        new_starts.append(attr['starts'][pop_index])
-                        new_ends.append(attr['ends'][pop_index])
-                        pop_index += 1
-                    else:
-                        new_axes.append(i)
-                        new_starts.append(0)
-                        new_ends.append(np.iinfo(np.int32).max)
+                new_starts, new_ends, new_axes = cls._common(
+                    attr['starts'], attr['ends'], attr['axes'])
                 attr['axes'] = new_axes
                 attr['starts'] = new_starts
                 attr['ends'] = new_ends
@@ -689,6 +711,23 @@ class Slice(OnnxOpConverter):
                                    'ends': 'end'},
                        ignores=['axes'])(inputs, attr)
 
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        starts = params[get_name(inputs[1])].asnumpy()
+        ends = params[get_name(inputs[2])].asnumpy()
+
+        # Update the starts and ends according to axes if required.
+        if len(inputs) >= 4:
+            axes = params[get_name(inputs[3])].asnumpy()
+
+            if max(axes + 1) != len(axes):
+                new_starts, new_ends, _ = cls._common(
+                    starts, ends, axes)
+                starts = new_starts
+                ends = new_ends
+        return _op.strided_slice(inputs[0], begin=starts, end=ends)
+
+
 class Gather(OnnxOpConverter):
     """ Operator converter for Gather.
     """
@@ -697,7 +736,6 @@ class Gather(OnnxOpConverter):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
                        extras={'axis':axis})(inputs, {})
-        #return _op.take(inputs[0], inputs[1], axis)
 
 
 class Greater(OnnxOpConverter):
@@ -847,33 +885,49 @@ class Softmax(OnnxOpConverter):
             attr['axis'] = 1
         return AttrCvt('softmax', transforms={'axis': ('axis', 1)})(inputs, attr, params)
 
-class ConstantFill(OnnxOpConverter):
-    """ Operator converter for ConstantFill.
+
+class OneHot(OnnxOpConverter):
+    """ Operator converter for OneHot.
     """
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        num_inputs = len(inputs)
-        if 'shape' in attr:
-            if num_inputs > 1:
-                raise ImportError(
-                    "Can't set shape and input tensor at a time")
-            shape = attr.pop('shape')
-        else:
-            if num_inputs == 1:
-                raise ImportError(
-                    "Either shape attribute or input should be set")
-            if 'input_as_shape' in attr and attr['input_as_shape']:
-                shape = params[get_name(inputs[0])].asnumpy()
-            else:
-                if 'extra_shape' in attr:
-                    raise tvm.error.OpAttributeInvalid('Attribute "extra_shape" not '
-                                                       'supported with "fill_like" for '
-                                                       'operator ConstantFill.')
-                return _op.full_like(inputs[0], inputs[1])
+    def _impl_v9(cls, inputs, attr, params):
+        # Extract relay one_hot inputs.
+        indices, depth, values = inputs
+        # Split onnx on off values into two separate expressions.
+        off_value, on_value = _op.take(
+            values, _op.const(0)), _op.take(values, _op.const(1))
+        # Extract the datatype of the output from on_value.
+        dtype = infer_type(on_value).checked_type.dtype
+        # Convert depth into an integer.
+        depth = int(infer_value(depth, params).asnumpy()[0])
+        # set default value when axis is not set in the model
+        if 'axis' not in attr:
+            attr['axis'] = -1
+        return _op.one_hot(indices,
+                           on_value,
+                           off_value,
+                           depth,
+                           int(attr['axis']),
+                           dtype=dtype)
 
-        if 'extra_shape' in attr:
-            shape = shape + attr.pop('extra_shape')
-        return _op.full(inputs[0], shape)
+
+class ConstantOfShape(OnnxOpConverter):
+    """ Operator converter for ConstantOfShape.
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        if 'value' in attr:
+            np_value = get_numpy(attr.pop('value'))[0]
+            value = _expr.const(np_value)
+            dtype = np_value.dtype.name
+        else:
+            value = _expr.const(0)
+            dtype = 'float32'
+        static_shape = infer_value_simulated(inputs[0], params)
+        output = _op.full(
+            value, shape=tuple(static_shape.asnumpy().astype('int32')), dtype=dtype)
+        return output
+
 
 class Sign(OnnxOpConverter):
     """ Operator converter for Sign.
@@ -915,6 +969,12 @@ class Tile(Elemwise):
         reps = attr.pop('repeats')  # The number of times repeating the tensor data.
         return _op.tile(inputs[0], reps)
 
+    @classmethod
+    def _impl_v6(cls, inputs, attr, params):
+        reps = tuple(infer_value_simulated(
+            inputs[1], params).asnumpy().astype('int32'))
+        return _op.tile(inputs[0], reps)
+
 class Erf(OnnxOpConverter):
     """Operator converter for Erf
     """
@@ -922,6 +982,19 @@ class Erf(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _op.erf(inputs[0])
 
+class Where(OnnxOpConverter):
+    """Operator converter for Where
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        return _op.where(inputs[0], inputs[1], inputs[2])
+
+class Or(Elemwise):
+    """ Operator converter for Or.
+    """
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        return _op.logical_or(inputs[0], inputs[1])
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -940,7 +1013,7 @@ def _get_convert_map(opset):
         'ThresholdedRelu': ThresholdedRelu.get_converter(opset),
         'ScaledTanh': ScaledTanh.get_converter(opset),
         'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
-        'ConstantFill': ConstantFill.get_converter(opset),
+        'ConstantOfShape': ConstantOfShape.get_converter(opset),
         # 'GivenTensorFill'
         'FC': AttrCvt('dense', ignores=['axis', 'axis_w']),
         'Scale': Scale.get_converter(opset),
@@ -950,7 +1023,7 @@ def _get_convert_map(opset):
         # 'MeanVarianceNormalization'
         # 'Crop'
         # 'Embedding'
-        'Upsample' : Upsample.get_converter(opset),
+        'Upsample': Upsample.get_converter(opset),
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
@@ -994,6 +1067,7 @@ def _get_convert_map(opset):
         # softmax default axis is different in onnx
         'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
+        'OneHot': OneHot.get_converter(opset),
         # 'Hardmax'
         'Softsign': Softsign.get_converter(opset),
         'SoftPlus': SoftPlus.get_converter(opset),
@@ -1042,7 +1116,9 @@ def _get_convert_map(opset):
         'Not': Not.get_converter(opset),
         'And': And.get_converter(opset),
         'Tile': Tile.get_converter(opset),
-        'Erf': Erf.get_converter(opset)
+        'Erf': Erf.get_converter(opset),
+        'Where': Where.get_converter(opset),
+        'Or': Or.get_converter(opset)
     }
 
 
@@ -1155,14 +1231,6 @@ class GraphProto(object):
                     shape=list(t_proto.dims),
                     dtype=array.dtype)
             else:
-                if op_name == "ConstantFill":
-                    fill_value = attr.get('value', 0.0)
-                    dtype = attr.get('dtype', b'int32').decode("utf-8")
-                    i_name = node.output[0]
-                    self._params[i_name] = fill_value
-                    self._nodes[i_name] = new_var(node.output[0], shape=(), dtype=dtype)
-                    inputs.append(self._nodes[i_name])
-
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}
                 attr['tvm_custom']['name'] = i_name
@@ -1205,13 +1273,7 @@ class GraphProto(object):
             return dtype
 
     def _parse_array(self, tensor_proto):
-        """Grab data in TensorProto and convert to numpy array."""
-        try:
-            from onnx.numpy_helper import to_array
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import onnx which is required {}".format(e))
-        np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
+        np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return _nd.array(np_array)
 
     def _parse_attr(self, attr_proto):
@@ -1292,7 +1354,8 @@ class GraphProto(object):
 
 def from_onnx(model,
               shape=None,
-              dtype="float32"):
+              dtype="float32",
+              opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -1312,6 +1375,10 @@ def from_onnx(model,
 
     dtype : str or dict of str to str
         The input types to the graph
+
+    opset : int, optional
+        Override to autodetected opset.
+        This can be helpful for some testing.
 
     Returns
     -------
@@ -1335,9 +1402,10 @@ def from_onnx(model,
         pass
     g = GraphProto(shape, dtype)
     graph = model.graph
-    try:
-        opset = model.opset_import[0].version if model.opset_import else 1
-    except AttributeError:
-        opset = 1
+    if opset is None:
+        try:
+            opset = model.opset_import[0].version if model.opset_import else 1
+        except AttributeError:
+            opset = 1
     mod, params = g.from_onnx(graph, opset)
     return mod, params

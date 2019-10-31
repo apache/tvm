@@ -387,14 +387,17 @@ struct FIFOBufferAttrs : public tvm::AttrsNode<FIFOBufferAttrs> {
 
 /*! \brief Attributes for upsampling operator */
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
-  int scale;
+  double scale_h;
+  double scale_w;
   std::string layout;
   std::string method;
   bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
-    TVM_ATTR_FIELD(scale)
-        .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(scale_h)
+        .describe("The upsampling factor for height");
+    TVM_ATTR_FIELD(scale_w)
+        .describe("The upsampling factor for width");
     TVM_ATTR_FIELD(layout).set_default("NCHW")
         .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

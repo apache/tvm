@@ -70,13 +70,6 @@ using WorkloadType = std::tuple<int, int, int, int, int>;
  */
 WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QnnConv2DAttrs* param) {
   // Get conv parameters.
-  auto get_shape = [](const Type& type) {
-    auto input_tt = type.as<TensorTypeNode>();
-    CHECK(input_tt != nullptr) << "Type information missing."
-                               << " Please run infer_type pass.";
-    return input_tt->shape;
-  };
-
   const auto in_shape = get_shape(arg_types[0]);
   int batch_size, in_channels;
   if (param->data_layout == "NCHW") {

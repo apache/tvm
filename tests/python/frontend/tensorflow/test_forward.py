@@ -2198,7 +2198,7 @@ def test_forward_size():
     check_size((10,))
 
 #######################################################################
-# All, Max, Min
+# All, Any, Max, Min
 # -------------
 def test_forward_reduce_all():
     """Test the All operator."""
@@ -2207,6 +2207,14 @@ def test_forward_reduce_all():
     in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
     tf.reduce_all(in_data, name="all")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
+
+def test_forward_reduce_any():
+    """Test the Any operator."""
+    np_data = np.random.choice([True, False], size=(5, 7, 11))
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
+    tf.reduce_any(in_data, name="any")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
 
 def test_forward_reduce_max():
     def check_max(ishape, axis, keepdims, dtype):
@@ -2432,7 +2440,7 @@ if __name__ == '__main__':
     test_forward_mean()
     test_forward_reduce_prod()
     test_forward_reduce_all()
-    test_forward_reduce_max()
+    test_forward_reduce_any()
     test_forward_reduce_min()
 
     # General
