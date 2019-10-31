@@ -51,8 +51,8 @@ def test_cuda_vectorize_add():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
     check_cuda("float32", 64, 2)
-    check_cuda("float16", 64, 2)
     check_cuda("int8", 64, 4)
+    # check_cuda("float16", 64, 2)
 
 
 def test_cuda_multiply_add():
