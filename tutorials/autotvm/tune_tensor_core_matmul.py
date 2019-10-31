@@ -64,12 +64,6 @@ def test_gemm_nn(N, L, M, dtype, layout):
     bx = cfg['bx'].val
     step_k = cfg['step_k'].val
     v = cfg['v'].val
-    '''
-    bx = 4
-    by = 16
-    step_k = 8
-    v = 4
-    '''
 
     TX = 8
     TY = 1
@@ -140,11 +134,6 @@ if len(sys.argv) >= 6:
   layout = sys.argv[5]
 
 print ("M=%d, N=%d, K=%d, dtype=%s, layout=%s" % (M, N, L, dtype, layout))
-
-# s, args = test_gemm_nn(N, L, M, dtype, layout)
-# print(tvm.lower(s, args, simple_mode=True))
-# func = tvm.build(s, args, target="cuda")
-# print(func.imported_modules[0].get_source())
 
 task = autotvm.task.create(test_gemm_nn, args=(N, L, M, dtype, layout), target='cuda')
 print(task.config_space)

@@ -63,12 +63,6 @@ def test_gemm_nn(batch, N, L, M, dtype, layout):
     by = cfg['by'].val
     step_k = cfg['step_k'].val
     v = cfg['v'].val
-    '''
-    bx = 2
-    by = 64
-    step_k = 8
-    v = 4
-    '''
 
     TX = 8
     TY = 1

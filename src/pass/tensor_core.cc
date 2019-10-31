@@ -37,15 +37,6 @@
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
-std::string simplify_name(std::string input) {
-  auto pos = input.find(".");
-  if (pos != std::string::npos) {
-    return input.substr(0, pos);
-  } else {
-    return input;
-  }
-}
-
 namespace tvm {
 namespace ir {
 
@@ -60,7 +51,15 @@ struct Tile {
   int k{-1};
 };
 
-// Search for C=A*B+C structure in current AST
+std::string simplify_name(std::string input) {
+  auto pos = input.find(".");
+  if (pos != std::string::npos) {
+    return input.substr(0, pos);
+  } else {
+    return input;
+  }
+}
+
 class MMAMatcher: public IRVisitor {
  public:
   explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
@@ -166,7 +165,8 @@ class MMAMatcher: public IRVisitor {
     return false;
   }
 
-  // Match C = Cast(A*B)+C
+  // Match C = Cast(A*B)+C, where A & B are fp16/int8 local buffers,
+  // and C is fp32/int32 local buffer.
   bool mma_sync_match_(const Provide* op, BufferInfo store_buffer) {
     auto* add = op->value.as<Add>();
     if (add == nullptr) {
@@ -268,7 +268,8 @@ class BodyVisitor : public IRVisitor {
   bool tensorcore_candidate_{false};
 };
 
-// Get matrix layout info from original schedule
+// Get original compute expression from schedule,
+// to figure out matrix_a/matrix_b and row_major/col_major
 class ScheduleAnalyser {
  public:
   explicit ScheduleAnalyser(const MMAMatcher &mma_matcher)
@@ -304,7 +305,6 @@ class ScheduleAnalyser {
       for (auto iter : body_visitor.args_) {
         auto name = iter.first;
         auto args = iter.second;
-        // batch matmul's args could be greater than 2
         if (args.size() < 2) {
           continue;
         }
@@ -384,7 +384,7 @@ class IndexVisitor : public IRVisitor {
   unsigned scaling_factor_{0};
 };
 
-// Check buffer info to see if can add Tensor Core support
+// Get buffer info, e.g. thread tile and warp tile, for TensorCore CodeGen 
 class BufferAnalyser : public IRVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
@@ -763,7 +763,7 @@ class ThreadIdxMutator : public IRMutator {
   Expr warp_y_;
 };
 
-// Add Tensor Core support
+// Mutate the AST for TensorCore CodeGen based on tensor core intrinsics
 class TensorCoreIRMutator : public IRMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
@@ -1148,14 +1148,14 @@ class TensorCoreIRMutator : public IRMutator {
 Stmt TensorCore(Stmt stmt,
                 Schedule schedule,
                 Map<Tensor, Buffer> extern_buffer) {
-  // Check if current runtime support GPU CUDA
+  // Check if current runtime supports GPU
   TVMContext ctx{kDLGPU, 0};
   auto api = tvm::runtime::DeviceAPI::Get(ctx, true);
   if (api == nullptr) {
     return stmt;
   }
 
-  // Check if current GPU device support Tensor Core
+  // Check if current GPU device supports Tensor Core
   tvm::runtime::TVMRetValue ret;
   api->GetAttr(ctx, tvm::runtime::kComputeVersion, &ret);
   std::string ret_str = ret;
@@ -1164,7 +1164,7 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
-  // Check if current CUDA version support Tensor Core
+  // Check if current CUDA version supports Tensor Core
   TVMFunctionHandle handle;
   tvm::runtime::PackedFunc* handle_func;
   TVMFuncGetGlobal("tvm_find_cuda_path", &handle);
@@ -1182,7 +1182,6 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
-  // Check if there is C=A*B+C in current AST
   MMAMatcher mma_matcher(extern_buffer,
                          cuda_compute_capability, cuda_version);
   mma_matcher.Visit(stmt);
@@ -1190,13 +1189,11 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
-  // Match matrix layout info from original schedule
   ScheduleAnalyser schedule_analyser(mma_matcher);
   if (!schedule_analyser.MatrixIdentify(schedule)) {
     return stmt;
   }
 
-  // Check if current AST can be modified to add Tensor Core support
   BufferAnalyser buffer_analyser(extern_buffer, cuda_version,
                                  schedule_analyser, mma_matcher);
   buffer_analyser.Visit(stmt);
@@ -1204,7 +1201,6 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
-  // Modify the current AST to support Tensor Core Intrinsic
   return TensorCoreIRMutator(schedule_analyser, buffer_analyser,
           cuda_compute_capability, cuda_version).Mutate(stmt);
 }
