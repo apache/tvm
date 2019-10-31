@@ -199,7 +199,7 @@ Python dependencies
 
    .. code:: bash
 
-       apt install antlr4
+       sudo apt install antlr4
        pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
