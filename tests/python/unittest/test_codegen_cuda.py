@@ -54,6 +54,10 @@ def test_cuda_vectorize_add():
     check_cuda("int8", 64, 4)
     # check_cuda("float16", 64, 2)
 
+    # TODO(tvm-team) fix fp16 codegen here
+    # or hit an error if it is less frequently used.
+    # check_cuda("float16", 64, 2)
+
 
 def test_cuda_multiply_add():
     num_thread = 8
