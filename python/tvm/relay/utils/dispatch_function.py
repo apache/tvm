@@ -18,7 +18,6 @@
 """Predefined dispatching functions for dynamic input shape."""
 
 from tvm.expr import IntImm
-from ..expr import const
 
 def uniform_dispatcher(low=1, high=256, step=16):
     """Uniformly dispatch dynamic input shape.

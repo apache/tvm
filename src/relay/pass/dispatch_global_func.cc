@@ -27,9 +27,6 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/attrs/reduce.h>
-#include <sstream>
-#include <fstream>
-#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -37,7 +34,8 @@ namespace relay {
 using namespace runtime;
 
 using InputShapeDict = Map<std::string, Array<Expr>>;
-using BucketDict = Map<std::string, Map<Integer, Array<Array<Integer, Integer>>>>;
+using BucketDict = Map<std::string, Map<Integer,
+  Array<Array<Integer, Integer>>>>;
 using ConditionList = Array<Array<Expr>>;
 
 /*! \brief Dispatch a global var for dynamic input shape
@@ -63,9 +61,8 @@ Expr BuildDispatchTree(const Module& mod,
                        int level,
                        int pos) {
   if (level == conditions.size() - 1) {
-    GlobalVar copied_global_var = GlobalVarNode::make(func_name
-                                                      + "_copy_"
-                                                      + std::to_string(num_func_copy));
+    GlobalVar copied_global_var =
+      GlobalVarNode::make(func_name + "_copy_" + std::to_string(num_func_copy));
     Function new_func = FunctionNode::make(param_vars,
                                            func->body,
                                            func->ret_type,
@@ -141,14 +138,13 @@ Module DispatchGlobalFunc(const Module& mod,
                           const std::string& func_name,
                           const InputShapeDict& input_shape,
                           const PackedFunc& dispatch_func) {
-
   // Generate BucketDict and validate buckets
   BucketDict buckets = dispatch_func(input_shape).AsExtension<BucketDict>();
   for (auto const& str_bucket_pair : buckets) {
     for (auto const& index_bucket : str_bucket_pair.second) {
       for (const Array<Integer, Integer>& bucket : index_bucket.second) {
-        CHECK_EQ(bucket.size(), 2) << "Each bucket must be a pair of [low, high). "
-            "Set high=-1 to indicate positive infinite.";
+        CHECK_EQ(bucket.size(), 2) << "Each bucket must be a pair of "
+            "[low, high). Set high=-1 to indicate positive infinite.";
       }
     }
   }
@@ -184,36 +180,47 @@ Module DispatchGlobalFunc(const Module& mod,
         int64_t* dims = reinterpret_cast<int64_t*>(take_indices->data);
         dims[0] = index;
         auto take_attrs = make_node<TakeAttrs>();
-        Call dim_val = CallNode::make(Op::Get("take"),
-                                      Array<Expr>({dshape, ConstantNode::make(take_indices)}),
-                                      Attrs(take_attrs),
-                                      {});
+        Call dim_val =
+          CallNode::make(Op::Get("take"),
+                         Array<Expr>(
+                           {dshape, ConstantNode::make(take_indices)}),
+                         Attrs(take_attrs), {});
         Array<Expr> cond_list;
         for (auto const& range : list_ranges) {
           int64_t low = range[0]->value;
           int64_t high = range[1]->value;
           Call cond;
-          CHECK_GT(low, 0) << "Low end of a dispatched interval must be positive.";
-          NDArray low_tensor = NDArray::Empty({1}, Type2TVMType(Int(64)), cpu_ctx);
-          int64_t* low_tensor_data = reinterpret_cast<int64_t*>(low_tensor->data);
+          CHECK_GT(low, 0)
+            << "Low end of a dispatched interval must be positive.";
+          NDArray low_tensor =
+            NDArray::Empty({1}, Type2TVMType(Int(64)), cpu_ctx);
+          int64_t* low_tensor_data =
+            reinterpret_cast<int64_t*>(low_tensor->data);
           low_tensor_data[0] = low;
           auto cond_attrs = make_node<ReduceAttrs>();
-          Call low_cond = CallNode::make(Op::Get("greater_equal"),
-                                         Array<Expr>({dim_val, ConstantNode::make(low_tensor)}));
+          Call low_cond =
+            CallNode::make(Op::Get("greater_equal"),
+                           Array<Expr>({dim_val,
+                                        ConstantNode::make(low_tensor)}));
           if (high > 0) {
-            NDArray high_tensor = NDArray::Empty({1}, Type2TVMType(Int(64)), cpu_ctx);
-            int64_t* high_tensor_data = reinterpret_cast<int64_t*>(high_tensor->data);
+            NDArray high_tensor =
+              NDArray::Empty({1}, Type2TVMType(Int(64)), cpu_ctx);
+            int64_t* high_tensor_data =
+              reinterpret_cast<int64_t*>(high_tensor->data);
             high_tensor_data[0] = high;
-            Call high_cond = CallNode::make(Op::Get("less"),
-                                            Array<Expr>({dim_val, ConstantNode::make(high_tensor)}));
+            Call high_cond =
+              CallNode::make(Op::Get("less"),
+                             Array<Expr>({dim_val,
+                                          ConstantNode::make(high_tensor)}));
             cond = CallNode::make(Op::Get("all"),
-                                  Array<Expr>({TupleNode::make(Array<Expr>({low_cond, high_cond}))}),
+                                  Array<Expr>({TupleNode::make(
+                                    Array<Expr>({low_cond, high_cond}))}),
                                   Attrs(cond_attrs),
                                   {});
-          }
-          else {
+          } else {
             cond = CallNode::make(Op::Get("all"),
-                                  Array<Expr>({TupleNode::make(Array<Expr>({low_cond}))}),
+                                  Array<Expr>({TupleNode::make(
+                                    Array<Expr>({low_cond}))}),
                                   Attrs(cond_attrs),
                                   {});
           }
@@ -248,5 +255,3 @@ TVM_REGISTER_API("relay._transform.dispatch_global_func")
 
 }  // namespace relay
 }  // namespace tvm
-
-

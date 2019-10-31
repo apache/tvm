@@ -15,14 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm.relay.testing
-from mxnet.gluon.model_zoo.vision import get_model
-
 from tvm import relay
+from tvm.relay import testing
 
-#mod, params = relay.testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
-block = get_model('resnet50_v1', pretrained=True)
-input_shape = {"data": (relay.Any(), 3, 224, 224)}
-mod, params = relay.frontend.from_mxnet(block, shape=input_shape, dtype="float32")
-updated_mod = relay.transform.dispatch_global_func(mod, "main", input_shape, relay.utils.exp_dispatcher())
 
+def verify_graph_dispatcher(mod, input_shape, dispatch_func):
+    updated_mod = relay.transform.dispatch_global_func(mod, "main", input_shape, dispatch_func)
+    buckets = dispatch_func(input_shape)
+
+    num_buckets = 0
+    for val in buckets.values():
+        num_buckets += len(val.values())
+
+    num_main_copies = 0
+    for global_var in updated_mod.get_global_vars():
+        if "main_copy_" in global_var.name_hint:
+            num_main_copies += 1
+
+    assert num_main_copies == num_buckets, "Expect %d main function copies but got %d" % (num_buckets, num_main_copies)
+
+def test_graph_dispatcher():
+    mod, _ = relay.testing.resnet.get_workload(num_layers=50, batch_size=relay.Any())
+    verify_graph_dispatcher(mod, {"data": (relay.Any(), 3, 224, 224)}, relay.utils.uniform_dispatcher())
+    mod, _ = relay.testing.densenet.get_workload(batch_size=1, image_shape=(3, relay.Any(), relay.Any()))
+    verify_graph_dispatcher(mod, {"data": (1, 3, relay.Any(), relay.Any())}, relay.utils.exp_dispatcher())
+    mod, _ = relay.testing.dcgan.get_workload(batch_size=2, random_len=relay.Any())
+    verify_graph_dispatcher(mod, {"data": (2, relay.Any())}, relay.utils.uniform_dispatcher())
+    mod, _ = relay.testing.dqn.get_workload(batch_size=3, image_shape=(4, relay.Any(), relay.Any()))
+    verify_graph_dispatcher(mod, {"data": (3, 4, relay.Any(), relay.Any())}, relay.utils.uniform_dispatcher())
+
+if __name__ == "__main__":
+    test_graph_dispatcher()
