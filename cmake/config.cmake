@@ -92,7 +92,7 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 set(USE_VM_PROFILER OFF)
 
 # Whether enable uTVM standalone runtime
-set(USE_MICRO_STANDALONE_RUNTIME ON)
+set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
