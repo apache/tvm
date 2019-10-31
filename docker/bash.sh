@@ -58,7 +58,7 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
-    if ! type "nvidia-docker" > /dev/null
+    if ! type "nvidia-docker" 1> /dev/null 2> /dev/null
     then
         DOCKER_BINARY="docker"
         CUDA_ENV=" --gpus all "${CUDA_ENV}
@@ -79,7 +79,6 @@ echo "Running '${COMMAND[@]}' inside ${DOCKER_IMAGE_NAME}..."
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
-echo ${DOCKER_BINARY}
 ${DOCKER_BINARY} run --rm --pid=host\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
@@ -95,3 +94,4 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${DOCKER_IMAGE_NAME}\
     bash --login /docker/with_the_same_user \
     ${COMMAND[@]}
+
