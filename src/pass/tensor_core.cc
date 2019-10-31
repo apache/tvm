@@ -34,7 +34,6 @@
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"
-#include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
@@ -61,6 +60,7 @@ struct Tile {
   int k{-1};
 };
 
+// Search for C=A*B+C structure in current AST
 class MMAMatcher: public IRVisitor {
  public:
   explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
@@ -93,8 +93,7 @@ class MMAMatcher: public IRVisitor {
 
   void Visit_(const Provide* op) final {
     IRVisitor::Visit_(op);
-    TensorKey key{op->func, op->value_index};
-    auto it = buf_map_.find(key);
+    auto it = buf_map_.find(TensorKey{op->func, op->value_index});
     if (it == buf_map_.end()) {
       return;
     }
@@ -118,16 +117,13 @@ class MMAMatcher: public IRVisitor {
       BufferInfo bi;
       bi.name = key.GetName();
       bi.dtype = op->type;
-
       buf_map_[key] = bi;
       Visit(op->body);
       buf_map_[key].released = true;
     }
   }
 
-  bool Matched() {
-    return matched_;
-  }
+  inline bool Matched() const {return matched_;}
 
   friend class ScheduleAnalyser;
   friend class BufferAnalyser;
@@ -138,7 +134,6 @@ class MMAMatcher: public IRVisitor {
     Type dtype;
     bool external{false};
     bool released{false};
-
     bool same_as(const BufferInfo &bi) {
       if (this->dtype != bi.dtype) return false;
       if (this->name != bi.name) return false;
@@ -147,6 +142,7 @@ class MMAMatcher: public IRVisitor {
       return true;
     }
   };
+
   bool check_local_buffer_(const Call* op, BufferInfo* bi) {
     if (op->call_type == Call::Halide) {
       auto it = storage_scope_.find(op->func.get());
@@ -157,9 +153,7 @@ class MMAMatcher: public IRVisitor {
       if (strkey != "local") {
         return false;
       }
-
-      TensorKey key{op->func, op->value_index};
-      auto it1 = buf_map_.find(key);
+      auto it1 = buf_map_.find(TensorKey{op->func, op->value_index});
       if (it1 == buf_map_.end()) {
         return false;
       }
@@ -172,6 +166,7 @@ class MMAMatcher: public IRVisitor {
     return false;
   }
 
+  // Match C = Cast(A*B)+C
   bool mma_sync_match_(const Provide* op, BufferInfo store_buffer) {
     auto* add = op->value.as<Add>();
     if (add == nullptr) {
@@ -198,6 +193,7 @@ class MMAMatcher: public IRVisitor {
     if (mul == nullptr) {
       return false;
     }
+
     auto* load_a = mul->a.as<Call>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
@@ -219,18 +215,15 @@ class MMAMatcher: public IRVisitor {
     frag_reg_.insert(buffer_b.name);
     buf_name_.insert(std::make_pair(load_a, buffer_a.name));
     buf_name_.insert(std::make_pair(load_b, buffer_b.name));
-
-    Array<Expr> operands({mul->a, mul->b, add->a});
-    mma_sync_.insert(std::make_pair(op, operands));
-
+    mma_sync_.insert(std::make_pair(op, Array<Expr>{mul->a, mul->b, add->a}));
     return true;
   }
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
   std::unordered_map<const Node*, std::string> storage_scope_;
-  std::unordered_set<std::string> frag_reg_;
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
   std::unordered_map<const Node*, std::string> buf_name_;
+  std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
   bool tensor_core_on_{false};
   bool support_int_wmma_;
@@ -275,6 +268,7 @@ class BodyVisitor : public IRVisitor {
   bool tensorcore_candidate_{false};
 };
 
+// Get matrix layout info from original schedule
 class ScheduleAnalyser {
  public:
   explicit ScheduleAnalyser(const MMAMatcher &mma_matcher)
@@ -339,13 +333,13 @@ class ScheduleAnalyser {
       matrix_abc_.insert(std::make_pair(compute->name, "accumulator"));
       matrix_major_.insert(std::make_pair(compute->name, "col_major"));
     }
+
     for (auto &mma_sync : mma_sync_) {
       auto &operands = mma_sync.second;
       auto* load_a = operands[0].as<Call>();
       auto* load_b = operands[1].as<Call>();
       auto input0 = simplify_name(buf_name_.find(load_a)->second);
       auto input1 = simplify_name(buf_name_.find(load_b)->second);
-
       auto it0 = matrix_abc_.find(input0);
       auto it1 = matrix_abc_.find(input1);
 
@@ -355,8 +349,7 @@ class ScheduleAnalyser {
       if (it0->second == "matrix_a" && it1->second == "matrix_b") {
         return true;
       } else if (it0->second == "matrix_b" && it1->second == "matrix_a") {
-        Array<Expr> new_operands({operands[1], operands[0], operands[2]});
-        mma_sync.second = new_operands;
+        mma_sync.second = Array<Expr>{operands[1], operands[0], operands[2]};
       } else {
         return false;
       }
@@ -388,9 +381,10 @@ class IndexVisitor : public IRVisitor {
 
  private:
   std::unordered_map<const Variable*, unsigned> loop_scaling_;
-  unsigned scaling_factor_;
+  unsigned scaling_factor_{0};
 };
 
+// Check buffer info to see if can add Tensor Core support
 class BufferAnalyser : public IRVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
@@ -400,7 +394,6 @@ class BufferAnalyser : public IRVisitor {
       : matrix_abc_(schedule_analyser.matrix_abc_),
         matrix_major_(schedule_analyser.matrix_major_),
         frag_reg_(mma_matcher.frag_reg_),
-        invalid_(false),
         cuda_version_(cuda_version) {
     for (auto kv : extern_buffer) {
       BufferInfo bi;
@@ -430,8 +423,7 @@ class BufferAnalyser : public IRVisitor {
       Tensor tensor = Downcast<Tensor>(op->node);
       const Call* tuple = op->value.as<Call>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
-      TensorKey key{tensor->op, tensor->value_index};
-      auto& vinfo = dim_align_[key];
+      auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
       size_t dim = tuple->args[0].as<IntImm>()->value;
       if (dim >= vinfo.size()) {
         vinfo.resize(dim + 1);
@@ -662,7 +654,7 @@ class BufferAnalyser : public IRVisitor {
     }
     warp_tile_.n = warp_threads_y_ * thread_tile_.n;
     warp_tile_.k = thread_tile_.k;
-    return SupportedWarpTile(warp_tile_);
+    return supported_warp_tile_();
   }
 
   friend class TensorCoreIRMutator;
@@ -681,7 +673,6 @@ class BufferAnalyser : public IRVisitor {
     Region bounds;
     bool external{false};
     bool released{false};
-
     inline Array<Expr> RelIndex(Array<Expr> args) const {
       if (bounds.size() != 0) {
         Array<Expr> index;
@@ -707,22 +698,22 @@ class BufferAnalyser : public IRVisitor {
     return false;
   }
 
-  bool SupportedWarpTile(Tile warp_tile) {
-    if (warp_tile.m == 16 &&
-        warp_tile.n == 16 &&
-        warp_tile.k == 16) {
+  bool supported_warp_tile_() {
+    if (warp_tile_.m == 16 &&
+        warp_tile_.n == 16 &&
+        warp_tile_.k == 16) {
       return true;
     }
     if (cuda_version_ >= 10.0 &&
-        warp_tile.m == 8 &&
-        warp_tile.n == 32 &&
-        warp_tile.k == 16) {
+        warp_tile_.m == 8 &&
+        warp_tile_.n == 32 &&
+        warp_tile_.k == 16) {
       return true;
     }
     if (cuda_version_ >= 10.0 &&
-        warp_tile.m == 32 &&
-        warp_tile.n == 8 &&
-        warp_tile.k == 16) {
+        warp_tile_.m == 32 &&
+        warp_tile_.n == 8 &&
+        warp_tile_.k == 16) {
       return true;
     }
     return false;
@@ -731,19 +722,18 @@ class BufferAnalyser : public IRVisitor {
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
   std::unordered_map<TensorKey, std::vector<DimAlignInfo> > dim_align_;
   std::unordered_map<const Node*, std::string> storage_scope_;
-
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<std::string, Array<Expr>> strides_;
   std::unordered_map<const Provide*, Expr> frag_load_;
   std::unordered_map<const Provide*, Expr> frag_store_;
-  Tile warp_tile_;
-  int warp_threads_y_{-1};
-  IndexVisitor index_visitor;
-  bool invalid_;
   std::unordered_map<std::string, int> thread_extent_;
+  IndexVisitor index_visitor;
+  Tile warp_tile_;
   Tile thread_tile_;
+  int warp_threads_y_{-1};
+  bool invalid_{false};
   double cuda_version_;
 };
 
@@ -751,7 +741,7 @@ class ThreadIdxMutator : public IRMutator {
  public:
   explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
 
-  Expr Mutate_(const Variable* op, const Expr& olde) override {
+  Expr Mutate_(const Variable* op, const Expr& olde) final {
     // thread index unification inside a warp
     Expr expr = IRMutator::Mutate_(op, olde);
     op = expr.as<Variable>();
@@ -773,6 +763,7 @@ class ThreadIdxMutator : public IRMutator {
   Expr warp_y_;
 };
 
+// Add Tensor Core support
 class TensorCoreIRMutator : public IRMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
@@ -805,18 +796,18 @@ class TensorCoreIRMutator : public IRMutator {
         return stmt;
       }
 
-      auto new_extents = GetTileSize(simplify_name(key.GetName()));
+      auto new_extents = get_tile_size_(simplify_name(key.GetName()));
 
       Region new_bounds;
       for (size_t i = 0; i < op->bounds.size() - 2; ++i) {
         new_bounds.push_back(op->bounds[i]);
       }
-      CHECK(op->bounds.size() >= 2)
+      CHECK_GE(op->bounds.size(), 2)
           << "Less than 2 dimensions for matrix " << key.GetName();
-      new_bounds.push_back(
-          Range::make_by_min_extent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
-      new_bounds.push_back(
-          Range::make_by_min_extent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
+      new_bounds.push_back(Range::make_by_min_extent(
+          op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
+      new_bounds.push_back(Range::make_by_min_extent(
+          op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
       return Realize::make(op->func, op->value_index,
                            op->type, new_bounds,
@@ -865,34 +856,33 @@ class TensorCoreIRMutator : public IRMutator {
       NodePtr<BufferNode> buffer_node_c = make_node<BufferNode>();
 
       auto mma_sync_call =
-        [&buffer_node_a, &buffer_node_b, &buffer_node_c]
+        [&buffer_node_a, &buffer_node_b]
         (const Buffer &buffer) {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
-          Buffer buffer_c(buffer_node_c);
           return Evaluate::make(
                   Call::make(Handle(),
                         intrinsic::tvm_mma_sync,
-                        {buffer_c->data, buffer_c->elem_offset,
+                        {buffer->data, buffer->elem_offset,
                         buffer_a->data, buffer_a->elem_offset,
                         buffer_b->data, buffer_b->elem_offset,
-                        buffer_c->data, buffer_c->elem_offset},
+                        buffer->data, buffer->elem_offset},
                         Call::Intrinsic));
         };
 
       auto call_add_c =
         [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer &buffer) {
-          return AddBufferBindScope(cc, buffer_node_c,
+          return add_buffer_bind_scope_(cc, buffer_node_c,
             TensorKey{cc->func, cc->value_index}, mma_sync_call, Float(32));
         };
 
       auto call_add_b =
         [this, &cb, &buffer_node_b, &call_add_c](const Buffer &buffer) {
-          return AddBufferBindScope(cb, buffer_node_b,
+          return add_buffer_bind_scope_(cb, buffer_node_b,
             TensorKey{cb->func, cb->value_index}, call_add_c, Float(16));
         };
 
-      return AddBufferBindScope(ca, buffer_node_a,
+      return add_buffer_bind_scope_(ca, buffer_node_a,
         TensorKey{ca->func, ca->value_index}, call_add_b, Float(16));
     }
 
@@ -917,7 +907,7 @@ class TensorCoreIRMutator : public IRMutator {
           };
 
         NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-        return AddBufferBindScope(call, buffer_node,
+        return add_buffer_bind_scope_(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
                                       fill_fragment_call, Float(32));
       }
@@ -967,7 +957,7 @@ class TensorCoreIRMutator : public IRMutator {
       };
 
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-      return AddBufferBindScope(call, buffer_node,
+      return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
                                     load_matrix_call, Float(16));
     }
@@ -1006,7 +996,7 @@ class TensorCoreIRMutator : public IRMutator {
         };
 
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
-      return AddBufferBindScope(call, buffer_node,
+      return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
                                     store_matrix_call, Float(32));
     }
@@ -1035,7 +1025,7 @@ class TensorCoreIRMutator : public IRMutator {
   }
 
  private:
-  Array<Expr> GetTileSize(std::string name) {
+  Array<Expr> get_tile_size_(const std::string &name) {
       auto it = matrix_abc_.find(name);
       auto it2 = matrix_major_.find(name);
       CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
@@ -1066,19 +1056,18 @@ class TensorCoreIRMutator : public IRMutator {
       return tile_size;
   }
 
-  Stmt AddBufferBindScope(const Call* call,
+  Stmt add_buffer_bind_scope_(const Call* call,
       const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
-
     auto it = strides_.find(call->name);
     CHECK(it != strides_.end());
-    CHECK(it->second.size() >= 2);
+    CHECK_GE(it->second.size(), 2);
     Array<Expr> shape;
     for (size_t i = 0; i < it->second.size() - 2; ++i) {
       shape.push_back(it->second[i]);
     }
-    auto tile_size = GetTileSize(simplify_name(call->name));
+    auto tile_size = get_tile_size_(simplify_name(call->name));
     shape.push_back(tile_size[0]);
     shape.push_back(tile_size[1]);
 
@@ -1159,12 +1148,14 @@ class TensorCoreIRMutator : public IRMutator {
 Stmt TensorCore(Stmt stmt,
                 Schedule schedule,
                 Map<Tensor, Buffer> extern_buffer) {
+  // Check if current runtime support GPU CUDA
   TVMContext ctx{kDLGPU, 0};
   auto api = tvm::runtime::DeviceAPI::Get(ctx, true);
   if (api == nullptr) {
     return stmt;
   }
 
+  // Check if current GPU device support Tensor Core
   tvm::runtime::TVMRetValue ret;
   api->GetAttr(ctx, tvm::runtime::kComputeVersion, &ret);
   std::string ret_str = ret;
@@ -1173,17 +1164,25 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
+  // Check if current CUDA version support Tensor Core
   TVMFunctionHandle handle;
+  tvm::runtime::PackedFunc* handle_func;
   TVMFuncGetGlobal("tvm_find_cuda_path", &handle);
-  auto res = (*(tvm::runtime::PackedFunc*)(handle))();
+  handle_func = static_cast<tvm::runtime::PackedFunc*>(handle);
+  CHECK(handle_func != nullptr)
+    << "Error getting tvm_find_cuda_path function";
+  auto res = (*handle_func)();
   TVMFuncGetGlobal("tvm_get_cuda_version", &handle);
-  res = (*(tvm::runtime::PackedFunc*)(handle))(res);
+  handle_func = static_cast<tvm::runtime::PackedFunc*>(handle);
+  CHECK(handle_func != nullptr)
+    << "Error getting tvm_get_cuda_version function";
+  res = (*handle_func)(res);
   double cuda_version = res;
-
   if (cuda_version < 9.0) {
     return stmt;
   }
 
+  // Check if there is C=A*B+C in current AST
   MMAMatcher mma_matcher(extern_buffer,
                          cuda_compute_capability, cuda_version);
   mma_matcher.Visit(stmt);
@@ -1191,11 +1190,13 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
+  // Match matrix layout info from original schedule
   ScheduleAnalyser schedule_analyser(mma_matcher);
   if (!schedule_analyser.MatrixIdentify(schedule)) {
     return stmt;
   }
 
+  // Check if current AST can be modified to add Tensor Core support
   BufferAnalyser buffer_analyser(extern_buffer, cuda_version,
                                  schedule_analyser, mma_matcher);
   buffer_analyser.Visit(stmt);
@@ -1203,6 +1204,7 @@ Stmt TensorCore(Stmt stmt,
     return stmt;
   }
 
+  // Modify the current AST to support Tensor Core Intrinsic
   return TensorCoreIRMutator(schedule_analyser, buffer_analyser,
           cuda_compute_capability, cuda_version).Mutate(stmt);
 }
