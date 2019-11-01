@@ -99,7 +99,7 @@ torch_model = GraphSAGE(dgl_g,
 ## Download the pretrained weights
 #model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_%s.torch"%(dataset)
 #model_path = download_testdata(model_url, "gcn_%s.pickle"%(dataset), module='gcn_model')
-model_path = "/sampa/home/cyulin/dgl/examples/pytorch/graphsage/graphsage_cora.torch"
+model_path = "/sampa/home/cyulin/dgl/examples/pytorch/graphsage/graphsage_%s.torch"%(dataset)
 #
 ## Load the weights into the model
 torch_model.load_state_dict(torch.load(model_path))
@@ -112,7 +112,7 @@ print("Print the first five outputs from DGL-PyTorch execution\n", logits_torch[
 acc = evaluate(data, logits_torch.numpy())
 print("Test accuracy of DGL results: {:.2%}".format(acc))
 
-time_costs = time_evaluator(torch_model, features, 10)
+time_costs = time_evaluator(torch_model, features, 50)
 prof_res = np.array(time_costs) * 1000  # convert to millisecond
 print("DGL mean inference time (std dev): %.6f ms (%.6f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
@@ -120,13 +120,15 @@ print("DGL mean inference time (std dev): %.6f ms (%.6f ms)" %
 
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.contrib.debugger import debug_runtime
 import tvm
 
-def mean_aggregator(feats, adj):
+def mean_aggregator(feats, adj, adj_csr):
     adj_sum = relay.sum(adj, axis=1)
     adj_sum = relay.transpose(adj_sum)
     feats = relay.transpose(feats)
-    agg_feats = relay.nn.dense(feats, adj)
+    # use sparse_dense() for the critical aggregation compute
+    agg_feats = relay.nn.sparse_dense(feats, adj_csr)
     agg_feats = relay.divide(agg_feats, adj_sum)
     agg_feats = relay.transpose(agg_feats)
     return agg_feats
@@ -135,12 +137,12 @@ def SageConv(layer_name,
               input_dim,
               output_dim,
               adj,
+              adj_csr,
               input,
               norm=None,
               bias=True,
               activation=None):
-    neigh_feat = mean_aggregator(input, adj)
-
+    neigh_feat = mean_aggregator(input, adj, adj_csr)
     neigh_w = relay.var(layer_name + ".fc_neigh.weight", shape=(input_dim, output_dim))
     neigh_o = relay.nn.dense(neigh_feat, neigh_w)
 
@@ -161,7 +163,16 @@ def SageConv(layer_name,
 
 infeats = relay.var("infeats", shape=data.features.shape)
 
+
 adj = relay.Constant(tvm.nd.array(adj.astype('float32'))) 
+
+adj_scipy = nx.to_scipy_sparse_matrix(g)
+g_data = relay.Constant(tvm.nd.array(adj_scipy.data.astype('float32')))
+indices = relay.Constant(tvm.nd.array(adj_scipy.indices.astype('int32')))
+indptr = relay.Constant(tvm.nd.array(adj_scipy.indptr.astype('int32')))
+
+Adjacency = namedtuple('Adjacency', ['data', 'indices', 'indptr'])
+adj_csr = Adjacency(g_data, indices, indptr)
 
 # Construct the 2-layer GCN
 layers = []
@@ -170,6 +181,7 @@ layers.append(SageConv(
     input_dim=infeat_dim,
     output_dim=num_hidden,
     adj=adj,
+    adj_csr=adj_csr,
     input=infeats,
     activation=relay.nn.relu
 ))
@@ -178,6 +190,7 @@ layers.append(SageConv(
     input_dim=num_hidden,
     output_dim=num_classes,
     adj=adj,
+    adj_csr=adj_csr,
     input=layers[-1],
     activation=None
 ))
@@ -205,20 +218,24 @@ with relay.build_config(opt_level=0): # Currently only support opt_level=0
 # Generate graph runtime
 ctx = tvm.context(target, 0)
 m = graph_runtime.create(graph, lib, ctx)
+#m = debug_runtime.create(graph, lib, ctx)
 m.set_input(**params)
 
 m.run()
 logits_tvm = m.get_output(0).asnumpy()
 print("Print the first five outputs from TVM execution\n", logits_tvm[:5])
+#print(logits_tvm.shape)
+#exit()
 
 labels = data.labels
 test_mask = data.test_mask
 
 acc = evaluate(data, logits_tvm)
 print("Test accuracy of TVM results: {:.2%}".format(acc))
+#exit()
 
 # Verify the results with the DGL model
-tvm.testing.assert_allclose(logits_torch, logits_tvm, atol=1e-3)
+tvm.testing.assert_allclose(logits_torch, logits_tvm, atol=1e-2, rtol=1e-5)
 
 timer = m.module.time_evaluator("run", ctx, number=1, repeat=10)
 tcost = timer()
@@ -226,3 +243,4 @@ prof_res = tcost.results
 prof_res = np.array(tcost.results) * 1000  # convert to millisecond
 print("TVM mean inference time (std dev): %.6f ms (%.6f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
+exit()
