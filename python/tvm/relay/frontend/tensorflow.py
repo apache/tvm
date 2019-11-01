@@ -1318,6 +1318,18 @@ def _size():
         return AttrCvt('ndarray_size', transforms={'out_type' : 'dtype'})(inputs, new_attr)
     return _impl
 
+def _add_n():
+    def _impl(inputs, attr, params):
+        if not isinstance(inputs, tuple):
+            inputs = list(inputs)
+        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
+        _res = inputs[0]
+        for each in inputs[1:]:
+            _res = _op.add(_res, each)
+        return  _res
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1329,6 +1341,7 @@ _identity_list = []
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
     'Add'                               : _elemwise('add'),
+    'AddN'                              : _add_n(),
     'All'                               : _reduce('all'),
     'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
