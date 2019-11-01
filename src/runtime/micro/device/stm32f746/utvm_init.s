@@ -63,7 +63,6 @@ UTVMInit:
   ldr sp, =0x2004fffc
   /* run init that's expressable in C */
   bl _UTVMInit
-  /* fix thumb-mode bit? */
   bl UTVMMain
 .size UTVMInit, .-UTVMInit
 

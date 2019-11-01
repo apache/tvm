@@ -147,7 +147,6 @@
   * @param  None
   * @retval None
   */
-extern char _stext;
 void _UTVMInit(void)
 {
 //  /* FPU settings ------------------------------------------------------------*/
@@ -179,7 +178,6 @@ void _UTVMInit(void)
 //#else
 //  SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
 //#endif
-  SCB->VTOR = &_stext; /* Vector Table Relocation in Internal SRAM */
 }
 
 /**

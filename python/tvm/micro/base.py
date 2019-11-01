@@ -288,7 +288,7 @@ def create_micro_lib(
         include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Include']
         include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Device/ST/STM32F7xx/Include']
         include_paths += [f'{CMSIS_PATH}/Drivers/STM32F7xx_HAL_Driver/Inc']
-        #include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32F7xx_Nucleo_144']
+        include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32F7xx_Nucleo_144']
         include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32746G-Discovery']
     elif lib_type == LibType.OPERATOR:
         # Create a temporary copy of the source, so we can inject the dev lib

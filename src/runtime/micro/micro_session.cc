@@ -57,7 +57,8 @@ void MicroSession::ExitWithScope() {
 }
 
 MicroSession::MicroSession() {
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
+  //DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001c8);
   for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
     size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
     section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
@@ -335,15 +336,16 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   std::cout << "  UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
   std::cout << "  UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
-  std::cout << "do execution things: ";
+  std::cout << "  do execution things: ";
   char tmp;
   std::cin >> tmp;
   //low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
 
   // Check if there was an error during execution.  If so, log it.
-  CheckDeviceError();
+  //CheckDeviceError();
 
   uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
+  std::cout << "  task time was " << task_time << std::endl;
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
   return task_time;
@@ -525,7 +527,10 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 }
 
 void MicroSession::CheckDeviceError() {
+  std::cout << "[MicroSession::CheckDeviceError]" << std::endl;
   int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
+  std::cout << "  return_code: " << return_code << std::endl;
+  std::cout << "  return_code loc: " << runtime_symbol_map_["utvm_return_code"].cast_to<void*>() << std::endl;
 
   if (return_code) {
     std::uintptr_t last_error =
