@@ -93,7 +93,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     CHECK(can_dispatch(n))
         << "NodeFunctor calls un-registered function on type "
         << n->GetTypeKey();
-    return (*func_[type_index])(n, std::forward<Args>(args)...);
+    return (*func_[n->type_index()])(n, std::forward<Args>(args)...);
   }
   /*!
    * \brief set the dispacher for type TNode
