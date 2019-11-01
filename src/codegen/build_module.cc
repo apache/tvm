@@ -37,8 +37,9 @@ TVM_REGISTER_NODE_TYPE(TargetNode);
 TVM_REGISTER_NODE_TYPE(GenericFuncNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
-  p->stream << op->str();
+.set_dispatch<TargetNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const TargetNode*>(node.get());
+    p->stream << op->str();
   });
 
 
@@ -654,7 +655,8 @@ tvm::BuildConfig BuildConfig::Current() {
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
+.set_dispatch<BuildConfigNode>([](const ObjectRef& node, IRPrinter *p) {
+  auto* op = static_cast<const BuildConfigNode*>(node.get());
   p->stream << "build_config(";
   p->stream << "data_alignment=" << op->data_alignment << ", ";
   p->stream << "offset_factor=" << op->offset_factor << ", ";

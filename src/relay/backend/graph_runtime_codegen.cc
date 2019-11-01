@@ -24,7 +24,6 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
-#include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 

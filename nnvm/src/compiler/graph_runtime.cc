@@ -30,6 +30,8 @@
 namespace nnvm {
 namespace compiler {
 
+using tvm::Object;
+using tvm::ObjectPtr;
 using tvm::runtime::TVMArgs;
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::PackedFunc;

@@ -196,7 +196,8 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<LayoutNode>([](const LayoutNode* l, IRPrinter* p) {
+.set_dispatch<LayoutNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* l = static_cast<const LayoutNode*>(node.get());
     p->stream << "Layout(" << l->name << ")";
   });
 
@@ -352,7 +353,8 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BijectiveLayoutNode>([](const BijectiveLayoutNode* b, IRPrinter* p) {
+.set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
     p->stream << "BijectiveLayout(" << b->src_layout.name()
               << "->" << b->dst_layout.name() << ")";
   });
