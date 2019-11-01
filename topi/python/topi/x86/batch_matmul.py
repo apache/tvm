@@ -21,35 +21,16 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas
-from topi.nn import batch_matmul, batch_matmul_default
-from .. import generic, tag, nn
+from .. import generic, nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
-from .util import get_fp32_len
 
-#@batch_matmul.register(["cpu"])
-#def batch_matmul_x86(x, y):
-#    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-#    data in batch.
-#
-#    Parameters
-#    ----------
-#    x : tvm.Tensor
-#        3-D with shape [batch, M, K]
-#
-#    y : tvm.Tensor
-#        3-D with shape [batch, N, K]
-#
-#    Returns
-#    -------
-#    output : tvm.Tensor
-#        3-D with shape [batch, M, N]
-#    """
-#    target = tvm.target.current_target()
-#    if "cblas" in target.libs:
-#        return cblas.batch_matmul(x, y, False, True)
-#    return batch_matmul_default(x, y)
+
 @autotvm.register_topi_compute(nn.batch_matmul, "cpu", "direct")
 def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return cblas.batch_matmul(in_A, in_B, False, True)
+
     assert len(in_A.shape) == 3 and len(
         in_B.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(in_A.shape)
@@ -73,7 +54,6 @@ def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
     return C
 
 
-#@generic.schedule_batch_matmul.register(["cpu"])
 @autotvm.register_topi_schedule(generic.schedule_batch_matmul, "cpu", "direct")
 def schedule_batch_matmul(cfg, outs):
     """Schedule for batch_matmul
