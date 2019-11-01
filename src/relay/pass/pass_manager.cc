@@ -329,12 +329,12 @@ Module FunctionPassNode::operator()(const Module& mod,
   return updated_mod;
 }
 
-// TODO(zhiics) Create an enum attribute for FunctionNode
-// enum Attribute {kPrimitive, kSkipOptimization}
 bool FunctionPassNode::SkipFunction(const Function& func) const {
-  NodeRef res = FunctionGetAttr(func, "SkipOptimization");
-  const ir::IntImm* pval = res.as<ir::IntImm>();
-  return pval && pval->value != 0;
+  NodeRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
+  NodeRef is_extern = FunctionGetAttr(func, attr::kExternal);
+  const ir::IntImm* pval = skip_opt.as<ir::IntImm>();
+  const ir::StringImm* sval = is_extern.as<ir::StringImm>();
+  return (pval && pval->value != 0) || (sval && sval->value.size() > 0);
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {

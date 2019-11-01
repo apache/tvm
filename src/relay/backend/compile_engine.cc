@@ -600,7 +600,7 @@ class CompileEngineImpl : public CompileEngineNode {
     if (value->packed_func != nullptr) return value->packed_func;
     // Handle 3rd party generated code library.
     if (value->lib.operator->()) {
-      auto name = FunctionGetAttr(key->source_func, "func_name");
+      auto name = FunctionGetAttr(key->source_func, attr::kFuncName);
       const tvm::ir::StringImm* func_name = name.as<tvm::ir::StringImm>();
       CHECK(func_name);
       value->lib.GetFunction("init")();
@@ -661,7 +661,7 @@ class CompileEngineImpl : public CompileEngineNode {
     }
 
     if (key->source_func->IsExternal()) {
-      auto compiler = FunctionGetAttr(key->source_func, "External");
+      auto compiler = FunctionGetAttr(key->source_func, attr::kExternal);
       const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
       CHECK(code_gen);
       std::string ext_name = "relay.ext." + code_gen->value;

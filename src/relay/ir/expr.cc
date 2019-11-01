@@ -157,13 +157,13 @@ FuncType FunctionNode::func_type_annotation() const {
 }
 
 bool FunctionNode::IsPrimitive() const {
-  NodeRef res = FunctionGetAttr(GetRef<Function>(this), "Primitive");
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
   const ir::IntImm* pval = res.as<ir::IntImm>();
   return pval && pval->value != 0;
 }
 
 Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) const {
-  return FunctionSetAttr(GetRef<Function>(this), "__params__", parameters);
+  return FunctionSetAttr(GetRef<Function>(this), attr::kParams, parameters);
 }
 
 TVM_REGISTER_API("relay._expr.FunctionSetParams")
@@ -173,7 +173,7 @@ TVM_REGISTER_API("relay._expr.FunctionSetParams")
 });
 
 tvm::Map<Var, Constant> FunctionNode::GetParams() const {
-  auto node_ref = FunctionGetAttr(GetRef<Function>(this), "__params__");
+  auto node_ref = FunctionGetAttr(GetRef<Function>(this), attr::kParams);
   return Downcast<tvm::Map<Var, Constant>>(node_ref);
 }
 
@@ -183,7 +183,7 @@ TVM_REGISTER_API("relay._expr.FunctionGetParams")
 });
 
 bool FunctionNode::IsExternal() const {
-  NodeRef res = FunctionGetAttr(GetRef<Function>(this), "External");
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kExternal);
   const ir::StringImm* pval = res.as<ir::StringImm>();
   return pval;
 }

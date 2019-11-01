@@ -933,7 +933,7 @@ class FuseMutator : private ExprMutator {
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
+    func = FunctionSetAttr(func, attr::kPrimitive, tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 

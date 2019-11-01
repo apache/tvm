@@ -1016,12 +1016,12 @@ void VMCompiler::ExternalFuncCodegen() {
   std::unordered_map<int, std::pair<std::string, std::string> > func_codgen;
   for (size_t i = 0; i < context_.external_funcs.size(); i++) {
     const auto& it = context_.external_funcs[i];
-    auto func_name = FunctionGetAttr(it, "func_name");
+    auto func_name = FunctionGetAttr(it, attr::kFuncName);
     CHECK(func_name.defined()) << "Cannot find func_name attribute";
     const auto* func_name_str = func_name.as<tvm::ir::StringImm>();
     CHECK(func_name_str);
     CHECK(it->IsExternal());
-    auto comp = FunctionGetAttr(it, "External");
+    auto comp = FunctionGetAttr(it, attr::kExternal);
     const auto* comp_name = comp.as<tvm::ir::StringImm>();
     CHECK(comp_name);
     if (comp_module.count(comp_name->value) == 0) {

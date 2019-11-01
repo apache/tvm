@@ -57,7 +57,6 @@ class DnnlBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-
     // Make function declaration
     std::string decl = "";
 

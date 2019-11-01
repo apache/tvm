@@ -201,9 +201,9 @@ class Partitioner : public ExprMutator {
       Expr arg0 = call->args[0];
       std::string name = "subgraph_" + std::to_string(subgraph->id);
       subgraph_func =
-          FunctionSetAttr(subgraph_func, "func_name", tvm::ir::StringImm::make(name));
-      subgraph_func = FunctionSetAttr(subgraph_func, "Primitive", tvm::Integer(1));
-      subgraph_func = FunctionSetAttr(subgraph_func, "External",
+          FunctionSetAttr(subgraph_func, attr::kFuncName, tvm::ir::StringImm::make(name));
+      subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));
+      subgraph_func = FunctionSetAttr(subgraph_func, attr::kExternal,
                                       tvm::ir::StringImm::make(subgraph_attrs->compiler));
       return CallNode::make(subgraph_func, args);
     }
@@ -326,7 +326,9 @@ class Partitioner : public ExprMutator {
 };
 
 /*!
- * \brief Combine parallel subgraphs that belong to the same codegen backend.
+ * \brief TODO(@zhiics, @comaniac) Combine parallel subgraphs that belong to
+ * the same codegen backend. This reduces rounds trips between TVM and external
+ * backends.
  *
  * For example, sg1 and sg2 should be combined if they belong to the same
  * codegen tool in the following case.

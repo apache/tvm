@@ -596,6 +596,25 @@ std::string AsText(const NodeRef& node,
                    bool show_meta_data = true,
                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 
+/*! \brief namespace of the attributes that are attached to a function. */
+namespace attr {
+/*! \brief Mark the function as a primitive function. */
+constexpr const char* kPrimitive = "Primitive";
+/*!
+ * \brief Mark the function as an external function that needs to be handled by
+ * the external codegen tool/backend.
+ */
+constexpr const char* kExternal = "External";
+/*! \brief Indicate if the function is a closure. */
+constexpr const char* kClosure = "Closure";
+/*! \brief Store a Var to parameter/Constant mapping on a Function. */
+constexpr const char* kParams = "__params__";
+/*! \brief Store the function name. */
+constexpr const char* kFuncName = "FuncName";
+/*! \brief Mark if the function should be avoided being optimized. */
+constexpr const char* kSkipOptimization = "SkipOptimization";
+}  // namespace attr
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_
