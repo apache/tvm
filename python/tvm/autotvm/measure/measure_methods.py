@@ -76,7 +76,7 @@ class LocalBuilder(Builder):
         If is 'ndk', use function for android ndk
         If is callable, use it as custom build function, expect lib_format field.
     """
-    def __init__(self, timeout=10, n_parallel=None, build_func='default', do_fork=True):
+    def __init__(self, timeout=10, n_parallel=None, build_func='default'):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
@@ -87,7 +87,7 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _wrap_build_func(build_func)
-        self.executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
+        self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
@@ -206,7 +206,6 @@ class RPCRunner(Runner):
         self.task = task
 
         if check_remote(task.target, self.key, self.host, self.port):
-            print('Get devices for measurement successfully!')
             logger.info("Get devices for measurement successfully!")
         else:
             raise RuntimeError("Cannot get remote devices from the tracker. "

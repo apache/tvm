@@ -3,7 +3,17 @@
 extern "C" {
 #endif
 
+// TODO rename file to `utvm_timer.c`
+
 #include "utvm_runtime.h"
+
+// There are two implementations of cycle counters on the STM32F7X: SysTick and
+// CYCCNT.  SysTick is preferred, as it gives better error handling, but the
+// counter is only 24 bits wide.  If a larger timer is needed, use the CYCCNT
+// implementation, which has a 32-bit counter.
+#define USE_SYSTICK
+
+#ifdef USE_SYSTICK
 
 #define SYST_CSR    (*((volatile unsigned long *) 0xE000E010))
 #define SYST_RVR    (*((volatile unsigned long *) 0xE000E014))
@@ -49,7 +59,8 @@ uint32_t UTVMTimerRead() {
     }
 }
 
-/*
+#else  // !USE_SYSTICK
+
 #define DWT_CTRL    (*((volatile unsigned long *) 0xE0001000))
 #define DWT_CYCCNT  (*((volatile unsigned long *) 0xE0001004))
 
@@ -86,7 +97,8 @@ int32_t UTVMTimerRead() {
     return (largest - start_time) + stop_time;
   }
 }
-*/
+
+#endif  // USE_SYSTICK
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

@@ -60,7 +60,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     # TODO(weberlo): Refactor this method and `*relocate_binary` so they are
     # both aware of [".bss", ".sbss", ".sdata"] being relocated to ".bss".
     section_mapping = {
-        ".text": [".text"],
+        ".text": [".text", '.isr_vector'],
         ".rodata": [".rodata"],
         ".data": [".data", ".sdata"],
         ".bss": [".bss", ".sbss"],
@@ -147,19 +147,20 @@ def tvm_callback_relocate_binary(
     #if "riscv" in toolchain_prefix:
     #    ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
 
-    # TODO(weberlo): Generate the script in a more procedural manner.
-    ld_script_contents = """
+    # TODO: this a fukn hack
+    #input(f'binary path: {binary_path}')
+    if 'utvm_runtime' in binary_path:
+        ld_script_contents = """
+ENTRY(UTVMInit)
+
 /* Highest address of the user mode stack */
 _estack = 0x20050000;   /* end of RAM */
 
-/* Specify the memory areas */
 /*
-MEMORY
-{
-RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 320K
-FLASH (rx)     : ORIGIN = 0x8000000, LENGTH = 1024K
-}
-*/
+ * Memory layout (for reference)
+ *   RAM   (xrw) : START = 0x20000000, LENGTH = 320K
+ *   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
+ */
 
 /* Define output sections */
 SECTIONS
@@ -169,8 +170,9 @@ SECTIONS
   .text :
   {
     . = ALIGN(4);
-    *(.text)
-    *(.text*)
+    KEEP(*(.isr_vector))
+    KEEP(*(.text))
+    KEEP(*(.text*))
     . = ALIGN(4);
   }
 
@@ -179,8 +181,8 @@ SECTIONS
   .rodata :
   {
     . = ALIGN(4);
-    *(.rodata)
-    *(.rodata*)
+    KEEP(*(.rodata))
+    KEEP(*(.rodata*))
     . = ALIGN(4);
   }
 
@@ -189,8 +191,8 @@ SECTIONS
   .data :
   {
     . = ALIGN(4);
-    *(.data)
-    *(.data*)
+    KEEP(*(.data))
+    KEEP(*(.data*))
     . = ALIGN(4);
   }
 
@@ -199,12 +201,74 @@ SECTIONS
   .bss :
   {
     . = ALIGN(4);
-    *(.bss)
-    *(.bss*)
+    KEEP(*(.bss))
+    KEEP(*(.bss*))
     . = ALIGN(4);
   }
 }
-    """ % (text_addr, rodata_addr, data_addr, bss_addr)
+        """ % (text_addr, rodata_addr, data_addr, bss_addr)
+    else:
+        ld_script_contents = """
+/*
+ * Memory layout (for reference)
+ *   RAM   (xrw) : START = 0x20000000, LENGTH = 320K
+ *   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
+ */
+
+/* Define output sections */
+SECTIONS
+{
+  . = %s;
+  . = ALIGN(4);
+  .text :
+  {
+    . = ALIGN(4);
+    KEEP(*(.text))
+    KEEP(*(.text*))
+    . = ALIGN(4);
+  }
+
+  . = %s;
+  . = ALIGN(4);
+  .rodata :
+  {
+    . = ALIGN(4);
+    KEEP(*(.rodata))
+    KEEP(*(.rodata*))
+    . = ALIGN(4);
+  }
+
+  . = %s;
+  . = ALIGN(4);
+  .data :
+  {
+    . = ALIGN(4);
+    KEEP(*(.data))
+    KEEP(*(.data*))
+    . = ALIGN(4);
+  }
+
+  . = %s;
+  . = ALIGN(4);
+  .bss :
+  {
+    . = ALIGN(4);
+    KEEP(*(.bss))
+    KEEP(*(.bss*))
+    . = ALIGN(4);
+  }
+}
+        """ % (text_addr, rodata_addr, data_addr, bss_addr)
+        print(f'relocing lib {binary_path}')
+        print(f'  text_addr: {text_addr}')
+        print(f'  rodata_addr: {rodata_addr}')
+        print(f'  data_addr: {data_addr}')
+        print(f'  bss_addr: {bss_addr}')
+
+    # TODO(weberlo): Generate the script in a more procedural manner.
+
+    # TODO: use the stm32-cube linker script as reference. set UTVMInit as
+    # entry point. add KEEP to sections to prevent garbage collection.
 
 #"""
 #SECTIONS
@@ -262,7 +326,7 @@ SECTIONS
         raise RuntimeError(msg)
 
     print(f'relocated obj path is {rel_obj_path}')
-    #input('check it out')
+    input('check it out')
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
     return rel_bin

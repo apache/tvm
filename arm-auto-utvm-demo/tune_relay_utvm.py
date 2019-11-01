@@ -45,7 +45,7 @@ N_PARALLEL = 1
 SERVER_ADDR = '0.0.0.0'
 SERVER_PORT = 9190
 
-LOG_FILE_NAME = '%s.%s.log' % (DEVICE, 'test')
+LOG_FILE_NAME = f'{DEVICE}.log'
 
 def create_micro_mod(c_mod, toolchain_prefix):
     """Produces a micro module from a given module.
@@ -64,7 +64,7 @@ def create_micro_mod(c_mod, toolchain_prefix):
         micro module for the target device
     """
     temp_dir = util.tempdir()
-    lib_obj_path = temp_dir.relpath("dev_lib.obj")
+    lib_obj_path = temp_dir.relpath('dev_lib.obj')
     print(c_mod.get_source())
     c_mod.export_library(
             lib_obj_path,
@@ -90,7 +90,7 @@ def relay_micro_build(func, toolchain_prefix, params=None):
         graph runtime module for the target device
     """
     with tvm.build_config(disable_vectorize=True):
-        graph, c_mod, params = relay.build(func, target="c", params=params)
+        graph, c_mod, params = relay.build(func, target='c', params=params)
     micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
     ctx = tvm.micro_dev(0)
     mod = graph_runtime.create(graph, micro_mod, ctx)
@@ -111,15 +111,14 @@ def matmul(N, L, M, dtype):
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
 
-    ##### define space begin #####
+    # define schedule space
     cfg = autotvm.get_config()
-    cfg.define_split("tile_y", y, num_outputs=2)
-    cfg.define_split("tile_x", x, num_outputs=2)
-    ##### define space end #####
+    cfg.define_split('tile_y', y, num_outputs=2)
+    cfg.define_split('tile_x', x, num_outputs=2)
 
     # schedule according to config
-    yo, yi = cfg["tile_y"].apply(s, C, y)
-    xo, xi = cfg["tile_x"].apply(s, C, x)
+    yo, yi = cfg['tile_y'].apply(s, C, y)
+    xo, xi = cfg['tile_x'].apply(s, C, x)
 
     s[C].reorder(yo, xo, k, yi, xi)
 

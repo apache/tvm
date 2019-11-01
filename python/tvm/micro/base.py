@@ -248,7 +248,9 @@ def create_micro_lib(
             '-nodefaultlibs',
             '-nostdlib',
             '-fdata-sections',
-            '-ffunction-sections']
+            '-ffunction-sections',
+            '-DSTM32F746xx'
+            ]
 
     if toolchain_prefix == 'arm-none-eabi-':
         device_id = 'stm32f746'
@@ -268,6 +270,7 @@ def create_micro_lib(
         assert False
 
     src_paths = []
+    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
     ld_script_path = None
     tmp_dir = _util.tempdir()
     if lib_type == LibType.RUNTIME:
@@ -275,8 +278,18 @@ def create_micro_lib(
         dev_dir = _get_micro_device_dir() + '/' + device_id
 
         dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
+        # there needs to at least be a utvm_timer.c file
         assert dev_src_paths
+
         src_paths += dev_src_paths
+        # TODO: configure this
+        #include_paths += [dev_dir]
+        CMSIS_PATH = '/home/pratyush/Code/nucleo-interaction-from-scratch/stm32-cube'
+        include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Include']
+        include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Device/ST/STM32F7xx/Include']
+        include_paths += [f'{CMSIS_PATH}/Drivers/STM32F7xx_HAL_Driver/Inc']
+        #include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32F7xx_Nucleo_144']
+        include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32746G-Discovery']
     elif lib_type == LibType.OPERATOR:
         # Create a temporary copy of the source, so we can inject the dev lib
         # header without modifying the original.
@@ -285,7 +298,7 @@ def create_micro_lib(
             src_lines = f.read().splitlines()
         src_lines.insert(0, '#include "utvm_device_dylib_redirect.c"')
         with open(temp_src_path, 'w') as f:
-            f.write("\n".join(src_lines))
+            f.write('\n'.join(src_lines))
         src_path = temp_src_path
 
         base_compile_cmd += ['-c']
@@ -294,13 +307,18 @@ def create_micro_lib(
 
     src_paths += [src_path]
 
-    include_paths = find_include_path() + [_get_micro_host_driven_dir()]
+    print(f'include paths: {include_paths}')
     for path in include_paths:
         base_compile_cmd += ['-I', path]
 
     prereq_obj_paths = []
     for src_path in src_paths:
         curr_obj_path = tmp_dir.relpath(Path(src_path).with_suffix('.o').name)
+        i = 2
+        while curr_obj_path in prereq_obj_paths:
+            curr_obj_path = tmp_dir.relpath(Path(os.path.basename(src_path).split('.')[0] + str(i)).with_suffix('.o').name)
+            i += 1
+
         prereq_obj_paths.append(curr_obj_path)
         curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
         run_cmd(curr_compile_cmd)
@@ -312,6 +330,7 @@ def create_micro_lib(
     ld_cmd += ['-o', obj_path]
     run_cmd(ld_cmd)
     print(f'compiled obj {obj_path}')
+    #input('check it')
 
     #if toolchain_prefix == '':
     #    create_host_micro_lib(obj_path, src_path, toolchain_prefix, lib_type, options)

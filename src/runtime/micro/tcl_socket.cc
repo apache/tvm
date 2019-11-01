@@ -42,11 +42,13 @@ void TclSocket::Connect(tvm::common::SockAddr addr) {
 }
 
 void TclSocket::SendCommand() {
+  //std::cout << "[TclSocket::SendCommand]" << std::endl;
+  //std::cout << "  cmd: " << cmd_builder_.str() << std::endl;
   cmd_builder_ << kCommandTerminateToken;
   std::string full_cmd = cmd_builder_.str();
+
   CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
     << "failed to send command";
-  cmd_builder_.str(std::string());
 
   reply_builder_.str(std::string());
   char last_read = '\0';

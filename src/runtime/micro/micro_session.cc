@@ -335,10 +335,10 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   std::cout << "  UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
   std::cout << "  UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
-  //std::cout << "do execution things: ";
-  //char tmp;
-  //std::cin >> tmp;
-  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
+  std::cout << "do execution things: ";
+  char tmp;
+  std::cin >> tmp;
+  //low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
@@ -438,7 +438,7 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
         // Now, encode the unwrapped version.
         std::cout << "  before array encode" << std::endl;
         void* arr_ptr = EncoderAppend(encoder, *base_arr_handle).cast_to<void*>();
-        std::cout << "  after array encode" << num_args << std::endl;
+        std::cout << "  after array encode" << std::endl;
         // And restore the original wrapped version.
         base_arr_handle->data = old_data;
 
