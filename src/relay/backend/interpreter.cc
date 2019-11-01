@@ -458,7 +458,7 @@ class Interpreter :
       if (dattrs->debug_func.defined()) {
         dattrs->debug_func(interp_state);
       } else {
-        RELAY_DEBUG(interp_state);
+        RELAY_DEBUG_INTERP(interp_state);
       }
 
       return args[0];
@@ -479,7 +479,8 @@ class Interpreter :
     if (const auto* tuple_type = func->body->checked_type().as<TupleTypeNode>()) {
       arg_len += tuple_type->fields.size();
     } else {
-      CHECK(func->body->checked_type().as<TensorTypeNode>());
+      CHECK(func->body->checked_type().as<TensorTypeNode>())
+        << func->body->checked_type();
       arg_len += 1;
     }
     std::vector<TVMValue> values(arg_len);
