@@ -2428,7 +2428,7 @@ def test_forward_size():
     check_size((10,))
 
 #######################################################################
-# All, Max, Min
+# All, Any, Max, Min
 # -------------
 
 
@@ -2720,7 +2720,7 @@ if __name__ == '__main__':
     test_forward_mean()
     test_forward_reduce_prod()
     test_forward_reduce_all()
-    test_forward_reduce_max()
+    test_forward_reduce_any()
     test_forward_reduce_min()
 
     # General

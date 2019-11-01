@@ -213,7 +213,7 @@ struct QnnDenseAttrs : public tvm::AttrsNode<QnnDenseAttrs> {
   int32_t input_zero_point;
   int32_t kernel_zero_point;
 
-  TVM_DECLARE_ATTRS(QnnDenseAttrs, "relay.attrs.qnn.QnnDenseAttrs") {
+  TVM_DECLARE_ATTRS(QnnDenseAttrs, "relay.attrs.QnnDenseAttrs") {
     TVM_ATTR_FIELD(units)
       .describe("Number of hidden units of the dense transformation.");
     TVM_ATTR_FIELD(out_dtype)

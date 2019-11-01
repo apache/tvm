@@ -45,7 +45,7 @@
 //
 
 ci_lint = "tvmai/ci-lint:v0.51"
-ci_gpu = "tvmai/ci-gpu:v0.54"
+ci_gpu = "tvmai/ci-gpu:v0.55"
 ci_cpu = "tvmai/ci-cpu:v0.54"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
@@ -145,7 +145,8 @@ stage('Build') {
            echo set\\(USE_CUDA ON\\) >> config.cmake
            echo set\\(USE_OPENGL ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-7\\) >> config.cmake
+           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
+           echo set\\(USE_LLVM llvm-config-9\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
@@ -189,6 +190,7 @@ stage('Build') {
            cp ../cmake/config.cmake .
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_MICRO ON\\) >> config.cmake
+           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
@@ -221,6 +223,7 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
@@ -235,7 +238,7 @@ stage('Build') {
 
 stage('Unit Test') {
   parallel 'python3: GPU': {
-    node('GPU') {
+    node('TensorCore') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)

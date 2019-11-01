@@ -200,7 +200,7 @@ class GraphModule(object):
         Parameters
         ----------
         index : int
-            The input index
+            The output index
 
         out : NDArray
             The output array container
