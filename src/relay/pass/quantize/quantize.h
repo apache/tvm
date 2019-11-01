@@ -35,23 +35,12 @@ namespace tvm {
 namespace relay {
 namespace quantize {
 
-/*! \brief Kind of annotate field */
-enum QAnnotateKind : int {
-  kQIdentity = 0,
-  kQInput = 1,
-  kQWeight = 2,
-  kQActivation = 3
-};
-
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
-  int kind;
   bool sign;
   std::string rounding;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
-    TVM_ATTR_FIELD(kind)
-        .describe("kind of field, hint for nbit/dtype configuration.");
     TVM_ATTR_FIELD(sign).set_default(true)
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")

@@ -57,27 +57,31 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   return true;
 }
 
+
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
-.set_num_inputs(4)
+.set_num_inputs(6)
 .add_argument("data", "Tensor", "The input data.")
 .add_argument("dom_scale", "Tensor", "The domain scale of input data. It should be a scalar")
 .add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
 .add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
+.add_argument("overflow_min", "Tensor", "lower bound. It should be a scalar")
+.add_argument("overflow_max", "Tensor", "upper bound. It should be a scalar")
 .set_attrs_type_key("relay.attrs.SimulatedQuantizeAttrs")
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_API("relay._quantize.simulated_quantize")
-.set_body_typed<Expr(Expr, Expr, Expr, Expr, int, bool, std::string)>(
+.set_body_typed<Expr(Expr, Expr, Expr, Expr, Expr, Expr, bool, std::string)>(
   [](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max,
-     int kind, bool sign, std::string rounding) {
+     Expr overflow_min, Expr overflow_max,
+     bool sign, std::string rounding) {
     auto attrs = make_node<SimulatedQuantizeAttrs>();
-    attrs->kind = kind;
     attrs->sign = sign;
     attrs->rounding = rounding;
     static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
-    return CallNode::make(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
+    return CallNode::make(op, {data, dom_scale, clip_min, clip_max,
+        overflow_min, overflow_max}, Attrs(attrs), {});
   });
 
 

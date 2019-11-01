@@ -31,18 +31,18 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert attrs.sign
     assert attrs.rounding == "round"
 
-    data, scale, clip_min, clip_max = inputs
+    data, dscale, clip_min, clip_max = inputs
 
     if attrs.kind == QAnnotateKind.IDENTITY:
         return [topi.identity(data)]
 
     # simulate rounding error
-    scaled_data = topi.divide(data, scale)
+    scaled_data = topi.divide(data, dscale)
     clipped_data = topi.maximum(topi.minimum(scaled_data, clip_max), clip_min)
     round_data = topi.round(clipped_data)
 
     # recover data
-    rdata = topi.multiply(round_data, scale)
+    rdata = topi.multiply(round_data, dscale)
     return [rdata]
 
 
