@@ -443,18 +443,15 @@ class UopQueue : public BaseQueue<VTAUop> {
       sram_begin_ = sram_end_;
     }
   }
-
   /*! \brief clear cache and reset base queue buffer.*/
   void Reset() {
     cache_.clear();
     cache_idx_ = 0;
     BaseQueue<VTAUop>::Reset();
   }
-
   void AutoReadBarrier() {
     ReadBarrier();
   }
-
   /*! \brief Writer barrier to make sure that data written by CPU is visible to VTA. */
   void ReadBarrier() {
     CHECK(fpga_buff_ != nullptr);
