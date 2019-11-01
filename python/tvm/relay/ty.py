@@ -52,6 +52,9 @@ class Type(RelayNode):
         """
         return TypeCall(self, args)
 
+    def is_dynamic(self):
+        return _make.IsDynamic(self)
+
 @register_relay_node
 class TensorType(Type):
     """A concrete TensorType in Relay.
@@ -316,7 +319,6 @@ class RefType(Type):
     """
     def __init__(self, value):
         self.__init_handle_by_constructor__(_make.RefType, value)
-
 
 def scalar_type(dtype):
     """Creates a scalar type.

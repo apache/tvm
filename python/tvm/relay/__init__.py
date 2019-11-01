@@ -59,6 +59,8 @@ from . import quantize
 from . import qnn
 
 from .scope_builder import ScopeBuilder
+# Load Memory pass
+from . import memory_alloc
 
 # Required to traverse large programs
 setrecursionlimit(10000)

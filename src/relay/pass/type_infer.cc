@@ -311,8 +311,15 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       Match match = GetRef<Match>(op);
       Array<Pattern> unmatched_cases = UnmatchedCases(match, this->mod_);
       if (unmatched_cases.size() != 0) {
-        LOG(FATAL) << "Match clause " << match <<  " does not handle the following cases: "
-                   << unmatched_cases;
+        RelayErrorStream ss;
+        ss << "match expression does not handle the following cases: ";
+        int i = 0;
+        for (auto cs : unmatched_cases) {
+          ss << "case " << i << ": \n" << PrettyPrint(cs);
+        }
+        this->ReportFatalError(
+          match,
+          ss);
       }
     }
 

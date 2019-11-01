@@ -144,5 +144,13 @@ bool BroadcastCompRel(const Array<Type>& types,
   return false;
 }
 
+Array<IndexExpr> RankShape(const Array<IndexExpr>& shape) {
+  if (shape.size() == 0) {
+    return {};
+  } else {
+    return { tvm::Integer(shape.size()) };
+  }
+}
+
 }  // namespace relay
 }  // namespace tvm

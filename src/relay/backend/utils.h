@@ -48,6 +48,19 @@ namespace backend {
 inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
   return tvm::runtime::Registry::Get(func_name);
 }
+
+/*!
+ * \brief Get a typed packed function.
+ *
+ * \param func_name
+ * \return const PackedFunc*
+ */
+template <typename R, typename... Args>
+inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::string& func_name) {
+  auto *pf = GetPackedFunc(func_name);
+  CHECK(pf != nullptr) << "can not find packed function";
+  return runtime::TypedPackedFunc<R(Args...)>(*pf);
+}
 /*!
  * \brief Convert type to string
  *

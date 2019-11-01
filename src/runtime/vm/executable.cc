@@ -287,9 +287,13 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
     }
     case Opcode::AllocTensor: {
       // Number of fields = 5 + instr.alloc_tensor.ndim
+      fields.push_back(instr.alloc_tensor.storage);
+
       // Save `DLDataType` and the dst register.
       const auto& dtype = instr.alloc_tensor.dtype;
-      fields.assign({dtype.code, dtype.bits, dtype.lanes});
+      fields.push_back(dtype.code);
+      fields.push_back(dtype.bits);
+      fields.push_back(dtype.lanes);
 
       // The number of dimensions is not needed for constructing an
       // `AllocTensor` instruction as it equals to the length of the `shape`
@@ -305,10 +309,22 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensorReg: {
-      // Number of fields = 5
+      // Number of fields = 6
+      fields.push_back(instr.alloc_tensor_reg.storage);
       fields.push_back(instr.alloc_tensor_reg.shape_register);
       // Save `DLDataType` and the dst register.
-      const auto& dtype = instr.alloc_tensor.dtype;
+      const auto& dtype = instr.alloc_tensor_reg.dtype;
+      fields.push_back(dtype.code);
+      fields.push_back(dtype.bits);
+      fields.push_back(dtype.lanes);
+      fields.push_back(instr.dst);
+      break;
+    }
+    case Opcode::AllocStorage: {
+      fields.push_back(instr.alloc_storage.allocation_size);
+      fields.push_back(instr.alloc_storage.alignment);
+      // Save `DLDataType` and the dst register.
+      const auto& dtype = instr.alloc_storage.dtype_hint;
       fields.push_back(dtype.code);
       fields.push_back(dtype.bits);
       fields.push_back(dtype.lanes);
@@ -521,35 +537,39 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::InvokePacked(packed_index, arity, output_size, args);
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 5 + instr.alloc_tensor.ndim
-      DCHECK_GE(instr.fields.size(), 5U);
-      DCHECK_EQ(instr.fields.size(), 5U + static_cast<size_t>(instr.fields[3]));
+      // Number of fields = 6 + instr.alloc_tensor.ndim
+      DCHECK_GE(instr.fields.size(), 6U);
+      DCHECK_EQ(instr.fields.size(), 6U + static_cast<size_t>(instr.fields[4]));
 
-      DLDataType dtype;
-      dtype.code = instr.fields[0];
-      dtype.bits = instr.fields[1];
-      dtype.lanes = instr.fields[2];
-
-      Index ndim = instr.fields[3];
-      RegName dst = instr.fields[4];
-
-      std::vector<Index> shape = ExtractFields(instr.fields, 5, ndim);
-
-      return Instruction::AllocTensor(shape, dtype, dst);
-    }
-    case Opcode::AllocTensorReg: {
-      // Number of fields = 5
-      DCHECK_EQ(instr.fields.size(), 5U);
-      Index shape_register = instr.fields[0];
+      RegName storage_reg = instr.fields[0];
 
       DLDataType dtype;
       dtype.code = instr.fields[1];
       dtype.bits = instr.fields[2];
       dtype.lanes = instr.fields[3];
 
-      RegName dst = instr.fields[4];
+      Index ndim = instr.fields[4];
+      RegName dst = instr.fields[5];
 
-      return Instruction::AllocTensorReg(shape_register, dtype, dst);
+      std::vector<Index> shape = ExtractFields(instr.fields, 6, ndim);
+
+      return Instruction::AllocTensor(storage_reg, shape, dtype, dst);
+    }
+    case Opcode::AllocTensorReg: {
+      // Number of fields = 5
+      DCHECK_EQ(instr.fields.size(), 6U);
+
+      RegName storage_reg = instr.fields[0];
+      Index shape_register = instr.fields[1];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[2];
+      dtype.bits = instr.fields[3];
+      dtype.lanes = instr.fields[4];
+
+      RegName dst = instr.fields[5];
+
+      return Instruction::AllocTensorReg(storage_reg, shape_register, dtype, dst);
     }
     case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields
@@ -574,6 +594,24 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       std::vector<Index> free_vars = ExtractFields(instr.fields, 3, num_freevar);
 
       return Instruction::AllocClosure(clo_index, num_freevar, free_vars, dst);
+    }
+    case Opcode::AllocStorage: {
+      DCHECK_GE(instr.fields.size(), 6U);
+      Index allocation_size = instr.fields[0];
+      Index alignment = instr.fields[1];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[2];
+      dtype.bits = instr.fields[3];
+      dtype.lanes = instr.fields[4];
+
+      RegName dst = instr.fields[5];
+
+      return Instruction::AllocStorage(
+        allocation_size,
+        alignment,
+        dtype,
+        dst);
     }
     case Opcode::If: {
       // Number of fields = 4
