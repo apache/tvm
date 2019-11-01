@@ -591,6 +591,14 @@ class Prelude:
         for global_def in GLOBAL_DEFS:
             setattr(self, global_def, self.mod.get_global_var(global_def))
 
-        for dtype in ['float32', 'int32']:
+        for dtype in ['float32',
+                      'float16',
+                      'float64',
+                      'int32',
+                      'uint8',
+                      'int8',
+                      'int16',
+                      'uint16',
+                      'int64']:
             tensor_array_ops = TensorArrayOps(self, dtype)
             tensor_array_ops.register()
