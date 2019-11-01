@@ -32,7 +32,7 @@
 #include "dtype.h"
 #include "node/node.h"
 #include "node/container.h"
-#include "node/ir_functor.h"
+#include "node/functor.h"
 #include "runtime/c_runtime_api.h"
 
 namespace tvm {
@@ -487,7 +487,7 @@ class IRPrinter {
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
-  using FType = IRFunctor<void(const ObjectRef&, IRPrinter *)>;
+  using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
   TVM_DLL static FType& vtable();
 };
 

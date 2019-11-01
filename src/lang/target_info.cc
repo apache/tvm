@@ -27,7 +27,8 @@
 namespace tvm {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const MemoryInfoNode *op, IRPrinter *p) {
+.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const MemoryInfoNode*>(node.get());
     p->stream << "mem-info("
               << "unit_bits=" << op->unit_bits << ", "
               << "max_num_bits=" << op->max_num_bits << ", "

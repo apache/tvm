@@ -40,7 +40,8 @@ namespace tvm {
 using namespace ir;
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
+.set_dispatch<ComputeOpNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const ComputeOpNode*>(node.get());
     p->stream << "compute(" << op->name << ", " << op << ")";
 });
 
