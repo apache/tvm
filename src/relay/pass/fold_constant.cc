@@ -102,6 +102,9 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+
+    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
+
     auto origin_args = call->args;
     Expr res = ExprMutator::VisitExpr_(call);
     call = res.as<CallNode>();
@@ -111,6 +114,9 @@ class ConstantFolder : public ExprMutator {
     if (call->args.size() == 0) return res;
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return res;
+    if (skip_list.count(op->name)) {
+        return res;
+    }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
     // Try to evaluate shape_of op
