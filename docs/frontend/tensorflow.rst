@@ -115,6 +115,7 @@ Supported Ops
 
 - Abs
 - Add
+- AddN
 - All
 - Any
 - ArgMax
