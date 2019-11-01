@@ -26,11 +26,12 @@
 namespace tvm {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<EnvFuncNode>([](const EnvFuncNode *op, IRPrinter *p) {
+.set_dispatch<EnvFuncNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const EnvFuncNode*>(node.get());
     p->stream << "EnvFunc(" << op->name << ")";
 });
 
-NodePtr<EnvFuncNode> CreateEnvNode(const std::string& name) {
+ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto* f = runtime::Registry::Get(name);
   CHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
   NodePtr<EnvFuncNode> n = make_node<EnvFuncNode>();
@@ -62,7 +63,7 @@ TVM_REGISTER_API("_EnvFuncGetPackedFunc")
 
 TVM_REGISTER_NODE_TYPE(EnvFuncNode)
 .set_creator(CreateEnvNode)
-.set_global_key([](const Object* n) {
+.set_global_key([](const Object* n) -> std::string {
     return static_cast<const EnvFuncNode*>(n)->name;
   });
 

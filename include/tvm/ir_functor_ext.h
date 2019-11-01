@@ -24,8 +24,9 @@
 #ifndef TVM_IR_FUNCTOR_EXT_H_
 #define TVM_IR_FUNCTOR_EXT_H_
 
-#include "tvm/node/ir_functor.h"
-#include "ir.h"
+#include <tvm/node/functor.h>
+#include <tvm/ir.h>
+
 #include <utility>
 
 namespace tvm {
@@ -104,7 +105,7 @@ template<typename R, typename ...Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
-  using FType = IRFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -213,7 +214,7 @@ template<typename R, typename ...Args>
 class StmtFunctor<R(const Stmt& n, Args... args)> {
  private:
   using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
-  using FType = IRFunctor<R(const ObjectRef& n, TSelf* self, Args... args)>;
+  using FType = NodeFunctor<R(const ObjectRef& n, TSelf* self, Args... args)>;
 
  public:
   /*! \brief the result type of this functor */

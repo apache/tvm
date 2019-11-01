@@ -414,9 +414,9 @@ TVM_REGISTER_API("relay._module.Module_ImportFromStd")
   mod->ImportFromStd(path);
 });;
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<ModuleNode>(
-  [](const ModuleNode *node, tvm::IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<ModuleNode>([](const ObjectRef& ref, IRPrinter* p) {
+    auto* node = static_cast<const ModuleNode*>(ref.get());
     p->stream << "ModuleNode( " << node->functions << ")";
 });
 
