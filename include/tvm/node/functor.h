@@ -84,15 +84,13 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     return type_index < func_.size() && func_[type_index] != nullptr;
   }
   /*!
-   * \brief invoke the functor , dispatch on type of n
+   * \brief invoke the functor, dispatch on type of n
    * \param n The Node argument
    * \param args The additional arguments
    * \return The result.
    */
   R operator()(const ObjectRef& n, Args... args) const {
-    uint32_t type_index = n->type_index();
-    CHECK(type_index < func_.size() &&
-          func_[type_index] != nullptr)
+    CHECK(can_dispatch(n))
         << "NodeFunctor calls un-registered function on type "
         << n->GetTypeKey();
     return (*func_[type_index])(n, std::forward<Args>(args)...);
@@ -140,7 +138,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  *
  * \code
  *  // Use NodeFunctor to implement IRPrinter similar to Visitor Pattern.
- *  // vtable allows easy patch in of new Node types, without changing
+ *  // vtable allows easy patch of new Node types, without changing
  *  // interface of IRPrinter.
  *
  *  class IRPrinter {
