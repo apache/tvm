@@ -449,9 +449,9 @@ TVM_REGISTER_API("relay._transform.Info")
   *ret = pass->Info();
 });
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<PassInfoNode>([](const PassInfoNode* node,
-                                tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::IRPrinter* p) {
+  auto* node = static_cast<const PassInfoNode*>(ref.get());
   p->stream << "The meta data of the pass: ";
   p->stream << "pass name: " << node->name;
   p->stream << "opt_level: " << node->opt_level;
@@ -475,9 +475,9 @@ TVM_REGISTER_API("relay._transform.RunPass")
   *ret = pass(mod);
 });
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<ModulePassNode>([](const ModulePassNode* node,
-                                 tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<ModulePassNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* node = static_cast<const ModulePassNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Module pass: " << info->name
             << " at the optimization level " << info->opt_level;
@@ -488,9 +488,9 @@ TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 TVM_REGISTER_API("relay._transform.MakeFunctionPass")
 .set_body_typed(FunctionPassNode::make);
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
-                                   tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<FunctionPassNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* node = static_cast<const FunctionPassNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Function pass: " << info->name
             << " at the optimization level " << info->opt_level;
@@ -508,9 +508,9 @@ TVM_REGISTER_API("relay._transform.Sequential")
   *ret = Sequential(passes, pass_info);
 });
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<SequentialNode>([](const SequentialNode* node,
-                                 tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<SequentialNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* node = static_cast<const SequentialNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Sequential pass: " << info->name
             << " at the optimization level " << info->opt_level << ". ";
@@ -538,9 +538,9 @@ TVM_REGISTER_API("relay._transform.PassContext")
   *ret = pctx;
 });
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<PassContextNode>([](const PassContextNode* node,
-                               tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<PassContextNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* node = static_cast<const PassContextNode*>(ref.get());
   p->stream << "Pass context information: " << "\n";
   p->stream << "\topt_level: " << node->opt_level << "\n";
   p->stream << "\tfallback device: "

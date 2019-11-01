@@ -810,7 +810,8 @@ IntSet EvalSet(Range r,
 TVM_REGISTER_NODE_TYPE(IntervalSetNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntervalSetNode>([](const IntervalSetNode *op, IRPrinter *p) {
+.set_dispatch<IntervalSetNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const IntervalSetNode*>(node.get());
     p->stream << "IntervalSet"
               << "[" << op->min_value << ", "
               << op->max_value << ']';
