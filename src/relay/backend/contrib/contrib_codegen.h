@@ -58,7 +58,7 @@ class ExternCodegenBase {
    */
   std::string GetSubgraphID(const Function& func) const {
     const auto name_node =
-        FunctionGetAttr(func, "func_name").as<tvm::ir::StringImm>();
+        FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
     CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
     std::string name = name_node->value;
     return runtime::contrib::GetSubgraphID(name);

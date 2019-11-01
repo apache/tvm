@@ -447,7 +447,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void EmitInvokeExternal(const Function& func,
-                          const std::vector<Index>& unpacked_arg_regs,
+                          const std::vector<Index>& arg_regs,
                           size_t arity,
                           size_t return_count) {
     CHECK(func->IsExternal());
@@ -457,11 +457,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     size_t subgraph_id = context_->external_funcs.size();
     context_->external_funcs.push_back(func);
     // Emit an instruction to invoke the external function/subgraph.
-    Emit(Instruction::InvokeExternal(subgraph_id, arity, return_count, unpacked_arg_regs));
+    Emit(Instruction::InvokeExternal(subgraph_id, arity, return_count, arg_regs));
   }
 
   void EmitInvokePacked(const Function& func,
-                        const std::vector<Index>& unpacked_arg_regs,
+                        const std::vector<Index>& arg_regs,
                         size_t arity,
                         size_t return_count) {
     Target target;
@@ -487,7 +487,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       op_index = context_->seen_funcs[cfunc->funcs[0]];
     }
 
-    Emit(Instruction::InvokePacked(op_index, arity, return_count, unpacked_arg_regs));
+    Emit(Instruction::InvokePacked(op_index, arity, return_count, arg_regs));
   }
 
 
@@ -526,11 +526,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Next generate the invoke instruction.
     CHECK(func->IsPrimitive() || func->IsExternal());
     if (func->IsExternal()) {
-      EmitInvokeExternal(op_index, argument_registers.size(), output_tuple->fields.size(),
-                         argument_registers);
+      EmitInvokeExternal(func, argument_registers, argument_registers.size(),
+                         output_tuple->fields.size());
     } else {
-      EmitInvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
-                       argument_registers);
+      EmitInvokePacked(func, argument_registers, argument_registers.size(),
+                       output_tuple->fields.size());
     }
   }
 

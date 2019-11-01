@@ -246,21 +246,14 @@ def build(mod, target=None, target_host=None, params=None):
     return graph_json, mod, params
 
 
-<<<<<<< 40fc1668d61095d2f34171f221c1a98f455ff24d
 def optimize(mod, target=None, params=None):
     """Helper function that optimizes a Relay module.
-=======
-def build_extern(mod, target):
-    """Helper function that builds a Relay function to run on external codegen
-    tools.
->>>>>>> Improve:
 
     Parameters
     ----------
     mod : relay.Module
         The module to build. Using relay.Function is deprecated.
 
-<<<<<<< 40fc1668d61095d2f34171f221c1a98f455ff24d
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
     name) to str/tvm.target.Target, optional
         For heterogeneous compilation, it is a dictionary indicating context to
@@ -269,15 +262,10 @@ def build_extern(mod, target):
     params : dict of str to NDArray
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
-=======
-    target : str
-        The name of the external compilation target.
->>>>>>> Improve:
 
     Returns
     -------
     mod : relay.Module
-<<<<<<< 40fc1668d61095d2f34171f221c1a98f455ff24d
         The optimized relay module.
 
     params : dict
@@ -307,7 +295,23 @@ def build_extern(mod, target):
         bld_mod = BuildModule()
         mod, params = bld_mod.optimize(func, target, params)
     return mod, params
-=======
+
+
+def build_extern(mod, target):
+    """Helper function that builds a Relay function to run on external codegen
+    tools.
+
+    Parameters
+    ----------
+    mod : relay.Module
+        The module to build. Using relay.Function is deprecated.
+
+    target : str
+        The name of the external compilation target.
+
+    Returns
+    -------
+    mod : relay.Module
         The relay module contains partitioned subgraphes for external codegen
         tools.
     """
@@ -318,7 +322,6 @@ def build_extern(mod, target):
                                  _transform.PartitionGraph()])
     mod = seq(mod)
     return mod
->>>>>>> Improve:
 
 
 class GraphExecutor(_interpreter.Executor):

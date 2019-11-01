@@ -967,13 +967,12 @@ void VirtualMachine::RunLoop() {
         const auto& arity = instr.ext_arity;
         std::vector<ObjectRef> args;
         for (Index i = 0; i < arity; ++i) {
-          args.push_back(ReadRegister(instr.ext_args[i]));
+          DLOG(INFO) <<
+            "arg" << i << " $" << instr.ext_args[i];
+          auto arg = ReadRegister(instr.ext_args[i]);
+          args.push_back(arg);
         }
         InvokePacked(instr.ext_index, func, arity, instr.ext_output_size, args);
-        for (Index i = 0; i < instr.ext_output_size; ++i) {
-          WriteRegister(instr.ext_args[instr.ext_arity - instr.ext_output_size + i],
-                        args[instr.ext_arity - instr.ext_output_size + i]);
-        }
         pc++;
         goto main_loop;
       }
