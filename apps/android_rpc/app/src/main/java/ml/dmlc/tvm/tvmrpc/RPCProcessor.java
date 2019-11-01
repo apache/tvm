@@ -20,7 +20,6 @@ package ml.dmlc.tvm.tvmrpc;
 import android.os.ParcelFileDescriptor;
 import java.net.Socket;
 import ml.dmlc.tvm.rpc.ConnectTrackerServerProcessor;
-import ml.dmlc.tvm.rpc.SocketFileDescriptorGetter;
 import ml.dmlc.tvm.rpc.RPCWatchdog;
 
 /**
@@ -35,14 +34,6 @@ class RPCProcessor extends Thread {
   private ConnectTrackerServerProcessor currProcessor;
   private boolean first = true;
 
-  static final SocketFileDescriptorGetter socketFdGetter
-      = new SocketFileDescriptorGetter() {
-        @Override
-        public int get(Socket socket) {
-          return ParcelFileDescriptor.fromSocket(socket).getFd();
-        }
-      };
-
   @Override public void run() {
     RPCWatchdog watchdog = new RPCWatchdog();
     watchdog.start();
@@ -56,7 +47,7 @@ class RPCProcessor extends Thread {
           }
         }
         try {
-          currProcessor = new ConnectTrackerServerProcessor(host, port, key, socketFdGetter, watchdog);
+          currProcessor = new ConnectTrackerServerProcessor(host, port, key, watchdog);
         } catch (Throwable e) {
           e.printStackTrace();
           // kill if creating a new processor failed
