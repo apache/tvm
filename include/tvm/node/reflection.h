@@ -48,20 +48,20 @@ using runtime::ObjectRef;
  *  Each objects that wants reflection will need to implement
  *  a VisitAttrs function and call visitor->Visit on each of its field.
  */
-class TVM_DLL AttrVisitor {
+class AttrVisitor {
  public:
 //! \cond Doxygen_Suppress
-  virtual ~AttrVisitor() = default;
-  virtual void Visit(const char* key, double* value) = 0;
-  virtual void Visit(const char* key, int64_t* value) = 0;
-  virtual void Visit(const char* key, uint64_t* value) = 0;
-  virtual void Visit(const char* key, int* value) = 0;
-  virtual void Visit(const char* key, bool* value) = 0;
-  virtual void Visit(const char* key, std::string* value) = 0;
-  virtual void Visit(const char* key, void** value) = 0;
-  virtual void Visit(const char* key, DataType* value) = 0;
-  virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
+  TVM_DLL virtual ~AttrVisitor() = default;
+  TVM_DLL virtual void Visit(const char* key, double* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, int64_t* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, uint64_t* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, int* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, bool* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, std::string* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, void** value) = 0;
+  TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
   template<typename ENum,
            typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
@@ -93,13 +93,13 @@ class ReflectionVTable {
    *        If this is not empty then FGlobalKey must be defined for the object.
    * \return The created function.
    */
-  using FCreate = std::function<ObjectPtr<Object>(const std::string& global_key)>;
+  typedef ObjectPtr<Object> (*FCreate)(const std::string& global_key);
   /*!
    * \brief Global key function, only needed by global objects.
    * \param node The node pointer.
    * \return node The global key to the node.
    */
-  using FGlobalKey = std::function<std::string(const Object* self)>;
+  typedef std::string (*FGlobalKey)(const Object* self);
   /*!
    * \brief Dispatch the VisitAttrs function.
    * \param self The pointer to the object.
@@ -193,7 +193,7 @@ class ReflectionVTable::Registry {
   static DMLC_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry &      \
   __make_Node ## _ ## TypeName ## __ =                                  \
       ::tvm::ReflectionVTable::Global()->Register<TypeName>()           \
-      .set_creator([](const std::string&) {                             \
+      .set_creator([](const std::string&) -> ObjectPtr<Object> {        \
           return ::tvm::runtime::make_object<TypeName>();               \
         })
 
