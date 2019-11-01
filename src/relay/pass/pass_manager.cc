@@ -314,7 +314,7 @@ Module FunctionPassNode::operator()(const Module& mod,
              << pass_info->opt_level;
 
   // Execute the pass function and return a new module.
-  Module updated_mod = ModuleNode::make(mod->functions, mod->type_definitions);
+  Module updated_mod = ModuleNode::make(mod->functions, mod->type_definitions, mod->Imports());
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : updated_mod->functions) {
     auto updated_func = SkipFunction(it.second)
