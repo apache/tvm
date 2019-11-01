@@ -76,7 +76,8 @@ class ModuleNode : public RelayNode {
   }
 
   TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs,
-                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs);
+                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
+                             std::unordered_set<std::string> imports = {});
 
   /*!
    * \brief Add a function to the global environment.
@@ -234,6 +235,11 @@ class ModuleNode : public RelayNode {
    * \param path The path of the Relay code to import.
    */
   TVM_DLL void ImportFromStd(const std::string& path);
+
+  /*!
+   * \brief The set of imported files.
+   */
+  TVM_DLL std::unordered_set<std::string> Imports() const;
 
   /*! \brief Construct a module from a standalone expression.
    *

@@ -530,8 +530,10 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module,
-                       ErrorReporter* err_reporter)
+TypeSolver::TypeSolver(
+  const GlobalVar& current_func,
+  const Module& module,
+  ErrorReporter* err_reporter)
     : reporter_(make_node<Reporter>(this)),
       current_func(current_func),
       err_reporter_(err_reporter),

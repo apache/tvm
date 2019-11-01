@@ -72,6 +72,10 @@ bool IsDynamic(const Type& ty) {
   return v.is_dyn;
 }
 
+// TODO(@jroesch): MOVE ME
+TVM_REGISTER_API("relay._make.IsDynamic")
+.set_body_typed(IsDynamic);
+
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // for now, we always use int32 shape when possible
   // even if the result of shape inference becomes int64.
@@ -773,6 +777,12 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
 .set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
     [](CompileEngine self, CCacheKey key) {
       return self->Lower(key);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
+.set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
+    [](CompileEngine self, CCacheKey key) {
+      return self->LowerShapeFunc(key);
     });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")

@@ -138,6 +138,7 @@ enum class Opcode {
   GetTag = 13U,
   LoadConsti = 14U,
   Fatal = 15U,
+  AllocStorage = 16U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -158,6 +159,8 @@ struct Instruction {
 
   union {
     struct /* AllocTensor Operands */ {
+      /*! \brief The storage to allocate from. */
+      RegName storage;
       /*! \brief The number of dimensions. */
       uint32_t ndim;
       /*! \brief The shape of tensor. */
@@ -166,6 +169,8 @@ struct Instruction {
       DLDataType dtype;
     } alloc_tensor;
     struct /* AllocTensorReg Operands */ {
+      /*! \brief The storage to allocate from. */
+      RegName storage;
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
       /*! \brief The datatype of tensor to be allocated. */
@@ -253,6 +258,14 @@ struct Instruction {
       /*! \brief The free variables as an array. */
       RegName* free_vars;
     };
+    struct /* AllocStorage Operands */ {
+      /*! \brief The size of the allocation. */
+      RegName allocation_size;
+      /*! \brief The alignment of the allocation. */
+      RegName alignment;
+      /*! \brief The hint of the dtype. */
+      DLDataType dtype_hint;
+    } alloc_storage;
   };
 
   /*! \brief Construct a return instruction.
@@ -274,19 +287,23 @@ struct Instruction {
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
                                   const std::vector<RegName>& args);
   /*! \brief Construct an allocate tensor instruction with constant shape.
+   *  \param storage The storage to allocate out of.
    *  \param shape The shape of the tensor.
    *  \param dtype The dtype of the tensor.
    *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(std::vector<int64_t> shape, DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(RegName storage,
+                                 const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
   /*! \brief Construct an allocate tensor instruction with register.
+   *  \param storage The storage to allocate out of.
    *  \param shape_register The register containing the shape.
    *  \param dtype The dtype of the tensor.
    *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName shape_register, DLDataType dtype, RegName dst);
+  static Instruction AllocTensorReg(RegName storage,
+                                    RegName shape_register, DLDataType dtype, RegName dst);
   /*! \brief Construct an allocate datatype instruction.
    *  \param tag The datatype tag.
    *  \param num_fields The number of fields for the datatype.
@@ -295,7 +312,7 @@ struct Instruction {
    *  \return The allocate instruction tensor.
    */
   static Instruction AllocADT(Index tag, Index num_fields, const std::vector<RegName>& fields,
-                                   RegName dst);
+                              RegName dst);
   /*! \brief Construct an allocate closure instruction.
    *  \param func_index The index of the function table.
    *  \param num_freevar The number of free variables.
@@ -363,6 +380,16 @@ struct Instruction {
    *  \return The move instruction.
    */
   static Instruction Move(RegName src, RegName dst);
+
+   /*! \brief Allocate a storage block.
+   *  \param size The size of the allocation.
+   *  \param alignment The allocation's alignment.
+   *  \param dtype_hint The data type hint for the allocator.
+   *  \param dst The destination to place the storage.
+   *  \return The alloc storage instruction.
+   */
+  static Instruction AllocStorage(RegName size, RegName alignment,
+                                  DLDataType dtype_hint, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
