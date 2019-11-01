@@ -77,7 +77,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     int shift;
     const DataType& dtype = op->type;
-    CHECK(dtype.is_int() || !dtype.is_uint());
+    CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
         is_const_power_of_two_integer(op->b, &shift)) {
@@ -124,7 +124,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     // Lower floordiv to native truncdiv.
     int shift;
     const DataType& dtype = op->type;
-    CHECK(dtype.is_int() || !dtype.is_uint());
+    CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
         is_const_power_of_two_integer(op->b, &shift)) {
@@ -136,8 +136,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
       // Common pass, positive divisor
-      if (analyzer_->CanProveGreaterEqual(op->a, 0) ||
-          analyzer_->CanProveGreaterEqual(e, 0)) {
+      if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
       } else {
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
