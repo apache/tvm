@@ -44,7 +44,7 @@ def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
     cfg.define_split("tile_x", N, num_outputs=2)
     cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
-        _default_batch_matmul_nopack_config(cfg, B, M, N, K)
+        _default_batch_matmul_nopack_config(cfg, M, N, K)
 
     k = tvm.reduce_axis((0, K), name='k')
     C = tvm.compute(
@@ -102,7 +102,7 @@ def schedule_batch_matmul(cfg, outs):
     return s
 
 
-def _default_batch_matmul_nopack_config(cfg, B, M, N, K):
+def _default_batch_matmul_nopack_config(cfg, M, N, K):
     cfg["tile_k"] = SplitEntity([K // 16, 16])
     x_bn = get_max_power2_factor(N, 8)
     cfg["tile_x"] = SplitEntity([N // x_bn, x_bn])
