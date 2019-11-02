@@ -22,27 +22,37 @@ from __future__ import absolute_import
 import logging
 import os
 import sys
+from collections import namedtuple
 from enum import Enum
 from pathlib import Path
 
 import tvm
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
-
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
-
-SUPPORTED_DEVICE_TYPES = ["host", "openocd"]
+from tvm.contrib.binutil import run_cmd
 
 class LibType(Enum):
     RUNTIME = 0
     OPERATOR = 1
 
 
-@tvm.register_func('micro.create_session')
-def create_session(device_type, toolchain_prefix, **kwargs):
-    res = Session(device_type, toolchain_prefix, **kwargs)
-    return res.module
+class OpenOcdComm:
+    def __init__(self, server_addr, server_port):
+        self.server_addr = server_addr
+        self.server_port = server_port
+
+    def name(self):
+        return 'openocd'
+
+
+class HostComm:
+    def __init__(self):
+        pass
+
+    def name(self):
+        return 'host'
 
 
 class Session:
@@ -76,29 +86,38 @@ class Session:
     """
 
     # TODO(weberlo): remove required trailing dash in toolchain_prefix
-    def __init__(self, device_type, toolchain_prefix, **kwargs):
-        if device_type not in SUPPORTED_DEVICE_TYPES:
-            raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
-        #self._check_system()
+    def __init__(self, dev_binutil, dev_communicator):
+        self._check_system()
         #self._check_args(device_type, kwargs)
+
+        self.binutil = dev_binutil
+        self.communicator = dev_communicator
 
         # First, find and compile runtime library.
         runtime_src_path = os.path.join(_get_micro_host_driven_dir(), "utvm_runtime.c")
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
-        create_micro_lib(
-            runtime_obj_path, runtime_src_path, toolchain_prefix, LibType.RUNTIME)
+        self.binutil.create_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
 
-        self.op_modules = []
+        if isinstance(self.communicator, OpenOcdComm):
+            server_addr = self.communicator.server_addr
+            server_port = self.communicator.server_port
+        elif isinstance(self.communicator, HostComm):
+            server_addr = ''
+            server_port = 0
+        else:
+            raise RuntimeError(f'unknown communication method: f{self.communicator}')
 
-        self.device_type = device_type
-        self.toolchain_prefix = toolchain_prefix
-        self.base_addr = kwargs.get("base_addr", 0)
-        self.server_addr = kwargs.get("server_addr", "")
-        self.port = kwargs.get("port", 0)
+        # todo remove use of base addrs everywhere
+        base_addr = 0
 
         self.module = _CreateSession(
-            self.device_type, runtime_obj_path, self.toolchain_prefix, self.base_addr, self.server_addr, self.port)
+            self.communicator.name(),
+            runtime_obj_path,
+            self.binutil.toolchain_prefix(),
+            base_addr,
+            server_addr,
+            server_port)
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
 
@@ -159,7 +178,7 @@ def _get_micro_device_dir():
     return micro_device_dir
 
 
-def cross_compiler(toolchain_prefix, lib_type):
+def cross_compiler(dev_binutil, lib_type):
     """Creates a cross compile function that wraps `create_micro_lib`.
 
     For use in `tvm.module.Module.export_library`.
@@ -192,8 +211,9 @@ def cross_compiler(toolchain_prefix, lib_type):
             obj_path = obj_path[0]
         if isinstance(src_path, list):
             src_path = src_path[0]
-        create_micro_lib(obj_path, src_path, toolchain_prefix,
-                         lib_type, kwargs.get("options", None))
+        dev_binutil.create_lib(obj_path, src_path, lib_type, kwargs.get('options', None))
+        #create_micro_lib(obj_path, src_path, toolchain_prefix,
+        #                 lib_type, kwargs.get("options", None))
     return _cc.cross_compiler(compile_func, output_format='obj')
 
 
@@ -216,24 +236,20 @@ def create_micro_lib(
         whether to include the device library header containing definitions of
         library functions.
     """
-    import subprocess
+    #import subprocess
     import os
-    import copy
-    from shutil import copyfile
 
-    from tvm._ffi.libinfo import find_include_path
-    from tvm.contrib import binutil
-
-    def run_cmd(cmd):
-        proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT)
-        (out, _) = proc.communicate()
-        if proc.returncode != 0:
-            msg = "Compilation error:\n"
-            msg += out.decode("utf-8")
-            raise RuntimeError(msg)
+    #def run_cmd(cmd):
+    #    proc = subprocess.Popen(
+    #            cmd,
+    #            stdout=subprocess.PIPE,
+    #            stderr=subprocess.STDOUT)
+    #    (out, _) = proc.communicate()
+    #    if proc.returncode != 0:
+    #        cmd_str = ' '.join(cmd)
+    #        msg = f"error while running command \"{' '.join(cmd)}\":\n"
+    #        msg += out.decode("utf-8")
+    #        raise RuntimeError(msg)
 
     base_compile_cmd = [
             f'{toolchain_prefix}gcc',

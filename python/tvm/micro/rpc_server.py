@@ -7,12 +7,12 @@ import tvm
 from tvm import rpc
 from tvm import micro
 
-DEVICE_TYPE = 'openocd'
-TOOLCHAIN_PREFIX = 'arm-none-eabi-'
+DEV_BINUTIL = micro.binutil.ArmBinutil()
+DEV_COMMUNICATOR = micro.OpenOcdComm('127.0.0.1', 6666)
 
 @tvm.register_func("tvm.rpc.server.start", override=True)
 def server_start():
-    session = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    session = micro.Session(DEV_BINUTIL, DEV_COMMUNICATOR)
     session._enter()
     _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
 

@@ -34,8 +34,10 @@ from vta.top import graph_pack
 # first, run `python -m tvm.exec.rpc_tracker --host 0.0.0.0 --port=9190` in one terminal
 # then, run `python -m tvm.micro.rpc_server --tracker=0.0.0.0:9190 --key=micro` in another
 
-DEVICE_TYPE = 'openocd'
-TOOLCHAIN_PREFIX = 'arm-none-eabi-'
+DEV_BINUTIL = micro.binutil.ArmBinutil()
+DEV_COMMUNICATOR = micro.OpenOcdComm('127.0.0.1', 6666)
+#DEVICE_TYPE = 'openocd'
+#TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 
 DEVICE = 'arm-cortex-m'
 TARGET = tvm.target.create('c -device=micro_dev')
@@ -50,7 +52,7 @@ SERVER_PORT = 9190
 
 LOG_FILE_NAME = f'{DEVICE}.log'
 
-def create_micro_mod(c_mod, toolchain_prefix):
+def create_micro_mod(c_mod, dev_binutil):
     """Produces a micro module from a given module.
 
     Parameters
@@ -66,39 +68,14 @@ def create_micro_mod(c_mod, toolchain_prefix):
     micro_mod : tvm.module.Module
         micro module for the target device
     """
+    print('[create_micro_mod]')
     temp_dir = util.tempdir()
-    lib_obj_path = temp_dir.relpath('dev_lib.obj')
-    print(c_mod.get_source())
+    lib_obj_path = temp_dir.relpath("dev_lib.obj")
     c_mod.export_library(
             lib_obj_path,
-            fcompile=tvm.micro.cross_compiler(toolchain_prefix, micro.LibType.OPERATOR))
+            fcompile=tvm.micro.cross_compiler(dev_binutil, micro.LibType.OPERATOR))
     micro_mod = tvm.module.load(lib_obj_path)
     return micro_mod
-
-
-def relay_micro_build(func, toolchain_prefix, params=None):
-    """Create a graph runtime module with a micro device context from a Relay function.
-
-    Parameters
-    ----------
-    func : relay.Function
-        function to compile
-
-    params : dict
-        input parameters that do not change during inference
-
-    Return
-    ------
-    mod : tvm.module.Module
-        graph runtime module for the target device
-    """
-    with tvm.build_config(disable_vectorize=True):
-        graph, c_mod, params = relay.build(func, target='c', params=params)
-    micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
-    ctx = tvm.micro_dev(0)
-    mod = graph_runtime.create(graph, micro_mod, ctx)
-    mod.set_input(**params)
-    return mod
 
 
 @autotvm.template
@@ -134,7 +111,7 @@ def tune():
     early_stopping = None
     measure_option = autotvm.measure_option(
             builder=autotvm.LocalBuilder(
-                build_func=tvm.micro.cross_compiler(TOOLCHAIN_PREFIX, micro.LibType.OPERATOR)),
+                build_func=tvm.micro.cross_compiler(DEV_BINUTIL, micro.LibType.OPERATOR)),
             runner=autotvm.RPCRunner('micro', SERVER_ADDR, SERVER_PORT, n_parallel=N_PARALLEL, number=N_PER_TRIAL)
             )
 
@@ -165,8 +142,8 @@ def evaluate():
             sched, arg_bufs = matmul(N, L, M, 'float32')
             c_mod = tvm.build(sched, arg_bufs, name='matmul')
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+    with micro.Session(DEV_BINUTIL, DEV_COMMUNICATOR):
+        micro_mod = create_micro_mod(c_mod, DEV_BINUTIL)
         micro_func = micro_mod['matmul']
         ctx = tvm.micro_dev(0)
 
