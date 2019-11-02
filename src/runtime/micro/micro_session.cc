@@ -57,8 +57,8 @@ void MicroSession::ExitWithScope() {
 }
 
 MicroSession::MicroSession() {
-  //DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001c8);
+  DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
+  //DevBaseOffset curr_start_offset = DevBaseOffset(0x200001c8);
   for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
     size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
     section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
@@ -336,10 +336,10 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   std::cout << "  UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
   std::cout << "  UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
-  std::cout << "  do execution things: ";
-  char tmp;
-  std::cin >> tmp;
-  //low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
+  //std::cout << "  do execution things: ";
+  //char tmp;
+  //std::cin >> tmp;
+  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
 
   // Check if there was an error during execution.  If so, log it.
   //CheckDeviceError();

@@ -49,6 +49,7 @@ void TclSocket::SendCommand() {
 
   CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
     << "failed to send command";
+  cmd_builder_.str(std::string());
 
   reply_builder_.str(std::string());
   char last_read = '\0';

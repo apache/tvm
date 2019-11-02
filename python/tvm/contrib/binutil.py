@@ -326,7 +326,6 @@ SECTIONS
         raise RuntimeError(msg)
 
     print(f'relocated obj path is {rel_obj_path}')
-    input('check it out')
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
     return rel_bin
