@@ -112,7 +112,25 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
   std::cout << "[MicroModuleNode::GetFunction(name=" << name << ")]" << std::endl;
-  DevPtr func_ptr = symbol_map_[name];
+  DevPtr func_ptr;
+  if (name == tvm::runtime::symbol::tvm_module_main) {
+    std::cout << "  here" << std::endl;
+    if (symbol_map_.HasSymbol(tvm::runtime::symbol::tvm_module_main)) {
+      std::cout << "  ayy" << std::endl;
+      func_ptr = symbol_map_[tvm::runtime::symbol::tvm_module_main];
+    } else {
+      std::cout << "  lmao" << std::endl;
+      func_ptr = symbol_map_["default_function"];
+    }
+    //std::cout << "  symbols:" << std::endl;
+    //for (const auto& sym_name : symbol_map_.GetSymbols()) {
+    //  std::cout << "    " << sym_name << std::endl;
+    //}
+    //CHECK(symbol_map_.size() == 1) << "entry point requested with multiple functions in module";
+    //func_ptr = symbol_map_[symbol_map_.GetSymbols()[0]];
+  } else {
+    func_ptr = symbol_map_[name];
+  }
   MicroWrappedFunc f(session_, func_ptr);
   return PackedFunc(f);
 }

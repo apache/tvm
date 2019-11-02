@@ -323,8 +323,6 @@ def create_micro_lib(
         curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
         run_cmd(curr_compile_cmd)
 
-    # TODO(weberlo): adding '-fPIC' here causes the pc-relative data pools to
-    # not be updated when the obj is reloced. why?
     ld_cmd = [f'{toolchain_prefix}ld', '-relocatable']
     ld_cmd += prereq_obj_paths
     ld_cmd += ['-o', obj_path]

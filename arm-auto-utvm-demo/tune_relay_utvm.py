@@ -31,6 +31,9 @@ import vta
 from vta.testing import simulator
 from vta.top import graph_pack
 
+# first, run `python -m tvm.exec.rpc_tracker --host 0.0.0.0 --port=9190` in one terminal
+# then, run `python -m tvm.micro.rpc_server --tracker=0.0.0.0:9190 --key=micro` in another
+
 DEVICE_TYPE = 'openocd'
 TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 
@@ -38,7 +41,7 @@ DEVICE = 'arm-cortex-m'
 TARGET = tvm.target.create('c -device=micro_dev')
 
 N, L, M = 32, 32, 32
-N_TRIAL = 5
+N_TRIAL = 1
 N_PER_TRIAL = 1
 N_PARALLEL = 1
 

@@ -23,6 +23,19 @@ from .._ffi.base import py_str
 from ..api import register_func
 
 
+def run_cmd(cmd):
+    proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        cmd_str = ' '.join(cmd)
+        error_msg = out.decode("utf-8")
+        msg = f"error while running command \"{cmd_str}\":\n{error_msg}"
+        raise RuntimeError(msg)
+
+
 @register_func("tvm_callback_get_section_size")
 def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     """Finds size of the section in the binary.

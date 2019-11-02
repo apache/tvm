@@ -12,30 +12,9 @@ TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 
 @tvm.register_func("tvm.rpc.server.start", override=True)
 def server_start():
-    ## pylint: disable=unused-variable
-    #curr_path = os.path.dirname(
-    #    os.path.abspath(os.path.expanduser(__file__)))
-    #proj_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
-    #dll_path = find_libvta("libvta")[0]
-    #cfg_path = os.path.abspath(os.path.join(proj_root, "build/vta_config.json"))
-    #runtime_dll = []
     session = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
     session._enter()
     _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
-
-    @tvm.register_func("tvm.rpc.server.load_module", override=True)
-    def load_module(file_name):
-        #load_vta_dll()
-        print(f'BEFORE MOD LOAD for {file_name}')
-        res = _load_module(file_name)
-        print(f'AFTER MOD LOAD: {res}')
-        return res
-
-
-    #@tvm.register_func("device_api.ext_dev")
-    #def ext_dev_callback():
-    #    load_vta_dll()
-    #    return tvm.get_global_func("device_api.ext_dev")()
 
     @tvm.register_func("tvm.rpc.server.shutdown", override=True)
     def server_shutdown():

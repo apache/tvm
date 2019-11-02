@@ -211,6 +211,22 @@ class SymbolMap {
     return result->second;
   }
 
+  bool HasSymbol(const std::string& name) const {
+    return map_.find(name) != map_.end();
+  }
+
+  std::vector<std::string> GetSymbols() const {
+    std::vector<std::string> res;
+    for (const auto& it : map_) {
+      res.push_back(it.first);
+    }
+    return res;
+  }
+
+  size_t size() const {
+    return map_.size();
+  }
+
  private:
   /*! \brief backing map */
   std::unordered_map<std::string, DevPtr> map_;

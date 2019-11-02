@@ -109,7 +109,7 @@ void CodeGenCHost::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   if (t.is_float()) {
     switch (t.bits()) {
       case 16:
-        os << "_Float16";
+        os << "half";
         break;
       case 32: os << "float"; break;
       case 64:
