@@ -26,15 +26,32 @@ from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute(nn.batch_matmul, "cpu", "direct")
-def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
+def _declaration_batch_matmul_nopack(cfg, x, y):
+    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
+    data in batch.
+
+    Parameters
+    ----------
+    cfg : ConfigSpace
+        Autotvm tuning space config file
+    x : tvm.Tensor
+        3-D with shape [batch, M, K]
+    y : tvm.Tensor
+        3-D with shape [batch, N, K]
+    Returns
+    -------
+    output : tvm.Tensor
+        3-D with shape [batch, M, N]
+    """    
+    print("CFG TYPE: ", type(cfg))
     target = tvm.target.current_target()
     if "cblas" in target.libs:
-        return cblas.batch_matmul(in_A, in_B, False, True)
+        return cblas.batch_matmul(x, y, False, True)
 
-    assert len(in_A.shape) == 3 and len(
-        in_B.shape) == 3, "only support 3-dim batch_matmul"
-    XB, M, XK = get_const_tuple(in_A.shape)
-    YB, N, YK = get_const_tuple(in_B.shape)
+    assert len(x.shape) == 3 and len(
+        y.shape) == 3, "only support 3-dim batch_matmul"
+    XB, M, XK = get_const_tuple(x.shape)
+    YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistant"
     B = XB
@@ -49,7 +66,7 @@ def _declaration_batch_matmul_nopack(cfg, in_A, in_B):
     k = tvm.reduce_axis((0, K), name='k')
     C = tvm.compute(
         (B, M, N),
-        lambda b, i, j: tvm.sum(in_A[b, i, k] * in_B[b, j, k], axis=k),
+        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
         tag='batch_matmul')
     return C
 
@@ -60,9 +77,11 @@ def schedule_batch_matmul(cfg, outs):
 
     Parameters
     ----------
-    outs: Array of Tensor
-          The computation graph description of batch_matmul
-          in the format of an array of tensors.
+    cfg : ConfigSpace
+        AutoTVM tuning space config file.
+    outs : Array of Tensor
+        The computation graph description of batch_matmul
+        in the format of an array of tensors.
 
     Returns
     -------
