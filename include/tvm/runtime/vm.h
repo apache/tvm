@@ -534,7 +534,7 @@ class Executable : public ModuleNode {
    */
   std::string GetBytecode() const;
 
-/*!
+  /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
    * globls and constants, etc.
    */
@@ -546,6 +546,10 @@ class Executable : public ModuleNode {
    * \return The runtime module that contains the hardwre dependent code.
    */
   runtime::Module GetLib() const { return lib; }
+
+  int GetFunctionArity(std::string func) const;
+
+  std::string GetFunctionParameterName(std::string func, uint32_t index) const;
 
   virtual ~Executable() {}
 
@@ -773,7 +777,7 @@ class VirtualMachine : public runtime::ModuleNode {
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
 
   /*! \brief The parameter name to data mapping. */
-  std::unordered_map<std::string, ObjectRef> params_;
+  std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
 
   /*!
    * \brief The constant pool for runtime. It caches the device dependent

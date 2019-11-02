@@ -67,10 +67,45 @@ PackedFunc Executable::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->Save();
     });
+  } else if (name == "get_function_arity") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      *rv = this->GetFunctionArity(func_name);
+    });
+  } else if (name == "get_function_param_name") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      int index = args[1];
+      *rv = this->GetFunctionParameterName(func_name, index);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc(nullptr);
   }
+}
+
+int Executable::GetFunctionArity(std::string func_name) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return -1;
+  }
+  const auto& func = functions[it->second];
+  return func.params.size();
+}
+
+std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return "";
+  }
+  const auto& func = functions[it->second];
+  if (index > func.params.size()) {
+    LOG(ERROR) << "Invalid parameter index";
+    return "";
+  }
+  return func.params[index];
 }
 
 std::string Executable::GetBytecode() const {

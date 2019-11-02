@@ -57,10 +57,13 @@ class Executable(object):
     """Relay VM executable"""
     def __init__(self, mod):
         self.mod = mod
+        self._function_params = {}
         self._save = self.mod["save"]
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_stats = self.mod["get_stats"]
+        self._get_function_arity = self.mod["get_function_arity"]
+        self._get_function_param_name = self.mod["get_function_param_name"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -239,6 +242,19 @@ class Executable(object):
         """Return the runtime module contained in a virtual machine executable."""
         return self.mod
 
+    def get_function_params(self, func_name):
+        if func_name in self._function_params:
+            return self._function_params[func_name]
+        arity = self._get_function_arity(func_name)
+        assert arity >= 0
+        params = []
+        for i in range(arity):
+            p = self._get_function_param_name(func_name, i)
+            assert p
+            params.append(p)
+        self._function_params[func_name] = params
+        return params
+
 
 class VirtualMachine(object):
     """Relay VM runtime."""
@@ -248,8 +264,10 @@ class VirtualMachine(object):
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
         self.mod = _vm._VirtualMachine(m)
+        self._exec = mod
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
+        self._set_inputs = self.mod["set_inputs"]
 
     def init(self, ctx):
         """Initialize the context in the VM.
@@ -262,7 +280,27 @@ class VirtualMachine(object):
         args = [ctx.device_type, ctx.device_id]
         self._init(*args)
 
-    def invoke(self, func_name, *args):
+    def set_inputs(self, func_name, *args, **kwargs):
+        new_args = []
+        if kwargs:
+            func_params = self._exec.get_function_params(func_name)
+            new_args = [None] * len(func_params)
+            assert len(args) + len(kwargs) == len(func_params)
+            for k in kwargs:
+                idx = func_params.index(k)
+                new_args[idx] = kwargs[k]
+            idx = 0
+            for i in range(len(new_args)):
+                if new_args[i] is None:
+                    new_args[i] = args[idx]
+                    idx += 1
+                    if idx == len(args):
+                        break
+            args = new_args
+        cargs = convert(args)
+        self._set_inputs(func_name, *cargs)
+
+    def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.
 
         Parameters
@@ -278,10 +316,26 @@ class VirtualMachine(object):
         result : Object
             The output.
         """
-        cargs = convert(args)
-        return self._invoke(func_name, *cargs)
+        # if kwargs:
+        #     func_params = self._exec.get_function_params(func_name)
+        #     new_args = [None] * len(func_params)
+        #     assert len(args) + len(kwargs) == len(func_params)
+        #     for k in kwargs:
+        #         idx = func_params.index(k)
+        #         new_args[idx] = kwargs[k]
+        #     idx = 0
+        #     for i in range(len(new_args)):
+        #         if new_args[i] is None:
+        #             new_args[i] = args[idx]
+        #             idx += 1
+        #             if idx == len(args):
+        #                 break
+        #     args = new_args
+        # if args:
+        #     cargs = convert(args)
+        return self._invoke(func_name) #, *cargs)
 
-    def run(self, *args):
+    def run(self, *args, **kwargs):
         """Run the main function.
 
         Parameters
@@ -294,7 +348,7 @@ class VirtualMachine(object):
         result : Object
             The output.
         """
-        return self.invoke("main", *args)
+        return self.invoke("main", *args, **kwargs)
 
 
 def compile(mod, target=None, target_host=None, params=None):

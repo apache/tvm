@@ -80,10 +80,10 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, this->buffer.ctx);
   container->deleter = StorageObj::Deleter;
-  size_t needed_size = GetDataSize(container->dl_tensor);
+  // size_t needed_size = GetDataSize(container->dl_tensor);
   // TODO(@jroesch): generalize later to non-overlapping allocations.
-  CHECK(needed_size == this->buffer.size)
-    << "size mistmatch required " << needed_size << " found " << this->buffer.size;
+  // CHECK(needed_size == this->buffer.size)
+  //   << "size mistmatch required " << needed_size << " found " << this->buffer.size;
   this->IncRef();
   container->manager_ctx = reinterpret_cast<void*>(this);
   container->dl_tensor.data = this->buffer.data;
@@ -100,7 +100,7 @@ Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
   if (allocators_.find(ctx) == allocators_.end()) {
     DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "("
                << ctx.device_id << ")";
-    std::unique_ptr<Allocator> alloc(new NaiveAllocator(ctx));
+    std::unique_ptr<Allocator> alloc(new PooledAllocator(ctx));
     allocators_.emplace(ctx, std::move(alloc));
   }
   return allocators_.at(ctx).get();

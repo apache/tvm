@@ -639,25 +639,24 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       const auto& param_names = vm_func.params;
       auto ctx = this->GetParamsContext();
 
-      // Prepare the func args
-      std::vector<ObjectRef> func_args(param_names.size());
-      std::vector<size_t> empty_slots;
+      std::vector<ObjectRef> func_args;
 
-      for (size_t i = 0; i < param_names.size(); ++i) {
-        const auto& pit = params_.find(param_names[i]);
-        if (pit != params_.end()) {
-          func_args[i] = pit->second;
-        } else {
-          empty_slots.push_back(i);
+      if (args.size() == 1) {
+        if (param_names.size() > 0) {
+          auto argit = inputs_.find(func_name);
+          CHECK(argit != inputs_.end()) << "No arguments are set for " << func_name;
+          func_args = argit->second;
+        }
+      } else {
+        CHECK_EQ(args.size() - 1, param_names.size()) <<
+            "The number of provided parameters doesn't match the number of arguments";
+        // Prepare the func args
+        std::vector<ObjectRef> func_args(param_names.size());
+        for (int i = 1; i < args.size(); ++i) {
+          ObjectRef obj = CopyTo(args[i], ctx);
+          func_args[i - 1] = obj;
         }
       }
-      CHECK_EQ(empty_slots.size(), args.size() - 1)
-          << "The number of provided parameters doesn't match the number of arguments";
-      for (int i = 1; i < args.size(); ++i) {
-        ObjectRef obj = CopyTo(args[i], ctx);
-        func_args[empty_slots[i - 1]] = obj;
-      }
-
       *rv = this->Invoke(vm_func, func_args);
     });
   } else if (name == "init") {
@@ -672,6 +671,25 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         contexts.push_back(ctx);
       }
       this->Init(contexts);
+    });
+  } else if (name == "set_inputs") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(exec) << "The executable is not created yet.";
+      std::string func_name = args[0];
+      auto gvit = exec->global_map.find(func_name);
+      CHECK(gvit != exec->global_map.end()) << "Cannot find function " << func_name;
+      auto func_index = gvit->second;
+      const auto& vm_func = exec->functions[func_index];
+      const auto& param_names = vm_func.params;
+      TVMContext ctx = ctxs[0];
+      CHECK_EQ(args.size() - 1, param_names.size()) <<
+          "The number of provided parameters doesn't match the number of arguments";
+      std::vector<ObjectRef> func_args(param_names.size());
+      for (int i = 1; i < args.size(); ++i) {
+        ObjectRef obj = CopyTo(args[i], ctx);
+        func_args[i - 1] = obj;
+      }
+      inputs_.emplace(func_name, func_args);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
