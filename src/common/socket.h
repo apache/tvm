@@ -43,11 +43,14 @@ using ssize_t = int;
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/ioctl.h>
 #endif
 #include <dmlc/logging.h>
 #include <string>
 #include <cstring>
+#include <vector>
+#include "../common/util.h"
 
 
 namespace tvm {
@@ -60,6 +63,25 @@ inline std::string GetHostName() {
   std::string buf; buf.resize(256);
   CHECK_NE(gethostname(&buf[0], 256), -1);
   return std::string(buf.c_str());
+}
+
+/*!
+ * \brief ValidateIP validates an ip address.
+ * \param ip The ip address in string format localhost or x.x.x.x format
+ * \return result of operation.
+ */
+inline bool ValidateIP(std::string ip) {
+  if (ip == "localhost") {
+    return true;
+  }
+  std::vector<std::string> list = Split(ip, '.');
+  if (list.size() != 4)
+    return false;
+  for (std::string str : list) {
+    if (!IsNumber(str) || std::stoi(str) > 255 || std::stoi(str) < 0)
+      return false;
+  }
+  return true;
 }
 
 /*!
@@ -76,6 +98,23 @@ struct SockAddr {
   SockAddr(const char *url, int port) {
     this->Set(url, port);
   }
+
+  /*!
+  * \brief SockAddr Get the socket address from tracker.
+  * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
+  * \return SockAddr parsed from url.
+  */
+  explicit SockAddr(const std::string &url) {
+    size_t sep = url.find(",");
+    std::string host = url.substr(2, sep - 3);
+    std::string port = url.substr(sep + 1, url.length() - 1);
+    CHECK(ValidateIP(host)) << "Url address is not valid " << url;
+    if (host == "localhost") {
+      host = "127.0.0.1";
+    }
+    this->Set(host.c_str(), std::stoi(port));
+  }
+
   /*!
    * \brief set the address
    * \param host the url of the address
@@ -203,17 +242,20 @@ class Socket {
   }
   /*!
    * \brief try bind the socket to host, from start_port to end_port
+   * \param host host_address to bind the socket
    * \param start_port starting port number to try
    * \param end_port ending port number to try
    * \return the port successfully bind to, return -1 if failed to bind any port
    */
-  inline int TryBindHost(int start_port, int end_port) {
+  inline int TryBindHost(std::string host, int start_port, int end_port) {
     for (int port = start_port; port < end_port; ++port) {
-      SockAddr addr("0.0.0.0", port);
+      SockAddr addr(host.c_str(), port);
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
                (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
                                                   sizeof(sockaddr_in))) == 0) {
         return port;
+      } else {
+        LOG(WARNING) << "Bind failed to  " << host << ":" << port;
       }
 #if defined(_WIN32)
       if (WSAGetLastError() != WSAEADDRINUSE) {
@@ -374,6 +416,20 @@ class TCPSocket : public Socket {
     return TCPSocket(newfd);
   }
   /*!
+  * \brief get a new connection
+  * \param addr client address from which connection accepted
+  * \return The accepted socket connection.
+  */
+  TCPSocket Accept(SockAddr *addr) {
+    socklen_t addrlen = sizeof(addr->addr);
+    SockType newfd = accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr),
+                            &addrlen);
+    if (newfd == INVALID_SOCKET) {
+      Socket::Error("Accept");
+    }
+    return TCPSocket(newfd);
+  }
+  /*!
    * \brief decide whether the socket is at OOB mark
    * \return 1 if at mark, 0 if not, -1 if an error occurred
    */
@@ -468,7 +524,134 @@ class TCPSocket : public Socket {
     }
     return ndone;
   }
+  /*!
+   * \brief Send the data to remote.
+   * \param data The data to be sent.
+   */
+  void SendBytes(std::string data) {
+    int datalen = data.length();
+    CHECK_EQ(SendAll(&datalen, sizeof(datalen)), sizeof(datalen));
+    CHECK_EQ(SendAll(data.c_str(), datalen), datalen);
+  }
+  /*!
+   * \brief Receive the data to remote.
+   * \return The data received.
+   */
+  std::string RecvBytes() {
+    int datalen = 0;
+    CHECK_EQ(RecvAll(&datalen, sizeof(datalen)), sizeof(datalen));
+    std::string data;
+    data.resize(datalen);
+    CHECK_EQ(RecvAll(&data[0], datalen), datalen);
+    return data;
+  }
 };
+
+/*! \brief helper data structure to perform select */
+struct SelectHelper {
+ public:
+  SelectHelper(void) {
+    FD_ZERO(&read_set);
+    FD_ZERO(&write_set);
+    FD_ZERO(&except_set);
+    maxfd = 0;
+  }
+  /*!
+   * \brief add file descriptor to watch for read
+   * \param fd file descriptor to be watched
+   */
+  inline void WatchRead(TCPSocket::SockType fd) {
+    FD_SET(fd, &read_set);
+    if (fd > maxfd) maxfd = fd;
+  }
+  /*!
+   * \brief add file descriptor to watch for write
+   * \param fd file descriptor to be watched
+   */
+  inline void WatchWrite(TCPSocket::SockType fd) {
+    FD_SET(fd, &write_set);
+    if (fd > maxfd) maxfd = fd;
+  }
+  /*!
+   * \brief add file descriptor to watch for exception
+   * \param fd file descriptor to be watched
+   */
+  inline void WatchException(TCPSocket::SockType fd) {
+    FD_SET(fd, &except_set);
+    if (fd > maxfd) maxfd = fd;
+  }
+  /*!
+   * \brief Check if the descriptor is ready for read
+   * \param fd file descriptor to check status
+   */
+  inline bool CheckRead(TCPSocket::SockType fd) const {
+    return FD_ISSET(fd, &read_set) != 0;
+  }
+  /*!
+   * \brief Check if the descriptor is ready for write
+   * \param fd file descriptor to check status
+   */
+  inline bool CheckWrite(TCPSocket::SockType fd) const {
+    return FD_ISSET(fd, &write_set) != 0;
+  }
+  /*!
+   * \brief Check if the descriptor has any exception
+   * \param fd file descriptor to check status
+   */
+  inline bool CheckExcept(TCPSocket::SockType fd) const {
+    return FD_ISSET(fd, &except_set) != 0;
+  }
+  /*!
+   * \brief wait for exception event on a single descriptor
+   * \param fd the file descriptor to wait the event for
+   * \param timeout the timeout counter, can be 0, which means wait until the event happen
+   * \return 1 if success, 0 if timeout, and -1 if error occurs
+   */
+  inline static int WaitExcept(TCPSocket::SockType fd, long timeout = 0) { // NOLINT(*)
+    fd_set wait_set;
+    FD_ZERO(&wait_set);
+    FD_SET(fd, &wait_set);
+    return Select_(static_cast<int>(fd + 1),
+                   NULL, NULL, &wait_set, timeout);
+  }
+  /*!
+   * \brief peform select on the set defined
+   * \param select_read whether to watch for read event
+   * \param select_write whether to watch for write event
+   * \param select_except whether to watch for exception event
+   * \param timeout specify timeout in micro-seconds(ms) if equals 0, means select will always block
+   * \return number of active descriptors selected,
+   *         return -1 if error occurs
+   */
+  inline int Select(long timeout = 0) {  // NOLINT(*)
+    int ret =  Select_(static_cast<int>(maxfd + 1),
+                       &read_set, &write_set, &except_set, timeout);
+    if (ret == -1) {
+      Socket::Error("Select");
+    }
+    return ret;
+  }
+
+ private:
+  inline static int Select_(int maxfd, fd_set *rfds,
+                            fd_set *wfds, fd_set *efds, long timeout) { // NOLINT(*)
+#if !defined(_WIN32)
+    CHECK(maxfd < FD_SETSIZE) << "maxfd must be smaller than FDSETSIZE";
+#endif
+    if (timeout == 0) {
+      return select(maxfd, rfds, wfds, efds, NULL);
+    } else {
+      timeval tm;
+      tm.tv_usec = (timeout % 1000) * 1000;
+      tm.tv_sec = timeout / 1000;
+      return select(maxfd, rfds, wfds, efds, &tm);
+    }
+  }
+
+  TCPSocket::SockType maxfd;
+  fd_set read_set, write_set, except_set;
+};
+
 }  // namespace common
 }  // namespace tvm
 #endif  // TVM_COMMON_SOCKET_H_
