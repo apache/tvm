@@ -544,7 +544,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::If: {
-      os << "if " << "$" << instr.if_op.test << " " << instr.if_op.target << " "
+      os << "if " << "$" << instr.if_op.test << " $" << instr.if_op.target << " "
          << instr.if_op.true_offset << " " << instr.if_op.false_offset;
       break;
     }
@@ -565,7 +565,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::LoadConsti: {
-      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]";
+      os << "load_consti $" << instr.dst << " " << instr.load_consti.val;
       break;
     }
     case Opcode::GetField: {
@@ -689,6 +689,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         ObjectRef obj = CopyTo(args[i], ctx);
         func_args[i - 1] = obj;
       }
+      inputs_.erase(func_name);
       inputs_.emplace(func_name, func_args);
     });
   } else {

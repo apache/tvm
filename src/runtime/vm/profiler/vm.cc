@@ -79,6 +79,11 @@ PackedFunc VirtualMachineDebug::GetFunction(
       }
       this->Init(contexts);
     });
+  } else if (name == "reset") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      op_durations.clear();
+      op_invokes.clear();
+    });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
   }

@@ -78,12 +78,17 @@ class VMCompilerProfiler(vm.VMCompiler):
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
     def __init__(self, mod):
-        super().__init__(mod)
+        super(VirtualMachineProfiler, self).__init__(mod)
         m = mod.module if isinstance(mod, vm.Executable) else mod
         self.mod = _vm._VirtualMachineDebug(m)
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
         self._get_stat = self.mod["get_stat"]
+        self._set_inputs = self.mod["set_inputs"]
+        self._reset = self.mod["reset"]
 
     def get_stat(self):
         return self._get_stat()
+
+    def reset(self):
+        self._reset()
