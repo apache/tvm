@@ -537,7 +537,7 @@ def _test_split(in_shape, axis, num_or_size_splits, dtype):
     num_split = len(num_or_size_splits) if isinstance(num_or_size_splits, list) else num_or_size_splits
     tf.split(in_data, num_or_size_splits, axis=axis)
 
-    compare_tf_with_tvm([np_data], ['in_data:0'], [f'split:{n}' for n in range(num_split)])
+    compare_tf_with_tvm([np_data], ['in_data:0'], ['split:{0}'.format(n) for n in range(num_split)])
 
     # and now test together with concat
     tf.reset_default_graph()
@@ -586,7 +586,7 @@ def _test_unstack(ip_shape, axis, dtype):
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     tf.unstack(in_data, axis=axis)
 
-    compare_tf_with_tvm([np_data], ['in_data:0'], [f'unstack:{n}' for n in range(ip_shape[axis])])
+    compare_tf_with_tvm([np_data], ['in_data:0'], ['unstack:{0}'.format(n) for n in range(ip_shape[axis])])
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
