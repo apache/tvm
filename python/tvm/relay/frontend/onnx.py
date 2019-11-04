@@ -640,7 +640,8 @@ class Unsqueeze(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         for axes in attr['axes']:
             inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
-        return inputs[0]
+        casted = _op.cast(inputs[0], "int64")
+        return casted
 
 
 class Split(OnnxOpConverter):
@@ -987,7 +988,9 @@ class Where(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        return _op.where(inputs[0], inputs[1], inputs[2])
+        input0shape = infer_value_simulated(inputs[0], params).asnumpy().shape
+        new_input_1 = _op.reshape(inputs[1], input0shape)
+        return _op.where(inputs[0], new_input_1, inputs[2])
 
 class Or(Elemwise):
     """ Operator converter for Or.
@@ -995,6 +998,14 @@ class Or(Elemwise):
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
+
+class Expand(OnnxOpConverter):
+    """ Operator converter for Expand.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        new_shape = infer_value_simulated(inputs[1], params).asnumpy()
+        return _op.reshape(inputs[0], new_shape)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1118,7 +1129,8 @@ def _get_convert_map(opset):
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
-        'Or': Or.get_converter(opset)
+        'Or': Or.get_converter(opset),
+        'Expand': Expand.get_converter(opset)
     }
 
 
