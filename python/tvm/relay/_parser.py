@@ -252,7 +252,8 @@ class ParseTreeToRelayIR(RelayVisitor):
             new_typ_name = self._type_expr_name(new_expr)
             existing_typ_name = self._type_expr_name(self.global_type_vars[name])
             raise ParseError(
-                f"{0} `{1}` conflicts with existing {2}".format({new_typ_name, name, existing_typ_name}))
+                "{0} `{1}` conflicts with existing {2}".format(new_typ_name,\
+                                                                name, existing_typ_name))
 
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
