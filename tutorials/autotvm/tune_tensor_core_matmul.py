@@ -48,6 +48,12 @@ def test_gemm_nn(N, L, M, dtype, layout):
     k = s[C].op.reduce_axis[0]
 
     AA = s.cache_read(A, "shared", [C])
+    factor = 16
+    offset = 8
+    if dtype == 'int8':
+      factor = 32
+      offset = 16
+    s[AA].storage_align(AA.op.axis[0], factor, offset)
     AL = s.cache_read(AA, "local", [C])
     BB = s.cache_read(B, "shared", [C])
     BL = s.cache_read(BB, "local", [C])
@@ -55,7 +61,7 @@ def test_gemm_nn(N, L, M, dtype, layout):
 
     cfg = autotvm.get_config()
 
-    
+
     cfg.define_knob("bx", [2, 4, 8])
     cfg.define_knob("by", [16, 32, 64])
     cfg.define_knob("step_k", [8, 16, 32])

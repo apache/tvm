@@ -31,6 +31,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <tvm/target_info.h>
+#include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"
@@ -60,6 +61,9 @@ std::string simplify_name(std::string input) {
   }
 }
 
+// MMAMatcher matches C = Cast(A)*Cast(B)+C,
+// where A & B are fp16/int8 local buffers,
+// and C is fp32/int32 local buffer.
 class MMAMatcher: public IRVisitor {
  public:
   explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
@@ -142,6 +146,7 @@ class MMAMatcher: public IRVisitor {
     }
   };
 
+  // Check whether the storage scope is local
   bool check_local_buffer_(const Call* op, BufferInfo* bi) {
     if (op->call_type == Call::Halide) {
       auto it = storage_scope_.find(op->func.get());
@@ -165,8 +170,7 @@ class MMAMatcher: public IRVisitor {
     return false;
   }
 
-  // Match C = Cast(A*B)+C, where A & B are fp16/int8 local buffers,
-  // and C is fp32/int32 local buffer.
+  // Do the pattern matching
   bool mma_sync_match_(const Provide* op, BufferInfo store_buffer) {
     auto* add = op->value.as<Add>();
     if (add == nullptr) {
@@ -226,9 +230,12 @@ class MMAMatcher: public IRVisitor {
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
   bool tensor_core_on_{false};
-  bool support_int_wmma_;
+  bool support_int_wmma_{false};
 };
 
+// BodyVisitor visits the body stmt of original ComputeOp
+// to get the access indices of input matrices,
+// if it is recognized as matrix multiply.
 class BodyVisitor : public IRVisitor {
  public:
   BodyVisitor() {}
@@ -268,8 +275,7 @@ class BodyVisitor : public IRVisitor {
   bool tensorcore_candidate_{false};
 };
 
-// Get original compute expression from schedule,
-// to figure out matrix_a/matrix_b and row_major/col_major
+// ScheduleAnalyser figures out matrix_a/matrix_b and row_major/col_major
 class ScheduleAnalyser {
  public:
   explicit ScheduleAnalyser(const MMAMatcher &mma_matcher)
@@ -367,6 +373,8 @@ class ScheduleAnalyser {
   std::unordered_map<const Node*, std::string> buf_name_;
 };
 
+// IndexVisitor visits access index of fragment
+// to record variable for loop scaling
 class IndexVisitor : public IRVisitor {
  public:
   IndexVisitor() {}
@@ -384,7 +392,8 @@ class IndexVisitor : public IRVisitor {
   unsigned scaling_factor_{0};
 };
 
-// Get buffer info, e.g. thread tile and warp tile, for TensorCore CodeGen 
+// BufferAnalyser gets buffer info,
+// e.g. thread tile and warp tile, for TensorCore CodeGen
 class BufferAnalyser : public IRVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
@@ -446,23 +455,34 @@ class BufferAnalyser : public IRVisitor {
     CHECK(!bi.released)
         << "Read a buffer that is already out of scope";
 
-    Array<Expr> strides;
-    strides = bi.strides.size() > 0 ? bi.strides : bi.shape;
-    strides_.insert(std::make_pair(key.GetName(), strides));
-
     if (matrix_abc_.count(key.GetName())) {
-      if (strides.size() < 2) {
+      if (bi.shape.size() < 2) {
         invalid_ = true;
         return;
       }
-      for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
-        const IntImm* stride = strides[i].as<IntImm>();
-        if (stride == nullptr || stride->value % 16 != 0) {
+      for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
+        const IntImm* shape = bi.shape[i].as<IntImm>();
+        if (shape == nullptr || shape->value % 16 != 0) {
           invalid_ = true;
           return;
         }
       }
     }
+
+    Array<Expr> strides;
+    if (bi.strides.size() > 0) {
+      strides = bi.strides;
+    } else {
+      for (size_t i = 1; i < bi.shape.size(); ++i) {
+        Expr stride = IntImm::make(Int(32), 1);
+        for (size_t j = bi.shape.size() - 1; j >= i; --j) {
+          stride = Mul::make(stride, bi.shape[j]);
+        }
+        strides.push_back(stride);
+      }
+      strides.push_back(make_const(Int(32), 1));
+    }
+    strides_.insert(std::make_pair(key.GetName(), strides));
 
     if (frag_reg_.count(bi.name)) {
       Expr dst = Call::make(bi.dtype,
@@ -479,7 +499,7 @@ class BufferAnalyser : public IRVisitor {
         return;
       }
       std::vector<int> tile_size;
-      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
+      for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           tile_size.push_back(shape->value);
@@ -548,23 +568,34 @@ class BufferAnalyser : public IRVisitor {
       CHECK(!bi.released)
           << "Read a buffer that is already out of scope";
 
-      Array<Expr> strides;
-      strides = bi.strides.size() > 0 ? bi.strides : bi.shape;
-      strides_.insert(std::make_pair(op->name, strides));
-
       if (matrix_abc_.count(op->name)) {
-        if (strides.size() < 2) {
+        if (bi.shape.size() < 2) {
           invalid_ = true;
           return;
         }
-        for (int i = int(strides.size()) - 1; i >= int(strides.size()) - 2; --i) {
-          const IntImm* stride = strides[i].as<IntImm>();
-          if (stride == nullptr || stride->value % 16 != 0) {
+        for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
+          const IntImm* shape = bi.shape[i].as<IntImm>();
+          if (shape == nullptr || shape->value % 16 != 0) {
             invalid_ = true;
             return;
           }
         }
       }
+
+      Array<Expr> strides;
+      if (bi.strides.size() > 0) {
+        strides = bi.strides;
+      } else {
+        for (size_t i = 1; i < bi.shape.size(); ++i) {
+          Expr stride = IntImm::make(Int(32), 1);
+          for (size_t j = bi.shape.size() - 1; j >= i; --j) {
+            stride = Mul::make(stride, bi.shape[j]);
+          }
+          strides.push_back(stride);
+        }
+        strides.push_back(make_const(Int(32), 1));
+      }
+      strides_.insert(std::make_pair(key.GetName(), strides));
 
       if (!frag_reg_.count(bi.name)) {
         return;
@@ -575,7 +606,7 @@ class BufferAnalyser : public IRVisitor {
         invalid_ = true;
         return;
       }
-      for (int i = int(op->args.size()) - 1; i >= int(op->args.size()) - 2; --i) {
+      for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
           index_visitor.scaling_factor_ = shape->value;
@@ -634,6 +665,8 @@ class BufferAnalyser : public IRVisitor {
     }
   }
 
+  // Derive warp tile from thread tile,
+  // and check whether it is qualified for TensorCore.
   bool QualifiedForTensorCore() {
     if (invalid_) {
       return false;
@@ -734,15 +767,15 @@ class BufferAnalyser : public IRVisitor {
   Tile thread_tile_;
   int warp_threads_y_{-1};
   bool invalid_{false};
-  double cuda_version_;
+  double cuda_version_{0};
 };
 
+// ThreadIdxMutator does the thread index unification inside a warp
 class ThreadIdxMutator : public IRMutator {
  public:
   explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
 
   Expr Mutate_(const Variable* op, const Expr& olde) final {
-    // thread index unification inside a warp
     Expr expr = IRMutator::Mutate_(op, olde);
     op = expr.as<Variable>();
     if (op != nullptr) {
@@ -763,7 +796,8 @@ class ThreadIdxMutator : public IRMutator {
   Expr warp_y_;
 };
 
-// Mutate the AST for TensorCore CodeGen based on tensor core intrinsics
+// TensorCoreIRMutator mutates the AST for TensorCore CodeGen
+// based on tensor core intrinsics
 class TensorCoreIRMutator : public IRMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
@@ -783,12 +817,8 @@ class TensorCoreIRMutator : public IRMutator {
       cuda_version_(cuda_version) {}
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
-    Array<Expr> min_bound;
-    for (auto i : op->bounds) {
-      min_bound.push_back(i->min);
-    }
     TensorKey key{op->func, op->value_index};
-    min_bounds_[key] = min_bound;
+    bounds_[key] = op->bounds;
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Realize>();
     if (op != nullptr) {
@@ -843,7 +873,7 @@ class TensorCoreIRMutator : public IRMutator {
     Stmt stmt = IRMutator::Mutate_(op, s);
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
-      auto operands = it->second;
+      const auto &operands = it->second;
       Expr a = operands[0];
       auto ca = a.as<Call>();
       Expr b = operands[1];
@@ -873,17 +903,17 @@ class TensorCoreIRMutator : public IRMutator {
       auto call_add_c =
         [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer &buffer) {
           return add_buffer_bind_scope_(cc, buffer_node_c,
-            TensorKey{cc->func, cc->value_index}, mma_sync_call, Float(32));
+            TensorKey{cc->func, cc->value_index}, mma_sync_call, cc->type);
         };
 
       auto call_add_b =
         [this, &cb, &buffer_node_b, &call_add_c](const Buffer &buffer) {
           return add_buffer_bind_scope_(cb, buffer_node_b,
-            TensorKey{cb->func, cb->value_index}, call_add_c, Float(16));
+            TensorKey{cb->func, cb->value_index}, call_add_c, cb->type);
         };
 
       return add_buffer_bind_scope_(ca, buffer_node_a,
-        TensorKey{ca->func, ca->value_index}, call_add_b, Float(16));
+        TensorKey{ca->func, ca->value_index}, call_add_b, ca->type);
     }
 
     auto it2 = frag_load_.find(op);
@@ -909,7 +939,7 @@ class TensorCoreIRMutator : public IRMutator {
         NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
         return add_buffer_bind_scope_(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
-                                      fill_fragment_call, Float(32));
+                                      fill_fragment_call, call->type);
       }
 
       const Call* value = op->value.as<Call>();
@@ -919,15 +949,15 @@ class TensorCoreIRMutator : public IRMutator {
       auto it = strides_.find(value->name);
       CHECK(it != strides_.end())
           << "Cannot find stride for " << value->name;
-
       auto strides = it->second;
-      Expr stride = strides[strides.size()-1];
+      CHECK_GE(strides.size(), 2);
+      Expr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
       Expr warp_y = IntImm::make(Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       Expr mutated_value = thread_idx_mutator.Mutate(op->value);
-      Expr src = Call::make(Float(16),
+      Expr src = Call::make(value->type,
                             "&",
                             {mutated_value},
                             Call::Extern);
@@ -959,7 +989,7 @@ class TensorCoreIRMutator : public IRMutator {
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
-                                    load_matrix_call, Float(16));
+                                    load_matrix_call, call->type);
     }
 
     auto it3 = frag_store_.find(op);
@@ -969,7 +999,8 @@ class TensorCoreIRMutator : public IRMutator {
       CHECK(it != strides_.end())
           << "Cannot find stride for " << key.GetName();
       auto strides = it->second;
-      Expr stride = strides[strides.size()-1];
+      CHECK_GE(strides.size(), 2);
+      Expr stride = strides[strides.size()-2];
 
       Expr dst = it3->second;
       // thread index unification inside a warp
@@ -998,7 +1029,7 @@ class TensorCoreIRMutator : public IRMutator {
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
-                                    store_matrix_call, Float(32));
+                                    store_matrix_call, call->type);
     }
 
     return stmt;
@@ -1060,12 +1091,17 @@ class TensorCoreIRMutator : public IRMutator {
       const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
-    auto it = strides_.find(call->name);
-    CHECK(it != strides_.end());
+    auto it = bounds_.find(key);
+    CHECK(it != bounds_.end());
+    Array<Expr> min_bound;
+    for (auto i : it->second) {
+      min_bound.push_back(i->min);
+    }
+
     CHECK_GE(it->second.size(), 2);
     Array<Expr> shape;
     for (size_t i = 0; i < it->second.size() - 2; ++i) {
-      shape.push_back(it->second[i]);
+      shape.push_back(it->second[i]->extent);
     }
     auto tile_size = get_tile_size_(simplify_name(call->name));
     shape.push_back(tile_size[0]);
@@ -1081,10 +1117,6 @@ class TensorCoreIRMutator : public IRMutator {
     }
     strides.push_back(make_const(Int(32), 1));
 
-    auto bound_it = min_bounds_.find(key);
-    CHECK(bound_it != min_bounds_.end());
-
-    Array<Expr> min_bound = bound_it->second;
     Expr elem_offset = IntImm::make(Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
@@ -1138,17 +1170,23 @@ class TensorCoreIRMutator : public IRMutator {
   std::unordered_map<const Variable*, unsigned> loop_scaling_;
   std::unordered_map<const Provide*, Expr> frag_load_;
   std::unordered_map<const Provide*, Expr> frag_store_;
-  std::unordered_map<TensorKey, Array<Expr>> min_bounds_;
+  std::unordered_map<TensorKey, Region> bounds_;
   Tile warp_tile_;
   int warp_threads_y_{-1};
-  double cuda_compute_capability_;
-  double cuda_version_;
+  double cuda_compute_capability_{0};
+  double cuda_version_{0};
 };
 
-Stmt TensorCore(Stmt stmt,
-                Schedule schedule,
-                Map<Tensor, Buffer> extern_buffer) {
-  // Check if current runtime supports GPU
+Stmt RewriteForTensorCore(Stmt stmt,
+                          Schedule schedule,
+                          Map<Tensor, Buffer> extern_buffer) {
+  // Check if current lower target is CUDA
+  auto target = tvm::Target::Current(true);
+  if (target.defined() && target->target_name != "cuda") {
+    return stmt;
+  }
+
+  // Check if current runtime support GPU CUDA
   TVMContext ctx{kDLGPU, 0};
   auto api = tvm::runtime::DeviceAPI::Get(ctx, true);
   if (api == nullptr) {

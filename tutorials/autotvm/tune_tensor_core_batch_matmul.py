@@ -48,6 +48,7 @@ def test_gemm_nn(batch, N, L, M, dtype, layout):
     k = s[C].op.reduce_axis[0]
 
     AA = s.cache_read(A, "shared", [C])
+    s[AA].storage_align(AA.op.axis[1], 16, 8)
     AL = s.cache_read(AA, "local", [C])
     BB = s.cache_read(B, "shared", [C])
     BL = s.cache_read(BB, "local", [C])

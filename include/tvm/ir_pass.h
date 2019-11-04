@@ -216,9 +216,9 @@ Stmt StorageFlatten(Stmt stmt,
  *    buffer assignment of input and outputs.
  * \return Transformed stmt.
  */
-Stmt TensorCore(Stmt stmt,
-                Schedule schedule,
-                Map<Tensor, Buffer> extern_buffer);
+Stmt RewriteForTensorCore(Stmt stmt,
+                          Schedule schedule,
+                          Map<Tensor, Buffer> extern_buffer);
 
 /*!
  * \brief Verify if there is any argument bound to compact buffer.

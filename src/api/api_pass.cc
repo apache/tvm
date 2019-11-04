@@ -94,10 +94,10 @@ TVM_REGISTER_API("ir_pass.StorageFlatten")
     }
   });
 
-TVM_REGISTER_API("ir_pass.TensorCore")
+TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args.size() == 3) {
-      *ret = TensorCore(args[0], args[1], args[2]);
+      *ret = RewriteForTensorCore(args[0], args[1], args[2]);
     }
   });
 
