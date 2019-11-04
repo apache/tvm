@@ -30,6 +30,7 @@
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
+#include <stack>
 #include "graph.h"
 #include "../op/op_util.h"
 #include "../pass/ir_util.h"
@@ -356,6 +357,135 @@ class SchedulePostProc : public IRMutator {
   std::unordered_map<const Node*, Operation> replace_op_;
 };
 
+/*
+There are instances where the bounds pass will infer the shape of a previous
+stage to be based upon the ThreadIdx.x. This can look like:
+
+// attr [compute(C, 0x55e4e813c440)] realize_scope = ""
+
+realize C([0, 1024], [0, 1024]) {
+  produce C {
+    // attr [iter_var(blockIdx.x, , blockIdx.x)] thread_extent = 1024
+    // attr [compute(B, 0x55e4e811b350)] realize_scope = "local"
+    realize B([blockIdx.x, 1], [threadIdx.x, 1]) {
+      produce B {
+        B(blockIdx.x, threadIdx.x) =(A(blockIdx.x, threadIdx.x)*1.001f)
+      }
+      // attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 1024
+      C(blockIdx.x, threadIdx.x) =(B(blockIdx.x, threadIdx.x)*2f)
+    }
+  }
+}
+
+The issue in an example like this is
+// attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 1024
+comes after the use in "produce B".
+
+This pass will check for use of blockIdx or threadIdx and will lift the
+attr statement to the begining of the producer that uses it.
+*/
+
+class LiftThreads : public IRMutator {
+
+  //Keep track of thread definitions to see if we're missing one
+  std::unordered_map<const Variable*, int> defined_threads;
+  //Translation from thread variable to its associated attr stmt
+  std::unordered_map<const Variable*, Stmt> thread_var2stmt;
+  //Keep track of variables that weren't defined but that were used
+  std::stack<std::set<const Variable*> > needed_vars;
+  int stack_level = 0;
+
+  //Clear out the thread definitions found in the current scope
+  //as we're leaving that scope
+  void clear_definitions(){
+    std::unordered_map<const Variable*, int> new_definition;
+    for(auto it = defined_threads.begin(); it != defined_threads.end(); ++it){
+      if(it->second != stack_level){
+	new_definition.emplace(it->first, it->second);
+      }
+    }
+    defined_threads = new_definition;
+  }
+
+public:
+
+  Expr Mutate_(const Variable *op, const Expr& e) {
+
+    bool is_thread = false;
+    std::string name = op->name_hint;
+
+    if (name.compare(0, 9, "blockIdx.") == 0
+	&& name.length() == 10
+	&& static_cast<int>(name[9] - 'x') < 3
+	) is_thread = true;
+
+    else if (name.compare(0, 10, "threadIdx.") == 0
+	&& name.length() == 11
+	&& static_cast<int>(name[10] - 'x') < 3
+	) is_thread =  true;
+
+    if(is_thread)
+      if(defined_threads.count(op) == 0)
+	needed_vars.top().emplace(op);
+
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Stmt Mutate_(const AttrStmt *op, const Stmt& s) {
+    if (op->attr_key != attr::thread_extent)
+      return IRMutator::Mutate_(op, s);
+
+    IterVar iv = Downcast<IterVar>(op->node);
+    const Variable *var = iv->var.get();
+    defined_threads.emplace(var, stack_level);
+    if(thread_var2stmt.count(iv->var.get()) == 0){
+      Stmt thread_stmt =
+	AttrStmt::make(iv, "thread_extent", Expr(op->value), Evaluate::make(0));
+      thread_var2stmt.emplace(iv->var.get(), thread_stmt);
+    }
+
+    return IRMutator::Mutate_(op, s);
+  }
+
+  Stmt Mutate_(const ProducerConsumer *op, const Stmt& s){
+    if(!op->is_producer)
+      return IRMutator::Mutate_(op, s);
+    ++stack_level;
+
+    needed_vars.push(std::set<const Variable*>());
+    auto body = IRMutator::Mutate(op->body);
+    if(needed_vars.top().size() != 0){
+      for(const auto& var : needed_vars.top()){
+	if(thread_var2stmt.find(var) == thread_var2stmt.end())
+	  continue;
+
+	const AttrStmt* needed_attr = thread_var2stmt.find(var)->second.as<AttrStmt>();
+	body = AttrStmt::make(needed_attr->node,
+			      needed_attr->attr_key, needed_attr->value, body);
+      }
+    }
+
+
+    needed_vars.pop();
+    clear_definitions();
+
+    //Final result, top level producer
+    if(stack_level == 1){
+      needed_vars.push(std::set<const Variable*>());
+      auto body = IRMutator::Mutate_(op, s);
+      needed_vars.pop();
+      clear_definitions();
+      --stack_level;
+      return body;
+    }
+
+    --stack_level;
+    return ProducerConsumer::make(op->func, op->is_producer, body);
+  }
+
+};
+
+
 Stmt ScheduleOps(
     Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_trivial_loop) {
   Stmt body = Stmt();
@@ -422,7 +552,9 @@ Stmt ScheduleOps(
   }
   SchedulePostProc post_proc;
   post_proc.Init(sch);
-  return post_proc.Mutate(body);
+  body = post_proc.Mutate(body);
+  body = LiftThreads().Mutate(body);
+  return body;
 }
 
 }  // namespace schedule
