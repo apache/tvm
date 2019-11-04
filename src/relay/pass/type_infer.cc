@@ -315,7 +315,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
         ss << "match expression does not handle the following cases: ";
         int i = 0;
         for (auto cs : unmatched_cases) {
-          ss << "case " << i << ": \n" << PrettyPrint(cs);
+          ss << "case " << i++ << ": \n" << PrettyPrint(cs);
         }
         this->ReportFatalError(
           match,
