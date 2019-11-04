@@ -148,7 +148,7 @@ class ManifestAllocPass(ExprMutator):
             size, alignment, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
-        return scope.let("tensor_{0}".fromat(i), tensor)
+        return scope.let("tensor_{0}".format(i), tensor)
 
     def visit_let(self, let):
         scope = ScopeBuilder()
