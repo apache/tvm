@@ -318,7 +318,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         var_name = ctx.CNAME().getText()
         local_var = lookup(self.var_scopes, var_name)
         if local_var is None:
-            raise ParseError("unbound local var `{0}`".fromat(var_name))
+            raise ParseError("unbound local var `{0}`".format(var_name))
         return local_var
 
     def visitGraphVar(self, ctx):
@@ -558,7 +558,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         elif match_type == "match?":
             complete_match = False
         else:
-            raise RuntimeError("unknown match type {0}".fromat(match_type))
+            raise RuntimeError("unknown match type {0}".format(match_type))
 
         match_data = self.visit(ctx.expr())
         match_clauses = ctx.matchClauseList()
