@@ -215,7 +215,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_global_var(self, name: str) -> expr.GlobalVar:
         """Create a new GlobalVar and add it to the GlobalVar scope."""
         if name in self.global_vars:
-            raise ParseError("duplicate global var \"{0}\"".fromat(name))
+            raise ParseError("duplicate global var \"{0}\"".format(name))
         var = expr.GlobalVar(name)
         self.global_vars[name] = var
         return var
