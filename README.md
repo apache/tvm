@@ -38,7 +38,7 @@ Branches
 
 License
 -------
-© Contributors Licensed under an [Apache-2.0](https://github.com/dmlc/tvm/blob/master/LICENSE) license.
+© Contributors Licensed under an [Apache-2.0](LICENSE) license.
 
 Contribute to TVM
 -----------------
