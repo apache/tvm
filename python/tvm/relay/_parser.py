@@ -257,7 +257,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
-            return "`{0}` ADT constructor".format(e.belong_tovar.name)
+            return "`{0}` ADT constructor".format(e.belong_to.var.name)
         elif isinstance(e, ty.GlobalTypeVar):
             if e.kind == ty.Kind.AdtHandle:
                 return "ADT definition"
