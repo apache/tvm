@@ -208,7 +208,7 @@ class ManifestAllocPass(ExprMutator):
                 for i, out in enumerate(cfunc.outputs):
                     tt = ty.TensorType(out.shape, out.dtype)
                     alloc = self.make_static_allocation(scope, tt, i)
-                    alloc = scope.let("shape_func_out_{0}".fromat(i), alloc)
+                    alloc = scope.let("shape_func_out_{0}".format(i), alloc)
                     out_shapes.append(alloc)
 
                 shape_call = self.shape_func(
