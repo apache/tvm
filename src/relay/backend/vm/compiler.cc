@@ -872,6 +872,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
     pass_seqs.push_back(transform::Legalize());
   }
 
+  // eta expand to support constructors in argument position
   pass_seqs.push_back(transform::EtaExpand(
     /* expand_constructor */ true, /* expand_global_var */ false));
 
