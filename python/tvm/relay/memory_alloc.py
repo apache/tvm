@@ -144,7 +144,7 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let("storage_{0}".fromat(i), self.alloc_storage(
+        sto = scope.let("storage_{0}".format(i), self.alloc_storage(
             size, alignment, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
