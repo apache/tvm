@@ -50,7 +50,7 @@ class LinearizeRetType:
                 for field_ty in typ.fields:
                     _unpack(field_ty, out)
             else:
-                raise Exception(f"unsupported Relay type: {typ}")
+                raise Exception("unsupported Relay type: {0}".format(typ))
 
         output = []
         _unpack(self.typ, output)
@@ -67,7 +67,7 @@ class LinearizeRetType:
                     _pack(value[i], field_ty, tuple_out)
                 out.append(expr.Tuple(tuple_out))
             else:
-                raise Exception(f"unsupported Relay type: {typ}")
+                raise Exception("unsupported Relay type: {0}".format(typ))
 
         if len(seq) == 1:
             return seq[0]
@@ -144,11 +144,11 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let(f"storage_{i}", self.alloc_storage(
+        sto = scope.let("storage_{0}".format(i), self.alloc_storage(
             size, alignment, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
-        return scope.let(f"tensor_{i}", tensor)
+        return scope.let("tensor_{0}".format(i), tensor)
 
     def visit_let(self, let):
         scope = ScopeBuilder()
@@ -192,13 +192,13 @@ class ManifestAllocPass(ExprMutator):
                     if state == 2:
                         sh_of = self.visit(self.shape_of(arg))
                         shape_func_ins.append(
-                            scope.let(f"in_shape_{i}", sh_of))
+                            scope.let("in_shape_{0}".format(i), sh_of))
                         is_inputs.append(0)
                     # Pass Inputs
                     elif state == 1:
                         new_arg = self.visit(arg)
                         shape_func_ins.append(
-                            scope.let(f"in_shape_{i}", new_arg))
+                            scope.let("in_shape_{0}".format(i), new_arg))
                         is_inputs.append(1)
                     # TODO(@jroesch): handle 3rd case
                     else:
@@ -208,7 +208,7 @@ class ManifestAllocPass(ExprMutator):
                 for i, out in enumerate(cfunc.outputs):
                     tt = ty.TensorType(out.shape, out.dtype)
                     alloc = self.make_static_allocation(scope, tt, i)
-                    alloc = scope.let(f"shape_func_out_{i}", alloc)
+                    alloc = scope.let("shape_func_out_{0}".format(i), alloc)
                     out_shapes.append(alloc)
 
                 shape_call = self.shape_func(
@@ -226,7 +226,7 @@ class ManifestAllocPass(ExprMutator):
                     size = self.compute_storage_in_relay(
                         out_shape, out_type.dtype)
                     alignment = self.compute_alignment(out_type.dtype)
-                    sto = scope.let(f"storage_{i}", self.alloc_storage(
+                    sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
                         size, alignment, out_type.dtype))
                     storages.append(sto)
 
@@ -238,7 +238,7 @@ class ManifestAllocPass(ExprMutator):
                         out_shape,
                         out_type.dtype,
                         out_type.shape)
-                    alloc = scope.let(f"out_{i}", alloc)
+                    alloc = scope.let("out_{i}".format(i=i), alloc)
                     outs.append(alloc)
 
                 invoke = self.invoke_tvm(call.op, ins, expr.Tuple(outs))

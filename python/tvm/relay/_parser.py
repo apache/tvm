@@ -215,7 +215,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_global_var(self, name: str) -> expr.GlobalVar:
         """Create a new GlobalVar and add it to the GlobalVar scope."""
         if name in self.global_vars:
-            raise ParseError(f"duplicate global var \"{name}\"")
+            raise ParseError("duplicate global var \"{0}\"".format(name))
         var = expr.GlobalVar(name)
         self.global_vars[name] = var
         return var
@@ -252,14 +252,15 @@ class ParseTreeToRelayIR(RelayVisitor):
             new_typ_name = self._type_expr_name(new_expr)
             existing_typ_name = self._type_expr_name(self.global_type_vars[name])
             raise ParseError(
-                f"{new_typ_name} `{name}` conflicts with existing {existing_typ_name}")
+                "{0} `{1}` conflicts with existing {2}".format(new_typ_name,\
+                                                                name, existing_typ_name))
 
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
-            return f"`{e.belong_to.var.name}` ADT constructor"
+            return "`{0}` ADT constructor".format(e.belong_to.var.name)
         elif isinstance(e, ty.GlobalTypeVar):
             if e.kind == ty.Kind.AdtHandle:
-                return f"ADT definition"
+                return "ADT definition"
         return "function definition"
 
     def visitProjection(self, ctx):
@@ -282,7 +283,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError("unrecognized BOOL_LIT: `{}`".format(node_text))
         if node_type == RelayLexer.QUOTED_STRING:
             return literal_eval(node_text)
-        raise ParseError(f"unhandled terminal \"{node_text}\" of type `{node_type}`")
+        raise ParseError("unhandled terminal \"{0}\" of type `{1}`".format(node_text, node_type))
 
     def visitGeneralIdent(self, ctx):
         name = ctx.getText()
@@ -310,14 +311,14 @@ class ParseTreeToRelayIR(RelayVisitor):
         var_name = ctx.CNAME().getText()
         global_var = self.global_vars.get(var_name, None)
         if global_var is None:
-            raise ParseError(f"unbound global var `{var_name}`")
+            raise ParseError("unbound global var `{0}`".format(var_name))
         return global_var
 
     def visitLocalVar(self, ctx):
         var_name = ctx.CNAME().getText()
         local_var = lookup(self.var_scopes, var_name)
         if local_var is None:
-            raise ParseError(f"unbound local var `{var_name}`")
+            raise ParseError("unbound local var `{0}`".format(var_name))
         return local_var
 
     def visitGraphVar(self, ctx):
@@ -557,7 +558,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         elif match_type == "match?":
             complete_match = False
         else:
-            raise RuntimeError(f"unknown match type {match_type}")
+            raise RuntimeError("unknown match type {0}".format(match_type))
 
         match_data = self.visit(ctx.expr())
         match_clauses = ctx.matchClauseList()
