@@ -34,7 +34,9 @@ Tensor = _obj.Tensor
 ADT = _obj.ADT
 
 def _convert(arg, cargs):
-    if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
+    if isinstance(arg, _obj.Object):
+        cargs.append(arg)
+    elif isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
         cargs.append(_obj.Tensor(arg))
     elif isinstance(arg, (tuple, list)):
         field_args = []
