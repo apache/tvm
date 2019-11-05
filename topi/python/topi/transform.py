@@ -20,6 +20,8 @@ from __future__ import absolute_import as _abs
 import tvm
 import topi
 from . import cpp
+from . import tag
+from .util import within_index, make_idx
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -154,6 +156,78 @@ def strided_slice(a, begin, end, strides=None):
     if strides is None:
         strides = []
     return cpp.strided_slice(a, begin, end, strides)
+
+@tvm.tag_scope(tag=tag.INJECTIVE+",strided_set")
+def strided_set(a, v, begin, end, strides=None):
+    """Set slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be sliced.
+
+    v : tvm.Tensor
+        The values to set
+
+    begin: list of Expr
+        The indices to begin with in the slicing.
+
+    end: list of Expr
+        Indicies indicating end of the slice.
+
+    strides: list of Expr, optional
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    n = len(a.shape)
+    if strides is None:
+        strides = [1] * n
+
+    if len(begin) != n:
+        raise ValueError("size mismatch")
+    if len(end) != n:
+        raise ValueError("size mismatch")
+    if len(strides) != n:
+        raise ValueError("size mismatch")
+
+    begin = list(map(tvm.convert, begin))
+    end = list(map(tvm.convert, end))
+    strides = list(map(tvm.convert, strides))
+
+    def _max(a, b):
+        return tvm.expr.Select(a > b, a, b)
+    
+    # Convert negative indexes
+    for i in range(n):
+        begin[i] = tvm.if_then_else(begin[i] < 0,
+                                    begin[i] + a.shape[i],
+                                    begin[i])
+        end[i] = tvm.if_then_else(end[i] < 0,
+                                  end[i] + a.shape[i],
+                                  end[i])
+
+    def _select(*indices):
+        from_val = []
+        index_tuple = []
+        for i in range(n):
+            from_val.append(
+       	        within_index(begin[i], end[i], strides[i], indices[i]))
+            index_tuple.append(
+                make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
+        #return tvm.all(*from_val)
+        #return index_tuple[0]
+        #return index_tuple[1]
+        #return index_tuple[2]
+        return tvm.if_then_else(tvm.all(*from_val),
+       	       	                v(*index_tuple),
+                                a(*indices))
+
+    return tvm.compute(a.shape, _select, name="strided_set")
 
 
 def reshape(a, newshape):
