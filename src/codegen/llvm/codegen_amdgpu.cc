@@ -183,6 +183,11 @@ inline int DetectROCMComputeVersion(const std::string& target) {
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+#if TVM_LLVM_VERSION < 90
+  LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
+  // Lower versions will crash when loading the bitcode, see
+  // issue #4087 for a discussion
+#endif
   InitializeLLVM();
   CHECK(target.length() >= 4 &&
         target.substr(0, 4) == "rocm");
