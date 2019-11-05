@@ -25,11 +25,6 @@ import tvm.micro as micro
 from tvm.relay.testing import resnet
 
 # Use the host emulated micro device.
-#DEVICE_TYPE = "host"
-#TOOLCHAIN_PREFIX = ""
-#DEVICE_TYPE = "openocd"
-#TOOLCHAIN_PREFIX = "arm-none-eabi-"
-
 DEV_CONFIG = micro.device.host.get_config()
 #DEV_CONFIG = micro.device.stm32f746xx.get_config('127.0.0.1', 6666)
 
@@ -165,43 +160,6 @@ def test_add():
         #micro_func(a, b, c)
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + b.asnumpy())
-
-
-def test_int_workspace_add():
-    """Test a module which uses a workspace to compute an intermediate value."""
-    if not tvm.module.enabled("micro_dev"):
-        return
-    shape = (1024,)
-    dtype = "int32"
-
-    reset_gdbinit()
-
-    # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name="B")
-    # TODO: need to force the dtype of `C` to be int8 instead of int32 somehow,
-    # if we want to benchmark int8.
-    C = tvm.compute(A.shape, lambda *i: B(*i) + 1, name="C")
-    s = tvm.create_schedule(C.op)
-
-    func_name = "fadd_two_workspace"
-    c_mod = tvm.build(s, [A, C], target="c", name=func_name)
-
-    with micro.Session(DEV_CONFIG):
-        micro_mod = create_micro_mod(c_mod, DEV_CONFIG)
-        micro_func = micro_mod[func_name]
-        ctx = tvm.micro_dev(0)
-        a = tvm.nd.array(np.random.randint(1, 50, size=shape).astype(dtype), ctx)
-        print(a)
-        c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-        print(c)
-        micro_func(a, c)
-        print(c)
-
-        tvm.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + 2)
 
 
 def test_float_workspace_add():
@@ -437,15 +395,10 @@ def test_inactive_session_use():
 if __name__ == "__main__":
     test_alloc()
     test_add()
-
-    test_int_workspace_add()
-    test_float_workspace_add()
-
+    test_workspace_add()
     test_graph_runtime()
-
     test_conv2d()
-
     test_multiple_modules()
-    test_interleave_sessions()
-    test_nested_sessions()
-    test_inactive_session_use()
+    #test_interleave_sessions()
+    #test_nested_sessions()
+    #test_inactive_session_use()

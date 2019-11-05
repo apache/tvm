@@ -273,6 +273,31 @@ struct MicroDevSpace {
   ObjectPtr<MicroSession> session;
 };
 
+// tvm array for serialization to 32-bit devices
+typedef struct StructTVMArray32 {
+  uint32_t data;
+  DLContext ctx;
+  int ndim;
+  DLDataType dtype;
+  uint32_t shape;
+  uint32_t strides;
+  uint32_t pad1;
+  uint32_t byte_offset;
+  uint32_t pad2;
+} TVMArray32;
+
+// utvm task for serialization to 32-bit devices
+typedef struct StructUTVMTask32 {
+  /*! \brief Pointer to function to call for this task */
+  uint32_t func;
+  /*! \brief Array of argument values */
+  uint32_t arg_values;
+  /*! \brief Array of type codes for each argument value */
+  uint32_t arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+} UTVMTask32;
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_MICRO_MICRO_SESSION_H_
