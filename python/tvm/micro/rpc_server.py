@@ -7,20 +7,6 @@ import tvm
 from tvm import rpc
 from tvm import micro
 
-DEV_BINUTIL = micro.binutil.ArmBinutil()
-DEV_COMMUNICATOR = micro.OpenOcdComm('127.0.0.1', 6666)
-
-@tvm.register_func("tvm.rpc.server.start", override=True)
-def server_start():
-    session = micro.Session(DEV_BINUTIL, DEV_COMMUNICATOR)
-    session._enter()
-    _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
-
-    @tvm.register_func("tvm.rpc.server.shutdown", override=True)
-    def server_shutdown():
-        session._exit()
-
-
 def main():
     """Main function"""
     parser = argparse.ArgumentParser()
@@ -34,6 +20,8 @@ def main():
                         help="RPC key used to identify the connection type.")
     parser.add_argument('--tracker', type=str, default="",
                         help="Report to RPC tracker")
+    parser.add_argument('--dev-config', type=str,
+                        help="JSON config file for the target device")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -46,6 +34,20 @@ def main():
                 "Need key to present type of resource when tracker is available")
     else:
         tracker_addr = None
+
+    #with open(args.dev_config, 'r') as dev_conf_file:
+    #    dev_config = json.read(dev_conf_file)
+    dev_config = micro.device.arm.default_config('127.0.0.1', 6666)
+
+    @tvm.register_func("tvm.rpc.server.start", override=True)
+    def server_start():
+        session = micro.Session(dev_config)
+        session._enter()
+        #_load_module = tvm.get_global_func("tvm.rpc.server.load_module")
+
+        @tvm.register_func("tvm.rpc.server.shutdown", override=True)
+        def server_shutdown():
+            session._exit()
 
     server = rpc.Server(args.host,
                         args.port,

@@ -144,21 +144,33 @@ class MicroBinutil:
         return self._toolchain_prefix
 
 
-class OpenOcdComm:
-    def __init__(self, server_addr, server_port):
-        self.server_addr = server_addr
-        self.server_port = server_port
+#class OpenOcdComm:
+#    def __init__(self, server_addr, server_port):
+#        self.server_addr = server_addr
+#        self.server_port = server_port
+#
+#    def name(self):
+#        return 'openocd'
+#
+#
+#class HostComm:
+#    def __init__(self):
+#        pass
+#
+#    def name(self):
+#        return 'host'
 
-    def name(self):
-        return 'openocd'
+from . import host
+from . import arm
+from . import riscv_spike
 
-
-class HostComm:
-    def __init__(self):
-        pass
-
-    def name(self):
-        return 'host'
+def get_binutil(name):
+    if name == 'host':
+        return host.HostBinutil()
+    elif name == 'arm':
+        return arm.ArmBinutil()
+    else:
+        assert False
 
 
 def _get_micro_host_driven_dir():
@@ -189,6 +201,3 @@ def _get_micro_device_dir():
     return micro_device_dir
 
 
-from . import host
-from . import riscv_spike
-from . import stm32f746xx

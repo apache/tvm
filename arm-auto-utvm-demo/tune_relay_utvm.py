@@ -34,16 +34,13 @@ from vta.top import graph_pack
 # first, run `python -m tvm.exec.rpc_tracker --host 0.0.0.0 --port=9190` in one terminal
 # then, run `python -m tvm.micro.rpc_server --tracker=0.0.0.0:9190 --key=micro` in another
 
-DEV_BINUTIL = micro.binutil.ArmBinutil()
-DEV_COMMUNICATOR = micro.OpenOcdComm('127.0.0.1', 6666)
-#DEVICE_TYPE = 'openocd'
-#TOOLCHAIN_PREFIX = 'arm-none-eabi-'
+DEV_CONFIG = micro.device.arm.default_config('127.0.0.1', 6666)
 
 DEVICE = 'arm-cortex-m'
 TARGET = tvm.target.create('c -device=micro_dev')
 
 N, L, M = 32, 32, 32
-N_TRIAL = 1
+N_TRIAL = 3
 N_PER_TRIAL = 1
 N_PARALLEL = 1
 
@@ -51,31 +48,33 @@ SERVER_ADDR = '0.0.0.0'
 SERVER_PORT = 9190
 
 LOG_FILE_NAME = f'{DEVICE}.log'
+if os.path.exists(LOG_FILE_NAME):
+    os.remove(LOG_FILE_NAME)
 
-def create_micro_mod(c_mod, dev_binutil):
-    """Produces a micro module from a given module.
-
-    Parameters
-    ----------
-    c_mod : tvm.module.Module
-        module with "c" as its target backend
-
-    toolchain_prefix : str
-        toolchain prefix to be used (see `tvm.micro.Session` docs)
-
-    Return
-    ------
-    micro_mod : tvm.module.Module
-        micro module for the target device
-    """
-    print('[create_micro_mod]')
-    temp_dir = util.tempdir()
-    lib_obj_path = temp_dir.relpath("dev_lib.obj")
-    c_mod.export_library(
-            lib_obj_path,
-            fcompile=tvm.micro.cross_compiler(dev_binutil, micro.LibType.OPERATOR))
-    micro_mod = tvm.module.load(lib_obj_path)
-    return micro_mod
+#def create_micro_mod(c_mod, dev_config):
+#    """Produces a micro module from a given module.
+#
+#    Parameters
+#    ----------
+#    c_mod : tvm.module.Module
+#        module with "c" as its target backend
+#
+#    toolchain_prefix : str
+#        toolchain prefix to be used (see `tvm.micro.Session` docs)
+#
+#    Return
+#    ------
+#    micro_mod : tvm.module.Module
+#        micro module for the target device
+#    """
+#    print('[create_micro_mod]')
+#    temp_dir = util.tempdir()
+#    lib_obj_path = temp_dir.relpath("dev_lib.obj")
+#    c_mod.export_library(
+#            lib_obj_path,
+#            fcompile=tvm.micro.cross_compiler(dev_config['binutil'], micro.LibType.OPERATOR))
+#    micro_mod = tvm.module.load(lib_obj_path)
+#    return micro_mod
 
 
 @autotvm.template
@@ -112,7 +111,7 @@ def tune():
     early_stopping = None
     measure_option = autotvm.measure_option(
             builder=autotvm.LocalBuilder(
-                build_func=tvm.micro.cross_compiler(DEV_BINUTIL, micro.LibType.OPERATOR)),
+                build_func=tvm.micro.cross_compiler(DEV_CONFIG['binutil'], micro.LibType.OPERATOR)),
             runner=autotvm.RPCRunner('micro', SERVER_ADDR, SERVER_PORT, n_parallel=N_PARALLEL, number=N_PER_TRIAL)
             )
 
@@ -139,13 +138,14 @@ def tune():
 def evaluate():
     print('[EVALUATE]')
     # compile kernels with history best records
-    with autotvm.tophub.context(TARGET, extra_files=[LOG_FILE_NAME]):
+    #with autotvm.tophub.context(TARGET, extra_files=[LOG_FILE_NAME]):
+    with autotvm.apply_history_best(LOG_FILE_NAME):
         with TARGET:
             sched, arg_bufs = matmul(N, L, M, 'float32')
             c_mod = tvm.build(sched, arg_bufs, name='matmul')
 
-    with micro.Session(DEV_BINUTIL, DEV_COMMUNICATOR):
-        micro_mod = create_micro_mod(c_mod, DEV_BINUTIL)
+    with micro.Session(DEV_CONFIG) as sess:
+        micro_mod = sess.create_micro_mod(c_mod)
         micro_func = micro_mod['matmul']
         ctx = tvm.micro_dev(0)
 
@@ -163,4 +163,5 @@ def evaluate():
 
 if __name__ == '__main__':
     tune()
+    input('finished tuning...')
     evaluate()

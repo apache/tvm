@@ -1,4 +1,4 @@
-from . import MicroBinutil, OpenOcdComm
+from . import MicroBinutil
 
 class ArmBinutil(MicroBinutil):
     def __init__(self):
@@ -22,9 +22,9 @@ class ArmBinutil(MicroBinutil):
         return 'stm32f746xx'
 
 
-def get_config(server_addr, server_port):
+def default_config(server_addr, server_port):
     return {
-        'binutil': ArmBinutil(),
+        'binutil': 'arm',
         'mem_layout': {
             'text': {
                 'start': 0x20000180,
@@ -61,5 +61,7 @@ def get_config(server_addr, server_port):
         },
         'word_size': 4,
         'thumb_mode': True,
-        'comms_method': OpenOcdComm(server_addr, server_port),
+        'comms_method': 'openocd',
+        'server_addr': server_addr,
+        'server_port': server_port,
     }

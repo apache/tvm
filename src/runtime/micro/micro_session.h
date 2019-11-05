@@ -277,6 +277,7 @@ struct MicroDevSpace {
 typedef struct StructTVMArray32 {
   uint32_t data;
   DLContext ctx;
+  // todo make int32?
   int ndim;
   DLDataType dtype;
   uint32_t shape;
@@ -297,6 +298,18 @@ typedef struct StructUTVMTask32 {
   /*! \brief Number of arguments */
   int32_t num_args;
 } UTVMTask32;
+
+// utvm task for serialization to 64-bit devices
+typedef struct StructUTVMTask64 {
+  /*! \brief Pointer to function to call for this task */
+  uint64_t func;
+  /*! \brief Array of argument values */
+  uint64_t arg_values;
+  /*! \brief Array of type codes for each argument value */
+  uint64_t arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+} UTVMTask64;
 
 }  // namespace runtime
 }  // namespace tvm

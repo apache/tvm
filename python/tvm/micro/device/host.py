@@ -1,6 +1,6 @@
 import sys
 
-from . import MicroBinutil, HostComm
+from . import MicroBinutil
 
 class HostBinutil(MicroBinutil):
     def __init__(self):
@@ -17,9 +17,9 @@ class HostBinutil(MicroBinutil):
         return 'host'
 
 
-def get_config():
+def default_config():
     return {
-        'binutil': HostBinutil(),
+        'binutil': 'host',
         'mem_layout': {
             'text': {
                 'size': 20480,
@@ -48,5 +48,5 @@ def get_config():
         },
         'word_size': 8 if sys.maxsize > 2**32 else 4,
         'thumb_mode': False,
-        'comms_method': HostComm(),
+        'comms_method': 'host',
     }

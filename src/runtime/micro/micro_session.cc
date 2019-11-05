@@ -211,22 +211,6 @@ MicroSession::MicroSession(
   std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
   std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
-  std::uintptr_t workspace_begin = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_begin");
-  std::cout << "  workspace begin: " << (void*) workspace_begin << std::endl;
-  std::uintptr_t workspace_end = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_end");
-  std::cout << "  workspace end: " << (void*) workspace_end << std::endl;
-  std::uintptr_t workspace_curr = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_curr");
-  std::cout << "  workspace curr: " << (void*) workspace_curr << std::endl;
-  size_t num_active_allocs = DevSymbolRead<size_t>(runtime_symbol_map_, "utvm_num_active_allocs");
-  std::cout << "  num active allocs: " << (void*) num_active_allocs << std::endl;
-  std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
-  std::cout << "  last error: " << (void*) last_error << std::endl;
-  int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
-  std::cout << "  return code: " << return_code << std::endl;
-  uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
-  std::cout << "  task time was " << task_time << std::endl;
-  std::cout << "  --------------------------------------------------------------------------------" << std::endl;
-
   //if (comms_method == "openocd") {
   //  // Set OpenOCD device's stack pointer.
   //  auto stack_section = GetAllocator(SectionKind::kStack);
@@ -290,12 +274,6 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
                             encoder.buf_size());
   std::cout << "  after encoder write" << std::endl;
 
-  //UTVMTask task = {
-  //  .func = func_dev_addr,
-  //  .arg_values = std::get<0>(arg_field_addrs).cast_to<TVMValue*>(),
-  //  .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
-  //  .num_args = args.num_args,
-  //};
   if (word_size_ == 4) {
     TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
     int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
@@ -308,30 +286,14 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     // Write the task.
     DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
   } else if (word_size_ == 8) {
-    //typedef struct StructUTVMTask64 {
-    //  /*! \brief Pointer to function to call for this task */
-    //  uint64_t func;
-    //  /*! \brief Array of argument values */
-    //  uint64_t arg_values;
-    //  /*! \brief Array of type codes for each argument value */
-    //  uint64_t arg_type_codes;
-    //  /*! \brief Number of arguments */
-    //  int32_t num_args;
-    //} UTVMTask64;
-    UTVMTask task = {
-      .func = func_dev_addr,
-      .arg_values = std::get<0>(arg_field_addrs).cast_to<TVMValue*>(),
-      .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
+    TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
+    int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
+    UTVMTask64 task = {
+      .func = *((uint64_t*) &func_dev_addr),
+      .arg_values = *((uint64_t*) &arg_values_dev_addr),
+      .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),
       .num_args = args.num_args,
     };
-    //TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
-    //int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
-    //UTVMTask64 task = {
-    //  .func = *((uint64_t*) &func_dev_addr),
-    //  .arg_values = *((uint64_t*) &arg_values_dev_addr),
-    //  .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),
-    //  .num_args = args.num_args,
-    //};
     // Write the task.
     DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
   } else {
@@ -353,7 +315,12 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   //std::cout << "  do execution things: ";
   //char tmp;
   //std::cin >> tmp;
-  //DevSymbolWrite<uint32_t>(runtime_symbol_map_, "utvm_task_time", 0);
+
+  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
+
+  // Check if there was an error during execution.  If so, log it.
+  CheckDeviceError();
+
   std::uintptr_t workspace_begin = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_begin");
   std::cout << "  workspace begin: " << workspace_begin << std::endl;
   std::uintptr_t workspace_end = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_end");
@@ -369,26 +336,6 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
   std::cout << "  task time was " << task_time << std::endl;
   std::cout << "  --------------------------------------------------------------------------------" << std::endl;
-
-  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
-
-  // Check if there was an error during execution.  If so, log it.
-  //CheckDeviceError();
-
-  workspace_begin = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_begin");
-  std::cout << "  workspace begin: " << workspace_begin << std::endl;
-  workspace_end = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_end");
-  std::cout << "  workspace end: " << workspace_end << std::endl;
-  workspace_curr = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_curr");
-  std::cout << "  workspace curr: " << workspace_curr << std::endl;
-  num_active_allocs = DevSymbolRead<size_t>(runtime_symbol_map_, "utvm_num_active_allocs");
-  std::cout << "  num active allocs: " << num_active_allocs << std::endl;
-  last_error = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
-  std::cout << "  last error: " << last_error << std::endl;
-  return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
-  std::cout << "  return code: " << return_code << std::endl;
-  task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
-  std::cout << "  task time was " << task_time << std::endl;
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
   return task_time;
