@@ -43,7 +43,6 @@ def _declaration_batch_matmul_nopack(cfg, x, y):
     output : tvm.Tensor
         3-D with shape [batch, M, N]
     """
-    print("CFG TYPE: ", type(cfg))
     target = tvm.target.current_target()
     if "cblas" in target.libs:
         return cblas.batch_matmul(x, y, False, True)
