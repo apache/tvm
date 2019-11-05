@@ -21,8 +21,20 @@ from __future__ import absolute_import
 
 import sys
 from ast import literal_eval
-from typing import Any, Deque, Dict, List, Optional, TypeVar, Tuple, Union
 from collections import deque
+
+try:
+    # no typing.Deque in Python 3.5
+    # https://bugs.python.org/issue29011
+    from typing import Any, Dict, List, Optional, TypeVar, Tuple, Union, MutableSequence, T, Deque
+except ImportError:
+    class Deque(deque, MutableSequence[T], extra=deque):
+
+        def __new__(cls, *args, **kwds):
+            if _geqv(cls, Deque):
+                raise TypeError("Type Deque cannot be instantiated; "
+                                "use deque() instead")
+            return deque.__new__(cls, *args, **kwds)
 
 import tvm
 
