@@ -631,6 +631,36 @@ def strided_slice(data, begin, end, strides=None):
     return _make.strided_slice(data, list(begin), list(end), list(strides))
 
 
+def strided_set(data, v, begin, end, strides=None):
+    """Strided set of an array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array to be sliced.
+
+    v : relay.Expr
+        The data to be set.
+
+    begin: list of int
+        The indices to begin with in the slicing.
+
+    end: list of int
+        Indices indicating end of the slice.
+
+    strides: list of int, optional
+        Specifies the stride values, it can be negative in that case,
+        the input tensor will be reversed in that particular axis.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    strides = strides or []
+    return _make.strided_set(data, v, list(begin), list(end), list(strides))
+
+
 def slice_like(data, shape_like, axes=None):
     """Slice the first input with respect to the second input.
 
