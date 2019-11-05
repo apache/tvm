@@ -177,8 +177,6 @@ SECTIONS
   . = ALIGN(?);
   .text :
   {
-    _stext = .;
-    /*KEEP(*(.isr_vector))*/
     KEEP(*(.text))
     KEEP(*(.text*))
     . = ALIGN(?);

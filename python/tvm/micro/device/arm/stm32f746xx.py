@@ -1,8 +1,8 @@
-from . import MicroBinutil
+from .. import MicroBinutil
 
-class ArmBinutil(MicroBinutil):
+class Stm32F746XXBinutil(MicroBinutil):
     def __init__(self):
-        super(ArmBinutil, self).__init__('arm-none-eabi-')
+        super(Stm32F746XXBinutil, self).__init__('arm-none-eabi-')
 
     def create_lib(self, obj_path, src_path, lib_type, options=None):
         if options is None:
@@ -14,9 +14,8 @@ class ArmBinutil(MicroBinutil):
             '-mfpu=fpv5-sp-d16',
             '-mthumb',
             '-gdwarf-5',
-            '-DSTM32F746xx'
             ]
-        super(ArmBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
+        super(Stm32F746XXBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
 
     def device_id(self):
         return 'stm32f746xx'
@@ -24,7 +23,7 @@ class ArmBinutil(MicroBinutil):
 
 def default_config(server_addr, server_port):
     return {
-        'binutil': 'arm',
+        'binutil': 'stm32f746xx',
         'mem_layout': {
             'text': {
                 'start': 0x20000180,

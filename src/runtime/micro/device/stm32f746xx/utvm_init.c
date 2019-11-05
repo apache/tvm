@@ -1,6 +1,6 @@
-#include "stm32f7xx.h"
+//#include "stm32f7xx.h"
 
-extern char _stext;
+//extern char _stext;
 void _UTVMInit(void)
 {
 //  /* FPU settings ------------------------------------------------------------*/
@@ -32,5 +32,5 @@ void _UTVMInit(void)
 //#else
 //  SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
 //#endif
-  SCB->VTOR = &_stext; /* Vector Table Relocation in Internal SRAM */
+  //SCB->VTOR = &_stext; /* Vector Table Relocation in Internal SRAM */
 }

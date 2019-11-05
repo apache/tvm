@@ -61,8 +61,6 @@ UTVMInit:
   /* set stack pointer */
   /* todo no hradcode */
   ldr sp, =0x2004fffc
-  /* run init that's expressable in C */
-  bl _UTVMInit
   bl UTVMMain
 .size UTVMInit, .-UTVMInit
 

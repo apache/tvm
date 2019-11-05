@@ -10,7 +10,6 @@ from tvm.micro import LibType
 
 class MicroBinutil:
     def __init__(self, toolchain_prefix):
-        print(f'creating microbinutil with {toolchain_prefix}')
         self._toolchain_prefix = toolchain_prefix
 
     def create_lib(self, obj_path, src_path, lib_type, options=None):
@@ -54,23 +53,6 @@ class MicroBinutil:
         if options is not None:
             base_compile_cmd += options
 
-        #if toolchain_prefix == 'arm-none-eabi-':
-        #    device_id = 'stm32f746'
-        #    base_compile_cmd += [
-        #        '-mcpu=cortex-m7',
-        #        '-mlittle-endian',
-        #        '-mfloat-abi=hard',
-        #        '-mfpu=fpv5-sp-d16',
-        #        '-mthumb',
-        #        '-gdwarf-5'
-        #        ]
-        #elif toolchain_prefix == '':
-        #    device_id = 'host'
-        #    if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
-        #        base_compile_cmd += ['-mcmodel=large']
-        #else:
-        #    assert False
-
         src_paths = []
         include_paths = find_include_path() + [_get_micro_host_driven_dir()]
         ld_script_path = None
@@ -86,14 +68,6 @@ class MicroBinutil:
             assert dev_src_paths
 
             src_paths += dev_src_paths
-            # TODO: configure this
-            #include_paths += [dev_dir]
-            CMSIS_PATH = '/home/pratyush/Code/nucleo-interaction-from-scratch/stm32-cube'
-            include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Include']
-            include_paths += [f'{CMSIS_PATH}/Drivers/CMSIS/Device/ST/STM32F7xx/Include']
-            include_paths += [f'{CMSIS_PATH}/Drivers/STM32F7xx_HAL_Driver/Inc']
-            include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32F7xx_Nucleo_144']
-            include_paths += [f'{CMSIS_PATH}/Drivers/BSP/STM32746G-Discovery']
         elif lib_type == LibType.OPERATOR:
             # Create a temporary copy of the source, so we can inject the dev lib
             # header without modifying the original.
@@ -144,22 +118,6 @@ class MicroBinutil:
         return self._toolchain_prefix
 
 
-#class OpenOcdComm:
-#    def __init__(self, server_addr, server_port):
-#        self.server_addr = server_addr
-#        self.server_port = server_port
-#
-#    def name(self):
-#        return 'openocd'
-#
-#
-#class HostComm:
-#    def __init__(self):
-#        pass
-#
-#    def name(self):
-#        return 'host'
-
 from . import host
 from . import arm
 from . import riscv_spike
@@ -167,8 +125,8 @@ from . import riscv_spike
 def get_binutil(name):
     if name == 'host':
         return host.HostBinutil()
-    elif name == 'arm':
-        return arm.ArmBinutil()
+    elif name == 'stm32f746xx':
+        return arm.stm32f746xx.Stm32F746XXBinutil()
     else:
         assert False
 
@@ -182,8 +140,8 @@ def _get_micro_host_driven_dir():
         directory path
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_host_driven_dir = os.path.join(micro_dir, "..", "..", "..", "..",
-                                         "src", "runtime", "micro", "host_driven")
+    micro_host_driven_dir = os.path.join(micro_dir, '..', '..', '..', '..',
+                                         'src', 'runtime', 'micro', 'host_driven')
     return micro_host_driven_dir
 
 
@@ -199,5 +157,4 @@ def _get_micro_device_dir():
     micro_device_dir = os.path.join(micro_dir, "..", "..", "..", "..",
                                     "src", "runtime", "micro", "device")
     return micro_device_dir
-
 
