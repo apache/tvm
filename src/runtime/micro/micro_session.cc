@@ -33,6 +33,12 @@
 namespace tvm {
 namespace runtime {
 
+// ARM and other manufacturers use the lowest bit of a function address to determine
+// whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
+// results in more compact binaries.
+const bool kRequiresThumbModeBit = true;
+const size_t kWordSize = 4;
+
 struct TVMMicroSessionThreadLocalEntry {
   std::stack<ObjectPtr<MicroSession>> session_stack;
 };
@@ -56,20 +62,73 @@ void MicroSession::ExitWithScope() {
   entry->session_stack.pop();
 }
 
-MicroSession::MicroSession() {
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
+MicroSession::MicroSession(
+    const std::string& comms_method,
+    const std::string& binary_path,
+    const std::string& toolchain_prefix,
+    uint64_t text_start,
+    size_t text_size,
+    uint64_t rodata_start,
+    size_t rodata_size,
+    uint64_t data_start,
+    size_t data_size,
+    uint64_t bss_start,
+    size_t bss_size,
+    uint64_t args_start,
+    size_t args_size,
+    uint64_t heap_start,
+    size_t heap_size,
+    uint64_t workspace_start,
+    size_t workspace_size,
+    uint64_t stack_start,
+    size_t stack_size,
+    std::uintptr_t base_addr,
+    const std::string& server_addr,
+    int port) {
+  //DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
   //DevBaseOffset curr_start_offset = DevBaseOffset(0x200001c8);
-  for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
-    size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
-    section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = section_size,
-    });
-    curr_start_offset += section_size;
-  }
+  //for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
+  //  size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
+  //  section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+  //    .start = curr_start_offset,
+  //    .size = section_size,
+  //  });
+  //  curr_start_offset += section_size;
+  //}
+  section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(text_start),
+    .size = text_size,
+  });
+  section_allocators_[1] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(rodata_start),
+    .size = rodata_size,
+  });
+  section_allocators_[2] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(data_start),
+    .size = data_size,
+  });
+  section_allocators_[3] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(bss_start),
+    .size = bss_size,
+  });
+  section_allocators_[4] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(args_start),
+    .size = args_size,
+  });
+  section_allocators_[5] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(heap_start),
+    .size = heap_size,
+  });
+  section_allocators_[6] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(workspace_start),
+    .size = workspace_size,
+  });
+  section_allocators_[7] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
+    .start = DevBaseOffset(stack_start),
+    .size = stack_size,
+  });
 
-
-  CHECK(curr_start_offset.value() < 0x20050000) << "exceeded available RAM on device (" << std::endl;
+  //CHECK(curr_start_offset.value() < 0x20050000) << "exceeded available RAM on device (" << std::endl;
 
   std::cout << "[Memory Layout]" << std::endl;
   std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_offset().cast_to<void*>() << std::endl;
@@ -84,151 +143,11 @@ MicroSession::MicroSession() {
   // NOTE: we don't use this for openocd
   memory_size_ = 0;
   //memory_size_ = curr_start_offset.cast_to<size_t>();
-
-  /* Linker script sample
-   * #if !defined(MBED_APP_START)
-   *   #define MBED_APP_START 0x08000000
-   * #endif
-   *
-   * #if !defined(MBED_APP_SIZE)
-   *   #define MBED_APP_SIZE 1024K
-   * #endif
-   *
-   * MEMORY
-   * {
-   *   FLASH (rx) : ORIGIN = MBED_APP_START, LENGTH = MBED_APP_SIZE
-   *   RAM (rwx)  : ORIGIN = 0x200001C8, LENGTH = 320K - 0x1C8
-   * }
-   */
-
-   /*
-  size_t half_flash_size = 512000;  // 0.5 MB
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x08000000);
-  section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = half_flash_size,
-  });
-  curr_start_offset += half_flash_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kRodata)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = half_flash_size,
-  });
-  curr_start_offset += half_flash_size;
-
-  curr_start_offset = DevBaseOffset(0x200001C8);
-  size_t one_sixth_ram_size = 53256;
-  section_allocators_[static_cast<size_t>(SectionKind::kData)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kBss)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kArgs)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kStack)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kHeap)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-  section_allocators_[static_cast<size_t>(SectionKind::kWorkspace)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-    .start = curr_start_offset,
-    .size = one_sixth_ram_size,
-  });
-  curr_start_offset += one_sixth_ram_size;
-
-  memory_size_ = 0;
-  */
-
-  /*
-  // TODO: why do we need to start 0x1c8 bytes after the start of ram?
-  //curr_start_offset = DevBaseOffset(0x200001C8);
-  size_t one_eighth_ram_size = 40000;
-  DevBaseOffset curr_start_offset = DevBaseOffset(0x200001C8);
-
-  std::cout << "[Memory Layout]" << std::endl;
-  std::cout << "text start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  size_t text_size
-  section_allocators_[static_cast<size_t>(SectionKind::kText)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "rodata start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kRodata)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "data start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kData)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "bss start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kBss)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "args start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kArgs)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "stack start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kStack)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "heap start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kHeap)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "workspace start: " << curr_start_offset.cast_to<void*>() << std::endl;
-  section_allocators_[static_cast<size_t>(SectionKind::kWorkspace)] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_start_offset,
-      .size = one_eighth_ram_size,
-      });
-  curr_start_offset += one_eighth_ram_size;
-  std::cout << "WHAT THE FUCK" << std::endl;
-  */
-}
-
-MicroSession::~MicroSession() {
-  for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
-    section_allocators_[i] = nullptr;
-  }
-  low_level_device_ = nullptr;
-}
-
-void MicroSession::CreateSession(const std::string& device_type,
-                                 const std::string& binary_path,
-                                 const std::string& toolchain_prefix,
-                                 std::uintptr_t base_addr,
-                                 const std::string& server_addr,
-                                 int port) {
   // TODO(weberlo): make device type enum
   toolchain_prefix_ = toolchain_prefix;
-  if (device_type == "host") {
+  if (comms_method == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(memory_size_);
-  } else if (device_type == "openocd") {
+  } else if (comms_method == "openocd") {
     // TODO(weberlo): We need a better way of configuring devices.
     low_level_device_ = OpenOCDLowLevelDeviceCreate(base_addr, server_addr, port);
   } else {
@@ -239,7 +158,7 @@ void MicroSession::CreateSession(const std::string& device_type,
   std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
   std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
-  //if (device_type == "openocd") {
+  //if (comms_method == "openocd") {
   //  // Set OpenOCD device's stack pointer.
   //  auto stack_section = GetAllocator(SectionKind::kStack);
   //  low_level_device_->SetStackTop(stack_section->max_end_offset());
@@ -259,6 +178,13 @@ void MicroSession::CreateSession(const std::string& device_type,
   DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
 }
 
+MicroSession::~MicroSession() {
+  for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
+    section_allocators_[i] = nullptr;
+  }
+  low_level_device_ = nullptr;
+}
+
 //void MicroSession::BakeSession(const std::string& binary_path) {
 //  //runtime_symbol_map_ = SymbolMap(binary, toolchain_prefix_);
 //  runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
@@ -266,9 +192,6 @@ void MicroSession::CreateSession(const std::string& device_type,
 //  std::cout << runtime_symbol_map_["utvm_task"].value() << std::endl;
 //}
 
-// ARM and other manufacturers use the LSB of a function address to determine
-// whether it's a "thumb mode" function (TODO: figure out what that means).
-const bool kRequiresThumbModeBit = true;
 uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "[MicroSession::PushToExecQueue]" << std::endl;
   // TODO: make this a parameter.
@@ -282,7 +205,7 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   // allocation in the args section.
   DevPtr args_addr =
       low_level_device()->ToDevPtr(GetAllocator(SectionKind::kArgs)->curr_end_offset());
-  TargetDataLayoutEncoder encoder(args_addr);
+  TargetDataLayoutEncoder encoder(args_addr, kWordSize);
 
   std::cout << "  after encoder alloc" << std::endl;
 
@@ -304,26 +227,51 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   //  .arg_type_codes = std::get<1>(arg_field_addrs).cast_to<int*>(),
   //  .num_args = args.num_args,
   //};
-  typedef struct StructARMUTVMTask {
-    /*! \brief Pointer to function to call for this task */
-    uint32_t func;
-    /*! \brief Array of argument values */
-    uint32_t arg_values;
-    /*! \brief Array of type codes for each argument value */
-    uint32_t arg_type_codes;
-    /*! \brief Number of arguments */
-    uint32_t num_args;
-  } ARMUTVMTask;
-  TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
-  int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
-  ARMUTVMTask task = {
-    .func = *((uint32_t*) &func_dev_addr),
-    .arg_values = *((uint32_t*) &arg_values_dev_addr),
-    .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),
-    .num_args = (uint32_t) args.num_args,
-  };
-  // Write the task.
-  DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+  if (kWordSize == 4) {
+    typedef struct StructUTVMTask32 {
+      /*! \brief Pointer to function to call for this task */
+      uint32_t func;
+      /*! \brief Array of argument values */
+      uint32_t arg_values;
+      /*! \brief Array of type codes for each argument value */
+      uint32_t arg_type_codes;
+      /*! \brief Number of arguments */
+      int32_t num_args;
+    } UTVMTask32;
+    TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
+    int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
+    UTVMTask32 task = {
+      .func = *((uint32_t*) &func_dev_addr),
+      .arg_values = *((uint32_t*) &arg_values_dev_addr),
+      .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),
+      .num_args = args.num_args,
+    };
+    // Write the task.
+    DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+  } else if (kWordSize == 8) {
+    typedef struct StructUTVMTask64 {
+      /*! \brief Pointer to function to call for this task */
+      uint64_t func;
+      /*! \brief Array of argument values */
+      uint64_t arg_values;
+      /*! \brief Array of type codes for each argument value */
+      uint64_t arg_type_codes;
+      /*! \brief Number of arguments */
+      int32_t num_args;
+    } UTVMTask64;
+    TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
+    int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
+    UTVMTask64 task = {
+      .func = *((uint64_t*) &func_dev_addr),
+      .arg_values = *((uint64_t*) &arg_values_dev_addr),
+      .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),
+      .num_args = args.num_args,
+    };
+    // Write the task.
+    DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
+  } else {
+    CHECK(false) << "unsupported word size " << kWordSize;
+  }
 
   std::cout << "  after task write" << std::endl;
 
@@ -620,17 +568,53 @@ PackedFunc MicroSession::GetFunction(
 // create micro session and low-level device from Python frontend
 TVM_REGISTER_GLOBAL("micro._CreateSession")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    const std::string& device_type = args[0];
+    const std::string& comms_method = args[0];
     const std::string& binary_path = args[1];
     const std::string& toolchain_prefix = args[2];
-    uint64_t base_addr = args[3];
-    const std::string& server_addr = args[4];
-    int port = args[5];
-    ObjectPtr<MicroSession> session = make_object<MicroSession>();
+    uint64_t text_start = args[3];
+    size_t text_size = args[4];
+    uint64_t rodata_start = args[5];
+    size_t rodata_size = args[6];
+    uint64_t data_start = args[7];
+    size_t data_size = args[8];
+    uint64_t bss_start = args[9];
+    size_t bss_size = args[10];
+    uint64_t args_start = args[11];
+    size_t args_size = args[12];
+    uint64_t heap_start = args[13];
+    size_t heap_size = args[14];
+    uint64_t workspace_start = args[15];
+    size_t workspace_size = args[16];
+    uint64_t stack_start = args[17];
+    size_t stack_size = args[18];
+    uint64_t base_addr = args[19];
+    const std::string& server_addr = args[20];
+    int port = args[21];
+    ObjectPtr<MicroSession> session = make_object<MicroSession>(
+        comms_method,
+        binary_path,
+        toolchain_prefix,
+        text_start,
+        text_size,
+        rodata_start,
+        rodata_size,
+        data_start,
+        data_size,
+        bss_start,
+        bss_size,
+        args_start,
+        args_size,
+        heap_start,
+        heap_size,
+        workspace_start,
+        workspace_size,
+        stack_start,
+        stack_size,
+        base_addr,
+        server_addr,
+        port);
     //session->CreateSession(
-    //    device_type, binary_path, toolchain_prefix, base_addr, server_addr, port);
-    session->CreateSession(
-        "openocd", binary_path, "arm-none-eabi-", 0, "127.0.0.1", 6666);
+    //    "openocd", binary_path, "arm-none-eabi-", 0, "127.0.0.1", 6666);
     *rv = Module(session);
     });
 

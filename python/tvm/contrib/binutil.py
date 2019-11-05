@@ -28,12 +28,14 @@ def run_cmd(cmd):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
+    (output, _) = proc.communicate()
+    # todo need to use py_str?
+    output = output.decode('utf-8')
     if proc.returncode != 0:
         cmd_str = ' '.join(cmd)
-        error_msg = out.decode("utf-8")
-        msg = f"error while running command \"{cmd_str}\":\n{error_msg}"
+        msg = f"error while running command \"{cmd_str}\":\n{output}"
         raise RuntimeError(msg)
+    return output
 
 
 @register_func("tvm_callback_get_section_size")
@@ -61,14 +63,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
         raise RuntimeError("no such file \"{}\"".format(binary_path))
     # We use the "-A" flag here to get the ".rodata" section's size, which is
     # not included by default.
-    size_proc = subprocess.Popen(
-        ["{}size".format(toolchain_prefix), "-A", binary_path], stdout=subprocess.PIPE)
-    (size_output, _) = size_proc.communicate()
-    size_output = size_output.decode("utf-8")
-    if size_proc.returncode != 0:
-        msg = "error in finding section size:\n"
-        msg += py_str(size_output)
-        raise RuntimeError(msg)
+    size_output = run_cmd(["{}size".format(toolchain_prefix), "-A", binary_path])
 
     # TODO(weberlo): Refactor this method and `*relocate_binary` so they are
     # both aware of [".bss", ".sbss", ".sdata"] being relocated to ".bss".
@@ -327,17 +322,11 @@ SECTIONS
     rel_ld_script_path = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script_path, "w") as f:
         f.write(ld_script_contents)
-    ld_proc = subprocess.Popen(["{}ld".format(toolchain_prefix), binary_path,
-                                "-T", rel_ld_script_path,
-                                "-o", rel_obj_path],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT)
-    (out, _) = ld_proc.communicate()
-    if ld_proc.returncode != 0:
-        msg = "linking error using ld:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
-
+    run_cmd([
+        "{}ld".format(toolchain_prefix),
+        binary_path,
+        "-T", rel_ld_script_path,
+        "-o", rel_obj_path])
     print(f'relocated obj path is {rel_obj_path}')
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
@@ -369,16 +358,11 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     tmp_section = tmp_dir.relpath("tmp_section.bin")
     with open(tmp_bin, "wb") as out_file:
         out_file.write(bytes(binary))
-    objcopy_proc = subprocess.Popen(["{}objcopy".format(toolchain_prefix), "--dump-section",
-                                     ".{}={}".format(section, tmp_section),
-                                     tmp_bin],
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT)
-    (out, _) = objcopy_proc.communicate()
-    if objcopy_proc.returncode != 0:
-        msg = "error in using objcopy:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
+    run_cmd([
+        "{}objcopy".format(toolchain_prefix),
+        "--dump-section",
+        ".{}={}".format(section, tmp_section),
+        tmp_bin])
     if os.path.isfile(tmp_section):
         # Get section content if it exists.
         with open(tmp_section, "rb") as f:
@@ -411,15 +395,12 @@ def tvm_callback_get_symbol_map(binary, toolchain_prefix):
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
-    nm_proc = subprocess.Popen(["{}nm".format(toolchain_prefix), "-C", "--defined-only", tmp_obj],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT)
-    (nm_output, _) = nm_proc.communicate()
-    if nm_proc.returncode != 0:
-        msg = "error in using nm:\n"
-        msg += py_str(nm_output)
-        raise RuntimeError(msg)
-    nm_output = nm_output.decode("utf8").splitlines()
+    nm_output = run_cmd([
+        "{}nm".format(toolchain_prefix),
+        "-C",
+        "--defined-only",
+        tmp_obj])
+    nm_output = nm_output.splitlines()
     map_str = ""
     for line in nm_output:
         line = line.split()

@@ -106,6 +106,7 @@ def matmul(N, L, M, dtype):
 
 
 def tune():
+    print('[TUNE]')
     task = autotvm.task.create(matmul, args=(N, L, M, 'float32'), target=TARGET)
 
     early_stopping = None
@@ -136,6 +137,7 @@ def tune():
 
 
 def evaluate():
+    print('[EVALUATE]')
     # compile kernels with history best records
     with autotvm.tophub.context(TARGET, extra_files=[LOG_FILE_NAME]):
         with TARGET:

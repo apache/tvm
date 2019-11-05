@@ -31,8 +31,10 @@ from tvm.relay.testing import resnet
 #TOOLCHAIN_PREFIX = "arm-none-eabi-"
 
 DEV_BINUTIL = micro.binutil.ArmBinutil()
-# todo make a micro.comm namespace?
 DEV_COMMUNICATOR = micro.OpenOcdComm('127.0.0.1', 6666)
+
+#DEV_BINUTIL = micro.binutil.HostBinutil()
+#DEV_COMMUNICATOR = micro.HostComm()
 
 def create_micro_mod(c_mod, dev_binutil):
     """Produces a micro module from a given module.

@@ -15,7 +15,7 @@ void UTVMTimerStop() { }
 
 void UTVMTimerReset() { }
 
-int32_t UTVMTimerRead() {
+uint32_t UTVMTimerRead() {
     return 420;
 }
 
