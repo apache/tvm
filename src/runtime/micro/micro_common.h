@@ -128,40 +128,40 @@ class DevPtr : public DeviceLocation {
   }
 };
 
-/*! \brief offset from device base address */
-class DevBaseOffset : public DeviceLocation {
- public:
-  /*! \brief construct a base offset with value `value` */
-  explicit DevBaseOffset(std::uintptr_t value) : DeviceLocation(value) {}
-
-  /*! \brief default constructor */
-  DevBaseOffset() : DeviceLocation() {}
-
-  /*! \brief construct a null base offset */
-  explicit DevBaseOffset(std::nullptr_t value) : DeviceLocation(value) {}
-
-  /*! \brief add an integer to this base offset to get a larger base offset */
-  DevBaseOffset operator+(size_t n) const {
-    return DevBaseOffset(value_ + n);
-  }
-
-  /*! \brief mutably add an integer to this base offset */
-  DevBaseOffset& operator+=(size_t n) {
-    value_ += n;
-    return *this;
-  }
-
-  /*! \brief subtract an integer from this base offset to get a smaller base offset */
-  DevBaseOffset operator-(size_t n) const {
-    return DevBaseOffset(value_ - n);
-  }
-
-  /*! \brief mutably subtract an integer from this base offset */
-  DevBaseOffset& operator-=(size_t n) {
-    value_ -= n;
-    return *this;
-  }
-};
+///*! \brief offset from device base address */
+//class DevBaseOffset : public DeviceLocation {
+// public:
+//  /*! \brief construct a base offset with value `value` */
+//  explicit DevBaseOffset(std::uintptr_t value) : DeviceLocation(value) {}
+//
+//  /*! \brief default constructor */
+//  DevBaseOffset() : DeviceLocation() {}
+//
+//  /*! \brief construct a null base offset */
+//  explicit DevBaseOffset(std::nullptr_t value) : DeviceLocation(value) {}
+//
+//  /*! \brief add an integer to this base offset to get a larger base offset */
+//  DevBaseOffset operator+(size_t n) const {
+//    return DevBaseOffset(value_ + n);
+//  }
+//
+//  /*! \brief mutably add an integer to this base offset */
+//  DevBaseOffset& operator+=(size_t n) {
+//    value_ += n;
+//    return *this;
+//  }
+//
+//  /*! \brief subtract an integer from this base offset to get a smaller base offset */
+//  DevBaseOffset operator-(size_t n) const {
+//    return DevBaseOffset(value_ - n);
+//  }
+//
+//  /*! \brief mutably subtract an integer from this base offset */
+//  DevBaseOffset& operator-=(size_t n) {
+//    value_ -= n;
+//    return *this;
+//  }
+//};
 
 /*!
  * \brief map from symbols to their on-device offsets
@@ -235,7 +235,7 @@ class SymbolMap {
 /*! \brief struct containing start and size of a device memory region */
 struct DevMemRegion {
   /*! \brief section start offset */
-  DevBaseOffset start;
+  DevPtr start;
   /*! \brief size of section */
   size_t size;
 };
@@ -262,12 +262,6 @@ struct BinaryContents {
   std::string bss_contents;
 };
 
-// TODO(weberlo): should this be here?
-/*! \brief number of bytes in each page */
-constexpr int kPageSize = 4096;
-
-const DevBaseOffset kDeviceStart = DevBaseOffset(64);
-
 /*!
  * \brief return default size of given section kind in bytes
  */
@@ -290,6 +284,7 @@ inline size_t UpperAlignValue(size_t value, size_t align) {
  */
 const char* SectionToString(SectionKind section);
 
+// todo new docs
 /*!
  * \brief links binary by repositioning section addresses
  * \param binary_name input binary filename
@@ -300,13 +295,17 @@ const char* SectionToString(SectionKind section);
  * \param toolchain_prefix prefix of compiler toolchain to use
  * \return relocated binary file contents
  */
-std::string RelocateBinarySections(const std::string& binary_name,
-                                   size_t word_size,
-                                   DevPtr text_addr,
-                                   DevPtr rodata_addr,
-                                   DevPtr data_addr,
-                                   DevPtr bss_addr,
-                                   const std::string& toolchain_prefix);
+std::string RelocateBinarySections(
+    const std::string& binary_path,
+    size_t word_size,
+    DevPtr text_start,
+    DevPtr rodata_start,
+    DevPtr data_start,
+    DevPtr bss_start,
+    DevPtr workspace_start,
+    DevPtr workspace_end,
+    DevPtr stack_end_start,
+    const std::string& toolchain_prefix);
 
 /*!
  * \brief reads section from binary

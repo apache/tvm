@@ -102,7 +102,6 @@ class MicroSession : public ModuleNode {
       size_t stack_size,
       size_t word_size,
       bool thumb_mode,
-      std::uintptr_t base_addr,
       const std::string& server_addr,
       int port);
 
@@ -128,21 +127,21 @@ class MicroSession : public ModuleNode {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevBaseOffset AllocateInSection(SectionKind type, size_t size);
+  DevPtr AllocateInSection(SectionKind type, size_t size);
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
-   * \param ptr pointer to allocated memory
+   * \param addr device address of allocated memory
    */
-  void FreeInSection(SectionKind type, DevBaseOffset ptr);
+  void FreeInSection(SectionKind type, DevPtr addr);
 
   /*!
    * \brief read string from device to host
-   * \param str_offset device offset of first character of string
+   * \param str_addr device address of first character of string
    * \return host copy of device string that was read
    */
-  std::string ReadString(DevBaseOffset str_offset);
+  std::string ReadString(DevPtr str_addr);
 
   /*!
    * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
@@ -150,10 +149,6 @@ class MicroSession : public ModuleNode {
    * \param args args to the packed function
    */
   uint32_t PushToExecQueue(DevPtr func, const TVMArgs& args);
-
-  //void EnqueueBinary(const std::string& binary_path);
-
-  //void FlushBinary(const BinaryContents& bin_contents);
 
   /*!
   * \brief read value of symbol from device memory
@@ -199,10 +194,6 @@ class MicroSession : public ModuleNode {
   // whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
   // results in more compact binaries.
   bool thumb_mode_;
-  /*! \brief offset of the runtime entry function */
-  DevBaseOffset utvm_main_symbol_;
-  /*! \brief offset of the runtime exit breakpoint */
-  DevBaseOffset utvm_done_symbol_;
   /*! \brief TODO */
   SymbolMap runtime_symbol_map_;
 

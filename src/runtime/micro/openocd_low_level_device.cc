@@ -37,18 +37,14 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
  public:
   /*!
    * \brief constructor to initialize connection to openocd device
-   * \param base_addr base address of the device
    * \param server_addr address of the OpenOCD server to connect to
    * \param port port of the OpenOCD server to connect to
    */
-  explicit OpenOCDLowLevelDevice(std::uintptr_t base_addr,
-                                 const std::string& server_addr,
+  explicit OpenOCDLowLevelDevice(const std::string& server_addr,
                                  int port) : socket_() {
     std::cout << "[OpenOCDLowLevelDevice]" << std::endl;
     server_addr_ = server_addr;
     port_ = port;
-    base_addr_ = base_addr;
-    CHECK(base_addr_ % 8 == 0) << "base address not aligned to 8 bytes";
 
     socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
     socket_.cmd_builder() << "halt 0";
@@ -56,7 +52,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     std::cout << "  finished init" << std::endl;
   }
 
-  void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
+  void Read(DevPtr addr, void* buf, size_t num_bytes) {
     if (num_bytes == 0) {
       return;
     }
@@ -64,7 +60,6 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     // TODO(weberlo): Refactor between read and write.
     // Check if we need to chunk this write request.
     if (num_bytes > kMemTransferLimit) {
-      DevBaseOffset curr_offset = offset;
       char* curr_buf_ptr = reinterpret_cast<char*>(buf);
       while (num_bytes != 0) {
         size_t amount_to_read;
@@ -73,8 +68,8 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
         } else {
           amount_to_read = num_bytes;
         }
-        Read(offset, reinterpret_cast<void*>(curr_buf_ptr), amount_to_read);
-        offset += amount_to_read;
+        Read(addr, reinterpret_cast<void*>(curr_buf_ptr), amount_to_read);
+        addr += amount_to_read;
         curr_buf_ptr += amount_to_read;
         num_bytes -= amount_to_read;
       }
@@ -84,7 +79,6 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
       socket_.cmd_builder() << "array unset output";
       socket_.SendCommand();
 
-      DevPtr addr = DevPtr(base_addr_ + offset.value());
       socket_.cmd_builder()
         << "mem2array output"
         << " " << std::dec << kWordSize
@@ -127,14 +121,13 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
+  void Write(DevPtr addr, const void* buf, size_t num_bytes) {
     if (num_bytes == 0) {
       return;
     }
 
     // Check if we need to chunk this write request.
     if (num_bytes > kMemTransferLimit) {
-      DevBaseOffset curr_offset = offset;
       const char* curr_buf_ptr = reinterpret_cast<const char*>(buf);
       while (num_bytes != 0) {
         size_t amount_to_write;
@@ -143,8 +136,8 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
         } else {
           amount_to_write = num_bytes;
         }
-        Write(offset, reinterpret_cast<const void*>(curr_buf_ptr), amount_to_write);
-        offset += amount_to_write;
+        Write(addr, reinterpret_cast<const void*>(curr_buf_ptr), amount_to_write);
+        addr += amount_to_write;
         curr_buf_ptr += amount_to_write;
         num_bytes -= amount_to_write;
       }
@@ -171,7 +164,6 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
       socket_.SendCommand();
     }
     {
-      DevPtr addr = DevPtr(base_addr_ + offset.value());
       socket_.cmd_builder()
         << "array2mem input"
         << " " << std::dec << kWordSize
@@ -181,15 +173,14 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) {
+  void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
 
     // Set a breakpoint at the beginning of `UTVMDone`.
-    socket_.cmd_builder() << "bp " << ToDevPtr(breakpoint).cast_to<void*>() << " 2";
+    socket_.cmd_builder() << "bp " << breakpoint_addr.cast_to<void*>() << " 2";
     socket_.SendCommand();
 
-    DevPtr func_addr = DevPtr(base_addr_ + func_offset.value());
     socket_.cmd_builder() << "resume " << func_addr.cast_to<void*>();
     socket_.SendCommand();
 
@@ -200,30 +191,26 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.SendCommand();
 
     // Remove the breakpoint.
-    socket_.cmd_builder() << "rbp " << ToDevPtr(breakpoint).cast_to<void*>();
+    socket_.cmd_builder() << "rbp " << breakpoint_addr.cast_to<void*>();
     socket_.SendCommand();
   }
 
-  void SetStackTop(DevBaseOffset stack_top) {
-    stack_top_ = DevPtr(base_addr_ + stack_top.value());
-  }
+  //std::uintptr_t base_addr() const final {
+  //  return base_addr_;
+  //}
 
-  std::uintptr_t base_addr() const final {
-    return base_addr_;
-  }
-
-  DevPtr stack_top() const {
-    CHECK(stack_top_ != nullptr) << "stack top was never initialized";
-    return stack_top_;
-  }
+  //DevPtr stack_top() const {
+  //  CHECK(stack_top_ != nullptr) << "stack top was never initialized";
+  //  return stack_top_;
+  //}
 
   const char* device_type() const final {
     return "openocd";
   }
 
  private:
-  /*! \brief base address of the micro device memory region */
-  std::uintptr_t base_addr_;
+  ///*! \brief base address of the micro device memory region */
+  //std::uintptr_t base_addr_;
   /*! \brief top of the stack section */
   DevPtr stack_top_;
   /*! \brief socket used to communicate with the device through Tcl */
@@ -242,11 +229,10 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   static const constexpr int kWaitTime = 10000;
 };
 
-const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(std::uintptr_t base_addr,
-                                                                  const std::string& server_addr,
+const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(const std::string& server_addr,
                                                                   int port) {
   std::shared_ptr<LowLevelDevice> lld =
-      std::make_shared<OpenOCDLowLevelDevice>(base_addr, server_addr, port);
+      std::make_shared<OpenOCDLowLevelDevice>(server_addr, port);
   return lld;
 }
 

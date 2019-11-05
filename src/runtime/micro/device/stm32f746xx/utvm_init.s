@@ -47,7 +47,6 @@
 .thumb
 
 .section .text.UTVMInit
-/* .weak UTVMInit */
 .type UTVMInit, %function
 UTVMInit:
   /* enable fpu */
@@ -59,8 +58,7 @@ UTVMInit:
   dsb
   isb
   /* set stack pointer */
-  /* todo no hradcode */
-  ldr sp, =0x2004fffc
+  ldr sp, =_utvm_stack_pointer_init
   bl UTVMMain
 .size UTVMInit, .-UTVMInit
 
@@ -92,7 +90,7 @@ Infinite_Loop:
 
 
 g_pfnVectors:
-  .word  _estack
+  .word  _utvm_stack_pointer_init
   .word  UTVMInit
 
   .word  NMI_Handler

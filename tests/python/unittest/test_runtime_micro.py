@@ -25,8 +25,8 @@ import tvm.micro as micro
 from tvm.relay.testing import resnet
 
 # Use the host emulated micro device.
-#DEV_CONFIG = micro.device.host.default_config()
-DEV_CONFIG = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
+DEV_CONFIG = micro.device.host.default_config()
+#DEV_CONFIG = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
 
 #def create_micro_mod(c_mod, dev_config):
 #    """Produces a micro module from a given module.
@@ -382,12 +382,12 @@ def test_inactive_session_use():
 
 
 if __name__ == "__main__":
-    test_alloc()
-    test_add()
+    #test_alloc()
+    #test_add()
     test_workspace_add()
-    test_graph_runtime()
-    test_conv2d()
-    test_multiple_modules()
+    #test_graph_runtime()
+    #test_conv2d()
+    #test_multiple_modules()
     #test_interleave_sessions()
     #test_nested_sessions()
     #test_inactive_session_use()

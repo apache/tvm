@@ -1,5 +1,10 @@
 from .. import MicroBinutil
 
+#
+# Memory layout
+#   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
+#   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
+
 class Stm32F746XXBinutil(MicroBinutil):
     def __init__(self):
         super(Stm32F746XXBinutil, self).__init__('arm-none-eabi-')

@@ -81,7 +81,6 @@ MicroSession::MicroSession(
     size_t stack_size,
     size_t word_size,
     bool thumb_mode,
-    std::uintptr_t base_addr,
     const std::string& server_addr,
     int port) : word_size_(word_size), thumb_mode_(thumb_mode) {
   //DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
@@ -115,97 +114,98 @@ MicroSession::MicroSession(
     size_t memory_size = text_size + rodata_size + data_size + bss_size + args_size + heap_size + workspace_size + stack_size;
     void* base_addr;
     low_level_device_ = HostLowLevelDeviceCreate(memory_size, &base_addr);
+    CHECK(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_ == 0) << "base address not aligned to " << word_size_ << " bytes";
     std::cout << "base addr is " << base_addr << std::endl;
-    DevBaseOffset curr_offset = DevBaseOffset(reinterpret_cast<std::uintptr_t>(base_addr));
+    DevPtr curr_addr = DevPtr(reinterpret_cast<std::uintptr_t>(base_addr));
 
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = text_size,
-    });
-    curr_offset += text_size;
+    }, word_size_);
+    curr_addr += text_size;
     section_allocators_[1] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = rodata_size,
-    });
-    curr_offset += rodata_size;
+    }, word_size_);
+    curr_addr += rodata_size;
     section_allocators_[2] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = data_size,
-    });
-    curr_offset += data_size;
+    }, word_size_);
+    curr_addr += data_size;
     section_allocators_[3] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = bss_size,
-    });
-    curr_offset += bss_size;
+    }, word_size_);
+    curr_addr += bss_size;
     section_allocators_[4] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = args_size,
-    });
-    curr_offset += args_size;
+    }, word_size_);
+    curr_addr += args_size;
     section_allocators_[5] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = heap_size,
-    });
-    curr_offset += heap_size;
+    }, word_size_);
+    curr_addr += heap_size;
     section_allocators_[6] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = workspace_size,
-    });
-    curr_offset += workspace_size;
+    }, word_size_);
+    curr_addr += workspace_size;
     section_allocators_[7] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = curr_offset,
+      .start = curr_addr,
       .size = stack_size,
-    });
-    curr_offset += stack_size;
+    }, word_size_);
+    curr_addr += stack_size;
   } else if (comms_method == "openocd") {
     // TODO(weberlo): We need a better way of configuring devices.
-    low_level_device_ = OpenOCDLowLevelDeviceCreate(base_addr, server_addr, port);
+    low_level_device_ = OpenOCDLowLevelDeviceCreate(server_addr, port);
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(text_start),
+      .start = DevPtr(text_start),
       .size = text_size,
-    });
+    }, word_size_);
     section_allocators_[1] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(rodata_start),
+      .start = DevPtr(rodata_start),
       .size = rodata_size,
-    });
+    }, word_size_);
     section_allocators_[2] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(data_start),
+      .start = DevPtr(data_start),
       .size = data_size,
-    });
+    }, word_size_);
     section_allocators_[3] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(bss_start),
+      .start = DevPtr(bss_start),
       .size = bss_size,
-    });
+    }, word_size_);
     section_allocators_[4] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(args_start),
+      .start = DevPtr(args_start),
       .size = args_size,
-    });
+    }, word_size_);
     section_allocators_[5] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(heap_start),
+      .start = DevPtr(heap_start),
       .size = heap_size,
-    });
+    }, word_size_);
     section_allocators_[6] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(workspace_start),
+      .start = DevPtr(workspace_start),
       .size = workspace_size,
-    });
+    }, word_size_);
     section_allocators_[7] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-      .start = DevBaseOffset(stack_start),
+      .start = DevPtr(stack_start),
       .size = stack_size,
-    });
+    }, word_size_);
   } else {
     LOG(FATAL) << "unsupported micro low-level device";
   }
 
   std::cout << "[Memory Layout]" << std::endl;
-  std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  rodata (size = " << (section_allocators_[1]->capacity() / 1000.0) << " KB): " << section_allocators_[1]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  data (size = " << (section_allocators_[2]->capacity() / 1000.0) << " KB): " << section_allocators_[2]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  bss (size = " << (section_allocators_[3]->capacity() / 1000.0) << " KB): " << section_allocators_[3]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  args (size = " << (section_allocators_[4]->capacity() / 1000.0) << " KB): " << section_allocators_[4]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  heap (size = " << (section_allocators_[5]->capacity() / 1000.0) << " KB): " << section_allocators_[5]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  workspace (size = " << (section_allocators_[6]->capacity() / 1000.0) << " KB): " << section_allocators_[6]->start_offset().cast_to<void*>() << std::endl;
-  std::cout << "  stack (size = " << (section_allocators_[7]->capacity() / 1000.0) << " KB): " << section_allocators_[7]->start_offset().cast_to<void*>() << std::endl;
+  std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  rodata (size = " << (section_allocators_[1]->capacity() / 1000.0) << " KB): " << section_allocators_[1]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  data (size = " << (section_allocators_[2]->capacity() / 1000.0) << " KB): " << section_allocators_[2]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  bss (size = " << (section_allocators_[3]->capacity() / 1000.0) << " KB): " << section_allocators_[3]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  args (size = " << (section_allocators_[4]->capacity() / 1000.0) << " KB): " << section_allocators_[4]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  heap (size = " << (section_allocators_[5]->capacity() / 1000.0) << " KB): " << section_allocators_[5]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  workspace (size = " << (section_allocators_[6]->capacity() / 1000.0) << " KB): " << section_allocators_[6]->start_addr().cast_to<void*>() << std::endl;
+  std::cout << "  stack (size = " << (section_allocators_[7]->capacity() / 1000.0) << " KB): " << section_allocators_[7]->start_addr().cast_to<void*>() << std::endl;
 
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
   std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
@@ -214,21 +214,17 @@ MicroSession::MicroSession(
   //if (comms_method == "openocd") {
   //  // Set OpenOCD device's stack pointer.
   //  auto stack_section = GetAllocator(SectionKind::kStack);
-  //  low_level_device_->SetStackTop(stack_section->max_end_offset());
+  //  low_level_device_->SetStackTop(stack_section->max_end_addr());
   //}
 
   // Patch workspace pointers to the start of the workspace section.
-  DevBaseOffset workspace_start_offset = GetAllocator(SectionKind::kWorkspace)->start_offset();
-  DevBaseOffset workspace_end_offset = GetAllocator(SectionKind::kWorkspace)->max_end_offset();
-  void* workspace_start_addr =
-      low_level_device_->ToDevPtr(workspace_start_offset).cast_to<void*>();
-  void* workspace_end_addr =
-      low_level_device_->ToDevPtr(workspace_end_offset).cast_to<void*>();
+  //void* workspace_start_addr = GetAllocator(SectionKind::kWorkspace)->start_addr().cast_to<void*>();
+  //void* workspace_end_addr = GetAllocator(SectionKind::kWorkspace)->max_addr().cast_to<void*>();
   // TODO(weberlo): A lot of these symbol writes can be converted into symbols
   // in the C source, where the symbols are created by the linker script we
   // generate in python.
-  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_begin", workspace_start_addr);
-  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
+  //DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_begin", workspace_start_addr);
+  //DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
 }
 
 MicroSession::~MicroSession() {
@@ -256,8 +252,7 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
-  DevPtr args_addr =
-      low_level_device()->ToDevPtr(GetAllocator(SectionKind::kArgs)->curr_end_offset());
+  DevPtr args_addr = GetAllocator(SectionKind::kArgs)->curr_end_addr();
   TargetDataLayoutEncoder encoder(args_addr, word_size_);
 
   std::cout << "  after encoder alloc" << std::endl;
@@ -266,10 +261,10 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   std::cout << "  after encoder append" << std::endl;
   // Flush `stream` to device memory.
-  DevBaseOffset stream_dev_offset =
+  DevPtr stream_dev_addr =
       GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
   std::cout << "  low-level device: " << low_level_device() << std::endl;
-  low_level_device()->Write(stream_dev_offset,
+  low_level_device()->Write(stream_dev_addr,
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
   std::cout << "  after encoder write" << std::endl;
@@ -303,28 +298,23 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   std::cout << "  after task write" << std::endl;
 
-  //DevBaseOffset utvm_main_loc = DevBaseOffset(runtime_symbol_map_["UTVMMain"].value());
-  DevBaseOffset utvm_init_loc = DevBaseOffset(runtime_symbol_map_["UTVMInit"].value());
-  DevBaseOffset utvm_done_loc = DevBaseOffset(runtime_symbol_map_["UTVMDone"].value());
+  DevPtr utvm_init_addr = runtime_symbol_map_["UTVMInit"];
+  DevPtr utvm_done_addr = runtime_symbol_map_["UTVMDone"];
   if (thumb_mode_) {
-    utvm_init_loc += 1;
+    utvm_init_addr += 1;
   }
 
-  std::cout << "  UTVMInit loc: " << utvm_init_loc.cast_to<void*>() << std::endl;
-  std::cout << "  UTVMDone loc: " << utvm_done_loc.cast_to<void*>() << std::endl;
+  std::cout << "  UTVMInit loc: " << utvm_init_addr.cast_to<void*>() << std::endl;
+  std::cout << "  UTVMDone loc: " << utvm_done_addr.cast_to<void*>() << std::endl;
   //std::cout << "  do execution things: ";
   //char tmp;
   //std::cin >> tmp;
 
-  low_level_device()->Execute(utvm_init_loc, utvm_done_loc);
+  low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
 
-  std::uintptr_t workspace_begin = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_begin");
-  std::cout << "  workspace begin: " << workspace_begin << std::endl;
-  std::uintptr_t workspace_end = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_end");
-  std::cout << "  workspace end: " << workspace_end << std::endl;
   std::uintptr_t workspace_curr = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_curr");
   std::cout << "  workspace curr: " << workspace_curr << std::endl;
   size_t num_active_allocs = DevSymbolRead<size_t>(runtime_symbol_map_, "utvm_num_active_allocs");
@@ -337,7 +327,7 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "  task time was " << task_time << std::endl;
   std::cout << "  --------------------------------------------------------------------------------" << std::endl;
 
-  GetAllocator(SectionKind::kArgs)->Free(stream_dev_offset);
+  GetAllocator(SectionKind::kArgs)->Free(stream_dev_addr);
   return task_time;
 }
 
@@ -371,10 +361,14 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   std::string relocated_bin = RelocateBinarySections(
       binary_path,
       word_size_,
-      low_level_device_->ToDevPtr(text_section.start),
-      low_level_device_->ToDevPtr(rodata_section.start),
-      low_level_device_->ToDevPtr(data_section.start),
-      low_level_device_->ToDevPtr(bss_section.start),
+      // TODO fill in new args
+      text_section.start,
+      rodata_section.start,
+      data_section.start,
+      bss_section.start,
+      GetAllocator(SectionKind::kWorkspace)->start_addr(),
+      GetAllocator(SectionKind::kWorkspace)->max_addr(),
+      GetAllocator(SectionKind::kStack)->max_addr(),
       toolchain_prefix_);
   std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);
   std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
@@ -528,10 +522,10 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     // checks that it is a host array.
     CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
     dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-    // Add the base address of the device to the array's data's device offset to
-    // get a device address.
-    DevBaseOffset arr_offset(reinterpret_cast<std::uintptr_t>(arr.data));
-    dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
+    //// Add the base address of the device to the array's data's device offset to
+    //// get a device address.
+    //DevPtr arr_offset(reinterpret_cast<std::uintptr_t>(arr.data));
+    //dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
     dev_arr.shape = shape_addr.cast_to<int64_t*>();
     dev_arr.strides = strides_addr.cast_to<int64_t*>();
     tvm_arr_slot.WriteValue(dev_arr);
@@ -552,8 +546,8 @@ void MicroSession::CheckDeviceError() {
         DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
     std::string last_error_str;
     if (last_error) {
-      DevBaseOffset last_err_offset = low_level_device()->ToDevOffset(DevPtr(last_error));
-      last_error_str = ReadString(last_err_offset);
+      DevPtr last_err_addr = DevPtr(last_error);
+      last_error_str = ReadString(last_err_addr);
     }
     LOG(FATAL) << "error during micro function execution:\n"
                << "  return code: " << std::dec << return_code << "\n"
@@ -580,39 +574,38 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   }
 }
 
-std::string MicroSession::ReadString(DevBaseOffset str_offset) {
+std::string MicroSession::ReadString(DevPtr str_addr) {
   std::ostringstream result;
   const size_t buf_size = 256;
   std::vector<char> buf(buf_size, 0);
   size_t i = buf_size;
   while (i == buf_size) {
-    low_level_device()->Read(str_offset, buf.data(), buf_size);
+    low_level_device()->Read(str_addr, buf.data(), buf_size);
     i = 0;
     while (i < buf_size) {
       if (buf[i] == 0) break;
       result << buf[i];
       i++;
     }
-    str_offset = str_offset + i;
+    str_addr = str_addr + i;
   }
   return result.str();
 }
 
-DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
+DevPtr MicroSession::AllocateInSection(SectionKind type, size_t size) {
   return GetAllocator(type)->Allocate(size);
 }
 
-void MicroSession::FreeInSection(SectionKind type, DevBaseOffset ptr) {
-  return GetAllocator(type)->Free(ptr);
+void MicroSession::FreeInSection(SectionKind type, DevPtr addr) {
+  return GetAllocator(type)->Free(addr);
 }
 
 template <typename T>
 T MicroSession::DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol) {
-  DevBaseOffset sym_offset = low_level_device()->ToDevOffset(symbol_map[symbol]);
-  //sym_offset -= 6;
-  std::cout << "SYM OFFSET FOR " << symbol << " IS " << sym_offset.cast_to<void*>() << std::endl;
+  DevPtr sym_addr = symbol_map[symbol];
+  std::cout << "sym offset for " << symbol << " is " << sym_addr.cast_to<void*>() << std::endl;
   T result;
-  low_level_device()->Read(sym_offset, &result, sizeof(T));
+  low_level_device()->Read(sym_addr, &result, sizeof(T));
   return result;
 }
 
@@ -620,9 +613,8 @@ template <typename T>
 void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
                                   const std::string& symbol,
                                   const T& value) {
-  DevBaseOffset sym_offset = low_level_device()->ToDevOffset(symbol_map[symbol]);
-  //sym_offset -= 6;
-  low_level_device()->Write(sym_offset, &value, sizeof(T));
+  DevPtr sym_addr = symbol_map[symbol];
+  low_level_device()->Write(sym_addr, &value, sizeof(T));
 }
 
 PackedFunc MicroSession::GetFunction(
@@ -665,9 +657,8 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     size_t stack_size = args[18];
     size_t word_size = args[19];
     bool thumb_mode = args[20];
-    uint64_t base_addr = args[21];
-    const std::string& server_addr = args[22];
-    int port = args[23];
+    const std::string& server_addr = args[21];
+    int port = args[22];
     ObjectPtr<MicroSession> session = make_object<MicroSession>(
         comms_method,
         binary_path,
@@ -690,7 +681,6 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
         stack_size,
         word_size,
         thumb_mode,
-        base_addr,
         server_addr,
         port);
     //session->CreateSession(

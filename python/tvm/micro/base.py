@@ -92,9 +92,6 @@ class Session:
         else:
             raise RuntimeError(f'unknown communication method: f{self.comms_method}')
 
-        # todo remove use of base addrs everywhere
-        base_addr = 0
-
         self.module = _CreateSession(
             comms_method,
             runtime_obj_path,
@@ -117,7 +114,6 @@ class Session:
             self.mem_layout['stack']['size'],
             self.word_size,
             self.thumb_mode,
-            base_addr,
             server_addr,
             server_port)
         self._enter = self.module['enter']

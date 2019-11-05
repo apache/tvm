@@ -43,8 +43,15 @@ UTVMTask utvm_task = {
 };
 
 // These pointers are patched at load time to point to the workspace section.
-char* utvm_workspace_begin = NULL;  // NOLINT(*)
-char* utvm_workspace_end = NULL;  // NOLINT(*)
+
+
+// linker-provided symbols
+extern char _utvm_workspace_start;
+extern char _utvm_workspace_end;
+extern char _utvm_word_size;
+
+//char* utvm_workspace_begin = NULL;  // NOLINT(*)
+//char* utvm_workspace_end = NULL;  // NOLINT(*)
 char* utvm_workspace_curr = NULL;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t utvm_num_active_allocs = 0;
@@ -66,7 +73,7 @@ void UTVMMain() {
   utvm_task_time = 420;
   UTVMDone();
   */
-  utvm_workspace_curr = utvm_workspace_begin;
+  utvm_workspace_curr = &_utvm_workspace_start;
   utvm_num_active_allocs = 0;
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
@@ -86,9 +93,11 @@ void UTVMDone() { }
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
+  size_t word_size = (size_t) &_utvm_word_size;
   // Align up to 8 bytes.
-  utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;  // NOLINT(*)
-  if (utvm_workspace_curr + size > utvm_workspace_end) {
+  utvm_workspace_curr +=
+    (word_size - ((uintptr_t) utvm_workspace_curr % word_size)) % word_size;  // NOLINT(*)
+  if (utvm_workspace_curr + size > &_utvm_workspace_end) {
     // Out of space in workspace.
     return NULL;
   }
@@ -104,11 +113,11 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
     TVMAPISetLastError("free called with no active workspace allocations");
     // Reset allocations and workspace (for future task executions).
     utvm_num_active_allocs = 0;
-    utvm_workspace_curr = utvm_workspace_begin;
+    utvm_workspace_curr = &_utvm_workspace_start;
     return -1;
   } else if (utvm_num_active_allocs == 0) {
     // No more allocations.  Reset workspace.
-    utvm_workspace_curr = utvm_workspace_begin;
+    utvm_workspace_curr = &_utvm_workspace_start;
     return 0;
   } else {
     return 0;

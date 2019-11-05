@@ -31,6 +31,9 @@
 namespace tvm {
 namespace runtime {
 
+/*! \brief number of bytes in each page */
+constexpr int kPageSize = 4096;
+
 /*!
  * \brief emulated low-level device on host machine
  */
@@ -57,23 +60,16 @@ class HostLowLevelDevice final : public LowLevelDevice {
     munmap(base_addr_, size_);
   }
 
-  void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
-    void* addr = ToDevPtr(offset).cast_to<void*>();
-    std::memcpy(buf, addr, num_bytes);
+  void Read(DevPtr addr, void* buf, size_t num_bytes) {
+    std::memcpy(buf, addr.cast_to<void*>(), num_bytes);
   }
 
-  void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
-    void* addr = ToDevPtr(offset).cast_to<void*>();
-    std::memcpy(addr, buf, num_bytes);
+  void Write(DevPtr addr, const void* buf, size_t num_bytes) {
+    std::memcpy(addr.cast_to<void*>(), buf, num_bytes);
   }
 
-  void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) {
-    DevPtr func_addr = ToDevPtr(func_offset);
+  void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
     reinterpret_cast<void (*)(void)>(func_addr.value())();
-  }
-
-  std::uintptr_t base_addr() const final {
-    return 0;
   }
 
   const char* device_type() const final {

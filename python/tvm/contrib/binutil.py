@@ -107,7 +107,16 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
-        binary_path, word_size, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
+        binary_path,
+        word_size,
+        text_start,
+        rodata_start,
+        data_start,
+        bss_start,
+        workspace_start,
+        workspace_end,
+        stack_end,
+        toolchain_prefix):
     """Relocates sections in the binary to new addresses
 
     Parameters
@@ -118,16 +127,16 @@ def tvm_callback_relocate_binary(
     word_size : int
         TODO
 
-    text_addr : str
+    text_start : str
         text section absolute address
 
-    rodata_addr : str
+    rodata_start : str
         rodata section absolute address
 
-    data_addr : str
+    data_start : str
         data section absolute address
 
-    bss_addr : str
+    bss_start : str
         bss section absolute address
 
     toolchain_prefix : str
@@ -160,17 +169,14 @@ def tvm_callback_relocate_binary(
 
     # TODO: this a fukn hack
     #input(f'binary path: {binary_path}')
+    stack_pointer_init = stack_end - word_size
     ld_script_contents = """
-/* Highest address of the user mode stack */
-_estack = 0x20050000;   /* end of RAM */
+/* linker symbols for use in C source */
+_utvm_stack_pointer_init = %s;
+_utvm_workspace_start = %s;
+_utvm_workspace_end = %s;
+_utvm_word_size = %s;
 
-/*
- * Memory layout (for reference)
- *   RAM   (xrw) : START = 0x20000000, LENGTH = 320K
- *   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
- */
-
-/* Define output sections */
 SECTIONS
 {
   . = %s;
@@ -213,62 +219,26 @@ SECTIONS
   }
 }
     """
+    # first, fill in ALIGN args with the target word size
     ld_script_contents = ld_script_contents.replace('ALIGN(?)', f'ALIGN({word_size})')
+    # then fill in addrs for linker symbols and section starts
+    ld_script_contents = ld_script_contents % (
+            f'0x{stack_pointer_init:x}',
+            f'0x{workspace_start:x}',
+            f'0x{workspace_end:x}',
+            word_size,
+            f'0x{text_start:x}',
+            f'0x{rodata_start:x}',
+            f'0x{data_start:x}',
+            f'0x{bss_start:x}')
     print(ld_script_contents)
-    ld_script_contents = ld_script_contents % (text_addr, rodata_addr, data_addr, bss_addr)
-    print(ld_script_contents)
+    input()
     print(f'relocing lib {binary_path}')
-    print(f'  text_addr: {text_addr}')
-    print(f'  rodata_addr: {rodata_addr}')
-    print(f'  data_addr: {data_addr}')
-    print(f'  bss_addr: {bss_addr}')
+    print(f'  text_start: {text_start}')
+    print(f'  rodata_start: {rodata_start}')
+    print(f'  data_start: {data_start}')
+    print(f'  bss_start: {bss_start}')
 
-    # TODO(weberlo): Generate the script in a more procedural manner.
-
-    # TODO: use the stm32-cube linker script as reference. set UTVMInit as
-    # entry point. add KEEP to sections to prevent garbage collection.
-
-#"""
-#SECTIONS
-#{
-#  . = %s;
-#  . = ALIGN(8);
-#  .text :
-#  {
-#    *(.text)
-#    . = ALIGN(8);
-#    *(.text*)
-#  }
-#  . = %s;
-#  . = ALIGN(8);
-#  .rodata :
-#  {
-#    *(.rodata)
-#    . = ALIGN(8);
-#    *(.rodata*)
-#  }
-#  . = %s;
-#  . = ALIGN(8);
-#  .data :
-#  {
-#    *(.data)
-#    . = ALIGN(8);
-#    *(.data*)
-#    . = ALIGN(8);
-#    *(.sdata)
-#  }
-#  . = %s;
-#  . = ALIGN(8);
-#  .bss :
-#  {
-#    *(.bss)
-#    . = ALIGN(8);
-#    *(.bss*)
-#    . = ALIGN(8);
-#    *(.sbss)
-#  }
-#}
-#    """ % (text_addr, rodata_addr, data_addr, bss_addr)
     rel_ld_script_path = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script_path, "w") as f:
         f.write(ld_script_contents)

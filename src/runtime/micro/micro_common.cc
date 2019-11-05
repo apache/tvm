@@ -83,22 +83,29 @@ static std::string AddrToString(void* addr) {
   return string_addr;
 }
 
-std::string RelocateBinarySections(const std::string& binary_path,
-                                   size_t word_size,
-                                   DevPtr text_addr,
-                                   DevPtr rodata_addr,
-                                   DevPtr data_addr,
-                                   DevPtr bss_addr,
-                                   const std::string& toolchain_prefix) {
+std::string RelocateBinarySections(
+    const std::string& binary_path,
+    size_t word_size,
+    DevPtr text_start,
+    DevPtr rodata_start,
+    DevPtr data_start,
+    DevPtr bss_start,
+    DevPtr workspace_start,
+    DevPtr workspace_end,
+    DevPtr stack_end_start,
+    const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
                                    word_size,
-                                   AddrToString(text_addr.cast_to<void*>()),
-                                   AddrToString(rodata_addr.cast_to<void*>()),
-                                   AddrToString(data_addr.cast_to<void*>()),
-                                   AddrToString(bss_addr.cast_to<void*>()),
+                                   text_start.cast_to<uint64_t>(),
+                                   rodata_start.cast_to<uint64_t>(),
+                                   data_start.cast_to<uint64_t>(),
+                                   bss_start.cast_to<uint64_t>(),
+                                   workspace_start.cast_to<uint64_t>(),
+                                   workspace_end.cast_to<uint64_t>(),
+                                   stack_end_start.cast_to<uint64_t>(),
                                    toolchain_prefix);
   return relocated_bin;
 }
