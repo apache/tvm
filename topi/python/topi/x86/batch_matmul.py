@@ -55,10 +55,6 @@ def _declaration_batch_matmul_nopack(cfg, x, y):
     assert XK == YK, "shapes of x and y is inconsistant"
     B = XB
     K = XK
-    # create tuning space
-    cfg.define_split("tile_y", M, num_outputs=2)
-    cfg.define_split("tile_x", N, num_outputs=2)
-    cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
         _default_batch_matmul_nopack_config(cfg, M, N, K)
 
@@ -97,8 +93,16 @@ def schedule_batch_matmul(cfg, outs):
         if "batch_matmul" in op.tag:
             C = op.output(0)
             A, B = s[C].op.input_tensors
-            _, M, N = get_const_tuple(C.shape)
+            _, M, K = get_const_tuple(A.shape)
+            _, _, N = get_const_tuple(C.shape)
+
+            # create tuning space
+            cfg.define_split("tile_y", M, num_outputs=2)
+            cfg.define_split("tile_x", N, num_outputs=2)
+            cfg.define_split("tile_k", K, num_outputs=2)
+
             k, = s[C].op.reduce_axis
+            
             ko, ki = cfg["tile_k"].apply(s, C, k)
             CC = s.rfactor(C, ki)
 
