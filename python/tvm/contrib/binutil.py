@@ -107,13 +107,16 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
 @register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
-        binary_path, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
+        binary_path, word_size, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
     """Relocates sections in the binary to new addresses
 
     Parameters
     ----------
     binary_path : str
         path of the binary file
+
+    word_size : int
+        TODO
 
     text_addr : str
         text section absolute address
@@ -138,7 +141,7 @@ def tvm_callback_relocate_binary(
     global TEMPDIR_REFS
     tmp_dir = util.tempdir()
     TEMPDIR_REFS.append(tmp_dir)
-    rel_obj_path = tmp_dir.relpath("relocated.o")
+    rel_obj_path = tmp_dir.relpath("relocated.obj")
     #rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
     with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'r') as f:
         gdbinit_contents = f.read().split('\n')
@@ -157,10 +160,7 @@ def tvm_callback_relocate_binary(
 
     # TODO: this a fukn hack
     #input(f'binary path: {binary_path}')
-    if 'utvm_runtime' in binary_path:
-        ld_script_contents = """
-ENTRY(UTVMInit)
-
+    ld_script_contents = """
 /* Highest address of the user mode stack */
 _estack = 0x20050000;   /* end of RAM */
 
@@ -174,104 +174,56 @@ _estack = 0x20050000;   /* end of RAM */
 SECTIONS
 {
   . = %s;
-  . = ALIGN(4);
+  . = ALIGN(?);
   .text :
   {
     _stext = .;
-    KEEP(*(.isr_vector))
+    /*KEEP(*(.isr_vector))*/
     KEEP(*(.text))
     KEEP(*(.text*))
-    . = ALIGN(4);
+    . = ALIGN(?);
   }
 
   . = %s;
-  . = ALIGN(4);
+  . = ALIGN(?);
   .rodata :
   {
-    . = ALIGN(4);
+    . = ALIGN(?);
     KEEP(*(.rodata))
     KEEP(*(.rodata*))
-    . = ALIGN(4);
+    . = ALIGN(?);
   }
 
   . = %s;
-  . = ALIGN(4);
+  . = ALIGN(?);
   .data :
   {
-    . = ALIGN(4);
+    . = ALIGN(?);
     KEEP(*(.data))
     KEEP(*(.data*))
-    . = ALIGN(4);
+    . = ALIGN(?);
   }
 
   . = %s;
-  . = ALIGN(4);
+  . = ALIGN(?);
   .bss :
   {
-    . = ALIGN(4);
+    . = ALIGN(?);
     KEEP(*(.bss))
     KEEP(*(.bss*))
-    . = ALIGN(4);
+    . = ALIGN(?);
   }
 }
-        """ % (text_addr, rodata_addr, data_addr, bss_addr)
-    else:
-        ld_script_contents = """
-/*
- * Memory layout (for reference)
- *   RAM   (xrw) : START = 0x20000000, LENGTH = 320K
- *   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
- */
-
-/* Define output sections */
-SECTIONS
-{
-  . = %s;
-  . = ALIGN(4);
-  .text :
-  {
-    . = ALIGN(4);
-    KEEP(*(.text))
-    KEEP(*(.text*))
-    . = ALIGN(4);
-  }
-
-  . = %s;
-  . = ALIGN(4);
-  .rodata :
-  {
-    . = ALIGN(4);
-    KEEP(*(.rodata))
-    KEEP(*(.rodata*))
-    . = ALIGN(4);
-  }
-
-  . = %s;
-  . = ALIGN(4);
-  .data :
-  {
-    . = ALIGN(4);
-    KEEP(*(.data))
-    KEEP(*(.data*))
-    . = ALIGN(4);
-  }
-
-  . = %s;
-  . = ALIGN(4);
-  .bss :
-  {
-    . = ALIGN(4);
-    KEEP(*(.bss))
-    KEEP(*(.bss*))
-    . = ALIGN(4);
-  }
-}
-        """ % (text_addr, rodata_addr, data_addr, bss_addr)
-        print(f'relocing lib {binary_path}')
-        print(f'  text_addr: {text_addr}')
-        print(f'  rodata_addr: {rodata_addr}')
-        print(f'  data_addr: {data_addr}')
-        print(f'  bss_addr: {bss_addr}')
+    """
+    ld_script_contents = ld_script_contents.replace('ALIGN(?)', f'ALIGN({word_size})')
+    print(ld_script_contents)
+    ld_script_contents = ld_script_contents % (text_addr, rodata_addr, data_addr, bss_addr)
+    print(ld_script_contents)
+    print(f'relocing lib {binary_path}')
+    print(f'  text_addr: {text_addr}')
+    print(f'  rodata_addr: {rodata_addr}')
+    print(f'  data_addr: {data_addr}')
+    print(f'  bss_addr: {bss_addr}')
 
     # TODO(weberlo): Generate the script in a more procedural manner.
 

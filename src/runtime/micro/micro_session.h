@@ -100,6 +100,8 @@ class MicroSession : public ModuleNode {
       size_t workspace_size,
       uint64_t stack_start,
       size_t stack_size,
+      size_t word_size,
+      bool thumb_mode,
       std::uintptr_t base_addr,
       const std::string& server_addr,
       int port);
@@ -112,8 +114,6 @@ class MicroSession : public ModuleNode {
   static ObjectPtr<MicroSession>& Current();
 
   void CreateSession();
-
-  //void BakeSession(const std::string& binary_path);
 
   BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
 
@@ -192,15 +192,18 @@ class MicroSession : public ModuleNode {
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief total number of bytes of usable device memory for this session */
   size_t memory_size_;
-  ///*! \brief uTVM runtime binary info */
-  //BinaryInfo runtime_bin_info_;
-  /*! \brief path to uTVM runtime source code */
-  std::string runtime_binary_path_;
+  /*! \brief TODO */
+  size_t word_size_;
+  /*! \brief TODO */
+  // ARM and other manufacturers use the lowest bit of a function address to determine
+  // whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
+  // results in more compact binaries.
+  bool thumb_mode_;
   /*! \brief offset of the runtime entry function */
   DevBaseOffset utvm_main_symbol_;
   /*! \brief offset of the runtime exit breakpoint */
   DevBaseOffset utvm_done_symbol_;
-
+  /*! \brief TODO */
   SymbolMap runtime_symbol_map_;
 
   /*!

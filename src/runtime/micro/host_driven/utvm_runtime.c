@@ -56,10 +56,21 @@ uint32_t utvm_task_time = 0;
 
 // Gets called by UTVMInit, after device-specific initialization is finished.
 void UTVMMain() {
+  /*
+  utvm_workspace_begin = (char*) 420;  // NOLINT(*)
+  utvm_workspace_end = (char*) 420;  // NOLINT(*)
+  utvm_workspace_curr = (char*) 420;  // NOLINT(*)
+  utvm_num_active_allocs = 420;
+  utvm_last_error = (const char*) 420;  // NOLINT(*)
+  utvm_return_code = 0;  // NOLINT(*)
+  utvm_task_time = 420;
+  UTVMDone();
+  */
   utvm_workspace_curr = utvm_workspace_begin;
   utvm_num_active_allocs = 0;
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
+  utvm_task_time = 0;
   UTVMTimerReset();
   UTVMTimerStart();
   utvm_return_code = utvm_task.func((void*) utvm_task.arg_values, (void*) utvm_task.arg_type_codes,  // NOLINT(*)

@@ -301,10 +301,11 @@ const char* SectionToString(SectionKind section);
  * \return relocated binary file contents
  */
 std::string RelocateBinarySections(const std::string& binary_name,
-                                   DevPtr text,
-                                   DevPtr rodata,
-                                   DevPtr data,
-                                   DevPtr bss,
+                                   size_t word_size,
+                                   DevPtr text_addr,
+                                   DevPtr rodata_addr,
+                                   DevPtr data_addr,
+                                   DevPtr bss_addr,
                                    const std::string& toolchain_prefix);
 
 /*!

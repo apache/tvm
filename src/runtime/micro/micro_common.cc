@@ -84,19 +84,21 @@ static std::string AddrToString(void* addr) {
 }
 
 std::string RelocateBinarySections(const std::string& binary_path,
-                                   DevPtr text,
-                                   DevPtr rodata,
-                                   DevPtr data,
-                                   DevPtr bss,
+                                   size_t word_size,
+                                   DevPtr text_addr,
+                                   DevPtr rodata_addr,
+                                   DevPtr data_addr,
+                                   DevPtr bss_addr,
                                    const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
-                                   AddrToString(text.cast_to<void*>()),
-                                   AddrToString(rodata.cast_to<void*>()),
-                                   AddrToString(data.cast_to<void*>()),
-                                   AddrToString(bss.cast_to<void*>()),
+                                   word_size,
+                                   AddrToString(text_addr.cast_to<void*>()),
+                                   AddrToString(rodata_addr.cast_to<void*>()),
+                                   AddrToString(data_addr.cast_to<void*>()),
+                                   AddrToString(bss_addr.cast_to<void*>()),
                                    toolchain_prefix);
   return relocated_bin;
 }

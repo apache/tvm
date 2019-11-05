@@ -40,21 +40,21 @@ class HostLowLevelDevice final : public LowLevelDevice {
    * \brief constructor to initialize on-host memory region to act as device
    * \param num_bytes size of the emulated on-device memory region
    */
-  explicit HostLowLevelDevice(size_t num_bytes) : size_(num_bytes) {
+  explicit HostLowLevelDevice(size_t num_bytes, void** base_addr) : size_(num_bytes) {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     // TODO(weberlo): Set permissions per section (e.g., read-write perms for
     // the heap, execute perms for text, etc.).
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
-    base_addr_ = reinterpret_cast<std::uintptr_t>(
-        mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0));
+    base_addr_ = mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0);
+    *base_addr = base_addr_;
   }
 
   /*!
    * \brief destructor to deallocate on-host device region
    */
   virtual ~HostLowLevelDevice() {
-    munmap(reinterpret_cast<void*>(base_addr_), size_);
+    munmap(base_addr_, size_);
   }
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) {
@@ -73,7 +73,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
   }
 
   std::uintptr_t base_addr() const final {
-    return base_addr_;
+    return 0;
   }
 
   const char* device_type() const final {
@@ -82,14 +82,14 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
  private:
   /*! \brief base address of the micro device memory region */
-  std::uintptr_t base_addr_;
+  void* base_addr_;
   /*! \brief size of memory region */
   size_t size_;
 };
 
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes) {
+const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr) {
   std::shared_ptr<LowLevelDevice> lld =
-      std::make_shared<HostLowLevelDevice>(num_bytes);
+      std::make_shared<HostLowLevelDevice>(num_bytes, base_addr);
   return lld;
 }
 

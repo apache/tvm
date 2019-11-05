@@ -38,23 +38,6 @@ class LibType(Enum):
     OPERATOR = 1
 
 
-class OpenOcdComm:
-    def __init__(self, server_addr, server_port):
-        self.server_addr = server_addr
-        self.server_port = server_port
-
-    def name(self):
-        return 'openocd'
-
-
-class HostComm:
-    def __init__(self):
-        pass
-
-    def name(self):
-        return 'host'
-
-
 class Session:
     """MicroTVM Device Session
 
@@ -86,51 +69,56 @@ class Session:
     """
 
     # TODO(weberlo): remove required trailing dash in toolchain_prefix
-    def __init__(self, dev_binutil, dev_communicator):
+    def __init__(self, config):
         self._check_system()
         #self._check_args(device_type, kwargs)
 
-        self.binutil = dev_binutil
-        self.communicator = dev_communicator
+        self.binutil = config['binutil']
+        self.mem_layout = config['mem_layout']
+        self.word_size = config['word_size']
+        self.thumb_mode = config['thumb_mode']
+        self.comms_method = config['comms_method']
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(_get_micro_host_driven_dir(), "utvm_runtime.c")
+        runtime_src_path = os.path.join(_get_micro_host_driven_dir(), 'utvm_runtime.c')
         tmp_dir = _util.tempdir()
-        runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
+        runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
         self.binutil.create_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
 
-        if isinstance(self.communicator, OpenOcdComm):
-            server_addr = self.communicator.server_addr
-            server_port = self.communicator.server_port
-        elif isinstance(self.communicator, HostComm):
+        if isinstance(self.comms_method, tvm.micro.device.OpenOcdComm):
+            server_addr = self.comms_method.server_addr
+            server_port = self.comms_method.server_port
+        elif isinstance(self.comms_method, tvm.micro.device.HostComm):
             server_addr = ''
             server_port = 0
         else:
-            raise RuntimeError(f'unknown communication method: f{self.communicator}')
+            raise RuntimeError(f'unknown communication method: f{self.comms_method}')
 
         # todo remove use of base addrs everywhere
         base_addr = 0
 
         self.module = _CreateSession(
-            self.communicator.name(),
+            self.comms_method.name(),
             runtime_obj_path,
             self.binutil.toolchain_prefix(),
-            0x20000180,
-            20480,
-            0x20005180,
-            20480,
-            0x2000a180,
-            768,
-            0x2000a480,
-            768,
-            0x2000a780,
-            1280,
-            0x2000ac80,
-            262144,
-            0x2004ac80,
-            20480,
-            0x2004fc80,
-            80,
+            self.mem_layout['text'].get('start', 0),
+            self.mem_layout['text']['size'],
+            self.mem_layout['rodata'].get('start', 0),
+            self.mem_layout['rodata']['size'],
+            self.mem_layout['data'].get('start', 0),
+            self.mem_layout['data']['size'],
+            self.mem_layout['bss'].get('start', 0),
+            self.mem_layout['bss']['size'],
+            self.mem_layout['args'].get('start', 0),
+            self.mem_layout['args']['size'],
+            self.mem_layout['heap'].get('start', 0),
+            self.mem_layout['heap']['size'],
+            self.mem_layout['workspace'].get('start', 0),
+            self.mem_layout['workspace']['size'],
+            self.mem_layout['stack'].get('start', 0),
+            self.mem_layout['stack']['size'],
+            self.word_size,
+            self.thumb_mode,
             base_addr,
             server_addr,
             server_port)
@@ -254,6 +242,7 @@ def create_micro_lib(
     """
     #import subprocess
     import os
+    assert False
 
     #def run_cmd(cmd):
     #    proc = subprocess.Popen(

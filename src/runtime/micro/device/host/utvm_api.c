@@ -7,7 +7,9 @@ extern "C" {
 
 // TODO(weberlo): use this? https://stackoverflow.com/questions/5141960/get-the-current-time-in-c
 
-void UTVMInit() { }
+void UTVMInit() {
+  UTVMMain();
+}
 
 void UTVMTimerStart() { }
 
