@@ -449,7 +449,9 @@ class VMCompiler(object):
                     break
         if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
-        return tvm.target.create(target_host)
+        if isinstance(target_host, str):
+            target_host = tvm.target.create(target_host)
+        return target_host
 
     def tophub_context(self, target):
         # If current dispatch context is fallback context (the default root context),
