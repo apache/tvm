@@ -54,7 +54,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     """
     use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
 
-    # See https://github.com/dmlc/tvm/issues/281 for some background.
+    # See https://github.com/apache/incubator-tvm/issues/281 for some background.
 
     # NB: This will either be the source directory (if TVM is run
     # inplace) or the install directory (if TVM is installed).

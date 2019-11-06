@@ -156,7 +156,7 @@ setup(name='tvm',
       package_dir={'tvm': 'tvm'},
       package_data={'tvm': get_package_data_files()},
       distclass=BinaryDistribution,
-      url='https://github.com/dmlc/tvm',
+      url='https://github.com/apache/incubator-tvm',
       ext_modules=config_cython(),
       **setup_kwargs)
 

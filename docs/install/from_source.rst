@@ -29,7 +29,7 @@ To get started, clone TVM repo from github. It is important to clone the submodu
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm
 
 For windows users who use github tools, you can open the git shell, and type the following command.
 
