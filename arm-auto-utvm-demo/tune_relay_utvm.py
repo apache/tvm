@@ -32,10 +32,10 @@ from vta.testing import simulator
 from vta.top import graph_pack
 
 # first, run `python -m tvm.exec.rpc_tracker --host 0.0.0.0 --port=9190` in one terminal
-# then, run `python -m tvm.micro.rpc_server --tracker=0.0.0.0:9190 --key=micro` in another
+# then, run `python -m tvm.micro.rpc_server --tracker=0.0.0.0:9190 --key=micro --dev-config=<config_file>` in another
 
-#DEV_CONFIG = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
-DEV_CONFIG = micro.device.host.default_config()
+DEV_CONFIG = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
+#DEV_CONFIG = micro.device.host.default_config()
 
 DEVICE = 'arm-cortex-m'
 TARGET = tvm.target.create('c -device=micro_dev')
