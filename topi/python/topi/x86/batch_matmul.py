@@ -102,7 +102,7 @@ def schedule_batch_matmul(cfg, outs):
             cfg.define_split("tile_k", K, num_outputs=2)
 
             k, = s[C].op.reduce_axis
-            
+
             ko, ki = cfg["tile_k"].apply(s, C, k)
             CC = s.rfactor(C, ki)
 
