@@ -646,8 +646,7 @@ class Unsqueeze(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         for axes in attr['axes']:
             inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
-        casted = _op.cast(inputs[0], "int64")
-        return casted
+        return inputs[0]
 
 
 class Split(OnnxOpConverter):
