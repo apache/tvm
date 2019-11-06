@@ -19,7 +19,7 @@
 # NNVM Design Overview
 
 NNVM is a reusable graph IR stack for deep learning systems. It provides useful API to construct, represent and transform computation graphs to get most high-level optimization needed in deep learning.
-As a part of TVM stack for deep learning, NNVM also provides a shared compiler for deep learning frameworks to optimize, compile and deploy into different hardware backends via [TVM](https://github.com/dmlc/tvm)
+As a part of TVM stack for deep learning, NNVM also provides a shared compiler for deep learning frameworks to optimize, compile and deploy into different hardware backends via [TVM](https://github.com/apache/incubator-tvm)
 
 ## Key Requirements and Design Choices
 

@@ -46,7 +46,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   git clone --recursive https://github.com/dmlc/tvm
+#   git clone --recursive https://github.com/apache/incubator-tvm
 #   cd tvm
 #   docker build -t tvm.demo_android -f docker/Dockerfile.demo_android ./docker
 #   docker run --pid=host -h tvm -v $PWD:/workspace \
@@ -105,7 +105,7 @@ from tvm.contrib.download import download_testdata
 # ---------------------------------------
 # Now we can register our Android device to the tracker.
 #
-# Follow this `readme page <https://github.com/dmlc/tvm/tree/master/apps/android_rpc>`_ to
+# Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
 # install TVM RPC APK on the android device.
 #
 # Here is an example of config.mk. I enabled OpenCL and Vulkan.
@@ -138,7 +138,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. note::
 #
-#   At this time, don't forget to `create a standalone toolchain <https://github.com/dmlc/tvm/tree/master/apps/android_rpc#architecture-and-android-standalone-toolchain>`_ .
+#   At this time, don't forget to `create a standalone toolchain <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc#architecture-and-android-standalone-toolchain>`_ .
 #
 #   for example
 #

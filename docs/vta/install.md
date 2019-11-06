@@ -103,7 +103,7 @@ Because the direct board-to-computer connection prevents the board from directly
 mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 cd <mountpoint>
-git clone --recursive https://github.com/dmlc/tvm
+git clone --recursive https://github.com/apache/incubator-tvm
 # When finished, you can leave the moutpoint and unmount the directory
 cd ~
 sudo umount <mountpoint>
@@ -375,7 +375,7 @@ Once the compilation completes, the generated bitstream can be found under `<tvm
 
 ### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
 

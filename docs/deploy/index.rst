@@ -38,7 +38,7 @@ on a Linux based embedded system such as Raspberry Pi:
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm
     cd tvm
     mkdir build
     cp cmake/config.cmake build

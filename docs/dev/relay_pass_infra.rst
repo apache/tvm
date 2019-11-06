@@ -631,14 +631,14 @@ For more pass infra related examples in Python and C++, please refer to
 
 .. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions 
 
-.. _include/tvm/relay/transform.h: https://github.com/dmlc/tvm/blob/master/include/tvm/relay/transform.h
+.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/relay/transform.h
 
-.. _src/relay/pass/pass_manager.cc: https://github.com/dmlc/tvm/blob/master/src/relay/pass/pass_manager.cc
+.. _src/relay/pass/pass_manager.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/pass_manager.cc
 
-.. _src/relay/pass/fold_constant.cc: https://github.com/dmlc/tvm/blob/master/src/relay/pass/fold_constant.cc
+.. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/fold_constant.cc
 
-.. _python/tvm/relay/transform.py: https://github.com/dmlc/tvm/blob/master/python/tvm/relay/transform.py
+.. _python/tvm/relay/transform.py: https://github.com/apache/incubator-tvm/blob/master/python/tvm/relay/transform.py
 
-.. _tests/python/relay/test_pass_manager.py: https://github.com/dmlc/tvm/blob/master/tests/python/relay/test_pass_manager.py
+.. _tests/python/relay/test_pass_manager.py: https://github.com/apache/incubator-tvm/blob/master/tests/python/relay/test_pass_manager.py
 
-.. _tests/cpp/relay_transform_sequential.cc: https://github.com/dmlc/tvm/blob/master/tests/cpp/relay_transform_sequential.cc
+.. _tests/cpp/relay_transform_sequential.cc: https://github.com/apache/incubator-tvm/blob/master/tests/cpp/relay_transform_sequential.cc
