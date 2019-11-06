@@ -202,20 +202,10 @@ class Module(ModuleBase):
                 print('[Module.time_evaluator.evaluator]')
                 # Wrap feval so we can add more stats in future.
                 blob = feval(*args)
-                if ctx.device_type == 128 + 13:  # RPC micro device
-                    fmt = "@" + ("L" * repeat)
-                    results = struct.unpack(fmt, blob)
-                    print(f'  results: {results}')
-                    mean = sum(results) / float(repeat)
-                    print(f'  mean: {mean}')
-                    results = list(map(float, results))
-                    print(f'  floated results: {results}')
-                    return ProfileResult(mean=mean, results=results)
-                else:
-                    fmt = "@" + ("d" * repeat)
-                    results = struct.unpack(fmt, blob)
-                    mean = sum(results) / float(repeat)
-                    return ProfileResult(mean=mean, results=results)
+                fmt = "@" + ("d" * repeat)
+                results = struct.unpack(fmt, blob)
+                mean = sum(results) / float(repeat)
+                return ProfileResult(mean=mean, results=results)
 
             return evaluator
         except NameError:
@@ -276,7 +266,7 @@ def load(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files)
         path += ".so"
-    # TODO(weberlo): unhackify
+    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API

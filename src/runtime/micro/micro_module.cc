@@ -98,7 +98,7 @@ class MicroWrappedFunc {
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
     std::cout << "[MicroWrappedFunc::operator()]" << std::endl;
-    *rv = (int) session_->PushToExecQueue(func_ptr_, args);
+    *rv = session_->PushToExecQueue(func_ptr_, args);
   }
 
  private:

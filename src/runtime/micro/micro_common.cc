@@ -35,30 +35,6 @@
 namespace tvm {
 namespace runtime {
 
-size_t GetDefaultSectionSize(SectionKind kind) {
-  switch (kind) {
-    case SectionKind::kText:
-      return 0x5000;
-    case SectionKind::kRodata:
-      return 0x5000;
-    case SectionKind::kData:
-      return 0x300;
-    case SectionKind::kBss:
-      return 0x300;
-    case SectionKind::kArgs:
-      return 0x500;
-    case SectionKind::kHeap:
-      return 0x40000;
-    case SectionKind::kWorkspace:
-      return 0x5000;
-    case SectionKind::kStack:
-      return 0x50;
-    default:
-      LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
-      return 0;
-  }
-}
-
 const char* SectionToString(SectionKind section) {
   switch (section) {
     case SectionKind::kText: return "text";
@@ -71,16 +47,6 @@ const char* SectionToString(SectionKind section) {
     case SectionKind::kStack: return "stack";
     default: return "";
   }
-}
-
-static std::string AddrToString(void* addr) {
-  std::stringstream stream;
-  if (addr != nullptr)
-    stream << addr;
-  else
-    stream << "0x0";
-  std::string string_addr = stream.str();
-  return string_addr;
 }
 
 std::string RelocateBinarySections(

@@ -212,7 +212,7 @@ MicroSession::~MicroSession() {
   low_level_device_ = nullptr;
 }
 
-uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
+double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "[MicroSession::PushToExecQueue]" << std::endl;
   if (thumb_mode_) {
     func_ptr += 1;
@@ -282,8 +282,8 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
 
-  //// Check if there was an error during execution.  If so, log it.
-  //CheckDeviceError();
+  // Check if there was an error during execution.  If so, log it.
+  CheckDeviceError();
 
   uint64_t workspace_start = DevSymbolRead<uint64_t>(runtime_symbol_map_, "utvm_workspace_start");
   std::cout << "  workspace start: " << workspace_start << std::endl;
@@ -305,7 +305,7 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "  --------------------------------------------------------------------------------" << std::endl;
 
   GetAllocator(SectionKind::kArgs)->Free(stream_dev_addr);
-  return task_time;
+  return static_cast<double>(task_time);
 }
 
 BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {

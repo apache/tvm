@@ -20,7 +20,7 @@ def main():
                         help="RPC key used to identify the connection type.")
     parser.add_argument('--tracker', type=str, default="",
                         help="Report to RPC tracker")
-    parser.add_argument('--dev-config', type=str,
+    parser.add_argument('--dev-config', type=str, required=True,
                         help="JSON config file for the target device")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -39,14 +39,11 @@ def main():
         dev_config = json.load(dev_conf_file)
     #dev_config = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
     #dev_config = micro.device.host.default_config()
-    # TODO remove line above
-    #assert False
 
     @tvm.register_func("tvm.rpc.server.start", override=True)
     def server_start():
         session = micro.Session(dev_config)
         session._enter()
-        #_load_module = tvm.get_global_func("tvm.rpc.server.load_module")
 
         @tvm.register_func("tvm.rpc.server.shutdown", override=True)
         def server_shutdown():

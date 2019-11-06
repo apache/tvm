@@ -263,11 +263,6 @@ struct BinaryContents {
 };
 
 /*!
- * \brief return default size of given section kind in bytes
- */
-size_t GetDefaultSectionSize(SectionKind kind);
-
-/*!
  * \brief upper-aligns value according to specified alignment
  * \param value value to be aligned
  * \param align alignment

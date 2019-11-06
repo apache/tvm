@@ -9,6 +9,16 @@ from tvm._ffi.libinfo import find_include_path
 from tvm.micro import LibType
 
 class MicroBinutil:
+    """Base class for GCC-specific library compilation for MicroTVM
+
+    Parameters
+    ----------
+    toolchain_prefix : str
+        toolchain prefix to be used. For example, a prefix of
+        "riscv64-unknown-elf-" means "riscv64-unknown-elf-gcc" is used as
+        the compiler and "riscv64-unknown-elf-ld" is used as the linker,
+        etc.
+    """
     def __init__(self, toolchain_prefix):
         self._toolchain_prefix = toolchain_prefix
 
@@ -23,12 +33,11 @@ class MicroBinutil:
         src_path : str
             path to source file
 
-        toolchain_prefix : str
-            toolchain prefix to be used
+        lib_type : micro.LibType
+            whether to compile a MicroTVM runtime or operator library
 
-        include_dev_lib_header : bool
-            whether to include the device library header containing definitions of
-            library functions.
+        options : List[str]
+            additional options to pass to GCC
         """
         print('[MicroBinutil.create_lib]')
         print('  EXTENDED OPTIONS')
@@ -122,7 +131,15 @@ from . import host
 from . import arm
 from . import riscv_spike
 
+# TODO use registry pattern?
 def get_binutil(name):
+    """Get matching MicroBinutil subclass from `name`
+
+    Return
+    ------
+    binutil : MicroBinutil
+        MicroBinutil subclass
+    """
     if name == 'host':
         return host.HostBinutil()
     elif name == 'stm32f746xx':

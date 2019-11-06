@@ -39,7 +39,6 @@ DEV_CONFIG = micro.device.host.default_config()
 
 DEVICE = 'arm-cortex-m'
 TARGET = tvm.target.create('c -device=micro_dev')
-#TARGET = tvm.target.create('micro_dev')
 
 N, L, M = 32, 32, 32
 DTYPE = 'float32'

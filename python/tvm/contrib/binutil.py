@@ -33,7 +33,7 @@ def run_cmd(cmd):
     output = output.decode('utf-8')
     if proc.returncode != 0:
         cmd_str = ' '.join(cmd)
-        msg = f"error while running command \"{cmd_str}\":\n{output}"
+        msg = f'error while running command \"{cmd_str}\":\n{output}'
         raise RuntimeError(msg)
     return output
 
@@ -60,18 +60,18 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
         size of the section in bytes
     """
     if not os.path.isfile(binary_path):
-        raise RuntimeError("no such file \"{}\"".format(binary_path))
+        raise RuntimeError('no such file \"{}\"'.format(binary_path))
     # We use the "-A" flag here to get the ".rodata" section's size, which is
     # not included by default.
-    size_output = run_cmd(["{}size".format(toolchain_prefix), "-A", binary_path])
+    size_output = run_cmd(['{}size'.format(toolchain_prefix), '-A', binary_path])
 
     # TODO(weberlo): Refactor this method and `*relocate_binary` so they are
     # both aware of [".bss", ".sbss", ".sdata"] being relocated to ".bss".
     section_mapping = {
-        ".text": [".text", '.isr_vector'],
-        ".rodata": [".rodata"],
-        ".data": [".data", ".sdata"],
-        ".bss": [".bss", ".sbss"],
+        '.text': ['.text'],
+        '.rodata': ['.rodata'],
+        '.data': ['.data', '.sdata'],
+        '.bss': ['.bss', '.sbss'],
     }
     sections_to_sum = section_mapping["." + section_name]
     section_size = 0
@@ -90,7 +90,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     # NOTE: For some reason, the size of the BSS section on the RISC-V
     # GCC is sometimes reported to be smaller than it is, so we need to adjust
     # for this.
-    if "riscv" in toolchain_prefix and section_name == 'bss':
+    if 'riscv' in toolchain_prefix and section_name == 'bss':
         # TODO(weberlo): Figure out why 32 is the minimum constant that works.
         #
         # The current hypothesis is that the last symbols in the ".bss" and
@@ -105,7 +105,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     return section_size
 
 
-@register_func("tvm_callback_relocate_binary")
+@register_func('tvm_callback_relocate_binary')
 def tvm_callback_relocate_binary(
         binary_path,
         word_size,
@@ -151,7 +151,7 @@ def tvm_callback_relocate_binary(
     global TEMPDIR_REFS
     tmp_dir = util.tempdir()
     TEMPDIR_REFS.append(tmp_dir)
-    rel_obj_path = tmp_dir.relpath("relocated.obj")
+    rel_obj_path = tmp_dir.relpath('relocated.obj')
     #rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
     with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'r') as f:
         gdbinit_contents = f.read().split('\n')
@@ -163,70 +163,59 @@ def tvm_callback_relocate_binary(
     with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'w') as f:
         f.write('\n'.join(new_contents))
 
-    #ld_script_contents = ""
-    ## TODO(weberlo): There should be a better way to configure this for different archs.
-    #if "riscv" in toolchain_prefix:
-    #    ld_script_contents += "OUTPUT_ARCH( \"riscv\" )\n\n"
-
-    # TODO: this a fukn hack
-    #input(f'binary path: {binary_path}')
     stack_pointer_init = stack_end - word_size
-    ld_script_contents = """
+
+    ld_script_contents = ''
+    # TODO(weberlo): There should be a better way to configure this for different archs.
+    if 'riscv' in toolchain_prefix:
+        ld_script_contents += 'OUTPUT_ARCH( \"riscv\" )\n\n'
+    ld_script_contents += f"""
 /* linker symbol for use in UTVMInit */
-_utvm_stack_pointer_init = %s;
+_utvm_stack_pointer_init = 0x{stack_pointer_init:x};
 
 SECTIONS
-{
-  . = %s;
-  . = ALIGN(?);
+{{
+  . = 0x{text_start:x};
+  . = ALIGN({word_size});
   .text :
-  {
-    . = ALIGN(?);
+  {{
+    . = ALIGN({word_size});
     KEEP(*(.text))
     KEEP(*(.text*))
-    . = ALIGN(?);
-  }
+    . = ALIGN({word_size});
+  }}
 
-  . = %s;
-  . = ALIGN(?);
+  . = 0x{rodata_start:x};
+  . = ALIGN({word_size});
   .rodata :
-  {
-    . = ALIGN(?);
+  {{
+    . = ALIGN({word_size});
     KEEP(*(.rodata))
     KEEP(*(.rodata*))
-    . = ALIGN(?);
-  }
+    . = ALIGN({word_size});
+  }}
 
-  . = %s;
-  . = ALIGN(?);
+  . = 0x{data_start:x};
+  . = ALIGN({word_size});
   .data :
-  {
-    . = ALIGN(?);
+  {{
+    . = ALIGN({word_size});
     KEEP(*(.data))
     KEEP(*(.data*))
-    . = ALIGN(?);
-  }
+    . = ALIGN({word_size});
+  }}
 
-  . = %s;
-  . = ALIGN(?);
+  . = 0x{bss_start:x};
+  . = ALIGN({word_size});
   .bss :
-  {
-    . = ALIGN(?);
+  {{
+    . = ALIGN({word_size});
     KEEP(*(.bss))
     KEEP(*(.bss*))
-    . = ALIGN(?);
-  }
-}
+    . = ALIGN({word_size});
+  }}
+}}
     """
-    # first, fill in ALIGN args with the target word size
-    ld_script_contents = ld_script_contents.replace('ALIGN(?)', f'ALIGN({word_size})')
-    # then fill in addrs for linker symbols and section starts
-    ld_script_contents = ld_script_contents % (
-            f'0x{stack_pointer_init:x}',
-            f'0x{text_start:x}',
-            f'0x{rodata_start:x}',
-            f'0x{data_start:x}',
-            f'0x{bss_start:x}')
     print(ld_script_contents)
     #input('check script: ')
     print(f'relocing lib {binary_path}')
@@ -235,21 +224,21 @@ SECTIONS
     print(f'  data_start: {data_start}')
     print(f'  bss_start: {bss_start}')
 
-    rel_ld_script_path = tmp_dir.relpath("relocated.lds")
-    with open(rel_ld_script_path, "w") as f:
+    rel_ld_script_path = tmp_dir.relpath('relocated.lds')
+    with open(rel_ld_script_path, 'w') as f:
         f.write(ld_script_contents)
     run_cmd([
-        "{}ld".format(toolchain_prefix),
+        '{}ld'.format(toolchain_prefix),
         binary_path,
-        "-T", rel_ld_script_path,
-        "-o", rel_obj_path])
+        '-T', rel_ld_script_path,
+        '-o', rel_obj_path])
     #input(f'relocated obj path is {rel_obj_path}')
-    with open(rel_obj_path, "rb") as f:
+    with open(rel_obj_path, 'rb') as f:
         rel_bin = bytearray(f.read())
     return rel_bin
 
 
-@register_func("tvm_callback_read_binary_section")
+@register_func('tvm_callback_read_binary_section')
 def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     """Returns the contents of the specified section in the binary byte array
 
@@ -270,26 +259,26 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
         contents of the read section
     """
     tmp_dir = util.tempdir()
-    tmp_bin = tmp_dir.relpath("temp.bin")
-    tmp_section = tmp_dir.relpath("tmp_section.bin")
-    with open(tmp_bin, "wb") as out_file:
+    tmp_bin = tmp_dir.relpath('temp.bin')
+    tmp_section = tmp_dir.relpath('tmp_section.bin')
+    with open(tmp_bin, 'wb') as out_file:
         out_file.write(bytes(binary))
     run_cmd([
-        "{}objcopy".format(toolchain_prefix),
-        "--dump-section",
-        ".{}={}".format(section, tmp_section),
+        '{}objcopy'.format(toolchain_prefix),
+        '--dump-section',
+        '.{}={}'.format(section, tmp_section),
         tmp_bin])
     if os.path.isfile(tmp_section):
         # Get section content if it exists.
-        with open(tmp_section, "rb") as f:
+        with open(tmp_section, 'rb') as f:
             section_bin = bytearray(f.read())
     else:
         # Return empty bytearray if the section does not exist.
-        section_bin = bytearray("", "utf-8")
+        section_bin = bytearray('', 'utf-8')
     return section_bin
 
 
-@register_func("tvm_callback_get_symbol_map")
+@register_func('tvm_callback_get_symbol_map')
 def tvm_callback_get_symbol_map(binary, toolchain_prefix):
     """Obtains a map of symbols to addresses in the passed binary
 
@@ -308,18 +297,18 @@ def tvm_callback_get_symbol_map(binary, toolchain_prefix):
         alternating newline-separated keys and values
     """
     tmp_dir = util.tempdir()
-    tmp_obj = tmp_dir.relpath("tmp_obj.bin")
-    with open(tmp_obj, "wb") as out_file:
+    tmp_obj = tmp_dir.relpath('tmp_obj.bin')
+    with open(tmp_obj, 'wb') as out_file:
         out_file.write(bytes(binary))
     nm_output = run_cmd([
-        "{}nm".format(toolchain_prefix),
-        "-C",
-        "--defined-only",
+        '{}nm'.format(toolchain_prefix),
+        '-C',
+        '--defined-only',
         tmp_obj])
     nm_output = nm_output.splitlines()
-    map_str = ""
+    map_str = ''
     for line in nm_output:
         line = line.split()
-        map_str += line[2] + "\n"
-        map_str += line[0] + "\n"
+        map_str += line[2] + '\n'
+        map_str += line[0] + '\n'
     return map_str

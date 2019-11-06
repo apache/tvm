@@ -147,8 +147,9 @@ class MicroSession : public ModuleNode {
    * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
    * \param func address of the function to be executed
    * \param args args to the packed function
+   * \return elapsed time during function execution on the device
    */
-  uint32_t PushToExecQueue(DevPtr func, const TVMArgs& args);
+  double PushToExecQueue(DevPtr func, const TVMArgs& args);
 
   /*!
   * \brief read value of symbol from device memory
@@ -187,14 +188,16 @@ class MicroSession : public ModuleNode {
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief total number of bytes of usable device memory for this session */
   size_t memory_size_;
-  /*! \brief TODO */
+  /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
-  /*! \brief TODO */
-  // ARM and other manufacturers use the lowest bit of a function address to determine
-  // whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
-  // results in more compact binaries.
+  /*! \brief whether the device requires a thumb-mode bit on function addresses
+   *
+   * ARM and other manufacturers use the lowest bit of a function address to determine
+   * whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
+   * results in more compact binaries.
+   */
   bool thumb_mode_;
-  /*! \brief TODO */
+  /*! \brief symbol map for the device runtime */
   SymbolMap runtime_symbol_map_;
 
   /*!
@@ -202,12 +205,6 @@ class MicroSession : public ModuleNode {
    * \param func_name name of the function pointer being patched
    */
   void PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name);
-
-  /*!
-   * \brief sets the runtime binary path
-   * \param path to runtime binary
-   */
-  void SetRuntimeBinaryPath(std::string path);
 
   /*!
    * \brief appends arguments to the host-side buffer of `encoder`

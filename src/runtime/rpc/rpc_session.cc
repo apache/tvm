@@ -1282,13 +1282,12 @@ PackedFunc MicroTimeEvaluator(
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      unsigned long speed = 0;
+      double speed = 0.0;
       for (int j = 0; j < number; ++j) {
         pf.CallPacked(args, &temp);
         DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-        speed += (uint32_t) (temp.operator int());
+        speed += (temp.operator double()) / number;
       }
-      speed /= number;
       std::cout << "  [[TRIAL " << i << " AVERAGE IS " << speed << "]]" << std::endl;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
     }
@@ -1310,7 +1309,6 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
   if (ctx.device_type == kDLMicroDev) {
     return MicroTimeEvaluator(pf, ctx, number, repeat, min_repeat_ms);
   }
-  CHECK(false) << "not using micro time eval";
 
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
