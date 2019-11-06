@@ -446,8 +446,11 @@ class AttrCvt(object):
 
 def get_name(node):
     name = ''
-    if hasattr(node, "name_hint"):
-        name = node.name_hint
+    try:
+        if hasattr(node, "name_hint"):
+            name = node.name_hint
+    except:
+        pass
     return name
 
 
