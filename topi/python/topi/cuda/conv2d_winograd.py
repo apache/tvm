@@ -49,7 +49,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
-    HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
     HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
 
     if not pre_computed: # kernel tensor is raw tensor, do strict check
@@ -64,6 +63,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         KH = KW = 3
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
+    HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
     data_pad = nn.pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
 
     r = KW
