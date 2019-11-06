@@ -99,6 +99,7 @@ class WinogradFallback(autotvm.FallbackContext):
         cfg = FallbackConfigEntity()
         cfg.template_key = 'winograd'
         self.memory[key] = cfg
+        cfg.is_fallback = False
         return cfg
 
 
