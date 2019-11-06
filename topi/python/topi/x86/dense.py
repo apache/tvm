@@ -200,7 +200,6 @@ def _schedule_dense_nopack_template(cfg, s, C):
     # create tuning space
     cfg.define_split("tile_y", M, num_outputs=2)
     cfg.define_split("tile_x", N, num_outputs=2)
-    cfg.define_split("tile_k", K, num_outputs=2)
 
     y, x = s[C].op.axis
     kk, = s[C].op.reduce_axis
