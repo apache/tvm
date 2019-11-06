@@ -113,8 +113,6 @@ def tvm_callback_relocate_binary(
         rodata_start,
         data_start,
         bss_start,
-        workspace_start,
-        workspace_end,
         stack_end,
         toolchain_prefix):
     """Relocates sections in the binary to new addresses
@@ -125,19 +123,22 @@ def tvm_callback_relocate_binary(
         path of the binary file
 
     word_size : int
-        TODO
+        word size on the target machine
 
-    text_start : str
-        text section absolute address
+    text_start : int
+        text section address
 
-    rodata_start : str
-        rodata section absolute address
+    rodata_start : int
+        rodata section address
 
-    data_start : str
-        data section absolute address
+    data_start : int
+        data section address
 
-    bss_start : str
-        bss section absolute address
+    bss_start : int
+        bss section address
+
+    stack_end : int
+        stack section end address
 
     toolchain_prefix : str
         prefix for binary names in target compiler toolchain
@@ -171,11 +172,8 @@ def tvm_callback_relocate_binary(
     #input(f'binary path: {binary_path}')
     stack_pointer_init = stack_end - word_size
     ld_script_contents = """
-/* linker symbols for use in C source */
+/* linker symbol for use in UTVMInit */
 _utvm_stack_pointer_init = %s;
-_utvm_workspace_start = %s;
-_utvm_workspace_end = %s;
-_utvm_word_size = %s;
 
 SECTIONS
 {
@@ -183,6 +181,7 @@ SECTIONS
   . = ALIGN(?);
   .text :
   {
+    . = ALIGN(?);
     KEEP(*(.text))
     KEEP(*(.text*))
     . = ALIGN(?);
@@ -224,9 +223,6 @@ SECTIONS
     # then fill in addrs for linker symbols and section starts
     ld_script_contents = ld_script_contents % (
             f'0x{stack_pointer_init:x}',
-            f'0x{workspace_start:x}',
-            f'0x{workspace_end:x}',
-            word_size,
             f'0x{text_start:x}',
             f'0x{rodata_start:x}',
             f'0x{data_start:x}',

@@ -83,23 +83,6 @@ MicroSession::MicroSession(
     bool thumb_mode,
     const std::string& server_addr,
     int port) : word_size_(word_size), thumb_mode_(thumb_mode) {
-  //DevBaseOffset curr_start_offset = DevBaseOffset(0x20000180);
-  //DevBaseOffset curr_start_offset = DevBaseOffset(0x200001c8);
-  //for (size_t i = 0; i < static_cast<size_t>(SectionKind::kNumKinds); i++) {
-  //  size_t section_size = GetDefaultSectionSize(static_cast<SectionKind>(i));
-  //  section_allocators_[i] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
-  //    .start = curr_start_offset,
-  //    .size = section_size,
-  //  });
-  //  curr_start_offset += section_size;
-  //}
-
-  //CHECK(curr_start_offset.value() < 0x20050000) << "exceeded available RAM on device (" << std::endl;
-
-  // NOTE: we don't use this for openocd
-  memory_size_ = 0;
-  //memory_size_ = curr_start_offset.cast_to<size_t>();
-  // TODO(weberlo): make device type enum
   toolchain_prefix_ = toolchain_prefix;
   if (comms_method == "host") {
     CHECK(
@@ -360,8 +343,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
       rodata_section.start,
       data_section.start,
       bss_section.start,
-      GetAllocator(SectionKind::kWorkspace)->start_addr(),
-      GetAllocator(SectionKind::kWorkspace)->max_addr(),
       GetAllocator(SectionKind::kStack)->max_addr(),
       toolchain_prefix_);
   std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);

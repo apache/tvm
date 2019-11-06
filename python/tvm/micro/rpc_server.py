@@ -35,9 +35,12 @@ def main():
     else:
         tracker_addr = None
 
-    #with open(args.dev_config, 'r') as dev_conf_file:
-    #    dev_config = json.read(dev_conf_file)
-    dev_config = micro.device.arm.default_config('127.0.0.1', 6666)
+    with open(args.dev_config, 'r') as dev_conf_file:
+        dev_config = json.load(dev_conf_file)
+    #dev_config = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
+    #dev_config = micro.device.host.default_config()
+    # TODO remove line above
+    #assert False
 
     @tvm.register_func("tvm.rpc.server.start", override=True)
     def server_start():

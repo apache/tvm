@@ -22,7 +22,6 @@ from __future__ import absolute_import
 import logging
 import os
 import sys
-from collections import namedtuple
 from enum import Enum
 from pathlib import Path
 
@@ -31,7 +30,6 @@ from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
-from tvm.contrib.binutil import run_cmd
 
 class LibType(Enum):
     RUNTIME = 0

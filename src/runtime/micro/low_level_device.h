@@ -66,35 +66,6 @@ class LowLevelDevice {
    */
   virtual void Execute(DevPtr func_addr, DevPtr breakpoint_addr) = 0;
 
-  // TODO(weberlo): Should we just give the device the *entire* memory layout
-  // decided by the session?
-
-  ///*!
-  // * \brief sets the offset of the top of the stack section
-  // * \param stack_top offset of the stack top
-  // */
-  //virtual void SetStackTop(DevBaseOffset stack_top) {
-  //  LOG(FATAL) << "unimplemented";
-  //}
-
-  ///*!
-  // * \brief convert from base offset to absolute address
-  // * \param offset base offset
-  // * \return absolute address
-  // */
-  //DevPtr ToDevPtr(DevBaseOffset offset) {
-  //  return DevPtr(base_addr() + offset.value());
-  //}
-
-  ///*!
-  // * \brief convert from absolute address to base offset
-  // * \param ptr absolute address
-  // * \return base offset
-  // */
-  //DevBaseOffset ToDevOffset(DevPtr ptr) {
-  //  return DevBaseOffset(ptr.value() - base_addr());
-  //}
-
   /*!
    * \brief getter function for low-level device type
    * \return string containing device type

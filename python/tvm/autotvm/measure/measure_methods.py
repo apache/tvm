@@ -468,37 +468,6 @@ def run_through_rpc(measure_input, build_result,
             reconfig_runtime(remote)
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        # TODO try running autotvm with the changes to micro module that grab
-        # the only function in the module if the requested name is
-        # __tvm_main__.
-        #func.entry_name = 'default_function'
         ctx = remote.context(str(measure_input.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)

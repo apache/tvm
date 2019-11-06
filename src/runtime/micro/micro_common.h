@@ -302,8 +302,6 @@ std::string RelocateBinarySections(
     DevPtr rodata_start,
     DevPtr data_start,
     DevPtr bss_start,
-    DevPtr workspace_start,
-    DevPtr workspace_end,
     DevPtr stack_end_start,
     const std::string& toolchain_prefix);
 

@@ -30,11 +30,12 @@ class MicroBinutil:
             whether to include the device library header containing definitions of
             library functions.
         """
-        print('OPTIONS')
-        print(f'{obj_path}')
-        print(f'{src_path}')
-        print(f'{lib_type}')
-        print(f'{options}')
+        print('[MicroBinutil.create_lib]')
+        print('  EXTENDED OPTIONS')
+        print(f'    {obj_path}')
+        print(f'    {src_path}')
+        print(f'    {lib_type}')
+        print(f'    {options}')
         base_compile_cmd = [
                 f'{self.toolchain_prefix()}gcc',
                 '-std=c11',

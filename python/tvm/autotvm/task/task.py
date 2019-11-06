@@ -178,10 +178,11 @@ def create(func_name, args, target, target_host=None, template_key=None):
     func = TASK_TABLE[func_name]
     ret = Task(func_name, args)
 
+    print('[autotvm.task.create]')
+    print(f'  target before: {target}')
     if isinstance(target, str):
         target = _target.create(target)
-    print('[autotvm.task.create]')
-    print(f'  target: {target}')
+    print(f'  target after: {target}')
 
     # init config space
     ret.config_space = ConfigSpace()
