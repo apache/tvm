@@ -319,8 +319,8 @@ class TensorDataCtrl(tensorType: String = "none",
     when(split) {
       caddr := caddr + xmax_bytes
     }.elsewhen(stride) {
-      caddr := baddr + (dec.xstride << log2Ceil(strideFactor))
-      baddr := baddr + (dec.xstride << log2Ceil(strideFactor))
+      caddr := baddr + (dec.xstride << log2Ceil(elemBytes))
+      baddr := baddr + (dec.xstride << log2Ceil(elemBytes))
     }
   }
 
