@@ -52,11 +52,13 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
         out_dtype = data.dtype
     M, K = get_const_tuple(data.shape) # batch, in_dim
     N, _ = get_const_tuple(weight.shape) # out_dim
-
+    # create tuning space
+    cfg.define_split("tile_y", M, num_outputs=3)
+    cfg.define_split("tile_x", N, num_outputs=3)
+    cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_pack_config(cfg, M, N, K)
 
-    cfg.define_split("tile_x", N, num_outputs=3)
     packw_bn = cfg["tile_x"].size[-1]
     packw_shape = (N // packw_bn, K, packw_bn)
     packw = tvm.compute(packw_shape,
@@ -82,14 +84,15 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
     if out_dtype is None:
         out_dtype = data.dtype
-
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
-
+    # create tuning space
+    cfg.define_split("tile_y", M, num_outputs=2)
+    cfg.define_split("tile_x", N, num_outputs=2)
+    cfg.define_split("tile_k", K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_nopack_config(cfg, M, N, K)
 
-    cfg.define_split("tile_k", K, num_outputs=2)
     vec = cfg["tile_k"].size[-1]
     k = tvm.reduce_axis((0, K // vec), "k")
     CC = tvm.compute((M, N, vec),
@@ -157,12 +160,6 @@ def _schedule_dense_nopack(cfg, outs):
 
 def _schedule_dense_pack_template(cfg, s, C):
     A, packedB = s[C].op.input_tensors
-    # create tuning space
-    M, K = get_const_tuple(A.shape)
-    N_pack, _, pack_bn = get_const_tuple(packedB.shape)
-    N = N_pack * pack_bn
-    cfg.define_split("tile_y", M, num_outputs=3)
-    cfg.define_split("tile_k", K, num_outputs=2)
 
     CC = s.cache_write(C, "global")
     y, x = s[C].op.axis
@@ -193,14 +190,6 @@ def _schedule_dense_pack_template(cfg, s, C):
 
 
 def _schedule_dense_nopack_template(cfg, s, C):
-    CC, = s[C].op.input_tensors
-    data, weight = s[CC].op.input_tensors
-    M, K = get_const_tuple(data.shape)
-    N, _ = get_const_tuple(weight.shape)
-    # create tuning space
-    cfg.define_split("tile_y", M, num_outputs=2)
-    cfg.define_split("tile_x", N, num_outputs=2)
-
     y, x = s[C].op.axis
     kk, = s[C].op.reduce_axis
     yo, yi = cfg["tile_y"].apply(s, C, y)
@@ -210,6 +199,7 @@ def _schedule_dense_nopack_template(cfg, s, C):
     s[C].parallel(xyo)
     s[C].unroll(kk)
 
+    CC, = s[C].op.input_tensors
     s[CC].compute_at(s[C], xyo)
     z, y, x = s[CC].op.axis
     k, = s[CC].op.reduce_axis
