@@ -100,7 +100,6 @@ class MicroBinutil:
         ld_cmd += prereq_obj_paths
         ld_cmd += ['-o', obj_path]
         run_cmd(ld_cmd)
-        print(f'compiled obj {obj_path}')
 
     def _get_unique_obj_name(self, src_path, obj_paths, tmp_dir):
         res = tmp_dir.relpath(Path(src_path).with_suffix('.o').name)

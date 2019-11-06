@@ -211,20 +211,15 @@ MicroSession::MicroSession(
   std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
   std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
-  //if (comms_method == "openocd") {
-  //  // Set OpenOCD device's stack pointer.
-  //  auto stack_section = GetAllocator(SectionKind::kStack);
-  //  low_level_device_->SetStackTop(stack_section->max_end_addr());
-  //}
-
+  DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
   // Patch workspace pointers to the start of the workspace section.
-  //void* workspace_start_addr = GetAllocator(SectionKind::kWorkspace)->start_addr().cast_to<void*>();
-  //void* workspace_end_addr = GetAllocator(SectionKind::kWorkspace)->max_addr().cast_to<void*>();
+  void* workspace_start_addr = GetAllocator(SectionKind::kWorkspace)->start_addr().cast_to<void*>();
+  void* workspace_end_addr = GetAllocator(SectionKind::kWorkspace)->max_addr().cast_to<void*>();
   // TODO(weberlo): A lot of these symbol writes can be converted into symbols
   // in the C source, where the symbols are created by the linker script we
   // generate in python.
-  //DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_begin", workspace_start_addr);
-  //DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
 }
 
 MicroSession::~MicroSession() {
@@ -234,16 +229,8 @@ MicroSession::~MicroSession() {
   low_level_device_ = nullptr;
 }
 
-//void MicroSession::BakeSession(const std::string& binary_path) {
-//  //runtime_symbol_map_ = SymbolMap(binary, toolchain_prefix_);
-//  runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
-//  std::cout << runtime_symbol_map_["UTVMMain"].value() << std::endl;
-//  std::cout << runtime_symbol_map_["utvm_task"].value() << std::endl;
-//}
-
 uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   std::cout << "[MicroSession::PushToExecQueue]" << std::endl;
-  // TODO: make this a parameter.
   if (thumb_mode_) {
     func_ptr += 1;
   }
@@ -312,17 +299,24 @@ uint32_t MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
 
   low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
 
-  // Check if there was an error during execution.  If so, log it.
-  CheckDeviceError();
+  //// Check if there was an error during execution.  If so, log it.
+  //CheckDeviceError();
 
-  std::uintptr_t workspace_curr = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_curr");
-  std::cout << "  workspace curr: " << workspace_curr << std::endl;
-  size_t num_active_allocs = DevSymbolRead<size_t>(runtime_symbol_map_, "utvm_num_active_allocs");
-  std::cout << "  num active allocs: " << num_active_allocs << std::endl;
-  std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
-  std::cout << "  last error: " << last_error << std::endl;
-  int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
-  std::cout << "  return code: " << return_code << std::endl;
+  uint64_t workspace_start = DevSymbolRead<uint64_t>(runtime_symbol_map_, "utvm_workspace_start");
+  std::cout << "  workspace start: " << workspace_start << std::endl;
+  uint64_t workspace_end = DevSymbolRead<uint64_t>(runtime_symbol_map_, "utvm_workspace_end");
+  std::cout << "  workspace end: " << workspace_end << std::endl;
+  uint64_t word_size = DevSymbolRead<uint64_t>(runtime_symbol_map_, "utvm_word_size");
+  std::cout << "  word size: " << word_size << std::endl;
+
+  //std::uintptr_t workspace_curr = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_workspace_curr");
+  //std::cout << "  workspace curr: " << workspace_curr << std::endl;
+  //size_t num_active_allocs = DevSymbolRead<size_t>(runtime_symbol_map_, "utvm_num_active_allocs");
+  //std::cout << "  num active allocs: " << num_active_allocs << std::endl;
+  //std::uintptr_t last_error = DevSymbolRead<std::uintptr_t>(runtime_symbol_map_, "utvm_last_error");
+  //std::cout << "  last error: " << last_error << std::endl;
+  //int32_t return_code = DevSymbolRead<int32_t>(runtime_symbol_map_, "utvm_return_code");
+  //std::cout << "  return code: " << return_code << std::endl;
   uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
   std::cout << "  task time was " << task_time << std::endl;
   std::cout << "  --------------------------------------------------------------------------------" << std::endl;
@@ -557,7 +551,6 @@ void MicroSession::CheckDeviceError() {
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
-  //void* runtime_impl_addr = runtime_symbol_map_[func_name].cast_to<void*>();
   DevPtr runtime_impl_addr = runtime_symbol_map_[func_name];
   if (thumb_mode_) {
     runtime_impl_addr += 1;
@@ -566,9 +559,9 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   if (word_size_ == 4) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), (int32_t) runtime_impl_addr.value());
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint32_t) runtime_impl_addr.value());
   } else if (word_size_ == 8) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value());
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint64_t) runtime_impl_addr.value());
   } else {
     CHECK(false) << "ayy";
   }

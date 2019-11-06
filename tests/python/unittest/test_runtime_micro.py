@@ -382,12 +382,12 @@ def test_inactive_session_use():
 
 
 if __name__ == "__main__":
-    #test_alloc()
-    #test_add()
+    test_alloc()
+    test_add()
     test_workspace_add()
-    #test_graph_runtime()
-    #test_conv2d()
-    #test_multiple_modules()
-    #test_interleave_sessions()
-    #test_nested_sessions()
-    #test_inactive_session_use()
+    test_graph_runtime()
+    test_conv2d()
+    test_multiple_modules()
+    test_interleave_sessions()
+    test_nested_sessions()
+    test_inactive_session_use()

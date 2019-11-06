@@ -232,7 +232,7 @@ SECTIONS
             f'0x{data_start:x}',
             f'0x{bss_start:x}')
     print(ld_script_contents)
-    input()
+    #input('check script: ')
     print(f'relocing lib {binary_path}')
     print(f'  text_start: {text_start}')
     print(f'  rodata_start: {rodata_start}')
@@ -247,7 +247,7 @@ SECTIONS
         binary_path,
         "-T", rel_ld_script_path,
         "-o", rel_obj_path])
-    print(f'relocated obj path is {rel_obj_path}')
+    #input(f'relocated obj path is {rel_obj_path}')
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
     return rel_bin

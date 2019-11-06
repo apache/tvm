@@ -81,6 +81,7 @@ class Session:
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
         self.binutil.create_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
+        #input(f'check {runtime_obj_path}: ')
 
         comms_method = config['comms_method']
         if comms_method == 'openocd':

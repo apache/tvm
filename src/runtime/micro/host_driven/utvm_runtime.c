@@ -42,16 +42,11 @@ UTVMTask utvm_task = {
     .num_args = 0,
 };
 
+size_t utvm_word_size = 0;  // NOLINT(*)
+
 // These pointers are patched at load time to point to the workspace section.
-
-
-// linker-provided symbols
-extern char _utvm_workspace_start;
-extern char _utvm_workspace_end;
-extern char _utvm_word_size;
-
-//char* utvm_workspace_begin = NULL;  // NOLINT(*)
-//char* utvm_workspace_end = NULL;  // NOLINT(*)
+char* utvm_workspace_start = NULL;  // NOLINT(*)
+char* utvm_workspace_end = NULL;  // NOLINT(*)
 char* utvm_workspace_curr = NULL;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t utvm_num_active_allocs = 0;
@@ -63,25 +58,17 @@ uint32_t utvm_task_time = 0;
 
 // Gets called by UTVMInit, after device-specific initialization is finished.
 void UTVMMain() {
-  /*
-  utvm_workspace_begin = (char*) 420;  // NOLINT(*)
-  utvm_workspace_end = (char*) 420;  // NOLINT(*)
-  utvm_workspace_curr = (char*) 420;  // NOLINT(*)
-  utvm_num_active_allocs = 420;
-  utvm_last_error = (const char*) 420;  // NOLINT(*)
-  utvm_return_code = 0;  // NOLINT(*)
-  utvm_task_time = 420;
-  UTVMDone();
-  */
-  utvm_workspace_curr = &_utvm_workspace_start;
+  utvm_workspace_curr = utvm_workspace_start;
   utvm_num_active_allocs = 0;
   utvm_last_error = NULL;  // NOLINT(*)
   utvm_return_code = 0;
   utvm_task_time = 0;
   UTVMTimerReset();
   UTVMTimerStart();
-  utvm_return_code = utvm_task.func((void*) utvm_task.arg_values, (void*) utvm_task.arg_type_codes,  // NOLINT(*)
-                               utvm_task.num_args);
+  utvm_return_code = utvm_task.func(
+          (void*) utvm_task.arg_values,  // NOLINT(*)
+          (void*) utvm_task.arg_type_codes,  // NOLINT(*)
+          utvm_task.num_args);
   UTVMTimerStop();
   utvm_task_time = UTVMTimerRead();
   UTVMDone();
@@ -93,11 +80,10 @@ void UTVMDone() { }
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
-  size_t word_size = (size_t) &_utvm_word_size;
   // Align up to 8 bytes.
   utvm_workspace_curr +=
-    (word_size - ((uintptr_t) utvm_workspace_curr % word_size)) % word_size;  // NOLINT(*)
-  if (utvm_workspace_curr + size > &_utvm_workspace_end) {
+    (utvm_word_size - ((uintptr_t) utvm_workspace_curr % utvm_word_size)) % utvm_word_size;  // NOLINT(*)
+  if (utvm_workspace_curr + size > utvm_workspace_end) {
     // Out of space in workspace.
     return NULL;
   }
@@ -113,11 +99,11 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
     TVMAPISetLastError("free called with no active workspace allocations");
     // Reset allocations and workspace (for future task executions).
     utvm_num_active_allocs = 0;
-    utvm_workspace_curr = &_utvm_workspace_start;
+    utvm_workspace_curr = utvm_workspace_start;
     return -1;
   } else if (utvm_num_active_allocs == 0) {
     // No more allocations.  Reset workspace.
-    utvm_workspace_curr = &_utvm_workspace_start;
+    utvm_workspace_curr = utvm_workspace_start;
     return 0;
   } else {
     return 0;
