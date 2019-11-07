@@ -47,15 +47,20 @@ def test_gemm_nn(N, L, M, dtype, layout):
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
 
-    AA = s.cache_read(A, "shared", [C])
+    # storage_align params
     factor = 16
     offset = 8
     if dtype == 'int8':
       factor = 32
       offset = 16
-    s[AA].storage_align(AA.op.axis[0], factor, offset)
+
+    AA = s.cache_read(A, "shared", [C])
+    if (layout == "NN" or layout == "TN"):
+      s[AA].storage_align(AA.op.axis[0], factor, offset)
     AL = s.cache_read(AA, "local", [C])
     BB = s.cache_read(B, "shared", [C])
+    if (layout == "TT" or layout == "NT"):
+      s[BB].storage_align(BB.op.axis[0], factor, offset)
     BL = s.cache_read(BB, "local", [C])
     CL = s.cache_write(C, "local")
 
