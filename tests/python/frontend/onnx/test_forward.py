@@ -498,11 +498,7 @@ def test_matmul():
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
-
-def test_batch_matmul():
-    a_shape = (2, 3, 4, 3)
-    b_shape = (2, 3, 3, 4)
-
+def verify_batch_matmul(a_shape, b_shape):
     a_array = np.random.uniform(size=a_shape).astype('float32')
     b_array = np.random.uniform(size=b_shape).astype('float32')
     out_np = np.matmul(a_array, b_array)
@@ -525,6 +521,10 @@ def test_batch_matmul():
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+def test_batch_matmul():
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
+    verify_batch_matmul((2, 4, 3), (3, 4))
+    verify_batch_matmul((2, 3, 4, 3), (3, 4))
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
@@ -1597,6 +1597,11 @@ def test_where():
 
     x = np.array([[1, 2], [3, 4]], dtype=np.float32)
     y = np.array([[9, 8], [7, 6]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
+    x = np.array(1, dtype=np.float32)
+    y = np.array([2], dtype=np.float32)
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
