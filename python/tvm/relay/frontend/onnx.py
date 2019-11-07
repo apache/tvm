@@ -1007,13 +1007,6 @@ class Or(Elemwise):
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
 
-class Expand(OnnxOpConverter):
-    """ Operator converter for Expand.
-    """
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        new_shape = infer_value_simulated(inputs[1], params).asnumpy()
-        return _op.reshape(inputs[0], new_shape)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1137,8 +1130,7 @@ def _get_convert_map(opset):
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
-        'Or': Or.get_converter(opset),
-        'Expand': Expand.get_converter(opset)
+        'Or': Or.get_converter(opset)
     }
 
 
