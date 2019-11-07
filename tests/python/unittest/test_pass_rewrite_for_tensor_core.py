@@ -111,12 +111,6 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
 def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
     A = tvm.placeholder((batch, n, l), name='A', dtype='float16')
     B = tvm.placeholder((batch, l, m), name='B', dtype='float16')
     k = tvm.reduce_axis((0, l), name='k')
