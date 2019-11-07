@@ -392,7 +392,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1, score_threshold=0
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.Tensor or tuple of tvm.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6]
         or [batch_size, num_anchors, 6]. Out is a tuple of tvm.Tensor
         if return_indices is True, the Tensor in the tuple is 2-D tensor

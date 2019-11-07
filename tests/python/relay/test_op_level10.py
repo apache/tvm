@@ -106,6 +106,9 @@ def np_slice_like(np_data, np_shape_like, axis=None):
     for b, e in zip(begin_idx, end_idx):
         slice_idx.append(slice(b, e))
     np_result = np_data[tuple(slice_idx)]
+    print("np_data is:\n{}\nnp_shape_like is:\n{}\nnp_result is:\n{}".format(np_data, np_shape_like, np_result))
+
+
     return np_result
 
 
@@ -123,9 +126,11 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
         return
 
     func = relay.Function([x, y], z)
+    print("func is {}".format(func))
     x_data = np.random.uniform(size=data).astype(dtype)
     y_data = np.random.uniform(size=slice_like).astype(dtype)
     ref_res = np_slice_like(x_data, y_data, axes)
+    # print("x_data is:\n{}\ny_data is:\n{}\nref_res is:\n{}".format(x_data, y_data, ref_res))
 
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:
@@ -135,6 +140,7 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
 
 def test_slice_like():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    """
     verify_slice_like(data=(d1, d2, d3), slice_like=(1, 2, 3), axes=None, output=(1, 2, 3))
     verify_slice_like(data=(1, 2, 3), slice_like=(d1, d2, d3), axes=None, output=(d1, d2, d3))
     verify_slice_like(data=(d2, d3, d4), slice_like=(d1, d2, d3), axes=(1,2), output=(d2, d2, d3))
@@ -146,6 +152,8 @@ def test_slice_like():
                       slice_like=(1, 3, 112, 112),
                       axes=(2, 3),
                       output=(1, 3, 112, 112))
+    """
+    verify_slice_like(data=(20,), slice_like=(5,), axes=None, output=(5,))
 
 def test_reverse_reshape():
     def verify_reverse_reshape(shape, newshape, oshape):
@@ -336,14 +344,18 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__ == "__main__":
+    """
     test_adaptive_pool2d()
     test_collapse_sum_like()
     test_broadcast_to_like()
+    """
     test_slice_like()
+    """
     test_reverse_reshape()
     test_batch_matmul()
     test_shape_of()
     test_sequence_mask()
     test_ndarray_size()
     test_one_hot()
+    """
 

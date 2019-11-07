@@ -105,6 +105,27 @@ inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::st
 }
 
 /*!
+ * \brief Get the value of all the constant integer expressions in the given tensor
+ *
+ * \param input The input tensor to get the values of
+ * \param var_name The name to be used when logging an error in the event that any
+ * element of the tensor are not constant integers.
+ *
+ * \return A vector of the int64_t values
+ */
+inline std::vector<int64_t> GetConstInt64Values(Tensor input, const std::string& var_name) {
+  std::vector<int64_t> result;
+  if (!input.defined()) return result;
+  size_t input_dim = static_cast<size_t>(input->shape.size());
+  for (int32_t i = 0; i < input_dim; ++i) {
+    auto expr = input(tvm::Expr(i));
+     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    result.push_back(GetConstInt(expr));
+  }
+  return result;
+}
+
+/*!
  * \brief Check weather the two expressions are equal or not, if not simplify the expressions and check again
  * \note This is stronger equality check than tvm::ir::Equal
  *

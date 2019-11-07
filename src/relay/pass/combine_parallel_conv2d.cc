@@ -184,8 +184,27 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       begin.push_back(index);
       index += channels;
       end.push_back(index);
-      auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
-      subst_map->insert({GetRef<Expr>(branch[depth]), slice});
+
+
+      DLContext ctx;
+      ctx.device_type = kDLCPU;
+      ctx.device_id = 0;
+      auto begin_ndarray = runtime::NDArray::Empty({1}, Type2TVMType(Int(64)), ctx);
+      auto end_ndarray = runtime::NDArray::Empty({1}, Type2TVMType(Int(64)), ctx);
+      auto strides_ndarray = runtime::NDArray::Empty({1}, Type2TVMType(Int(64)), ctx);
+      int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
+      int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
+      // int64_t* strides_data = reinterpret_cast<int64_t*>(strides_ndarray->data);
+
+      for (size_t i = 0; i < begin.size(); ++i){
+        begin_data[i] = begin[i];
+        end_data[i] = end[i];
+      }
+
+      // auto slice = MakeStridedSlice(data, ConstantNode::make(begin_ndarray),
+      //                              ConstantNode::make(end_ndarray), ConstantNode::make(strides_ndarray));
+      // auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
+      // subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }
 

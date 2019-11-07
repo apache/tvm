@@ -235,7 +235,7 @@ def register_gradient(op_name, fgradient=None, level=10):
     """
     return register(op_name, "FPrimalGradient", fgradient, level)
 
-def register_shape_func(op_name, data_dependent, shape_func=None, level=10):
+def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     """Register operator shape function for an op.
 
     Parameters
@@ -243,7 +243,7 @@ def register_shape_func(op_name, data_dependent, shape_func=None, level=10):
     op_name : str
         The name of the op.
 
-    data_dependent : int
+    data_dependant : bool
         Whether the shape function depends on input data.
 
     shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
@@ -253,7 +253,7 @@ def register_shape_func(op_name, data_dependent, shape_func=None, level=10):
     level : int
         The priority level
     """
-    get(op_name).set_attr("TShapeDataDependent", data_dependent, level)
+    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     # if "non_max_suppression" in op_name:
     #    print("nms new attr: {}".format(get(op_name).astext()))
     return register(op_name, "FShapeFunc", shape_func, level)

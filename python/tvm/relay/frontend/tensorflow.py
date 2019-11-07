@@ -385,23 +385,18 @@ def _nms():
 
         # print("ret: {}".format(nms_ret.astext()))
         # ret = ret.astuple()
-
-        count = get_relay_op("squeeze")(nms_ret[1], axis=[1])
-        indices = get_relay_op("arange")(_expr.const(5, dtype="int32"), dtype='int32')
-        indices = get_relay_op("arange")(count, dtype='int32')
-        #return indices
-        end = get_relay_op("squeeze")(nms_ret[0], axis=[0])
-        ret = get_relay_op('take')(end, indices)
-        return ret
-
-
         # end is for end index of strided_slice
         end = get_relay_op("squeeze")(nms_ret[1], axis=[1])
-        # end = get_relay_op("squeeze")(end, axis=[1,])
-        ret = get_relay_op("strided_slice")(nms_ret[0], (0, 0), (1, end))
-        ret = get_relay_op("squeeze")(ret, axis=[0])
-        return ret
 
+        end_const = get_relay_op("squeeze")(end, axis=[0])
+
+        ret =  get_relay_op("arange")(start=_expr.const(0), stop=end_const, dtype="int32")
+        # end = get_relay_op("squeeze")(end, axis=[1,])
+        data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
+        # TODO(yongwww): use end as the end index for strided_slice
+        # return get_relay_op("take")(data_slice, end)
+        ret = get_relay_op("strided_slice")(data_slice, [0], [6])
+        return ret
     return _impl
 
 def _decode_image():

@@ -72,9 +72,22 @@ def _arange_shape_func(start, stop, step):
     out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
     return out
 
-@_reg.register_shape_func("arange", 1)
+@_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
+
+@script
+def _strided_slice_shape_func(data_shape, begin, end, strides):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = int64(ceil_div((int64(end[i]) - int64(begin[i])), int64(strides[i])))
+    return out
+
+@_reg.register_shape_func("strided_slice", True)
+def arange_shape_func(attrs, inputs, _):
+    print("shape func is used")
+    return [_strided_slice_shape_func(*inputs)]
 
 @script
 def _concatenate_shape_func(inputs, axis):
@@ -92,7 +105,7 @@ def _concatenate_shape_func(inputs, axis):
                 out[i] += inputs[j][i]
     return out
 
-@_reg.register_shape_func("concatenate", 0)
+@_reg.register_shape_func("concatenate", False)
 def concatenate_shape_func(attrs, inputs, _):
     axis = get_const_int(attrs.axis)
     return [_concatenate_shape_func(inputs, convert(axis))]
@@ -164,7 +177,7 @@ def _reshape_shape_func(data_shape, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
-@_reg.register_shape_func("reshape", 0)
+@_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
     return [_reshape_shape_func(inputs[0], convert(newshape), out_ndims[0])]
@@ -192,7 +205,7 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
             out[len(indices_shape)+i-1] = data_shape[i]
     return out
 
-@_reg.register_shape_func("take", 0)
+@_reg.register_shape_func("take", False)
 def take_shape_func(attrs, inputs, out_ndims):
     """
     Shape function for take op.
@@ -267,7 +280,7 @@ def _argwhere_shape_func_5d(condition):
                             out[0] += int64(1)
     return out
 
-@_reg.register_shape_func("argwhere", 1)
+@_reg.register_shape_func("argwhere", True)
 def argwhere_shape_func(attrs, inputs, out_ndims):
     """
     Shape function for argwhere.

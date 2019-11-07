@@ -76,7 +76,7 @@ class NDArray {
     std::swap(data_, other.data_);
   }
   /*!
-   * \brief copy assignmemt
+   * \brief copy assignment
    * \param other The value to be assigned.
    * \return reference to self.
    */
@@ -86,7 +86,7 @@ class NDArray {
     return *this;
   }
   /*!
-   * \brief move assignmemt
+   * \brief move assignment
    * \param other The value to be assigned.
    * \return reference to self.
    */
