@@ -24,14 +24,14 @@ class Stm32F746XXBinutil(MicroBinutil):
         super(Stm32F746XXBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
 
     def device_id():
-        return 'stm32f746xx'
+        return 'arm.stm32f746xx'
 
 
 register_binutil(Stm32F746XXBinutil)
 
 def default_config(server_addr, server_port):
     return {
-        'binutil': 'stm32f746xx',
+        'binutil': 'arm.stm32f746xx',
         'mem_layout': {
             'text': {
                 'start': 0x20000180,

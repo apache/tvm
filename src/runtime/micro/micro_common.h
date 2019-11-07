@@ -128,41 +128,6 @@ class DevPtr : public DeviceLocation {
   }
 };
 
-///*! \brief offset from device base address */
-//class DevBaseOffset : public DeviceLocation {
-// public:
-//  /*! \brief construct a base offset with value `value` */
-//  explicit DevBaseOffset(std::uintptr_t value) : DeviceLocation(value) {}
-//
-//  /*! \brief default constructor */
-//  DevBaseOffset() : DeviceLocation() {}
-//
-//  /*! \brief construct a null base offset */
-//  explicit DevBaseOffset(std::nullptr_t value) : DeviceLocation(value) {}
-//
-//  /*! \brief add an integer to this base offset to get a larger base offset */
-//  DevBaseOffset operator+(size_t n) const {
-//    return DevBaseOffset(value_ + n);
-//  }
-//
-//  /*! \brief mutably add an integer to this base offset */
-//  DevBaseOffset& operator+=(size_t n) {
-//    value_ += n;
-//    return *this;
-//  }
-//
-//  /*! \brief subtract an integer from this base offset to get a smaller base offset */
-//  DevBaseOffset operator-(size_t n) const {
-//    return DevBaseOffset(value_ - n);
-//  }
-//
-//  /*! \brief mutably subtract an integer from this base offset */
-//  DevBaseOffset& operator-=(size_t n) {
-//    value_ -= n;
-//    return *this;
-//  }
-//};
-
 /*!
  * \brief map from symbols to their on-device offsets
  */
@@ -283,10 +248,12 @@ const char* SectionToString(SectionKind section);
 /*!
  * \brief links binary by repositioning section addresses
  * \param binary_name input binary filename
- * \param text new text section address
- * \param rodata new rodata section address
- * \param data new data section address
- * \param bss new bss section address
+ * \param word_size word size on the target machine
+ * \param text_start text section address
+ * \param rodata_start rodata section address
+ * \param data_start data section address
+ * \param bss_start bss section address
+ * \param stack_end stack section end address
  * \param toolchain_prefix prefix of compiler toolchain to use
  * \return relocated binary file contents
  */
@@ -297,7 +264,7 @@ std::string RelocateBinarySections(
     DevPtr rodata_start,
     DevPtr data_start,
     DevPtr bss_start,
-    DevPtr stack_end_start,
+    DevPtr stack_end,
     const std::string& toolchain_prefix);
 
 /*!

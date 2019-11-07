@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 from enum import Enum
@@ -96,8 +97,7 @@ class MicroBinutil:
         ld_script_path = None
         tmp_dir = _util.tempdir()
         if lib_type == LibType.RUNTIME:
-            import glob
-            dev_dir = get_micro_device_dir() + '/' + self.__class__.device_id()
+            dev_dir = self._get_device_source_dir()
 
             print(dev_dir)
             dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
@@ -139,6 +139,10 @@ class MicroBinutil:
         ld_cmd += ['-o', obj_path]
         run_cmd(ld_cmd)
 
+    def _get_device_source_dir(self):
+        dev_subdir = '/'.join(self.__class__.device_id().split('.'))
+        return get_micro_device_dir() + '/' + dev_subdir
+
     def _get_unique_obj_name(self, src_path, obj_paths, tmp_dir):
         res = tmp_dir.relpath(Path(src_path).with_suffix('.o').name)
         i = 2
@@ -158,4 +162,3 @@ class MicroBinutil:
 from . import host
 from . import arm
 from . import riscv_spike
-

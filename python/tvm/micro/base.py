@@ -153,12 +153,15 @@ class Session:
 
 
 def cross_compiler(dev_binutil, lib_type):
-    """Creates a cross compile function that wraps `create_micro_lib`.
+    """Create a cross compile function that wraps `create_lib` for a `Binutil` instance.
 
     For use in `tvm.module.Module.export_library`.
 
     Parameters
     ----------
+    dev_binutil : Union[MicroBinutil, str]
+        a `MicroBinutil` subclass or a string ID for a registered binutil class
+
     lib_type : micro.LibType
         whether to compile a MicroTVM runtime or operator library
 
@@ -173,7 +176,7 @@ def cross_compiler(dev_binutil, lib_type):
     .. code-block:: python
 
       c_mod = ...  # some module generated with "c" as the target
-      fcompile = tvm.micro.cross_compiler(lib_type=LibType.OPERATOR)
+      fcompile = tvm.micro.cross_compiler('arm.stm32f746xx', LibType.OPERATOR)
       c_mod.export_library('dev_lib.obj', fcompile=fcompile)
     """
     if isinstance(dev_binutil, str):
@@ -203,7 +206,7 @@ def get_micro_host_driven_dir():
 
 
 def get_micro_device_dir():
-    """Get directory path for TODO
+    """Get directory path for parent directory of device-specific source files
 
     Return
     ------

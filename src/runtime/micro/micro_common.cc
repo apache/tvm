@@ -56,7 +56,7 @@ std::string RelocateBinarySections(
     DevPtr rodata_start,
     DevPtr data_start,
     DevPtr bss_start,
-    DevPtr stack_end_start,
+    DevPtr stack_end,
     const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
@@ -67,7 +67,7 @@ std::string RelocateBinarySections(
                                    rodata_start.cast_to<uint64_t>(),
                                    data_start.cast_to<uint64_t>(),
                                    bss_start.cast_to<uint64_t>(),
-                                   stack_end_start.cast_to<uint64_t>(),
+                                   stack_end.cast_to<uint64_t>(),
                                    toolchain_prefix);
   return relocated_bin;
 }

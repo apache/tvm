@@ -46,13 +46,13 @@ size_t utvm_word_size = 0;  // NOLINT(*)
 
 // These pointers are patched at load time to point to the workspace section.
 char* utvm_workspace_start = NULL;  // NOLINT(*)
-char* utvm_workspace_end = NULL;  // NOLINT(*)
-char* utvm_workspace_curr = NULL;  // NOLINT(*)
+char* utvm_workspace_end = NULL;    // NOLINT(*)
+char* utvm_workspace_curr = NULL;   // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t utvm_num_active_allocs = 0;
 
 const char* utvm_last_error = NULL;  // NOLINT(*)
-int32_t utvm_return_code = 0;  // NOLINT(*)
+int32_t utvm_return_code = 0;        // NOLINT(*)
 
 uint32_t utvm_task_time = 0;
 
@@ -66,7 +66,7 @@ void UTVMMain() {
   UTVMTimerReset();
   UTVMTimerStart();
   utvm_return_code = utvm_task.func(
-          (void*) utvm_task.arg_values,  // NOLINT(*)
+          (void*) utvm_task.arg_values,      // NOLINT(*)
           (void*) utvm_task.arg_type_codes,  // NOLINT(*)
           utvm_task.num_args);
   UTVMTimerStop();
