@@ -18,13 +18,13 @@ import tvm
 import numpy as np
 from tvm.contrib import cublas
 
-def test_matmul_add():
+def test_matmul_add(in_dtype, out_dtype):
     n = 1024
     l = 128
-    m = 235
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((l, m), name='B')
-    C = cublas.matmul(A, B)
+    m = 236
+    A = tvm.placeholder((n, l), name='A', dtype=in_dtype)
+    B = tvm.placeholder((l, m), name='B', dtype=in_dtype)
+    C = cublas.matmul(A, B, dtype=out_dtype)
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
@@ -41,17 +41,17 @@ def test_matmul_add():
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            c.asnumpy(), np.dot(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=1e-5)
     verify()
 
-def test_batch_matmul():
+def test_batch_matmul(in_dtype, out_dtype):
     j = 16
     n = 1024
     l = 128
-    m = 235
-    A = tvm.placeholder((j, n, l), name='A')
-    B = tvm.placeholder((j, l, m), name='B')
-    C = cublas.batch_matmul(A, B)
+    m = 236
+    A = tvm.placeholder((j, n, l), name='A', dtype=in_dtype)
+    B = tvm.placeholder((j, l, m), name='B', dtype=in_dtype)
+    C = cublas.batch_matmul(A, B, dtype=out_dtype)
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
@@ -68,10 +68,13 @@ def test_batch_matmul():
         c = tvm.nd.array(np.zeros((j, n, m), dtype=C.dtype), ctx)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.matmul(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            c.asnumpy(), np.matmul(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=1e-5)
     verify()
 
 
 if __name__ == "__main__":
-    test_matmul_add()
-    test_batch_matmul()
+    test_matmul_add('float', 'float')
+    test_matmul_add('float16', 'float')
+    test_matmul_add('int8', 'int32')
+    test_batch_matmul('float', 'float')
+    test_batch_matmul('float16', 'float')
