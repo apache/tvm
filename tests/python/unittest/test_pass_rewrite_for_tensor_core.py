@@ -23,7 +23,7 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     A = tvm.placeholder((n, l), name='A', dtype='float16')
     B = tvm.placeholder((l, m), name='B', dtype='float16')
     k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute((n, m), lambda i, j: tvm.sum((A[i, k] * B[k, j]).astype('float32'), axis=k))
+    C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k].astype('float32') * B[k, j].astype('float32'), axis=k))
     s = tvm.create_schedule(C.op)
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
@@ -214,7 +214,6 @@ def test_tensor_core_matmul():
     tensor_core_matmul(16) #test with warp_tile 16x16x16
     tensor_core_matmul(8) #test with warp_tile 8x32x16
     tensor_core_matmul(32) #test with warp_tile 32x8x16
-    tensor_core_matmul(16, m=63) #unqualified for tenscorcore, expect normal cuda codegen
 
 def test_tensor_core_batch_matmul():
     if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):

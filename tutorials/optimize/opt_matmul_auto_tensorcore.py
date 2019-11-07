@@ -1,3 +1,47 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""
+.. _opt-matmul-auto-tensorcore:
+
+How to optimize matmul with Auto TensorCore CodeGen
+==================================
+**Author**: `Minmin Sun <https://github.com/minminsun>`_, \
+            `Lanbo Li <https://github.com/Orion34C>`_, \
+            `Chenfan Jia <https://github.com/jcf94>`_, \
+            `Jun Yang <https://github.com/yangjunpro>`_
+
+In this tutorial, we will demonstrate how to write a high performance matmul
+schedule on Volta/Turing GPUs with TVM Auto TensorCore CodeGen.
+This is a transparent solution to generate tensorcore kernel
+with most transformations done in ir passes.
+Users can also write schedule with tensorization to generate TensorCore code.
+Both solutions use the same tensorcore intrinsics.
+Please refer to :ref:`opt-conv-tensorcore` tutorial for more details.
+
+"""
+
+################################################################
+# Preparation and Algorithm
+# --------------------------
+# 2 kinds of input data types are supported: float16 and int8.
+# For float16, the accumulator is float32.
+# For int8, the accumulator is int32.
+# For data layouts, 'N' means None-transpose while 'T' means Transpose.
+
 import logging
 import sys
 
@@ -6,7 +50,6 @@ import tvm
 
 from tvm import autotvm
 
-
 def matmul_nn(A, B, L, dtype='float16', layout='NN'):
     k = tvm.reduce_axis((0, L), name='k')
     if dtype == 'float16':
@@ -14,16 +57,36 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
     elif dtype == 'int8':
       out_type = 'int'
     if (layout == 'NN'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum((A[i, k] * B[k, j]).astype(out_type), axis=k))
+      return tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k].astype(out_type) * B[k, j].astype(out_type), axis=k))
     if (layout == 'NT'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum((A[k, i] * B[k, j]).astype(out_type), axis=k))
+      return tvm.compute((N, M), lambda i, j: tvm.sum(A[k, i].astype(out_type) * B[k, j].astype(out_type), axis=k))
     if (layout == 'TN'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum((A[i, k] * B[j, k]).astype(out_type), axis=k))
+      return tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k].astype(out_type) * B[j, k].astype(out_type), axis=k))
     if (layout == 'TT'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum((A[k, i] * B[j, k]).astype(out_type), axis=k))
+      return tvm.compute((N, M), lambda i, j: tvm.sum(A[k, i].astype(out_type) * B[j, k].astype(out_type), axis=k))
+
+###############################################################################
+# Scheduling the Computation
+# --------------------------
+# This schedule is no different than a non-tensorcore matmul schedule on GPU.
+# Please refer to :ref:`opt-gemm` tutorial for basics of optimizing matmul schedule.
+# When the "tensor_core" pragma is set, the "rewrite for tensorcore" ir pass
+# will automatically transform the schedule for tensorcore codegen,
+# otherwise normal CUDA code, with lower performance but equal functionality, will be generated.
+#
+# .. note::
+#
+#   *Requirements of TesnsorCore*
+#
+#   Note that in the following 2 cases, even though the "tensor_core" pragma is set, TVM will still fall back to normal CUDA codegen:
+#   (1) The m, n or k of input matrices is not multiple of 16;
+#   (2) The warp tile size is not 16x16x16 on CUDA9, or not one of {16x16x16, 32x8x16, 8x32x16} on CUDA version >= 10.0.
+#
+# In this schedule, storage_align is used to reduce bank conflicts of shared memory.
+# We use AutoTVM to search for best configurations in this schedule.
 
 @autotvm.template
-def test_gemm_nn(N, L, M, dtype, layout):
+def test_gemm(N, L, M, dtype, layout):
     if (layout == "NN"):
       shape_a = (N, L)
       shape_b = (L, M)
@@ -54,6 +117,7 @@ def test_gemm_nn(N, L, M, dtype, layout):
       factor = 32
       offset = 16
 
+    # create cache stages
     AA = s.cache_read(A, "shared", [C])
     if (layout == "NN" or layout == "TN"):
       s[AA].storage_align(AA.op.axis[0], factor, offset)
@@ -64,8 +128,8 @@ def test_gemm_nn(N, L, M, dtype, layout):
     BL = s.cache_read(BB, "local", [C])
     CL = s.cache_write(C, "local")
 
+    #autotvm search space definition
     cfg = autotvm.get_config()
-
 
     cfg.define_knob("bx", [2, 4, 8])
     cfg.define_knob("by", [16, 32, 64])
@@ -76,35 +140,39 @@ def test_gemm_nn(N, L, M, dtype, layout):
     step_k = cfg['step_k'].val
     v = cfg['v'].val
 
+    # thread tile
     TX = 8
     TY = 1
+    # warp tile
+    warp_tile_m = 16 # it could also be 8 or 32 on CUDA version >= 10.0
+    warp_tile_k = 16 # it must be 16
+    # block tile
     tile_x = bx * TX
     tile_y = by * TY
-    WX = min(16, tile_x)
-    tile_k = 16
-    vthread = 1
 
-    yo, ty = s[C].split(y, tile_y*vthread)
-    vy, ty = s[C].split(ty, tile_y)
+    yo, ty = s[C].split(y, tile_y)
     ty, yi = s[C].split(ty, TY)
 
+    # schedule for C stage
     xo, xi = s[C].split(x, tile_x)
+    WX = min(warp_tile_m, tile_x)
     tz, xi = s[C].split(xi, WX)
     tx, xi = s[C].split(xi, TX)
-    ko, ki = s[CL].split(k, step_k * tile_k)
-    kl, ki = s[CL].split(ki, tile_k)
-
     s[C].reorder(yo, xo, tz, ty, tx, yi, xi)
     s[C].bind(yo, tvm.thread_axis("blockIdx.y"))
     s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
     s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
     s[C].bind(tz, tvm.thread_axis("threadIdx.z"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[C].bind(vy, tvm.thread_axis((0, vthread), "vthread", name="vy"))
+
+    # schedule for CL stage
+    ko, ki = s[CL].split(k, step_k * warp_tile_k)
+    kl, ki = s[CL].split(ki, warp_tile_k)
     s[CL].compute_at(s[C], tx)
     yo, xo = CL.op.axis
     s[CL].reorder(ko, kl, ki, yo, xo)
 
+    # schedule for AA stage
     s[AA].compute_at(s[CL], ko)
     xo, xi = s[AA].split(s[AA].op.axis[1], factor=bx*v)
     tz, tx = s[AA].split(xi, factor=(WX//TX)*v)
@@ -114,8 +182,10 @@ def test_gemm_nn(N, L, M, dtype, layout):
     s[AA].bind(ty, tvm.thread_axis("threadIdx.y"))
     s[AA].bind(tz, tvm.thread_axis("threadIdx.z"))
     s[AA].bind(tx, tvm.thread_axis("threadIdx.x"))
+    # vectorization is very important for float16/int8 inputs
     s[AA].vectorize(vec)
 
+    # schedule for BB stage
     s[BB].compute_at(s[CL], ko)
     xo, xi = s[BB].split(s[BB].op.axis[1], factor=bx*v)
     tz, tx = s[BB].split(xi, factor=(WX//TX)*v)
@@ -130,11 +200,18 @@ def test_gemm_nn(N, L, M, dtype, layout):
     s[AL].compute_at(s[CL], kl)
     s[BL].compute_at(s[CL], kl)
 
+    # set the 'tensor_core' pragma for tensorcore codegen
     s[CL].pragma(ko, 'tensor_core')
 
     return s, [A, B, C]
 
-M, N, L = 512, 64, 512
+###############################################################################
+# AutoTune and Test
+# --------------------
+# Finally we use a tuner to tune the schedule, generate code with best config
+# and run the kernel to compare with numpy to check whether the results are correct.
+
+M, N, L = 512, 32, 512
 dtype = 'float16'
 layout = 'NN'
 if len(sys.argv) >= 4:
@@ -144,9 +221,7 @@ if len(sys.argv) >= 5:
 if len(sys.argv) >= 6:
   layout = sys.argv[5]
 
-print ("M=%d, N=%d, K=%d, dtype=%s, layout=%s" % (M, N, L, dtype, layout))
-
-task = autotvm.task.create(test_gemm_nn, args=(N, L, M, dtype, layout), target='cuda')
+task = autotvm.task.create(test_gemm, args=(N, L, M, dtype, layout), target='cuda')
 print(task.config_space)
 
 logging.getLogger('autotvm').setLevel(logging.DEBUG)
@@ -169,7 +244,7 @@ print(best_config)
 with autotvm.apply_history_best('matmul.log'):
     with tvm.target.create("cuda"):
         with tvm.build_config():
-            s, arg_bufs = test_gemm_nn(N, L, M, dtype, layout)
+            s, arg_bufs = test_gemm(N, L, M, dtype, layout)
             print(tvm.lower(s, arg_bufs, simple_mode=True))
             func = tvm.build(s, arg_bufs)
 dev_module = func.imported_modules[0]
@@ -228,3 +303,9 @@ tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-3)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=100)
 print('Time cost of this operator: %f' % evaluator(a_tvm, b_tvm, c_tvm).mean)
+
+###############################################################################
+# Summary
+# --------------------------
+# This tutorial demonstrates how to use the AutoTensorCoreCodeGen of TVM
+# to generate tensorcore kernels.
