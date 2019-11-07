@@ -38,17 +38,6 @@ namespace runtime {
  */
 class MicroModuleNode final : public ModuleNode {
  public:
-  // TODO(weberlo): enqueue each loaded module into a vector of bin contents.
-  // then concatenate the contents, build it, and flush it once a function call
-  // is attempted.
-  //
-  // We might not be able to flush *all* sections.  Depends how st-flash works.
-  // it only asks to specify the start of the flash section, so does it also
-  // flash the RAM sections? It's also weird that it asks for the start of the
-  // flash section, because that should already be encoded in the binary. check
-  // the .bin files to see if symbol addrs are assigned. also, check the
-  // st-flash docs, because the arg could just be for the address of `main`.
-
   MicroModuleNode() {}
 
   ~MicroModuleNode() {}
@@ -71,16 +60,6 @@ class MicroModuleNode final : public ModuleNode {
     symbol_map_ = session_->LoadBinary(binary_path, true).symbol_map;
     std::cout << "  end" << std::endl;
   }
-
-  ///*!
-  // * \brief runs selected function on the micro device
-  // * \param func_name name of the function to be run
-  // * \param func_ptr offset of the function to be run
-  // * \param args type-erased arguments passed to the function
-  // */
-  //void RunFunction(DevPtr func_ptr, const TVMArgs& args) {
-  //  session_->PushToExecQueue(func_ptr, args);
-  //}
 
  private:
   SymbolMap symbol_map_;
@@ -114,20 +93,11 @@ PackedFunc MicroModuleNode::GetFunction(
   std::cout << "[MicroModuleNode::GetFunction(name=" << name << ")]" << std::endl;
   DevPtr func_ptr;
   if (name == tvm::runtime::symbol::tvm_module_main) {
-    std::cout << "  here" << std::endl;
     if (symbol_map_.HasSymbol(tvm::runtime::symbol::tvm_module_main)) {
-      std::cout << "  ayy" << std::endl;
       func_ptr = symbol_map_[tvm::runtime::symbol::tvm_module_main];
     } else {
-      std::cout << "  lmao" << std::endl;
       func_ptr = symbol_map_["default_function"];
     }
-    //std::cout << "  symbols:" << std::endl;
-    //for (const auto& sym_name : symbol_map_.GetSymbols()) {
-    //  std::cout << "    " << sym_name << std::endl;
-    //}
-    //CHECK(symbol_map_.size() == 1) << "entry point requested with multiple functions in module";
-    //func_ptr = symbol_map_[symbol_map_.GetSymbols()[0]];
   } else {
     func_ptr = symbol_map_[name];
   }

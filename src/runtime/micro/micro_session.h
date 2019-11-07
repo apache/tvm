@@ -47,7 +47,6 @@
 #include <tuple>
 
 #include "low_level_device.h"
-//#include "host_driven/utvm_runtime.h"
 #include "target_data_layout_encoder.h"
 
 namespace tvm {
@@ -241,6 +240,7 @@ class MicroSession : public ModuleNode {
     *  The session on top of the stack is used as the current global session.
     */
   static void EnterWithScope(ObjectPtr<MicroSession> session);
+
   /*!
     * \brief Pop a session off the thread-local context stack,
     *  restoring the previous session as the current context.
@@ -261,7 +261,7 @@ struct MicroDevSpace {
   ObjectPtr<MicroSession> session;
 };
 
-// tvm array for serialization to 32-bit devices
+/*! \brief TVM array for serialization to 32-bit devices */
 typedef struct StructTVMArray32 {
   uint32_t data;
   DLContext ctx;
@@ -275,7 +275,7 @@ typedef struct StructTVMArray32 {
   uint32_t pad2;
 } TVMArray32;
 
-// utvm task for serialization to 32-bit devices
+/*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {
   /*! \brief Pointer to function to call for this task */
   uint32_t func;
@@ -287,7 +287,7 @@ typedef struct StructUTVMTask32 {
   int32_t num_args;
 } UTVMTask32;
 
-// utvm task for serialization to 64-bit devices
+/*! \brief MicroTVM task for serialization to 64-bit devices */
 typedef struct StructUTVMTask64 {
   /*! \brief Pointer to function to call for this task */
   uint64_t func;

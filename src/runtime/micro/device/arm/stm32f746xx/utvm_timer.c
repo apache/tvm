@@ -2,8 +2,6 @@
 extern "C" {
 #endif
 
-// TODO rename file to `utvm_timer.c`
-
 #include "utvm_runtime.h"
 
 // There are two implementations of cycle counters on the STM32F7X: SysTick and
@@ -30,11 +28,12 @@ extern "C" {
 unsigned long start_time = 0;
 unsigned long stop_time = 0;
 
-void UTVMTimerStart() {
+int32_t UTVMTimerStart() {
     SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
     // wait until timer starts
     while (SYST_CVR == 0);
     start_time = SYST_CVR;
+    return 0;
 }
 
 void UTVMTimerStop() {
@@ -73,12 +72,11 @@ void UTVMTimerReset() {
   DWT_CYCCNT = 0;
 }
 
-void UTVMTimerStart() {
-  // TODO: change API so we can return errors from here
-  //if (DWT_CTRL & DWT_CTRL_NOCYCCNT) {
-  //  TVMAPISetLastError("cycle counter not implemented on device");
-  //  return -1;
-  //}
+int32_t UTVMTimerStart() {
+  if (DWT_CTRL & DWT_CTRL_NOCYCCNT) {
+    TVMAPISetLastError("cycle counter not implemented on device");
+    return -1;
+  }
   start_time = DWT_CYCCNT;
   DWT_CTRL |= (1 << DWT_CTRL_CYCCNTENA);
 }

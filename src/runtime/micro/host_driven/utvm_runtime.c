@@ -64,7 +64,11 @@ void UTVMMain() {
   utvm_return_code = 0;
   utvm_task_time = 0;
   UTVMTimerReset();
-  UTVMTimerStart();
+  int32_t err = UTVMTimerStart();
+  if (err < 0) {
+    utvm_return_code = err;
+    UTVMDone();
+  }
   utvm_return_code = utvm_task.func(
           (void*) utvm_task.arg_values,      // NOLINT(*)
           (void*) utvm_task.arg_type_codes,  // NOLINT(*)

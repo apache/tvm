@@ -59,7 +59,8 @@ class Session:
         # TODO(weberlo): add config validation
 
         # grab a binutil instance from the ID in the config
-        self.binutil = tvm.micro.device.get_binutil(config['binutil'])
+        self.create_micro_lib = tvm.micro.device.get_device_funcs(config['device_id'])['create_micro_lib']
+        self.toolchain_prefix = config['toolchain_prefix']
         self.mem_layout = config['mem_layout']
         self.word_size = config['word_size']
         self.thumb_mode = config['thumb_mode']
@@ -69,7 +70,7 @@ class Session:
         runtime_src_path = os.path.join(get_micro_host_driven_dir(), 'utvm_runtime.c')
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
-        self.binutil.create_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
+        self.create_micro_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
         #input(f'check {runtime_obj_path}: ')
 
         comms_method = config['comms_method']
@@ -85,7 +86,7 @@ class Session:
         self.module = _CreateSession(
             comms_method,
             runtime_obj_path,
-            self.binutil.toolchain_prefix(),
+            self.toolchain_prefix,
             self.mem_layout['text'].get('start', 0),
             self.mem_layout['text']['size'],
             self.mem_layout['rodata'].get('start', 0),
@@ -127,7 +128,7 @@ class Session:
         lib_obj_path = temp_dir.relpath('dev_lib.obj')
         c_mod.export_library(
                 lib_obj_path,
-                fcompile=cross_compiler(self.binutil, LibType.OPERATOR))
+                fcompile=cross_compiler(self.create_micro_lib, LibType.OPERATOR))
         micro_mod = tvm.module.load(lib_obj_path)
         return micro_mod
 
@@ -151,15 +152,16 @@ class Session:
         self._exit()
 
 
-def cross_compiler(dev_binutil, lib_type):
+def cross_compiler(create_micro_lib, lib_type):
     """Create a cross compile function that wraps `create_lib` for a `Binutil` instance.
 
     For use in `tvm.module.Module.export_library`.
 
     Parameters
     ----------
-    dev_binutil : Union[MicroBinutil, str]
-        a `MicroBinutil` subclass or a string ID for a registered binutil class
+    create_micro_lib : func
+        function for creating MicroTVM libraries for a specific device (e.g.,
+        `tvm.micro.device.get_device_funcs('arm.stm32f746xx')['create_micro_lib']`)
 
     lib_type : micro.LibType
         whether to compile a MicroTVM runtime or operator library
@@ -178,15 +180,12 @@ def cross_compiler(dev_binutil, lib_type):
       fcompile = tvm.micro.cross_compiler('arm.stm32f746xx', LibType.OPERATOR)
       c_mod.export_library('dev_lib.obj', fcompile=fcompile)
     """
-    if isinstance(dev_binutil, str):
-        dev_binutil = tvm.micro.device.get_binutil(dev_binutil)
-
     def compile_func(obj_path, src_path, **kwargs):
         if isinstance(obj_path, list):
             obj_path = obj_path[0]
         if isinstance(src_path, list):
             src_path = src_path[0]
-        dev_binutil.create_lib(obj_path, src_path, lib_type, kwargs.get('options', None))
+        create_micro_lib(obj_path, src_path, lib_type, kwargs.get('options', None))
     return _cc.cross_compiler(compile_func, output_format='obj')
 
 

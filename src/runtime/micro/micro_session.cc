@@ -82,9 +82,10 @@ MicroSession::MicroSession(
     size_t word_size,
     bool thumb_mode,
     const std::string& server_addr,
-    int port) : word_size_(word_size), thumb_mode_(thumb_mode) {
-  toolchain_prefix_ = toolchain_prefix;
+    int port) : toolchain_prefix_(toolchain_prefix), word_size_(word_size), thumb_mode_(thumb_mode) {
+  CHECK(word_size_ == 4 || word_size_ == 8) << "unsupported word size " << word_size_;
   if (comms_method == "host") {
+    // TODO(weberlo): move checks to python
     CHECK(
         text_start == 0 &&
         rodata_start == 0 &&
@@ -97,8 +98,8 @@ MicroSession::MicroSession(
     size_t memory_size = text_size + rodata_size + data_size + bss_size + args_size + heap_size + workspace_size + stack_size;
     void* base_addr;
     low_level_device_ = HostLowLevelDeviceCreate(memory_size, &base_addr);
-    CHECK(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_ == 0) << "base address not aligned to " << word_size_ << " bytes";
-    std::cout << "base addr is " << base_addr << std::endl;
+    CHECK_EQ(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_, 0)
+      << "base address not aligned to " << word_size_ << " bytes";
     DevPtr curr_addr = DevPtr(reinterpret_cast<std::uintptr_t>(base_addr));
 
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
@@ -142,7 +143,6 @@ MicroSession::MicroSession(
     }, word_size_);
     curr_addr += stack_size;
   } else if (comms_method == "openocd") {
-    // TODO(weberlo): We need a better way of configuring devices.
     low_level_device_ = OpenOCDLowLevelDeviceCreate(server_addr, port);
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(DevMemRegion {
       .start = DevPtr(text_start),
@@ -194,15 +194,12 @@ MicroSession::MicroSession(
   std::cout << runtime_symbol_map_["UTVMMain"].cast_to<void*>() << std::endl;
   std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
-  DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
-  // Patch workspace pointers to the start of the workspace section.
+  // Patch pointers to define the bounds of the workspace section and the word size (for allocation alignment).
   void* workspace_start_addr = GetAllocator(SectionKind::kWorkspace)->start_addr().cast_to<void*>();
   void* workspace_end_addr = GetAllocator(SectionKind::kWorkspace)->max_addr().cast_to<void*>();
-  // TODO(weberlo): A lot of these symbol writes can be converted into symbols
-  // in the C source, where the symbols are created by the linker script we
-  // generate in python.
   DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
   DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
+  DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
 }
 
 MicroSession::~MicroSession() {
@@ -225,19 +222,14 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   DevPtr args_addr = GetAllocator(SectionKind::kArgs)->curr_end_addr();
   TargetDataLayoutEncoder encoder(args_addr, word_size_);
 
-  std::cout << "  after encoder alloc" << std::endl;
-
   std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&encoder, args);
 
-  std::cout << "  after encoder append" << std::endl;
   // Flush `stream` to device memory.
   DevPtr stream_dev_addr =
       GetAllocator(SectionKind::kArgs)->Allocate(encoder.buf_size());
-  std::cout << "  low-level device: " << low_level_device() << std::endl;
   low_level_device()->Write(stream_dev_addr,
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
-  std::cout << "  after encoder write" << std::endl;
 
   if (word_size_ == 4) {
     TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
@@ -261,9 +253,6 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     };
     // Write the task.
     DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
-  } else {
-    // TODO hoist word size check to initialization
-    CHECK(false) << "unsupported word size " << word_size_;
   }
 
   std::cout << "  after task write" << std::endl;
@@ -338,7 +327,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   std::string relocated_bin = RelocateBinarySections(
       binary_path,
       word_size_,
-      // TODO fill in new args
       text_section.start,
       rodata_section.start,
       data_section.start,
@@ -420,21 +408,6 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 }
 
 DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
-  // TODO make this code mux on the word size
-  /*
-  typedef struct StructARMTVMArray {
-    uint32_t data;
-    DLContext ctx;
-    int ndim;
-    DLDataType dtype;
-    uint32_t shape;
-    uint32_t strides;
-    uint32_t pad1;
-    uint32_t byte_offset;
-    uint32_t pad2;
-  } ARMTVMArray;
-  */
-
   if (word_size_ == 4) {
     auto tvm_arr_slot = encoder->Alloc<TVMArray32>();
     //CHECK(false) << "should we be allocing int32_t?";
@@ -497,10 +470,6 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     // checks that it is a host array.
     CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
     dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-    //// Add the base address of the device to the array's data's device offset to
-    //// get a device address.
-    //DevPtr arr_offset(reinterpret_cast<std::uintptr_t>(arr.data));
-    //dev_arr.data = low_level_device()->ToDevPtr(arr_offset).cast_to<void*>();
     dev_arr.shape = shape_addr.cast_to<int64_t*>();
     dev_arr.strides = strides_addr.cast_to<int64_t*>();
     tvm_arr_slot.WriteValue(dev_arr);
@@ -543,8 +512,6 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
     DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint32_t) runtime_impl_addr.value());
   } else if (word_size_ == 8) {
     DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint64_t) runtime_impl_addr.value());
-  } else {
-    CHECK(false) << "ayy";
   }
 }
 
@@ -657,8 +624,6 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
         thumb_mode,
         server_addr,
         port);
-    //session->CreateSession(
-    //    "openocd", binary_path, "arm-none-eabi-", 0, "127.0.0.1", 6666);
     *rv = Module(session);
     });
 

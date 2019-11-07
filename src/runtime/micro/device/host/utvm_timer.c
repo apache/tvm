@@ -11,14 +11,16 @@ void UTVMInit() {
   UTVMMain();
 }
 
-void UTVMTimerStart() { }
+int32_t UTVMTimerStart() {
+  return 0;
+}
 
 void UTVMTimerStop() { }
 
 void UTVMTimerReset() { }
 
 uint32_t UTVMTimerRead() {
-    return 1;
+  return 1;
 }
 
 #ifdef __cplusplus

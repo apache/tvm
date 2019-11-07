@@ -15,31 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 """Config for the host emulated device"""
-
 import sys
 
-from . import MicroBinutil, register_binutil
+from . import create_micro_lib_base, register_device
 
-class HostBinutil(MicroBinutil):
-    def __init__(self):
-        super(HostBinutil, self).__init__('')
+DEVICE_ID = 'host'
+TOOLCHAIN_PREFIX = ''
 
-    def create_lib(self, obj_path, src_path, lib_type, options=None):
-        if options is None:
-            options = []
-        if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
-            options += ['-mcmodel=large']
-        super(HostBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
+def create_micro_lib(obj_path, src_path, lib_type, options=None):
+    if options is None:
+        options = []
+    if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
+        options += ['-mcmodel=large']
+    create_micro_lib_base(obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
 
-    def device_id():
-        return 'host'
-
-
-register_binutil(HostBinutil)
 
 def default_config():
     return {
-        'binutil': 'host',
+        'device_id': DEVICE_ID,
+        'toolchain_prefix': TOOLCHAIN_PREFIX,
         'mem_layout': {
             'text': {
                 'size': 20480,
@@ -70,3 +64,9 @@ def default_config():
         'thumb_mode': False,
         'comms_method': 'host',
     }
+
+
+register_device(DEVICE_ID, {
+    'create_micro_lib': create_micro_lib,
+    'default_config': default_config,
+})

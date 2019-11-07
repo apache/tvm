@@ -15,41 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 """Config definitions for ARM STM32F746XX devices"""
+from .. import create_micro_lib_base, register_device
 
-from .. import MicroBinutil, register_binutil
+DEVICE_ID = 'arm.stm32f746xx'
+TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 
-#
-# [Device Memory Layout]
-#   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
-#   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
-#
+def create_micro_lib(obj_path, src_path, lib_type, options=None):
+    if options is None:
+        options = []
+    options += [
+        '-mcpu=cortex-m7',
+        '-mlittle-endian',
+        '-mfloat-abi=hard',
+        '-mfpu=fpv5-sp-d16',
+        '-mthumb',
+        '-gdwarf-5',
+        ]
+    create_micro_lib_base(obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
 
-class Stm32F746XXBinutil(MicroBinutil):
-    def __init__(self):
-        super(Stm32F746XXBinutil, self).__init__('arm-none-eabi-')
-
-    def create_lib(self, obj_path, src_path, lib_type, options=None):
-        if options is None:
-            options = []
-        options += [
-            '-mcpu=cortex-m7',
-            '-mlittle-endian',
-            '-mfloat-abi=hard',
-            '-mfpu=fpv5-sp-d16',
-            '-mthumb',
-            '-gdwarf-5',
-            ]
-        super(Stm32F746XXBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
-
-    def device_id():
-        return 'arm.stm32f746xx'
-
-
-register_binutil(Stm32F746XXBinutil)
 
 def default_config(server_addr, server_port):
     return {
-        'binutil': 'arm.stm32f746xx',
+        'device_id': DEVICE_ID,
+        'toolchain_prefix': TOOLCHAIN_PREFIX,
+        #
+        # [Device Memory Layout]
+        #   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
+        #   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
+        #
         'mem_layout': {
             'text': {
                 'start': 0x20000180,
@@ -90,3 +83,9 @@ def default_config(server_addr, server_port):
         'server_addr': server_addr,
         'server_port': server_port,
     }
+
+
+register_device(DEVICE_ID, {
+    'create_micro_lib': create_micro_lib,
+    'default_config': default_config,
+})

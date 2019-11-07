@@ -50,7 +50,7 @@ extern void UTVMInit();
 
 extern void UTVMTimerReset();
 
-extern void UTVMTimerStart();
+extern int32_t UTVMTimerStart();
 
 extern void UTVMTimerStop();
 
