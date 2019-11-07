@@ -100,8 +100,6 @@ def test_workspace_add():
     shape = (1024,)
     dtype = "float32"
 
-    reset_gdbinit()
-
     # Construct TVM expression.
     tvm_shape = tvm.convert(shape)
     A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
