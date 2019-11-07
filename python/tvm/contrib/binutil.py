@@ -22,7 +22,6 @@ from . import util
 from .._ffi.base import py_str
 from ..api import register_func
 
-
 def run_cmd(cmd):
     proc = subprocess.Popen(
             cmd,
@@ -147,21 +146,6 @@ def tvm_callback_relocate_binary(
     rel_bin : bytearray
         the relocated binary
     """
-    global TEMPDIR_REFS
-    tmp_dir = util.tempdir()
-    TEMPDIR_REFS.append(tmp_dir)
-    rel_obj_path = tmp_dir.relpath('relocated.obj')
-    #rel_obj_path = '/home/pratyush/Code/nucleo-interaction-from-scratch/src/main_relocated.o'
-    with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'r') as f:
-        gdbinit_contents = f.read().split('\n')
-    new_contents = []
-    for line in gdbinit_contents:
-        new_contents.append(line)
-        if line.startswith('target'):
-            new_contents.append(f'add-symbol-file {rel_obj_path}')
-    with open('/home/pratyush/Code/nucleo-interaction-from-scratch/.gdbinit', 'w') as f:
-        f.write('\n'.join(new_contents))
-
     stack_pointer_init = stack_end - word_size
 
     ld_script_contents = ''
@@ -215,14 +199,6 @@ SECTIONS
   }}
 }}
     """
-    print(ld_script_contents)
-    #input('check script: ')
-    print(f'relocing lib {binary_path}')
-    print(f'  text_start: {text_start}')
-    print(f'  rodata_start: {rodata_start}')
-    print(f'  data_start: {data_start}')
-    print(f'  bss_start: {bss_start}')
-
     rel_ld_script_path = tmp_dir.relpath('relocated.lds')
     with open(rel_ld_script_path, 'w') as f:
         f.write(ld_script_contents)
@@ -231,7 +207,6 @@ SECTIONS
         binary_path,
         '-T', rel_ld_script_path,
         '-o', rel_obj_path])
-    #input(f'relocated obj path is {rel_obj_path}')
     with open(rel_obj_path, 'rb') as f:
         rel_bin = bytearray(f.read())
     return rel_bin

@@ -216,7 +216,6 @@ std::string GetDeviceName(const std::string& target_str) {
 }
 
 Target Target::Create(const std::string& target_str) {
-  std::cout << "[Target::Create]" << std::endl;
   if (target_str.length() == 0) {
     LOG(ERROR) << "target_str must not be empty";
   }
@@ -226,13 +225,11 @@ Target Target::Create(const std::string& target_str) {
 
   ss >> target_name;
   auto device_name = GetDeviceName(target_str);
-  std::cout << "  device_name: " << device_name << std::endl;
 
   std::vector<std::string> options;
   std::string item;
   while (ss >> item) {
     options.push_back(item);
-    std::cout << "  option: " << item << std::endl;
   }
 
   return CreateTarget(target_name, options);

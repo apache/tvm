@@ -123,7 +123,6 @@ class Session:
         micro_mod : tvm.module.Module
             micro module for the target device
         """
-        print('[create_micro_mod]')
         temp_dir = _util.tempdir()
         lib_obj_path = temp_dir.relpath('dev_lib.obj')
         c_mod.export_library(
@@ -153,7 +152,7 @@ class Session:
 
 
 def cross_compiler(create_micro_lib, lib_type):
-    """Create a cross compile function that wraps `create_lib` for a `Binutil` instance.
+    """Create a cross-compile function that wraps `create_lib` for a `Binutil` instance.
 
     For use in `tvm.module.Module.export_library`.
 
