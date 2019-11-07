@@ -61,6 +61,16 @@ std::string simplify_name(std::string input) {
   }
 }
 
+Expr unpack_type_cast(const Expr &input, const Type &target_type) {
+  auto cast = input.as<Cast>();
+  if (cast == nullptr) {
+    return input;
+  } else if (cast->type == target_type) {
+    return cast->value;
+  }
+  return Expr();
+}
+
 // MMAMatcher matches C = Cast(A)*Cast(B)+C,
 // where A & B are fp16/int8 local buffers,
 // and C is fp32/int32 local buffer.
@@ -186,19 +196,13 @@ class MMAMatcher: public IRVisitor {
       return false;
     }
 
-    auto* cast = add->b.as<Cast>();
-    if (cast == nullptr ||
-        !(cast->type == Float(32) ||
-          (support_int_wmma_ && cast->type == Int(32)))) {
-      return false;
-    }
-
-    auto* mul = cast->value.as<Mul>();
+    auto mul = unpack_type_cast(add->b, buffer_c.dtype).as<Mul>();
     if (mul == nullptr) {
       return false;
     }
 
-    auto* load_a = mul->a.as<Call>();
+    auto load_a_expr = unpack_type_cast(mul->a, buffer_c.dtype);
+    auto load_a = load_a_expr.as<Call>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
         || !(buffer_a.dtype == Float(16) ||
@@ -206,7 +210,8 @@ class MMAMatcher: public IRVisitor {
       return false;
     }
 
-    auto* load_b = mul->b.as<Call>();
+    auto load_b_expr = unpack_type_cast(mul->b, buffer_c.dtype);
+    auto load_b = load_b_expr.as<Call>();
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
         || !(buffer_b.dtype == Float(16) ||
@@ -219,7 +224,9 @@ class MMAMatcher: public IRVisitor {
     frag_reg_.insert(buffer_b.name);
     buf_name_.insert(std::make_pair(load_a, buffer_a.name));
     buf_name_.insert(std::make_pair(load_b, buffer_b.name));
-    mma_sync_.insert(std::make_pair(op, Array<Expr>{mul->a, mul->b, add->a}));
+    mma_sync_.insert(std::make_pair(op,
+      Array<Expr>{load_a_expr, load_b_expr, add->a}));
+
     return true;
   }
 
@@ -246,15 +253,10 @@ class BodyVisitor : public IRVisitor {
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
     }
-    for (auto source : op->source) {
-      auto* cast = source.as<Cast>();
-      if (cast == nullptr ||
-          !(cast->type == Float(32) || cast->type == Int(32))) {
-        continue;
-      }
-
-      auto* mul = cast->value.as<Mul>();
-      if (mul == nullptr) {
+    for (Expr source : op->source) {
+      auto mul_0 = unpack_type_cast(source, Float(32)).as<Mul>();
+      auto mul_1 = unpack_type_cast(source, Int(32)).as<Mul>();
+      if (mul_0 == nullptr && mul_1 == nullptr) {
         continue;
       }
 
