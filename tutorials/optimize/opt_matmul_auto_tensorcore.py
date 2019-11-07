@@ -49,6 +49,7 @@ import numpy as np
 import tvm
 
 from tvm import autotvm
+from tvm.contrib import nvcc
 
 def matmul_nn(A, B, L, dtype='float16', layout='NN'):
     k = tvm.reduce_axis((0, L), name='k')
@@ -211,6 +212,12 @@ def test_gemm(N, L, M, dtype, layout):
 # Finally we use a tuner to tune the schedule, generate code with best config
 # and run the kernel to compare with numpy to check whether the results are correct.
 
+# check whether the gpu has tensorcore
+ctx = tvm.gpu()
+if not nvcc.have_tensorcore(ctx.compute_version):
+  print('the gpu has no tensorcore, skipping...')
+  sys.exit(0)
+
 M, N, L = 512, 32, 512
 dtype = 'float16'
 layout = 'NN'
@@ -293,7 +300,6 @@ elif dtype == 'int8':
   elif (layout == "TT"):
     c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32).T)
 
-ctx = tvm.gpu()
 c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
 a_tvm = tvm.nd.array(a_np, ctx=ctx)
 b_tvm = tvm.nd.array(b_np, ctx=ctx)

@@ -76,18 +76,13 @@ Expr unpack_type_cast(const Expr &input, const Type &target_type) {
 // and C is fp32/int32 local buffer.
 class MMAMatcher: public IRVisitor {
  public:
-  explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer,
-                      double cuda_compute_capability, double cuda_version) {
+  explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer) {
     for (auto kv : extern_buffer) {
       BufferInfo bi;
       bi.name = kv.second->name;
       bi.dtype = kv.second->dtype;
       bi.external = true;
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
-    }
-    // Int wmma is supported when cuda version >= 10.0 && cuda arch >= 720
-    if (cuda_compute_capability >= 7.20 && cuda_version >= 10.0) {
-      support_int_wmma_ = true;
     }
   }
   using IRVisitor::Visit_;
@@ -192,7 +187,7 @@ class MMAMatcher: public IRVisitor {
     if (!check_local_buffer_(load_c, &buffer_c)
         || !buffer_c.same_as(store_buffer)
         || !(buffer_c.dtype == Float(32) ||
-             (support_int_wmma_ && buffer_c.dtype == Int(32)))) {
+             buffer_c.dtype == Int(32))) {
       return false;
     }
 
@@ -206,7 +201,7 @@ class MMAMatcher: public IRVisitor {
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
         || !(buffer_a.dtype == Float(16) ||
-             (support_int_wmma_ && buffer_a.dtype == Int(8)))) {
+             buffer_a.dtype == Int(8))) {
       return false;
     }
 
@@ -215,7 +210,7 @@ class MMAMatcher: public IRVisitor {
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
         || !(buffer_b.dtype == Float(16) ||
-             (support_int_wmma_ && buffer_b.dtype == Int(8)))) {
+             buffer_b.dtype == Int(8))) {
       return false;
     }
 
@@ -237,7 +232,6 @@ class MMAMatcher: public IRVisitor {
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
   bool tensor_core_on_{false};
-  bool support_int_wmma_{false};
 };
 
 // BodyVisitor visits the body stmt of original ComputeOp
@@ -399,13 +393,11 @@ class IndexVisitor : public IRVisitor {
 class BufferAnalyser : public IRVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
-                          double cuda_version,
                           const ScheduleAnalyser &schedule_analyser,
                           const MMAMatcher &mma_matcher)
       : matrix_abc_(schedule_analyser.matrix_abc_),
         matrix_major_(schedule_analyser.matrix_major_),
-        frag_reg_(mma_matcher.frag_reg_),
-        cuda_version_(cuda_version) {
+        frag_reg_(mma_matcher.frag_reg_) {
     for (auto kv : extern_buffer) {
       BufferInfo bi;
       bi.name = kv.second->name;
@@ -739,14 +731,12 @@ class BufferAnalyser : public IRVisitor {
         warp_tile_.k == 16) {
       return true;
     }
-    if (cuda_version_ >= 10.0 &&
-        warp_tile_.m == 8 &&
+    if (warp_tile_.m == 8 &&
         warp_tile_.n == 32 &&
         warp_tile_.k == 16) {
       return true;
     }
-    if (cuda_version_ >= 10.0 &&
-        warp_tile_.m == 32 &&
+    if (warp_tile_.m == 32 &&
         warp_tile_.n == 8 &&
         warp_tile_.k == 16) {
       return true;
@@ -769,7 +759,6 @@ class BufferAnalyser : public IRVisitor {
   Tile thread_tile_;
   int warp_threads_y_{-1};
   bool invalid_{false};
-  double cuda_version_{0};
 };
 
 // ThreadIdxMutator does the thread index unification inside a warp
@@ -803,8 +792,7 @@ class ThreadIdxMutator : public IRMutator {
 class TensorCoreIRMutator : public IRMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
-    const BufferAnalyser &buffer_analyser, double cuda_compute_capability,
-    double cuda_version)
+    const BufferAnalyser &buffer_analyser)
       : matrix_abc_(schedule_analyser.matrix_abc_),
       matrix_major_(schedule_analyser.matrix_major_),
       mma_sync_(schedule_analyser.mma_sync_),
@@ -814,9 +802,7 @@ class TensorCoreIRMutator : public IRMutator {
       frag_load_(buffer_analyser.frag_load_),
       frag_store_(buffer_analyser.frag_store_),
       warp_tile_(buffer_analyser.warp_tile_),
-      warp_threads_y_(buffer_analyser.warp_threads_y_),
-      cuda_compute_capability_(cuda_compute_capability),
-      cuda_version_(cuda_version) {}
+      warp_threads_y_(buffer_analyser.warp_threads_y_) {}
 
   Stmt Mutate_(const Realize* op, const Stmt& s) final {
     TensorKey key{op->func, op->value_index};
@@ -921,10 +907,8 @@ class TensorCoreIRMutator : public IRMutator {
     auto it2 = frag_load_.find(op);
     if (it2 != frag_load_.end()) {
       Expr dst = it2->second;
-      bool support_int_wmma = \
-        (cuda_compute_capability_ >= 7.2 && cuda_version_ >= 10.0);
       if (op->value.as<FloatImm>() != nullptr ||
-          (support_int_wmma && op->value.as<IntImm>() != nullptr)) {
+          op->value.as<IntImm>() != nullptr) {
         auto call = dst.as<Call>();
 
         auto fill_fragment_call =
@@ -1175,8 +1159,6 @@ class TensorCoreIRMutator : public IRMutator {
   std::unordered_map<TensorKey, Region> bounds_;
   Tile warp_tile_;
   int warp_threads_y_{-1};
-  double cuda_compute_capability_{0};
-  double cuda_version_{0};
 };
 
 Stmt RewriteForTensorCore(Stmt stmt,
@@ -1195,35 +1177,7 @@ Stmt RewriteForTensorCore(Stmt stmt,
     return stmt;
   }
 
-  // Check if current GPU device supports Tensor Core
-  tvm::runtime::TVMRetValue ret;
-  api->GetAttr(ctx, tvm::runtime::kComputeVersion, &ret);
-  std::string ret_str = ret;
-  double cuda_compute_capability = std::stod(ret_str);
-  if (cuda_compute_capability < 7.0) {
-    return stmt;
-  }
-
-  // Check if current CUDA version supports Tensor Core
-  TVMFunctionHandle handle;
-  tvm::runtime::PackedFunc* handle_func;
-  TVMFuncGetGlobal("tvm_find_cuda_path", &handle);
-  handle_func = static_cast<tvm::runtime::PackedFunc*>(handle);
-  CHECK(handle_func != nullptr)
-    << "Error getting tvm_find_cuda_path function";
-  auto res = (*handle_func)();
-  TVMFuncGetGlobal("tvm_get_cuda_version", &handle);
-  handle_func = static_cast<tvm::runtime::PackedFunc*>(handle);
-  CHECK(handle_func != nullptr)
-    << "Error getting tvm_get_cuda_version function";
-  res = (*handle_func)(res);
-  double cuda_version = res;
-  if (cuda_version < 9.0) {
-    return stmt;
-  }
-
-  MMAMatcher mma_matcher(extern_buffer,
-                         cuda_compute_capability, cuda_version);
+  MMAMatcher mma_matcher(extern_buffer);
   mma_matcher.Visit(stmt);
   if (!mma_matcher.Matched()) {
     return stmt;
@@ -1234,15 +1188,14 @@ Stmt RewriteForTensorCore(Stmt stmt,
     return stmt;
   }
 
-  BufferAnalyser buffer_analyser(extern_buffer, cuda_version,
+  BufferAnalyser buffer_analyser(extern_buffer,
                                  schedule_analyser, mma_matcher);
   buffer_analyser.Visit(stmt);
   if (!buffer_analyser.QualifiedForTensorCore()) {
     return stmt;
   }
 
-  return TensorCoreIRMutator(schedule_analyser, buffer_analyser,
-          cuda_compute_capability, cuda_version).Mutate(stmt);
+  return TensorCoreIRMutator(schedule_analyser, buffer_analyser).Mutate(stmt);
 }
 
 }  // namespace ir
