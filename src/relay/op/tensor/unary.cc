@@ -286,8 +286,8 @@ bool ShapeOfRel(const Array<Type>& types,
   CHECK(tt != nullptr);
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
-  auto vector_out = tvm::Integer(tt->shape.size());
-  reporter->Assign(types[1], TensorTypeNode::make({ vector_out }, param->dtype));
+  auto rank_shape = RankShape(tt->shape);
+  reporter->Assign(types[1], TensorTypeNode::make(rank_shape, param->dtype));
   return true;
 }
 

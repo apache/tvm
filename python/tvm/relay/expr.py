@@ -317,6 +317,9 @@ class Function(Expr):
 
         return _expr.FunctionSetParams(self, params)
 
+    def set_attribute(self, name, ref):
+        return _expr.FunctionSetAttr(self, name, ref)
+
 
 @register_relay_node
 class Call(Expr):

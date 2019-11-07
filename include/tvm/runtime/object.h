@@ -283,6 +283,8 @@ class Object {
    * \note The deleter will be called when ref_counter_ becomes zero.
    */
   inline void DecRef();
+
+ private:
   /*!
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
@@ -675,6 +677,16 @@ struct ObjectEqual {
   operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
+#define TVM_DEFINE_OBJECT_REF_METHODS_MUT(TypeName, ParentType, ObjectName) \
+  TypeName() {}                                                             \
+  explicit TypeName(                                                        \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)                  \
+      : ParentType(n) {}                                                    \
+  ObjectName* operator->() {                                    \
+    return static_cast<ObjectName*>(data_.get());                     \
+  }                                                                         \
+  operator bool() const { return data_ != nullptr; }                        \
+  using ContainerType = ObjectName;
 
 // Implementations details below
 // Object reference counting.

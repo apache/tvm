@@ -62,7 +62,7 @@ https://www.veripool.org/projects/verilator/wiki/Installing
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Get tvm `git clone https://github.com/dmlc/tvm.git`
+2. Get tvm `git clone https://github.com/apache/incubator-tvm.git`
 3. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
 
 ## How to run VTA TSIM examples

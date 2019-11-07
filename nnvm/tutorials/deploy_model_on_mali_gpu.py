@@ -53,7 +53,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   git clone --recursive https://github.com/dmlc/tvm
+#   git clone --recursive https://github.com/apache/incubator-tvm
 #   cd tvm
 #   cp cmake/config.cmake .
 #   sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake

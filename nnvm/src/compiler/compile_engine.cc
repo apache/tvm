@@ -391,8 +391,9 @@ TVM_REGISTER_GLOBAL("nnvm.compiler.CacheItem2ScheduleArgs")
 TVM_REGISTER_NODE_TYPE(GraphFuncNode);
 TVM_REGISTER_NODE_TYPE(GraphCacheEntryNode);
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<GraphFuncNode>([](const GraphFuncNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<GraphFuncNode>([](const ObjectRef& ref, IRPrinter* p) {
+    auto* op = static_cast<const GraphFuncNode*>(ref.get());
     p->stream << "GraphFunc(name=" << op->func_name
               << ", addr=" << op << ")";
 });

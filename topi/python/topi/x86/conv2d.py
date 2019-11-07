@@ -110,7 +110,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     kh, kw, _, _ = get_const_tuple(kernel.shape)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    # FIXME - https://github.com/dmlc/tvm/issues/4122
+    # FIXME - https://github.com/apache/incubator-tvm/issues/4122
     # _declaration_conv_nhwc_pack expects kernel layout to be HWOI. However, the tests use HWIO
     # layout. Commenting until we have clarity about the nhwc_pack implementation from the author.
     # elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":

@@ -25,9 +25,14 @@ def _debugger_init(expr, stack):
     import pdb
     pdb.set_trace()
 
-# pylint: disable=unused-argument
 @register_func("relay.debug")
 def _debug(*args):
+    import pdb
+    pdb.set_trace()
+
+# pylint: disable=unused-argument
+@register_func("relay.debug_interp")
+def _debug_interp(*args):
     _, _, _, ist = args
     print("Relay Debugger")
     print("  You can manipulate the expression under evaluation with the name `expr`.")

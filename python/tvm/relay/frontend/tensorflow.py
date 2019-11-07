@@ -39,22 +39,10 @@ from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
+from .common import infer_value as _infer_value
 
 __all__ = ['from_tensorflow']
 
-def _infer_value(input_val, params):
-    from tvm.contrib import graph_runtime
-    # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-        input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(analysis.free_vars(input_val), input_val)
-    with tvm.relay.build_config(opt_level=0):
-        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-    ctx = tvm.context("llvm", 0)
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input(**params)
-    m.run()
-    return m.get_output(0)
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
@@ -624,6 +612,16 @@ def _slice():
 def _reshape():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(1)
+
+        # We use reshape_like directly to deal with dynamic shape.
+        if isinstance(pop_node, tvm.relay.expr.Call):
+            if "shape_of" not in str(pop_node.op):
+                raise RuntimeError("If shape operator is used in reshape to "
+                                   "express reshape_like, shape_of must be "
+                                   "the direct ancestor of reshape when input "
+                                   "shape is symbolic.")
+            return _op.reshape_like(inputs[0], pop_node.args[0])
+
         try:
             shape_arg = _get_tuple_param(params, pop_node)
         except AttributeError:
@@ -800,7 +798,18 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
+        is_symbolic_shape = False
+        for axis in attr['_input_shapes'][inputs[0]]:
+            if not isinstance(axis, (int, tvm.expr.IntImm, tvm.expr.UIntImm)):
+                is_symbolic_shape = True
+                break
+
+        if is_symbolic_shape:
+            ret = _op.shape_of(inputs[0], dtype='int32')
+        else:
+            ret = np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
+        return ret
+
     return _impl
 
 def _fill():
@@ -863,11 +872,14 @@ def _gather():
             axis = _get_num_param(params, inputs.pop(2))
         else:
             axis = 0
+        if int(attr.get('batch_dims', 0)) != 0:
+            raise tvm.error.OpAttributeUnImplemented(
+                'Attribute batch_dims is not supported')
         new_input = inputs[0:2]
         return AttrCvt(op_name="take",
                        extras={'axis': tvm.const(axis, 'int32')},
                        ignores=['Tindices', 'Tparams', 'validate_indices',
-                                'Taxis', '_class'])(new_input, attr)
+                                'Taxis', '_class', 'batch_dims'])(new_input, attr)
     return _impl
 
 def _gather_nd():
@@ -1330,6 +1342,18 @@ def _size():
         return AttrCvt('ndarray_size', transforms={'out_type' : 'dtype'})(inputs, new_attr)
     return _impl
 
+def _add_n():
+    def _impl(inputs, attr, params):
+        if not isinstance(inputs, tuple):
+            inputs = list(inputs)
+        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
+        _res = inputs[0]
+        for each in inputs[1:]:
+            _res = _op.add(_res, each)
+        return  _res
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1341,7 +1365,9 @@ _identity_list = []
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
     'Add'                               : _elemwise('add'),
+    'AddN'                              : _add_n(),
     'All'                               : _reduce('all'),
+    'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
@@ -1449,6 +1475,7 @@ _convert_map = {
     'Square'                            : _square(),
     'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
+    'StopGradient'                      : _identity(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),
     'Sum'                               : _sum(),

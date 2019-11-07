@@ -24,14 +24,15 @@
  * \brief Registration of annotation operators.
  */
 
+#include <tvm/expr.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
-#include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
+#include "../type_relations.h"
 
 namespace tvm {
 namespace relay {

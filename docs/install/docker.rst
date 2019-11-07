@@ -29,7 +29,7 @@ First, clone TVM repo to get the auxiliary scripts
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm
 
 
 We can then use the following command to launch a `tvmai/demo-cpu` image.
@@ -69,5 +69,5 @@ with ``localhost`` when pasting it into browser.
 
 Docker Source
 -------------
-Check out `<https://github.com/dmlc/tvm/tree/master/docker>`_ if you are interested in
+Check out `<https://github.com/apache/incubator-tvm/tree/master/docker>`_ if you are interested in
 building your own docker images.
