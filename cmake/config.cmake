@@ -143,6 +143,11 @@ set(USE_ROCBLAS OFF)
 # Whether use contrib sort
 set(USE_SORT ON)
 
+# Whether use contrib extern (use ";" to separate multiple externs)
+# Available externs:
+#   gcc
+# set(USE_EXTERN none)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)

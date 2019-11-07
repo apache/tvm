@@ -79,6 +79,7 @@ class Module : public ObjectRef {
    * \brief Load a module from file.
    * \param file_name The name of the host function module.
    * \param format The format of the file.
+   * \param external_lib_name The name of the external library.
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */

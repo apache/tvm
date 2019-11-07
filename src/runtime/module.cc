@@ -76,7 +76,8 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
 }
 
 Module Module::LoadFromFile(const std::string& file_name,
-                            const std::string& format) {
+                            const std::string& format,
+                            const std::string& external_lib_name) {
 #ifndef _LIBCPP_SGX_CONFIG
   std::string fmt = GetFileFormat(file_name, format);
   CHECK(fmt.length() != 0)
@@ -84,7 +85,11 @@ Module Module::LoadFromFile(const std::string& file_name,
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
     fmt = "so";
   }
-  std::string load_f_name = "module.loadfile_" + fmt;
+  std::string load_f_name = "module.loadfile_";
+  if (!external_lib_name.empty()) {
+    load_f_name = load_f_name + external_lib_name + "_";
+  }
+  load_f_name += fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
   CHECK(f != nullptr)
       << "Loader of " << format << "("
@@ -196,7 +201,7 @@ TVM_REGISTER_GLOBAL("module._GetTypeKey")
 
 TVM_REGISTER_GLOBAL("module._LoadFromFile")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = Module::LoadFromFile(args[0], args[1]);
+    *ret = Module::LoadFromFile(args[0], args[1], args[2]);
     });
 
 TVM_REGISTER_GLOBAL("module._SaveToFile")

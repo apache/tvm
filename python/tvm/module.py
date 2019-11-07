@@ -227,7 +227,7 @@ def system_lib():
     return _GetSystemLib()
 
 
-def load(path, fmt=""):
+def load(path, fmt="", ext_lib=""):
     """Load module from file.
 
     Parameters
@@ -238,6 +238,9 @@ def load(path, fmt=""):
     fmt : str, optional
         The format of the file, if not specified
         it will be inferred from suffix of the file.
+
+    ext_lib : str, optional
+        The string to indicate the name of the external codegen
 
     Returns
     -------
@@ -261,7 +264,7 @@ def load(path, fmt=""):
         _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
-    return _LoadFromFile(path, fmt)
+    return _LoadFromFile(path, fmt, ext_lib)
 
 
 def enabled(target):

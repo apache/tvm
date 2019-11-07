@@ -67,6 +67,7 @@ void GraphRuntime::Run() {
  */
 void GraphRuntime::Init(const std::string& graph_json,
                         tvm::runtime::Module module,
+                        tvm::runtime::Module ext_module,
                         const std::vector<TVMContext>& ctxs) {
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::istringstream is(graph_json);
@@ -76,6 +77,7 @@ void GraphRuntime::Init(const std::string& graph_json,
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   module_ = module;
+  ext_module_ = ext_module;
   ctxs_ = ctxs;
   this->SetupStorage();
   this->SetupOpExecs();
@@ -332,27 +334,47 @@ void GraphRuntime::SetupOpExecs() {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<DLTensor> args;
+    std::vector<size_t> arity;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
+      arity.push_back(eid);
       args.push_back(*(data_entry_[eid].operator->()));
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
+      arity.push_back(eid);
       args.push_back(*(data_entry_[eid].operator->()));
     }
-    CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
+    CHECK(inode.op_type == "tvm_op" || inode.op_type == "external_op")
+        << "Can only take tvm_op or external_op as op";
 
-    std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) =
+    if (inode.op_type == "tvm_op") {
+      std::shared_ptr<OpArgs> op_args = nullptr;
+      std::tie(op_execs_[nid], op_args) =
         CreateTVMOp(inode.param, args, inode.inputs.size());
 
-    for (size_t i = 0; i < inode.inputs.size(); i++) {
-      uint32_t eid = this->entry_id(inode.inputs[i]);
-      // check if op input is model input
-      if (input_node_eids.count(eid) > 0) {
-        input_dltensors_[eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      for (size_t i = 0; i < inode.inputs.size(); i++) {
+        uint32_t eid = this->entry_id(inode.inputs[i]);
+        // check if op input is model input
+        if (input_node_eids.count(eid) > 0) {
+          input_dltensors_[eid].push_back(
+              static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+        }
       }
+    } else if (inode.op_type == "external_op") {
+      tvm::runtime::PackedFunc pf = ext_module_.GetFunction(inode.param.func_name, false);
+      CHECK(pf != nullptr) << "no such function in module: " << inode.param.func_name;
+      auto fexec = [pf, arity, this]() {
+        std::vector<TVMValue> values(arity.size());
+        std::vector<int> codes(arity.size());
+        runtime::TVMArgsSetter setter(values.data(), codes.data());
+        for (size_t i = 0; i < arity.size(); i++) {
+          setter(i, this->data_entry_[arity[i]]);
+        }
+        TVMRetValue rv;
+        pf.CallPacked(TVMArgs(values.data(), codes.data(), arity.size()), &rv);
+      };
+      op_execs_[nid] = fexec;
     }
   }
 }
@@ -477,6 +499,7 @@ PackedFunc GraphRuntime::GetFunction(
 
 Module GraphRuntimeCreate(const std::string& sym_json,
                           const tvm::runtime::Module& m,
+                          const tvm::runtime::Module& ext_m,
                           const std::vector<TVMContext>& ctxs) {
   auto exec = make_object<GraphRuntime>();
   exec->Init(sym_json, m, ctxs);
@@ -488,7 +511,7 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
   // Reserve the first item as the fallback device.
   std::vector<TVMContext> ret;
   TVMContext ctx;
-  for (int i = 2; i < args.num_args; i += 2) {
+  for (int i = 3; i < args.num_args; i += 2) {
     int dev_type = args[i];
     ctx.device_type = static_cast<DLDeviceType>(dev_type);
     ctx.device_id = args[i + 1];
@@ -504,12 +527,12 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
 // Eventually, we will only probably pass TVMContext for all the languages.
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4)
+    CHECK_GE(args.num_args, 5)
         << "The expected number of arguments for graph_runtime.create is "
-           "at least 4, but it has "
+           "at least 5, but it has "
         << args.num_args;
     const auto& contexts = GetAllContext(args);
-    *rv = GraphRuntimeCreate(args[0], args[1], contexts);
+    *rv = GraphRuntimeCreate(args[0], args[1], args[2], contexts);
   });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
