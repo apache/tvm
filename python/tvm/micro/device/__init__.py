@@ -6,7 +6,35 @@ from pathlib import Path
 from tvm.contrib import util as _util
 from tvm.contrib.binutil import run_cmd
 from tvm._ffi.libinfo import find_include_path
-from tvm.micro import LibType
+from tvm.micro import LibType, get_micro_host_driven_dir, get_micro_device_dir
+
+BINUTIL_REGISTRY = {}
+
+def register_binutil(binutil):
+    name = binutil.device_id()
+    if name in BINUTIL_REGISTRY:
+        raise RuntimeError(f'"{name}" already exists in the binutil registry')
+    BINUTIL_REGISTRY[name] = binutil
+
+
+def get_binutil(device_id):
+    """Get matching MicroBinutil subclass from `device_id`
+
+    Parameters
+    ----------
+    device_id : str
+        unique identifier for the target device
+
+    Return
+    ------
+    binutil : MicroBinutil
+        MicroBinutil subclass
+    """
+    if device_id not in BINUTIL_REGISTRY:
+        raise RuntimeError(f'"{device_id}" does not exist in the binutil registry')
+    binutil = BINUTIL_REGISTRY[device_id]
+    return binutil()
+
 
 class MicroBinutil:
     """Base class for GCC-specific library compilation for MicroTVM
@@ -64,12 +92,12 @@ class MicroBinutil:
             base_compile_cmd += options
 
         src_paths = []
-        include_paths = find_include_path() + [_get_micro_host_driven_dir()]
+        include_paths = find_include_path() + [get_micro_host_driven_dir()]
         ld_script_path = None
         tmp_dir = _util.tempdir()
         if lib_type == LibType.RUNTIME:
             import glob
-            dev_dir = _get_micro_device_dir() + '/' + self.device_id()
+            dev_dir = get_micro_device_dir() + '/' + self.__class__.device_id()
 
             print(dev_dir)
             dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
@@ -130,48 +158,4 @@ class MicroBinutil:
 from . import host
 from . import arm
 from . import riscv_spike
-
-# TODO use registry pattern?
-def get_binutil(name):
-    """Get matching MicroBinutil subclass from `name`
-
-    Return
-    ------
-    binutil : MicroBinutil
-        MicroBinutil subclass
-    """
-    if name == 'host':
-        return host.HostBinutil()
-    elif name == 'stm32f746xx':
-        return arm.stm32f746xx.Stm32F746XXBinutil()
-    else:
-        assert False
-
-
-def _get_micro_host_driven_dir():
-    """Get directory path for uTVM host-driven runtime source files.
-
-    Return
-    ------
-    micro_device_dir : str
-        directory path
-    """
-    micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_host_driven_dir = os.path.join(micro_dir, '..', '..', '..', '..',
-                                         'src', 'runtime', 'micro', 'host_driven')
-    return micro_host_driven_dir
-
-
-def _get_micro_device_dir():
-    """Get directory path for TODO
-
-    Return
-    ------
-    micro_device_dir : str
-        directory path
-    """
-    micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_device_dir = os.path.join(micro_dir, "..", "..", "..", "..",
-                                    "src", "runtime", "micro", "device")
-    return micro_device_dir
 

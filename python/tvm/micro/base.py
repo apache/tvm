@@ -57,8 +57,9 @@ class Session:
 
     def __init__(self, config):
         self._check_system()
-        self._check_config(config)
+        # TODO(weberlo): add config validation
 
+        # grab a binutil instance from the ID in the config
         self.binutil = tvm.micro.device.get_binutil(config['binutil'])
         self.mem_layout = config['mem_layout']
         self.word_size = config['word_size']
@@ -66,7 +67,7 @@ class Session:
         self.comms_method = config['comms_method']
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(_get_micro_host_driven_dir(), 'utvm_runtime.c')
+        runtime_src_path = os.path.join(get_micro_host_driven_dir(), 'utvm_runtime.c')
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
         self.binutil.create_lib(runtime_obj_path, runtime_src_path, LibType.RUNTIME)
@@ -143,15 +144,6 @@ class Session:
         if sys.maxsize <= 2**32:
             raise RuntimeError('MicroTVM is currently only supported on 64-bit platforms')
 
-    def _check_config(self, config):
-        """Check if the given configuration is valid."""
-        #if device_type == 'host':
-        #    pass
-        #elif device_type == 'openocd':
-        #    assert "base_addr" in args
-        #    assert "server_addr" in args
-        #    assert "port" in args
-
     def __enter__(self):
         self._enter()
         return self
@@ -167,7 +159,8 @@ def cross_compiler(dev_binutil, lib_type):
 
     Parameters
     ----------
-    lib_type: DFSDF
+    lib_type : micro.LibType
+        whether to compile a MicroTVM runtime or operator library
 
     Return
     ------
@@ -195,7 +188,7 @@ def cross_compiler(dev_binutil, lib_type):
     return _cc.cross_compiler(compile_func, output_format='obj')
 
 
-def _get_micro_host_driven_dir():
+def get_micro_host_driven_dir():
     """Get directory path for uTVM host-driven runtime source files.
 
     Return
@@ -209,7 +202,7 @@ def _get_micro_host_driven_dir():
     return micro_host_driven_dir
 
 
-def _get_micro_device_dir():
+def get_micro_device_dir():
     """Get directory path for TODO
 
     Return

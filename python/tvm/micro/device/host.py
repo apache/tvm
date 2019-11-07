@@ -1,6 +1,6 @@
 import sys
 
-from . import MicroBinutil
+from . import MicroBinutil, register_binutil
 
 class HostBinutil(MicroBinutil):
     def __init__(self):
@@ -13,9 +13,11 @@ class HostBinutil(MicroBinutil):
             options += ['-mcmodel=large']
         super(HostBinutil, self).create_lib(obj_path, src_path, lib_type, options=options)
 
-    def device_id(self):
+    def device_id():
         return 'host'
 
+
+register_binutil(HostBinutil)
 
 def default_config():
     return {
