@@ -16,11 +16,12 @@
 # under the License.
 """RPC server for interacting with devices via MicroTVM"""
 
-import logging
 import argparse
-import os
+import ast
 import ctypes
 import json
+import logging
+import os
 import tvm
 from tvm import rpc
 from tvm import micro
@@ -41,6 +42,8 @@ def main():
                         help='JSON config file for the target device')
     parser.add_argument('--dev-id', type=str,
                         help='Unique ID for the target device')
+    parser.add_argument('--dev-config-args', type=str,
+                        help='Python list of literals required to generate a default config (if --dev-id is specified)')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -54,8 +57,8 @@ def main():
     else:
         tracker_addr = None
 
-    if not (args.dev_config or args.dev_id):
-        raise RuntimeError('must provide either --dev-config or --dev-id')
+    if not (args.dev_config or (args.dev_id and args.dev_config_args)):
+        raise RuntimeError('must provide either --dev-config or --dev-id and --dev-config-args')
     if args.dev_config and args.dev_id:
         raise RuntimeError('only one of --dev-config and --dev-id allowed')
 
@@ -63,7 +66,8 @@ def main():
         with open(args.dev_config, 'r') as dev_conf_file:
             dev_config = json.load(dev_conf_file)
     else:
-        dev_config = micro.device.get_config(args.dev_id)
+        dev_config_args = ast.literal_eval(args.dev_config_args)
+        dev_config = micro.device.get_device_funcs(args.dev_id)['default_config'](*dev_config_args)
 
     @tvm.register_func('tvm.rpc.server.start', override=True)
     def server_start():

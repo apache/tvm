@@ -36,6 +36,7 @@ from vta.top import graph_pack
 # --dev-config=<config_file>` in another.
 
 DEV_CONFIG = micro.device.arm.stm32f746xx.default_config('127.0.0.1', 6666)
+DEV_CREATE_MICRO_LIB = micro.device.get_device_funcs(DEV_CONFIG['device_id'])['create_micro_lib']
 #DEV_CONFIG = micro.device.host.default_config()
 
 DEVICE = 'arm-cortex-m'
@@ -88,7 +89,7 @@ def tune():
     early_stopping = None
     measure_option = autotvm.measure_option(
             builder=autotvm.LocalBuilder(
-                build_func=tvm.micro.cross_compiler(DEV_CONFIG['binutil'], micro.LibType.OPERATOR)),
+                build_func=tvm.micro.cross_compiler(DEV_CREATE_MICRO_LIB, micro.LibType.OPERATOR)),
             runner=autotvm.RPCRunner('micro', SERVER_ADDR, SERVER_PORT, n_parallel=N_PARALLEL, number=N_PER_TRIAL)
             )
 
@@ -115,7 +116,6 @@ def tune():
 def evaluate():
     print('[EVALUATE]')
     # compile kernels with history best records
-    #with autotvm.tophub.context(TARGET, extra_files=[LOG_FILE_NAME]):
     with autotvm.apply_history_best(LOG_FILE_NAME):
         with TARGET:
             sched, arg_bufs = matmul(N, L, M, DTYPE)

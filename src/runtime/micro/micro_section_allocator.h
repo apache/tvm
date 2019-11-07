@@ -43,7 +43,8 @@ class MicroSectionAllocator {
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
-      CHECK_EQ(start_addr_.value() % word_size, 0) << "micro section not aligned to " << word_size << " bytes";
+      CHECK_EQ(start_addr_.value() % word_size, 0) << "micro section start not aligned to " << word_size << " bytes";
+      CHECK_EQ(capacity_ % word_size, 0) << "micro section end not aligned to " << word_size << " bytes";
     }
 
   /*!
@@ -112,7 +113,7 @@ class MicroSectionAllocator {
   size_t size_;
   /*! \brief total storage capacity of the section */
   size_t capacity_;
-  /*! \brief TODO */
+  /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
   /*! \brief allocation map for allocation sizes */
   std::unordered_map<std::uintptr_t, size_t> alloc_map_;

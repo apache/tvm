@@ -244,7 +244,6 @@ inline size_t UpperAlignValue(size_t value, size_t align) {
  */
 const char* SectionToString(SectionKind section);
 
-// todo new docs
 /*!
  * \brief links binary by repositioning section addresses
  * \param binary_name input binary filename

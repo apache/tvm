@@ -73,11 +73,31 @@ class MicroSession : public ModuleNode {
     return "MicroSession";
   }
 
-  // TODO make a micro session config object
   /*!
    * \brief creates session by setting up a low-level device and initting allocators for it
-   * \param args TVMArgs passed into the micro.init packedfunc
-   * TODO rewrite docs
+   * \param comms_method method of communication with the device (e.g., "openocd")
+   * \param binary_path file system path to the runtime binary
+   * \param toolchain_prefix GCC toolchain prefix
+   * \param text_start text section start address
+   * \param text_size text section size
+   * \param rodata_start text section start address
+   * \param rodata_size rodata section size
+   * \param data_start data section start address
+   * \param data_size data section size
+   * \param bss_start bss section start address
+   * \param bss_size bss section size
+   * \param args_start args section start address
+   * \param args_size args section size
+   * \param heap_start heap section start address
+   * \param heap_size heap section size
+   * \param workspace_start workspace section start address
+   * \param workspace_size workspace section size
+   * \param stack_start stack section start address
+   * \param stack_size stack section size
+   * \param word_size number of bytes in a word on the target device
+   * \param thumb_mode whether the target device requires a thumb-mode bit on function addresses
+   * \param server_addr address of the OpenOCD server to connect to (if `comms_method == "openocd"`)
+   * \param port port of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    */
   MicroSession(
       const std::string& comms_method,
@@ -189,7 +209,7 @@ class MicroSession : public ModuleNode {
   size_t memory_size_;
   /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
-  /*! \brief whether the device requires a thumb-mode bit on function addresses
+  /*! \brief whether the target device requires a thumb-mode bit on function addresses
    *
    * ARM and other manufacturers use the lowest bit of a function address to determine
    * whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
@@ -265,8 +285,8 @@ struct MicroDevSpace {
 typedef struct StructTVMArray32 {
   uint32_t data;
   DLContext ctx;
-  // todo make int32?
-  int ndim;
+  int32_t ndim;
+  uint32_t pad0;
   DLDataType dtype;
   uint32_t shape;
   uint32_t strides;
@@ -274,6 +294,18 @@ typedef struct StructTVMArray32 {
   uint32_t byte_offset;
   uint32_t pad2;
 } TVMArray32;
+
+/*! \brief TVM array for serialization to 64-bit devices */
+typedef struct StructTVMArray64 {
+  uint64_t data;
+  DLContext ctx;
+  int32_t ndim;
+  uint32_t pad0;
+  DLDataType dtype;
+  uint64_t shape;
+  uint64_t strides;
+  uint64_t byte_offset;
+} TVMArray64;
 
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {

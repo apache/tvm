@@ -195,11 +195,21 @@ MicroSession::MicroSession(
   std::cout << runtime_symbol_map_["utvm_task"].cast_to<void*>() << std::endl;
 
   // Patch pointers to define the bounds of the workspace section and the word size (for allocation alignment).
-  void* workspace_start_addr = GetAllocator(SectionKind::kWorkspace)->start_addr().cast_to<void*>();
-  void* workspace_end_addr = GetAllocator(SectionKind::kWorkspace)->max_addr().cast_to<void*>();
-  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
-  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
-  DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
+  if (word_size_ == 4) {
+    uint32_t workspace_start_addr = (uint32_t) GetAllocator(SectionKind::kWorkspace)->start_addr().value();
+    uint32_t workspace_end_addr = (uint32_t) GetAllocator(SectionKind::kWorkspace)->max_addr().value();
+    uint32_t word_size = (uint32_t) word_size_;
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size);
+  } else if (word_size_ == 8) {
+    uint64_t workspace_start_addr = (uint64_t) GetAllocator(SectionKind::kWorkspace)->start_addr().value();
+    uint64_t workspace_end_addr = (uint64_t) GetAllocator(SectionKind::kWorkspace)->max_addr().value();
+    uint64_t word_size = (uint64_t) word_size_;
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
+  }
 }
 
 MicroSession::~MicroSession() {
@@ -268,7 +278,6 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   //std::cout << "  do execution things: ";
   //char tmp;
   //std::cin >> tmp;
-
   low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
 
   // Check if there was an error during execution.  If so, log it.
@@ -410,7 +419,6 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
   if (word_size_ == 4) {
     auto tvm_arr_slot = encoder->Alloc<TVMArray32>();
-    //CHECK(false) << "should we be allocing int32_t?";
     auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
     // `shape` and `strides` are stored on the host, so we need to write them to
@@ -431,6 +439,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
       .data = *((uint32_t*) &arr.data),
       .ctx = arr.ctx,
       .ndim = arr.ndim,
+      .pad0 = 0,
       .dtype = arr.dtype,
       .shape = *((uint32_t*) &dev_shape),
       .strides = *((uint32_t*) &dev_strides),
@@ -445,7 +454,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     tvm_arr_slot.WriteValue(dev_arr);
     return tvm_arr_slot.start_addr();
   } else if (word_size_ == 8) {
-    auto tvm_arr_slot = encoder->Alloc<TVMArray>();
+    auto tvm_arr_slot = encoder->Alloc<TVMArray64>();
     auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
     // `shape` and `strides` are stored on the host, so we need to write them to
@@ -462,16 +471,21 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
 
     int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
     int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
+    TVMArray64 dev_arr = {
+      .data = *((uint64_t*) &arr.data),
+      .ctx = arr.ctx,
+      .ndim = arr.ndim,
+      .pad0 = 0,
+      .dtype = arr.dtype,
+      .shape = *((uint64_t*) &dev_shape),
+      .strides = *((uint64_t*) &dev_strides),
+      .byte_offset = *((uint64_t*) &arr.byte_offset),
+    };
 
-    // Copy `arr`, update the copy's pointers to be device pointers, then
-    // write the copy to `tvm_arr_slot`.
-    TVMArray dev_arr = arr;
     // Update the device type to look like a host, because codegen generates
     // checks that it is a host array.
     CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
     dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-    dev_arr.shape = shape_addr.cast_to<int64_t*>();
-    dev_arr.strides = strides_addr.cast_to<int64_t*>();
     tvm_arr_slot.WriteValue(dev_arr);
     return tvm_arr_slot.start_addr();
   } else {
@@ -505,7 +519,7 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   if (thumb_mode_) {
     runtime_impl_addr += 1;
   }
-  std::cout << "patching " << func_name << " with addr " << runtime_impl_addr.cast_to<void*>() << std::endl;
+  std::cout << "patching " << func_name << " at " << symbol_map[func_name].cast_to<void*>() << " with addr " << runtime_impl_addr.cast_to<void*>() << std::endl;
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   if (word_size_ == 4) {
