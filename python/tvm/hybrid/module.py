@@ -112,7 +112,7 @@ class HybridModule(object):
             self.name = finder.name
         self.root_ = finder.root
 
-        _, local_ = {}
+        _, local_ = {}, {}
         exec(self.src_, _, local_) #pylint: disable=exec-used
         func = list(local_.values())
         assert len(func) == 1
