@@ -22,7 +22,6 @@ To enable this feature, you need to build with -DUSE_HYBRID_DUMP=ON.
 """
 
 import ast
-import imp
 
 from ..contrib import util
 from .util import _internal_assert
@@ -112,5 +111,9 @@ class HybridModule(object):
         if self.name is None:
             self.name = finder.name
         self.root_ = finder.root
-        py_module = imp.load_source(self.name, path)
-        self.func_ = getattr(py_module, self.name)
+
+        global_, local_ = {}, {}
+        exec(self.src_, globals_, local_)
+        func = list(local_.values())
+        assert len(func) == 1
+        self.func_ = func[0]
