@@ -993,9 +993,12 @@ class Where(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        input0shape = infer_value_simulated(inputs[0], params).asnumpy().shape
-        new_input_1 = _op.reshape(inputs[1], input0shape)
-        return _op.where(inputs[0], new_input_1, inputs[2])
+        # condition can be broadcasted
+        input0_shape = infer_shape(inputs[0])
+        input1_shape = infer_shape(inputs[1])
+        if len(input0_shape) > len(input1_shape):
+            inputs[1] = _op.broadcast_to(inputs[1], input0_shape)
+        return _op.where(inputs[0], inputs[2], inputs[2])
 
 class Or(Elemwise):
     """ Operator converter for Or.
