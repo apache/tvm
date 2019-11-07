@@ -448,6 +448,7 @@ def get_name(node):
     name = ''
     if hasattr(node, "name_hint"):
         name = node.name_hint
+    return name
 
 
 def infer_type(node):
