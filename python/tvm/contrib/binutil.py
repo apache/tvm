@@ -29,7 +29,6 @@ def run_cmd(cmd):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT)
     (output, _) = proc.communicate()
-    # todo need to use py_str?
     output = output.decode('utf-8')
     if proc.returncode != 0:
         cmd_str = ' '.join(cmd)

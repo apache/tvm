@@ -23,8 +23,6 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/container.h>
-#include <tvm/ir.h>
 #include <memory>
 #include <stack>
 #include <tuple>

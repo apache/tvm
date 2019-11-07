@@ -131,14 +131,21 @@ class MicroSession : public ModuleNode {
 
   static ObjectPtr<MicroSession>& Current();
 
-  void CreateSession();
-
-  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
+  /*!
+   * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
+   * \param func address of the function to be executed
+   * \param args args to the packed function
+   * \return elapsed time during function execution on the device
+   */
+  double PushToExecQueue(DevPtr func, const TVMArgs& args);
 
   /*!
-   * \brief ends the session by destructing the low-level device and its allocators
+   * \brief loads binary onto device
+   * \param binary_path path to binary object file
+   * \param patch_dylib_pointers whether to patch runtime API function pointers
+   * \return info about loaded binary
    */
-  void EndSession();
+  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
 
   /*!
    * \brief allocate memory in section
@@ -161,14 +168,6 @@ class MicroSession : public ModuleNode {
    * \return host copy of device string that was read
    */
   std::string ReadString(DevPtr str_addr);
-
-  /*!
-   * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
-   * \param func address of the function to be executed
-   * \param args args to the packed function
-   * \return elapsed time during function execution on the device
-   */
-  double PushToExecQueue(DevPtr func, const TVMArgs& args);
 
   /*!
   * \brief read value of symbol from device memory
@@ -283,27 +282,59 @@ struct MicroDevSpace {
 
 /*! \brief TVM array for serialization to 32-bit devices */
 typedef struct StructTVMArray32 {
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint32_t data;
+  /*! \brief The device context of the tensor */
   DLContext ctx;
+  /*! \brief Number of dimensions */
   int32_t ndim;
+  /*! \brief Padding to enforce struct alignment */
   uint32_t pad0;
+  /*! \brief The data type of the pointer */
   DLDataType dtype;
+  /*! \brief The shape of the tensor */
   uint32_t shape;
+  /*!
+   * \brief strides of the tensor,
+   *  can be NULL, indicating tensor is compact.
+   */
   uint32_t strides;
+  /*! \brief Padding to enforce struct alignment */
   uint32_t pad1;
+  /*! \brief The offset in bytes to the beginning pointer to data */
   uint32_t byte_offset;
+  /*! \brief Padding to enforce struct alignment */
   uint32_t pad2;
 } TVMArray32;
 
 /*! \brief TVM array for serialization to 64-bit devices */
 typedef struct StructTVMArray64 {
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint64_t data;
+  /*! \brief The device context of the tensor */
   DLContext ctx;
+  /*! \brief Number of dimensions */
   int32_t ndim;
+  /*! \brief Padding to enforce struct alignment */
   uint32_t pad0;
+  /*! \brief The data type of the pointer */
   DLDataType dtype;
+  /*! \brief The shape of the tensor */
   uint64_t shape;
+  /*!
+   * \brief strides of the tensor,
+   *  can be NULL, indicating tensor is compact.
+   */
   uint64_t strides;
+  /*! \brief The offset in bytes to the beginning pointer to data */
   uint64_t byte_offset;
 } TVMArray64;
 

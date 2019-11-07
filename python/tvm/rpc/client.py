@@ -180,10 +180,6 @@ class RPCSession(object):
         """Construct extension device."""
         return self.context(12, dev_id)
 
-    def micro_dev(self, dev_id=0):
-        """Construct OpenGL device."""
-        return self.context(13, dev_id)
-
 
 class LocalSession(RPCSession):
     """RPCSession interface backed by local environment.
@@ -413,7 +409,7 @@ def connect(url, port, key="", session_timeout=0):
     """
     try:
         print('[client.connect]')
-        session_timeout = 0
+        #session_timeout = 0
         print('  hardcoding timeout to 0 (always keep alive)!')
         if session_timeout:
             key += " -timeout=%s" % str(session_timeout)

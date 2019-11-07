@@ -32,7 +32,6 @@ namespace runtime {
 
 // TODO(weberlo): Handle endianness.
 
-// TODO: make this parameterizable
 /*!
  * \brief data encoder for uTVM that builds a host-side buffer
  */
@@ -142,7 +141,7 @@ class TargetDataLayoutEncoder {
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
   DevPtr start_addr_;
-  /*! \brief TODO */
+  /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
 };
 

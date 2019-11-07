@@ -195,24 +195,11 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.SendCommand();
   }
 
-  //std::uintptr_t base_addr() const final {
-  //  return base_addr_;
-  //}
-
-  //DevPtr stack_top() const {
-  //  CHECK(stack_top_ != nullptr) << "stack top was never initialized";
-  //  return stack_top_;
-  //}
-
   const char* device_type() const final {
     return "openocd";
   }
 
  private:
-  ///*! \brief base address of the micro device memory region */
-  //std::uintptr_t base_addr_;
-  /*! \brief top of the stack section */
-  DevPtr stack_top_;
   /*! \brief socket used to communicate with the device through Tcl */
   TclSocket socket_;
 

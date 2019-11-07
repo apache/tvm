@@ -76,6 +76,7 @@ class LowLevelDevice {
 /*!
  * \brief create a host low-level device
  * \param num_bytes size of the memory region
+ * \param base_addr pointer to write the host device's resulting base address into
  */
 const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr);
 
