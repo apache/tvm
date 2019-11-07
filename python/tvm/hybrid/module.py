@@ -112,8 +112,8 @@ class HybridModule(object):
             self.name = finder.name
         self.root_ = finder.root
 
-        global_, local_ = {}, {}
-        exec(self.src_, globals_, local_)
+        local_ = {}
+        exec(self.src_, _, local_) #pylint: disable=exec-used
         func = list(local_.values())
         assert len(func) == 1
         self.func_ = func[0]
