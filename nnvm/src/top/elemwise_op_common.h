@@ -40,10 +40,10 @@ template<typename AttrType, bool (*is_none)(const AttrType&),
          bool (*assign)(AttrType*, const AttrType&), bool reverse_infer,
          std::string (*attr_string)(const AttrType&),
          int n_in = -1, int n_out = -1>
-inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
-                         std::vector<AttrType> *in_attrs,
-                         std::vector<AttrType> *out_attrs,
-                         const AttrType& none) {
+inline bool ElemwiseAttrHelper(const std::string& node_name,
+                               std::vector<AttrType> *in_attrs,
+                               std::vector<AttrType> *out_attrs,
+                               const AttrType& none) {
   AttrType dattr = none;
   size_t in_size = in_attrs->size();
   size_t out_size = out_attrs->size();
@@ -55,7 +55,7 @@ inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
   auto deduce = [&](std::vector<AttrType> *vec, size_t size, const char *name) {
       for (size_t i = 0; i < size; ++i) {
         CHECK(assign(&dattr, (*vec)[i]))
-          << "Incompatible attr in node " << attrs.name << " at " << i << "-th "
+          << "Incompatible attr in node " << node_name << " at " << i << "-th "
           << name << ": " << "expected " << attr_string(dattr)
           << ", got " << attr_string((*vec)[i]);
       }
@@ -66,7 +66,7 @@ inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
   auto write = [&](std::vector<AttrType> *vec, size_t size, const char *name) {
       for (size_t i = 0; i < size; ++i) {
         CHECK(assign(&(*vec)[i], dattr))
-          << "Incompatible attr in node " << attrs.name << " at " << i << "-th "
+          << "Incompatible attr in node " << node_name << " at " << i << "-th "
           << name << ": " << "expected " << attr_string(dattr)
           << ", got " << attr_string((*vec)[i]);
       }
@@ -76,6 +76,18 @@ inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
 
   if (is_none(dattr)) return false;
   return true;
+
+}
+
+template<typename AttrType, bool (*is_none)(const AttrType&),
+         bool (*assign)(AttrType*, const AttrType&), bool reverse_infer,
+         std::string (*attr_string)(const AttrType&),
+         int n_in = -1, int n_out = -1>
+inline bool ElemwiseAttr(const nnvm::NodeAttrs& attrs,
+                         std::vector<AttrType> *in_attrs,
+                         std::vector<AttrType> *out_attrs,
+                         const AttrType& none) {
+    ElemwiseAttrHelper(attrs.name, in_attrs, out_attrs, none);
 }
 
 template<int n_in, int n_out>
