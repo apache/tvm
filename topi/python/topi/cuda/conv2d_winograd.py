@@ -55,12 +55,13 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         if dilation_h != 1 or dilation_w != 1:
             kernel = dilation(kernel, (1, 1, dilation_h, dilation_w))
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
+        alpha = KW + tile_size - 1
         assert HSTR == 1 and WSTR == 1 and KH == KW
     else:
         # kernel tensor is pre-transfomred. this op is created by alter op layout.
         # dilation is not supported
-        _, _, CI, CO = get_const_tuple(kernel.shape)
-        KH = KW = 3
+        alpha, _, CI, CO = get_const_tuple(kernel.shape)
+        KH = KW = alpha + 1 - tile_size
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
     HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
@@ -68,7 +69,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     r = KW
     m = tile_size
-    alpha = m + r - 1
     A, B, G = winograd_transform_matrices(m, r, out_dtype)
 
     H = (H + 2 * HPAD - KH) // HSTR + 1

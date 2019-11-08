@@ -18,6 +18,7 @@
 """
 import numpy as np
 import tvm
+from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
@@ -173,6 +174,76 @@ def test_conv2d_run():
     kshape = (10, 3, 3, 3)
     run_test_conv2d("float32", "float32", 1, dshape, kshape,
                     padding=(1, 1), channels=10, kernel_size=(3 ,3), dilation=(3, 3))
+
+def test_conv2d_winograd():
+    class WinogradFallback(autotvm.FallbackContext):
+        def _query_inside(self, target, workload):
+            key = (target, workload)
+            if key in self.memory:
+                return self.memory[key]
+            cfg = autotvm.task.space.FallbackConfigEntity()
+            cfg.template_key = 'winograd'
+            cfg.is_fallback = False
+            cfg['tile_b'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_y'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_x'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_rc'] = autotvm.task.space.SplitEntity([-1, 1])
+            cfg['auto_unroll_max_setp'] = autotvm.task.space.OtherOptionEntity(1500)
+            cfg['unroll_explicit'] = autotvm.task.space.OtherOptionEntity(1)
+            self.memory[key] = cfg
+            return cfg
+
+    def run_test_conv2d_cuda(dtype, out_dtype, scale, dshape, kshape,
+                             padding=(1, 1),
+                             groups=1,
+                             dilation=(1, 1),
+                             **attrs):
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
+        y = relay.nn.conv2d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        mod = relay.Module()
+        mod['main'] = func
+        mod = relay.transform.InferType()(mod)
+
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        ref_res = topi.testing.conv2d_nchw_python(
+            data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
+            groups=groups)
+
+        with WinogradFallback(), relay.build_config(opt_level=3):
+            for target, ctx in ctx_list():
+                if target != 'cuda':
+                    continue
+                params = {'w': tvm.nd.array(kernel)}
+                graph, lib, params = relay.build_module.build(mod, target=target, params=params)
+                module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+                module.set_input('x', tvm.nd.array(data))
+                module.set_input(**params)
+                module.run()
+                op_res1 = module.get_output(0)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-3, atol=1e-3)
+
+    # normal winograd: stride 1, padding 1, kernel 3x3
+    dshape = (1, 80, 73, 73)
+    kshape = (192, 80, 3, 3)
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(1, 1), channels=192, kernel_size=(3, 3))
+    # extended winograd: stride 1, padding N, kernel 3x3
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(0, 0), channels=192, kernel_size=(3, 3))
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(2, 2), channels=192, kernel_size=(3, 3))
+    # extended winograd: stride 1, padding N, kernel NxN
+    kshape = (192, 80, 7, 7)
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(2, 2), channels=192, kernel_size=(7, 7))
 
 
 def test_conv2d_transpose_infer_type():
@@ -702,6 +773,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
+    test_conv2d_winograd()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
