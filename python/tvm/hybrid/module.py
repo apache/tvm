@@ -114,6 +114,6 @@ class HybridModule(object):
 
         _, local_ = {}, {}
         exec(self.src_, _, local_) #pylint: disable=exec-used
-        func = list(local_.values())
-        assert len(func) == 1
-        self.func_ = func[0]
+        local_.pop('tvm')
+        assert len(local_) == 1
+        self.func_ = list(local_.values())[0]
