@@ -83,7 +83,14 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
 #   (1) The m, n or k of input matrices is not multiple of 16;
 #   (2) The warp tile size is not 16x16x16 on CUDA9, or not one of {16x16x16, 32x8x16, 8x32x16} on CUDA version >= 10.0.
 #
-# In this schedule, storage_align is used to reduce bank conflicts of shared memory.
+# In this schedule, storage_align is used to reduce bank conflicts of shared memory. Please refer to this
+# `doc <https://docs.tvm.ai/api/python/schedule.html#tvm.schedule.Stage.storage_align>`_
+# for the usage of storage_align primitive. In short, we need to add an offset to some shared memory buffer
+# to reduce bank conflicts.
+# According to the `wmma doc <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-description>`_,
+# the stride of load_matrix_sync must be a multiple of 16 bytes,
+# so we choose 8 as offset for float16 and 16 as offset for int8.
+#
 # We use AutoTVM to search for best configurations in this schedule.
 
 @autotvm.template
@@ -228,87 +235,228 @@ if len(sys.argv) >= 5:
 if len(sys.argv) >= 6:
   layout = sys.argv[5]
 
-task = autotvm.task.create(test_gemm, args=(N, L, M, dtype, layout), target='cuda')
-print(task.config_space)
+def tune_and_evaluate(M, N, L, dtype, layout):
+  task = autotvm.task.create(test_gemm, args=(N, L, M, dtype, layout), target='cuda')
+  print(task.config_space)
 
-logging.getLogger('autotvm').setLevel(logging.DEBUG)
-logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
+  logging.getLogger('autotvm').setLevel(logging.DEBUG)
+  logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
-measure_option = autotvm.measure_option(
+  measure_option = autotvm.measure_option(
     builder='local',
     runner=autotvm.LocalRunner(number=5))
 
-tuner = autotvm.tuner.XGBTuner(task)
-with tvm.build_config():
-    tuner.tune(n_trial=1000,
-               measure_option=measure_option,
-               callbacks=[autotvm.callback.log_to_file('matmul.log')])
+  tuner = autotvm.tuner.XGBTuner(task)
+  tuner.tune(n_trial=1000,
+             measure_option=measure_option,
+             callbacks=[autotvm.callback.log_to_file('matmul.log')])
 
-dispatch_context = autotvm.apply_history_best("matmul.log")
-best_config = dispatch_context.query(task.target, task.workload)
-print("\nBest config:")
-print(best_config)
-with autotvm.apply_history_best('matmul.log'):
+  dispatch_context = autotvm.apply_history_best("matmul.log")
+  best_config = dispatch_context.query(task.target, task.workload)
+  print("\nBest config:")
+  print(best_config)
+  with autotvm.apply_history_best('matmul.log'):
     with tvm.target.create("cuda"):
         with tvm.build_config():
             s, arg_bufs = test_gemm(N, L, M, dtype, layout)
             print(tvm.lower(s, arg_bufs, simple_mode=True))
             func = tvm.build(s, arg_bufs)
-dev_module = func.imported_modules[0]
-print(dev_module.get_source())
+  dev_module = func.imported_modules[0]
+  print(dev_module.get_source())
 
-# check correctness
-if (layout == "NN"):
-  shape_a = (N, L)
-  shape_b = (L, M)
-elif (layout == "NT"):
-  shape_a = (L, N)
-  shape_b = (L, M)
-elif (layout == "TN"):
-  shape_a = (N, L)
-  shape_b = (M, L)
-elif (layout == "TT"):
-  shape_a = (L, N)
-  shape_b = (M, L)
-
-a_np = None
-b_np = None
-c_np = None
-c_np_type = None
-if dtype == 'float16':
-  c_np_type = np.float32
-  a_np = np.random.uniform(size=shape_a).astype(np.float16)
-  b_np = np.random.uniform(size=shape_b).astype(np.float16)
+  # check correctness
   if (layout == "NN"):
-    c_np = np.dot(a_np, b_np)
+    shape_a = (N, L)
+    shape_b = (L, M)
   elif (layout == "NT"):
-    c_np = np.dot(a_np.T, b_np)
+    shape_a = (L, N)
+    shape_b = (L, M)
   elif (layout == "TN"):
-    c_np = np.dot(a_np, b_np.T)
+    shape_a = (N, L)
+    shape_b = (M, L)
   elif (layout == "TT"):
-    c_np = np.dot(a_np.T, b_np.T)
-elif dtype == 'int8':
-  c_np_type = np.int32
-  a_np = np.random.randint(low=-128, high=127, size=shape_a).astype(np.int8)
-  b_np = np.random.randint(low=-128, high=127, size=shape_b).astype(np.int8)
-  if (layout == "NN"):
-    c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32))
-  elif (layout == "NT"):
-    c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32))
-  elif (layout == "TN"):
-    c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
-  elif (layout == "TT"):
-    c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32).T)
+    shape_a = (L, N)
+    shape_b = (M, L)
 
-c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
-a_tvm = tvm.nd.array(a_np, ctx=ctx)
-b_tvm = tvm.nd.array(b_np, ctx=ctx)
-func(a_tvm, b_tvm, c_tvm)
+  a_np = None
+  b_np = None
+  c_np = None
+  c_np_type = None
+  if dtype == 'float16':
+    c_np_type = np.float32
+    a_np = np.random.uniform(size=shape_a).astype(np.float16)
+    b_np = np.random.uniform(size=shape_b).astype(np.float16)
+    if (layout == "NN"):
+      c_np = np.dot(a_np, b_np)
+    elif (layout == "NT"):
+      c_np = np.dot(a_np.T, b_np)
+    elif (layout == "TN"):
+      c_np = np.dot(a_np, b_np.T)
+    elif (layout == "TT"):
+      c_np = np.dot(a_np.T, b_np.T)
+  elif dtype == 'int8':
+    c_np_type = np.int32
+    a_np = np.random.randint(low=-128, high=127, size=shape_a).astype(np.int8)
+    b_np = np.random.randint(low=-128, high=127, size=shape_b).astype(np.int8)
+    if (layout == "NN"):
+      c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32))
+    elif (layout == "NT"):
+      c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32))
+    elif (layout == "TN"):
+      c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
+    elif (layout == "TT"):
+      c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32).T)
 
-tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-3)
+  c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
+  a_tvm = tvm.nd.array(a_np, ctx=ctx)
+  b_tvm = tvm.nd.array(b_np, ctx=ctx)
+  func(a_tvm, b_tvm, c_tvm)
 
-evaluator = func.time_evaluator(func.entry_name, ctx, number=100)
-print('Time cost of this operator: %f' % evaluator(a_tvm, b_tvm, c_tvm).mean)
+  tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-3)
+
+  evaluator = func.time_evaluator(func.entry_name, ctx, number=100)
+  print('Time cost of this operator: %f' % evaluator(a_tvm, b_tvm, c_tvm).mean)
+
+# We do not run the tuning in our webpage server since it takes some time.
+# Uncomment the following line to run it by yourself.
+
+tune_and_evaluate(M, N, L, dtype, layout)
+
+######################################################################
+# Sample Output
+# -------------
+# .. code-block:: bash
+#
+#    Best config:
+#    [('bx', 4), ('by', 32), ('step_k', 16), ('v', 8)],,None,40
+#    Finish loading 162 records
+#    produce compute {
+#      // attr [iter_var(blockIdx.y, , blockIdx.y)] thread_extent = 1
+#      // attr [compute.local] storage_scope = "wmma.accumulator"
+#      allocate compute.local[float32 * 256]
+#      // attr [A.shared] storage_scope = "shared"
+#      allocate A.shared[float16 * 8448]
+#      // attr [B.shared] storage_scope = "shared"
+#      allocate B.shared[float16 * 8192]
+#      // attr [A.shared.local] storage_scope = "wmma.matrix_b"
+#      allocate A.shared.local[float16 * 256]
+#      // attr [B.shared.local] storage_scope = "wmma.matrix_a"
+#      allocate B.shared.local[float16 * 256]
+#      // attr [iter_var(blockIdx.x, , blockIdx.x)] thread_extent = 16
+#      // attr [iter_var(threadIdx.z, , threadIdx.z)] thread_extent = 2
+#      // attr [iter_var(threadIdx.y, , threadIdx.y)] thread_extent = 32
+#      // attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 2
+#      produce compute.local {
+#        for (j.c.init, 0, 1) {
+#          tvm_fill_fragment(compute.local, 16, 16, 16, 0, 0f)
+#        }
+#        // attr [iter_var(k.outer, )] pragma_tensor_core = 1
+#        for (k.outer, 0, 2) {
+#          produce A.shared {
+#            for (ax0.ax1.outer.fused.outer, 0, 8) {
+#              // attr [iter_var(threadIdx.y, , threadIdx.y)] thread_extent = 32
+#              // attr [iter_var(threadIdx.z, , threadIdx.z)] thread_extent = 2
+#              // attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 2
+#              A.shared[ramp((((((ax0.ax1.outer.fused.outer*1056) + (floordiv(threadIdx.y, 8)*264)) + (floormod(threadIdx.y, 8)*32)) + (threadIdx.z*16)) + (threadIdx.x*8)), 1, 8)] = A[ramp(((((((ax0.ax1.outer.fused.outer*2048) + (floordiv(threadIdx.y, 8)*512)) + (k.outer*256)) + (floormod(threadIdx.y, 8)*32)) + (threadIdx.z*16)) + (threadIdx.x*8)), 1, 8)]
+#            }
+#          }
+#          produce B.shared {
+#            for (ax0.ax1.outer.fused.outer, 0, 8) {
+#              // attr [iter_var(threadIdx.y, , threadIdx.y)] thread_extent = 32
+#              // attr [iter_var(threadIdx.z, , threadIdx.z)] thread_extent = 2
+#              // attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 2
+#              B.shared[ramp(((((ax0.ax1.outer.fused.outer*1024) + (threadIdx.y*32)) + (threadIdx.z*16)) + (threadIdx.x*8)), 1, 8)] = B[ramp(((((((k.outer*131072) + (ax0.ax1.outer.fused.outer*16384)) + (threadIdx.y*512)) + (blockIdx.x*32)) + (threadIdx.z*16)) + (threadIdx.x*8)), 1, 8)]
+#            }
+#          }
+#          for (k.inner.outer, 0, 16) {
+#            produce A.shared.local {
+#              for (ax1, 0, 1) {
+#                tvm_load_matrix_sync(A.shared.local, 16, 16, 16, 0, &(A.shared[(((threadIdx.y/16)*4224) + (k.inner.outer*16))]), 264, "col_major")
+#              }
+#            }
+#            produce B.shared.local {
+#              for (ax0, 0, 1) {
+#                for (ax1, 0, 1) {
+#                  tvm_load_matrix_sync(B.shared.local, 16, 16, 16, 0, &(B.shared[((k.inner.outer*512) + (threadIdx.z*16))]), 32, "col_major")
+#                }
+#              }
+#            }
+#            for (k.inner.inner, 0, 1) {
+#              for (j.c, 0, 1) {
+#                tvm_mma_sync(compute.local, 0, B.shared.local, 0, A.shared.local, 0, compute.local, 0)
+#              }
+#            }
+#          }
+#        }
+#      }
+#      for (j.inner.inner.inner, 0, 1) {
+#        tvm_store_matrix_sync(compute.local, 16, 16, 16, 0, &(compute[((((threadIdx.y/16)*8192) + (blockIdx.x*32)) + (threadIdx.z*16))]), 512, "col_major")
+#      }
+#    }
+#
+#    #include <cuda_fp16.h>
+#    __device__ half max(const half a, const half b)
+#    {
+#      return __hgt(__half(a), __half(b)) ? a : b;
+#    }
+#    __device__ half min(const half a, const half b)
+#    {
+#      return __hlt(__half(a), __half(b)) ? a : b;
+#    }
+#    __device__ half operator+(const volatile __half &a,  const volatile __half &b)
+#    {
+#      return __hadd(a, b);
+#    }
+#    __device__ half operator<=(const volatile __half &a,  const volatile __half &b)
+#    {
+#      return __hlt(a, b);
+#    }
+#    __device__ half operator*(const volatile __half &a,  const volatile __half &b)
+#    {
+#      return __hmul(a, b);
+#    }
+#    #include <mma.h>
+#    extern "C" __global__ void default_function_kernel0( half* __restrict__ A,  half* __restrict__ B,  float* __restrict__ compute) {
+#      nvcuda::wmma::fragment<nvcuda::wmma::accumulator, 16, 16, 16, float> compute_local[1];
+#      __shared__ half A_shared[8448];
+#      __shared__ half B_shared[8192];
+#      nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, 16, 16, 16, half, nvcuda::wmma::col_major> A_shared_local[1];
+#      nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, 16, 16, 16, half, nvcuda::wmma::col_major> B_shared_local[1];
+#      for (int j_c_init = 0; j_c_init < 1; ++j_c_init) {
+#        (void)nvcuda::wmma::fill_fragment(compute_local[0], 0.000000e+00f);
+#      }
+#      for (int k_outer = 0; k_outer < 2; ++k_outer) {
+#        __syncthreads();
+#        for (int ax0_ax1_outer_fused_outer = 0; ax0_ax1_outer_fused_outer < 8; ++ax0_ax1_outer_fused_outer) {
+#          ((__shared__ float4*)(A_shared + (((((ax0_ax1_outer_fused_outer * 1056) + ((((int)threadIdx.y) >> 3) * 264)) + ((((int)threadIdx.y) & 7) * 32)) + (((int)threadIdx.z) * 16)) + (((int)threadIdx.x) * 8))))[0] = (( float4*)(A + ((((((ax0_ax1_outer_fused_outer * 2048) + ((((int)threadIdx.y) >> 3) * 512)) + (k_outer * 256)) + ((((int)threadIdx.y) & 7) * 32)) + (((int)threadIdx.z) * 16)) + (((int)threadIdx.x) * 8))))[0];
+#        }
+#        for (int ax0_ax1_outer_fused_outer1 = 0; ax0_ax1_outer_fused_outer1 < 8; ++ax0_ax1_outer_fused_outer1) {
+#          ((__shared__ float4*)(B_shared + ((((ax0_ax1_outer_fused_outer1 * 1024) + (((int)threadIdx.y) * 32)) + (((int)threadIdx.z) * 16)) + (((int)threadIdx.x) * 8))))[0] = (( float4*)(B + ((((((k_outer * 131072) + (ax0_ax1_outer_fused_outer1 * 16384)) + (((int)threadIdx.y) * 512)) + (((int)blockIdx.x) * 32)) + (((int)threadIdx.z) * 16)) + (((int)threadIdx.x) * 8))))[0];
+#        }
+#        __syncthreads();
+#        for (int k_inner_outer = 0; k_inner_outer < 16; ++k_inner_outer) {
+#          for (int ax1 = 0; ax1 < 1; ++ax1) {
+#            (void)nvcuda::wmma::load_matrix_sync(A_shared_local[0], &(A_shared[(((((int)threadIdx.y) / 16) * 4224) + (k_inner_outer * 16))]), 264);
+#          }
+#          for (int ax0 = 0; ax0 < 1; ++ax0) {
+#            for (int ax11 = 0; ax11 < 1; ++ax11) {
+#              (void)nvcuda::wmma::load_matrix_sync(B_shared_local[0], &(B_shared[((k_inner_outer * 512) + (((int)threadIdx.z) * 16))]), 32);
+#            }
+#          }
+#          for (int k_inner_inner = 0; k_inner_inner < 1; ++k_inner_inner) {
+#            for (int j_c = 0; j_c < 1; ++j_c) {
+#              (void)nvcuda::wmma::mma_sync(compute_local[0], B_shared_local[0], A_shared_local[0], compute_local[0]);
+#            }
+#          }
+#        }
+#      }
+#      for (int j_inner_inner_inner = 0; j_inner_inner_inner < 1; ++j_inner_inner_inner) {
+#        (void)nvcuda::wmma::store_matrix_sync(&(compute[((((((int)threadIdx.y) / 16) * 8192) + (((int)blockIdx.x) * 32)) + (((int)threadIdx.z) * 16))]), compute_local[0], 512, nvcuda::wmma::mem_col_major);
+#      }
+#    }
+#
+#
+#    Time cost of this operator: 0.000008
 
 ###############################################################################
 # Summary

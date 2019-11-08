@@ -103,7 +103,6 @@ def compile_cuda(code,
             "Compilation error: empty result is generated")
     return data
 
-@register_func("tvm_find_cuda_path")
 def find_cuda_path():
     """Utility function to find cuda path
 
@@ -126,7 +125,7 @@ def find_cuda_path():
         return cuda_path
     raise RuntimeError("Cannot find cuda path")
 
-@register_func("tvm_get_cuda_version")
+
 def get_cuda_version(cuda_path):
     """Utility function to get cuda version
 
