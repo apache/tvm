@@ -93,24 +93,35 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
     ovshape = (N, CO // VC, OH // VH, OW // VW, VH, VW, VC)
     oshape = (N, CO, OH, OW)
 
+    # For Integer convs, upcasting to int16 leads to faster implementation
+    # because LLVM is able to better interleave vmlal.s16 and vldr instructions,
+    # leading to higher CPU utilization.
+    adjusted_dtype = data.dtype
+    if 'int8' in data.dtype and 'int8' in kernel.dtype and out_dtype == 'int32':
+        adjusted_dtype = 'int16'
+
     if dilation_h != 1 or dilation_w != 1:
         # undilate input data
         dvshape = (N, OH // VH, OW // VW, CI, KH, KW, VH, VW)
         data_vec = tvm.compute(dvshape, lambda n, h, w, ci, kh, kw, vh, vw:
                                data_pad[n][ci][(h*VH+vh)*HSTR+kh*dilation_h]
-                               [(w*VW+vw)*WSTR+kw*dilation_w],
+                               [(w*VW+vw)*WSTR+kw*dilation_w].astype(adjusted_dtype),
                                name='data_vec_undilated')
     else:
         dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
         data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
+                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw].astype(adjusted_dtype),
                                name='data_vec')
 
     if pre_packed:
         kernel_vec = kernel
+        if adjusted_dtype != kernel.dtype:
+            kernel_vec = tvm.compute(kvshape, lambda co, ci, kh, kw, vc:
+                                     kernel[co, ci, kh, kw, vc].astype(adjusted_dtype),
+                                     name='kernel_vec')
     else:
         kernel_vec = tvm.compute(kvshape, lambda co, ci, kh, kw, vc:
-                                 kernel[co*VC+vc][ci][kh][kw],
+                                 kernel[co*VC+vc][ci][kh][kw].astype(adjusted_dtype),
                                  name='kernel_vec')
 
     ci = tvm.reduce_axis((0, CI), name='ci')
