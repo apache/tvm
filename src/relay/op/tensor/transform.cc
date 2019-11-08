@@ -2097,6 +2097,7 @@ Example::
 .add_argument("v", "Tensor", "The data to set.")
 .set_support_level(4)
 .set_attrs_type<StridedSliceAttrs>()
+.set_attr<TOpPattern>("TOpPattern", kInjective)
 .add_type_rel("StridedSet", StridedSetRel);
 
 // relay.split

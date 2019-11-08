@@ -201,7 +201,7 @@ def strided_set(a, v, begin, end, strides=None):
 
     def _max(a, b):
         return tvm.expr.Select(a > b, a, b)
-    
+
     # Convert negative indexes
     for i in range(n):
         begin[i] = tvm.if_then_else(begin[i] < 0,

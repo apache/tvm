@@ -308,13 +308,27 @@ def compute_argwhere(attrs, inputs, output_type, _):
 @_reg.register_compute("strided_set")
 def compute_strided_set(attrs, inputs, output_type, _):
     """Compute definition of strided_set"""
-    begin = map(tvm.const, attrs.begin)
-    end = map(tvm.const, attrs.end)
+    begin = attrs.begin
+    end = attrs.end
     strides = attrs.strides
-    if strides == []:
-        strides = [1] * len(begin)
-    strides = map(tvm.const, strides)
-    return topi.strided_set(inputs[0], inputs[1], begin, end, strides)
+    n = len(inputs[0].shape)
+    ls = len(strides)
+    if ls < n:
+        strides = list(strides)
+        strides[ls:] = [1] * (n - ls)
+    lb = len(begin)
+    if lb < n:
+        begin = list(begin)
+        for i in range(lb, n):
+            begin.append(0 if strides[i] >= 0 else inputs.shape[i])
+    le = len(end)
+    if le < n:
+        end = list(end)
+        for i in range(le, n):
+            lim = inputs[0].shape[i] + 1
+            end.append(lim if strides[i] >= 0 else -lim)
+
+    return [topi.strided_set(inputs[0], inputs[1], begin, end, strides)]
 
 @script
 def _layout_transform_shape_func(data_shape,
