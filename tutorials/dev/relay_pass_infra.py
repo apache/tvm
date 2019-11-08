@@ -198,7 +198,7 @@ with relay.build_config(opt_level=3):
 print(mod5)
 
 ##############################################################################
-# Implement a Pass Using Python Syntax Sugar
+# Implement a Pass Using Python Decorator
 # ------------------------------------------
 # The next example illustrates how we can orchestrate a customized optimization
 # pipeline through the pass infra using Python decorators. This functionality
