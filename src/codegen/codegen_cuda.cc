@@ -27,6 +27,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include "literal/cuda_half_t.h"
 #include "codegen_cuda.h"
 
 namespace tvm {
@@ -50,9 +51,6 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
 
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
-    static constexpr const char* _cuda_half_t_def =
-    #include "literal/cuda_half_t.txt"
-    ;  // NOLINT(*)
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
     decl_stream << "#include <cuda_fp16.h>\n";
     decl_stream << "__device__ half max"
