@@ -22,7 +22,67 @@ from . import util
 from .._ffi.base import py_str
 from ..api import register_func
 
+RELOCATION_LD_SCRIPT_TEMPLATE = """
+/* linker symbol for use in UTVMInit */
+_utvm_stack_pointer_init = 0x{stack_pointer_init:x};
+
+SECTIONS
+{{
+  . = 0x{text_start:x};
+  . = ALIGN({word_size});
+  .text :
+  {{
+    . = ALIGN({word_size});
+    KEEP(*(.text))
+    KEEP(*(.text*))
+    . = ALIGN({word_size});
+  }}
+
+  . = 0x{rodata_start:x};
+  . = ALIGN({word_size});
+  .rodata :
+  {{
+    . = ALIGN({word_size});
+    KEEP(*(.rodata))
+    KEEP(*(.rodata*))
+    . = ALIGN({word_size});
+  }}
+
+  . = 0x{data_start:x};
+  . = ALIGN({word_size});
+  .data :
+  {{
+    . = ALIGN({word_size});
+    KEEP(*(.data))
+    KEEP(*(.data*))
+    . = ALIGN({word_size});
+  }}
+
+  . = 0x{bss_start:x};
+  . = ALIGN({word_size});
+  .bss :
+  {{
+    . = ALIGN({word_size});
+    KEEP(*(.bss))
+    KEEP(*(.bss*))
+    . = ALIGN({word_size});
+  }}
+}}
+"""
+
 def run_cmd(cmd):
+    """Runs `cmd` in a subprocess and awaits its completion.
+
+    Parameters
+    ----------
+    cmd : List[str]
+        list of command-line arguments
+
+    Returns
+    -------
+    output : str
+        resulting stdout capture from the subprocess
+    """
     proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -147,58 +207,20 @@ def tvm_callback_relocate_binary(
         the relocated binary
     """
     stack_pointer_init = stack_end - word_size
-
     ld_script_contents = ''
     # TODO(weberlo): There should be a better way to configure this for different archs.
     if 'riscv' in toolchain_prefix:
-        ld_script_contents += 'OUTPUT_ARCH( \"riscv\" )\n\n'
-    ld_script_contents += f"""
-/* linker symbol for use in UTVMInit */
-_utvm_stack_pointer_init = 0x{stack_pointer_init:x};
+        ld_script_contents += 'OUTPUT_ARCH( "riscv" )\n\n'
+    ld_script_contents += RELOCATION_LD_SCRIPT_TEMPLATE.format(
+            word_size=word_size,
+            text_start=text_start,
+            rodata_start=rodata_start,
+            data_start=data_start,
+            bss_start=bss_start,
+            stack_pointer_init=stack_pointer_init)
 
-SECTIONS
-{{
-  . = 0x{text_start:x};
-  . = ALIGN({word_size});
-  .text :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.text))
-    KEEP(*(.text*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{rodata_start:x};
-  . = ALIGN({word_size});
-  .rodata :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.rodata))
-    KEEP(*(.rodata*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{data_start:x};
-  . = ALIGN({word_size});
-  .data :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.data))
-    KEEP(*(.data*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{bss_start:x};
-  . = ALIGN({word_size});
-  .bss :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.bss))
-    KEEP(*(.bss*))
-    . = ALIGN({word_size});
-  }}
-}}
-    """
+    tmp_dir = util.tempdir()
+    rel_obj_path = tmp_dir.relpath('relocated.obj')
     rel_ld_script_path = tmp_dir.relpath('relocated.lds')
     with open(rel_ld_script_path, 'w') as f:
         f.write(ld_script_contents)

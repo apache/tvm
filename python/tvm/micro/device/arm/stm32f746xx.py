@@ -14,13 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Config definitions for ARM STM32F746XX devices"""
+"""Compilation and config definitions for ARM STM32F746XX devices"""
 from .. import create_micro_lib_base, register_device
 
 DEVICE_ID = 'arm.stm32f746xx'
 TOOLCHAIN_PREFIX = 'arm-none-eabi-'
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None):
+    """Wrapper over `create_micro_lib_base` to add device-specific options
+
+    Parameters
+    ----------
+    obj_path : str
+        path to generated object file
+
+    src_path : str
+        path to source file
+
+    lib_type : micro.LibType
+        whether to compile a MicroTVM runtime or operator library
+
+    options : Optional[List[str]]
+        additional options to pass to GCC
+    """
     if options is None:
         options = []
     options += [
@@ -35,6 +51,21 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
 
 
 def default_config(server_addr, server_port):
+    """Generates a default configuration for ARM STM32F746XX devices
+
+    Parameters
+    ----------
+    server_addr : str
+        address of OpenOCD server to connect to
+
+    server_port : int
+        port of OpenOCD server to connect to
+
+    Return
+    ------
+    config : Dict[str, Any]
+        MicroTVM config dict for this device
+    """
     return {
         'device_id': DEVICE_ID,
         'toolchain_prefix': TOOLCHAIN_PREFIX,

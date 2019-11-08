@@ -42,14 +42,12 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
    */
   explicit OpenOCDLowLevelDevice(const std::string& server_addr,
                                  int port) : socket_() {
-    std::cout << "[OpenOCDLowLevelDevice]" << std::endl;
     server_addr_ = server_addr;
     port_ = port;
 
     socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
-    std::cout << "  finished init" << std::endl;
   }
 
   void Read(DevPtr addr, void* buf, size_t num_bytes) {
@@ -202,8 +200,9 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
  private:
   /*! \brief socket used to communicate with the device through Tcl */
   TclSocket socket_;
-
+  /*! \brief address of OpenOCD server */
   std::string server_addr_;
+  /*! \brief port of OpenOCD server */
   int port_;
 
   /*! \brief number of bytes in a word on the target device (64-bit) */

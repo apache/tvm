@@ -26,12 +26,22 @@ from tvm.contrib.binutil import run_cmd
 from tvm._ffi.libinfo import find_include_path
 from tvm.micro import LibType, get_micro_host_driven_dir, get_micro_device_dir
 
-DEVICE_REGISTRY = {}
+_DEVICE_REGISTRY = {}
 
 def register_device(device_id, device_funcs):
-    if device_id in DEVICE_REGISTRY:
+    """Register a device and associated compilation/config functions
+
+    Parameters
+    ----------
+    device_id : str
+        unique identifier for the device
+
+    device_funcs : Dict[str, func]
+        dictionary with compilation and config generation functions as values
+    """
+    if device_id in _DEVICE_REGISTRY:
         raise RuntimeError(f'"{device_id}" already exists in the device registry')
-    DEVICE_REGISTRY[device_id] = device_funcs
+    _DEVICE_REGISTRY[device_id] = device_funcs
 
 
 def get_device_funcs(device_id):
@@ -40,16 +50,16 @@ def get_device_funcs(device_id):
     Parameters
     ----------
     device_id : str
-        unique identifier for the target device
+        unique identifier for the device
 
     Return
     ------
     device_funcs : Dict[str, func]
         dictionary with compilation and config generation functions as values
     """
-    if device_id not in DEVICE_REGISTRY:
+    if device_id not in _DEVICE_REGISTRY:
         raise RuntimeError(f'"{device_id}" does not exist in the binutil registry')
-    device_funcs = DEVICE_REGISTRY[device_id]
+    device_funcs = _DEVICE_REGISTRY[device_id]
     return device_funcs
 
 
@@ -58,8 +68,8 @@ def create_micro_lib_base(obj_path, src_path, toolchain_prefix, device_id, lib_t
 
     Parameters
     ----------
-    obj_path : Optional[str]
-        path to generated object file (defaults to same directory as `src_path`)
+    obj_path : str
+        path to generated object file
 
     src_path : str
         path to source file

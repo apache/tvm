@@ -29,32 +29,32 @@ unsigned long start_time = 0;
 unsigned long stop_time = 0;
 
 int32_t UTVMTimerStart() {
-    SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
-    // wait until timer starts
-    while (SYST_CVR == 0);
-    start_time = SYST_CVR;
-    return 0;
+  SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
+  // wait until timer starts
+  while (SYST_CVR == 0);
+  start_time = SYST_CVR;
+  return 0;
 }
 
 void UTVMTimerStop() {
-    SYST_CSR = 0;
-    stop_time = SYST_CVR;
+  SYST_CSR = 0;
+  stop_time = SYST_CVR;
 }
 
 void UTVMTimerReset() {
-    SYST_CSR = 0;
-    // maximum reload value (24-bit)
-    SYST_RVR = (~((unsigned long) 0)) >> 8;
-    SYST_CVR = 0;
+  SYST_CSR = 0;
+  // maximum reload value (24-bit)
+  SYST_RVR = (~((unsigned long) 0)) >> 8;
+  SYST_CVR = 0;
 }
 
 uint32_t UTVMTimerRead() {
-    if (SYST_CSR & SYST_COUNTFLAG) {
-      TVMAPISetLastError("timer overflowed");
-      return -1;
-    } else {
-      return start_time - stop_time;
-    }
+  if (SYST_CSR & SYST_COUNTFLAG) {
+    TVMAPISetLastError("timer overflowed");
+    return -1;
+  } else {
+    return start_time - stop_time;
+  }
 }
 
 #else  // !USE_SYSTICK

@@ -31,7 +31,10 @@ from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
 
 class LibType(Enum):
+    """Enumeration of library types that can be compiled and loaded onto a device"""
+    # library to be used as a MicroTVM runtime
     RUNTIME = 0
+    # library to be used as an operator
     OPERATOR = 1
 
 

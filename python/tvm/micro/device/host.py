@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Config for the host emulated device"""
+"""Compilation and config definitions for the host emulated device"""
 import sys
 
 from . import create_micro_lib_base, register_device
@@ -23,6 +23,22 @@ DEVICE_ID = 'host'
 TOOLCHAIN_PREFIX = ''
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None):
+    """Wrapper over `create_micro_lib_base` to add device-specific options
+
+    Parameters
+    ----------
+    obj_path : str
+        path to generated object file
+
+    src_path : str
+        path to source file
+
+    lib_type : micro.LibType
+        whether to compile a MicroTVM runtime or operator library
+
+    options : Optional[List[str]]
+        additional options to pass to GCC
+    """
     if options is None:
         options = []
     if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
@@ -31,6 +47,13 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
 
 
 def default_config():
+    """Generates a default configuration for the host emulated device
+
+    Return
+    ------
+    config : Dict[str, Any]
+        MicroTVM config dict for this device
+    """
     return {
         'device_id': DEVICE_ID,
         'toolchain_prefix': TOOLCHAIN_PREFIX,
