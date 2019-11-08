@@ -202,10 +202,12 @@ PackedFunc GraphRuntimeDebug::GetFunction(
  * \brief GraphRuntimeDebugCreate Get the function based on input.
  * \param sym_json The graph symbol in json format.
  * \param m Compiled module which will be loaded.
+ * \param ext_m Compiled module that contains code from external library.
  * \param ctxs All devices contexts.
  */
 Module GraphRuntimeDebugCreate(const std::string& sym_json,
                                const tvm::runtime::Module& m,
+                               const tvm::runtime::Module& ext_m,
                                const std::vector<TVMContext>& ctxs) {
   auto exec = make_object<GraphRuntimeDebug>();
   exec->Init(sym_json, m, ctxs);
@@ -214,18 +216,22 @@ Module GraphRuntimeDebugCreate(const std::string& sym_json,
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4)
-        << "The expected number of arguments for graph_runtime.create is "
-           "at least 4, but it has "
-        << args.num_args;
-    *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
-  });
+  CHECK_GE(args.num_args, 5)
+      << "The expected number of arguments for graph_runtime.create is "
+         "at least 5, but it has "
+      << args.num_args;
+  if (args[2].type_code() == kModuleHandle) {
+    *rv = GraphRuntimeDebugCreate(args[0], args[1], args[2], GetAllContext(args));
+  } else {
+    *rv = GraphRuntimeDebugCreate(args[0], args[1], Module(nullptr), GetAllContext(args));
+  }
+});
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.remote_create")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
                                   "graph_runtime.remote_create is "
-                                  "at least 4, but it has "
+                                  "at least 5, but it has "
                                << args.num_args;
     void* mhandle = args[1];
     ModuleNode* mnode = ObjectInternal::GetModuleNode(mhandle);

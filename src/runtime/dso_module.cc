@@ -27,6 +27,7 @@
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
+#include <memory>
 #include <string>
 #include "module_util.h"
 

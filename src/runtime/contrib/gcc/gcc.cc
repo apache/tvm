@@ -23,6 +23,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
+#include <memory>
 #include <string>
 
 namespace tvm {

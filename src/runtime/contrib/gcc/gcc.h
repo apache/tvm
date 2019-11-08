@@ -22,6 +22,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <string>
+#include <memory>
 
 #include "../external_util.h"
 #include "../../dso_module.h"

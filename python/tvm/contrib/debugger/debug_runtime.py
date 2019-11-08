@@ -30,7 +30,7 @@ _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
 
 
-def create(graph_json_str, libmod, ctx, dump_root=None):
+def create(graph_json_str, libmod, ctx, ext_lib=None, dump_root=None):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -69,6 +69,8 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
 
     ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
     if num_rpc_ctx == len(ctx):
+        if ext_lib:
+            raise Exception("RPC doesn't support external library yet")
         libmod = rpc_base._ModuleHandle(libmod)
         try:
             fcreate = ctx[0]._rpc_sess.get_function(
@@ -79,7 +81,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
                 "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
                 "config.cmake and rebuild TVM to enable debug mode"
             )
-    func_obj = fcreate(graph_json_str, libmod, *device_type_id)
+    func_obj = fcreate(graph_json_str, libmod, ext_lib, *device_type_id)
     return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 
 

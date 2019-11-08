@@ -532,19 +532,25 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
            "at least 5, but it has "
         << args.num_args;
     const auto& contexts = GetAllContext(args);
-    *rv = GraphRuntimeCreate(args[0], args[1], args[2], contexts);
+    if (args[2].type_code() == kModuleHandle) {
+      *rv = GraphRuntimeCreate(args[0], args[1], args[2], contexts);
+    } else {
+      *rv = GraphRuntimeCreate(args[0], args[1], Module(nullptr), contexts);
+    }
   });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
                                   "graph_runtime.remote_create is "
-                                  "at least 4, but it has "
+                                  "at least 5, but it has "
                                << args.num_args;
     void* mhandle = args[1];
     ModuleNode* mnode = ObjectInternal::GetModuleNode(mhandle);
 
     const auto& contexts = GetAllContext(args);
+    // TODO(zhiics) RPC is not supported for external library.
+    CHECK_NE(args[2].type_code(), kModuleHandle) << "External library is not supported by RPC";
     *rv = GraphRuntimeCreate(
         args[0], GetRef<Module>(mnode), contexts);
   });

@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <memory>
 #include <string>
 
 #if defined(_WIN32)
