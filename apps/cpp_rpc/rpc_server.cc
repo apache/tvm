@@ -18,11 +18,9 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_server.cc
  * \brief RPC Server implementation.
  */
-
 #include <tvm/runtime/registry.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
@@ -43,8 +41,11 @@
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
 #include "../../src/common/socket.h"
 
+namespace tvm {
+namespace runtime {
+
 #if defined(__linux__) || defined(__ANDROID__)
-static pid_t waitpid_eintr(int *status) {
+static pid_t waitPidEintr(int *status) {
   pid_t pid = 0;
   while ((pid = waitpid(-1, status, 0)) == -1) {
     if (errno == EINTR) {
@@ -58,9 +59,6 @@ static pid_t waitpid_eintr(int *status) {
 }
 #endif
 
-namespace tvm {
-namespace runtime {
-
 /*!
  * \brief RPCServer RPC Server class.
  * \param host The hostname of the server, Default=0.0.0.0
@@ -69,7 +67,7 @@ namespace runtime {
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
- * \param isProxy Whether to run in proxy mode. Default=False
+ * \param is_proxy Whether to run in proxy mode. Default=False
  */
 class RPCServer {
  public:
@@ -122,7 +120,7 @@ class RPCServer {
    */
   void ListenLoopProc() {
     TrackerClient tracker(tracker_addr_, key_, custom_addr_);
-    while (1) {
+    while (true) {
       common::TCPSocket conn;
       common::SockAddr addr("0.0.0.0", 0);
       std::string opts;
@@ -163,7 +161,7 @@ class RPCServer {
           }
 
           int status = 0;
-          const pid_t finished_first = waitpid_eintr(&status);
+          const pid_t finished_first = waitPidEintr(&status);
           if (finished_first == timer_pid) {
             kill(worker_pid, SIGKILL);
           } else if (finished_first == worker_pid) {
@@ -173,7 +171,7 @@ class RPCServer {
           }
 
           int status_second = 0;
-          waitpid_eintr(&status_second);
+          waitPidEintr(&status_second);
 
           // Logging.
           if (finished_first == timer_pid) {
@@ -221,10 +219,10 @@ class RPCServer {
    * \param opts Parsed options for socket
    * \param ping_period Timeout for select call waiting
    */
-  void AcceptConnection(TrackerClient *tracker,
-                        common::TCPSocket *conn_sock,
-                        common::SockAddr *addr,
-                        std::string *opts,
+  void AcceptConnection(TrackerClient* tracker,
+                        common::TCPSocket* conn_sock,
+                        common::SockAddr* addr,
+                        std::string* opts,
                         int ping_period = 2) {
     std::set <std::string> old_keyset;
     std::string matchkey;
@@ -232,7 +230,7 @@ class RPCServer {
     // Report resource to tracker and get key
     tracker->ReportResourceAndGetKey(my_port_, &matchkey);
 
-    while (1) {
+    while (true) {
       tracker->WaitConnectionAndUpdateKey(listen_sock_, my_port_, ping_period, &matchkey);
       common::TCPSocket conn = listen_sock_.Accept(addr);
 
@@ -247,17 +245,17 @@ class RPCServer {
       int keylen = 0;
       CHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
 
-      #define CLIENT_HEADER "client:"
-      #define SERVER_HEADER "server:"
-
+      const char* CLIENT_HEADER = "client:";
+      const char* SERVER_HEADER = "server:";
       std::string expect_header = CLIENT_HEADER + matchkey;
       std::string server_key = SERVER_HEADER + key_;
       if (size_t(keylen) < expect_header.length()) {
         conn.Close();
-        LOG(FATAL) << "Wrong client header length";
+        LOG(INFO) << "Wrong client header length";
         continue;
       }
 
+      CHECK_NE(keylen, 0);
       std::string remote_key;
       remote_key.resize(keylen);
       CHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
@@ -295,7 +293,7 @@ class RPCServer {
       auto env = RPCEnv();
       RPCServerLoop(sock.sockfd);
       LOG(INFO) << "Finish serving " << addr.AsString();
-      env.Remove();
+      env.CleanUp();
   }
 
   /*!

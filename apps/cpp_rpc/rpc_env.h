@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_env.h
  * \brief Server environment of the RPC.
  */
@@ -26,10 +25,6 @@
 #define TVM_APPS_CPP_RPC_ENV_H_
 
 #include <tvm/runtime/registry.h>
-#if defined(__linux__) || defined(__ANDROID__)
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
 #include <string>
 
 namespace tvm {
@@ -58,21 +53,22 @@ void CleanDir(const std::string &dirname);
  */
 struct RPCEnv {
  public:
-   /*!
-    * \brief Constructor Init The RPC Environment initialize function
-    */
+  /*!
+   * \brief Constructor Init The RPC Environment initialize function
+   */
   RPCEnv();
   /*!
    * \brief GetPath To get the workpath from packed function
    * \param name The file name
    * \return The full path of file.
    */
-  std::string GetPath(const std::string& file_name);
+  std::string GetPath(std::string file_name);
   /*!
-   * \brief Remove The RPC Environment cleanup function
+   * \brief The RPC Environment cleanup function
    */
-  void Remove();
+  void CleanUp();
 
+ private:
   /*!
    * \base_ Holds the environment path.
    */

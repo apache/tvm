@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_tracker_client.h
  * \brief RPC Tracker client to report resources.
  */
@@ -49,12 +48,11 @@ class TrackerClient {
   /*!
    * \brief Constructor.
   */
-  TrackerClient(const std::string &tracker_addr,
-                const std::string &key,
-                const std::string &custom_addr) {
-    tracker_addr_ = tracker_addr;
-    key_ = key;
-    custom_addr_ = custom_addr;
+  TrackerClient(const std::string& tracker_addr,
+                const std::string& key,
+                const std::string& custom_addr)
+      : tracker_addr_(tracker_addr), key_(key), custom_addr_(custom_addr),
+        gen_(std::random_device{}()), dis_(0.0, 1.0) {
   }
   /*!
    * \brief Destructor.
@@ -140,13 +138,12 @@ class TrackerClient {
                                   std::string *matchkey) {
     int unmatch_period_count = 0;
     int unmatch_timeout = 4;
-    while (1) {
+    while (true) {
       if (!tracker_sock_.IsClosed()) {
-        common::SelectHelper selecter;
-        selecter.WatchRead(listen_sock.sockfd);
-
-        int ready = selecter.Select(ping_period * 1000);
-        if ((ready <= 0) || (!selecter.CheckRead(listen_sock.sockfd))) {
+        common::PollHelper poller;
+        poller.WatchRead(listen_sock.sockfd);
+        poller.Poll(ping_period * 1000);
+        if (!poller.CheckRead(listen_sock.sockfd)) {
           std::ostringstream ss;
           ss << "[" << int(TrackerCode::kGetPendingMatchKeys) << "]";
           tracker_sock_.SendBytes(ss.str());
@@ -194,7 +191,7 @@ class TrackerClient {
    */
   common::TCPSocket ConnectWithRetry(int timeout = 60, int retry_period = 5) {
     auto tbegin = std::chrono::system_clock::now();
-    while (1) {
+    while (true) {
       common::SockAddr addr(tracker_addr_);
       common::TCPSocket sock;
       sock.Create();
@@ -216,10 +213,7 @@ class TrackerClient {
   * \return random float value.
   */
   float Random() {
-    std::random_device rd;  // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    return dis(gen);
+    return dis_(gen_);
   }
   /*!
    * \brief Generate a random key.
@@ -228,7 +222,7 @@ class TrackerClient {
    */
   std::string RandomKey(const std::string& prefix, const std::set <std::string> &cmap) {
     if (!cmap.empty()) {
-      while (1) {
+      while (true) {
         std::string key = prefix + std::to_string(Random());
         if (cmap.find(key) == cmap.end()) {
           return key;
@@ -243,6 +237,9 @@ class TrackerClient {
   std::string custom_addr_;
   common::TCPSocket tracker_sock_;
   std::set <std::string> old_keyset_;
+  std::mt19937 gen_;
+  std::uniform_real_distribution<float> dis_;
+
 };
 }  // namespace runtime
 }  // namespace tvm

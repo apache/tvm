@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_server.cc
  * \brief RPC Server for TVM.
  */

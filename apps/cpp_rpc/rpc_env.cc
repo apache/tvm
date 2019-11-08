@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_env.cc
  * \brief Server environment of the RPC.
  */
@@ -71,7 +70,7 @@ RPCEnv::RPCEnv() {
  * \param name The file name
  * \return The full path of file.
  */
-std::string RPCEnv::GetPath(const std::string& file_name) {
+std::string RPCEnv::GetPath(std::string file_name) {
   // we assume file_name has "/" means file_name is the exact path
   // and does not create /.rpc/
   if (file_name.find("/") != std::string::npos) {
@@ -83,7 +82,7 @@ std::string RPCEnv::GetPath(const std::string& file_name) {
 /*!
  * \brief Remove The RPC Environment cleanup function
  */
-void RPCEnv::Remove() {
+void RPCEnv::CleanUp() {
   #if defined(__linux__) || defined(__ANDROID__)
     CleanDir(&base_[0]);
     int ret = rmdir(&base_[0]);

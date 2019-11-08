@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_server.h
  * \brief RPC Server implementation.
  */
