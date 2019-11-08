@@ -66,7 +66,7 @@
 #endif
 
 #ifdef USE_SORT
-#include "../src/contrib/sort/sort.cc"
+#include "../src/runtime/contrib/sort/sort.cc"
 #endif
 
 
