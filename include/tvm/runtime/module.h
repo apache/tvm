@@ -27,28 +27,31 @@
 #define TVM_RUNTIME_MODULE_H_
 
 #include <dmlc/io.h>
+
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/memory.h>
+
 #include <memory>
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
 
-// The internal container of module.
 class ModuleNode;
 class PackedFunc;
 
 /*!
  * \brief Module container of TVM.
  */
-class Module {
+class Module : public ObjectRef {
  public:
   Module() {}
   // constructor from container.
-  explicit Module(std::shared_ptr<ModuleNode> n)
-      : node_(n) {}
+  explicit Module(ObjectPtr<Object> n)
+      : ObjectRef(n) {}
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -59,10 +62,6 @@ class Module {
    * \note Implemented in packed_func.cc
    */
   inline PackedFunc GetFunction(const std::string& name, bool query_imports = false);
-  /*! \return internal container */
-  inline ModuleNode* operator->();
-  /*! \return internal container */
-  inline const ModuleNode* operator->() const;
   // The following functions requires link with runtime.
   /*!
    * \brief Import another module into this module.
@@ -71,7 +70,11 @@ class Module {
    * \note Cyclic dependency is not allowed among modules,
    *  An error will be thrown when cyclic dependency is detected.
    */
-  TVM_DLL void Import(Module other);
+  inline void Import(Module other);
+  /*! \return internal container */
+  inline ModuleNode* operator->();
+  /*! \return internal container */
+  inline const ModuleNode* operator->() const;
   /*!
    * \brief Load a module from file.
    * \param file_name The name of the host function module.
@@ -81,20 +84,41 @@ class Module {
    */
   TVM_DLL static Module LoadFromFile(const std::string& file_name,
                                      const std::string& format = "");
-
- private:
-  std::shared_ptr<ModuleNode> node_;
+  // refer to the corresponding container.
+  using ContainerType = ModuleNode;
+  friend class ModuleNode;
 };
 
 /*!
- * \brief Base node container of module.
- *  Do not create this directly, instead use Module.
+ * \brief Base container of module.
+ *
+ * Please subclass ModuleNode to create a specific runtime module.
+ *
+ * \code
+ *
+ *  class MyModuleNode : public ModuleNode {
+ *   public:
+ *    // implement the interface
+ *  };
+ *
+ *  // use make_object to create a specific
+ *  // instace of MyModuleNode.
+ *  Module CreateMyModule() {
+ *    ObjectPtr<MyModuleNode> n =
+ *      tvm::runtime::make_object<MyModuleNode>();
+ *    return Module(n);
+ *  }
+ *
+ * \endcode
  */
-class ModuleNode {
+class ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
   virtual ~ModuleNode() {}
-  /*! \return The module type key */
+  /*!
+   * \return The per module type key.
+   * \note This key is used to for serializing custom modules.
+   */
   virtual const char* type_key() const = 0;
   /*!
    * \brief Get a PackedFunc from module.
@@ -105,7 +129,7 @@ class ModuleNode {
    *  For benchmarking, use prepare to eliminate
    *
    * \param name the name of the function.
-   * \param sptr_to_self The shared_ptr that points to this module node.
+   * \param sptr_to_self The ObjectPtr that points to this module node.
    *
    * \return PackedFunc(nullptr) when it is not available.
    *
@@ -115,7 +139,7 @@ class ModuleNode {
    */
   virtual PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) = 0;
+      const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
    * \brief Save the module to file.
    * \param file_name The file to be saved to.
@@ -138,6 +162,24 @@ class ModuleNode {
    */
   TVM_DLL virtual std::string GetSource(const std::string& format = "");
   /*!
+   * \brief Get packed function from current module by name.
+   *
+   * \param name The name of the function.
+   * \param query_imports Whether also query dependency modules.
+   * \return The result function.
+   *  This function will return PackedFunc(nullptr) if function do not exist.
+   * \note Implemented in packed_func.cc
+   */
+  TVM_DLL PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  /*!
+   * \brief Import another module into this module.
+   * \param other The module to be imported.
+   *
+   * \note Cyclic dependency is not allowed among modules,
+   *  An error will be thrown when cyclic dependency is detected.
+   */
+  TVM_DLL void Import(Module other);
+  /*!
    * \brief Get a function from current environment
    *  The environment includes all the imports as well as Global functions.
    *
@@ -149,6 +191,13 @@ class ModuleNode {
   const std::vector<Module>& imports() const {
     return imports_;
   }
+
+  // integration with the existing components.
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeModule;
+  static constexpr const char* _type_key = "runtime.Module";
+  // NOTE: ModuleNode can still be sub-classed
+  //
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
 
  protected:
   friend class Module;
@@ -180,16 +229,21 @@ constexpr const char* tvm_module_main = "__tvm_main__";
 }  // namespace symbol
 
 // implementations of inline functions.
+
+inline void Module::Import(Module other) {
+  return (*this)->Import(other);
+}
+
 inline ModuleNode* Module::operator->() {
-  return node_.get();
+  return static_cast<ModuleNode*>(get_mutable());
 }
 
 inline const ModuleNode* Module::operator->() const {
-  return node_.get();
+  return static_cast<const ModuleNode*>(get());
 }
 
 }  // namespace runtime
 }  // namespace tvm
 
-#include "packed_func.h"
+#include <tvm/runtime/packed_func.h>  // NOLINT(*)
 #endif  // TVM_RUNTIME_MODULE_H_

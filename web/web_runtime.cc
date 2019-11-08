@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,6 +31,7 @@
 #include "../src/runtime/system_lib_module.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
+#include "../src/runtime/object.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/file_util.cc"
 #include "../src/runtime/dso_module.cc"

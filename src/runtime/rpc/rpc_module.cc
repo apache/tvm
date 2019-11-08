@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -123,7 +123,7 @@ class RPCModuleNode final : public ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     RPCFuncHandle handle = GetFuncHandle(name);
     return WrapRemote(handle);
   }
@@ -195,8 +195,7 @@ void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
         return wf->operator()(args, rv);
       });
   } else if (tcode == kModuleHandle) {
-    std::shared_ptr<RPCModuleNode> n =
-        std::make_shared<RPCModuleNode>(handle, sess);
+    auto n = make_object<RPCModuleNode>(handle, sess);
     *rv = Module(n);
   } else if (tcode == kArrayHandle || tcode == kNDArrayContainer) {
     CHECK_EQ(args.size(), 2);
@@ -209,8 +208,7 @@ void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
 }
 
 Module CreateRPCModule(std::shared_ptr<RPCSession> sess) {
-  std::shared_ptr<RPCModuleNode> n =
-      std::make_shared<RPCModuleNode>(nullptr, sess);
+  auto n = make_object<RPCModuleNode>(nullptr, sess);
   return Module(n);
 }
 
@@ -237,8 +235,7 @@ TVM_REGISTER_GLOBAL("rpc._LoadRemoteModule")
     CHECK_EQ(tkey, "rpc");
     auto& sess = static_cast<RPCModuleNode*>(m.operator->())->sess();
     void* mhandle = sess->CallRemote(RPCCode::kModuleLoad, args[1]);
-    std::shared_ptr<RPCModuleNode> n =
-        std::make_shared<RPCModuleNode>(mhandle, sess);
+    auto n = make_object<RPCModuleNode>(mhandle, sess);
     *rv = Module(n);
   });
 
