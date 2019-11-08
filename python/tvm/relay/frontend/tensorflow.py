@@ -2173,7 +2173,8 @@ class GraphProto(object):
 
                 # Infer shapes even without specifying "add_shapes=True"
                 if output_shapes == [None]:
-                    out_shapes = [_infer_shape(node_item, self._mod) for node_item in self._nodes[node.name]]
+                    out_shapes = [_infer_shape(node_item, self._mod)
+                                  for node_item in self._nodes[node.name]]
                     self._output_shapes[node.name] = out_shapes
 
                 if self._output_shapes[node.name] and shape and node.name in shape:

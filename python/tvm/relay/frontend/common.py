@@ -458,11 +458,10 @@ def infer_type(node, mod=None):
         mod = _transform.InferType()(mod)
         entry = mod["main"]
         return entry.body
-    else:
-        mod = _module.Module.from_expr(node)
-        mod = _transform.InferType()(mod)
-        entry = mod["main"]
-        return entry if isinstance(node, _expr.Function) else entry.body
+    mod = _module.Module.from_expr(node)
+    mod = _transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(node, _expr.Function) else entry.body
 
 def infer_shape(inputs, mod=None):
     """A method to get the output type of an intermediate node in the graph."""
@@ -471,9 +470,8 @@ def infer_shape(inputs, mod=None):
     if hasattr(checked_type, 'shape'):
         # Regular operator that outputs tensors
         return get_const_tuple(out_type.checked_type.shape)
-    else:
-        # The return type is not a tensor, for example List
-        return checked_type
+    # The return type is not a tensor, for example List
+    return checked_type
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
