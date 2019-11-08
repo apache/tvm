@@ -548,7 +548,7 @@ def _test_reshape_with_call():
     data = np.zeros((6, 4, 2))
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out_shape = tf.constant([1, 2, 3], dtype="int64")
+        out_shape = tf.constant([1, 2, 3], dtype="int32")
         out_shape = tf.multiply(out_shape, 2)
         array_ops.reshape(in_data, out_shape)
 
