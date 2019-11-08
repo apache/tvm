@@ -189,6 +189,8 @@ def conv2d(data,
            kernel,
            input_zero_point,
            kernel_zero_point,
+           input_tensor_scale,
+           kernel_tensor_scale,
            strides=(1, 1),
            padding=(0, 0),
            dilation=(1, 1),
@@ -218,6 +220,16 @@ def conv2d(data,
 
     input_zero_point: int
            The zero point of the data distribution.
+
+    input_tensor_scale: float
+           The scale for the input tensor. The scale for the input tensor is
+           stored purely for convenience here. See more commentary below.
+
+    kernel_tensor_scale: float
+           The scale for the weight tensor. The scale for the weight tensor is
+           stored for access to this during relay. This information is not
+           needed in the pass pipeline after qnn.conv2d is lowered to the
+           sequence of steps as in nn.conv2d. See also input_scale in Requantize.
 
     kernel_zero_point: int
            The zero point of the quantized_kernel distribution.
@@ -262,7 +274,8 @@ def conv2d(data,
                         input_zero_point, kernel_zero_point,
                         strides, padding, dilation,
                         groups, channels, kernel_size,
-                        data_layout, kernel_layout, out_layout, out_dtype)
+                        data_layout, kernel_layout, out_layout, out_dtype,
+                        input_tensor_scale, kernel_tensor_scale)
 
 
 def add(lhs,

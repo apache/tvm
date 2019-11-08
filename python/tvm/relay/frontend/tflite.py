@@ -936,6 +936,8 @@ class OperatorConverter(object):
             qnn_conv2d_params['input_zero_point'] = input_tensor.qnn_params['zero_point']
             qnn_conv2d_params['kernel_zero_point'] = weight_tensor.qnn_params['zero_point']
             qnn_conv2d_params['out_dtype'] = 'int32'
+            qnn_conv2d_params['input_tensor_scale'] = input_tensor.qnn_params['scale']
+            qnn_conv2d_params['kernel_tensor_scale'] = weight_tensor.qnn_params['scale']
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
         else:
             out = _op.nn.conv2d(in_expr, weight_expr, **params)
