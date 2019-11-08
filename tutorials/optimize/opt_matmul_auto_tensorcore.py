@@ -320,7 +320,7 @@ def tune_and_evaluate(M, N, L, dtype, layout):
 # We do not run the tuning in our webpage server since it takes some time.
 # Uncomment the following line to run it by yourself.
 
-tune_and_evaluate(M, N, L, dtype, layout)
+# tune_and_evaluate(M, N, L, dtype, layout)
 
 ######################################################################
 # Sample Output
