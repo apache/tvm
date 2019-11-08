@@ -621,7 +621,7 @@ def _reshape():
             try:
                 params_new = _infer_value(pop_node, params)
                 shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
-            except:
+            except Exception:
                 # Deal with symbolic shape case.
                 # Currently only shape_of can be the direct ancestor.
                 if not isinstance(pop_node, tvm.relay.expr.Call) or \
