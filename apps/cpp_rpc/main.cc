@@ -65,7 +65,7 @@ static const string kUSAGE = \
  * \arg key The key used to identify the device type in tracker. Default=""
  * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
  * \arg silent Whether run in silent mode. Default=True
- * \arg isProxy Whether to run in proxy mode. Default=False
+ * \arg is_proxy Whether to run in proxy mode. Default=False
  */
 struct RpcServerArgs {
   string host = "0.0.0.0";
@@ -75,7 +75,7 @@ struct RpcServerArgs {
   string key;
   string custom_addr;
   bool silent = false;
-  bool isProxy = false;
+  bool is_proxy = false;
 };
 
 /*!
@@ -90,7 +90,7 @@ void PrintArgs(struct RpcServerArgs args) {
   LOG(INFO) << "key         = " << args.key;
   LOG(INFO) << "custom_addr = " << args.custom_addr;
   LOG(INFO) << "silent      = " << ((args.silent) ? ("True"): ("False"));
-  LOG(INFO) << "proxy       = " << ((args.isProxy) ? ("True"): ("False"));
+  LOG(INFO) << "proxy       = " << ((args.is_proxy) ? ("True"): ("False"));
 }
 
 /*!
