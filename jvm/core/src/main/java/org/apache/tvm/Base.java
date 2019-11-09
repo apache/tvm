@@ -102,7 +102,8 @@ final class Base {
             // TODO(yizhi) support windows later
             throw new UnsatisfiedLinkError(os + " not supported currently");
           }
-          NativeLibraryLoader.extractResourceFileToTempDir(runtimeLibname, new NativeLibraryLoader.Action() {
+          NativeLibraryLoader.extractResourceFileToTempDir(
+              runtimeLibname, new NativeLibraryLoader.Action() {
             @Override public void invoke(File target) {
               System.err.println("Loading tvm runtime from " + target.getPath());
               checkCall(_LIB.nativeLibInit(target.getPath()));
