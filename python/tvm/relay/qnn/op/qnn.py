@@ -330,8 +330,8 @@ def dense(data,
           weight,
           input_zero_point,
           kernel_zero_point,
-          input_tensor_scale,
-          kernel_tensor_scale,
+          input_scale,
+          kernel_scale,
           units=None,
           out_dtype="int32"):
     """Qnn Dense operator.
@@ -347,9 +347,9 @@ def dense(data,
         The quantized input data to the operator.
     weight : tvm.relay.Expr
         The quantized weight expressions.
-    input_tensor_scale: float
+    input_scale: float
         The scale for the input tensor.
-    weight_tensor_scale: float
+    kernel_scale: float
         The scale for the weight tensor.
     units : int, optional
         Number of hidden units of the dense transformation.
@@ -368,8 +368,8 @@ def dense(data,
                        input_zero_point,
                        kernel_zero_point,
                        out_dtype,
-                       input_tensor_scale,
-                       weight_tensor_scale)
+                       input_scale,
+                       kernel_scale)
 
 
 def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
