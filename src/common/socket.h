@@ -54,10 +54,13 @@ using ssize_t = int;
 #include "../common/util.h"
 
 #if defined(_WIN32)
-typedef int sock_size_t;
-
 static inline int poll(struct pollfd *pfd, int nfds,
-                       int timeout) { return WSAPoll ( pfd, nfds, timeout ); }
+                       int timeout) {
+  return WSAPoll ( pfd, nfds, timeout );
+}
+static inline int inet_pton(int family, const char* addr_str, void* addr_buf) {
+  return InetPton(family, addr_str, addr_buf);
+}
 #else
 #include <sys/poll.h>
 #endif  // defined(_WIN32)
@@ -83,15 +86,11 @@ inline bool ValidateIP(std::string ip) {
   if (ip == "localhost") {
     return true;
   }
-  std::vector<std::string> list = Split(ip, '.');
-  if (list.size() != 4) {
-    return false;
-  }
-  for (const auto& str : list) {
-    if (!IsNumber(str) || std::stoi(str) > 255 || std::stoi(str) < 0)
-      return false;
-  }
-  return true;
+  struct sockaddr_in sa_ipv4;
+  struct sockaddr_in6 sa_ipv6;
+  bool is_ipv4 = inet_pton(AF_INET, ip.c_str(), &(sa_ipv4.sin_addr));
+  bool is_ipv6 = inet_pton(AF_INET6, ip.c_str(), &(sa_ipv6.sin6_addr));
+  return is_ipv4 || is_ipv6;
 }
 
 /*!
