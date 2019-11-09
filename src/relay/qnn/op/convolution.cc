@@ -443,7 +443,7 @@ Expr MakeQnnConv2D(Expr data, Expr weight, int32_t input_zero_point, int32_t ker
                    Array<IndexExpr> strides, Array<IndexExpr> padding, Array<IndexExpr> dilation,
                    int groups, IndexExpr channels, Array<IndexExpr> kernel_size,
                    std::string data_layout, std::string kernel_layout, std::string out_layout,
-                   DataType out_dtype, double input_tensor_scale, double kernel_tensor_scale) {
+                   DataType out_dtype, double input_scale, double kernel_scale) {
   auto attrs = make_node<QnnConv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -457,8 +457,8 @@ Expr MakeQnnConv2D(Expr data, Expr weight, int32_t input_zero_point, int32_t ker
   attrs->out_dtype = std::move(out_dtype);
   attrs->input_zero_point = std::move(input_zero_point);
   attrs->kernel_zero_point = std::move(kernel_zero_point);
-  attrs->input_tensor_scale = std::move(input_tensor_scale);
-  attrs->kernel_tensor_scale = std::move(kernel_tensor_scale);
+  attrs->input_scale = std::move(input_scale);
+  attrs->kernel_scale = std::move(kernel_scale);
   static const Op& op = Op::Get("qnn.conv2d");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
