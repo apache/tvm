@@ -59,7 +59,7 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create quantized dense operator used by frontend FFI.
 Expr MakeQuantizedDense(Expr data, Expr weight, IndexExpr units, int32_t input_zero_point,
                         int32_t kernel_zero_point, DataType out_dtype, double input_tensor_scale,
-			double kernel_tensor_scale, double output_tensor_scale) {
+                        double kernel_tensor_scale, double output_tensor_scale) {
   auto attrs = make_node<QnnDenseAttrs>();
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
