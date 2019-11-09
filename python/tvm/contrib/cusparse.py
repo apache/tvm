@@ -21,6 +21,27 @@ from .. import api as _api
 from .. import intrin as _intrin
 
 def matmul(lhs, rhs_data, rhs_indices, rhs_indptr, transb=False):
+    """Create an extern op that compute matrix mult of lhs and rhs with cuSPARSE
+
+    Parameters
+    ----------
+    lhs : Tensor
+        The left matrix operand
+    rhs is a sparse matrix in csr format
+    rhs_data : Tensor
+        The CSR format data array of rhs
+    rhs_indices : Tensor
+        The CSR format index array of rhs
+    rhs_indptr : Tensor
+        The CSR format index pointer array of rhs
+    transb : bool
+        Whether transpose rhs
+
+    Returns
+    -------
+    C : Tensor
+        The result tensor.
+    """
     n = lhs.shape[0]
     # TODO use rhs_shape to infer m
     m = rhs_indptr.shape[0]-1

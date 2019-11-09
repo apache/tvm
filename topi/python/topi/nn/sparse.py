@@ -54,11 +54,12 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
     assert len(weight_data.shape) in (1, 3)
 
     target = tvm.target.current_target()
-    if "cusparse" in target.libs:
-        return cusparse.matmul(data, weight_data, weight_indices, 
-                               weight_indptr, True)
 
     if len(weight_data.shape) == 1:
+        # current cusparse backend only for csr format
+        if "cusparse" in target.libs:
+            return cusparse.matmul(data, weight_data, weight_indices,
+                                   weight_indptr, True)
         func = _sparse_dense_csrmm
     if len(weight_data.shape) == 3:
         func = _sparse_dense_bsrmm
