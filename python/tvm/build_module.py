@@ -387,6 +387,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, compact, binds)
 
     # Phase 1
+    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
