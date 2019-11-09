@@ -17,6 +17,8 @@
 
 package org.apache.tvm;
 
+import org.apache.tvm.NativeLibraryLoader.Action;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -102,8 +104,7 @@ final class Base {
             // TODO(yizhi) support windows later
             throw new UnsatisfiedLinkError(os + " not supported currently");
           }
-          NativeLibraryLoader.extractResourceFileToTempDir(
-              runtimeLibname, new NativeLibraryLoader.Action() {
+          NativeLibraryLoader.extractResourceFileToTempDir(runtimeLibname, new Action() {
             @Override public void invoke(File target) {
               System.err.println("Loading tvm runtime from " + target.getPath());
               checkCall(_LIB.nativeLibInit(target.getPath()));
