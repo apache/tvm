@@ -113,6 +113,8 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
             state := sXPad1
           }.elsewhen(dec.xpad_0 =/= 0.U) {
             state := sXPad0
+          }.otherwise {
+            state := sReadCmd
           }
         }.elsewhen(dataCtrl.io.split) {
           state := sReadCmd
@@ -167,13 +169,11 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
   xPadCtrl0.io.start := dec.xpad_0 =/= 0.U &
     ((state === sIdle & io.start) |
       (state === sYPad0 & yPadCtrl0.io.done) |
-      (io.vme_rd.data
-        .fire() & ~dataCtrlDone & (dataCtrl.io.stride | dataCtrl.io.split) & dec.xpad_1 === 0.U) |
+      (io.vme_rd.data.fire() & ~dataCtrlDone & dataCtrl.io.stride & dec.xpad_1 === 0.U) |
       (state === sXPad1 & xPadCtrl1.io.done & ~dataCtrlDone))
 
   xPadCtrl1.io.start := dec.xpad_1 =/= 0.U & io.vme_rd.data.fire() &
-    ((dataCtrl.io.done) |
-      (~dataCtrl.io.done & (dataCtrl.io.stride | dataCtrl.io.split) & dec.xpad_1 =/= 0.U))
+    ((dataCtrl.io.done) | (~dataCtrl.io.done & dataCtrl.io.stride & dec.xpad_1 =/= 0.U))
 
   yPadCtrl0.io.inst := io.inst
   yPadCtrl1.io.inst := io.inst
