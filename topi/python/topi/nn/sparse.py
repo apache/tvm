@@ -18,6 +18,7 @@
 """Sparse operators"""
 from __future__ import absolute_import
 import tvm
+from tvm.contrib import cusparse
 
 from ..util import get_const_tuple
 
@@ -51,6 +52,13 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
         2-D with shape [M, N]
     """
     assert len(weight_data.shape) in (1, 3)
+
+    target = tvm.target.current_target()
+    if "cusparse" in target.libs:
+        #assert out_dtype == data.dtype, "Mixed precision not supported."
+        return cusparse.matmul(data, weight_data, weight_indices, 
+                               weight_indptr, True)
+
     if len(weight_data.shape) == 1:
         func = _sparse_dense_csrmm
     if len(weight_data.shape) == 3:
