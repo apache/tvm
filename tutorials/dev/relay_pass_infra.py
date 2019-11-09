@@ -43,6 +43,8 @@ a certain optimization and create an optimization pipeline.
 .. _Sequential: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.Sequential
 
 .. _pass infra doc: https://docs.tvm.ai/dev/relay_pass_infra.html
+
+.. _ToANormalForm: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.ToANormalForm
 """
 
 import numpy as np
@@ -132,7 +134,7 @@ print(mod)
 # Applying passes as above is actually tedious and it may require users to have
 # better understanding about the dependencies between them. For example, fusion
 # currently doesn't work well on let bindings. Therefore, we would not be able
-# to fuse operators that were fusable if ToANormalForm is applied before
+# to fuse operators that were fusable if `ToANormalForm`_ is applied before
 # fusion, as this pass generates let bindings for each expression to
 # canonicalize a Relay program.
 #
