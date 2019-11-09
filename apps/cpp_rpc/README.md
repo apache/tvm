@@ -21,7 +21,9 @@ This folder contains a simple recipe to make RPC server in c++.
 ## Usage
 - Build tvm runtime
 - Make the rpc executable [Makefile](Makefile).
-  `make CXX=/path/to/cross compiler g++/ TVM_RUNTIME_DIR=/path/to/tvm runtime library directory/`
+  `make CXX=/path/to/cross compiler g++/ TVM_RUNTIME_DIR=/path/to/tvm runtime library directory/ OS=Linux`
+  if you want to compile it for embedded Linux, you should add `OS=Linux`.
+  if the target os is Android, you doesn't need to pass OS argument.
   You could cross compile the TVM runtime like this:
 ```
   cd tvm
