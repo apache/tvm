@@ -56,7 +56,7 @@ using ssize_t = int;
 #if defined(_WIN32)
 static inline int poll(struct pollfd *pfd, int nfds,
                        int timeout) {
-  return WSAPoll ( pfd, nfds, timeout );
+  return WSAPoll(pfd, nfds, timeout);
 }
 static inline int inet_pton(int family, const char* addr_str, void* addr_buf) {
   return InetPton(family, addr_str, addr_buf);
