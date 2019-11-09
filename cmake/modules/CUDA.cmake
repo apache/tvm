@@ -52,6 +52,13 @@ if(USE_CUDA)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUBLAS_LIBRARY})
   endif(USE_CUBLAS)
 
+  if(USE_CUSPARSE)
+    message(STATUS "Build with cuSparse support")
+    file(GLOB CONTRIB_CUSPARSE_SRCS src/runtime/contrib/cusparse/*.cc)
+    list(APPEND RUNTIME_SRCS ${CONTRIB_CUSPARSE_SRCS})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUSPARSE_LIBRARY})
+  endif(USE_CUSPARSE)
+
 else(USE_CUDA)
   list(APPEND COMPILER_SRCS src/codegen/opt/build_cuda_off.cc)
 endif(USE_CUDA)

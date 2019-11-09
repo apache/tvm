@@ -151,6 +151,9 @@ set(USE_CUDNN OFF)
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
+# Whether use cuSPARSE
+set(USE_CUSPARSE OFF)
+
 # Whether use MIOpen
 set(USE_MIOPEN OFF)
 

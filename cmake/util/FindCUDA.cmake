@@ -70,6 +70,9 @@ macro(find_cuda use_cuda)
       find_library(CUDA_CUBLAS_LIBRARY cublas
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
+    find_library(CUDA_CUSPARSE_LIBRARY cusparse
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
     else(MSVC)
       find_library(_CUDA_CUDA_LIBRARY cuda
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
@@ -86,6 +89,9 @@ macro(find_cuda use_cuda)
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
       find_library(CUDA_CUBLAS_LIBRARY cublas
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      find_library(CUDA_CUSPARSE_LIBRARY cusparse
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     endif(MSVC)
