@@ -245,7 +245,8 @@ def conv2d_find_algo(tensor_format,
                      dilation_w,
                      x_shape,
                      w_shape,
-                     y_shape):
+                     y_shape,
+                     dtype):
     """Choose the best algo for the given input.
 
     Paramters
@@ -272,6 +273,8 @@ def conv2d_find_algo(tensor_format,
         weight shape
     y_shape: list
         output shape
+    dtype: str
+        data type
 
     Returns
     -------
@@ -297,7 +300,8 @@ def conv2d_find_algo(tensor_format,
                 int(y_shape[0]),
                 int(y_shape[1]),
                 int(y_shape[2]),
-                int(y_shape[3]))
+                int(y_shape[3]),
+                dtype)
 
 
 def conv2d_forward(x,
@@ -366,7 +370,8 @@ def conv2d_forward(x,
                                 dilation_w,
                                 list(x.shape),
                                 list(w.shape),
-                                oshape)
+                                oshape,
+                                x.dtype)
 
     return _api.extern(
         oshape, [x, w],
