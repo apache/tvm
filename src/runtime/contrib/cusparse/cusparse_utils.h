@@ -18,8 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file Use external cudnn utils function
+ * \file Use external cuSPARSE utils function
  */
 
 #ifndef TVM_RUNTIME_CONTRIB_CUSPARSE_CUSPARSE_UTILS_H_
@@ -95,9 +94,12 @@ inline void CallCsrmm(TVMArgs args, TVMRetValue *ret, TCsrmmOp op) {
   double alpha = 1.0;
   double beta = 0.0;
 
+  // only support square sparse matrix B for now
   op(transb, 
+     // TODO pass in sp mat dim for flexible M, K
      static_cast<int>(rowPtrB->shape[0]-1), 
      static_cast<int>(A->shape[1]),
+     // TODO pass in sp mat dim for flexible M, K
      static_cast<int>(rowPtrB->shape[0]-1),
      static_cast<int>(valB->shape[0]),
      static_cast<float>(alpha),

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file Use external cblas library call.
+ * \file Use external cuSPARSE library call.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
