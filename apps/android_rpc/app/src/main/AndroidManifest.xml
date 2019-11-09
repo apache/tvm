@@ -20,7 +20,7 @@ under the License.
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="ml.dmlc.tvm.tvmrpc" >
+    package="org.apache.tvm.tvmrpc" >
 
     <uses-permission android:name="android.permission.INTERNET" />
 
