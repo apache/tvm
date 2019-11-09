@@ -55,7 +55,6 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
 
     target = tvm.target.current_target()
     if "cusparse" in target.libs:
-        #assert out_dtype == data.dtype, "Mixed precision not supported."
         return cusparse.matmul(data, weight_data, weight_indices, 
                                weight_indptr, True)
 
