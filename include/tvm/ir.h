@@ -1248,6 +1248,8 @@ constexpr const char* reduce_scope = "reduce_scope";
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Try to modify the AST to support Tensor Core */
+constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope
