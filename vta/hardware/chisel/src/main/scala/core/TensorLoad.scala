@@ -103,20 +103,19 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
           when(dec.xpad_1 =/= 0.U) {
             state := sXPad1
           }.elsewhen(dec.ypad_1 =/= 0.U) {
-              state := sYPad1
-            }
-            .otherwise {
-              state := sIdle
-            }
-        }.elsewhen(dataCtrl.io.stride || dataCtrl.io.split) {
+            state := sYPad1
+          }
+          .otherwise {
+            state := sIdle
+          }
+        }.elsewhen(dataCtrl.io.stride) {
           when(dec.xpad_1 =/= 0.U) {
             state := sXPad1
           }.elsewhen(dec.xpad_0 =/= 0.U) {
-              state := sXPad0
-            }
-            .otherwise {
-              state := sReadCmd
-            }
+            state := sXPad0
+          }
+        }.elsewhen(dataCtrl.io.split) {
+          state := sReadCmd
         }
       }
     }
