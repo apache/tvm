@@ -104,14 +104,14 @@ class RPCServer {
    * \brief Start Creates the RPC listen process and execution.
   */
   void Start() {
-      listen_sock_.Create();
-      my_port_ = listen_sock_.TryBindHost(host_, port_, port_end_);
-      LOG(INFO) << "bind to " << host_ << ":" << my_port_;
-      listen_sock_.Listen(1);
-      std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
-      proc.get();
-      // Close the listen socket
-      listen_sock_.Close();
+    listen_sock_.Create();
+    my_port_ = listen_sock_.TryBindHost(host_, port_, port_end_);
+    LOG(INFO) << "bind to " << host_ << ":" << my_port_;
+    listen_sock_.Listen(1);
+    std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
+    proc.get();
+    // Close the listen socket
+    listen_sock_.Close();
   }
 
  private:
@@ -145,7 +145,7 @@ class RPCServer {
       int timeout = GetTimeOutFromOpts(opts);
       #if defined(__linux__) || defined(__ANDROID__)
         // step 3: serving
-        if (timeout) {
+        if (timeout != 0) {
           const pid_t timer_pid = fork();
           if (timer_pid == 0) {
             // Timer process
@@ -196,7 +196,7 @@ class RPCServer {
         std::future<void> proc(std::async(std::launch::async,
                                           &RPCServer::ServerLoopProc, this, conn, addr));
         // wait until server process finish or timeout
-        if (timeout) {
+        if (timeout != 0) {
           // Autoterminate after timeout
           proc.wait_for(std::chrono::seconds(timeout));
         } else {

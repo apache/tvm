@@ -103,12 +103,12 @@ std::vector<std::string> ListDir(const std::string &dirname) {
   std::vector<std::string> vec;
   #ifndef _MSC_VER
     DIR *dp = opendir(dirname.c_str());
-    if (dp == NULL) {
+    if (dp == nullptr) {
       int errsv = errno;
       LOG(FATAL) << "ListDir " << dirname <<" error: " << strerror(errsv);
     }
     dirent *d;
-    while ((d = readdir(dp)) != NULL) {
+    while ((d = readdir(dp)) != nullptr) {
       std::string filename = d->d_name;
       if (filename != "." && filename != "..") {
         std::string f = dirname;
@@ -164,7 +164,8 @@ void LinuxShared(const std::string output,
      cmd += " " + *f;
     }
     cmd += " " + options;
-    CHECK(system(cmd.c_str()) == 0) << "Compilation error.";
+    std::string executed_result = common::Execute(cmd);
+    CHECK(executed_result.length() == 0) << executed_result;
 }
 
 /*!
@@ -206,7 +207,8 @@ Module Load(std::string *fileIn, const std::string fmt) {
       std::string tmp_dir = "./rpc/tmp/";
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
-      CHECK(system(cmd.c_str()) == 0) << "Untar library error.";
+      std::string executed_result = common::Execute(cmd);
+      CHECK(executed_result.length() == 0) << executed_result;
       CreateShared(file_name, ListDir(tmp_dir));
       CleanDir(tmp_dir);
       rmdir(&tmp_dir[0]);
@@ -228,7 +230,7 @@ void CleanDir(const std::string &dirname) {
   #if defined(__linux__) || defined(__ANDROID__)
     DIR *dp = opendir(dirname.c_str());
     dirent *d;
-    while ((d = readdir(dp)) != NULL) {
+    while ((d = readdir(dp)) != nullptr) {
       std::string filename = d->d_name;
       if (filename != "." && filename != "..") {
         filename = dirname + "/" + d->d_name;

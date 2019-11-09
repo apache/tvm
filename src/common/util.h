@@ -25,14 +25,42 @@
 #ifndef TVM_COMMON_UTIL_H_
 #define TVM_COMMON_UTIL_H_
 
+#include <stdio.h>
 #include <vector>
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <array>
+#include <memory>
 
 namespace tvm {
 namespace common {
+/*!
+ * \brief TVMPOpen wrapper of popen between windows / unix.
+ * \param command executed command
+ * \param type "r" is for reading or "w" for writing.
+ * \return normal standard stream
+ */
+inline FILE * TVMPOpen(const char* command, const char* type) {
+#if defined(_WIN32)
+  return _popen(command, type);
+#else
+  return popen(command, type);
+#endif
+}
 
+/*!
+ * \brief TVMPClose wrapper of pclose between windows / linux
+ * \param stream the stream needed to be close.
+ * \return exit status
+ */
+inline int TVMPClose(FILE* stream) {
+#if defined(_WIN32)
+  return _pclose(stream);
+#else
+  return pclose(stream);
+#endif
+}
 /*!
  * \brief IsNumber check whether string is a number.
  * \param str input string
@@ -70,6 +98,22 @@ inline bool EndsWith(std::string const & value, std::string const & end) {
     return std::equal(end.rbegin(), end.rend(), value.rbegin());
   }
   return false;
+}
+
+/*!
+ * \brief Execute the command
+ * \param cmd The command we want to execute
+ * \return executed output message
+ */
+inline std::string Execute(std::string cmd) {
+  std::array<char, 128> buffer;
+  std::string result;
+  cmd += " 2>&1";
+  std::unique_ptr<FILE, decltype(&TVMPClose)> pipe(TVMPOpen(cmd.c_str(), "r"), TVMPClose);
+  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    result += buffer.data();
+  }
+  return result;
 }
 
 }  // namespace common

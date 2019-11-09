@@ -111,7 +111,7 @@ void HandleCtrlC() {
   sigIntHandler.sa_handler = CtrlCHandler;
   sigemptyset(&sigIntHandler.sa_mask);
   sigIntHandler.sa_flags = 0;
-  sigaction(SIGINT, &sigIntHandler, NULL);
+  sigaction(SIGINT, &sigIntHandler, nullptr);
 }
 
 /*!
