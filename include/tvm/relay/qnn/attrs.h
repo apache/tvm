@@ -220,6 +220,8 @@ struct QnnDenseAttrs : public tvm::AttrsNode<QnnDenseAttrs> {
   // Quantization related attributes.
   int32_t input_zero_point;
   int32_t kernel_zero_point;
+  double input_tensor_scale;
+  double kernel_tensor_scale;
 
   TVM_DECLARE_ATTRS(QnnDenseAttrs, "relay.attrs.QnnDenseAttrs") {
     TVM_ATTR_FIELD(units)
@@ -230,6 +232,10 @@ struct QnnDenseAttrs : public tvm::AttrsNode<QnnDenseAttrs> {
       .describe("The zero point of the input tensor.");
     TVM_ATTR_FIELD(kernel_zero_point)
       .describe("The zero point of the kernel tensor.");
+    TVM_ATTR_FIELD(input_tensor_scale)
+      .describe("The input tensor scale.");
+    TVM_ATTR_FIELD(kernel_tensor_scale)
+      .describe("The kernel tensor scale.");
   }
 };
 
