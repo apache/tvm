@@ -20,7 +20,6 @@ import math
 import tvm
 from ...util import get_const_tuple, get_const_int
 from ...sort import argsort
-from tvm import api
 
 def generate_anchor(ratio, scale, base_size):
     """Generate anchor"""
@@ -200,8 +199,8 @@ def argsort_ir(data_buf, out_index_buf):
         with ib.for_range(0, num_bbox) as k:
             with ib.for_range(0, (num_bbox + 1) // 2) as tid:
                 offset = start + 2 * tid + idxm(k, 2)
-                with ib.if_scope(
-                        tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
+                with ib.if_scope(tvm.all(offset + 1 < num_bbox,
+                                         p_data[offset] < p_data[offset + 1])):
                     temp_data[0] = p_data[offset]
                     p_data[offset] = p_data[offset + 1]
                     p_data[offset + 1] = temp_data[0]
@@ -373,7 +372,7 @@ def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, thres
 
     bbox = tvm.extern((batch, num_bbox, 5), [cls_prob, bbox_pred, im_info], lambda ins, outs:
                       predict_bbox_ir(ins[0], ins[1], ins[2], outs[0], scales, ratios,
-                      feature_stride, rpn_min_size, iou_loss),
+                                      feature_stride, rpn_min_size, iou_loss),
                       dtype=bbox_pred.dtype)
     score = tvm.compute((batch, num_bbox), lambda b, i: bbox[b, i, 4], tag='bbox_score')
     valid_count_shape = (1,)
