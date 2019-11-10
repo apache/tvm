@@ -18,7 +18,7 @@ import argparse
 import re
 
 default_team_id = "3FR42MXLK9"
-default_bundle_identifier = 'ml.dmlc.tvmrpc'
+default_bundle_identifier = 'org.apache.tvmrpc'
 
 parser = argparse.ArgumentParser(description='Update tvmrpc.xcodeproj\
  developer information')

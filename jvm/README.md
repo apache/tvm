@@ -122,9 +122,9 @@ if __name__ == "__main__":
 The following code snippet demonstrate how to load generated shared library (add_cpu.so).
 
 ```java
-import ml.dmlc.tvm.Module;
-import ml.dmlc.tvm.NDArray;
-import ml.dmlc.tvm.TVMContext;
+import org.apache.tvm.Module;
+import org.apache.tvm.NDArray;
+import org.apache.tvm.TVMContext;
 
 import java.io.File;
 import java.util.Arrays;
@@ -175,4 +175,4 @@ Server server = new Server(proxyHost, proxyPort, "key");
 server.start();
 ```
 
-You can also use `StandaloneServerProcessor` and `ConnectProxyServerProcessor` to build your own RPC server. Refer to [Android RPC Server](https://github.com/apache/incubator-tvm/blob/master/apps/android_rpc/app/src/main/java/ml/dmlc/tvm/tvmrpc/RPCProcessor.java) for more details.
+You can also use `StandaloneServerProcessor` and `ConnectProxyServerProcessor` to build your own RPC server. Refer to [Android RPC Server](https://github.com/apache/incubator-tvm/blob/master/apps/android_rpc/app/src/main/java/org/apache/tvm/tvmrpc/RPCProcessor.java) for more details.
