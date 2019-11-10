@@ -51,7 +51,8 @@ struct CuSparseScsrmmOp {
     CHECK_CUSPARSE_ERROR(cusparseScsrmm(handle,
                                         BooleanToTranspose(ta),
                                         M, N, K, NNZ,
-                                        &alpha, descr, valA, rowPtrA, colIndA,
+                                        &alpha, descr, 
+                                        valA, rowPtrA, colIndA,
                                         B, ldb, &beta,
                                         C, ldc));
   }
@@ -72,7 +73,8 @@ struct CuSparseDcsrmmOp {
     CHECK_CUSPARSE_ERROR(cusparseDcsrmm(handle,
                                         BooleanToTranspose(ta),
                                         M, N, K, NNZ,
-                                        &alpha, descr, valA, rowPtrA, colIndA,
+                                        &alpha, descr, 
+                                        valA, rowPtrA, colIndA,
                                         B, ldb, &beta,
                                         C, ldc));
   }

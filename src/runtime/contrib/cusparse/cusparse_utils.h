@@ -98,7 +98,7 @@ inline void CallCsrmm(TVMArgs args, TVMRetValue *ret, TCsrmmOp op) {
   op(transb, 
      // TODO pass in sp mat dim for flexible M, K
      static_cast<int>(rowPtrB->shape[0]-1), 
-     static_cast<int>(A->shape[1]),
+     static_cast<int>(A->shape[0]),
      // TODO pass in sp mat dim for flexible M, K
      static_cast<int>(rowPtrB->shape[0]-1),
      static_cast<int>(valB->shape[0]),

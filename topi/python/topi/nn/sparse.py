@@ -59,7 +59,7 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
         # current cusparse backend only for csr format
         if "cusparse" in target.libs:
             return cusparse.matmul(data, weight_data, weight_indices,
-                                   weight_indptr, True)
+                                   weight_indptr, False)
         func = _sparse_dense_csrmm
     if len(weight_data.shape) == 3:
         func = _sparse_dense_bsrmm
