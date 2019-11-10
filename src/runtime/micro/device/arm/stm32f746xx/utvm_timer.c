@@ -58,7 +58,7 @@ uint32_t stop_time = 0;
 int32_t UTVMTimerStart() {
   SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
   // wait until timer starts
-  while (SYST_CVR == 0);
+  while (SYST_CVR == 0) {}
   start_time = SYST_CVR;
   return 0;
 }

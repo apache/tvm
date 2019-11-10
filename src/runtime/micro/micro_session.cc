@@ -185,10 +185,11 @@ MicroSession::MicroSession(
 
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
 
-  // Patch pointers to define the bounds of the workspace section and the word size (for allocation alignment).
-  std::shared_ptr<MicroSectionAllocator> workspace_allocator = GetAllocator(SectionKind::kWorkspace);
-  uint64_t ws_start = workspace_allocator->start_addr().value();
-  uint64_t ws_end = workspace_allocator->max_addr().value();
+  // Patch pointers to define the bounds of the workspace section and the word
+  // size (for allocation alignment).
+  std::shared_ptr<MicroSectionAllocator> ws_allocator = GetAllocator(SectionKind::kWorkspace);
+  uint64_t ws_start = ws_allocator->start_addr().value();
+  uint64_t ws_end = ws_allocator->max_addr().value();
   if (word_size_ == 4) {
     uint32_t workspace_start_addr = (uint32_t) ws_start;
     uint32_t workspace_end_addr = (uint32_t) ws_end;
@@ -406,7 +407,8 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     };
     // Update the device type to look like a host, because codegen generates
     // checks that it is a host array.
-    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
+    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
+      << "attempt to write TVMArray with non-micro device type";
     dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
     tvm_arr_slot.WriteValue(dev_arr);
     return tvm_arr_slot.start_addr();
