@@ -36,8 +36,27 @@
 namespace tvm {
 namespace runtime {
 
+// Magic header for RPC data plane
 const int kRPCMagic = 0xff271;
+// magic header for RPC tracker(control plane)
+const int kRPCTrackerMagic = 0x2f271;
+// sucess response
+const int kRPCSuccess = kRPCMagic + 0;
+// cannot found matched key in server
+const int kRPCMismatch = kRPCMagic + 2;
 
+/*! \brief Enumeration code for the RPC tracker */
+enum class TrackerCode : int {
+    kFail = -1,
+    kSuccess = 0,
+    kPing = 1,
+    kStop = 2,
+    kPut = 3,
+    kRequest = 4,
+    kUpdateInfo = 5,
+    kSummary = 6,
+    kGetPendingMatchKeys = 7
+};
 /*! \brief The remote functio handle */
 using RPCFuncHandle = void*;
 
