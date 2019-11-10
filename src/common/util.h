@@ -26,6 +26,10 @@
 #define TVM_COMMON_UTIL_H_
 
 #include <stdio.h>
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <sys/types.h>
+#endif
 #include <vector>
 #include <string>
 #include <sstream>
@@ -41,7 +45,7 @@ namespace common {
  * \param type "r" is for reading or "w" for writing.
  * \return normal standard stream
  */
-inline FILE * TVMPOpen(const char* command, const char* type) {
+inline FILE* TVMPOpen(const char* command, const char* type) {
 #if defined(_WIN32)
   return _popen(command, type);
 #else
@@ -61,6 +65,41 @@ inline int TVMPClose(FILE* stream) {
   return pclose(stream);
 #endif
 }
+
+/*
+ * gnulib sys_wait.h.in says on Windows
+ * When an unhandled fatal signal terminates a process, the exit code is 3.
+ * # define WIFSIGNALED(x) ((x) == 3)
+ * # define WIFEXITED(x) ((x) != 3)
+ * # define WIFSTOPPED(x) 0
+ */
+/*!
+ * \brief TVMWifexited wrapper of WIFEXITED between windows / linux
+ * \param status The status field that was filled in by the wait or waitpid function
+ * \return the exit code of the child process
+ */
+inline int TVMWifexited(int status) {
+#if defined(_WIN32)
+  return (status != 3);
+#else
+  return WIFEXITED(status);
+#endif
+}
+
+/*!
+ * \brief TVMWexitstatus wrapper of WEXITSTATUS between windows / linux
+ * \param status The status field that was filled in by the wait or waitpid function.
+ * \return the child process exited normally or not
+ */
+inline int TVMWexitstatus(int status) {
+#if defined(_WIN32)
+  return status;
+#else
+  return WEXITSTATUS(status);
+#endif
+}
+
+
 /*!
  * \brief IsNumber check whether string is a number.
  * \param str input string
@@ -93,7 +132,7 @@ inline std::vector<std::string> Split(const std::string& str, char delim) {
  * \param end The end substring
  * \return bool The result.
  */
-inline bool EndsWith(std::string const & value, std::string const & end) {
+inline bool EndsWith(std::string const& value, std::string const& end) {
   if (end.size() <= value.size()) {
     return std::equal(end.rbegin(), end.rend(), value.rbegin());
   }
@@ -103,17 +142,22 @@ inline bool EndsWith(std::string const & value, std::string const & end) {
 /*!
  * \brief Execute the command
  * \param cmd The command we want to execute
- * \return executed output message
+ * \param err_msg The error message if we have
+ * \return executed output status
  */
-inline std::string Execute(std::string cmd) {
+inline int Execute(std::string cmd, std::string& err_msg) {
   std::array<char, 128> buffer;
   std::string result;
   cmd += " 2>&1";
-  std::unique_ptr<FILE, decltype(&TVMPClose)> pipe(TVMPOpen(cmd.c_str(), "r"), TVMPClose);
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-    result += buffer.data();
+  FILE* fd = TVMPOpen(cmd.c_str(), "r");
+  while (fgets(buffer.data(), buffer.size(), fd) != nullptr) {
+    err_msg += buffer.data();
   }
-  return result;
+  int status = TVMPClose(fd);
+  if (TVMWifexited(status)) {
+    return TVMWexitstatus(status);
+  }
+  return 255;
 }
 
 }  // namespace common

@@ -43,7 +43,7 @@ const int kRPCTrackerMagic = 0x2f271;
 // sucess response
 const int kRPCSuccess = kRPCMagic + 0;
 // duplicate key in proxy
-const int kRPCDupicate = kRPCMagic + 1;
+const int kRPCDuplicate = kRPCMagic + 1;
 // cannot found matched key in server
 const int kRPCMismatch = kRPCMagic + 2;
 

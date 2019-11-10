@@ -44,6 +44,10 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief wait the child process end.
+ * \param status status value
+ */
 #if defined(__linux__) || defined(__ANDROID__)
 static pid_t waitPidEintr(int *status) {
   pid_t pid = 0;
@@ -176,9 +180,9 @@ class RPCServer {
           // Logging.
           if (finished_first == timer_pid) {
             LOG(INFO) << "Child pid=" << worker_pid << " killed (timeout = " << timeout
-                      << "), Process status =" << status_second;
+                      << "), Process status = " << status_second;
           } else if (finished_first == worker_pid) {
-            LOG(INFO) << "Child pid=" << timer_pid << " killed, Process status =" << status_second;
+            LOG(INFO) << "Child pid=" << timer_pid << " killed, Process status = " << status_second;
           }
         } else {
           auto pid = fork();

@@ -70,7 +70,7 @@ struct RPCEnv {
 
  private:
   /*!
-   * \base_ Holds the environment path.
+   * \brief Holds the environment path.
    */
   std::string base_;
 };  // RPCEnv

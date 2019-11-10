@@ -48,7 +48,7 @@ static const string kUSAGE = \
 "--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n" \
 "--key         - The key used to identify the device type in tracker. Default=\"\"\n" \
 "--custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n" \
-"--silent      - Whether to run in silent mode. Default=True\n" \
+"--silent      - Whether to run in silent mode. Default=False\n" \
 "--proxy       - Whether to run in proxy mode. Default=False\n" \
 "\n" \
 "  Example\n" \
@@ -64,7 +64,7 @@ static const string kUSAGE = \
  * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \arg key The key used to identify the device type in tracker. Default=""
  * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
- * \arg silent Whether run in silent mode. Default=True
+ * \arg silent Whether run in silent mode. Default=False
  * \arg is_proxy Whether to run in proxy mode. Default=False
  */
 struct RpcServerArgs {
@@ -168,6 +168,10 @@ void ParseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args) {
     args.silent = true;
     // Only errors and fatal is logged
     dmlc::InitLogging("--minloglevel=2");
+  }
+  string proxy = GetCmdOption(argc, argv, "--proxy", true);
+  if (!proxy.empty()) {
+    args.is_proxy = true;
   }
 
   string host = GetCmdOption(argc, argv, "--host=");

@@ -251,7 +251,7 @@ class Socket {
   }
   /*!
    * \brief try bind the socket to host, from start_port to end_port
-   * \param host host_address to bind the socket
+   * \param host host address to bind the socket
    * \param start_port starting port number to try
    * \param end_port ending port number to try
    * \return the port successfully bind to, return -1 if failed to bind any port
@@ -264,7 +264,7 @@ class Socket {
                                                   sizeof(sockaddr_in))) == 0) {
         return port;
       } else {
-        LOG(WARNING) << "Bind failed to  " << host << ":" << port;
+        LOG(WARNING) << "Bind failed to " << host << ":" << port;
       }
 #if defined(_WIN32)
       if (WSAGetLastError() != WSAEADDRINUSE) {

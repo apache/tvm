@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
  * \file rpc_env.cc
  * \brief Server environment of the RPC.
@@ -164,8 +163,11 @@ void LinuxShared(const std::string output,
      cmd += " " + *f;
     }
     cmd += " " + options;
-    std::string executed_result = common::Execute(cmd);
-    CHECK(executed_result.length() == 0) << executed_result;
+    std::string err_msg;
+    auto executed_status = common::Execute(cmd, err_msg);
+    if (executed_status) {
+      LOG(ERROR) << err_msg;
+    }
 }
 
 /*!
@@ -207,8 +209,11 @@ Module Load(std::string *fileIn, const std::string fmt) {
       std::string tmp_dir = "./rpc/tmp/";
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
-      std::string executed_result = common::Execute(cmd);
-      CHECK(executed_result.length() == 0) << executed_result;
+      std::string err_msg;
+      int executed_status = common::Execute(cmd, err_msg);
+      if (executed_status) {
+        LOG(ERROR) << err_msg;
+      }
       CreateShared(file_name, ListDir(tmp_dir));
       CleanDir(tmp_dir);
       rmdir(&tmp_dir[0]);
