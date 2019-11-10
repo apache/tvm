@@ -71,7 +71,6 @@ static pid_t waitPidEintr(int *status) {
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
- * \param is_proxy Whether to run in proxy mode. Default=False
  */
 class RPCServer {
  public:
@@ -83,8 +82,7 @@ class RPCServer {
             int port_end,
             const std::string &tracker_addr,
             const std::string &key,
-            const std::string &custom_addr,
-            bool is_proxy) {
+            const std::string &custom_addr) {
     // Init the values
     host_ = host;
     port_ = port;
@@ -92,7 +90,6 @@ class RPCServer {
     tracker_addr_ = tracker_addr;
     key_ = key;
     custom_addr_ = custom_addr;
-    is_proxy_ = is_proxy;
   }
 
   /*!
@@ -324,7 +321,6 @@ class RPCServer {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
-  bool is_proxy_;
   common::TCPSocket listen_sock_;
   common::TCPSocket tracker_sock_;
 };
@@ -338,7 +334,6 @@ class RPCServer {
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
  * \param silent Whether run in silent mode. Default=True
- * \param is_proxy Whether to run in proxy mode. Default=False
  */
 void RPCServerCreate(std::string host,
                      int port,
@@ -346,20 +341,19 @@ void RPCServerCreate(std::string host,
                      std::string tracker_addr,
                      std::string key,
                      std::string custom_addr,
-                     bool silent,
-                     bool is_proxy) {
+                     bool silent) {
   if (silent) {
     // Only errors and fatal is logged
     dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
-  RPCServer rpc(host, port, port_end, tracker_addr, key, custom_addr, is_proxy);
+  RPCServer rpc(host, port, port_end, tracker_addr, key, custom_addr);
   rpc.Start();
 }
 
 TVM_REGISTER_GLOBAL("rpc._ServerCreate")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+    RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
   });
 }  // namespace runtime
 }  // namespace tvm

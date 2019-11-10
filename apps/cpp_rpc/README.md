@@ -48,7 +48,6 @@ Command line usage
 --key         - The key used to identify the device type in tracker. Default=""
 --custom-addr - Custom IP Address to Report to RPC Tracker. Default=""
 --silent      - Whether to run in silent mode. Default=False
---proxy       - Whether to run in proxy mode. Default=False
   Example
   ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 --tracker=127.0.0.1:9190 --key=rasp
 ```

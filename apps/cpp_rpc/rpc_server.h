@@ -39,7 +39,6 @@ namespace runtime {
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
  * \param silent Whether run in silent mode. Default=True
- * \param is_proxy Whether to run in proxy mode. Default=False
  */
 TVM_DLL void RPCServerCreate(std::string host = "",
                              int port = 9090,
@@ -47,8 +46,7 @@ TVM_DLL void RPCServerCreate(std::string host = "",
                              std::string tracker_addr = "",
                              std::string key = "",
                              std::string custom_addr = "",
-                             bool silent = true,
-                             bool is_proxy = false);
+                             bool silent = true);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_APPS_CPP_RPC_SERVER_H_
