@@ -22,15 +22,13 @@ from .. import tag
 from .. import generic
 
 
-def _schedule_reduce(sch, out, is_idx_reduce=False):
+def _schedule_reduce(sch, out):
     if len(sch[out].op.axis) >= 5:
+        # avoid too many parallelism
         fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
         sch[out].parallel(fused)
-    elif len(sch[out].op.axis) >= 3:
-        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
-        sch[out].parallel(fused)
-    elif len(sch[out].op.axis) >= 1:
-        sch[out].parallel(sch[out].op.axis[0])
+    else:
+        fused = sch[out].fuse(*sch[out].op.axis)
     
 
 @generic.schedule_reduce.register(["cpu"])
