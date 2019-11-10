@@ -164,7 +164,7 @@ void LinuxShared(const std::string output,
     }
     cmd += " " + options;
     std::string err_msg;
-    auto executed_status = common::Execute(cmd, err_msg);
+    auto executed_status = common::Execute(cmd, &err_msg);
     if (executed_status) {
       LOG(ERROR) << err_msg;
     }
@@ -210,7 +210,7 @@ Module Load(std::string *fileIn, const std::string fmt) {
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
       std::string err_msg;
-      int executed_status = common::Execute(cmd, err_msg);
+      int executed_status = common::Execute(cmd, &err_msg);
       if (executed_status) {
         LOG(ERROR) << err_msg;
       }

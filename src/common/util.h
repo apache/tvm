@@ -145,13 +145,13 @@ inline bool EndsWith(std::string const& value, std::string const& end) {
  * \param err_msg The error message if we have
  * \return executed output status
  */
-inline int Execute(std::string cmd, std::string& err_msg) {
+inline int Execute(std::string cmd, std::string* err_msg) {
   std::array<char, 128> buffer;
   std::string result;
   cmd += " 2>&1";
   FILE* fd = TVMPOpen(cmd.c_str(), "r");
   while (fgets(buffer.data(), buffer.size(), fd) != nullptr) {
-    err_msg += buffer.data();
+    *err_msg += buffer.data();
   }
   int status = TVMPClose(fd);
   if (TVMWifexited(status)) {
