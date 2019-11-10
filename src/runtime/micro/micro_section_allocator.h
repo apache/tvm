@@ -43,8 +43,10 @@ class MicroSectionAllocator {
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
-      CHECK_EQ(start_addr_.value() % word_size, 0) << "micro section start not aligned to " << word_size << " bytes";
-      CHECK_EQ(capacity_ % word_size, 0) << "micro section end not aligned to " << word_size << " bytes";
+      CHECK_EQ(start_addr_.value() % word_size, 0)
+        << "micro section start not aligned to " << word_size << " bytes";
+      CHECK_EQ(capacity_ % word_size, 0)
+        << "micro section end not aligned to " << word_size << " bytes";
     }
 
   /*!

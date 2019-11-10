@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 #include "utvm_runtime.h"
 
 // There are two implementations of cycle counters on the STM32F7X: SysTick and
@@ -37,10 +39,10 @@ extern "C" {
 
 #ifdef USE_SYSTICK
 
-#define SYST_CSR    (*((volatile unsigned long *) 0xE000E010))
-#define SYST_RVR    (*((volatile unsigned long *) 0xE000E014))
-#define SYST_CVR    (*((volatile unsigned long *) 0xE000E018))
-#define SYST_CALIB  (*((volatile unsigned long *) 0xE000E01C))
+#define SYST_CSR    (*((volatile uint32_t *) 0xE000E010))
+#define SYST_RVR    (*((volatile uint32_t *) 0xE000E014))
+#define SYST_CVR    (*((volatile uint32_t *) 0xE000E018))
+#define SYST_CALIB  (*((volatile uint32_t *) 0xE000E01C))
 
 #define SYST_CSR_ENABLE     0
 #define SYST_CSR_TICKINT    1
@@ -50,8 +52,8 @@ extern "C" {
 #define SYST_CALIB_NOREF  31
 #define SYST_CALIB_SKEW   30
 
-unsigned long start_time = 0;
-unsigned long stop_time = 0;
+uint32_t start_time = 0;
+uint32_t stop_time = 0;
 
 int32_t UTVMTimerStart() {
   SYST_CSR = (1 << SYST_CSR_ENABLE) | (1 << SYST_CSR_CLKSOURCE);
@@ -69,7 +71,7 @@ void UTVMTimerStop() {
 void UTVMTimerReset() {
   SYST_CSR = 0;
   // maximum reload value (24-bit)
-  SYST_RVR = (~((unsigned long) 0)) >> 8;
+  SYST_RVR = (~((uint32_t) 0)) >> 8;
   SYST_CVR = 0;
 }
 
@@ -84,14 +86,14 @@ uint32_t UTVMTimerRead() {
 
 #else  // !USE_SYSTICK
 
-#define DWT_CTRL    (*((volatile unsigned long *) 0xE0001000))
-#define DWT_CYCCNT  (*((volatile unsigned long *) 0xE0001004))
+#define DWT_CTRL    (*((volatile uint32_t *) 0xE0001000))
+#define DWT_CYCCNT  (*((volatile uint32_t *) 0xE0001004))
 
 #define DWT_CTRL_NOCYCCNT   25
 #define DWT_CTRL_CYCCNTENA  0
 
-unsigned long start_time = 0;
-unsigned long stop_time = 0;
+uint32_t start_time = 0;
+uint32_t stop_time = 0;
 
 void UTVMTimerReset() {
   DWT_CYCCNT = 0;
@@ -115,7 +117,7 @@ int32_t UTVMTimerRead() {
   if (stop_time > stop_time) {
     return stop_time - start_time;
   } else {
-    unsigned long largest = ~0;
+    uint32_t largest = ~0;
     return (largest - start_time) + stop_time;
   }
 }

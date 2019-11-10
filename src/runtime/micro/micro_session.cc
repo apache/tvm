@@ -80,7 +80,10 @@ MicroSession::MicroSession(
     size_t word_size,
     bool thumb_mode,
     const std::string& server_addr,
-    int port) : toolchain_prefix_(toolchain_prefix), word_size_(word_size), thumb_mode_(thumb_mode) {
+    int port)
+    : toolchain_prefix_(toolchain_prefix)
+    , word_size_(word_size)
+    , thumb_mode_(thumb_mode) {
   CHECK(word_size_ == 4 || word_size_ == 8) << "unsupported word size " << word_size_;
   if (comms_method == "host") {
     // TODO(weberlo): move checks to python
@@ -93,7 +96,9 @@ MicroSession::MicroSession(
         heap_start == 0 &&
         workspace_start == 0 &&
         stack_start == 0) << "unable to specify section addresses for host device";
-    size_t memory_size = text_size + rodata_size + data_size + bss_size + args_size + heap_size + workspace_size + stack_size;
+    size_t memory_size =
+      text_size + rodata_size + data_size + bss_size +
+      args_size + heap_size + workspace_size + stack_size;
     void* base_addr;
     low_level_device_ = HostLowLevelDeviceCreate(memory_size, &base_addr);
     CHECK_EQ(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_, 0)
@@ -181,16 +186,19 @@ MicroSession::MicroSession(
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
 
   // Patch pointers to define the bounds of the workspace section and the word size (for allocation alignment).
+  std::shared_ptr<MicroSectionAllocator> workspace_allocator = GetAllocator(SectionKind::kWorkspace);
+  uint64_t ws_start = workspace_allocator->start_addr().value();
+  uint64_t ws_end = workspace_allocator->max_addr().value();
   if (word_size_ == 4) {
-    uint32_t workspace_start_addr = (uint32_t) GetAllocator(SectionKind::kWorkspace)->start_addr().value();
-    uint32_t workspace_end_addr = (uint32_t) GetAllocator(SectionKind::kWorkspace)->max_addr().value();
+    uint32_t workspace_start_addr = (uint32_t) ws_start;
+    uint32_t workspace_end_addr = (uint32_t) ws_end;
     uint32_t word_size = (uint32_t) word_size_;
     DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
     DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
     DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size);
   } else if (word_size_ == 8) {
-    uint64_t workspace_start_addr = (uint64_t) GetAllocator(SectionKind::kWorkspace)->start_addr().value();
-    uint64_t workspace_end_addr = (uint64_t) GetAllocator(SectionKind::kWorkspace)->max_addr().value();
+    uint64_t workspace_start_addr = (uint64_t) ws_start;
+    uint64_t workspace_end_addr = (uint64_t) ws_end;
     uint64_t word_size = (uint64_t) word_size_;
     DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
     DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
@@ -230,9 +238,9 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
     int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
     UTVMTask32 task = {
-      .func = *((uint32_t*) &func_dev_addr),
-      .arg_values = *((uint32_t*) &arg_values_dev_addr),
-      .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),
+      .func = *((uint32_t*) &func_dev_addr),  // NOLINT(*)
+      .arg_values = *((uint32_t*) &arg_values_dev_addr),  // NOLINT(*)
+      .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),  // NOLINT(*)
       .num_args = args.num_args,
     };
     // Write the task.
@@ -241,9 +249,9 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
     int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
     UTVMTask64 task = {
-      .func = *((uint64_t*) &func_dev_addr),
-      .arg_values = *((uint64_t*) &arg_values_dev_addr),
-      .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),
+      .func = *((uint64_t*) &func_dev_addr),  // NOLINT(*)
+      .arg_values = *((uint64_t*) &arg_values_dev_addr),  // NOLINT(*)
+      .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),  // NOLINT(*)
       .num_args = args.num_args,
     };
     // Write the task.
@@ -270,10 +278,14 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   DevMemRegion data_section;
   DevMemRegion bss_section;
 
-  text_section.size = GetSectionSize(binary_path, SectionKind::kText, toolchain_prefix_, word_size_);
-  rodata_section.size = GetSectionSize(binary_path, SectionKind::kRodata, toolchain_prefix_, word_size_);
-  data_section.size = GetSectionSize(binary_path, SectionKind::kData, toolchain_prefix_, word_size_);
-  bss_section.size = GetSectionSize(binary_path, SectionKind::kBss, toolchain_prefix_, word_size_);
+  text_section.size = GetSectionSize(
+      binary_path, SectionKind::kText, toolchain_prefix_, word_size_);
+  rodata_section.size = GetSectionSize(
+      binary_path, SectionKind::kRodata, toolchain_prefix_, word_size_);
+  data_section.size = GetSectionSize(
+      binary_path, SectionKind::kData, toolchain_prefix_, word_size_);
+  bss_section.size = GetSectionSize(
+      binary_path, SectionKind::kBss, toolchain_prefix_, word_size_);
 
   text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
   rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
@@ -381,15 +393,15 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
     int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
     TVMArray32 dev_arr = {
-      .data = *((uint32_t*) &arr.data),
+      .data = *((uint32_t*) &arr.data),  // NOLINT(*)
       .ctx = arr.ctx,
       .ndim = arr.ndim,
       .pad0 = 0,
       .dtype = arr.dtype,
-      .shape = *((uint32_t*) &dev_shape),
-      .strides = *((uint32_t*) &dev_strides),
+      .shape = *((uint32_t*) &dev_shape),  // NOLINT(*)
+      .strides = *((uint32_t*) &dev_strides),  // NOLINT(*)
       .pad1 = 0,
-      .byte_offset = *((uint32_t*) &arr.byte_offset),
+      .byte_offset = *((uint32_t*) &arr.byte_offset),  // NOLINT(*)
       .pad2 = 0,
     };
     // Update the device type to look like a host, because codegen generates
@@ -417,19 +429,20 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
     int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
     int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
     TVMArray64 dev_arr = {
-      .data = *((uint64_t*) &arr.data),
+      .data = *((uint64_t*) &arr.data),  // NOLINT(*)
       .ctx = arr.ctx,
       .ndim = arr.ndim,
       .pad0 = 0,
       .dtype = arr.dtype,
-      .shape = *((uint64_t*) &dev_shape),
-      .strides = *((uint64_t*) &dev_strides),
-      .byte_offset = *((uint64_t*) &arr.byte_offset),
+      .shape = *((uint64_t*) &dev_shape),  // NOLINT(*)
+      .strides = *((uint64_t*) &dev_strides),  // NOLINT(*)
+      .byte_offset = *((uint64_t*) &arr.byte_offset),  // NOLINT(*)
     };
 
-    // Update the device type to look like a host, because codegen generates
-    // checks that it is a host array.
-    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev)) << "attempt to write TVMArray with non-micro device type";
+    // Update the device type to look like a host, because from the device's
+    // perspective, it is the host.
+    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
+      << "attempt to write TVMArray with non-micro device type";
     dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
     tvm_arr_slot.WriteValue(dev_arr);
     return tvm_arr_slot.start_addr();
