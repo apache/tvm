@@ -66,13 +66,6 @@ inline int TVMPClose(FILE* stream) {
 #endif
 }
 
-/*
- * gnulib sys_wait.h.in says on Windows
- * When an unhandled fatal signal terminates a process, the exit code is 3.
- * # define WIFSIGNALED(x) ((x) == 3)
- * # define WIFEXITED(x) ((x) != 3)
- * # define WIFSTOPPED(x) 0
- */
 /*!
  * \brief TVMWifexited wrapper of WIFEXITED between windows / linux
  * \param status The status field that was filled in by the wait or waitpid function

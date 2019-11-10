@@ -166,7 +166,7 @@ void LinuxShared(const std::string output,
     std::string err_msg;
     auto executed_status = common::Execute(cmd, &err_msg);
     if (executed_status) {
-      LOG(ERROR) << err_msg;
+      LOG(FATAL) << err_msg;
     }
 }
 
@@ -212,7 +212,7 @@ Module Load(std::string *fileIn, const std::string fmt) {
       std::string err_msg;
       int executed_status = common::Execute(cmd, &err_msg);
       if (executed_status) {
-        LOG(ERROR) << err_msg;
+        LOG(FATAL) << err_msg;
       }
       CreateShared(file_name, ListDir(tmp_dir));
       CleanDir(tmp_dir);
