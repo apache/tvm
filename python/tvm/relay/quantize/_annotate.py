@@ -57,6 +57,7 @@ _reg.register_schedule("relay.op.annotation.simulated_quantize",
                        _reg.schedule_injective)
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
                       _reg.OpPattern.ELEMWISE)
+_reg.register_schedule("annotation.cast_hint", _reg.schedule_injective)
 
 
 @register_relay_node
