@@ -112,7 +112,15 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
-            inputs.append(tvm.nd.array(params[param.name_hint]))
+            found = False
+            for i, n in enumerate(input_node):
+                if n == param.name_hint:
+                    found = True
+                    inputs.append(tvm.nd.array(input_data[i]))
+                    break
+            # Interpreter doesn't bind constants, so still need to find in params
+            if not found:
+                inputs.append(tvm.nd.array(params[param.name_hint]))
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
     else:
@@ -2099,19 +2107,20 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.nn.relu(in1)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Relu:0')
-
+    for mode in ['graph_runtime', 'vm']:
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.nn.relu(in1)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Relu:0', mode=mode)
 
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.nn.leaky_relu(in1, alpha=0.4)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
+    for mode in ['graph_runtime', 'vm']:
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.nn.leaky_relu(in1, alpha=0.4)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0', mode=mode)
 
 
 def test_forward_elu():
