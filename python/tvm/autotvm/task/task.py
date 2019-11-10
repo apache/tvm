@@ -23,7 +23,7 @@ registers the standard task.
 """
 
 import numpy as np
-
+import os
 from ... import tensor, expr, container, target as _target
 
 from ..util import get_const_int, get_const_tuple, get_func_name
@@ -97,7 +97,9 @@ class Task(object):
             "workload": self.workload,
             "flop": self.flop,
             "target": self.target,
-            "target_host": self.target_host
+            "target_host": self.target_host,
+            # On Windows we will use, dill, which can pickle functions
+            "func": self.func if os.name == 'nt' else None
         }
 
     def __setstate__(self, state):
@@ -105,7 +107,8 @@ class Task(object):
         self.args = state["args"]
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
-        self.func = TASK_TABLE.get(state["name"], _raise_error)
+        # Use pickled function on Windows
+        self.func = state["func"] if os.name == 'nt' else TASK_TABLE.get(state["name"], _raise_error)
         self.workload = state["workload"]
         self.flop = state["flop"]
         self.target = state["target"]
@@ -189,7 +192,11 @@ def create(func_name, args, target, target_host=None, template_key=None):
     with ctx:
         with target:
             sch, _ = func(*args)
-            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
+            try:
+                # getattr will throw here on Windows, as of an Oct 2019 commit
+                ret.config_space.code_hash = getattr(sch, 'code_hash', None)
+            except:
+                ret.config_space.code_hash = None
 
     ret.workload = ctx.workload
     ret.flop = ret.config_space.flop or compute_flop(sch)

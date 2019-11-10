@@ -20,6 +20,15 @@
 import multiprocessing
 import logging
 import time
+import os
+
+if os.name == 'nt':
+    # Pathos' Pool does pickling via dill, which can pickle
+    # functions, which is required because Windows doesn't
+    # support fork()
+    from pathos.helpers import mp as pathos_multiprocess
+    from pathos.helpers import ProcessPool
+    import pathos.multiprocessing
 
 import numpy as np
 try:
@@ -153,12 +162,59 @@ class XGBoostCostModel(CostModel):
 
         self._close_pool()
 
-        # use global variable to pass common arguments
-        global _extract_space, _extract_target, _extract_task
-        _extract_space = space
-        _extract_target = target
-        _extract_task = task
-        self.pool = multiprocessing.Pool(self.num_threads)
+        if os.name == 'nt':
+            # For Windows, we need space, target, task to be pickled and set on the
+            # Pool's process side, where the *nix impl simply sets globals
+            # then forks.
+            # To ensure each process in the pool is properly set, we have to do
+            # some synchronization by sending an async call and waiting for
+            # the queue to have an item set
+
+            # There seems to be diminishing returns on large pool sizes given
+            # the small job sizes mapped later in the code (largest seems to be 128)
+            # so the pool size is capped
+            pool_size = min(16, int(self.num_threads))
+
+            self.pool = ProcessPool(pool_size)
+            manager = pathos_multiprocess.Manager()
+
+            pipe_syncs = []
+
+            # A simple pathos.map would be cleaner, but it seems that in some cases,
+            # some of the pools processes will be missed, with some processes running
+            # the method twice.  It seems that just passing a Queue in this manner,
+            # hits all the processes in the pool. Some assertion should be built to verify
+            for i in range(pool_size):
+                queue = manager.Queue(1)
+                results = {
+                   "queue": queue,
+                   "apipe": self.pool.apply_async(_set_pool_process_state, (space, target, task, queue))
+                }
+                pipe_syncs.append(results)
+
+            # wait loop until all async calls have completed
+            while True:
+                all_ready = True
+                for pipe_sync in pipe_syncs:
+                    if pipe_sync["apipe"].ready() == False:
+                        all_ready = False
+                        break
+                if all_ready:
+                    break;
+                else:
+                    time.sleep(0.1)
+            # complete the async requests on the pool
+            for pipe_sync in pipe_syncs:
+                pipe_sync["apipe"].get()
+                # This may not be needed
+                pipe_sync["queue"].get(block=True)
+        else:
+            # use global variable to pass common arguments
+            global _extract_space, _extract_target, _extract_task
+            _extract_space = space
+            _extract_target = target
+            _extract_task = task
+            self.pool = multiprocessing.Pool(self.num_threads)
 
     def _close_pool(self):
         if self.pool:
@@ -331,6 +387,16 @@ class XGBoostCostModel(CostModel):
 _extract_space = None
 _extract_target = None
 _extract_task = None
+
+if os.name == 'nt':
+    def _set_pool_process_state(space, target, task, sync_queue):
+        """sets process state for when fork() is not available """
+        global _extract_space, _extract_target, _extract_task
+        _extract_space = space
+        _extract_target = target
+        _extract_task = task
+        # Notify caller that we are done. We may be able to remove this
+        sync_queue.put(None)
 
 def _extract_itervar_feature_index(index):
     """extract iteration var feature for an index in extract_space"""

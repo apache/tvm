@@ -26,6 +26,7 @@ import errno
 import struct
 import random
 import logging
+import os
 
 from .._ffi.function import _init_api
 from .._ffi.base import py_str
@@ -59,8 +60,18 @@ RPC_SESS_MASK = 128
 
 
 def get_addr_family(addr):
-    res = socket.getaddrinfo(addr[0], addr[1], 0, 0, socket.IPPROTO_TCP)
-    return res[0][0]
+    if os.name == 'nt':
+        # WINDOWS CANNOT USE THE *NIX IMPL OF THIS! FUNCTION SUCCEEDS AND WORKS
+        # BUT IT CAUSES MAJOR PROBLEMS. IT LEAVES MYSTERIOUS REFERENCES THAT ARE
+        # HELD AND THE RPCSESSION WOULD NOT BE IMMEDIATE RELEASED, CAUSING 
+        # TIMEOUTS WITH THE RPCSERVER BECAUSE THE SOCKET IN THE C++ DIDN'T LOSE ALL
+        # OF ITS REFERENCES.
+        # This isn't a 1:1 of the *nix implementation, should probably
+        # take a closer look as it probably doesn't work with IPV6 addresses
+        return socket.AF_INET
+    else:
+        res = socket.getaddrinfo(addr[0], addr[1], 0, 0, socket.IPPROTO_TCP)
+        return res[0][0]
 
 
 def recvall(sock, nbytes):

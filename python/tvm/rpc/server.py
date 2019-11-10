@@ -211,10 +211,15 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
             import psutil
-            parent = psutil.Process(server_proc.pid)
-            # terminate worker childs
-            for child in parent.children(recursive=True):
-                child.terminate()
+            try:
+                parent = psutil.Process(server_proc.pid)
+                # terminate worker childs
+                # this can throw on Windows
+                for child in parent.children(recursive=True):
+                    child.terminate()
+            except: # pylint: disable=broad-except
+                pass
+
             # terminate the worker
             server_proc.terminate()
         work_path.remove()

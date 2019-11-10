@@ -17,8 +17,28 @@
 """Local based implementation of the executor using multiprocessing"""
 
 import signal
+import os
 
-from multiprocessing import Process, Queue
+if os.name == 'nt':
+    import queue as thread_queue
+    import threading
+    # Pathos uses dill, which can pickle things like functions
+    from pathos.helpers import ProcessPool
+    # On Windows, there is no fork(), a 'multiprocessing.Process'
+    # or ProcessPool has to 'build up' the script from scratch, we
+    # set these environment variables so each python.exe process
+    # does not allocate unneeded threads
+    os.environ['OMP_NUM_THREADS'] = "1"
+    os.environ['TVM_NUM_THREADS'] = "1"
+    # numpy seems to honor this
+    os.environ['MKL_NUM_THREADS'] = "1"
+
+    # Since there is no fork() on Windows, to mitigate performance impact
+    # we will use a process pool for executers, vs the *nix based systems
+    # that will fork() a new process for each executor
+    executor_pool = None
+
+from multiprocessing import Process, Queue, cpu_count
 try:
     from queue import Empty
 except ImportError:
@@ -68,6 +88,27 @@ def call_with_timeout(queue, timeout, func, args, kwargs):
     p.terminate()
     p.join()
 
+if os.name == 'nt':
+    def call_from_pool(func, args, kwargs, timeout, env):
+        """A wrapper to support timeout of a function call for a pool process"""
+
+        # Restore environment variables from parent
+        for key, val in env.items():
+            os.environ[key] = val
+
+        queue = thread_queue.Queue(2)
+
+        # We use a thread here for Windows, because starting up a new Process can be heavy
+        # This isn't as clean as the *nix implementation, which can kill a process that
+        # has timed out
+        thread = threading.Thread(target=_execute_func, args=(func, queue, args, kwargs))
+        thread.start()
+        thread.join(timeout=timeout)
+
+        queue.put(executor.TimeoutError())
+
+        res = queue.get()
+        return res
 
 class LocalFuture(executor.Future):
     """Local wrapper for the future
@@ -119,6 +160,31 @@ class LocalFutureNoFork(executor.Future):
     def get(self, timeout=None):
         return self._result
 
+if os.name == 'nt':
+    class LocalFuturePool(executor.Future):
+        """Local wrapper for the future using a Process pool
+
+        Parameters
+        ----------
+        thread: threading.Thread
+            Thread for running this task
+        pool_results: result from Pool.apply_async
+            queue for receiving the result of this task
+        """
+        def __init__(self, pool_results):
+            self._done = False
+            self._pool_results = pool_results
+
+        def done(self):
+            return self._done
+
+        def get(self, timeout=None):
+            try:
+                res = self._pool_results.get(timeout=timeout)
+            except Empty:
+                raise executor.TimeoutError()
+            self._done = True
+            return res
 
 class LocalExecutor(executor.Executor):
     """Local executor that runs workers on the same machine with multiprocessing.
@@ -145,8 +211,23 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
-        queue = Queue(2)
-        process = Process(target=call_with_timeout,
-                          args=(queue, self.timeout, func, args, kwargs))
-        process.start()
-        return LocalFuture(process, queue)
+        if os.name != 'nt':
+            queue = Queue(2)
+            process = Process(target=call_with_timeout,
+                            args=(queue, self.timeout, func, args, kwargs))
+            process.start()
+            return LocalFuture(process, queue)
+        else:
+            global executor_pool
+
+            if executor_pool is None:
+                # We use a static pool for executor processes because Process.start(entry)
+                # is so slow on Windows, we lose a lot of parallelism.
+                # Right now cpu_count() is used, which isn't optimal from a user configuration
+                # perspective, but is reasonable at this time.
+                executor_pool = ProcessPool(cpu_count())
+
+            # Windows seemed to be missing some valuable environ variables
+            # on the pool's process side.  We might be able to get away with
+            # just sending the PATH variable, but for now, we just clone our env
+            return LocalFuturePool(executor_pool.apply_async(call_from_pool, (func, args, kwargs, self.timeout, os.environ.copy())))

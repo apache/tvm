@@ -27,7 +27,9 @@ import shutil
 import os
 import threading
 import time
-from random import getrandbits
+# Import random directly because it appears dill will pull in 'getrandbits'
+# and it will always get the same random number. Using random.getrandbits fixes
+import random
 from collections import namedtuple
 import tempfile
 
@@ -403,7 +405,7 @@ def _wrap_build_func(build_func):
         tic = time.time()
         try:
             filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (
-                getrandbits(64), output_format))
+                random.getrandbits(64), output_format))
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
             func.export_library(filename, build_func)
