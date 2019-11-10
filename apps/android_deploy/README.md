@@ -21,7 +21,7 @@ This folder contains Android Demo app that allows us to show how to deploy model
 
 You will need [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html), [Android SDK](https://developer.android.com/studio/index.html), [Android NDK](https://developer.android.com/ndk) and an Android device to use this. Make sure the `ANDROID_HOME` variable already points to your Android SDK folder or set it using `export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk]`. We use [Gradle](https://gradle.org) to build. Please follow [the installation instruction](https://gradle.org/install) for your operating system.
 
-Alternatively, you may execute Docker image we provide wich contains the required packages. Use the command below to build the image and enter interactive session. Note, that building with OpenCL was not tested from Docker.
+Alternatively, you may execute Docker image we provide which contains the required packages. Use the command below to build the image and enter interactive session. Note, that building with OpenCL was not tested from Docker.
 
 ```bash
 ./docker/build.sh demo_android -it bash
@@ -45,7 +45,7 @@ dependencies {
     compile 'com.android.support:appcompat-v7:26.0.1'
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     compile 'com.android.support:design:26.0.1'
-    compile 'ml.dmlc.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
     testCompile 'junit:junit:4.12'
 }
 ```
@@ -124,7 +124,7 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 Follow instruction to get compiled version model for android target [here.](http://docs.tvm.ai/deploy/android.html)
 
-Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/apache/incubator-tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java#L81)
+Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/apache/incubator-tvm/blob/master/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java#L81)
 
 `CPU Verison flavor`
 ```

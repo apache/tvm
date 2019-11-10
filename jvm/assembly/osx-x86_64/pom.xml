@@ -24,13 +24,13 @@ under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>ml.dmlc.tvm</groupId>
+    <groupId>org.apache.tvm</groupId>
     <artifactId>tvm4j-full-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <groupId>ml.dmlc.tvm</groupId>
+  <groupId>org.apache.tvm</groupId>
   <artifactId>tvm4j-full-osx-x86_64</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM4J Package - Full OSX-x86_64</name>
@@ -38,12 +38,12 @@ under the License.
 
   <dependencies>
     <dependency>
-      <groupId>ml.dmlc.tvm</groupId>
+      <groupId>org.apache.tvm</groupId>
       <artifactId>tvm4j-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>ml.dmlc.tvm</groupId>
+      <groupId>org.apache.tvm</groupId>
       <artifactId>libtvm4j-osx-x86_64</artifactId>
       <version>${project.version}</version>
       <type>jnilib</type>
