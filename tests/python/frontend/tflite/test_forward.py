@@ -894,6 +894,19 @@ def test_forward_relu():
     """ ReLU """
     _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+def _test_prelu(data):
+    """ One iteration of PReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        alpha = np.full((data.shape[-1],), 0.2, dtype=data.dtype)
+        # This specific pattern will be replaced into PRelu by tflite
+        out = nn_ops.relu(in_data) + (-alpha * nn_ops.relu(-in_data))
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_prelu():
+    """ PReLU """
+    _test_prelu(np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"))
+
 #######################################################################
 # Fully Connected
 # -------
@@ -1121,6 +1134,7 @@ if __name__ == '__main__':
     test_forward_softmax()
     test_forward_tanh()
     test_forward_relu()
+    test_forward_prelu()
     test_forward_fully_connected()
 
     # Elemwise
