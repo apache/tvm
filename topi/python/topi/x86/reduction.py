@@ -76,4 +76,3 @@ def schedule_reduce(outs):
 
     traverse_after_reduce(outs[0].op)
     return sch
-
