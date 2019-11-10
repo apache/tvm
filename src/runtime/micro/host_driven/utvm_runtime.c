@@ -21,9 +21,9 @@
  * \file utvm_runtime.cc
  * \brief uTVM runtime
  *
- * All function calls go through `UTVMMain`, which reads from the current
- * `UTVMTask` and calls the appropriate function with the arguments from the
- * task.
+ * All function calls go through the externally defined `UTVMInit`, which
+ * performs device-specific setup, then calls `UTVMMain`.  `UTVMMain` then
+ * calls the function in `utvm_task` with the arguments from the task.
  *
  * Additionally included in this file are definitions for some of the most
  * common functions used in the C runtime API.

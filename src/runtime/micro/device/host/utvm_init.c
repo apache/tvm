@@ -19,8 +19,8 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file utvm_timer.c
- * \brief uTVM timer API stubs for the host emulated device
+ * \file utvm_init.c
+ * \brief uTVM init definition for the host emulated device
  */
 
 #ifdef __cplusplus
@@ -29,18 +29,9 @@ extern "C" {
 
 #include "utvm_runtime.h"
 
-// TODO(weberlo): use this? https://stackoverflow.com/questions/5141960/get-the-current-time-in-c
-
-int32_t UTVMTimerStart() {
-  return 0;
-}
-
-void UTVMTimerStop() { }
-
-void UTVMTimerReset() { }
-
-uint32_t UTVMTimerRead() {
-  return 1;
+void UTVMInit() {
+  // no init required for the host
+  UTVMMain();
 }
 
 #ifdef __cplusplus

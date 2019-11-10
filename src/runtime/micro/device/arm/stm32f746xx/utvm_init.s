@@ -16,6 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \file utvm_init.s
+ * \brief uTVM init definition for STM32F746XX-series boards
+ */
+
 .syntax unified
 .cpu cortex-m7
 .fpu softvfp
