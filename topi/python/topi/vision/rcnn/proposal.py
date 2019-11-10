@@ -303,7 +303,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     with ib.for_range(0, batch) as b:
         with ib.if_scope(nkeep[b] > 0):
             with ib.for_range(0, tvm.ceil(
-                    tvm.const(rpn_post_nms_top_n, 'float32') / nkeep[b]).astype('int32')):
+                tvm.const(rpn_post_nms_top_n, 'float32') / nkeep[b]).astype('int32')):
                 with ib.for_range(0, num_bbox) as j:
                     offset_j = (b * num_bbox + j) * 5
                     offset_i = (b * rpn_post_nms_top_n + i[b]) * 5
