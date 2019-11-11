@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
@@ -745,7 +744,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
-                                   const std::shared_ptr<ModuleNode>& sptr_to_self) {
+                                   const ObjectPtr<Object>& sptr_to_self) {
   if (name == "compile") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
@@ -974,7 +973,7 @@ void VMCompiler::LibraryCodegen() {
 }
 
 runtime::Module CreateVMCompiler() {
-  std::shared_ptr<VMCompiler> exec = std::make_shared<VMCompiler>();
+  auto exec = make_object<VMCompiler>();
   return runtime::Module(exec);
 }
 

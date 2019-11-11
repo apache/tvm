@@ -480,7 +480,7 @@ class Executable : public ModuleNode {
    * \return PackedFunc or nullptr when it is not available.
    */
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
@@ -658,7 +658,7 @@ class VirtualMachine : public runtime::ModuleNode {
    *   it should capture sptr_to_self.
    */
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+                                 const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \brief Invoke a PackedFunction

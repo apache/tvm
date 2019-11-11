@@ -148,7 +148,7 @@ class Executable(object):
             raise TypeError("bytecode is expected to be the type of bytearray " +
                             "or TVMByteArray, but received {}".format(type(code)))
 
-        if not isinstance(lib, tvm.module.Module):
+        if lib is not None and not isinstance(lib, tvm.module.Module):
             raise TypeError("lib is expected to be the type of tvm.module.Module" +
                             ", but received {}".format(type(lib)))
 

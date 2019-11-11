@@ -18,9 +18,8 @@
  */
 
 /*!
-*  Copyright (c) 2019 by Contributors
-* \file micro_module.cc
-*/
+ * \file micro_module.cc
+ */
 
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -48,7 +47,7 @@ class MicroModuleNode final : public ModuleNode {
   }
 
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \brief initializes module by establishing device connection and loads binary
@@ -76,13 +75,13 @@ class MicroModuleNode final : public ModuleNode {
   /*! \brief path to module binary */
   std::string binary_path_;
   /*! \brief global session pointer */
-  std::shared_ptr<MicroSession> session_;
+  ObjectPtr<MicroSession> session_;
 };
 
 class MicroWrappedFunc {
  public:
   MicroWrappedFunc(MicroModuleNode* m,
-                   std::shared_ptr<MicroSession> session,
+                   ObjectPtr<MicroSession> session,
                    const std::string& func_name,
                    DevBaseOffset func_offset) {
     m_ = m;
@@ -99,7 +98,7 @@ class MicroWrappedFunc {
   /*! \brief internal module */
   MicroModuleNode* m_;
   /*! \brief reference to the session for this function (to keep the session alive) */
-  std::shared_ptr<MicroSession> session_;
+  ObjectPtr<MicroSession> session_;
   /*! \brief name of the function */
   std::string func_name_;
   /*! \brief offset of the function to be called */
@@ -108,7 +107,7 @@ class MicroWrappedFunc {
 
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   DevBaseOffset func_offset =
       session_->low_level_device()->ToDevOffset(binary_info_.symbol_map[name]);
   MicroWrappedFunc f(this, session_, name, func_offset);
@@ -118,9 +117,9 @@ PackedFunc MicroModuleNode::GetFunction(
 // register loadfile function to load module from Python frontend
 TVM_REGISTER_GLOBAL("module.loadfile_micro_dev")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<MicroModuleNode> n = std::make_shared<MicroModuleNode>();
+    auto n = make_object<MicroModuleNode>();
     n->InitMicroModule(args[0]);
     *rv = runtime::Module(n);
-    });
+  });
 }  // namespace runtime
 }  // namespace tvm

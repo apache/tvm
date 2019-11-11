@@ -53,6 +53,7 @@ enum TypeIndex  {
   kVMTensor = 1,
   kVMClosure = 2,
   kVMADT = 3,
+  kRuntimeModule = 4,
   kStaticIndexEnd,
   /*! \brief Type index is allocated during runtime. */
   kDynamic = kStaticIndexEnd
@@ -302,7 +303,7 @@ class Object {
   template<typename>
   friend class ObjectPtr;
   friend class TVMRetValue;
-  friend class TVMObjectCAPI;
+  friend class ObjectInternal;
 };
 
 /*!
@@ -310,11 +311,11 @@ class Object {
  *
  *  It is always important to get a reference type
  *  if we want to return a value as reference or keep
- *  the node alive beyond the scope of the function.
+ *  the object alive beyond the scope of the function.
  *
- * \param ptr The node pointer
+ * \param ptr The object pointer
  * \tparam RefType The reference type
- * \tparam ObjectType The node type
+ * \tparam ObjectType The object type
  * \return The corresponding RefType
  */
 template <typename RefType, typename ObjectType>
@@ -486,6 +487,8 @@ class ObjectPtr {
   friend class TVMArgValue;
   template <typename RefType, typename ObjType>
   friend RefType GetRef(const ObjType* ptr);
+  template <typename BaseType, typename ObjType>
+  friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
 /*! \brief Base class of all object reference */
@@ -513,7 +516,7 @@ class ObjectRef {
   }
   /*!
    * \brief Comparator
-   * \param other Another node ref.
+   * \param other Another object ref.
    * \return the compare result.
    */
   bool operator!=(const ObjectRef& other) const {
@@ -535,7 +538,7 @@ class ObjectRef {
   const Object* get() const {
     return data_.get();
   }
-  /*! \return the internal node pointer */
+  /*! \return the internal object pointer */
   const Object* operator->() const {
     return get();
   }
@@ -595,6 +598,16 @@ class ObjectRef {
   friend SubRef Downcast(BaseRef ref);
 };
 
+/*!
+ * \brief Get an object ptr type from a raw object ptr.
+ *
+ * \param ptr The object pointer
+ * \tparam BaseType The reference type
+ * \tparam ObjectType The object type
+ * \return The corresponding RefType
+ */
+template <typename BaseType, typename ObjectType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 /*! \brief ObjectRef hash functor */
 struct ObjectHash {
@@ -779,6 +792,13 @@ inline RefType GetRef(const ObjType* ptr) {
   static_assert(std::is_base_of<typename RefType::ContainerType, ObjType>::value,
                 "Can only cast to the ref of same container type");
   return RefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
+}
+
+template <typename BaseType, typename ObjType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr) {
+  static_assert(std::is_base_of<BaseType, ObjType>::value,
+                "Can only cast to the ref of same container type");
+  return ObjectPtr<BaseType>(static_cast<Object*>(ptr));
 }
 
 template <typename SubRef, typename BaseRef>

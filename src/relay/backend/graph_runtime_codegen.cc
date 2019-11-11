@@ -593,7 +593,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
  public:
   GraphRuntimeCodegenModule() {}
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self) {
+                                 const ObjectPtr<Object>& sptr_to_self) {
      if (name == "init") {
        return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
          CHECK_EQ(args.num_args, 2)
@@ -654,8 +654,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
 };
 
 runtime::Module CreateGraphCodegenMod() {
-  std::shared_ptr<GraphRuntimeCodegenModule> ptr =
-    std::make_shared<GraphRuntimeCodegenModule>();
+  auto ptr = make_object<GraphRuntimeCodegenModule>();
   return runtime::Module(ptr);
 }
 
