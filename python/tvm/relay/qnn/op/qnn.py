@@ -347,6 +347,10 @@ def dense(data,
         The quantized input data to the operator.
     weight : tvm.relay.Expr
         The quantized weight expressions.
+    input_zero_point: int
+        The input zero point.
+    kernel_zero_point: int
+        The kernel zero point.
     input_scale: float
         The scale for the input tensor.
     kernel_scale: float
@@ -367,12 +371,12 @@ def dense(data,
 
     return _make.dense(data,
                        weight,
-                       units,
                        input_zero_point,
                        kernel_zero_point,
-                       out_dtype,
                        input_scale,
-                       kernel_scale)
+                       kernel_scale,
+                       units,
+                       out_dtype)
 
 
 def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
