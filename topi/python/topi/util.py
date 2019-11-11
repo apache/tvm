@@ -144,7 +144,7 @@ def equal_const_int(expr, value):
 
 
 def get_const_tuple(in_tuple):
-    """Verifies input tuple is IntImm, returns tuple of int.
+    """Verifies input tuple is IntImm or Var, returns tuple of int or Var.
 
     Parameters
     ----------
@@ -156,7 +156,17 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
-    return tuple(get_const_int(elem) for elem in in_tuple)
+    ret = []
+    for elem in in_tuple:
+        if isinstance(elem, tvm.expr.Var):
+            ret.append(elem)
+        elif not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm, int)):
+            elem = tvm.ir_pass.Simplify(elem)
+            if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+                ret.append(elem)
+        else:
+            ret.append(get_const_int(elem))
+    return tuple(ret)
 
 
 def get_float_tuple(in_tuple):

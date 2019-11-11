@@ -219,15 +219,15 @@ def args_to_workload(x, topi_compute_func=None):
         workload = get_const_tuple(x.shape) + (x.dtype, )
     elif isinstance(x, (tuple, list, container.Array)):
         workload = tuple([args_to_workload(a) for a in x])
-    elif isinstance(x, (str, int, float, np.int, np.float)):
+    elif isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
         workload = x
     elif isinstance(x, (expr.StringImm, expr.UIntImm, expr.IntImm, expr.FloatImm)):
         workload = x.value
     elif x is None:
         workload = 0
     else:
-        raise RuntimeError('Do not support type "%s" in argument. Consider to use '
-                           'primitive types only' % type(x))
+        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
+                           'primitive types or tvm.expr.Var only' % type(x))
     return (get_func_name(topi_compute_func), ) + workload  if topi_compute_func else workload
 
 def template(func):

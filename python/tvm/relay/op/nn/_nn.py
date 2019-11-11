@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, too-many-arguments
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -22,6 +22,9 @@ import topi
 from topi.util import get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
+from .._tensor import elemwise_shape_func
+from ....api import convert
+from ....hybrid import script
 
 # relu
 reg.register_schedule("nn.relu", schedule_injective)
@@ -766,7 +769,6 @@ reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
-
 @reg.register_compute("nn.cross_entropy")
 def compute_cross_entropy(attrs, inputs, out_dtype, target):
     x, y = inputs
@@ -775,8 +777,170 @@ def compute_cross_entropy(attrs, inputs, out_dtype, target):
 
 reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
-
 @reg.register_compute("nn.cross_entropy_with_logits")
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
+
+# shape func
+@script
+def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):
+    out = output_tensor((dshape.shape[0],), "int64")
+    ic_chunk = dshape[1]
+    height = dshape[2]
+    width = dshape[3]
+    ic_bn = dshape[4]
+    kheight = kshape[2]
+    kwidth = kshape[3]
+    dilated_kh = (kheight - 1) * dilation[0] + 1
+    dilated_kw = (kwidth - 1) * dilation[1] + 1
+    kflatten = int64(1)
+    for i in const_range(kshape.shape[0]):
+        kflatten *= kshape[i]
+
+    oc = kflatten // (kheight * kwidth * ic_chunk * ic_bn)
+    oc_chunk = oc // oc_bn
+
+    out_height = (height + 2 * padding[0] - dilated_kh) // strides[0] + 1
+    out_width = (width + 2 * padding[1] - dilated_kw) // strides[1] + 1
+
+    out[0] = dshape[0]
+    out[1] = oc_chunk
+    out[2] = out_height
+    out[3] = out_width
+    out[4] = int64(oc_bn)
+    return out
+
+@reg.register_shape_func("nn.contrib_conv2d_NCHWc", False)
+def conv2d_NCHWc_shape_func(attrs, inputs, _):
+    """
+    Shape function for contrib_conv2d_NCHWc op.
+    """
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+    out_layout = attrs.out_layout
+    oc_bn = int(out_layout[4:-1])
+
+    return [_conv2d_NCHWc_shape_func(inputs[0], inputs[1],
+                                     convert(strides), convert(padding),
+                                     convert(dilation), convert(oc_bn))]
+
+@script
+def _pool2d_shape_func(data_shape, pool_size, strides,
+                       padding, height_axis, width_axis):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(data_shape.shape[0]):
+        if i == height_axis:
+            out[i] = (data_shape[i] + padding[0] + padding[2] - pool_size[0]) // strides[0] + 1
+        elif i == width_axis:
+            out[i] = (data_shape[i] + padding[1] + padding[3] - pool_size[1]) // strides[1] + 1
+        else:
+            out[i] = data_shape[i]
+
+    return out
+
+def pool2d_shape_func(attrs, inputs, _):
+    """
+    Shape function for pool2d op.
+    """
+    pool_size = get_const_tuple(attrs.pool_size)
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    layout = attrs.layout
+    height_axis = layout.index("H")
+    width_axis = layout.index("W")
+    if len(padding) == 1:
+        padding = [padding[0]] * 4
+    elif len(padding) == 2:
+        padding = [padding[0], padding[1], padding[0], padding[1]]
+
+    return [_pool2d_shape_func(inputs[0], convert(pool_size),
+                               convert(strides), convert(padding),
+                               convert(height_axis), convert(width_axis))]
+
+reg.register_shape_func("nn.max_pool2d", False, pool2d_shape_func)
+reg.register_shape_func("nn.avg_pool2d", False, pool2d_shape_func)
+
+@script
+def _global_pool2d_shape_func(data_shape, height_axis, width_axis):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        if i == height_axis or i == width_axis:
+            out[i] = int64(1)
+        else:
+            out[i] = data_shape[i]
+
+    return out
+
+def global_pool2d_shape_func(attrs, inputs, _):
+    """
+    Shape function for global pool2d op.
+    """
+    layout = attrs.layout
+    height_axis = width_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+    return [_global_pool2d_shape_func(inputs[0], convert(height_axis), convert(width_axis))]
+
+reg.register_shape_func("nn.global_max_pool2d", False, global_pool2d_shape_func)
+reg.register_shape_func("nn.global_avg_pool2d", False, global_pool2d_shape_func)
+
+@script
+def _batch_flatten_shape_func(data_shape):
+    out = output_tensor((2,), "int64")
+    out[0] = data_shape[0]
+    out[1] = int64(1)
+    for i in const_range(data_shape.shape[0] - 1):
+        out[1] *= data_shape[i + 1]
+
+    return out
+
+@reg.register_shape_func("nn.batch_flatten", False)
+def batch_flatten_shape_func(attrs, inputs, _):
+    """
+    Shape function for batch_flatten op.
+    """
+    return [_batch_flatten_shape_func(inputs[0])]
+
+@script
+def _dense_shape_func(data_shape, weight_shape):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0] - 1):
+        out[i] = data_shape[i]
+    out[out.shape[0] - 1] = weight_shape[0]
+
+    return out
+
+@reg.register_shape_func("nn.dense", False)
+def dense_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense op.
+    """
+    ret = [_dense_shape_func(inputs[0], inputs[1])]
+    return ret
+
+@script
+def _pad_shape_func(data_shape, pad_width):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        out[i] = data_shape[i] + pad_width[i][0] + pad_width[i][1]
+
+    return out
+
+@reg.register_shape_func("nn.pad", False)
+def pad_shape_func(attrs, inputs, _):
+    """
+    Shape function for pad op.
+    """
+    pad_width = []
+    for pair in attrs.pad_width:
+        pad_width.append(get_const_tuple(pair))
+    return [_pad_shape_func(inputs[0], convert(pad_width))]
+
+reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
+reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
+reg.register_shape_func("nn.relu", False, elemwise_shape_func)
