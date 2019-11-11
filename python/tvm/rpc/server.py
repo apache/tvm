@@ -40,6 +40,10 @@ import time
 import sys
 import signal
 
+if os.name == 'nt':
+    from pathos.helpers import ProcessPool
+    import threading
+
 from .._ffi.function import register_func
 from .._ffi.base import py_str
 from .._ffi.libinfo import find_lib_path
@@ -276,6 +280,21 @@ def _popen(cmd):
         msg += out
         raise RuntimeError(msg)
 
+if os.name == 'nt':
+    def start_server_from_pool(host, port, port_end, is_proxy, use_popen, 
+                                tracker_addr, key, load_library, custom_addr, silent):
+        def run():
+            server = Server(host,
+                            port,
+                            port_end,
+                            key=key,
+                            tracker_addr=tracker_addr,
+                            load_library=load_library,
+                            custom_addr=custom_addr,
+                            silent=silent)
+        t = threading.Thread(target=run)
+        t.daemon = True
+        t.start()
 
 class Server(object):
     """Start RPC server on a separate process.
@@ -342,7 +361,8 @@ class Server(object):
         self.libs = []
         self.custom_addr = custom_addr
         self.use_popen = use_popen
-
+        self.proc = None
+        
         if silent:
             logger.setLevel(logging.ERROR)
 
@@ -362,16 +382,21 @@ class Server(object):
             if silent:
                 cmd += ["--silent"]
 
-            # prexec_fn is not thread safe and may result in deadlock.
-            # python 3.2 introduced the start_new_session parameter as
-            # an alternative to the common use case of
-            # prexec_fn=os.setsid.  Once the minimum version of python
-            # supported by TVM reaches python 3.2 this code can be
-            # rewritten in favour of start_new_session.  In the
-            # interim, stop the pylint diagnostic.
-            #
-            # pylint: disable=subprocess-popen-preexec-fn
-            self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+            if os.name == 'nt':
+                self.proc = ProcessPool(1)
+                self.proc.apply(start_server_from_pool, args=(host, port, port_end, is_proxy,
+                                use_popen, tracker_addr, key, load_library, custom_addr, silent))
+            else:
+                # prexec_fn is not thread safe and may result in deadlock.
+                # python 3.2 introduced the start_new_session parameter as
+                # an alternative to the common use case of
+                # prexec_fn=os.setsid.  Once the minimum version of python
+                # supported by TVM reaches python 3.2 this code can be
+                # rewritten in favour of start_new_session.  In the
+                # interim, stop the pylint diagnostic.
+                #
+                # pylint: disable=subprocess-popen-preexec-fn
+                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
@@ -382,7 +407,11 @@ class Server(object):
                     self.port = my_port
                     break
                 except socket.error as sock_err:
-                    if sock_err.errno in [98, 48]:
+                    sock_errno = sock_err.errno
+                    if os.name == 'nt':
+                        # Win32 socket codes are offset 10000
+                        sock_errno -= 10000
+                    if sock_errno in [98, 48]:
                         continue
                     else:
                         raise sock_err
@@ -391,12 +420,16 @@ class Server(object):
             logger.info("bind to %s:%d", host, self.port)
             sock.listen(1)
             self.sock = sock
-            self.proc = multiprocessing.Process(
-                target=_listen_loop, args=(
-                    self.sock, self.port, key, tracker_addr, load_library,
-                    self.custom_addr))
-            self.proc.deamon = True
-            self.proc.start()
+
+            if os.name == 'nt':
+                _listen_loop(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr)
+            else:
+                self.proc = multiprocessing.Process(
+                    target=_listen_loop, args=(
+                        self.sock, self.port, key, tracker_addr, load_library,
+                        self.custom_addr))
+                self.proc.deamon = True
+                self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library))
@@ -407,7 +440,10 @@ class Server(object):
         """Terminate the server process"""
         if self.use_popen:
             if self.proc:
-                os.killpg(self.proc.pid, signal.SIGTERM)
+                if os.name == 'nt':
+                    self.proc.terminate()
+                else:
+                    os.killpg(self.proc.pid, signal.SIGTERM)
                 self.proc = None
         else:
             if self.proc:

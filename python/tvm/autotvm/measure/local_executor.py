@@ -225,7 +225,7 @@ class LocalExecutor(executor.Executor):
                 # is so slow on Windows, we lose a lot of parallelism.
                 # Right now cpu_count() is used, which isn't optimal from a user configuration
                 # perspective, but is reasonable at this time.
-                executor_pool = ProcessPool(cpu_count())
+                executor_pool = ProcessPool(cpu_count() * 2)
 
             # Windows seemed to be missing some valuable environ variables
             # on the pool's process side.  We might be able to get away with

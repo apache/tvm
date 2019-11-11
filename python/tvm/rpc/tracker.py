@@ -49,7 +49,10 @@ import multiprocessing
 import errno
 import struct
 import json
-
+import os
+if os.name == 'nt':
+    import threading
+    from pathos.helpers import ProcessPool
 try:
     from tornado import ioloop
     from . import tornado_util
@@ -352,8 +355,16 @@ class TrackerServerHandler(object):
 
 def _tracker_server(listen_sock, stop_key):
     handler = TrackerServerHandler(listen_sock, stop_key)
-    handler.run()
 
+    if os.name != 'nt':
+        handler.run()
+    else:
+        def run():
+            handler.run()
+
+        t = threading.Thread(target=run)
+        t.daemon = True
+        t.start()
 
 class Tracker(object):
     """Start RPC tracker on a seperate process.
@@ -381,7 +392,7 @@ class Tracker(object):
                  silent=False):
         if silent:
             logger.setLevel(logging.WARN)
-
+        self.proc = None
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         self.stop_key = base.random_key("tracker")
@@ -391,7 +402,11 @@ class Tracker(object):
                 self.port = my_port
                 break
             except socket.error as sock_err:
-                if sock_err.errno in [98, 48]:
+                sock_errno = sock_err.errno
+                if os.name == 'nt':
+                    # Win32 socket codes are offset 10000
+                    sock_errno -= 10000
+                if sock_errno in [98, 48]:
                     continue
                 else:
                     raise sock_err
@@ -399,9 +414,14 @@ class Tracker(object):
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
         logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
-        self.proc = multiprocessing.Process(
-            target=_tracker_server, args=(sock, self.stop_key))
-        self.proc.start()
+
+        if os.name == 'nt':
+            self.proc = ProcessPool(1)
+            self.proc.apply_async(_tracker_server, args=(sock, self.stop_key)).get()
+        else:
+            self.proc = multiprocessing.Process(
+                target=_tracker_server, args=(sock, self.stop_key))
+            self.proc.start()
         self.host = host
         # close the socket on this process
         sock.close()
@@ -419,12 +439,16 @@ class Tracker(object):
     def terminate(self):
         """Terminate the server process"""
         if self.proc:
-            if self.proc.is_alive():
-                self._stop_tracker()
-                self.proc.join(1)
-            if self.proc.is_alive():
-                logger.info("Terminating Tracker Server...")
-                self.proc.terminate()
+            if os.name =='nt':
+                self.proc.close()
+                self.proc.join()
+            else:
+                if self.proc.is_alive():
+                    self._stop_tracker()
+                    self.proc.join(1)
+                if self.proc.is_alive():
+                    logger.info("Terminating Tracker Server...")
+                    self.proc.terminate()
             self.proc = None
 
     def __del__(self):

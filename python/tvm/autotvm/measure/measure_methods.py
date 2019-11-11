@@ -330,9 +330,12 @@ class LocalRunner(RPCRunner):
         from ...rpc.tracker import Tracker
         from ...rpc.server import Server
 
-        tracker = Tracker('0.0.0.0', port=9000, port_end=10000, silent=True)
+        # Windows will not let you connect to 0.0.0.0
+        local_address = '0.0.0.0' if os.name != 'nt' else '127.0.0.1'
+
+        tracker = Tracker(local_address, port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % tracker.port
-        server = Server('0.0.0.0', port=9000, port_end=10000,
+        server = Server(local_address, port=9000, port_end=10000,
                         key=device_key,
                         use_popen=True, silent=True,
                         tracker_addr=(tracker.host, tracker.port))
