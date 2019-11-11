@@ -272,10 +272,10 @@ def conv2d(data,
 
     return _make.conv2d(data, kernel,
                         input_zero_point, kernel_zero_point,
+                        input_scale, kernel_scale,
                         strides, padding, dilation,
                         groups, channels, kernel_size,
-                        data_layout, kernel_layout, out_layout, out_dtype,
-                        input_scale, kernel_scale)
+                        data_layout, kernel_layout, out_layout, out_dtype)
 
 
 def add(lhs,

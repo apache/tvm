@@ -440,10 +440,11 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 // Positional relay function to create quantized conv2d operator
 // used by frontend FFI.
 Expr MakeQnnConv2D(Expr data, Expr weight, int32_t input_zero_point, int32_t kernel_zero_point,
-                   Array<IndexExpr> strides, Array<IndexExpr> padding, Array<IndexExpr> dilation,
+                   double input_scale, double kernel_scale, Array<IndexExpr> strides,
+                   Array<IndexExpr> padding, Array<IndexExpr> dilation,
                    int groups, IndexExpr channels, Array<IndexExpr> kernel_size,
                    std::string data_layout, std::string kernel_layout, std::string out_layout,
-                   DataType out_dtype, double input_scale, double kernel_scale) {
+                   DataType out_dtype) {
   auto attrs = make_node<QnnConv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
