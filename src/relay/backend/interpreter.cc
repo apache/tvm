@@ -790,13 +790,15 @@ CreateInterpreter(
     Module mod,
     DLContext context,
     Target target) {
-  // eta expand to support constructors in argument position
-  transform::Sequential seq({
-    transform::EtaExpand(
-      /* expand_constructor */ true, /* expand_global_var */ false)});
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  tvm::With<transform::PassContext> ctx(pass_ctx);
-  mod = seq(mod);
+  if (mod.defined()) {
+    // eta expand to support constructors in argument position
+    transform::Sequential seq({
+        transform::EtaExpand(
+            /* expand_constructor */ true, /* expand_global_var */ false)});
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    tvm::With<transform::PassContext> ctx(pass_ctx);
+    mod = seq(mod);
+  }
 
   auto intrp = std::make_shared<Interpreter>(mod, context, target);
   auto packed = [intrp](Expr expr) {
