@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/profiler/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
@@ -37,7 +36,7 @@ class VMCompilerDebug : public VMCompiler {
 };
 
 runtime::Module CreateVMCompilerDebug() {
-  std::shared_ptr<VMCompilerDebug> exec = std::make_shared<VMCompilerDebug>();
+  auto exec = make_object<VMCompilerDebug>();
   return runtime::Module(exec);
 }
 

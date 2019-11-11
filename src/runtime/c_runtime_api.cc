@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file c_runtime_api.cc
  * \brief Device specific implementations
  */
@@ -41,6 +40,7 @@
 #include <cstdlib>
 #include <cctype>
 #include "runtime_base.h"
+#include "object_internal.h"
 
 namespace tvm {
 namespace runtime {
@@ -370,16 +370,20 @@ int TVMModLoadFromFile(const char* file_name,
                        const char* format,
                        TVMModuleHandle* out) {
   API_BEGIN();
-  Module m = Module::LoadFromFile(file_name, format);
-  *out = new Module(m);
+  TVMRetValue ret;
+  ret = Module::LoadFromFile(file_name, format);
+  TVMValue val;
+  int type_code;
+  ret.MoveToCHost(&val, &type_code);
+  *out = val.v_handle;
   API_END();
 }
 
 int TVMModImport(TVMModuleHandle mod,
                  TVMModuleHandle dep) {
   API_BEGIN();
-  static_cast<Module*>(mod)->Import(
-      *static_cast<Module*>(dep));
+  ObjectInternal::GetModuleNode(mod)->Import(
+      GetRef<Module>(ObjectInternal::GetModuleNode(dep)));
   API_END();
 }
 
@@ -388,7 +392,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
                       int query_imports,
                       TVMFunctionHandle *func) {
   API_BEGIN();
-  PackedFunc pf = static_cast<Module*>(mod)->GetFunction(
+  PackedFunc pf = ObjectInternal::GetModuleNode(mod)->GetFunction(
       func_name, query_imports != 0);
   if (pf != nullptr) {
     *func = new PackedFunc(pf);
@@ -399,9 +403,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
 }
 
 int TVMModFree(TVMModuleHandle mod) {
-  API_BEGIN();
-  delete static_cast<Module*>(mod);
-  API_END();
+  return TVMObjectFree(mod);
 }
 
 int TVMBackendGetFuncFromEnv(void* mod_node,

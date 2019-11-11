@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,11 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file system_lib_module.cc
  * \brief SystemLib module.
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <mutex>
 #include "module_util.h"
@@ -40,7 +40,7 @@ class SystemLibModuleNode : public ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (module_blob_ != nullptr) {
@@ -83,9 +83,8 @@ class SystemLibModuleNode : public ModuleNode {
     }
   }
 
-  static const std::shared_ptr<SystemLibModuleNode>& Global() {
-    static std::shared_ptr<SystemLibModuleNode> inst =
-        std::make_shared<SystemLibModuleNode>();
+  static const ObjectPtr<SystemLibModuleNode>& Global() {
+    static auto inst = make_object<SystemLibModuleNode>();
     return inst;
   }
 

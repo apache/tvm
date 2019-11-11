@@ -115,7 +115,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return The corresponding member function.
    */
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+                         const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_graph_json") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetGraphJSON();
@@ -489,7 +489,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 };
 
 runtime::Module RelayBuildCreate() {
-  std::shared_ptr<RelayBuildModule> exec = std::make_shared<RelayBuildModule>();
+  auto exec = make_object<RelayBuildModule>();
   return runtime::Module(exec);
 }
 

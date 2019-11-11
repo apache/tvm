@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file TVMRuntime.mm
  */
 #include "TVMRuntime.h"
@@ -35,6 +34,8 @@
 #include "../../../src/runtime/file_util.cc"
 #include "../../../src/runtime/dso_module.cc"
 #include "../../../src/runtime/ndarray.cc"
+#include "../../../src/runtime/object.cc"
+
 // RPC server
 #include "../../../src/runtime/rpc/rpc_session.cc"
 #include "../../../src/runtime/rpc/rpc_server_env.cc"

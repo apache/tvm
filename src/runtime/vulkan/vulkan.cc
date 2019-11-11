@@ -663,7 +663,9 @@ class VulkanModuleNode;
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m, std::shared_ptr<ModuleNode> sptr, const std::string& func_name,
+  void Init(VulkanModuleNode* m,
+            ObjectPtr<Object> sptr,
+            const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
     m_ = m;
@@ -680,7 +682,7 @@ class VulkanWrappedFunc {
   // internal module
   VulkanModuleNode* m_;
   // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // v The name of the function.
   std::string func_name_;
   // Number of buffer arguments
@@ -705,7 +707,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   const char* type_key() const final { return "vulkan"; }
 
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+                         const ObjectPtr<Object>& sptr_to_self) final {
     CHECK_EQ(sptr_to_self.get(), this);
     CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
@@ -939,7 +941,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
 Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
-  std::shared_ptr<VulkanModuleNode> n = std::make_shared<VulkanModuleNode>(smap, fmap, source);
+  auto n = make_object<VulkanModuleNode>(smap, fmap, source);
   return Module(n);
 }
 

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file llvm_module.cc
  * \brief LLVM runtime module for TVM
  */
@@ -54,7 +53,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "__tvm_is_system_module") {
       bool flag =
           (mptr_->getFunction("__tvm_module_startup") != nullptr);
@@ -325,7 +324,7 @@ TVM_REGISTER_API("codegen.llvm_lookup_intrinsic_id")
 
 TVM_REGISTER_API("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
+    auto n = make_object<LLVMModuleNode>();
     n->Init(args[0], args[1]);
     *rv = runtime::Module(n);
   });
@@ -339,7 +338,7 @@ TVM_REGISTER_API("codegen.llvm_version_major")
 
 TVM_REGISTER_API("module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
+    auto n = make_object<LLVMModuleNode>();
     n->LoadIR(args[0]);
     *rv = runtime::Module(n);
   });

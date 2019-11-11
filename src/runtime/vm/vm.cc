@@ -627,7 +627,7 @@ ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
 }
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
-                                       const std::shared_ptr<ModuleNode>& sptr_to_self) {
+                                       const ObjectPtr<Object>& sptr_to_self) {
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(exec) << "The executable is not created yet.";
@@ -1052,7 +1052,7 @@ void VirtualMachine::RunLoop() {
 }
 
 runtime::Module CreateVirtualMachine(const Executable* exec) {
-  std::shared_ptr<VirtualMachine> vm = std::make_shared<VirtualMachine>();
+  auto vm = make_object<VirtualMachine>();
   vm->LoadExecutable(exec);
   return runtime::Module(vm);
 }
