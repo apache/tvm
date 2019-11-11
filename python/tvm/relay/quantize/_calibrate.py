@@ -49,6 +49,7 @@ def collect_stats(mod, dataset):
     ret: Function
         The profile graph which outputs a tuple of profile data.
     """
+
     logging.info("collecting statistics for calibration...")
     func = mod['main']
     func = _quantize.CreateStatsCollector(func)
