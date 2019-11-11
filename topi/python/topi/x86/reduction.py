@@ -20,19 +20,59 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
 from .. import generic
+from ..util import get_const_tuple
 
+def _schedule_reduce(sch, op, is_idx_reduce=False):
+    if is_idx_reduce:
+        real_out = op.output(0)
+        fused = sch[real_out].fuse(*sch[real_out].op.axis)
+        out = op.input_tensors[0]
+    else:
+        out = op.output(0)
 
-def _schedule_reduce(sch, out):
-    if len(sch[out].op.axis) >= 5:
-        # avoid too many parallelism
-        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
+    const_shape = True
+    out_shape = get_const_tuple(out.shape)
+    for d in out_shape:
+        if isinstance(d, tvm.expr.Var):
+            const_shape = False
+            break
+
+    if const_shape: 
+        naxes = len(sch[out].op.axis)
+        parallelism = 1
+        fuse_axes = []
+        # We choose a heuristic number 128 to limit the maximum parallelism
+        while len(fuse_axes) < naxes and parallelism < 128:
+            ivar = sch[out].op.axis[len(fuse_axes)]
+            parallelism *= int(ivar.dom.extent)
+            fuse_axes.append(ivar)
+        fused = sch[out].fuse(*fuse_axes)
         sch[out].parallel(fused)
     else:
-        fused = sch[out].fuse(*sch[out].op.axis)
-    
+        if len(sch[out].op.axis) >= 5:
+            # avoid too many parallelism
+            fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
+            sch[out].parallel(fused)
+        else:
+            fused = sch[out].fuse(*sch[out].op.axis)
+            sch[out].parallel(fused)
+
 
 @generic.schedule_reduce.register(["cpu"])
 def schedule_reduce(outs):
+    """X86 schedule for reduction op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of injective in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     sch = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
