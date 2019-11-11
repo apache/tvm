@@ -18,17 +18,14 @@
 
 from __future__ import absolute_import
 
-import logging
 import os
 import sys
 from enum import Enum
-from pathlib import Path
 
 import tvm
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
 from .._ffi.function import _init_api
-from .._ffi.libinfo import find_include_path
 
 class LibType(Enum):
     """Enumeration of library types that can be compiled and loaded onto a device"""
@@ -62,7 +59,8 @@ class Session:
         # TODO(weberlo): add config validation
 
         # grab a binutil instance from the ID in the config
-        self.create_micro_lib = tvm.micro.device.get_device_funcs(config['device_id'])['create_micro_lib']
+        dev_funcs = tvm.micro.device.get_device_funcs(config['device_id'])
+        self.create_micro_lib = dev_funcs['create_micro_lib']
         self.toolchain_prefix = config['toolchain_prefix']
         self.mem_layout = config['mem_layout']
         self.word_size = config['word_size']
@@ -129,8 +127,8 @@ class Session:
         temp_dir = _util.tempdir()
         lib_obj_path = temp_dir.relpath('dev_lib.obj')
         c_mod.export_library(
-                lib_obj_path,
-                fcompile=cross_compiler(self.create_micro_lib, LibType.OPERATOR))
+            lib_obj_path,
+            fcompile=cross_compiler(self.create_micro_lib, LibType.OPERATOR))
         micro_mod = tvm.module.load(lib_obj_path)
         return micro_mod
 

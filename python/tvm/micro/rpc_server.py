@@ -18,10 +18,8 @@
 
 import argparse
 import ast
-import ctypes
 import json
 import logging
-import os
 import tvm
 from tvm import rpc
 from tvm import micro
@@ -71,6 +69,7 @@ def main():
 
     @tvm.register_func('tvm.rpc.server.start', override=True)
     def server_start():
+        # pylint: disable=unused-variable
         session = micro.Session(dev_config)
         session._enter()
 

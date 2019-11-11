@@ -19,7 +19,6 @@
 import os
 import subprocess
 from . import util
-from .._ffi.base import py_str
 from ..api import register_func
 
 RELOCATION_LD_SCRIPT_TEMPLATE = """
@@ -84,9 +83,9 @@ def run_cmd(cmd):
         resulting stdout capture from the subprocess
     """
     proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT)
     (output, _) = proc.communicate()
     output = output.decode('utf-8')
     if proc.returncode != 0:
@@ -140,8 +139,8 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
             continue
         entry_name = tokens[0]
         entry_size = int(tokens[1])
-        for section_name in sections_to_sum:
-            if entry_name.startswith(section_name):
+        for section in sections_to_sum:
+            if entry_name.startswith(section):
                 section_size += entry_size
                 break
 
@@ -212,12 +211,12 @@ def tvm_callback_relocate_binary(
     if 'riscv' in toolchain_prefix:
         ld_script_contents += 'OUTPUT_ARCH( "riscv" )\n\n'
     ld_script_contents += RELOCATION_LD_SCRIPT_TEMPLATE.format(
-            word_size=word_size,
-            text_start=text_start,
-            rodata_start=rodata_start,
-            data_start=data_start,
-            bss_start=bss_start,
-            stack_pointer_init=stack_pointer_init)
+        word_size=word_size,
+        text_start=text_start,
+        rodata_start=rodata_start,
+        data_start=data_start,
+        bss_start=bss_start,
+        stack_pointer_init=stack_pointer_init)
 
     tmp_dir = util.tempdir()
     rel_obj_path = tmp_dir.relpath('relocated.obj')

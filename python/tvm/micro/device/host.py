@@ -43,7 +43,8 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
         options = []
     if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
         options += ['-mcmodel=large']
-    create_micro_lib_base(obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
+    create_micro_lib_base(
+        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
 
 
 def default_config():

@@ -47,7 +47,8 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
         '-mthumb',
         '-gdwarf-5',
         ]
-    create_micro_lib_base(obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
+    create_micro_lib_base(
+        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
 
 
 def default_config(server_addr, server_port):

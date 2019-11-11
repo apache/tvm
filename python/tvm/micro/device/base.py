@@ -17,8 +17,6 @@
 """Base definitions for MicroTVM config"""
 import glob
 import os
-import sys
-from enum import Enum
 from pathlib import Path
 
 from tvm.contrib import util as _util
@@ -63,15 +61,15 @@ def get_device_funcs(device_id):
     return device_funcs
 
 
-def create_micro_lib_base(obj_path, src_path, toolchain_prefix, device_id, lib_type, options=None):
+def create_micro_lib_base(out_obj_path, in_src_path, toolchain_prefix, device_id, lib_type, options=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters
     ----------
-    obj_path : str
+    out_obj_path : str
         path to generated object file
 
-    src_path : str
+    in_src_path : str
         path to source file
 
     toolchain_prefix : str
@@ -90,27 +88,28 @@ def create_micro_lib_base(obj_path, src_path, toolchain_prefix, device_id, lib_t
         additional options to pass to GCC
     """
     base_compile_cmd = [
-            f'{toolchain_prefix}gcc',
-            '-std=c11',
-            '-Wall',
-            '-Wextra',
-            '--pedantic',
-            '-c',
-            '-O0',
-            '-g',
-            '-nostartfiles',
-            '-nodefaultlibs',
-            '-nostdlib',
-            '-fdata-sections',
-            '-ffunction-sections',
-            ]
+        f'{toolchain_prefix}gcc',
+        '-std=c11',
+        '-Wall',
+        '-Wextra',
+        '--pedantic',
+        '-c',
+        '-O0',
+        '-g',
+        '-nostartfiles',
+        '-nodefaultlibs',
+        '-nostdlib',
+        '-fdata-sections',
+        '-ffunction-sections',
+        ]
     if options is not None:
         base_compile_cmd += options
 
     src_paths = []
     include_paths = find_include_path() + [get_micro_host_driven_dir()]
-    ld_script_path = None
     tmp_dir = _util.tempdir()
+    # we might transform the src path in one of the branches below
+    new_in_src_path = in_src_path
     if lib_type == LibType.RUNTIME:
         dev_dir = _get_device_source_dir(device_id)
         dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
@@ -122,17 +121,17 @@ def create_micro_lib_base(obj_path, src_path, toolchain_prefix, device_id, lib_t
         # create a temporary copy of the source, so we can inject the dev lib
         # header without modifying the original.
         temp_src_path = tmp_dir.relpath('temp.c')
-        with open(src_path, 'r') as f:
+        with open(in_src_path, 'r') as f:
             src_lines = f.read().splitlines()
         src_lines.insert(0, '#include "utvm_device_dylib_redirect.c"')
         with open(temp_src_path, 'w') as f:
             f.write('\n'.join(src_lines))
-        src_path = temp_src_path
+        new_in_src_path = temp_src_path
         base_compile_cmd += ['-c']
     else:
         raise RuntimeError('unknown lib type')
 
-    src_paths += [src_path]
+    src_paths += [new_in_src_path]
 
     for path in include_paths:
         base_compile_cmd += ['-I', path]
@@ -147,7 +146,7 @@ def create_micro_lib_base(obj_path, src_path, toolchain_prefix, device_id, lib_t
 
     ld_cmd = [f'{toolchain_prefix}ld', '-relocatable']
     ld_cmd += prereq_obj_paths
-    ld_cmd += ['-o', obj_path]
+    ld_cmd += ['-o', out_obj_path]
     run_cmd(ld_cmd)
 
 

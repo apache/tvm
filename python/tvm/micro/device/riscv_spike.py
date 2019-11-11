@@ -39,7 +39,13 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
     options : Optional[List[str]]
         additional options to pass to GCC
     """
-    create_micro_lib_base(obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
+    create_micro_lib_base(
+        obj_path,
+        src_path,
+        TOOLCHAIN_PREFIX,
+        DEVICE_ID,
+        lib_type,
+        options=options)
 
 
 def default_config(base_addr, server_addr, server_port):
@@ -100,8 +106,8 @@ def default_config(base_addr, server_addr, server_port):
     curr_offset = 0
     mem_layout = res['mem_layout']
     for section_name, region_dict in mem_layout:
-        mem_layout[section_name]['start'] = base_addr + curr_offset
-        curr_offset += mem_layout[section_name]['size']
+        region_dict['start'] = base_addr + curr_offset
+        curr_offset += region_dict['size']
     return res
 
 
