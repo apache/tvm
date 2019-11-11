@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file metal_module.cc
  */
 #include <dmlc/memory_io.h>
@@ -54,7 +53,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+      const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
@@ -187,7 +186,7 @@ class MetalWrappedFunc {
  public:
   // initialize the METAL function.
   void Init(MetalModuleNode* m,
-            std::shared_ptr<ModuleNode> sptr,
+            ObjectPtr<Object> sptr,
             const std::string& func_name,
             size_t num_buffer_args,
             size_t num_pack_args,
@@ -244,7 +243,7 @@ class MetalWrappedFunc {
   // internal module
   MetalModuleNode* m_;
   // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Number of buffer arguments
@@ -260,7 +259,7 @@ class MetalWrappedFunc {
 
 PackedFunc MetalModuleNode::GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) {
+      const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
@@ -281,8 +280,7 @@ Module MetalModuleCreate(
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
   metal::MetalWorkspace::Global()->Init();
-  std::shared_ptr<MetalModuleNode> n =
-      std::make_shared<MetalModuleNode>(data, fmt, fmap, source);
+  auto n = make_object<MetalModuleNode>(data, fmt, fmap, source);
   return Module(n);
 }
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file source_module.cc
  * \brief Source code module, only for viewing
  */
@@ -51,7 +50,7 @@ class SourceModuleNode : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
@@ -67,8 +66,7 @@ class SourceModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
-  std::shared_ptr<SourceModuleNode> n =
-      std::make_shared<SourceModuleNode>(code, fmt);
+  auto n = make_object<SourceModuleNode>(code, fmt);
   return runtime::Module(n);
 }
 
@@ -84,7 +82,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "C Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
@@ -113,8 +111,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CSourceModuleCreate(std::string code, std::string fmt) {
-  std::shared_ptr<CSourceModuleNode> n =
-      std::make_shared<CSourceModuleNode>(code, fmt);
+  auto n = make_object<CSourceModuleNode>(code, fmt);
   return runtime::Module(n);
 }
 
@@ -134,7 +131,7 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
         const std::string& name,
-        const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+        const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
@@ -182,8 +179,7 @@ runtime::Module DeviceSourceModuleCreate(
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string type_key,
     std::function<std::string(const std::string&)> fget_source) {
-  std::shared_ptr<DeviceSourceModuleNode> n =
-      std::make_shared<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
+  auto n = make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
   return runtime::Module(n);
 }
 
