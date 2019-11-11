@@ -551,6 +551,17 @@ def _test_reshape(data, out_shape):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_with_call():
+    """ relay.expr.Call as shape """
+    data = np.zeros((6, 4, 2))
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out_shape = tf.constant([1, 2, 3], dtype="int32")
+        out_shape = tf.multiply(out_shape, 2)
+        array_ops.reshape(in_data, out_shape)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
+
 def _test_reshape_like(data, shape_like):
     """ A special case for reshape. """
 
@@ -567,6 +578,7 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1, 2])
     _test_reshape(np.arange(6), [3, -1])
     _test_reshape(np.arange(6), [-1])
+    _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
 
 #######################################################################
