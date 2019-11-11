@@ -579,7 +579,6 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
             out = with_fused_activation_function(out, fused_activation_function)
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
             compare_tflite_with_tvm(data, ['inq_0:0', 'inq_1:0'], inq_data, [out], quantized=True)
-
         else:
             out = math_op(in_data[0], in_data[1])
             out = with_fused_activation_function(out, fused_activation_function)
@@ -597,7 +596,6 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
             out = with_fused_activation_function(out, fused_activation_function)
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
             compare_tflite_with_tvm(data[0], ['inq_0:0'], inq_data, [out], quantized=True)
-
         else:
             out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
             out = with_fused_activation_function(out, fused_activation_function)
@@ -661,23 +659,22 @@ def _test_greater(data):
     """ One iteration of greater """
     return _test_elemwise(math_ops.greater, data)
 
-def _test_forward_elemwise(testop, quantized=False):
+def _test_forward_elemwise(testop):
     """ Elewise"""
-    # test with two quantized tensors
-    if quantized:
-        testop([np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8)], quantized=True)
-    else:
-        testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
-                  np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3))])
-        testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
-                   np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3))])
-        testop([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
-                   np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3))])
+    testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+              np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3))])
+    testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3))])
+    testop([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
+               np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3))])
+
+def _test_forward_elemwise_quantized(testop):
+    testop([np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8)], quantized=True)
 
 def test_all_elemwise():
     _test_forward_elemwise(_test_add)
-    _test_forward_elemwise(_test_add, quantized=True)
+    _test_forward_elemwise_quantized(_test_add)
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_sub)
