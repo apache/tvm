@@ -1226,6 +1226,13 @@ def _floordiv():
         return get_relay_op('floor')(div)
     return _impl
 
+def _floormod():
+    def _impl(inputs, attr, params):
+        assert len(inputs) == 2
+        floor_div = get_relay_op('floor')(AttrCvt('divide')(inputs, attr))
+        return inputs[0] - floor_div * inputs[1]
+    return _impl
+
 def _logical(name):
     def _impl(inputs, attr, params):
         return AttrCvt(op_name=name)(inputs, attr)
@@ -1415,6 +1422,7 @@ _convert_map = {
     'Fill'                              : _fill(),
     'Floor'                             : AttrCvt('floor'),
     'FloorDiv'                          : _floordiv(),
+    'FloorMod'                          : _floormod(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
     'FusedBatchNormV2'                  : _fused_batch_norm(),
     'Gather'                            : _gather(),

@@ -1041,8 +1041,6 @@ def test_forward_stridedslice():
 #######################################################################
 # FloorDiv, RealDiv
 # -----------------
-
-
 def _test_forward_divide(ip_shape, dtype):
     np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
     np_denomin = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
@@ -1067,6 +1065,24 @@ def test_forward_divide():
     _test_forward_divide((4,), 'int32')
     _test_forward_divide((4, 3, 7), 'float32')
     _test_forward_floordiv((4, 3, 7), 'float32')
+
+#######################################################################
+# FloorMod
+# --------
+def _test_forward_floormod(in_shape, if_shape, dtype):
+    np_numer = np.random.uniform(-100, 100, size=in_shape).astype(dtype)
+    np_factor = np.random.uniform(-100, 100, size=if_shape).astype(dtype)
+    tf.reset_default_graph()
+    numerator = tf.placeholder(dtype, in_shape, name="numer")
+    factor = tf.placeholder(dtype, if_shape, name="factor")
+    tf.math.floormod(numerator, factor, name='FloorMod')
+    compare_tf_with_tvm([np_numer, np_factor], ['numer:0', 'factor:0'], 'FloorMod:0')
+
+def test_forward_floormod():
+    '''test FloorMod'''
+    _test_forward_floormod((10,), (10,), 'float32')
+    _test_forward_floormod((8, 2), (1,), 'float32')
+    _test_forward_floormod((4, 3, 7), (4, 3, 7), 'float32')
 
 
 #######################################################################
@@ -2760,6 +2776,7 @@ if __name__ == '__main__':
     test_forward_erf()
     test_forward_squared_difference()
     test_forward_add_n()
+    test_forward_floormod()
 
     # Reductions
     test_forward_argminmax()
