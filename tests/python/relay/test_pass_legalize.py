@@ -171,53 +171,9 @@ def test_legalize_multi_input():
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
-def test_legalize_arm_layout_functional():
-    """Test if the legalized conversion yields same result as original"""
-    def get_output(func, data_val, parameters):
-        with relay.build_config(opt_level=0):
-            graph, lib, params = relay.build(func, target='llvm', params=parameters)
-        m = graph_runtime.create(graph, lib, tvm.cpu())
-        m.set_input("data", data_val)
-        m.set_input(**params)
-        m.run()
-        out = m.get_output(0, tvm.nd.empty((1, 224, 224, 32), 'float32')).asnumpy()
-        return out
-
-    def before():
-        n, ic, ih, iw, oc, kh, kw = 1, 16, 224, 224, 32, 3, 3
-        data = relay.var("data", relay.TensorType((n, ih, iw, ic), 'float32'))
-        kernel = relay.var("kernel", relay.TensorType((kh, kw, ic, oc), 'float32'))
-        y = relay.nn.conv2d(data, kernel,
-                            kernel_size=(kh, kw),
-                            channels=oc,
-                            padding=(1, 1),
-                            dilation=(1, 1),
-                            data_layout='NHWC',
-                            kernel_layout='HWIO',
-                            out_dtype='float32')
-        func = relay.Function([data, kernel], y)
-        return func
-
-    @register_legalize("nn.conv2d", level=105)
-    def legalize_conv2d(attrs, inputs, types):
-        from topi.arm_cpu.conv2d import _conv2d_legalize
-        return _conv2d_legalize(attrs, inputs, types)
-
-    a = before()
-    b = run_opt_pass(a, transform.Legalize())
-    assert b.astext().count('transpose') == 3
-
-    wdata = np.random.rand(3, 3, 16, 32) * 10
-    parameters = {"kernel": tvm.nd.array(wdata.astype('float32'))}
-    data_val = np.random.rand(1, 224, 224, 16).astype('float32')
-    ref_out = get_output(a, data_val, parameters)
-    legalized_out = get_output(b, data_val, parameters)
-    np.testing.assert_allclose(ref_out, legalized_out, rtol=0.01)
-
 
 if __name__ == "__main__":
     test_legalize()
     test_legalize_none()
     test_legalize_multiple_ops()
     test_legalize_multi_input()
-    test_legalize_arm_layout_functional()
