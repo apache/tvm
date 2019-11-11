@@ -69,8 +69,8 @@ def make_configuration(quantized_data,
 def make_uint_configuration(use_bias=False, requantize_output=False):
     input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
     input_zero_point, kernel_zero_point = 127, 127
-    input_scale = 0.25
-    kernel_scale = 1.0
+    input_scale = 0.5
+    kernel_scale = 0.5
     output_scale = 1.0
     in_dtype = 'uint8'
     out_dtype = 'int32' if not requantize_output else 'uint8'
