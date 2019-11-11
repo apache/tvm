@@ -567,9 +567,11 @@ TVM_DLL Pass EtaExpand();
 /*!
  * \brief Print the IR for a module to help debugging.
  *
+ * \param show_meta_data The flag to control if meta data needs to be printed.
+ *
  * \return the pass.
  */
-TVM_DLL Pass PrintIR();
+TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
 }  // namespace transform
 
