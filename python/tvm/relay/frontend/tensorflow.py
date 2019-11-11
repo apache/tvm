@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
+# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
 from __future__ import print_function
@@ -613,22 +613,24 @@ def _reshape():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(1)
 
-        # We use reshape_like directly to deal with dynamic shape.
-        if isinstance(pop_node, tvm.relay.expr.Call):
-            if "shape_of" not in str(pop_node.op):
-                raise RuntimeError("If shape operator is used in reshape to "
-                                   "express reshape_like, shape_of must be "
-                                   "the direct ancestor of reshape when input "
-                                   "shape is symbolic.")
-            return _op.reshape_like(inputs[0], pop_node.args[0])
-
         try:
             shape_arg = _get_tuple_param(params, pop_node)
         except AttributeError:
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
-            params_new = _infer_value(pop_node, params)
-            shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
+            try:
+                params_new = _infer_value(pop_node, params)
+                shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
+            except Exception:
+                # Deal with symbolic shape case.
+                # Currently only shape_of can be the direct ancestor.
+                if not isinstance(pop_node, tvm.relay.expr.Call) or \
+                        "shape_of" not in str(pop_node.op):
+                    raise RuntimeError("If shape operator is used in reshape to "
+                                       "express reshape_like, shape_of must be "
+                                       "the direct ancestor of reshape when input "
+                                       "shape is symbolic.")
+                return _op.reshape_like(inputs[0], pop_node.args[0])
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},
