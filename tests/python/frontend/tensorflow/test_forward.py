@@ -746,7 +746,8 @@ def test_tensor_array_concat():
                                  infer_shape=False, dynamic_size=False)
             ta2 = ta1.split(t, split_length)
             t = ta2.concat()
-            compare_tf_with_tvm([], [], ['TensorArrayConcatV3:0'], mode='debug')
+            out = tf.identity(t)
+            compare_tf_with_tvm([], [], ['Identity:0'], mode='debug')
     for dtype in tf_dtypes.keys():
         run(dtype)
 
