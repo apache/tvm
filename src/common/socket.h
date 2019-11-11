@@ -59,7 +59,7 @@ static inline int poll(struct pollfd *pfd, int nfds,
   return WSAPoll(pfd, nfds, timeout);
 }
 static inline int inet_pton(int family, const char* addr_str, void* addr_buf) {
-  return InetPton(family, addr_str, addr_buf);
+  return InetPtonA(family, addr_str, addr_buf);
 }
 #else
 #include <sys/poll.h>
