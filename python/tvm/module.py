@@ -144,7 +144,12 @@ class Module(ModuleBase):
             else:
                 fcompile = _cc.create_shared
         if self.type_key == "c":
-            kwargs.update({'options': ["-I" + path for path in find_include_path()]})
+            options = []
+            if "options" in kwargs:
+                opts = kwargs["options"]
+                options = opts if isinstance(opts, (list, tuple)) else [opts]
+            opts = options + ["-I" + path for path in find_include_path()]
+            kwargs.update({'options': opts})
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
@@ -227,7 +232,7 @@ def system_lib():
     return _GetSystemLib()
 
 
-def load(path, fmt="", ext_lib=""):
+def load(path, fmt=""):
     """Load module from file.
 
     Parameters
@@ -238,9 +243,6 @@ def load(path, fmt="", ext_lib=""):
     fmt : str, optional
         The format of the file, if not specified
         it will be inferred from suffix of the file.
-
-    ext_lib : str, optional
-        The string to indicate the name of the external codegen
 
     Returns
     -------
@@ -264,7 +266,7 @@ def load(path, fmt="", ext_lib=""):
         _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
-    return _LoadFromFile(path, fmt, ext_lib)
+    return _LoadFromFile(path, fmt)
 
 
 def enabled(target):

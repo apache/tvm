@@ -15,81 +15,101 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for external runtime."""
-import os
 from shutil import which
-import numpy as np
 import json
+import numpy as np
 
 import tvm
 from tvm import relay
+from tvm import module as _tvm_module
 
 
-def generate_multinode_binary():
-    '''Generate a binary'''
+def generate_csource_module():
+    """Generate a binary"""
 
     code = r'''
-    # include <cstdint>
-    # include <cstring>
-    # include <iostream>
+    #include <tvm/runtime/c_runtime_api.h>
+    #include <dlpack/dlpack.h>
+    #include <cstdint>
+    #include <cstring>
+    #include <iostream>
 
-    typedef struct {
-      float** data;
-    } GccPackedArgs;
-
-    # define GCC_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)          \
+    #define GCC_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)           \
       extern "C" void p_ID_(float* a, float* b, float* out) { \
         for (int64_t i = 0; i < p_DIM1_; ++i) {               \
           out[i] = a[i] p_OP_ b[i];                           \
         }                                                     \
       }
 
-    # define GCC_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
-      extern "C" void p_ID_(float* a, float* b, float* out) {  \
-        for (int64_t i = 0; i < p_DIM1_; ++i) {                \
-          for (int64_t j = 0; j < p_DIM2_; ++j) {              \
-            int64_t k = i * p_DIM2_ + j;                       \
-            out[k] = a[k] p_OP_ b[k];                          \
-          }                                                    \
-        }                                                      \
+    #define GCC_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
+      extern "C" void p_ID_(float* a, float* b, float* out) { \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {               \
+          for (int64_t j = 0; j < p_DIM2_; ++j) {             \
+            int64_t k = i * p_DIM2_ + j;                      \
+            out[k] = a[k] p_OP_ b[k];                         \
+          }                                                   \
+        }                                                     \
       }
     GCC_BINARY_OP_2D(gcc_1_0, *, 10, 10);
     GCC_BINARY_OP_2D(gcc_1_1, -, 10, 10);
     GCC_BINARY_OP_2D(gcc_1_2, +, 10, 10);
-    extern  "C" void gcc_1(GccPackedArgs args, float* out) {
-      float* gcc_input4 = args.data[0];
-      float* gcc_input5 = args.data[1];
-      float* gcc_input6 = args.data[2];
-      float* gcc_input7 = args.data[3];
+
+    extern "C" void gcc_1_(float* gcc_input4, float* gcc_input5,
+                           float* gcc_input6, float* gcc_input7, float* out) {
       float* buf_0 = (float*)malloc(4 * 100);
       float* buf_1 = (float*)malloc(4 * 100);
-      float* buf_2 = (float*)malloc(4 * 100);
       gcc_1_2(gcc_input4, gcc_input5, buf_0);
       gcc_1_1(buf_0, gcc_input6, buf_1);
-      gcc_1_0(buf_1, gcc_input7, buf_2);
-      memcpy(out, buf_2, 4 *100);
+      gcc_1_0(buf_1, gcc_input7, out);
     }
+
+    extern "C" int gcc_1(TVMValue* value, int* type_code, int nargs) {
+      if (nargs != 5) {
+        printf("Expect 5 args, but get %d", nargs);
+        return 1;
+      }
+      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
+      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
+      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
+      gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+             static_cast<float*>(out->data));
+      return 0;
+    }
+
     GCC_BINARY_OP_2D(gcc_0_0, *, 10, 10);
     GCC_BINARY_OP_2D(gcc_0_1, -, 10, 10);
     GCC_BINARY_OP_2D(gcc_0_2, +, 10, 10);
-    extern  "C" void gcc_0(GccPackedArgs args, float* out) {
-      float* gcc_input0 = args.data[0];
-      float* gcc_input1 = args.data[1];
-      float* gcc_input2 = args.data[2];
-      float* gcc_input3 = args.data[3];
+
+    extern "C" void gcc_0_(float* gcc_input0, float* gcc_input1,
+                           float* gcc_input2, float* gcc_input3, float* out) {
       float* buf_0 = (float*)malloc(4 * 100);
       float* buf_1 = (float*)malloc(4 * 100);
-      float* buf_2 = (float*)malloc(4 * 100);
       gcc_0_2(gcc_input0, gcc_input1, buf_0);
       gcc_0_1(buf_0, gcc_input2, buf_1);
-      gcc_0_0(buf_1, gcc_input3, buf_2);
-      memcpy(out, buf_2, 4 *100);
+      gcc_0_0(buf_1, gcc_input3, out);
+    }
+
+    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
+      if (nargs != 5) {
+        printf("Expect 5 args, but get %d", nargs);
+        return 1;
+      }
+      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
+      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
+      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
+      gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+             static_cast<float*>(out->data));
+      return 0;
     }
     '''
-    code = "echo \'" + code + "\'"
-    cmd = "g++ -std=c++11 -shared -fPIC -ldl -o external_test.so -xc++ -"
-    cmd = code + " | " + cmd
-    if os.system(cmd) != 0:
-        raise RuntimeError("Compilation for external_test.so failed")
+    csource_module = _tvm_module.csource_module_create(code, "cc")
+    return csource_module
 
 
 def get_synthetic_lib():
@@ -121,9 +141,6 @@ def get_synthetic_lib():
     gcc_input5 = relay.var('gcc_input5', shape=(10, 10))
     gcc_input6 = relay.var('gcc_input6', shape=(10, 10))
     gcc_input7 = relay.var('gcc_input7', shape=(10, 10))
-    add1 = relay.add(gcc_input4, gcc_input5)
-    sub1 = relay.subtract(add1, gcc_input6)
-    mul1 = relay.multiply(sub1, gcc_input7)
     subgraph1 = relay.Function([gcc_input4, gcc_input5, gcc_input6,
                                 gcc_input7], relay.copy(gcc_input4))
     subgraph1 = subgraph1.set_attribute(
@@ -154,12 +171,12 @@ def get_json():
     node7 = {"op": "null", "name": "w7", "inputs": []}
 
     subgraph0 = {
-        "op": "external_op",
-        "name": "subgraph_0",
+        "op": "tvm_op",
+        "name": "gcc_0",
         "attrs": {
             "num_outputs": "1",
             "num_inputs": "4",
-            "func_name": "subgraph_0",
+            "func_name": "gcc_0",
             "flatten_data": "0"
         },
         "inputs": [
@@ -170,12 +187,12 @@ def get_json():
         ]
     }
     subgraph1 = {
-        "op": "external_op",
-        "name": "subgraph_1",
+        "op": "tvm_op",
+        "name": "gcc_1",
         "attrs": {
             "num_outputs": "1",
             "num_inputs": "4",
-            "func_name": "subgraph_1",
+            "func_name": "gcc_1",
             "flatten_data": "0"
         },
         "inputs": [
@@ -233,18 +250,24 @@ def get_json():
     return json.dumps(graph)
 
 
-def test_simulated_runtime():
+def test_extern_dso_runtime():
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
 
-    # library that contains external code.
-    generate_multinode_binary()
-
+    # Get Json and the compiled library.
     json = get_json()
     lib = get_synthetic_lib()
-    ext_lib = tvm.module.load("external_test.so", ext_lib="gcc")
+    cur_lib = lib.save("lib.o")
 
-    mod = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0), ext_lib)
+    # library that contains external code.
+    csource_module = generate_csource_module()
+    # csource_module.save("external.cc", "cc")
+    kwargs = {"options": ["lib.o", "-O2", "-std=c++11"]}
+    # csource_module.save("external.cc")
+    csource_module.export_library("external.so", fcompile=False, **kwargs)
+    # load module for execution.
+    lib = tvm.module.load("external.so")
+    mod = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
     mod.set_input("x", x_data)
@@ -267,4 +290,4 @@ def test_simulated_runtime():
 
 
 if __name__ == "__main__":
-    test_simulated_runtime()
+    test_extern_dso_runtime()

@@ -22,7 +22,7 @@ from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
-def create(graph_json_str, libmod, ctx, ext_lib=None):
+def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
@@ -30,19 +30,13 @@ def create(graph_json_str, libmod, ctx, ext_lib=None):
         The graph to be deployed in json format output by nnvm graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
-
     libmod : tvm.Module
         The module of the corresponding function
-
     ctx : TVMContext or list of TVMContext
         The context to deploy the module. It can be local or remote when there
         is only one TVMContext. Otherwise, the first context in the list will
         be used as this purpose. All context should be given for heterogeneous
         execution.
-
-    ext_lib: tvm.Module
-        The module contains library functions from external codegen tools.
-
     Returns
     -------
     graph_module : GraphModule
@@ -57,15 +51,12 @@ def create(graph_json_str, libmod, ctx, ext_lib=None):
     ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
 
     if num_rpc_ctx == len(ctx):
-        if ext_lib:
-            raise Exception("External library is not supported for remote "
-                            "execution")
         hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        return GraphModule(fcreate(graph_json_str, hmod, ext_lib, *device_type_id))
+        return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
 
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, ext_lib, *device_type_id))
+    return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 def get_device_ctx(libmod, ctx):
     """Parse and validate all the device context(s).

@@ -96,15 +96,12 @@ class GraphRuntime : public ModuleNode {
    * \param graph_json The execution graph.
    * \param module The module containing the compiled functions for the host
    *  processor.
-   * \param ext_module The module containing the compiled functions using
-   * external codegen tools.
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
    */
 
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
-            tvm::runtime::Module ext_module,
             const std::vector<TVMContext>& ctxs);
 
   /*!
@@ -411,11 +408,6 @@ class GraphRuntime : public ModuleNode {
   GraphAttr attrs_;
   /*! \brief The code module that contains both host and device code. */
   tvm::runtime::Module module_;
-  /*!
-   * \brief The code module that contains external library.
-   * TODO(zhiics) Support multiple external modules.
-   */
-  tvm::runtime::Module ext_module_;
   /*! \brief Execution context of all devices including the host. */
   std::vector<TVMContext> ctxs_;
   /*! \brief Common storage pool for all devices. */
