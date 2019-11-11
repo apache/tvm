@@ -350,7 +350,10 @@ def dense(data,
     input_scale: float
         The scale for the input tensor.
     kernel_scale: float
-        The scale for the weight tensor.
+        The scale for the weight tensor. The scale for the weight tensor is
+        stored for access to this during relay. This information is not
+        needed in the pass pipeline after qnn.conv2d is lowered to the
+        sequence of steps as in nn.conv2d. See also input_scale in Requantize.
     units : int, optional
         Number of hidden units of the dense transformation.
     out_dtype : str, optional
