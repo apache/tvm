@@ -37,7 +37,7 @@ def _schedule_reduce(sch, op, is_idx_reduce=False):
             const_shape = False
             break
 
-    if const_shape: 
+    if const_shape:
         naxes = len(sch[out].op.axis)
         parallelism = 1
         fuse_axes = []
