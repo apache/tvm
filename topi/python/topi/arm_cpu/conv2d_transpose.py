@@ -27,7 +27,8 @@ from ..util import get_const_tuple, traverse_inline
 from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 @autotvm.task.register_topi_compute(conv2d_transpose_nchw, "arm_cpu", "direct")
-def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype, output_padding=(0, 0)):
+def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype,
+                              output_padding=(0, 0)):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -55,9 +56,11 @@ def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype, o
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2, output_padding)
+    return _decl_spatial_pack(cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2,
+                              output_padding)
 
-def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile, output_padding):
+def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile,
+                       output_padding):
     assert layout == "NCHW", "Only support NCHW"
     out_dtype = out_dtype or data.dtype
 

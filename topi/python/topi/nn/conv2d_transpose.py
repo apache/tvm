@@ -54,7 +54,8 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_pad
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype, output_padding=output_padding)
+    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype,
+                                             output_padding=output_padding)
 
 
 def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding):
