@@ -171,6 +171,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
 reg.register_strategy("nn.conv2d_transpose", strategy.conv2d_transpose_strategy)
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
 @reg.register_legalize("nn.conv2d_transpose")
 def legalize_conv2d_transpose(attrs, inputs, types):
     """Legalize conv2d_transpose op.
