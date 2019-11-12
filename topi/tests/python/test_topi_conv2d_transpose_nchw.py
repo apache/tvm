@@ -24,7 +24,7 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
-def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding):
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
@@ -38,7 +38,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = topi.testing.conv2d_transpose_nchw_python(a_np, w_np, stride, padding)
+        b_np = topi.testing.conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding)
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 
@@ -51,7 +51,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            B = topi.nn.conv2d_transpose_nchw(A, W, [stride, stride], [padding, padding], A.dtype)
+            B = topi.nn.conv2d_transpose_nchw(A, W, [stride, stride], [padding, padding], A.dtype, output_padding)
             C = topi.nn.relu(B)
             s1 = topi.generic.schedule_conv2d_transpose_nchw([B])
             s2 = topi.generic.schedule_conv2d_transpose_nchw([C])
@@ -72,11 +72,13 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
 
 
 def test_conv2d_transpose_nchw():
-    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 1, 0)
-    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 2, 1)
-    verify_conv2d_transpose_nchw(1, 3, 224, 32, 2, 2, 0)
-    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 1, 0)
-    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 2, 1)
+    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 1, 0, (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 2, 1, (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 2, 1, (1, 0))
+    verify_conv2d_transpose_nchw(1, 3, 224, 32, 2, 2, 0, (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, 224, 32, 2, 2, 0, (1, 1))
+    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 1, 0, (0, 0))
+    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 2, 1, (0, 0))
 
 
 if __name__ == "__main__":
