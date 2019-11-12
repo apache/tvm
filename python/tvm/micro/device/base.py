@@ -61,7 +61,13 @@ def get_device_funcs(device_id):
     return device_funcs
 
 
-def create_micro_lib_base(out_obj_path, in_src_path, toolchain_prefix, device_id, lib_type, options=None):
+def create_micro_lib_base(
+        out_obj_path,
+        in_src_path,
+        toolchain_prefix,
+        device_id,
+        lib_type,
+        options=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters

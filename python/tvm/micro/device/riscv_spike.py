@@ -105,7 +105,7 @@ def default_config(base_addr, server_addr, server_port):
     # generate section start addresses from the given `base_addr`
     curr_offset = 0
     mem_layout = res['mem_layout']
-    for section_name, region_dict in mem_layout:
+    for region_dict in mem_layout.values():
         region_dict['start'] = base_addr + curr_offset
         curr_offset += region_dict['size']
     return res

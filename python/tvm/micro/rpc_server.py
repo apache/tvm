@@ -25,6 +25,7 @@ from tvm import rpc
 from tvm import micro
 
 def main():
+    """Entry point to MicroTVM RPC server"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
@@ -41,7 +42,8 @@ def main():
     parser.add_argument('--dev-id', type=str,
                         help='Unique ID for the target device')
     parser.add_argument('--dev-config-args', type=str,
-                        help='Python list of literals required to generate a default config (if --dev-id is specified)')
+                        help=('Python list of literals required to generate a default config'
+                            ' (if --dev-id is specified)'))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
