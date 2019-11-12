@@ -210,14 +210,17 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
 
 /*! \brief Attributes for StridedSlice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
-  Array<Integer> begin;
-  Array<Integer> end;
-  Array<Integer> strides;
+  Expr begin;
+  Expr end;
+  Expr strides;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
-    TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
-    TVM_ATTR_FIELD(end).describe("Indices for end of slice, end index is exclusive");
-    TVM_ATTR_FIELD(strides).set_default(Array<Integer>({})).describe("Stride values of the slice");
+    TVM_ATTR_FIELD(begin)
+        .describe("Indices for begin of slice, begin index is also inclusive");
+    TVM_ATTR_FIELD(end)
+        .describe("Indices for end of slice, end index is exclusive");
+    TVM_ATTR_FIELD(strides)
+        .describe("Stride values of the slice");
   }
 };
 

@@ -22,6 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+import topi.testing
 
 def int32(val):
     return relay.const(val, 'int32')
@@ -642,6 +643,35 @@ def test_arange_with_dynamic_shape():
         result = ex.evaluate()(data)
         tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
 
+def verify_any_strided_slice(data_shape, begin_shape, end_shape,
+                             strides_shape, data_np_shape):
+    mod = relay.Module()
+    data = relay.var('data', shape=data_shape, dtype='float32')
+    begin = relay.var('begin', shape=begin_shape, dtype="int32")
+    end = relay.var('end', shape=end_shape, dtype="int32")
+    strides = relay.var('strides', shape=strides_shape, dtype="int32")
+    y = relay.strided_slice(data, begin, end, strides)
+    mod["main"] = relay.Function([data, begin, end, strides], y)
+
+    # Generate random numpy input data
+    data_np = np.random.uniform(size=data_np_shape).astype('float32')
+    begin_np = np.random.randint(2, size=begin_shape, dtype="int32")
+    end_np = np.random.randint(5, 15, size=end_shape, dtype="int32")
+    strides_np = np.random.randint(1, 3, size=strides_shape, dtype="int32")
+
+    ref_res = topi.testing.strided_slice_python(data_np, begin_np, end_np, strides_np)
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, begin_np, end_np, strides_np)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+
+def test_any_strided_slice():
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
+    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
+
+
 def test_recursive_concat():
     """
     fn @concat_loop(%i: int32, %st: (any, 1)) -> (any, 1) {
@@ -796,7 +826,9 @@ if __name__ == "__main__":
     test_any_softmax()
     test_any_topk()
     test_fused_ops()
+    test_any_argwhere()
     test_arange_with_dynamic_shape()
+    test_any_strided_slice()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()
     test_tuple_get_item()

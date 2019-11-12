@@ -102,6 +102,18 @@ def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
 
 @script
+def _strided_slice_shape_func(data_shape, begin, end, strides):
+    ndim = len(data_shape.shape)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = int64(ceil_div((int64(end[i]) - int64(begin[i])), int64(strides[i])))
+    return out
+
+@_reg.register_shape_func("strided_slice", True)
+def strided_slice_shape_func(attrs, inputs, _):
+    return [_strided_slice_shape_func(*inputs)]
+
+@script
 def _concatenate_shape_func(inputs, axis):
     ndim = inputs[0].shape[0]
     out = output_tensor((ndim,), "int64")

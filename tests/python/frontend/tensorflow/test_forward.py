@@ -1887,6 +1887,30 @@ def test_forward_crop_and_resize():
 
 
 #######################################################################
+# Non Max Suppression
+# -------------------
+def _test_forward_nms_v3(bx_shape, score_shape, iou_threshold, score_threshold, out_size, dtype="float32"):
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    tf.image.non_max_suppression(boxes=in_data_1, scores=in_data_2,
+                                 max_output_size=out_size, iou_threshold=iou_threshold,
+                                 score_threshold=score_threshold, name="nms")
+    compare_tf_with_tvm([boxes, scores], ['in_data_1:0', 'in_data_2:0'],
+                        'nms/NonMaxSuppressionV3:0', mode='vm')
+    compare_tf_with_tvm([boxes, scores], ['in_data_1:0', 'in_data_2:0'],
+                        'nms/NonMaxSuppressionV3:0', mode='debug')
+
+def test_forward_nms_v3():
+    """ NonMaxSuppressionV3 """
+    _test_forward_nms_v3((5, 4), (5,), 0.7, 0.5, 5)
+    _test_forward_nms_v3((20, 4), (20,), 0.5, 0.6, 10)
+    _test_forward_nms_v3((1000, 4), (1000,), 0.3, 0.7, 1000)
+
+
+#######################################################################
 # LSTM
 # ----
 
@@ -3231,6 +3255,7 @@ if __name__ == '__main__':
     test_forward_truncatemod()
     test_forward_one_hot()
     test_forward_atan2()
+    test_forward_nms_v3()
 
     # Activations
     test_forward_sigmoid()

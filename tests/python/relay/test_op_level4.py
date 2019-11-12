@@ -297,15 +297,44 @@ def test_mean_var_std():
 
 def test_strided_slice():
     def verify(dshape, begin, end, strides, output, test_ref=True):
+        dtype = "int32"
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.strided_slice(x, begin=begin, end=end, strides=strides)
+        ndim = len(dshape)
+        begin = begin if begin else [0] * ndim
+        end = end if end else list(dshape)
+        strides = strides if strides else [1] * ndim
+        for i in range(ndim):
+            if len(begin) <= i:
+                begin.append(0)
+            if len(end) <= i:
+                end.append(dshape[i])
+            if len(strides) <= i:
+                strides.append(1)
+            if not begin[i]:
+                begin[i] = 0
+            if not end[i]:
+                end[i] = dshape[i]
+            if not strides[i]:
+                strides[i] = 1
+
+        begin_expr = relay.const(begin, dtype=dtype)
+        end_expr = relay.const(end, dtype=dtype)
+        strides_expr = relay.const(strides, dtype=dtype)
+
+        z = relay.strided_slice(x,
+                                begin=begin_expr,
+                                end=end_expr,
+                                strides=strides_expr)
         func = relay.Function([x], z)
+
         func = run_infer_type(func)
         text = func.astext()
         assert "begin=" in text
         assert "end=" in text
+
         if output:
             assert func.body.checked_type == relay.ty.TensorType(output, "float32")
+
         if not test_ref:
             return
         x_data = np.random.uniform(size=dshape).astype("float32")
@@ -316,18 +345,18 @@ def test_strided_slice():
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
-    verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
+    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3], [1, 1, 1, 1], (1, 120, 120, 3), dtype="int64")
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
-    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
-    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
-
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
 
 def test_strided_set():
     def verify(dshape, begin, end, strides, vshape, test_ref=True):
@@ -379,3 +408,4 @@ if __name__ == "__main__":
     test_where()
     test_reduce_functions()
     test_mean_var_std()
+

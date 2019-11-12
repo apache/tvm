@@ -120,13 +120,14 @@ def test_get_valid_counts():
     verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)
 
 
-def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, iou_threshold,
-                               force_suppress, top_k, coord_start, score_index, id_index):
+def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result,
+                               iou_threshold, force_suppress, top_k, coord_start, score_index, id_index):
     dshape = np_data.shape
     batch, num_anchors, _ = dshape
     indices_dshape = (batch, num_anchors)
     data = te.placeholder(dshape, name="data")
     valid_count = te.placeholder((batch,), dtype="int32", name="valid_count")
+    indices = te.placeholder((batch, num_anchors), dtype="int32", name="indices")
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -136,10 +137,10 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = topi.testing.dispatch(device, _nms_implement)
-            out = fcompute(data, valid_count, -1, iou_threshold, force_suppress, top_k,
+            out = fcompute(data, valid_count, indices, -1, iou_threshold, force_suppress, top_k,
                            coord_start=coord_start, score_index=score_index, id_index=id_index,
                            return_indices=False)
-            indices_out = fcompute(data, valid_count, -1, iou_threshold, force_suppress, top_k,
+            indices_out = fcompute(data, valid_count, indices, -1, iou_threshold, force_suppress, top_k,
                                    coord_start=coord_start, score_index=score_index, id_index=id_index)
             s = fschedule(out)
             indices_s = fschedule(indices_out)
@@ -153,7 +154,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
         tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        f = tvm.build(indices_s, [data, valid_count, indices_out], device)
+        f = tvm.build(indices_s, [data, valid_count, indices_out[0]], device)
         f(tvm_data, tvm_valid_count, tvm_indices_out)
         tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
@@ -171,7 +172,7 @@ def test_non_max_suppression():
                            [-1, -1, -1, -1, -1, -1]]])
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
 
-    verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, 0.7, True, 2, 2, 1, 0)
+    verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, 0.6, 0.7, True, 2, 2, 1, 0)
 
     np_data = np.array([[[0.8, 1, 20, 25, 45], [0.7, 30, 60, 50, 80],
                          [0.4, 4, 21, 19, 40], [0.9, 35, 61, 52, 79],
@@ -181,7 +182,7 @@ def test_non_max_suppression():
                            [-1, -1, -1, -1, -1], [-1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1]]])
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
-    verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, 0.7, False, 2, 1, 0, -1)
+    verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, 0.6, 0.7, False, 2, 1, 0, -1)
 
 
 
@@ -459,9 +460,9 @@ def test_proposal():
 
 if __name__ == "__main__":
     test_get_valid_counts()
-    test_non_max_suppression()
     test_multibox_prior()
     test_multibox_detection()
     test_roi_align()
     test_roi_pool()
     test_proposal()
+    test_non_max_suppression()

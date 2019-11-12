@@ -1095,9 +1095,12 @@ bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
   }
 }
 
-inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
-                                const te::Tensor& step, tvm::DataType dtype,
-                                std::string name = "tensor", std::string tag = topi::kInjective) {
+inline te::Tensor DynamicArange(const te::Tensor& start,
+                                 const te::Tensor& stop,
+                                 const te::Tensor& step,
+                                 tvm::DataType dtype,
+                                 std::string name = "T_arange_dynamic",
+                                 std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
   return te::compute(
       {num_elem},
@@ -1110,6 +1113,7 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
 Array<te::Tensor> ArangeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   const ArangeAttrs* param = attrs.as<ArangeAttrs>();
+  CHECK(param != nullptr);
   te::Tensor start = inputs[0];
   te::Tensor stop = inputs[1];
   te::Tensor step = inputs[2];
@@ -1671,93 +1675,101 @@ Array<Integer> GetIntArray(Array<IndexExpr> arr) {
 
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
-bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
 
+bool StridedSliceRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 5);
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
   auto dshape = data->shape;
   auto num_axis = dshape.size();
 
-  std::vector<int64_t> stride_vec;
-  for (Integer i : param->strides) {
-    CHECK(i.defined());
-    stride_vec.push_back(i->value);
-  }
-  for (size_t i = stride_vec.size(); i < num_axis; ++i) {
-    stride_vec.push_back(1);
-  }
-  const int64_t max_range = std::numeric_limits<int64_t>::max();
-
-  std::vector<int64_t> begin_vec;
-  for (size_t i = 0; i < param->begin.size(); ++i) {
-    if (!param->begin[i].defined()) {
-      // value=None
+  // calculate output shape
+  std::vector<IndexExpr> oshape(num_axis);
+  const ConstantNode *cbegin, *cend, *cstrides;
+  if ((cbegin = param->begin.as<ConstantNode>()) &&
+      (cend = param->end.as<ConstantNode>()) &&
+      (cstrides = param->strides.as<ConstantNode>())) {
+    std::vector<int64_t> stride_vec;
+    int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
+    for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+      stride_vec.push_back(strides_val[i]);
+    }
+    for (size_t i = stride_vec.size(); i < num_axis; ++i) {
+      stride_vec.push_back(1);
+    }
+    const int64_t max_range = std::numeric_limits<int64_t>::max();
+    std::vector<int64_t> begin_vec;
+    int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
+    for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+      begin_vec.push_back(begin_val[i]);
+    }
+    for (size_t i = begin_vec.size(); i < num_axis; ++i) {
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
-    } else {
-      begin_vec.push_back(param->begin[i]->value);
     }
-  }
-  for (size_t i = begin_vec.size(); i < num_axis; ++i) {
-    begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
-  }
-
-  std::vector<int64_t> end_vec;
-  for (size_t i = 0; i < param->end.size(); ++i) {
-    // allow end to be None
-    if (!param->end[i].defined()) {
+    std::vector<int64_t> end_vec;
+    int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
+    for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+      end_vec.push_back(end_val[i]);
+    }
+    for (size_t i = end_vec.size(); i < num_axis; ++i) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-    } else {
-      end_vec.push_back(param->end[i]->value);
+    }
+
+    for (size_t i = 0; i < num_axis; ++i) {
+      int64_t stride_v = stride_vec[i];
+      int64_t begin_v = begin_vec[i];
+      int64_t end_v = end_vec[i];
+
+      if ((stride_v == 1 &&
+           begin_v == 0 &&
+           end_v == max_range) ||
+          (stride_v == -1 &&
+           begin_v == max_range &&
+           end_v == 0)) {
+        // Quick path, do not slice this dimension.
+        oshape[i] = dshape[i];
+        continue;
+      }
+      // Normal path, require the shape to be concrete integer.
+      // Require concrete integer as symbolic inference of min/max
+      // can get complicated and not very helpful.
+      const int64_t* p_dim_size = tir::as_const_int(dshape[i]);
+      CHECK(p_dim_size)
+          << "strided_slice requires sliced dimension to be concrete int";
+      int64_t dim_size = p_dim_size[0];
+      begin_v = (begin_v < 0) ? dim_size + begin_v : begin_v;
+      end_v = (end_v < 0) ? dim_size + end_v : end_v;
+
+      int64_t slice_range, step;
+      if (stride_v < 0) {
+        if (end_v < -1) end_v = -1;
+        CHECK_LT(end_v, begin_v)
+            << "strided_slice get empty slice at axis " << i;
+        begin_v = std::min(dim_size - 1, begin_v);
+        slice_range = begin_v - end_v;
+        step = -stride_v;
+      } else {
+        if (begin_v < 0) begin_v = 0;
+        CHECK_GE(stride_v, 0);
+        CHECK_LT(begin_v, end_v)
+            << "strided_slice get empty slice at axis " << i;
+        end_v = std::min(dim_size, end_v);
+        slice_range = end_v - begin_v;
+        step = stride_v;
+      }
+      oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
+    }
+  } else {
+    for (size_t i = 0; i < num_axis; ++i) {
+      oshape[i] = Any::make();
     }
   }
-  for (size_t i = end_vec.size(); i < num_axis; ++i) {
-    end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-  }
-
-  std::vector<IndexExpr> oshape(dshape.size());
-  for (size_t i = 0; i < num_axis; ++i) {
-    int64_t stride_v = stride_vec[i];
-    int64_t begin_v = begin_vec[i];
-    int64_t end_v = end_vec[i];
-
-    if ((stride_v == 1 && begin_v == 0 && end_v == max_range) ||
-        (stride_v == -1 && begin_v == max_range && end_v == 0)) {
-      // Quick path, do not slice this dimension.
-      oshape[i] = dshape[i];
-      continue;
-    }
-    // Normal path, require the shape to be concrete integer.
-    // Require concrete integer as symbolic inference of min/max
-    // can get complicated and not very helpful.
-    const int64_t* p_dim_size = tir::as_const_int(dshape[i]);
-    CHECK(p_dim_size) << "strided_slice requires sliced dimension to be concrete int";
-    int64_t dim_size = p_dim_size[0];
-    begin_v = (begin_v < 0) ? dim_size + begin_v : begin_v;
-    end_v = (end_v < 0) ? dim_size + end_v : end_v;
-
-    int64_t slice_range, step;
-    if (stride_v < 0) {
-      if (end_v < -1) end_v = -1;
-      CHECK_LT(end_v, begin_v) << "strided_slice get empty slice at axis " << i;
-      begin_v = std::min(dim_size - 1, begin_v);
-      slice_range = begin_v - end_v;
-      step = -stride_v;
-    } else {
-      if (begin_v < 0) begin_v = 0;
-      CHECK_GE(stride_v, 0);
-      CHECK_LT(begin_v, end_v) << "strided_slice get empty slice at axis " << i;
-      end_v = std::min(dim_size, end_v);
-      slice_range = end_v - begin_v;
-      step = stride_v;
-    }
-    oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
-  }
-  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  reporter->Assign(types[4], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -1783,11 +1795,31 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     auto shape = old_in_shapes[0];
 
     // NOTE: Discard "const" qualifier here.
-    auto* params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
+    auto *params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
+    CHECK(params != nullptr);
+    Array<Integer> begin, end, strides;
+    const ConstantNode *cbegin, *cend, *cstrides;
+    if ((cbegin = params->begin.as<ConstantNode>()) &&
+        (cend = params->end.as<ConstantNode>()) &&
+        (cstrides = params->strides.as<ConstantNode>())) {
+
+      int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
+      for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+        strides.push_back(strides_val[i]);
+      }
+      int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
+      for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+        begin.push_back(begin_val[i]);
+      }
+      int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
+      for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+        end.push_back(end_val[i]);
+      }
+    }
 
     Array<Integer> new_begin, new_end;
 
-    for (size_t i = 0; i < params->begin.size(); i++) {
+    for (size_t i = 0; i < begin.size(); i++) {
       const LayoutAxis& axis = layout[i];
       if (!axis.IsPrimal()) {
         // original layout that contains splitted axes is not supported
@@ -1795,53 +1827,104 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       }
       auto factor = new_layout.FactorOf(axis);
       if (factor == -1) {
-        new_begin.push_back(params->begin[i]);
-        new_end.push_back(params->end[i]);
+        new_begin.push_back(begin[i]);
+        new_end.push_back(end[i]);
       } else {
-        if (params->strides.defined() && i < params->strides.size()) {
-          auto stride = params->strides[i];
+        if (strides.defined() && i < strides.size()) {
+          auto stride = strides[i];
           // arbitrary stride is not supported
           if (stride.defined() && stride->value != 1) {
             return {{Layout::Undef()}, {Layout::Undef()}};
           }
         }
-        int64_t begin = params->begin[i].defined() ? params->begin[i]->value : 0;
-        int64_t end =
-            params->end[i].defined() ? params->end[i]->value : shape[i].as<IntImmNode>()->value;
-        if (begin % factor || end % factor) {
+        int64_t bg = begin[i].defined() ? begin[i]->value : 0;
+        int64_t ed = end[i].defined() ? end[i]->value :
+            shape[i].as<IntImmNode>()->value;
+        if (bg % factor || ed % factor) {
           // transform to original layout
           return {{Layout::Undef()}, {Layout::Undef()}};
         }
-        new_begin.push_back(tvm::Integer(begin / factor));
-        new_end.push_back(tvm::Integer(end / factor));
+        new_begin.push_back(tvm::Integer(bg / factor));
+        new_end.push_back(tvm::Integer(ed / factor));
       }
     }
     layout = new_layout;
-    params->begin = new_begin;
-    params->end = new_end;
   }
   return {{layout}, {layout}};
 }
 
-// Positional relay function to create StridedSlice operator used by frontend FFI.
-Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides) {
-  auto attrs = make_object<StridedSliceAttrs>();
-  attrs->begin = std::move(begin);
-  attrs->end = std::move(end);
-  attrs->strides = std::move(strides);
-  static const Op& op = Op::Get("strided_slice");
-  return Call(op, {data}, Attrs(attrs), {});
+inline Tensor DynamicStridedSlice(const tvm::Tensor& input,
+                                  const tvm::Tensor& begin,
+                                  const tvm::Tensor& end,
+                                  const tvm::Tensor& strides,
+                                  std::string name = "T_strided_slice_dynamic",
+                                  std::string tag = topi::kInjective) {
+  size_t src_tensor_dim = static_cast<size_t>(input->shape.size());
+  Array<tvm::Expr> out_shape;
+  for(size_t i = 0; i < src_tensor_dim; ++i){
+    out_shape.push_back(tvm::Var("dim"));
+  }
+  return tvm::compute(out_shape, [&](const Array<tvm::Var>& indices) {
+      Array<tvm::Expr> real_indices;
+      for (int32_t i = 0; i < src_tensor_dim; ++i) {
+        real_indices.push_back(indices[i] * strides(i) + begin(i));
+      }
+      return input(real_indices);
+    }, name, tag);
 }
 
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-  return Array<te::Tensor>{
-      topi::strided_slice(inputs[0], param->begin, param->end, param->strides)};
+  const ConstantNode *cbegin, *cend, *cstrides;
+  if ((cbegin = param->begin.as<ConstantNode>()) &&
+      (cend = param->end.as<ConstantNode>()) &&
+      (cstrides = param->strides.as<ConstantNode>())) {
+    Array<Integer> begin, end, strides;
+    int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
+    for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+      strides.push_back(strides_val[i]);
+    }
+    int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
+    for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+      begin.push_back(begin_val[i]);
+    }
+    int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
+    for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+      end.push_back(end_val[i]);
+    }
+    return Array<te::Tensor>{
+      topi::strided_slice(inputs[0], begin, end, strides)
+    };
+  } else {
+    Tensor data = inputs[0];
+    Tensor begin = inputs[1];
+    Tensor end = inputs[2];
+    Tensor strides = inputs[3];
+    // Dynamic computation
+    return Array<Tensor>{
+      DynamicStridedSlice(data, begin, end, strides)
+    };
+  }
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.strided_slice").set_body_typed(MakeStridedSlice);
+// Positional relay function to create StridedSlice operator used by frontend FFI.
+Expr MakeStridedSlice(Expr data,
+                      Expr begin,
+                      Expr end,
+                      Expr strides) {
+  auto attrs = make_object<StridedSliceAttrs>();
+  attrs->begin = begin;
+  attrs->end = end;
+  attrs->strides = strides;
+  static const Op& op = Op::Get("strided_slice");
+  return Call(op, {data, begin, end, strides}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.strided_slice")
+.set_body_typed(MakeStridedSlice);
+
 
 RELAY_REGISTER_OP("strided_slice")
     .describe(R"code(Strided slice of an array.
@@ -1867,14 +1950,19 @@ Examples::
                                                 [[ 5.,  6.],
                                                  [ 7.,  8.]]]
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_support_level(4)
-    .set_attrs_type<StridedSliceAttrs>()
-    .add_type_rel("StridedSlice", StridedSliceRel)
-    .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
+.set_num_inputs(4)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
+.add_argument("end", "Tensor", "Indices indicating end of the slice.")
+.add_argument("strides", "Tensor", "The stride values.")
+.set_support_level(4)
+.set_attrs_type<StridedSliceAttrs>()
+.add_type_rel("StridedSlice", StridedSliceRel)
+.set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
+// TODO(@icemelon, @yongwww): Change to kOpaque because FuseOps doesn't consider dynamic shape
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
 // strided_set
 bool StridedSetRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
