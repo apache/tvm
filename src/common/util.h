@@ -35,8 +35,8 @@
 #include <sstream>
 #include <algorithm>
 #include <array>
-#include <memory>
 #include <cctype>
+#include <memory>
 
 namespace tvm {
 namespace common {
