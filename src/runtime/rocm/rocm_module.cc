@@ -122,16 +122,9 @@ class ROCMModuleNode : public runtime::ModuleNode {
     hipDeviceptr_t global = nullptr;
     size_t nbytes = 0;
 
-    hipError_t result = hipSuccess;
-    // ROCM doesn't support hipModuleGetGlobal yet.
-    // hipError_t result = hipModuleGetGlobal(&global, &nbytes,
-    //                                    module_[device_id], global_name.c_str());
+    ROCM_DRIVER_CALL(hipModuleGetGlobal(&global, &nbytes,
+                                        module_[device_id], global_name.c_str()));
     CHECK_EQ(nbytes, expect_nbytes);
-    if (result != hipSuccess) {
-      LOG(FATAL)
-          << "ROCMError: hipModuleGetGlobal " << global_name
-          << " failed with error: " << hipGetErrorString(result);
-    }
     return global;
   }
 
