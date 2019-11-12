@@ -22,7 +22,7 @@ import topi
 from topi.nn.util import get_pad_tuple
 
 
-def conv2d_transpose_nchw_python(a_np, w_np, stride, padding):
+def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding=(0, 0)):
     """Transposed convolution operator in NCHW layout.
 
     Parameters
@@ -50,21 +50,22 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+    opad_h, opad_w = output_padding
     # dilate stage
     dilated_a_np = topi.testing.dilate_python(a_np, [1, 1, stride_h, stride_w])
     # padding stage
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
+    bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    bpad_right = filter_w - 1 - fpad_right + opad_w
     padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2]+bpad_top+bpad_bottom, \
         dilated_a_np.shape[3]+bpad_left+bpad_right))
     padded_a_np[:, :, bpad_top:dilated_a_np.shape[2]+bpad_top, \
         bpad_left:dilated_a_np.shape[3]+bpad_left] = dilated_a_np
     # convolution stage
-    out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
-    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
+    out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h + opad_h
+    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad_w
     b_np = np.zeros((batch, out_c, out_h, out_w))
     for n in range(batch):
         for f in range(out_c):
