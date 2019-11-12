@@ -78,7 +78,7 @@ class MicroWrappedFunc {
 
  private:
   /*! \brief reference to the session for this function (to keep the session alive) */
-  std::shared_ptr<MicroSession> session_;
+  ObjectPtr<MicroSession> session_;
   /*! \brief offset of the function to be called */
   DevPtr func_ptr_;
 };
@@ -86,7 +86,6 @@ class MicroWrappedFunc {
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
-  std::cout << "[MicroModuleNode::GetFunction(name=" << name << ")]" << std::endl;
   DevPtr func_ptr;
   if (name == tvm::runtime::symbol::tvm_module_main) {
     if (symbol_map_.HasSymbol(tvm::runtime::symbol::tvm_module_main)) {
