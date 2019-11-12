@@ -1222,15 +1222,13 @@ def _topk():
 def _floordiv():
     def _impl(inputs, attr, params):
         assert len(inputs) == 2
-        div = AttrCvt('divide')(inputs, attr)
-        return get_relay_op('floor')(div)
+        return AttrCvt('floor_divide')(inputs, attr)
     return _impl
 
 def _floormod():
     def _impl(inputs, attr, params):
         assert len(inputs) == 2
-        floor_div = get_relay_op('floor')(AttrCvt('divide')(inputs, attr))
-        return inputs[0] - floor_div * inputs[1]
+        return AttrCvt('floor_mod')(inputs, attr)
     return _impl
 
 def _logical(name):
