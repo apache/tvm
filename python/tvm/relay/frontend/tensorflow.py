@@ -1075,6 +1075,7 @@ def _rank():
 
     return _impl
 
+
 def _range():
     def _impl(inputs, attr, params):
         start = _get_param(params, inputs[0])[0]
@@ -1082,7 +1083,7 @@ def _range():
             if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
             else params.pop('Rank').asnumpy()[0]
         delta = _get_param(params, inputs[2])[0]
-        dtype = attr['dtype'].name if 'dtype' in attr else "int32"
+        dtype = attr['Tidx'].name if 'Tidx' in attr else str(start.dtype)
         return AttrCvt(
             op_name="arange",
             ignores=['Tidx'],
@@ -1091,6 +1092,7 @@ def _range():
                     'step': _expr.const(delta),
                     'dtype': dtype})([], attr)
     return _impl
+
 
 def _elu():
     def _impl(inputs, attr, params):
@@ -1202,7 +1204,7 @@ def _topk():
             raise tvm.error.OpAttributeInvalid(
                 'Attribute k must be positive in operator TopKV2')
         if attr['sorted'] is False:
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Attribute sorted=False is not supported in operator TopKV2')
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],

@@ -1638,6 +1638,11 @@ def test_forward_range():
     tf.range(1, 18, 3, name="range")
     compare_tf_with_tvm([], [], 'range:0')
 
+    """test type assignment for operator Range"""
+    tf.reset_default_graph()
+    tf.range(1, 256 + 1, 1, dtype=tf.float32)
+    compare_tf_with_tvm([], [], 'range:0')
+
 #######################################################################
 # Pad
 # ---
