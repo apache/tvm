@@ -33,7 +33,7 @@ def _schedule_reduce(sch, op, is_idx_reduce=False):
     const_shape = True
     out_shape = get_const_tuple(out.shape)
     for d in out_shape:
-        if isinstance(d, tvm.expr.Var):
+        if not isinstance(d, int):
             const_shape = False
             break
 
@@ -109,8 +109,10 @@ def schedule_reduce(outs):
             for tensor in input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
+        elif isinstance(operator, tvm.tensor.PlaceholderOp):
+            pass
         else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+            raise RuntimeError("Unsupported operator: %s (tag: %s)" % (operator, operator.tag))
 
         scheduled_ops.append(operator)
 
