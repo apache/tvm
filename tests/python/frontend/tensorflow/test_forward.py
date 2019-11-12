@@ -763,6 +763,26 @@ def test_tensor_array_size():
     for dtype in tf_dtypes.keys():
         run(dtype)
 
+def test_tensor_array_unstack():
+    def run(dtype_str, input_shape):
+        with tf.Graph().as_default():
+            dtype = tf_dtypes[dtype_str]
+            t = tf.constant(np.random.choice([0, 1, 2, 3],
+                                             size=input_shape).astype(dtype.name))
+            ta1 = tf.TensorArray(dtype=dtype, infer_shape=False, size=input_shape[0])
+            ta2 = ta1.unstack(t)
+            out0 = ta2.size()
+            out1 = ta2.read(0)
+            compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
+            compare_tf_with_tvm([], [], 'TensorArrayReadV3:0', mode='debug')
+    for dtype in tf_dtypes.keys():
+        run(dtype, (5,))
+        run(dtype, (5, 5))
+        run(dtype, (5, 5, 5))
+        run(dtype, (5, 5, 5, 5))
+        run(dtype, (5, 5, 5, 5, 5))
+        run(dtype, (5, 5, 5, 5, 5, 5))
+
 #######################################################################
 # ConcatV2
 # --------
