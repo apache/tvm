@@ -27,7 +27,8 @@ from ..util import get_const_tuple, traverse_inline
 
 
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
-def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_padding=(0, 0)):
+def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
+                          output_padding=(0, 0)):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
