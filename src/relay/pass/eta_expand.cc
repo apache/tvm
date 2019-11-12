@@ -20,7 +20,7 @@
 /*!
  * \file eta_expand.cc
  *
- * \brief Add abstraction over a constructor or global variable bound to a function.
+ * \brief Add an abstraction over constructors and/or global variables bound to a function.
  *
  */
 #include <tvm/relay/transform.h>
@@ -57,14 +57,11 @@ class TypeVarReplacer : public TypeMutator {
  */
 class EtaExpander : public ExprMutator {
  public:
-  explicit EtaExpander(
-    const Module& mod,
-    bool expand_constructor,
-    bool expand_global_var)
-      : mod_(mod)
-      , type_var_replacer_(TypeVarReplacer())
-      , expand_constructor_(expand_constructor)
-      , expand_global_var_(expand_global_var) {
+  explicit EtaExpander(const Module& mod, bool expand_constructor, bool expand_global_var)
+      : mod_(mod),
+        type_var_replacer_(TypeVarReplacer()),
+        expand_constructor_(expand_constructor),
+        expand_global_var_(expand_global_var) {
     CHECK(expand_constructor || expand_global_var)
       << "must expand at least one language feature";
   }
