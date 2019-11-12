@@ -475,11 +475,8 @@ def test_conv2d_transpose_nchw_run():
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-    c_np = topi.testing.conv2d_transpose_nchw_python(
-        data, kernel, 2, 1)
-    d_np = np.zeros(shape=oshape)
-    d_np[:,:,0:c_np.shape[2],0:c_np.shape[3]] = c_np
-    ref_res = d_np
+    ref_res = topi.testing.conv2d_transpose_nchw_python(
+        data, kernel, 2, 1, (2, 2))
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
