@@ -359,6 +359,9 @@ def _tracker_server(listen_sock, stop_key):
     if os.name != 'nt':
         handler.run()
     else:
+        # on Windows, this function is the target of a
+        # ProcessPool, so we need the function to exit.
+        # therefor we use a thread to start up the handler
         def run():
             handler.run()
 
@@ -416,8 +419,10 @@ class Tracker(object):
         sock.listen(1)
 
         if os.name == 'nt':
+            # We use the process pool because there it is more likely that
+            # the pool process will die with this parent
             self.proc = ProcessPool(1)
-            self.proc.apply_async(_tracker_server, args=(sock, self.stop_key)).get()
+            self.proc.apply(_tracker_server, args=(sock, self.stop_key))
         else:
             self.proc = multiprocessing.Process(
                 target=_tracker_server, args=(sock, self.stop_key))

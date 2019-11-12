@@ -17,7 +17,7 @@
 # pylint: disable=redefined-outer-name, invalid-name
 """Tool to start RPC tracker"""
 from __future__ import absolute_import
-
+import os
 import logging
 import argparse
 import multiprocessing
@@ -28,8 +28,11 @@ def main(args):
     """Main funciton"""
     tracker = Tracker(args.host, port=args.port, port_end=args.port_end,
                       silent=args.silent)
-    tracker.proc.join()
-
+    if os.name =='nt':
+        while True:
+            input()
+    else:
+        tracker.proc.join()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
