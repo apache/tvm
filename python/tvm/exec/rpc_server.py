@@ -24,12 +24,17 @@ import multiprocessing
 import sys
 import logging
 import tvm
-from .. import rpc
 from tvm import micro
+from .. import rpc
 
 def main(args):
-    """Main function"""
+    """Main function
 
+    Parameters
+    ----------
+    args : argparse.Namespace
+        parsed args from command-line invocation
+    """
     if args.tracker:
         url, port = args.tracker.rsplit(":", 1)
         port = int(port)
@@ -55,6 +60,13 @@ def main(args):
 
 
 def init_utvm(args):
+    """MicroTVM-specific RPC initialization
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        parsed args from command-line invocation
+    """
     if args.utvm_dev_config and args.utvm_dev_id:
         raise RuntimeError('only one of --utvm-dev-config and --utvm-dev-id allowed')
 
@@ -63,7 +75,8 @@ def init_utvm(args):
             dev_config = json.load(dev_conf_file)
     else:
         dev_config_args = ast.literal_eval(args.utvm_dev_config_args)
-        dev_config = micro.device.get_device_funcs(args.utvm_dev_id)['default_config'](*dev_config_args)
+        default_config_func = micro.device.get_device_funcs(args.utvm_dev_id)['default_config']
+        dev_config = default_config_func(*dev_config_args)
 
     if args.utvm_dev_config or args.utvm_dev_id:
         # add MicroTVM overrides
