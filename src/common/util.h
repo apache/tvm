@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <cctype>
 
 namespace tvm {
 namespace common {
