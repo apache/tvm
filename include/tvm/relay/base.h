@@ -47,6 +47,12 @@ namespace relay {
   (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
 }
 
+#define RELAY_DEBUG_INTERP(...) \
+{ auto fdebug = runtime::Registry::Get("relay.debug_interp"); \
+  CHECK(fdebug) << "Could not find Relay Python debugger function."; \
+  (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
+}
+
 /*!
  * \brief We always used NodeRef for referencing nodes.
  *

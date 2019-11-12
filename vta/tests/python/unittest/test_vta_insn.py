@@ -89,10 +89,10 @@ def test_padded_load():
     """Test padded load."""
     def _run(env, remote):
         # declare
-        n = 21
-        m = 20
-        pad_before = [0, 1, 0, 0]
-        pad_after = [1, 3, 0, 0]
+        n = 3
+        m = 5
+        pad_before = [2, 1, 0, 0]
+        pad_after = [1, 2, 0, 0]
         x = tvm.placeholder(
             (n, m, env.BATCH, env.BLOCK_OUT),
             name="x",
@@ -126,7 +126,7 @@ def test_padded_load():
         f = remote.load_module("padded_load.o")
         # verify
         ctx = remote.ext_dev(0)
-        x_np = np.random.randint(1, 2, size=(
+        x_np = np.random.randint(-10, 10, size=(
             n, m, env.BATCH, env.BLOCK_OUT)).astype(x.dtype)
         y_np = np.zeros((n + pad_before[0] + pad_after[0],
                          m + pad_before[1] + pad_after[1],

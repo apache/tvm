@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file attr_functor.h
  * \brief A way to define arbitrary function signature
  *        with dispatch on common attributes.
@@ -31,6 +30,7 @@
 #ifndef TVM_LANG_ATTR_FUNCTOR_H_
 #define TVM_LANG_ATTR_FUNCTOR_H_
 
+#include <tvm/node/functor.h>
 #include <utility>
 
 namespace tvm {
@@ -54,7 +54,7 @@ template <typename R, typename... Args>
 class AttrFunctor<R(const ObjectRef& n, Args...)> {
  private:
   using TSelf = AttrFunctor<R(const ObjectRef& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */

@@ -31,7 +31,7 @@ the best knob values for all required operators. When the TVM compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`Mobile GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#mobile-gpu>`_
+`Mobile GPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#mobile-gpu>`_
 to see the results.
 """
 
@@ -150,7 +150,7 @@ def get_network(name, batch_size):
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
 # * For Android:
-#   Follow this `readme page <https://github.com/dmlc/tvm/tree/master/apps/android_rpc>`_ to
+#   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
 #   install TVM RPC APK on the android device. Make sure you can pass the android RPC test.
 #   Then you have already registred your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.

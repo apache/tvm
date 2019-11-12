@@ -3,11 +3,11 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>ml.dmlc.tvm</groupId>
+  <groupId>org.apache.tvm</groupId>
   <artifactId>tvm4j-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM4J Package - Parent</name>
-  <url>https://github.com/dmlc/tvm/tree/master/jvm</url>
+  <url>https://github.com/apache/incubator-tvm/tree/master/jvm</url>
   <description>TVM4J Package</description>
   <organization>
     <name>Distributed (Deep) Machine Learning Community</name>
@@ -22,7 +22,7 @@
   <scm>
     <connection>scm:git:git@github.com:dmlc/tvm.git</connection>
     <developerConnection>scm:git:git@github.com:dmlc/tvm.git</developerConnection>
-    <url>https://github.com/dmlc/tvm</url>
+    <url>https://github.com/apache/incubator-tvm</url>
   </scm>
 
   <properties>

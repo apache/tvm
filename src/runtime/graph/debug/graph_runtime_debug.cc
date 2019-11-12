@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file graph_runtime_debug.cc
  */
 #include <tvm/runtime/packed_func.h>
@@ -28,6 +27,7 @@
 #include <chrono>
 #include <sstream>
 #include "../graph_runtime.h"
+#include "../../object_internal.h"
 
 namespace tvm {
 namespace runtime {
@@ -121,7 +121,7 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \param sptr_to_self Packed function pointer.
    */
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self);
+                         const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \brief Get the node index given the name of node.
@@ -169,7 +169,7 @@ void DebugGetNodeOutput(int index, DLTensor* data_out) {
  */
 PackedFunc GraphRuntimeDebug::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -207,7 +207,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
 Module GraphRuntimeDebugCreate(const std::string& sym_json,
                                const tvm::runtime::Module& m,
                                const std::vector<TVMContext>& ctxs) {
-  std::shared_ptr<GraphRuntimeDebug> exec = std::make_shared<GraphRuntimeDebug>();
+  auto exec = make_object<GraphRuntimeDebug>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
@@ -222,15 +222,16 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
   });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.remote_create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
+.set_body([](TVMArgs args, TVMRetValue* rv) {
     CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
                                   "graph_runtime.remote_create is "
                                   "at least 4, but it has "
                                << args.num_args;
     void* mhandle = args[1];
+    ModuleNode* mnode = ObjectInternal::GetModuleNode(mhandle);
     const auto& contexts = GetAllContext(args);
     *rv = GraphRuntimeDebugCreate(
-        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
+        args[0], GetRef<Module>(mnode), contexts);
   });
 
 }  // namespace runtime

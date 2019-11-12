@@ -87,6 +87,7 @@ class TaskExtractEnv:
             topi.nn.conv2d_NCHWc: "topi_x86_conv2d_NCHWc",
             topi.nn.conv2d_NCHWc_int8: "topi_x86_conv2d_NCHWc_int8",
             topi.nn.dense: "topi_nn_dense",
+            topi.nn.batch_matmul: "topi_nn_batch_matmul",
             topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
             topi.nn.bitserial_dense: "topi_nn_bitserial_dense",
@@ -103,6 +104,7 @@ class TaskExtractEnv:
             topi.nn.conv2d_NCHWc: [topi.generic.schedule_conv2d_NCHWc],
             topi.nn.conv2d_NCHWc_int8: [topi.generic.schedule_conv2d_NCHWc_int8],
             topi.nn.dense: [topi.generic.schedule_dense],
+            topi.nn.batch_matmul: [topi.generic.schedule_batch_matmul],
             topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
             topi.nn.bitserial_dense: [topi.generic.schedule_bitserial_dense],
@@ -118,6 +120,7 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw:      lambda x: setattr(topi.nn, 'group_conv2d_nchw', x),
             topi.nn.conv2d_transpose_nchw:  lambda x: setattr(topi.nn, 'conv2d_transpose_nchw', x),
             topi.nn.dense:                  lambda x: setattr(topi.nn, 'dense', x),
+            topi.nn.batch_matmul:           lambda x: setattr(topi.nn, 'batch_matmul', x),
             topi.nn.bitserial_conv2d_nchw:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nchw', x),
             topi.nn.bitserial_conv2d_nhwc:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nhwc', x),
             topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
@@ -225,6 +228,15 @@ class TaskExtractEnv:
             if bias is not None:
                 return s, [data, weight, bias, C]
             return s, [data, weight, C]
+
+        @register("topi_nn_batch_matmul")
+        def _topi_nn_batch_matmul(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, B = args
+            C = topi.nn.batch_matmul(A, B)
+            s = topi.generic.schedule_batch_matmul([C])
+            return s, [A, B, C]
 
         @register("topi_nn_bitserial_conv2d_nhwc")
         def _topi_bitserial_conv2d_nhwc(*args, **kwargs):

@@ -298,6 +298,12 @@ class MatMul(OnnxOpConverter):
             # Convert a and b into 3 dimensional tensors.
             a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
             b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
+            # Broadcast b to match batch size of a
+            new_b_shape = list(infer_shape(b))
+            new_a_shape = infer_shape(a)
+            if new_a_shape[0] > new_b_shape[0]:
+                new_b_shape[0] = new_a_shape[0]
+                b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
@@ -987,6 +993,14 @@ class Where(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
+        # x and y can be broadcasted
+        condition_shape = infer_shape(inputs[0])
+        x_shape = infer_shape(inputs[1])
+        y_shape = infer_shape(inputs[2])
+        if len(condition_shape) > len(x_shape):
+            inputs[1] = _op.broadcast_to(inputs[1], condition_shape)
+        if len(condition_shape) > len(y_shape):
+            inputs[2] = _op.broadcast_to(inputs[2], condition_shape)
         return _op.where(inputs[0], inputs[1], inputs[2])
 
 class Or(Elemwise):
@@ -995,6 +1009,7 @@ class Or(Elemwise):
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []

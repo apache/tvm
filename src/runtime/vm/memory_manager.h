@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -106,6 +107,38 @@ class MemoryManager {
  private:
   std::mutex mu_;
   std::unordered_map<TVMContext, std::unique_ptr<Allocator> > allocators_;
+};
+
+/*! \brief An object representing a storage allocation. */
+class StorageObj : public Object {
+ public:
+  /*! \brief The index into the VM function table. */
+  Buffer buffer;
+
+  /*! \brief Allocate an NDArray from a given piece of storage. */
+  NDArray AllocNDArray(size_t offset,
+                       std::vector<int64_t> shape,
+                       DLDataType dtype);
+
+  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
+  static void Deleter(NDArray::Container* ptr);
+
+  ~StorageObj() {
+    auto alloc = MemoryManager::Global()->GetAllocator(buffer.ctx);
+    alloc->Free(buffer);
+  }
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "vm.Storage";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
+};
+
+/*! \brief reference to storage. */
+class Storage : public ObjectRef {
+ public:
+  explicit Storage(Buffer buffer);
+
+  TVM_DEFINE_OBJECT_REF_METHODS_MUT(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace vm

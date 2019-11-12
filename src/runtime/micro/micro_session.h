@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file micro_session.h
  * \brief session to manage multiple micro modules
  *
@@ -66,7 +65,7 @@ class MicroSession : public ModuleNode {
    * \return The corresponding member function.
    */
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+                                 const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
@@ -85,7 +84,7 @@ class MicroSession : public ModuleNode {
    */
   ~MicroSession();
 
-  static std::shared_ptr<MicroSession>& Current();
+  static ObjectPtr<MicroSession>& Current();
 
   /*!
    * \brief creates session by setting up a low-level device and initting allocators for it
@@ -240,7 +239,7 @@ class MicroSession : public ModuleNode {
     * \brief Push a new session context onto the thread-local stack.
     *  The session on top of the stack is used as the current global session.
     */
-  static void EnterWithScope(std::shared_ptr<MicroSession> session);
+  static void EnterWithScope(ObjectPtr<MicroSession> session);
   /*!
     * \brief Pop a session off the thread-local context stack,
     *  restoring the previous session as the current context.
@@ -258,7 +257,7 @@ struct MicroDevSpace {
   /*! \brief data being wrapped */
   void* data;
   /*! \brief shared ptr to session where this data is valid */
-  std::shared_ptr<MicroSession> session;
+  ObjectPtr<MicroSession> session;
 };
 
 }  // namespace runtime

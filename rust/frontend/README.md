@@ -17,7 +17,7 @@
 
 # TVM Runtime Frontend Support
 
-This crate provides an idiomatic Rust API for [TVM](https://github.com/dmlc/tvm) runtime frontend. Currently this requires **Nightly Rust** and tested on `rustc 1.32.0-nightly`
+This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/incubator-tvm) runtime frontend. Currently this requires **Nightly Rust** and tested on `rustc 1.32.0-nightly`
 
 ## What Does This Crate Offer?
 
@@ -128,7 +128,7 @@ from tvm.contrib import cc
 
 def test_add(target_dir):
     if not tvm.module.enabled("cuda"):
-        print(f"skip {__file__} because cuda is not enabled...")
+        print("skip {__file__} because cuda is not enabled...".format(__file__=__file__))
         return
     n = tvm.var("n")
     A = tvm.placeholder((n,), name='A')

@@ -28,6 +28,7 @@
  *  3. Collect the device allocation of each expression.
  */
 
+#include <tvm/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>

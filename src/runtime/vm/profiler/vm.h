@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/vm/profiler/vm.h
  * \brief The Relay debug virtual machine.
  */
@@ -42,7 +41,7 @@ class VirtualMachineDebug : public VirtualMachine {
   VirtualMachineDebug() : VirtualMachine() {}
 
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
                     Index output_size, const std::vector<ObjectRef>& args) final;

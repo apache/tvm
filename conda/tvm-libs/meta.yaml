@@ -43,6 +43,6 @@ requirements:
     - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
 
 about:
-  home: https://github.com/dmlc/tvm
+  home: https://github.com/apache/incubator-tvm
   license: Apache2
   summary: a low level domain specific language for compiling tensor computation pipelines

@@ -117,7 +117,8 @@ QConfig& QConfig::Current() {
 TVM_REGISTER_NODE_TYPE(QConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<QConfigNode>([](const QConfigNode *op, IRPrinter *p) {
+.set_dispatch<QConfigNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* op = static_cast<const QConfigNode*>(ref.get());
   p->stream << "qconfig(";
   p->stream << "nbit_input=" << op->nbit_input << ", ";
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";

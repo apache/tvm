@@ -237,9 +237,9 @@ DEFINE_OP_NO_VISIT_(UIntImm)
 DEFINE_OP_NO_VISIT_(FloatImm)
 DEFINE_OP_NO_VISIT_(StringImm)
 
-#define DISPATCH_TO_VISIT(OP)                       \
-  set_dispatch<OP>([](const OP* op, IRVisitor* v) { \
-      v->Visit_(op);                                \
+#define DISPATCH_TO_VISIT(OP)                                \
+  set_dispatch<OP>([](const ObjectRef& node, IRVisitor* v) { \
+      v->Visit_(static_cast<const OP*>(node.get()));         \
     })
 
 TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)

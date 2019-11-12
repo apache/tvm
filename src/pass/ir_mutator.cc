@@ -118,9 +118,9 @@ inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
 
 // Mutate Stmt
 
-#define DISPATCH_TO_MUTATE_STMT(OP)                                 \
-  set_dispatch<OP>([](const OP* op, const Stmt& s, IRMutator* m) {  \
-      return m->Mutate_(op, s);                                     \
+#define DISPATCH_TO_MUTATE_STMT(OP)                                     \
+  set_dispatch<OP>([](const ObjectRef& node, const Stmt& s, IRMutator* m) { \
+      return m->Mutate_(static_cast<const OP*>(node.get()), s);         \
     })
 
 Stmt IRMutator::Mutate_(const AttrStmt* op, const Stmt& s) {
@@ -344,9 +344,9 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 
 // Mutate Expr
 
-#define DISPATCH_TO_MUTATE_EXPR(OP)                                 \
-  set_dispatch<OP>([](const OP* op, const Expr& e, IRMutator* m) {  \
-      return m->Mutate_(op, e);                                     \
+#define DISPATCH_TO_MUTATE_EXPR(OP)                                         \
+  set_dispatch<OP>([](const ObjectRef& node, const Expr& e, IRMutator* m) { \
+      return m->Mutate_(static_cast<const OP*>(node.get()), e);             \
     })
 
 Expr IRMutator::Mutate_(const Variable *op, const Expr& e) {

@@ -58,7 +58,7 @@ test:
     - python -m pytest -v tests/python/integration
 
 about:
-  home: https://github.com/dmlc/tvm
+  home: https://github.com/apache/incubator-tvm
   license: Apache-2.0
   license_family: Apache
   summary: a low level domain specific language for compiling tensor computation pipelines

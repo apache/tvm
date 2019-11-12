@@ -32,6 +32,30 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
+static void BufferDeleter(NDArray::Container* ptr) {
+  CHECK(ptr->manager_ctx != nullptr);
+  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
+  MemoryManager::Global()->GetAllocator(buffer->ctx)->
+      Free(*(buffer));
+  delete buffer;
+  delete ptr;
+}
+
+void StorageObj::Deleter(NDArray::Container* ptr) {
+  // When invoking AllocNDArray we don't own the underlying allocation
+  // and should not delete the buffer, but instead let it be reclaimed
+  // by the storage object's destructor.
+  //
+  // We did bump the reference count by 1 to keep alive the StorageObj
+  // allocation in case this NDArray is the sole owner.
+  //
+  // We decrement the object allowing for the buffer to release our
+  // reference count from allocation.
+  StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
+  storage->DecRef();
+  delete ptr;
+}
+
 inline void VerifyDataType(DLDataType dtype) {
   CHECK_GE(dtype.lanes, 1);
   if (dtype.code == kDLFloat) {
@@ -50,6 +74,22 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
+NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype) {
+  // TODO(@jroesch): generalize later to non-overlapping allocations.
+  CHECK_EQ(offset, 0u);
+  VerifyDataType(dtype);
+  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, this->buffer.ctx);
+  container->deleter = StorageObj::Deleter;
+  size_t needed_size = GetDataSize(container->dl_tensor);
+  // TODO(@jroesch): generalize later to non-overlapping allocations.
+  CHECK(needed_size == this->buffer.size)
+    << "size mistmatch required " << needed_size << " found " << this->buffer.size;
+  this->IncRef();
+  container->manager_ctx = reinterpret_cast<void*>(this);
+  container->dl_tensor.data = this->buffer.data;
+  return NDArray(container);
+}
+
 MemoryManager* MemoryManager::Global() {
   static MemoryManager memory_manager;
   return &memory_manager;
@@ -64,15 +104,6 @@ Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
     allocators_.emplace(ctx, std::move(alloc));
   }
   return allocators_.at(ctx).get();
-}
-
-static void BufferDeleter(NDArray::Container* ptr) {
-  CHECK(ptr->manager_ctx != nullptr);
-  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::Global()->GetAllocator(buffer->ctx)->
-      Free(*(buffer));
-  delete buffer;
-  delete ptr;
 }
 
 NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {

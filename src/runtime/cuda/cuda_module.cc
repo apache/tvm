@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -69,7 +69,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+      const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final {
@@ -166,7 +166,7 @@ class CUDAWrappedFunc {
  public:
   // initialize the CUDA function.
   void Init(CUDAModuleNode* m,
-            std::shared_ptr<ModuleNode> sptr,
+            ObjectPtr<Object> sptr,
             const std::string& func_name,
             size_t num_void_args,
             const std::vector<std::string>& thread_axis_tags) {
@@ -220,7 +220,7 @@ class CUDAWrappedFunc {
   // internal module
   CUDAModuleNode* m_;
   // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Device function cache per device.
@@ -233,7 +233,7 @@ class CUDAWrappedFunc {
 class CUDAPrepGlobalBarrier {
  public:
   CUDAPrepGlobalBarrier(CUDAModuleNode* m,
-                        std::shared_ptr<ModuleNode> sptr)
+                        ObjectPtr<Object> sptr)
       : m_(m), sptr_(sptr) {
     std::fill(pcache_.begin(), pcache_.end(), 0);
   }
@@ -252,14 +252,14 @@ class CUDAPrepGlobalBarrier {
   // internal module
   CUDAModuleNode* m_;
   // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // mark as mutable, to enable lazy initialization
   mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
 };
 
 PackedFunc CUDAModuleNode::GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) {
+      const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
@@ -279,8 +279,7 @@ Module CUDAModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string cuda_source) {
-  std::shared_ptr<CUDAModuleNode> n =
-      std::make_shared<CUDAModuleNode>(data, fmt, fmap, cuda_source);
+  auto n = make_object<CUDAModuleNode>(data, fmt, fmap, cuda_source);
   return Module(n);
 }
 

@@ -144,7 +144,7 @@ This process need few additional options as given below to NNVM build.
 Module export require additional options for not to compile but save as ```lib.export_library (path, fcompile=False)```
 
 The output of above API is a tar compressed file containing object file ```(lib.o)``` and cpp source file ```(devc.cc)``` which embeds device blob. Thease two files should be compiled along with other files or objects while building c++ application.
-Please refer to [Makefile](https://github.com/dmlc/tvm/tree/master/apps/howto_deploy/Makefile#L32) for a reference.
+Please refer to [Makefile](https://github.com/apache/incubator-tvm/tree/master/apps/howto_deploy/Makefile#L32) for a reference.
 
 The c++ code to load this system module require the below change.
 

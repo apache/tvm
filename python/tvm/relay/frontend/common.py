@@ -451,20 +451,24 @@ def get_name(node):
     return name
 
 
-def infer_type(node):
+def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    mod = node if isinstance(node, _module.Module) else _module.Module.from_expr(node)
-    mod = _transform.InferType()(mod)
-    entry = mod["main"]
+    new_mod = _module.Module.from_expr(node)
+    if mod is not None:
+        new_mod.update(mod)
+    new_mod = _transform.InferType()(new_mod)
+    entry = new_mod["main"]
     return entry if isinstance(node, _expr.Function) else entry.body
 
-
-def infer_shape(inputs):
-    """A method to get the output shape of an intermediate node in the graph."""
-    out_type = infer_type(inputs)
-    out_shapes = get_const_tuple(out_type.checked_type.shape)
-    return out_shapes
-
+def infer_shape(inputs, mod=None):
+    """A method to get the output type of an intermediate node in the graph."""
+    out_type = infer_type(inputs, mod=mod)
+    checked_type = out_type.checked_type
+    if hasattr(checked_type, 'shape'):
+        # Regular operator that outputs tensors
+        return get_const_tuple(out_type.checked_type.shape)
+    # The return type is not a tensor, for example List
+    return checked_type
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide

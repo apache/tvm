@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -101,8 +101,9 @@ GraphKey GraphKeyNode::make(Graph graph,
   return GraphKey(n);
 }
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<GraphKeyNode>([](const GraphKeyNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<GraphKeyNode>([](const ObjectRef& ref, IRPrinter* p) {
+    auto* op = static_cast<const GraphKeyNode*>(ref.get());
     p->stream << "GraphKeyNode("<< op << ")";
 });
 
