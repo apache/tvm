@@ -909,6 +909,31 @@ def test_forward_deconvolution():
     verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(20, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
 
+def test_forward_cond():
+    def verify(a_np, b_np):
+        a_nd, b_nd = mx.nd.array(a_np), mx.nd.array(b_np)
+        pred = a_nd * b_nd < 5
+        then_func = lambda: (a_nd + 5) * (b_nd + 5)
+        else_func = lambda: (a_nd - 5) * (b_nd - 5)
+        ref_res = mx.nd.contrib.cond(pred, then_func, else_func)
+
+        a_sym, b_sym = mx.sym.var("a"), mx.sym.var("b")
+        pred = a_sym * b_sym < 5
+        then_func = lambda: (a_sym + 5) * (b_sym + 5)
+        else_func = lambda: (a_sym - 5) * (b_sym - 5)
+        mx_sym = mx.sym.contrib.cond(pred, then_func, else_func)
+
+        shape_dict = {"a": a_np.shape, "b": b_np.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["debug", "vm"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3)
+
+    verify(np.asarray([1.0], 'float32'), np.asarray([2.0],'float32'))
+    verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -963,3 +988,4 @@ if __name__ == '__main__':
     test_forward_one_hot()
     test_forward_convolution()
     test_forward_deconvolution()
+    test_forward_cond()
