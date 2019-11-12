@@ -551,6 +551,17 @@ def _test_reshape(data, out_shape):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_with_call():
+    """ relay.expr.Call as shape """
+    data = np.zeros((6, 4, 2))
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out_shape = tf.constant([1, 2, 3], dtype="int32")
+        out_shape = tf.multiply(out_shape, 2)
+        array_ops.reshape(in_data, out_shape)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
+
 def _test_reshape_like(data, shape_like):
     """ A special case for reshape. """
 
@@ -567,6 +578,7 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1, 2])
     _test_reshape(np.arange(6), [3, -1])
     _test_reshape(np.arange(6), [-1])
+    _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
 
 #######################################################################
@@ -734,7 +746,8 @@ def test_tensor_array_concat():
                                  infer_shape=False, dynamic_size=False)
             ta2 = ta1.split(t, split_length)
             t = ta2.concat()
-            compare_tf_with_tvm([], [], ['TensorArrayConcatV3:0'], mode='debug')
+            out = tf.identity(t)
+            compare_tf_with_tvm([], [], ['Identity:0'], mode='debug')
     for dtype in tf_dtypes.keys():
         run(dtype)
 
@@ -2432,8 +2445,7 @@ def test_forward_size():
 
 #######################################################################
 # All, Any, Max, Min
-# -------------
-
+# ------------------
 
 def test_forward_reduce_all():
     """Test the All operator."""
@@ -2443,7 +2455,14 @@ def test_forward_reduce_all():
     tf.reduce_all(in_data, name="all")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
 
-
+def test_forward_reduce_any():
+    """Test the Any operator."""
+    np_data = np.random.choice([True, False], size=(5, 7, 11))
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
+    tf.reduce_any(in_data, name="any")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
+    
 def test_forward_reduce_max():
     def check_max(ishape, axis, keepdims, dtype):
         tf.reset_default_graph()

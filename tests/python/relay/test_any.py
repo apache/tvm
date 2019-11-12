@@ -188,6 +188,257 @@ def test_any_shape_of():
         result = ex.evaluate()(data)
         tvm.testing.assert_allclose(result.asnumpy(), np.array(3).astype("int64"))
 
+def verify_any_reduce(reduce_op, data_shape, axis, exclude, keepdims,
+                      static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "bool" if reduce_op == relay.all else "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = reduce_op(data, axis, keepdims, exclude)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_reduce():
+    verify_any_reduce(relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ())
+    verify_any_reduce(relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6))
+    verify_any_reduce(relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5))
+    verify_any_reduce(relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6))
+    verify_any_reduce(relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,))
+    verify_any_reduce(relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1))
+    verify_any_reduce(relay.mean, any_dims(2), 0, False, False, (1, 2), (2,))
+    verify_any_reduce(relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6))
+
+def verify_any_layout_transform(data_shape, src_layout, dst_layout, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.layout_transform(data, src_layout, dst_layout)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_layout_transform():
+    verify_any_layout_transform(any_dims(4), "NCHW", "NHWC", (3, 4, 5, 6), (3, 5, 6, 4))
+    verify_any_layout_transform(any_dims(5), "NCHW16c", "NCHW2c", (1, 2, 8, 8, 16), (1, 16, 8, 8, 2))
+    verify_any_layout_transform(any_dims(5), "NCHW6n", "NHWC", (3, 4, 5, 6, 6), (18, 5, 6, 4))
+    verify_any_layout_transform(any_dims(4), "NCHW", "NCHW4c", (3, 4, 5, 6), (3, 1, 5, 6, 4))
+    verify_any_layout_transform((16, 1), "CH", "C4cH", (16, 1), (4, 4, 1))
+
+def verify_any_expand_dims(data_shape, axis, num_newaxis, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_expand_dims():
+    verify_any_expand_dims(any_dims(3), 1, 2, (1, 2, 3), (1, 1, 1, 2, 3))
+    verify_any_expand_dims(any_dims(3), -1, 2, (1, 2, 3), (1, 2, 3, 1, 1))
+
+def verify_any_transpose(data_shape, axes, static_data_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.transpose(data, axes=axes)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out = np.transpose(data_np, axes)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+def test_any_transpose():
+    verify_any_transpose(any_dims(3), (1, 0, 2), (10, 3, 2))
+    verify_any_transpose(any_dims(3), None, (2, 3, 4))
+    verify_any_transpose(any_dims(6), (0, 1, 3, 2, 5, 4), (11, 12, 2, 1, 9, 17))
+
+def verify_any_squeeze(data_shape, axis, static_data_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.squeeze(data, axis=axis)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out = np.squeeze(data_np, axis)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+def test_any_squeeze():
+    verify_any_squeeze((1, relay.Any(), relay.Any()), (0,), (1, 9, 8))
+    verify_any_squeeze((1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17))
+
+def test_any_reshape_like():
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=(relay.Any(), 3, 10), dtype=dtype)
+    shape_like = relay.var('data', shape=(relay.Any(), 5, 6), dtype=dtype)
+    y = relay.reshape_like(data, shape_like)
+    mod["main"] = relay.Function([data, shape_like], y)
+    data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
+    shape_like_np = np.random.uniform(size=(3, 5, 6)).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, shape_like_np)
+        assert result.asnumpy().shape == shape_like_np.shape, \
+            "Shape mismatch: expect %s but got %s." % (str(shape_like_np.shape), str(result.asnumpy().shape))
+
+def verify_any_conv2d_NCHWc(data_shape, kernel_shape, strides, padding, dilation,
+                            data_layout, kernel_layout, out_layout,
+                            static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    kernel = relay.var('kernel', shape=kernel_shape, dtype=dtype)
+    y = relay.nn.contrib_conv2d_nchwc(data, kernel, strides, padding, dilation,
+                                      kernel_size=kernel_shape[2:4],
+                                      channels=kernel_shape[0]*kernel_shape[-1],
+                                      data_layout=data_layout, kernel_layout=kernel_layout,
+                                      out_layout=out_layout)
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, kernel_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_conv2d_NCHWc():
+    verify_any_conv2d_NCHWc((relay.Any(), 8, relay.Any(), relay.Any(), 8), (8, 8, 3, 3, 8, 8), (1, 1), (1, 1), (1, 1),
+                            "NCHW8c", "OIHW8i8o", "NCHW8c", (1, 8, 224, 224, 8), (1, 8, 224, 224, 8))
+    verify_any_conv2d_NCHWc((relay.Any(), 8, relay.Any(), relay.Any(), 8), (8, 8, 3, 3, 8, 8), (1, 1), (1, 1), (2, 2),
+                            "NCHW8c", "OIHW8i8o", "NCHW8c", (1, 8, 224, 224, 8), (1, 8, 222, 222, 8))
+
+def verify_any_pool2d(pool_type, data_shape, pool_size, strides, padding,
+                      layout, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    pool_func = relay.nn.max_pool2d if pool_type == "max" else relay.nn.avg_pool2d
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = pool_func(data, pool_size, strides, padding, layout)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_pool2d():
+    verify_any_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any()),
+                      (3, 3), (1, 1), (1, 1), "NCHW", (2, 3, 220, 220), (2, 3, 220, 220))
+    verify_any_pool2d("avg", (relay.Any(), relay.Any(), relay.Any(), 4),
+                      (1, 1), (2, 2), (0, 0), "NHWC", (3, 220, 220, 4), (3, 110, 110, 4))
+    verify_any_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any(), 4),
+                      (3, 3), (2, 2), (1, 1), "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 110, 110, 4))
+
+def verify_any_global_pool2d(pool_type, data_shape, layout, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    pool_func = relay.nn.global_max_pool2d if pool_type == "max" else relay.nn.global_avg_pool2d
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = pool_func(data, layout)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_global_pool2d():
+    verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any()),
+                      "NCHW", (2, 3, 220, 220), (2, 3, 1, 1))
+    verify_any_global_pool2d("avg", (relay.Any(), relay.Any(), relay.Any(), 4),
+                      "NHWC", (3, 220, 220, 4), (3, 1, 1, 4))
+    verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any(), 4),
+                      "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 1, 1, 4))
+
+def test_any_batch_flatten():
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=any_dims(3), dtype=dtype)
+    y = relay.nn.batch_flatten(data)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=(3, 3, 10)).astype(dtype)
+    ref_out_shape = (3, 30)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def verify_any_dense(data_shape, weight_shape, units, static_data_shape,
+                     static_weight_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    weight = relay.var('weight', shape=weight_shape, dtype=dtype)
+    y = relay.nn.dense(data, weight, units)
+    mod["main"] = relay.Function([data, weight], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, weight_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_dense():
+    verify_any_dense(any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8))
+    verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
+
+def verify_any_pad(data_shape, pad_width, static_data_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.nn.pad(data, pad_width)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        ref_out = np.pad(data_np, pad_width)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+def test_any_pad():
+    verify_any_pad(any_dims(3), ((0, 0), (1, 1), (2, 2)), (1, 2, 3))
+    verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
+
+def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.nn.softmax(data, axis)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_softmax():
+    verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
+    verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
 def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
     y0 = x + relay.const(1.0, 'float32')
@@ -308,6 +559,19 @@ if __name__ == "__main__":
     test_any_reshape()
     test_any_take()
     test_any_shape_of()
+    test_any_reduce()
+    test_any_layout_transform()
+    test_any_expand_dims()
+    test_any_transpose()
+    test_any_squeeze()
+    test_any_reshape_like()
+    test_any_conv2d_NCHWc()
+    test_any_pool2d()
+    test_any_global_pool2d()
+    test_any_batch_flatten()
+    test_any_dense()
+    test_any_pad()
+    test_any_softmax()
     test_fused_ops()
     test_arange_with_dynamic_shape()
     test_recursive_concat()

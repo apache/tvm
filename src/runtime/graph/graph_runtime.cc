@@ -18,11 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_runtime.cc
  */
-#include "graph_runtime.h"
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -37,6 +34,9 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "graph_runtime.h"
+#include "../object_internal.h"
 
 namespace tvm {
 namespace runtime {
@@ -411,7 +411,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
 PackedFunc GraphRuntime::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -478,7 +478,7 @@ PackedFunc GraphRuntime::GetFunction(
 Module GraphRuntimeCreate(const std::string& sym_json,
                           const tvm::runtime::Module& m,
                           const std::vector<TVMContext>& ctxs) {
-  std::shared_ptr<GraphRuntime> exec = std::make_shared<GraphRuntime>();
+  auto exec = make_object<GraphRuntime>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
@@ -513,15 +513,17 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
   });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
+.set_body([](TVMArgs args, TVMRetValue* rv) {
     CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
                                   "graph_runtime.remote_create is "
                                   "at least 4, but it has "
                                << args.num_args;
     void* mhandle = args[1];
+    ModuleNode* mnode = ObjectInternal::GetModuleNode(mhandle);
+
     const auto& contexts = GetAllContext(args);
     *rv = GraphRuntimeCreate(
-        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
+        args[0], GetRef<Module>(mnode), contexts);
   });
 }  // namespace runtime
 }  // namespace tvm

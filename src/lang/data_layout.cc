@@ -289,16 +289,22 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
   std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
+    if (orig_shape.as<ir::Any>()) {
+      symbolic_var_set.insert(i);
+    }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImm>();
         const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImm>();
-        CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
-          << "Input shape mismatch at index " << i << ". Expected "
-          << orig_axis->dom->extent << ", get " << orig_shape;
+        if (orig_shape_const) {
+          CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
+            << "Input shape mismatch at index " << i << ". Expected "
+            << orig_axis->dom->extent << ", get " << orig_shape;
+        }
       }
       bind_map[orig_axis->var.get()] = Expr(0);
     } else {
@@ -316,7 +322,11 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
+      if (symbolic_var_set.count(i)) {
+        result.push_back(ir::Any::make());
+      } else {
+        result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
+      }
     }
   }
   return result;

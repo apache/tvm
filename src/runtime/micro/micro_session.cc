@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file micro_session.cc
  */
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-#include <memory>
 #include <stack>
 #include <tuple>
 #include <vector>
@@ -36,18 +34,18 @@ namespace tvm {
 namespace runtime {
 
 struct TVMMicroSessionThreadLocalEntry {
-  std::stack<std::shared_ptr<MicroSession>> session_stack;
+  std::stack<ObjectPtr<MicroSession>> session_stack;
 };
 
 typedef dmlc::ThreadLocalStore<TVMMicroSessionThreadLocalEntry> TVMMicroSessionThreadLocalStore;
 
-std::shared_ptr<MicroSession>& MicroSession::Current() {
+ObjectPtr<MicroSession>& MicroSession::Current() {
   TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
   CHECK_GT(entry->session_stack.size(), 0) << "No current session";
   return entry->session_stack.top();
 }
 
-void MicroSession::EnterWithScope(std::shared_ptr<MicroSession> session) {
+void MicroSession::EnterWithScope(ObjectPtr<MicroSession> session) {
   TVMMicroSessionThreadLocalEntry *entry = TVMMicroSessionThreadLocalStore::Get();
   entry->session_stack.push(session);
 }
@@ -121,7 +119,7 @@ void MicroSession::CreateSession(const std::string& device_type,
 void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
   int32_t (*func_dev_addr)(void*, void*, int32_t) =
       reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(
-      low_level_device()->ToDevPtr(func).value());
+          low_level_device()->ToDevPtr(func).value());
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
@@ -355,10 +353,10 @@ void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
 
 PackedFunc MicroSession::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   if (name == "enter") {
-    return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-      MicroSession::EnterWithScope(std::dynamic_pointer_cast<MicroSession>(sptr_to_self));
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      MicroSession::EnterWithScope(GetObjectPtr<MicroSession>(this));
     });
   } else if (name == "exit") {
     return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -378,7 +376,7 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     uint64_t base_addr = args[3];
     const std::string& server_addr = args[4];
     int port = args[5];
-    std::shared_ptr<MicroSession> session = std::make_shared<MicroSession>();
+    ObjectPtr<MicroSession> session = make_object<MicroSession>();
     session->CreateSession(
         device_type, binary_path, toolchain_prefix, base_addr, server_addr, port);
     *rv = Module(session);

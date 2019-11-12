@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,7 +44,7 @@ class OpenGLModuleNode final : public ModuleNode {
   const char* type_key() const final { return "opengl"; }
 
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   std::string GetSource(const std::string& format) final;
 
@@ -74,7 +74,7 @@ class OpenGLModuleNode final : public ModuleNode {
 class OpenGLWrappedFunc {
  public:
   OpenGLWrappedFunc(OpenGLModuleNode* m,
-                    std::shared_ptr<ModuleNode> sptr,
+                    ObjectPtr<Object> sptr,
                     std::string func_name,
                     std::vector<size_t> arg_size,
                     const std::vector<std::string>& thread_axis_tags);
@@ -85,7 +85,7 @@ class OpenGLWrappedFunc {
   // The module
   OpenGLModuleNode* m_;
   // resource handle
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // convert code for void argument
@@ -111,7 +111,7 @@ OpenGLModuleNode::OpenGLModuleNode(
 
 PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
 
@@ -191,7 +191,7 @@ const FunctionInfo& OpenGLModuleNode::GetFunctionInfo(
 
 OpenGLWrappedFunc::OpenGLWrappedFunc(
     OpenGLModuleNode* m,
-    std::shared_ptr<ModuleNode> sptr,
+    ObjectPtr<Object> sptr,
     std::string func_name,
     std::vector<size_t> arg_size,
     const std::vector<std::string>& thread_axis_tags)
@@ -251,9 +251,9 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
-  auto n = std::make_shared<OpenGLModuleNode>(std::move(shaders),
-                                              std::move(fmt),
-                                              std::move(fmap));
+  auto n = make_object<OpenGLModuleNode>(std::move(shaders),
+                                         std::move(fmt),
+                                         std::move(fmap));
   return Module(n);
 }
 

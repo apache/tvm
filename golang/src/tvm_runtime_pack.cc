@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief This is an all in one TVM runtime file.
  * \file tvm_runtime_pack.cc
  */
@@ -32,6 +31,7 @@
 #include "src/runtime/threading_backend.cc"
 #include "src/runtime/thread_pool.cc"
 #include "src/runtime/ndarray.cc"
+#include "src/runtime/object.cc"
 
 // NOTE: all the files after this are optional modules
 // that you can include remove, depending on how much feature you use.

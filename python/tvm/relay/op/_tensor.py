@@ -119,18 +119,6 @@ def _cast_shape_function(x):
 def cast_shape_func(attrs, inputs, out_ndims):
     return [_cast_shape_function(*inputs)]
 
-@script
-def _expand_dims_shape_func(x):
-    ndim = len(x.shape)
-    out = output_tensor((ndim+1,), "int64")
-    out[0] = int64(1)
-    for i in const_range(0, ndim):
-        out[i+1] = int64(x.shape[i])
-    return out
-
-def expand_dims_shape_func(attrs, inputs, out_ndims):
-    return [_expand_dims_shape_func(*inputs)]
-
 # shape func
 @script
 def _broadcast_shape_func(x, y, ndim):
@@ -161,9 +149,17 @@ def _broadcast_shape_func(x, y, ndim):
     return out
 
 def broadcast_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape function for broadcast op.
+    """
     return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
-register_shape_func("expand_dims", False, expand_dims_shape_func)
+def elemwise_shape_func(attrs, inputs, _):
+    """
+    Shape function for elemwise op.
+    """
+    return [topi.math.identity(inputs[0])]
+
 register_shape_func("cast", False, cast_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
@@ -179,3 +175,6 @@ register_shape_func("less", False, broadcast_shape_func)
 register_shape_func("less_equal", False, broadcast_shape_func)
 register_shape_func("greater", False, broadcast_shape_func)
 register_shape_func("greater_equal", False, broadcast_shape_func)
+
+register_shape_func("sqrt", False, elemwise_shape_func)
+register_shape_func("negative", False, elemwise_shape_func)

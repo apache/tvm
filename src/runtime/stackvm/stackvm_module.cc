@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file stackvm_module.cc
  */
 #include <tvm/runtime/registry.h>
@@ -42,7 +41,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     if (name == runtime::symbol::tvm_module_main) {
       return GetFunction(entry_func_, sptr_to_self);
     }
@@ -89,8 +88,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
 
   static Module Create(std::unordered_map<std::string, StackVM> fmap,
                        std::string entry_func) {
-    std::shared_ptr<StackVMModuleNode> n =
-        std::make_shared<StackVMModuleNode>();
+    auto n = make_object<StackVMModuleNode>();
     n->fmap_ = std::move(fmap);
     n->entry_func_ = std::move(entry_func);
     return Module(n);
@@ -101,8 +99,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
     std::string entry_func, data;
     strm->Read(&fmap);
     strm->Read(&entry_func);
-    std::shared_ptr<StackVMModuleNode> n =
-        std::make_shared<StackVMModuleNode>();
+    auto n = make_object<StackVMModuleNode>();
     n->fmap_ = std::move(fmap);
     n->entry_func_ = std::move(entry_func);
     uint64_t num_imports;

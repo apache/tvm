@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/vm/profiler/vm.cc
  * \brief The Relay debug virtual machine.
  */
@@ -41,7 +40,7 @@ namespace runtime {
 namespace vm {
 
 PackedFunc VirtualMachineDebug::GetFunction(
-    const std::string& name, const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_stat") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       double total_duration = 0.0;
@@ -124,7 +123,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
 }
 
 runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
-  std::shared_ptr<VirtualMachineDebug> vm = std::make_shared<VirtualMachineDebug>();
+  auto vm = make_object<VirtualMachineDebug>();
   vm->LoadExecutable(exec);
   return runtime::Module(vm);
 }

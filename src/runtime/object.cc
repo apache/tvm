@@ -27,6 +27,7 @@
 #include <vector>
 #include <utility>
 #include <unordered_map>
+#include "object_internal.h"
 #include "runtime_base.h"
 
 namespace tvm {
@@ -200,18 +201,6 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
-class TVMObjectCAPI {
- public:
-  static void Free(TVMObjectHandle obj) {
-    if (obj != nullptr) {
-      static_cast<Object*>(obj)->DecRef();
-    }
-  }
-
-  static uint32_t TypeKey2Index(const std::string& type_key) {
-    return Object::TypeKey2Index(type_key);
-  }
-};
 }  // namespace runtime
 }  // namespace tvm
 
@@ -224,13 +213,13 @@ int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
 
 int TVMObjectFree(TVMObjectHandle obj) {
   API_BEGIN();
-  tvm::runtime::TVMObjectCAPI::Free(obj);
+  tvm::runtime::ObjectInternal::ObjectFree(obj);
   API_END();
 }
 
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();
-  out_tindex[0] = tvm::runtime::TVMObjectCAPI::TypeKey2Index(
+  out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(
       type_key);
   API_END();
 }
