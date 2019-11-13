@@ -196,8 +196,16 @@ def _conv(opname):
         flip_layout = False
 
         if opname == 'conv_transpose' and attr['data_format'] == 'NHWC':
-            raise NotImplementedError( \
-                "conv2d_transpose with NHWC layout is not implemented.")
+            # transform to NCHW for TVM backend compatible and set 'flip_layout'
+            # to have output flip back to NHWC
+            tmp_shape = attr['_input_shapes'][inputs[2]]
+            tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
+            inputs[2] = _op.transpose(inputs[2], axes=(0, 3, 1, 2))
+            attr['_input_shapes'][inputs[2]] = tmp_shape
+            attr['strides'][1], attr['strides'][2], attr['strides'][3] = \
+                attr['strides'][3], attr['strides'][1], attr['strides'][2]
+            attr['data_format'] = 'NCHW'
+            flip_layout = True
 
         inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
 
