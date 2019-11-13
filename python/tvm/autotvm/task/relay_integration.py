@@ -45,11 +45,11 @@ def _lower(mod,
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             import vta
             with vta.build_config():
-                mod, _ = relay.optimize(func, target, params)
+                mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 return grc.codegen(mod["main"])
     # default case
-    return relay.vm.compile(mod, target, params)
+    return relay.vm.compile(mod, target=target, params=params)
 
 
 def extract_from_program(mod, params, ops, target, target_host=None,
@@ -60,8 +60,8 @@ def extract_from_program(mod, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    func: relay.expr.Function
-        The func to tune
+    mod: relay.module.Module or relay.expr.Function
+        The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
     ops: List of relay op
@@ -92,8 +92,8 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    funcs: List of relay.expr.Function
-        The list of functions to tune
+    mods: List[relay.module.Module] or List[relay.expr.Function]
+        The list of modules or functions to tune
     params: List of dict of str to numpy array
         The associated parameters of the programs
     ops: List of relay op
@@ -144,6 +144,10 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
         logger.disabled = True
 
         for mod, param in zip(mods, params):
+            if isinstance(mod, relay.expr.Function):
+                mod = relay.Module.from_expr(mod)
+            assert isinstance(mod, relay.module.Module), \
+                "only support relay Module or Function to be tuned"
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower,
