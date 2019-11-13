@@ -50,8 +50,9 @@ def tipe(expr):
                                transform.InferType()])
 
 
-def dcpe(expr, mod=None, grad=False):
-    passes = [transform.PartialEvaluate(),
+def dcpe(expr, mod=None, entry_funcs=None, grad=False):
+    passes = [transform.RemoveUnusedFunctions(entry_funcs),
+              transform.PartialEvaluate(),
               transform.DeadCodeElimination(inline_once=True)]
     if grad:
         expr = gradient(run_infer_type(expr))
@@ -195,7 +196,7 @@ def test_map():
     mod["main"] = expected
     expected = mod["main"]
     orig = Function([], orig)
-    res = dcpe(orig, mod=mod)
+    res = dcpe(orig, mod=mod, entry_funcs=['f', 'main'])
     assert alpha_equal(res.body, expected.body)
 
 
@@ -328,8 +329,8 @@ def test_nat_update():
     p = Prelude(m)
     add_nat_definitions(p)
     m = transform.ToANormalForm()(m)
+    m = transform.RemoveUnusedFunctions([])(m)
     transform.PartialEvaluate()(m)
-
 
 def test_tuple_match():
     a = relay.Var("a")

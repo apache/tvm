@@ -97,6 +97,17 @@ def _need_module_for_shape_inference(op):
 def _need_prelude_for_shape_inference(op):
     return "TensorArray" in op
 
+def _extract_tensor_data(prelude, rank, dtype, source):
+    get_tensor_name = 'get_tensor{}'.format(rank)
+    get_tensor_func = prelude.get_var(get_tensor_name, dtype)
+    return get_tensor_func(source)
+
+def _get_tensor_rank(tensor, mod):
+    if isinstance(tensor, tvm.relay.expr.Var):
+        return len(tensor.type_annotation.shape)
+    # TODO: Run infer_type to get the tensor rank
+    raise Exception("TODO")
+
 def _rsqrt():
     def _impl(inputs, attr, params):
         inputs.append(tvm.relay.const(-0.5, attr['T'].name))
@@ -538,17 +549,31 @@ def _tensor_array():
 def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
-        values_rank = len(inputs[2].type_annotation.shape)
+        values_rank = _get_tensor_rank(inputs[2], prelude.mod)
         unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
         unstack_function = prelude.get_var(unstack_name, dtype_str)
         values = unstack_function(inputs[2])
+
         tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
-        return tensor_array_scatter_func(inputs[0], inputs[1], values)
+        result = tensor_array_scatter_func(inputs[0], inputs[1], values)
+        # Log the tensor rank of the scatter destination tensor array
+        _trace_expr_rank(result, values_rank-1)
+        return result
     return _impl
 
 def _tensor_array_gather():
     def _impl(inputs, attr, params, prelude):
-        return prelude.tensor_array_gather(inputs[2], inputs[1])
+        dtype_str = attr.get('dtype').name
+        tensor_array_gather_func = prelude.get_var('tensor_array_gather', dtype_str)
+        result = tensor_array_gather_func(inputs[2], inputs[1])
+
+        rank = _get_tensor_array_rank(inputs[2])
+        if rank is not None:
+            return _extract_tensor_data(prelude,
+                                        rank + 1,
+                                        dtype_str,
+                                        result)
+        return result
     return _impl
 
 def _tensor_array_size():
@@ -566,23 +591,38 @@ def _tensor_array_write():
         v = tensor_func(inputs[2])
         write_func = prelude.get_var('tensor_array_write', dtype)
 
-        return write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
+        res = write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
+        _trace_expr_rank(inputs[3], input_rank)
+        _unify_expr_ranks(inputs[3], res)
+        return res
     return _impl
 
 def _tensor_array_read():
     def _impl(inputs, attr, params, prelude):
         read_func = prelude.get_var('tensor_array_read', attr.get('dtype').name)
+        rank = _get_tensor_array_rank(inputs[2])
+        if rank is not None:
+            # Optimize for the case that all the tensors in the tensor array are of the same rank,
+            # we can emit code to extract the tensor out of the ADT object at compile time.
+            source = read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+            return _extract_tensor_data(prelude,
+                                        rank,
+                                        attr['dtype'].name,
+                                        source)
+        # The tensor array contains various ranks of tensor, it should be the rare case
         return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
     return _impl
 
 def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
-        input_rank = len(inputs[1].type_annotation.shape)
+        input_rank = _get_tensor_rank(inputs[1], prelude.mod)
         dtype_str = attr.get('T').name
         v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
         lengths = _op.cast(inputs[2], 'int32')
-        split_var = prelude.get_var('tensor_array_split', dtype_str)
-        return split_var(inputs[0], v, lengths)
+        split_func = prelude.get_var('tensor_array_split', dtype_str)
+        result = split_func(inputs[0], v, lengths)
+        _trace_expr_rank(result, input_rank)
+        return result
     return _impl
 
 def _tensor_array_concat():
@@ -1371,6 +1411,24 @@ def _add_n():
         return  _res
     return _impl
 
+# Remember the rank of tensors stored in each tensor array
+_tensor_array_ranks = defaultdict(set)
+
+def _trace_expr_rank(expr, rank):
+    global _tensor_array_ranks
+    _tensor_array_ranks[expr].add(rank)
+
+def _unify_expr_ranks(a, b):
+    global _tensor_array_ranks
+    _tensor_array_ranks[a].update(_tensor_array_ranks[b])
+    _tensor_array_ranks[b] = _tensor_array_ranks[a]
+
+def _get_tensor_array_rank(expr):
+    global _tensor_array_ranks
+    ranks = _tensor_array_ranks[expr]
+    if len(ranks) == 1:
+        return list(ranks)[0]
+    return None
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []

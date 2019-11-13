@@ -1008,7 +1008,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           throw;
         }
       }
-      LOG(FATAL) << "No case Match";
+      LOG(FATAL) << "No case Match for value " << op->data << "\n";
       throw;
     });
   }

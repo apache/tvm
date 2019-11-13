@@ -138,6 +138,134 @@ class TensorArrayOps(object):
                                tensor6_case], False),
                      tensor_t(), [])
 
+    def define_get_tensor0(self):
+        """Defines a function to extract a rank 0 tensor out of tensor_t.
+            get_tensor0(t): tensor_t -> Tensor[(), dtype]
+        """
+        get_tensor0_name = self.get_name("get_tensor0")
+        get_tensor0_var = GlobalVar(get_tensor0_name)
+        setattr(self.prelude, get_tensor0_name, get_tensor0_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor0')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor0_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([], self.dtype), [])
+
+    def define_get_tensor1(self):
+        """Defines a function to extract a rank 1 tensor out of tensor_t.
+            get_tensor1(t): tensor_t -> Tensor[(Any()), dtype]
+        """
+        get_tensor1_name = self.get_name("get_tensor1")
+        get_tensor1_var = GlobalVar(get_tensor1_name)
+        setattr(self.prelude, get_tensor1_name, get_tensor1_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor1')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor1_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any()], self.dtype), [])
+
+    def define_get_tensor2(self):
+        """Defines a function to extract a rank 2 tensor out of tensor_t.
+            get_tensor2(t): tensor_t -> Tensor[(Any(), Any()), dtype]
+        """
+        get_tensor2_name = self.get_name("get_tensor2")
+        get_tensor2_var = GlobalVar(get_tensor2_name)
+        setattr(self.prelude, get_tensor2_name, get_tensor2_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor2')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor2_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any(), Any()], self.dtype), [])
+
+    def define_get_tensor3(self):
+        """Defines a function to extract a rank 3 tensor out of tensor_t.
+            get_tensor3(t): tensor_t -> Tensor[(Any(), Any(), Any()), dtype]
+        """
+        get_tensor3_name = self.get_name("get_tensor3")
+        get_tensor3_var = GlobalVar(get_tensor3_name)
+        setattr(self.prelude, get_tensor3_name, get_tensor3_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor3')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor3_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any(), Any(), Any()], self.dtype), [])
+
+    def define_get_tensor4(self):
+        """Defines a function to extract a rank 4 tensor out of tensor_t.
+            get_tensor4(t): tensor_t -> Tensor[(Any(), Any(), Any(), Any()), dtype]
+        """
+        get_tensor4_name = self.get_name("get_tensor4")
+        get_tensor4_var = GlobalVar(get_tensor4_name)
+        setattr(self.prelude, get_tensor4_name, get_tensor4_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor4')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor4_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any(), Any(), Any(), Any()], self.dtype), [])
+
+    def define_get_tensor5(self):
+        """Defines a function to extract a rank 5 tensor out of tensor_t.
+            get_tensor5(t):
+                tensor_t -> Tensor[(Any(), Any(), Any(), Any(), Any()), dtype]
+        """
+        get_tensor5_name = self.get_name("get_tensor5")
+        get_tensor5_var = GlobalVar(get_tensor5_name)
+        setattr(self.prelude, get_tensor5_name, get_tensor5_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor5')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor5_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any(), Any(), Any(), Any(), Any()], self.dtype), [])
+
+    def define_get_tensor6(self):
+        """Defines a function to extract a rank 6 tensor out of tensor_t.
+            get_tensor6(t):
+                tensor_t -> Tensor[(Any(), Any(), Any(), Any(), Any(), Any()), dtype]
+        """
+        get_tensor6_name = self.get_name("get_tensor6")
+        get_tensor6_var = GlobalVar(get_tensor6_name)
+        setattr(self.prelude, get_tensor6_name, get_tensor6_var)
+        tensor_t = self.get_var('tensor_t')
+        tensor_var = self.get_var('tensor6')
+        t = Var('tensor', tensor_t())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_var, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[get_tensor6_var] =\
+            Function([t],
+                     Match(t, [case], False),
+                     TensorType([Any(), Any(), Any(), Any(), Any(), Any()], self.dtype), [])
+
     def define_tensor_expand_dims(self):
         """Defines a function to grow a tensor_t's rank by adding one dimension in front
         of the original tensor_t.
@@ -640,8 +768,14 @@ class TensorArrayOps(object):
         self.define_tensor_array_split()
         self.define_tensor_array_concat()
         self.define_tensor_array_stack()
-        # TODO(wweic): Gather fails in PartialEvaluate
-        # self.define_tensor_array_gather()
+        self.define_get_tensor0()
+        self.define_get_tensor1()
+        self.define_get_tensor2()
+        self.define_get_tensor3()
+        self.define_get_tensor4()
+        self.define_get_tensor5()
+        self.define_get_tensor6()
+        self.define_tensor_array_gather()
 
 class Prelude:
     """Contains standard definitions."""

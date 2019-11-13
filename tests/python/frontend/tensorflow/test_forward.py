@@ -81,10 +81,6 @@ def vmobj_to_list(o):
             return hd
         elif o.constructor.name_hint == 'Nil':
             return []
-        elif 'tensor_nil' in o.constructor.name_hint:
-            return [0]
-        elif 'tensor' in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
         else:
             raise RuntimeError("Unknown object type: %s" %
                                o.constructor.name_hint)
@@ -680,6 +676,25 @@ def test_tensor_array_constructor():
     for dtype in tf_dtypes.keys():
         run(dtype)
 
+def test_tensor_array_read():
+    def run(dtype_str, input_shape):
+        with tf.Graph().as_default():
+            dtype = tf_dtypes[dtype_str]
+            data1 = np.random.choice([0, 1, 2, 3], size=input_shape)
+            data2 = np.random.choice([0, 1, 2, 3], size=input_shape)
+            t1 = tf.constant(data1.astype(dtype_str), dtype=dtype)
+            t2 = tf.constant(data2.astype(dtype_str), dtype=dtype)
+            ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=False, dynamic_size=False)
+            ta2 = ta1.write(0, t1)
+            ta3 = ta2.write(1, t2)
+            out = ta3.read(0)
+            compare_tf_with_tvm([], [], 'TensorArrayReadV3:0', mode='debug')
+    for dtype in tf_dtypes.keys():
+        run(dtype, (2, 2))
+        run(dtype, (2, 2, 2))
+        run(dtype, (2, 2, 2, 2))
+        run(dtype, (2, 2, 2, 2, 2))
+        run(dtype, (2, 2, 2, 2, 2, 2))
 
 def test_tensor_array_scatter():
     def run(dtype_str):
@@ -693,26 +708,23 @@ def test_tensor_array_scatter():
             out0 = ta2.read(0)
             out1 = ta2.read(1)
             out2 = ta2.read(2)
-            g = tf.get_default_graph()
             compare_tf_with_tvm([], [], ['TensorArrayReadV3:0'], mode='debug')
             compare_tf_with_tvm([], [], ['TensorArrayReadV3_1:0'], mode='debug')
             compare_tf_with_tvm([], [], ['TensorArrayReadV3_2:0'], mode='debug')
     for dtype in tf_dtypes.keys():
         run(dtype)
 
-# TODO(wweic): Fix gather issue with PartialEvaluate
-# def test_tensor_array_gather():
-#     with tf.Graph().as_default():
-#         dtype = 'float32'
-#         t = tf.constant([[1.0], [2.0], [3.0]])
-#         scatter_indices = tf.constant([2, 1, 0])
-#         gather_indices = tf.constant([1, 2])
-#         ta1 = tf.TensorArray(dtype=tf.float32, size=3, infer_shape=False, dynamic_size=False)
-#         ta2 = ta1.scatter(scatter_indices, t)
-#         t1 = ta2.gather(gather_indices)
-#         g = tf.get_default_graph()
-#         compare_tf_with_tvm([], [], ['TensorArrayGatherV3:0'], mode='debug')
-
+def test_tensor_array_gather():
+    with tf.Graph().as_default():
+        dtype = 'float32'
+        t = tf.constant([[1.0], [2.0], [3.0]])
+        scatter_indices = tf.constant([2, 1, 0])
+        gather_indices = tf.constant([1, 2])
+        ta1 = tf.TensorArray(dtype=tf.float32, size=3, infer_shape=False, dynamic_size=False)
+        ta2 = ta1.scatter(scatter_indices, t)
+        t1 = ta2.gather(gather_indices)
+        g = tf.get_default_graph()
+        compare_tf_with_tvm([], [], ['TensorArrayGatherV3:0'], mode='debug')
 
 def test_tensor_array_split():
     def run(dtype_str):
