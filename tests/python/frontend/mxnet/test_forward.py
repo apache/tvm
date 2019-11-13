@@ -908,6 +908,7 @@ def test_forward_deconvolution():
     verify(data_shape=(20, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(20, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+    verify(data_shape=(1, 1, 1024*16), kernel_size=(512, ), stride=(5,), pad=(256,), num_filter=2)
 
 
 if __name__ == '__main__':

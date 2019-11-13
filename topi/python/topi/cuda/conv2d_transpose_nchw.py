@@ -186,7 +186,9 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
 
             if cfg.is_fallback:
                 N, F, Y, X = get_const_tuple(conv.shape)
-                _fallback_schedule(N, F, Y, X)
+                # don't use fallback schedule for 1xN kernels
+                if not (Y == 1 and X != 1):
+                    _fallback_schedule(N, F, Y, X)
 
             ##### space definition end #####
 
