@@ -1039,8 +1039,8 @@ def _transpose():
         # otherwise its value is get from params
         try:
             axes = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError):
-            axes = None
+        except (IndexError, KeyError, AttributeError):
+            axes = _infer_value_simulated(inputs[1], params).asnumpy()
         return _op.transpose(inputs[0], axes=axes)
     return _impl
 
