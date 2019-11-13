@@ -25,7 +25,7 @@ from tvm import module as _tvm_module
 
 
 def generate_csource_module():
-    """Generate a binary"""
+    """Mock the codegen with an external library (e.g., CBLAS/cuDNN)"""
 
     code = r'''
     #include <tvm/runtime/c_runtime_api.h>
@@ -111,6 +111,187 @@ def generate_csource_module():
     csource_module = _tvm_module.csource_module_create(code, "cc")
     return csource_module
 
+def generate_engine_module():
+    """
+    Mock the codegen of an external backend with its own runtime engine
+    (e.g., MKL-DNN/TensorRT)
+    """
+
+    code = r'''
+    #include <tvm/runtime/c_runtime_api.h>
+    #include <dlpack/dlpack.h>
+    #include "gcc_engine.h"
+
+    extern "C" void gcc_1_(float* gcc_input4, float* gcc_input5,
+            float* gcc_input6, float* gcc_input7, float* out) {
+            
+        std::string graph =
+            "add_2d,10,10\n"
+            "sub_2d,10,10\n"
+            "mul_2d,10,10\n";
+
+        Engine engine;
+        engine.run(graph, {gcc_input4, gcc_input5, gcc_input6, gcc_input7}, out);
+    }
+
+
+    extern "C" int gcc_1(TVMValue* value, int* type_code, int nargs) {
+        if (nargs != 5) {
+            printf("Expect 5 args, but get %d", nargs);
+            return 1;
+        }
+        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
+        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
+        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
+        gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+                static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+                static_cast<float*>(out->data));
+        return 0;
+    }
+
+    extern "C" void gcc_0_(float* gcc_input0, float* gcc_input1,
+            float* gcc_input2, float* gcc_input3, float* out) {
+            
+        std::string graph =
+            "add_2d,10,10\n"
+            "sub_2d,10,10\n"
+            "mul_2d,10,10\n";
+
+        Engine engine;
+        engine.run(graph, {gcc_input0, gcc_input1, gcc_input2, gcc_input3}, out);
+
+    }
+
+    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
+        if (nargs != 5) {
+            printf("Expect 5 args, but get %d", nargs);
+            return 1;
+        }
+        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
+        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
+        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
+        gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+                static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+                static_cast<float*>(out->data));
+        return 0;
+    }
+    '''
+
+    gen_gcc_engine()
+    csource_module = _tvm_module.csource_module_create(code, "cc")
+    return csource_module
+
+def gen_gcc_engine():
+    """An example of external backend runtime engine. This is supposed to be provided
+      by third-party vendors and included when building the generated external kernel code.
+    """
+
+    code = r'''
+    #ifndef _GCC_ENGINE_H_
+    #define _GCC_ENGINE_H_
+    #include <cstdint>
+    #include <string>
+    #include <sstream>
+    #include <vector>
+
+    #define GCC_BINARY_OP_2D(p_ID_, p_OP_)  \
+      void p_ID_(int64_t dim1, int64_t dim2, float* a, float* b, float* out) { \
+        for (int64_t i = 0; i < dim1; ++i) {                                   \
+          for (int64_t j = 0; j < dim2; ++j) {                                 \
+            int64_t k = i * dim2 + j;                                          \
+            out[k] = a[k] p_OP_ b[k];                                          \
+          }                                                                    \
+        }                                                                      \
+      }
+    GCC_BINARY_OP_2D(add_2d, +);
+    GCC_BINARY_OP_2D(sub_2d, -);
+    GCC_BINARY_OP_2D(mul_2d, *);
+
+    struct Layer {
+        void (*op)(int64_t, int64_t, float*, float*, float*);
+        std::vector<int64_t> shapes;
+        std::vector<float*> args;
+    };
+
+    class Engine {
+    public:
+        float* alloc_buffer(int64_t size) {
+            float* buf = (float*)malloc(sizeof(float) * size);
+            buffers.push_back(buf);
+            return buf;
+        }
+        void add(std::string op, int64_t dim1, int64_t dim2, float* in1, float* in2, float* out) {
+            Layer layer;
+            layer.shapes.push_back(dim1);
+            layer.shapes.push_back(dim2);
+            layer.args.push_back(in1);
+            layer.args.push_back(in2);
+            layer.args.push_back(out);
+
+            if (op == "add_2d")
+                layer.op = &add_2d;
+            else if (op == "sub_2d")
+                layer.op = &sub_2d;
+            else if (op == "mul_2d")
+                layer.op = &mul_2d;
+            net.push_back(layer);
+            return ;
+        }
+
+        void run(std::string graph, std::vector<float*> args, float* out) {
+            std::stringstream ss(graph);
+            std::string line;
+            int layer_idx = 0;
+            int arg_idx = 0;
+            float* buf = nullptr;
+
+            while (std::getline(ss, line, '\n')) {
+                std::stringstream ss2(line);
+                std::string token;
+                std::vector<std::string> attrs;
+                while (std::getline(ss2, token, ',')) {
+                    attrs.push_back(token);
+                }
+                int64_t dim1 = stoll(attrs[1]);
+                int64_t dim2 = stoll(attrs[2]);
+                auto out_buf = this->alloc_buffer(dim1 * dim2);
+
+                if (layer_idx == 0) {
+                    this->add(attrs[0], dim1, dim2, args[0], args[1], out_buf);
+                    buf = out_buf;
+                    arg_idx = 2;
+                }
+                else {
+                    this->add(attrs[0], dim1, dim2, buf, args[arg_idx], out_buf);
+                    buf = out_buf;
+                    arg_idx++;
+                }
+                layer_idx++;
+            }
+            this->net.back().args.back() = out;
+
+            for (auto layer : net) {
+                (*layer.op)(layer.shapes[0], layer.shapes[1], layer.args[0], layer.args[1], layer.args[2]);
+            }
+        }
+        ~Engine() {
+            for (auto buf : buffers) {
+                free(buf);
+            }
+        }
+    private:
+        std::vector<Layer> net;
+        std::vector<float*> buffers;
+    };
+
+    #endif
+    '''
+    with open('gcc_engine.h', 'w') as f:
+        f.write(code)
 
 def get_synthetic_lib():
     x = relay.var('x', shape=(10, 10))
@@ -159,7 +340,7 @@ def get_synthetic_lib():
     return lib
 
 
-def get_json():
+def get_whole_graph_json():
     nodex = {"op": "null", "name": "x", "inputs": []}
     node0 = {"op": "null", "name": "w0", "inputs": []}
     node1 = {"op": "null", "name": "w1", "inputs": []}
@@ -250,23 +431,26 @@ def get_json():
     return json.dumps(graph)
 
 
-def test_extern_dso_runtime():
+def test_extern(label, get_extern_src, **kwargs):
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
 
+    obj_name = "{}.o".format(label)
+    lib_name = "external_{}.so".format(label)
+
     # Get Json and the compiled library.
-    json = get_json()
+    json = get_whole_graph_json()
     lib = get_synthetic_lib()
-    cur_lib = lib.save("lib.o")
+    lib.save(obj_name)
 
     # library that contains external code.
-    csource_module = generate_csource_module()
+    csource_module = get_extern_src()
     # csource_module.save("external.cc", "cc")
-    kwargs = {"options": ["lib.o", "-O2", "-std=c++11"]}
+    kwargs["options"] = [obj_name] + kwargs["options"]
     # csource_module.save("external.cc")
-    csource_module.export_library("external.so", fcompile=False, **kwargs)
+    csource_module.export_library(lib_name, fcompile=False, **kwargs)
     # load module for execution.
-    lib = tvm.module.load("external.so")
+    lib = tvm.module.load(lib_name)
     mod = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
@@ -282,12 +466,11 @@ def test_extern_dso_runtime():
     out = mod.get_output(0, out)
     tvm.testing.assert_allclose(
         out.asnumpy(),
-        np.concatenate(
-            (((x_data + w_data[0]) - w_data[1]) * w_data[2],
-             ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-             x_data + w_data[6] - w_data[7]),
-            axis=0))
-
+        np.concatenate((((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                        ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                        x_data + w_data[6] - w_data[7]),
+                       axis=0))
 
 if __name__ == "__main__":
-    test_extern_dso_runtime()
+    test_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
+    test_extern("engine", generate_engine_module, options=["-O2", "-std=c++11", "-I."])
