@@ -21,6 +21,8 @@ set -u
 
 export PYTHONPATH=python:topi/python:apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
+export TVM_BIND_THREADS=0
+export TVM_NUM_THREADS=2
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
