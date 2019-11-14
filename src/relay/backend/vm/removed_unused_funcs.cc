@@ -46,36 +46,36 @@ struct CallTracer : ExprVisitor {
   // Record the names of all encountered functions
   std::unordered_set<std::string> called_funcs_;
 
-  // Remember the functions seen to avoid infinite loop
-  std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
+  // Record the expressions that are being visited
+  std::unordered_set<Expr, NodeHash, NodeEqual> visiting_;
 
   explicit CallTracer(const Module& module)
     : module_{module},
       called_funcs_{},
-      visited_{} {}
+      visiting_{} {}
 
   void VisitExpr_(const CallNode* call_node) final {
     Expr op = call_node->op;
+    for (auto param : call_node->args) {
+      VisitExpr(param);
+    }
     if (auto func_node = op.as<FunctionNode>()) {
       auto func = GetRef<Function>(func_node);
-      auto it = visited_.find(func);
-      if (it != visited_.end()) {
+      auto it = visiting_.find(func);
+      if (it != visiting_.end()) {
         return;
       }
+      visiting_.insert(func);
       VisitExpr(func);
-      visited_.insert(func);
     } else if (auto global = op.as<GlobalVarNode>()) {
       called_funcs_.insert(global->name_hint);
       auto func = module_->Lookup(global->name_hint);
-      auto it = visited_.find(func);
-      if (it != visited_.end()) {
+      auto it = visiting_.find(func);
+      if (it != visiting_.end()) {
         return;
       }
+      visiting_.insert(func);
       VisitExpr(func);
-      visited_.insert(func);
-    }
-    for (auto param : call_node->args) {
-      VisitExpr(param);
     }
   }
 
