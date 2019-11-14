@@ -722,6 +722,19 @@ def _test_reduce(math_op, data, keep_dims=None):
         out = math_op(in_data, data[1], keep_dims)
         compare_tflite_with_tvm([data[0]], ['in:0'], [in_data], [out])
 
+def _test_reduce_quantize(math_op, data, keep_dims=None):
+    """ One iteration of reduce """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype="float32", name='in')]
+        inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0")]
+        out = math_op(inq_data, data[1], keep_dims)
+        out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
+        compare_tflite_with_tvm([data[0]], ['inq_0:0'], [inq_data[0]], [out], quantized=True)
+
 
 #######################################################################
 # Reduce_min
@@ -743,9 +756,12 @@ def _test_reduce_max(data, keep_dims=None):
 # Reduce_mean
 # -----------
 
-def _test_reduce_mean(data, keep_dims=None):
+def _test_reduce_mean(data, keep_dims=None, quantized=False):
     """ One iteration of reduce_mean """
-    return _test_reduce(math_ops.reduce_mean, data, keep_dims)
+    if quantized:
+        return _test_reduce_quantize(math_ops.reduce_mean, data, keep_dims)
+    else:
+        return _test_reduce(math_ops.reduce_mean, data, keep_dims)
 
 #######################################################################
 # Reduce_prod
@@ -775,11 +791,17 @@ def _test_forward_reduce(testop):
     testop(data1, keep_dims=False)
     testop(data1, keep_dims=True)
 
+def _test_forward_reduce_quantized(testop):
+    data0 = [np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8), np.array([1, 2], dtype=np.int32)]
+    testop(data0, quantized=True)
+    testop(data0, keep_dims=False, quantized=True)
+    testop(data0, keep_dims=True, quantized=True)
 
 def test_all_reduce():
     _test_forward_reduce(_test_reduce_min)
     _test_forward_reduce(_test_reduce_max)
     _test_forward_reduce(_test_reduce_mean)
+    _test_forward_reduce_quantized(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
     _test_forward_reduce(_test_reduce_sum)
 
