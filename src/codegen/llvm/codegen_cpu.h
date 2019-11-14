@@ -24,12 +24,12 @@
 #ifndef TVM_CODEGEN_LLVM_CODEGEN_CPU_H_
 #define TVM_CODEGEN_LLVM_CODEGEN_CPU_H_
 
+#include <tvm/build_module.h>
 #include <utility>
 #include <vector>
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <tvm/build_module.h>
 #include "codegen_llvm.h"
 
 namespace tvm {
