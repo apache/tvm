@@ -105,6 +105,7 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = ss.str();
         return;
       }
+      case kGcnArch: return;
     }
     *rv = value;
   }

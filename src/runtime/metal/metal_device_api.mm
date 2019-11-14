@@ -63,6 +63,7 @@ void MetalWorkspace::GetAttr(
     case kMultiProcessorCount: return;
     case kMaxThreadDimensions: return;
     case kExist: break;
+    case kGcnArch: return; 
   }
 }
 
