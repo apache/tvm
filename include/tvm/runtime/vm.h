@@ -687,7 +687,7 @@ class VirtualMachine : public runtime::ModuleNode {
     return "VirtualMachine";
   }
 
-  VirtualMachine() : frames(), func_index(0), code(nullptr), pc(0), exec(nullptr) {}
+  VirtualMachine() : frames_(), func_index_(0), code_(nullptr), pc_(0), exec_(nullptr) {}
 
   /*! \brief load the executable for the virtual machine.
    *  \param exec The executable.
@@ -696,47 +696,51 @@ class VirtualMachine : public runtime::ModuleNode {
 
  protected:
   /*! \brief The virtual machine's packed function table. */
-  std::vector<PackedFunc> packed_funcs;
+  std::vector<PackedFunc> packed_funcs_;
   /*! \brief The current stack of call frames. */
-  std::vector<VMFrame> frames;
+  std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */
-  Index func_index;
+  Index func_index_;
   /*! \brief The current pointer to the code section. */
-  const Instruction* code;
+  const Instruction* code_;
   /*! \brief The virtual machine PC. */
-  Index pc;
-
+  Index pc_;
   /*! \brief The special return register. */
-  ObjectRef return_register;
-
+  ObjectRef return_register_;
   /*! \brief The executable the VM will operate on. */
-  const Executable* exec;
-
+  const Executable* exec_;
+  /*! \brief The function name to inputs mapping. */
+  std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
   /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs;
+  std::vector<TVMContext> ctxs_;
 
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
-  /*! \brief Pop a frame off the call stack.
-   *  \return The number of frames left.
+
+  /*!
+   * \brief Pop a frame off the call stack.
+   * \return The number of frames left.
    */
   Index PopFrame();
 
-  /*! \brief Write to a VM register.
-   *  \param reg The register to write to.
-   *  \param obj The object to write to.
+  /*!
+   * \brief Write to a VM register.
+   * \param reg The register to write to.
+   * \param obj The object to write to.
    */
   inline void WriteRegister(RegName reg, const ObjectRef& obj);
 
-  /*! \brief Read a VM register.
-   *  \param reg The register to read from.
-   *  \return The read object.
+  /*!
+   * \brief Read a VM register.
+   * \param reg The register to read from.
+   * \return The read object.
    */
   inline ObjectRef ReadRegister(RegName reg) const;
 
-  /*! \brief Read a VM register and cast it to int32_t
-   *  \param reg The register to read from.
-   *  \return The read scalar.
+  /*!
+   * \brief Read a VM register and cast it to int32_t
+   * \param reg The register to read from.
+   * \return The read scalar.
    */
   int32_t LoadScalarInt(RegName reg) const;
 
@@ -775,9 +779,6 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
-
-  /*! \brief The parameter name to data mapping. */
-  std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
 
   /*!
    * \brief The constant pool for runtime. It caches the device dependent
