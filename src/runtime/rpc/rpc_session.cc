@@ -1254,7 +1254,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
-  if (ctx.device_type == kDLMicroDev) {
+  if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
     return MicroTimeEvaluator(pf, ctx, number, repeat, min_repeat_ms);
   }
 
