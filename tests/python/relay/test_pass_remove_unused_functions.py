@@ -25,8 +25,8 @@ def test_remove_all_prelude_functions():
     x = relay.var("x", shape=(1, 16))
     mod["main"] = relay.Function([x], x)
     mod = relay.transform.RemoveUnusedFunctions()(mod)
-    # Keep: main
-    assert len(mod.functions) == 1
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert l == set(['main'])
 
 def test_remove_all_prelude_functions_but_referenced_functions():
     mod = relay.Module()
@@ -38,8 +38,8 @@ def test_remove_all_prelude_functions_but_referenced_functions():
 
     mod["main"] = relay.Function([x], id_name(x))
     mod = relay.transform.RemoveUnusedFunctions()(mod)
-    # Keep: id_func, main
-    assert len(mod.functions) == 2
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert l == set(['id_func', 'main'])
 
 def test_keep_only_referenced_prelude_functions():
     mod = relay.Module()
@@ -50,8 +50,26 @@ def test_keep_only_referenced_prelude_functions():
     body = p.hd(p.tl(p.tl(l)))
     mod["main"] = relay.Function([], body)
     mod = relay.transform.RemoveUnusedFunctions()(mod)
-    # Keep: hd, tl, main
-    assert len(mod.functions) == 3
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert l == set(['tl', 'hd', 'main'])
+
+def test_multiple_entry_functions():
+    mod = relay.Module()
+    p = Prelude(mod)
+    l = p.nil()
+    for i in [4, 3, 2, 1, 0]:
+        l = p.cons(relay.const(i), l)
+    body = p.hd(p.tl(p.tl(l)))
+    mod["main1"] = relay.Function([], body)
+
+    x = relay.var("x", shape=(1, 16))
+    id_func = relay.Function([x], x)
+    id_name = relay.GlobalVar('id_func')
+    mod[id_name] = id_func
+    mod["main2"] = relay.Function([x], id_name(x))
+    mod = relay.transform.RemoveUnusedFunctions(['main1', 'main2'])(mod)
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert l == set(['tl', 'hd', 'main2', 'id_func', 'main1'])
 
 if __name__ == '__main__':
     pytest.main()

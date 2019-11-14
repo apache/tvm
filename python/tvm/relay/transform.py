@@ -297,15 +297,20 @@ def BackwardFoldScaleAxis():
     """
     return _transform.BackwardFoldScaleAxis()
 
-def RemoveUnusedFunctions():
+def RemoveUnusedFunctions(entry_functions=['main']):
     """Remove unused global relay functions in a relay module.
+
+    Parameters
+    ----------
+    entry_functions: list[string]
+        The set of entry functions to start from.
 
     Returns
     -------
     ret : tvm.relay.Pass
         The registered pass to remove unused functions.
     """
-    return _transform.RemoveUnusedFunctions()
+    return _transform.RemoveUnusedFunctions(entry_functions)
 
 def ForwardFoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense.

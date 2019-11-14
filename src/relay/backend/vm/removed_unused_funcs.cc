@@ -87,8 +87,22 @@ struct CallTracer : ExprVisitor {
   }
 };
 
-Module RemoveUnusedFunctions(const Module& module) {
-  auto called_funcs = CallTracer(module).Trace("main");
+/*!
+ * \brief Remove functions that are not used.
+ *
+ * \param module The Relay module.
+ * \param entry_funcs The set of functions that can be entry function.
+ * 
+ * \return The module with dead functions removed.
+ */
+Module RemoveUnusedFunctions(const Module& module,
+                             Array<tvm::Expr> entry_funcs) {
+  std::unordered_set<std::string> called_funcs{};
+  for (auto entry : entry_funcs) {
+    auto* str_name = entry.as<ir::StringImm>();
+    auto funcs = CallTracer(module).Trace(str_name->value);
+    called_funcs.insert(funcs.cbegin(), funcs.cend());
+  }
   auto existing_functions = module->functions;
   for (auto f : existing_functions) {
     auto it = called_funcs.find(f.first->name_hint);
@@ -103,10 +117,10 @@ Module RemoveUnusedFunctions(const Module& module) {
 
 namespace transform {
 
-Pass RemoveUnusedFunctions() {
+Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions) {
   runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
     [=](Module m, PassContext pc) {
-    return relay::vm::RemoveUnusedFunctions(m);
+    return relay::vm::RemoveUnusedFunctions(m, entry_functions);
   };
   return CreateModulePass(pass_func, 1, "RemoveUnusedFunctions", {});
 }
