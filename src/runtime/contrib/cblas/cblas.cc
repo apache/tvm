@@ -31,7 +31,7 @@ extern "C" {
 #else
 #include <cblas.h>
 #endif
-#if USE_MKL_DNN == 1
+#if USE_DNNL == 1
 #include <dnnl.h>
 #endif
 }
@@ -49,7 +49,7 @@ struct CblasSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
-#if USE_MKL_DNN == 1
+#if USE_DNNL == 1
     dnnl_sgemm(BooleanToTransposeChar(tb), BooleanToTransposeChar(ta), N, M, K, alpha, B,
                ldb, A, lda, beta, C, ldc);
 #else
