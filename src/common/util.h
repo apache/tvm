@@ -35,6 +35,7 @@
 #include <sstream>
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <memory>
 
 namespace tvm {
