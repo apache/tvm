@@ -29,7 +29,9 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <tvm/build_module.h>
 #include "codegen_llvm.h"
+
 
 namespace tvm {
 namespace codegen {

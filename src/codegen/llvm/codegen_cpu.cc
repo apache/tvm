@@ -847,25 +847,27 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
-  using llvm::BasicBlock;
-  llvm::Value* cond = MakeValue(op->condition);
-  std::ostringstream os;
-  os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImm>()) {
-    os << ", " << op->message.as<StringImm>()->value;
-  }
-  llvm::Value* msg = GetConstString(os.str());
-  BasicBlock* fail_block = BasicBlock::Create(
+  if (!BuildConfig::Current()->disable_assert) {
+    using llvm::BasicBlock;
+    llvm::Value *cond = MakeValue(op->condition);
+    std::ostringstream os;
+    os << "Assert fail: " << op->condition;
+    if (op->message.as<StringImm>()) {
+      os << ", " << op->message.as<StringImm>()->value;
+    }
+    llvm::Value *msg = GetConstString(os.str());
+    BasicBlock *fail_block = BasicBlock::Create(
       *ctx_, "assert_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(
+    BasicBlock *end_block = BasicBlock::Create(
       *ctx_, "assert_end", function_);
-  builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
-  // fail condition.
-  builder_->SetInsertPoint(fail_block);
-  builder_->CreateCall(RuntimeTVMAPISetLastError(), {msg});
-  builder_->CreateRet(ConstInt32(-1));
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
+    builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
+    // fail condition.
+    builder_->SetInsertPoint(fail_block);
+    builder_->CreateCall(RuntimeTVMAPISetLastError(), {msg});
+    builder_->CreateRet(ConstInt32(-1));
+    // otherwise set it to be new end.
+    builder_->SetInsertPoint(end_block);
+  }
   CodeGenLLVM::VisitStmt_(op);
 }
 
