@@ -74,7 +74,7 @@ struct CallTracer : ExprVisitor {
       VisitExpr(func);
       visited_.insert(func);
     }
-    for (auto param: call_node->args) {
+    for (auto param : call_node->args) {
       VisitExpr(param);
     }
   }
