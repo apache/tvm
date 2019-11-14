@@ -79,5 +79,20 @@ def test_task_extraction():
                                                        ops=(relay.op.nn.conv2d,))
     assert len(tasks) == 31
 
+def test_task_extraction_template_key():
+    """test task extraction using non-'direct' template_key"""
+    target = 'llvm'
+
+    shape_factor = 64
+    data = relay.var('data', shape=(shape_factor, shape_factor), dtype='float32')
+    dense = relay.nn.dense(data=data, weight=relay.var('weight'), units=shape_factor)
+    mod, params = relay.testing.init.create_workload(dense)
+    tasks = autotvm.task.extract_from_program(mod['main'], target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.dense,),
+                                              template_key='direct_nopack')
+    assert len(tasks) == 1
+
 if __name__ == '__main__':
     test_task_extraction()
+    test_task_extraction_template_key()

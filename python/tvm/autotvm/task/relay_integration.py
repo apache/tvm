@@ -54,7 +54,8 @@ def _lower(func,
     return grc.codegen(mod["main"])
 
 
-def extract_from_program(func, params, ops, target, target_host=None):
+def extract_from_program(func, params, ops, target, target_host=None,
+                         template_key='direct'):
     """ Extract tuning tasks from a relay program.
 
     This function is the single program version of extract_from_multiple_program.
@@ -71,16 +72,20 @@ def extract_from_program(func, params, ops, target, target_host=None):
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
+    template_key: str
+        The tuning template key for schedules, default to `direct`
 
     Returns
     -------
     task: Array of autotvm.task.Task
         collected tasks
     """
-    return extract_from_multiple_program([func], [params], ops, target, target_host)
+    return extract_from_multiple_program([func], [params], ops, target, target_host,
+                                         template_key=template_key)
 
 
-def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
+def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
+                                  template_key='direct'):
     """ Extract tuning tasks from multiple relay programs.
 
     This function collects tuning tasks by building a list of programs
@@ -98,6 +103,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
+    template_key: str
+        The tuning template key for schedules, default to `direct`
 
     Returns
     -------
@@ -152,7 +159,7 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
         try:
             tsk = create(task_name, args,
                          target=target, target_host=target_host,
-                         template_key='direct')
+                         template_key=template_key)
             tasks.append(tsk)
         except topi.InvalidShapeError:
             print("[Warning] Invalid shape during AutoTVM task creation")
