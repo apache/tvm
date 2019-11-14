@@ -156,9 +156,12 @@ def collect_stats(mod, dataset):
         The profile graph which outputs a tuple of profile data.
     """
     logging.info("collecting statistics for calibration...")
-    func = mod['main']
+    if isinstance(mod, tvm.relay.Module):
+        func = mod['main']
+    else:
+        func = mod
     func = _quantize.CreateStatsCollector(func)
-    with _transform.build_config(opt_level=3):
+    with _transform.build_config(opt_level=2):
         graph, lib, params = _build_module.build(func, target="llvm")
     outputs = []
     runtime = graph_runtime.create(graph, lib, tvm.cpu())
@@ -168,7 +171,7 @@ def collect_stats(mod, dataset):
     outputs = [[] for i in range(num_outputs)]
 
     for batch_id, batch in enumerate(dataset):
-        runtime.set_input(**batch)
+        runtime.set_input('data', tvm.nd.array(batch['data']))
         runtime.run()
         for i in range(num_outputs):
             output = runtime.get_output(i).asnumpy()

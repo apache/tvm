@@ -26,7 +26,6 @@ from .. import analysis as _analysis
 from ... import make as _make
 from ..base import NodeBase, register_relay_node
 
-# TODO(contributor): remove kind in sq
 # TODO(ziheng): refactor the infra to modulized pass
 
 class QAnnotateKind(object):

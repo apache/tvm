@@ -19,22 +19,34 @@
 from __future__ import absolute_import
 import math
 
+import tvm
 import topi
 from .. import expr as _expr
 from ..op import op as _reg
 from .quantize import QAnnotateKind
 
+@tvm.register_func("tvm.quantize.check_overflow")
+def check_overflow(data, overflow_min, overflow_max, out):
+    print(data.asnumpy())
+    # raise ValueError
+    data.copyto(out) 
+
+
 @_reg.register_compute("relay.op.annotation.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type, target):
     """Compiler for simulated_quantize."""
-    assert len(inputs) == 4
+    assert len(inputs) == 6
     assert attrs.sign
     assert attrs.rounding == "round"
 
-    data, dscale, clip_min, clip_max = inputs
+    data, dscale, clip_min, clip_max, overflow_min, overflow_max = inputs
 
-    if attrs.kind == QAnnotateKind.IDENTITY:
-        return [topi.identity(data)]
+    # check overflow
+    # data = tvm.extern(data.shape,
+    #     [data, overflow_min, overflow_max],
+    #     lambda ins, outs: tvm.call_packed(
+    #     "tvm.quantize.check_overflow", ins[0], ins[1], ins[2], outs[0]),
+    #     name='check_overflow')
 
     # simulate rounding error
     scaled_data = topi.divide(data, dscale)
@@ -42,8 +54,8 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     round_data = topi.round(clipped_data)
 
     # recover data
-    rdata = topi.multiply(round_data, dscale)
-    return [rdata]
+    ret = topi.multiply(round_data, dscale)
+    return [ret]
 
 
 _reg.register_schedule("relay.op.annotation.simulated_quantize",

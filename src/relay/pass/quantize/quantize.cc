@@ -42,7 +42,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
                           int num_inputs,
                           const Attrs& attrs,
                           const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 5);
+  CHECK_EQ(types.size(), 7);
   const auto param = attrs.as<SimulatedQuantizeAttrs>();
   CHECK(param != nullptr);
 
@@ -53,7 +53,9 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   reporter->Assign(types[1], TensorTypeNode::make({}, Float(32)));    // dom_scale
   reporter->Assign(types[2], TensorTypeNode::make({}, Float(32)));    // clip_min
   reporter->Assign(types[3], TensorTypeNode::make({}, Float(32)));    // clip_max
-  reporter->Assign(types[4], types[0]);                               // output
+  reporter->Assign(types[4], TensorTypeNode::make({1}, Float(32)));    // overflow_min
+  reporter->Assign(types[5], TensorTypeNode::make({1}, Float(32)));    // overflow_max
+  reporter->Assign(types[6], types[0]);                               // output
   return true;
 }
 
