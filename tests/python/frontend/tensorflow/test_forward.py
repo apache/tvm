@@ -2127,7 +2127,6 @@ def _test_forward_tranapose_axes_input(ishape, axes):
         # make axes an input to tf.transpose, but not an input to the graph,
         # so it can be extracted with infer_value_simulated
         axes = tf.reverse(const1, axis=[-1])
-
         tf.transpose(in1, axes)
 
         compare_tf_with_tvm([data], ['transpose_data:0'], 'transpose:0')
