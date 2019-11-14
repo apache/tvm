@@ -64,6 +64,8 @@ def generate_csource_module():
       gcc_1_2(gcc_input4, gcc_input5, buf_0);
       gcc_1_1(buf_0, gcc_input6, buf_1);
       gcc_1_0(buf_1, gcc_input7, out);
+      free(buf_0);
+      free(buf_1);
     }
 
     extern "C" int gcc_1(TVMValue* value, int* type_code, int nargs) {
@@ -93,6 +95,8 @@ def generate_csource_module():
       gcc_0_2(gcc_input0, gcc_input1, buf_0);
       gcc_0_1(buf_0, gcc_input2, buf_1);
       gcc_0_0(buf_1, gcc_input3, out);
+      free(buf_0);
+      free(buf_1);
     }
 
     extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
