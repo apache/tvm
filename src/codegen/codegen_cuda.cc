@@ -58,15 +58,19 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
     decl_stream << "__device__ half min(half a, half b)\n"
                 << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "__device__ half operator<="
-                << "(__half a,  __half b)\n"
-                << "{\n  return __hlt(a, b);\n}\n";
-    decl_stream << "__device__ half operator+"
-                << "(__half a,  __half &b)\n"
-                <<"{\n  return __hadd(a, b);\n}\n";
-    decl_stream << "__device__ half operator*"
-                << "(__half a, __half b)\n"
-                <<   "{\n  return __hmul(a, b);\n}\n";
+    // FIXME(tvm-team): "volatile" is used to enable cross thread reduction,
+    // which is needed by operations such as softmax.
+    // However, volatile overloading is not supported in NVRTC and CUDA < 9.2.
+    // We need to figure out a solution which can satisfy both scenario.
+    // decl_stream << "__device__ half operator<="
+    //             << "(const volatile __half &a,  const volatile __half &b)\n"
+    //             << "{\n  return __hlt(a, b);\n}\n";
+    // decl_stream << "__device__ half operator+"
+    //             << "(const volatile __half &a,  const volatile __half &b)\n"
+    //             <<"{\n  return __hadd(a, b);\n}\n";
+    // decl_stream << "__device__ half operator*"
+    //             << "(const volatile __half &a, const volatile __half &b)\n"
+    //             <<   "{\n  return __hmul(a, b);\n}\n";
     // otherwise simulate computation via float32
     decl_stream << "#else\n";
     decl_stream << _cuda_half_t_def;
