@@ -22,6 +22,9 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm import module as _tvm_module
+from tvm.contrib import util
+
+tmp_path = util.tempdir()
 
 
 def generate_csource_module():
@@ -111,6 +114,7 @@ def generate_csource_module():
     csource_module = _tvm_module.csource_module_create(code, "cc")
     return csource_module
 
+
 def generate_engine_module():
     """
     Mock the codegen of an external backend with its own runtime engine
@@ -184,6 +188,7 @@ def generate_engine_module():
     gen_gcc_engine()
     csource_module = _tvm_module.csource_module_create(code, "cc")
     return csource_module
+
 
 def gen_gcc_engine():
     """An example of external backend runtime engine. This is supposed to be provided
@@ -290,8 +295,10 @@ def gen_gcc_engine():
 
     #endif
     '''
-    with open('gcc_engine.h', 'w') as f:
+    header_file = tmp_path.relpath("gcc_engine.h")
+    with open(header_file, 'w') as f:
         f.write(code)
+
 
 def get_synthetic_lib():
     x = relay.var('x', shape=(10, 10))
@@ -431,7 +438,7 @@ def get_whole_graph_json():
     return json.dumps(graph)
 
 
-def test_extern(label, get_extern_src, **kwargs):
+def check_extern(label, get_extern_src, **kwargs):
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
 
@@ -439,19 +446,18 @@ def test_extern(label, get_extern_src, **kwargs):
     lib_name = "external_{}.so".format(label)
 
     # Get Json and the compiled library.
-    json = get_whole_graph_json()
+    graph_json = get_whole_graph_json()
     lib = get_synthetic_lib()
     lib.save(obj_name)
 
     # library that contains external code.
     csource_module = get_extern_src()
-    # csource_module.save("external.cc", "cc")
     kwargs["options"] = [obj_name] + kwargs["options"]
-    # csource_module.save("external.cc")
-    csource_module.export_library(lib_name, fcompile=False, **kwargs)
+    lib_path = tmp_path.relpath(lib_name)
+    csource_module.export_library(lib_path, fcompile=False, **kwargs)
     # load module for execution.
-    lib = tvm.module.load(lib_name)
-    mod = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
+    lib = tvm.module.load(lib_path)
+    mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
     mod.set_input("x", x_data)
@@ -471,6 +477,16 @@ def test_extern(label, get_extern_src, **kwargs):
                         x_data + w_data[6] - w_data[7]),
                        axis=0))
 
+
+def test_dso_extern():
+    check_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
+
+
+def test_engine_extern():
+    check_extern("engine", generate_engine_module,
+                 options=["-O2", "-std=c++11", "-I"+tmp_path.relpath("")])
+
+
 if __name__ == "__main__":
-    test_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
-    test_extern("engine", generate_engine_module, options=["-O2", "-std=c++11", "-I."])
+    test_dso_extern()
+    test_engine_extern()
