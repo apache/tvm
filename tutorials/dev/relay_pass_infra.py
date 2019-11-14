@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=line-too-long
 """
-.. _tutorial-relay-pass-infra
+.. _tutorial-relay-pass-infra:
 
 How to Use Relay Pass Infra
 ===========================
