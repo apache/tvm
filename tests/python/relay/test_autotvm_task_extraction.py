@@ -93,7 +93,7 @@ def test_template_key_provided():
     mod, params, _ = get_network('mobilenet', batch_size=1)
     tasks = autotvm.task.extract_from_program(mod['main'], target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,relay.op.nn.dense),
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense),
                                               template_keys=template_keys)
     for task in tasks:
         if 'dense' in task.name:
@@ -101,17 +101,29 @@ def test_template_key_provided():
         else:
             assert task.config_space.template_key == 'direct'
 
-def test_template_key_default():
-    """test task extraction using non-'direct' template_key"""
+def test_template_key_empty():
+    """test task extraction using empty template_key"""
     target = 'llvm'
     mod, params, _ = get_network('mobilenet', batch_size=1)
     tasks = autotvm.task.extract_from_program(mod['main'], target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,relay.op.nn.dense))
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense),
+                                              template_keys=None)
+    for task in tasks:
+        assert task.config_space.template_key == 'direct'
+
+def test_template_key_default():
+    """test task extraction without template_key"""
+    target = 'llvm'
+    mod, params, _ = get_network('mobilenet', batch_size=1)
+    tasks = autotvm.task.extract_from_program(mod['main'], target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense))
     for task in tasks:
         assert task.config_space.template_key == 'direct'
 
 if __name__ == '__main__':
     test_task_extraction()
     test_template_key_provided()
+    test_template_key_empty()
     test_template_key_default()

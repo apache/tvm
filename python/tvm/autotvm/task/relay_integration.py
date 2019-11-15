@@ -55,7 +55,7 @@ def _lower(func,
 
 
 def extract_from_program(func, params, ops, target, target_host=None,
-                         template_keys=dict()):
+                         template_keys=None):
     """ Extract tuning tasks from a relay program.
 
     This function is the single program version of extract_from_multiple_program.
@@ -86,7 +86,7 @@ def extract_from_program(func, params, ops, target, target_host=None,
 
 
 def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
-                                  template_keys=dict()):
+                                  template_keys=None):
     """ Extract tuning tasks from multiple relay programs.
 
     This function collects tuning tasks by building a list of programs
@@ -156,12 +156,13 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
 
     # convert *topi op to template key* map to *task name to template key* map
     task_keys = dict()
-    for op in list(template_keys.keys()):
-        if op in env.topi_to_task:
-            task_keys[env.topi_to_task[op]] = template_keys[op]
-        else:
-            logger.warn("Invalid template key, fallback to direct")
-            task_keys[env.topi_to_task[op]] = 'direct'
+    if template_keys is not None:
+        for op in list(template_keys.keys()):
+            if op in env.topi_to_task:
+                task_keys[env.topi_to_task[op]] = template_keys[op]
+            else:
+                logger.warning("Invalid template key, fallback to direct")
+                task_keys[env.topi_to_task[op]] = 'direct'
 
     # create tasks for target
     tasks = []
@@ -173,6 +174,6 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
                          template_key=key)
             tasks.append(tsk)
         except topi.InvalidShapeError:
-            logger.warn("Invalid shape during AutoTVM task creation")
+            logger.warning("Invalid shape during AutoTVM task creation")
 
     return tasks
