@@ -529,15 +529,23 @@ def ToCPS(expr, mod=None):
     return _transform.to_cps(expr, mod)
 
 
-def EtaExpand():
-    """Add abstraction over a function
+def EtaExpand(expand_constructor=False, expand_global_var=False):
+    """Add abstraction over a constructor or global variable bound to a function
+
+    Parameters
+    ----------
+    expand_constructor: bool
+        Whether to expand constructors.
+
+    expand_global_var: bool
+        Whether to expand global variables.
 
     Returns
     -------
     ret: tvm.relay.Pass
         The registered pass that eta expands an expression.
     """
-    return _transform.EtaExpand()
+    return _transform.EtaExpand(expand_constructor, expand_global_var)
 
 
 def ToGraphNormalForm():
@@ -958,6 +966,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_function_pass(pass_func)
     return create_function_pass
+
 
 @function_pass(opt_level=1)
 class ChangeBatch:
