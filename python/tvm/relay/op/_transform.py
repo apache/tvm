@@ -312,10 +312,7 @@ def compute_strided_set(attrs, inputs, output_type, _):
     end = attrs.end
     strides = attrs.strides
     n = len(inputs[0].shape)
-    ls = len(strides)
-    if ls < n:
-        strides = list(strides)
-        strides[ls:] = [1] * (n - ls)
+    strides = list(strides) + [1] * (n - len(strides))
     lb = len(begin)
     if lb < n:
         begin = list(begin)

@@ -219,10 +219,6 @@ def strided_set(a, v, begin, end, strides=None):
        	        within_index(begin[i], end[i], strides[i], indices[i]))
             index_tuple.append(
                 make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
-        #return tvm.all(*from_val)
-        #return index_tuple[0]
-        #return index_tuple[1]
-        #return index_tuple[2]
         return tvm.if_then_else(tvm.all(*from_val),
        	       	                v(*index_tuple),
                                 a(*indices))
