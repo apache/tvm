@@ -575,8 +575,7 @@ class OperatorConverter(object):
         """Convert TFLite MUL"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized mul operator is not supported yet.')
+            return self._convert_elemwise(_qnn.op.mul, op)
         return self._convert_elemwise(_op.multiply, op)
 
     def convert_div(self, op):
