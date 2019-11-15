@@ -61,8 +61,8 @@ Function MarkClosure(const Function& func) {
  * We will lift a function out into a global which takes the set of the free
  * vars and then return the new created function.
  */
-struct LambdaLifter : ExprMutator {
-  Module module_;
+class LambdaLifter : public ExprMutator {
+ public:
   explicit LambdaLifter(const Module& module) : module_(module) {}
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
@@ -100,8 +100,8 @@ struct LambdaLifter : ExprMutator {
     // The "inner" function should be used to generate the
     // code for the closure.
     Function lifted_func;
-    if (free_vars.size() == 0) {
-      lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, free_type_vars);
+    if (free_vars.size() == 0 && free_type_vars.size() == 0) {
+      lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, body->type_params);
     } else {
       lifted_func =
           FunctionNode::make(free_vars, body, func->func_type_annotation(), free_type_vars);
@@ -114,8 +114,15 @@ struct LambdaLifter : ExprMutator {
     auto name = GenerateName(lifted_func);
     auto global = GlobalVarNode::make(name);
 
-    // Add the lifted function to the module.
-    module_->Add(global, lifted_func);
+    if (module_->ContainGlobalVar(name)) {
+      const auto existing_func = module_->Lookup(name);
+      CHECK(AlphaEqual(lifted_func, existing_func)) << "lifted function hash collision";
+      // If an identical function already exists, use its global var.
+      global = module_->GetGlobalVar(name);
+    } else {
+      // Add the lifted function to the module.
+      module_->Add(global, lifted_func);
+    }
 
     if (free_vars.size() == 0) {
       return std::move(global);
@@ -145,6 +152,9 @@ struct LambdaLifter : ExprMutator {
     }
     return module_;
   }
+
+ private:
+  Module module_;
 };
 
 }  // namespace vm

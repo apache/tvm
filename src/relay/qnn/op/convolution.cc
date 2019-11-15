@@ -106,8 +106,6 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QnnConv
  * \brief Fallback to simpler lowering for dilation or depthwise conv.
  * \param data The input expr.
  * \param weight The weight expr.
- * \param zp_data The data zero point expr.
- * \param zp_kernel The kernel zero point expr.
  * \param param The qnn conv2d attributes.
  * \return The fallback lowered sequence of Relay expr.
  * \note In case of dilation, normal lowering would require a dilated pool.
@@ -115,16 +113,19 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QnnConv
  *       Relay operations. This will potentially lead to performance degradation
  *       as the convolution is called on int32 tensors instead of int8 tensors.
  */
-Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& zp_data,
-                    const Expr& zp_kernel, const QnnConv2DAttrs* param) {
-  auto shifted_data = data;
+Expr Conv2DFallBack(const Expr& data, const Expr& weight, const QnnConv2DAttrs* param) {
+  // Upcast the zero point to Int16.
+  auto zp_data = MakeConstantScalar(Int(16), param->input_zero_point);
+  auto zp_kernel = MakeConstantScalar(Int(16), param->kernel_zero_point);
+
+  auto shifted_data = Cast(data, Int(16));
   if (param->input_zero_point != 0) {
-    shifted_data = Subtract(Cast(data, Int(32)), zp_data);
+    shifted_data = Subtract(Cast(data, Int(16)), zp_data);
   }
 
-  auto shifted_kernel = weight;
+  auto shifted_kernel = Cast(weight, Int(16));
   if (param->kernel_zero_point != 0) {
-    shifted_kernel = Subtract(Cast(weight, Int(32)), zp_kernel);
+    shifted_kernel = Subtract(Cast(weight, Int(16)), zp_kernel);
   }
 
   return Conv2D(shifted_data, shifted_kernel, param->strides, param->padding, param->dilation,
@@ -186,7 +187,6 @@ Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const QnnConv2
 /*
  * \brief Calculates the second term in the qnn.conv2d lowering sequence.
  * \param padded_data The padded data expr.
- * \param zp_kernel The kernel zero point expr.
  * \param param The qnn conv2d attributes.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
@@ -200,8 +200,11 @@ Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const QnnConv2
  *       followed by a reduce on the C axis. Using avg_pool2d also gives an
  *       opportunity to reuse alter_op_layout infrastructure.
  */
-Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnConv2DAttrs* param,
-                      int kernel_h, int kernel_w, int out_channels) {
+Expr Conv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* param, int kernel_h,
+                      int kernel_w, int out_channels) {
+  // Constant Expr for the kernel zero point.
+  auto zp_kernel = MakeConstantScalar(Int(32), param->kernel_zero_point);
+
   auto casted_t2 = Cast(padded_data, Int(32));
 
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
@@ -241,7 +244,6 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnC
 /*
  * \brief Calculates the third term in the qnn.conv2d lowering sequence.
  * \param weight The weight expr.
- * \param zp_data The data zero point expr.
  * \param param The qnn conv2d attributes.
  * \param batch_size The batch size.
  * \param out_channels The number of output channels.
@@ -254,8 +256,11 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& zp_kernel, const QnnC
  *       a 1D tensor. The tensor is then reshaped to conform to NHWC/NCHW
  *       format.
  */
-Expr Conv2DThirdTerm(const Expr& weight, const Expr& zp_data, const QnnConv2DAttrs* param,
-                     int batch_size, int out_channels) {
+Expr Conv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, int batch_size,
+                     int out_channels) {
+  // Constant expr for input zero point.
+  auto zp_data = MakeConstantScalar(Int(32), param->input_zero_point);
+
   // Find which dimensions are C, R, S.
   Array<Integer> axes_t3;
   if (param->kernel_layout == "OIHW") {
@@ -415,21 +420,19 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   int batch_size, in_channels, out_channels, kernel_h, kernel_w;
   std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w) =
       GetWorkload(arg_types, param);
-  auto zp_data = MakeConstantScalar(Int(32), param->input_zero_point);
-  auto zp_kernel = MakeConstantScalar(Int(32), param->kernel_zero_point);
 
   // Fallback to int32 conv if there is dilation or depthwise conv2d
   CHECK_EQ(param->dilation.size(), 2) << "qnn.conv2d only supports 2D dilation";
   auto dilation_h = get_const_int(param->dilation[0]);
   auto dilation_w = get_const_int(param->dilation[1]);
   if (dilation_h != 1 || dilation_w != 1 || param->groups != 1) {
-    return Conv2DFallBack(data, weight, zp_data, zp_kernel, param);
+    return Conv2DFallBack(data, weight, param);
   }
 
   auto padded_data = Conv2DPadInput(data, param);
   auto term1 = Conv2DFirstTerm(padded_data, weight, param);
-  auto term2 = Conv2DSecondTerm(padded_data, zp_kernel, param, kernel_h, kernel_w, out_channels);
-  auto term3 = Conv2DThirdTerm(weight, zp_data, param, batch_size, out_channels);
+  auto term2 = Conv2DSecondTerm(padded_data, param, kernel_h, kernel_w, out_channels);
+  auto term3 = Conv2DThirdTerm(weight, param, batch_size, out_channels);
   auto term4 = Conv2DFourthTerm(param, batch_size, in_channels, kernel_h, kernel_w);
   return Conv2DCombineTerms(term1, term2, term3, term4, param);
 }

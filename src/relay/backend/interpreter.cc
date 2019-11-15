@@ -26,6 +26,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
 #include <tvm/relay/feature.h>
@@ -789,6 +790,16 @@ CreateInterpreter(
     Module mod,
     DLContext context,
     Target target) {
+  if (mod.defined()) {
+    // eta expand to support constructors in argument position
+    transform::Sequential seq({
+        transform::EtaExpand(
+            /* expand_constructor */ true, /* expand_global_var */ false)});
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    tvm::With<transform::PassContext> ctx(pass_ctx);
+    mod = seq(mod);
+  }
+
   auto intrp = std::make_shared<Interpreter>(mod, context, target);
   auto packed = [intrp](Expr expr) {
     auto f = DetectFeature(expr);

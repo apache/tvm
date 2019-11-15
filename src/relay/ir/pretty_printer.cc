@@ -669,7 +669,7 @@ class PrettyPrinter :
   Doc VisitExpr_(const ConstructorNode* n) final {
     Doc doc;
     doc << n->name_hint;
-    if (n->inputs.size() != 0) {
+    if (in_adt_def_ && n->inputs.size() != 0) {
       doc << "(";
       std::vector<Doc> inputs;
       for (Type input : n->inputs) {
@@ -775,6 +775,7 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const TypeDataNode* node) final {
+    in_adt_def_ = true;
     Doc doc;
     doc << "type " << Print(node->header);
 
@@ -802,6 +803,7 @@ class PrettyPrinter :
       adt_body << ",";
     }
     doc << Brace(adt_body);
+    in_adt_def_ = false;
     return doc;
   }
 
@@ -876,6 +878,8 @@ class PrettyPrinter :
   TextMetaDataContext meta_;
   /*! \brief counter of temporary variable */
   size_t temp_var_counter_{0};
+  /*! \brief whether the printer is currently in an ADT definition */
+  bool in_adt_def_;
   /*! \brief arena for dependency graph */
   common::Arena arena_;
   /*! \brief dependency graph of the expr */

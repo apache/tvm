@@ -144,7 +144,8 @@ class BuildConfig(NodeBase):
         "dump_pass_ir": False,
         "instrument_bound_checkers": False,
         "disable_select_rewriting": False,
-        "disable_vectorize": False
+        "disable_vectorize": False,
+        "disable_assert": False
     }
     _dump_ir = DumpIR()
 

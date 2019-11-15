@@ -32,7 +32,7 @@ def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
     if "cblas" in target.libs:
         C = cblas.matmul(data, weight, False, True)
         if bias is not None:
-            C = tvm.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
+            C = tvm.compute(C.shape, lambda i, j: C[i, j] + bias[j],
                             tag=tag.BROADCAST)
         return C
 

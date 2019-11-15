@@ -307,8 +307,10 @@ def _conv(opname):
         use_bias = len(inputs) == 3
         channel_axis = 1 if attr['data_format'] == "NCHW" else 3
 
+        # Ignore the new attributes from TF2.0, for now.
         out = AttrCvt(
             op_name=_dimension_picker('conv'),
+            ignores=['explicit_paddings'],
             transforms={
                 'kernel_shape': 'kernel_size',
                 'data_format': 'data_layout',
@@ -405,8 +407,9 @@ def _resize_bilinear():
         # NHWC
         attr['layout'] = 'NHWC'
 
+        # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(op_name="resize",
-                       ignores=['Tdim'],
+                       ignores=['Tdim', 'half_pixel_centers'],
                        extras={'method': "bilinear"})(inputs, attr)
     return _impl
 
@@ -1036,8 +1039,8 @@ def _transpose():
         # otherwise its value is get from params
         try:
             axes = _get_list_param(params, inputs[1])
-        except (IndexError, KeyError):
-            axes = None
+        except (IndexError, KeyError, AttributeError):
+            axes = _infer_value_simulated(inputs[1], params).asnumpy()
         return _op.transpose(inputs[0], axes=axes)
     return _impl
 

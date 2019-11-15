@@ -54,6 +54,7 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
+Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
@@ -863,6 +864,8 @@ void VMCompiler::Compile(Module mod,
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
+  Array<tvm::Expr> entry_functions{tvm::Expr{"main"}};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
 
@@ -870,6 +873,10 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   if (targets.size() == 1) {
     pass_seqs.push_back(transform::Legalize());
   }
+
+  // eta expand to support constructors in argument position
+  pass_seqs.push_back(transform::EtaExpand(
+    /* expand_constructor */ true, /* expand_global_var */ false));
 
   pass_seqs.push_back(transform::SimplifyInference());
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {

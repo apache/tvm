@@ -28,6 +28,7 @@
 static constexpr const char* _cuda_half_t_def = R"(
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
+typedef signed char int8_t;
 typedef int int32_t;
 typedef unsigned long long uint64_t;
 typedef unsigned int uint32_t;
@@ -76,7 +77,7 @@ class TVM_ALIGNED(2) half {
   TVM_XINLINE explicit half(const uint8_t& value) { constructor(value); }
   TVM_XINLINE explicit half(const int32_t& value) { constructor(value); }
   TVM_XINLINE explicit half(const uint32_t& value) { constructor(value); }
-  TVM_XINLINE explicit half(const int64_t& value) { constructor(value); }
+  TVM_XINLINE explicit half(const long long& value) { constructor(value); }
   TVM_XINLINE explicit half(const uint64_t& value) { constructor(value); }
 
   TVM_XINLINE operator float() const {                          \
