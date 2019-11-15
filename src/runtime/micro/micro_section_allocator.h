@@ -43,7 +43,7 @@ class MicroSectionAllocator {
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
-      CHECK_EQ(start_addr_.value() % word_size, 0)
+      CHECK_EQ(start_addr_.value().val64 % word_size, 0)
         << "micro section start not aligned to " << word_size << " bytes";
       CHECK_EQ(capacity_ % word_size, 0)
         << "micro section end not aligned to " << word_size << " bytes";
@@ -66,7 +66,7 @@ class MicroSectionAllocator {
         start_addr_.cast_to<void*>();
     DevPtr alloc_addr = start_addr_ + size_;
     size_ += size;
-    alloc_map_[alloc_addr.value()] = size;
+    alloc_map_[alloc_addr.value().val64] = size;
     return alloc_addr;
   }
 
@@ -76,8 +76,8 @@ class MicroSectionAllocator {
    * \note simple allocator scheme, more complex versions will be implemented later
    */
   void Free(DevPtr addr) {
-    CHECK(alloc_map_.find(addr.value()) != alloc_map_.end()) << "freed pointer was never allocated";
-    alloc_map_.erase(addr.value());
+    CHECK(alloc_map_.find(addr.value().val64) != alloc_map_.end()) << "freed pointer was never allocated";
+    alloc_map_.erase(addr.value().val64);
     if (alloc_map_.empty()) {
       size_ = 0;
     }
@@ -118,7 +118,7 @@ class MicroSectionAllocator {
   /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
   /*! \brief allocation map for allocation sizes */
-  std::unordered_map<std::uintptr_t, size_t> alloc_map_;
+  std::unordered_map<uint64_t, size_t> alloc_map_;
 };
 
 }  // namespace runtime

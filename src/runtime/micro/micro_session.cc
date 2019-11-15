@@ -188,22 +188,17 @@ MicroSession::MicroSession(
   // Patch pointers to define the bounds of the workspace section and the word
   // size (for allocation alignment).
   std::shared_ptr<MicroSectionAllocator> ws_allocator = GetAllocator(SectionKind::kWorkspace);
-  uint64_t ws_start = ws_allocator->start_addr().value();
-  uint64_t ws_end = ws_allocator->max_addr().value();
+  TargetVal ws_start = ws_allocator->start_addr().value();
+  TargetVal ws_end = ws_allocator->max_addr().value();
+  TargetVal target_word_size { .val64 = word_size_ };
   if (word_size_ == 4) {
-    uint32_t workspace_start_addr = (uint32_t) ws_start;
-    uint32_t workspace_end_addr = (uint32_t) ws_end;
-    uint32_t word_size = (uint32_t) word_size_;
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.val32);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.val32);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.val32);
   } else if (word_size_ == 8) {
-    uint64_t workspace_start_addr = (uint64_t) ws_start;
-    uint64_t workspace_end_addr = (uint64_t) ws_end;
-    uint64_t word_size = (uint64_t) word_size_;
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", workspace_start_addr);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", workspace_end_addr);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", word_size_);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.val64);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.val64);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.val64);
   }
 }
 
@@ -218,8 +213,7 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   if (thumb_mode_) {
     func_ptr += 1;
   }
-  int32_t (*func_dev_addr)(void*, void*, int32_t) =
-      reinterpret_cast<int32_t (*)(void*, void*, int32_t)>(func_ptr.value());
+  TargetVal func_dev_addr = { .val64 = func_ptr.value() };
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
@@ -235,24 +229,22 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
 
+  TargetVal arg_values_dev_addr = { .val64 = std::get<0>(arg_field_addrs).value() };
+  TargetVal arg_type_codes_dev_addr = { .val64 = std::get<1>(arg_field_addrs).value() };
   if (word_size_ == 4) {
-    TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
-    int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
     UTVMTask32 task = {
-      .func = *((uint32_t*) &func_dev_addr),  // NOLINT(*)
-      .arg_values = *((uint32_t*) &arg_values_dev_addr),  // NOLINT(*)
-      .arg_type_codes = *((uint32_t*) &arg_type_codes_dev_addr),  // NOLINT(*)
+      .func = func_dev_addr.val32,
+      .arg_values = arg_values_dev_addr.val32,
+      .arg_type_codes = arg_type_codes_dev_addr.val32,
       .num_args = args.num_args,
     };
     // Write the task.
     DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
   } else if (word_size_ == 8) {
-    TVMValue* arg_values_dev_addr = std::get<0>(arg_field_addrs).cast_to<TVMValue*>();
-    int* arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).cast_to<int*>();
     UTVMTask64 task = {
-      .func = *((uint64_t*) &func_dev_addr),  // NOLINT(*)
-      .arg_values = *((uint64_t*) &arg_values_dev_addr),  // NOLINT(*)
-      .arg_type_codes = *((uint64_t*) &arg_type_codes_dev_addr),  // NOLINT(*)
+      .func = func_dev_addr.val64,
+      .arg_values = arg_values_dev_addr.val64,
+      .arg_type_codes = arg_type_codes_dev_addr.val64,
       .num_args = args.num_args,
     };
     // Write the task.
@@ -352,7 +344,12 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
         // Mutate the array to unwrap the `data` field.
         base_arr_handle->data = reinterpret_cast<MicroDevSpace*>(old_data)->data;
         // Now, encode the unwrapped version.
-        void* arr_ptr = EncoderAppend(encoder, *base_arr_handle).cast_to<void*>();
+        void* arr_ptr = nullptr;
+        if (word_size_ == 4) {
+          arr_ptr = EncoderAppend<TVMArray32>(encoder, *base_arr_handle).cast_to<void*>();
+        } else if (word_size_ == 8) {
+          arr_ptr = EncoderAppend<TVMArray64>(encoder, *base_arr_handle).cast_to<void*>();
+        }
         // And restore the original wrapped version.
         base_arr_handle->data = old_data;
 
@@ -374,83 +371,38 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
   return std::make_tuple(tvm_vals_slot.start_addr(), type_codes_slot.start_addr());
 }
 
+template <typename T>
 DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
-  if (word_size_ == 4) {
-    auto tvm_arr_slot = encoder->Alloc<TVMArray32>();
-    auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
+  auto tvm_arr_slot = encoder->Alloc<T>();
+  auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
-    // `shape` and `strides` are stored on the host, so we need to write them to
-    // the device first. The `data` field is already allocated on the device and
-    // is a device pointer, so we don't need to write it.
-    shape_slot.WriteArray(arr.shape, arr.ndim);
-    DevPtr shape_addr = shape_slot.start_addr();
-    DevPtr strides_addr = DevPtr(nullptr);
-    if (arr.strides != nullptr) {
-      auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
-      stride_slot.WriteArray(arr.strides, arr.ndim);
-      strides_addr = stride_slot.start_addr();
-    }
-
-    int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
-    int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
-    TVMArray32 dev_arr = {
-      .data = *((uint32_t*) &arr.data),  // NOLINT(*)
-      .ctx = arr.ctx,
-      .ndim = arr.ndim,
-      .pad0 = 0,
-      .dtype = arr.dtype,
-      .shape = *((uint32_t*) &dev_shape),  // NOLINT(*)
-      .strides = *((uint32_t*) &dev_strides),  // NOLINT(*)
-      .pad1 = 0,
-      .byte_offset = *((uint32_t*) &arr.byte_offset),  // NOLINT(*)
-      .pad2 = 0,
-    };
-    // Update the device type to look like a host, because codegen generates
-    // checks that it is a host array.
-    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
-      << "attempt to write TVMArray with non-micro device type";
-    dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-    tvm_arr_slot.WriteValue(dev_arr);
-    return tvm_arr_slot.start_addr();
-  } else if (word_size_ == 8) {
-    auto tvm_arr_slot = encoder->Alloc<TVMArray64>();
-    auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
-
-    // `shape` and `strides` are stored on the host, so we need to write them to
-    // the device first. The `data` field is already allocated on the device and
-    // is a device pointer, so we don't need to write it.
-    shape_slot.WriteArray(arr.shape, arr.ndim);
-    DevPtr shape_addr = shape_slot.start_addr();
-    DevPtr strides_addr = DevPtr(nullptr);
-    if (arr.strides != nullptr) {
-      auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
-      stride_slot.WriteArray(arr.strides, arr.ndim);
-      strides_addr = stride_slot.start_addr();
-    }
-
-    int64_t* dev_shape = shape_addr.cast_to<int64_t*>();
-    int64_t* dev_strides = strides_addr.cast_to<int64_t*>();
-    TVMArray64 dev_arr = {
-      .data = *((uint64_t*) &arr.data),  // NOLINT(*)
-      .ctx = arr.ctx,
-      .ndim = arr.ndim,
-      .pad0 = 0,
-      .dtype = arr.dtype,
-      .shape = *((uint64_t*) &dev_shape),  // NOLINT(*)
-      .strides = *((uint64_t*) &dev_strides),  // NOLINT(*)
-      .byte_offset = *((uint64_t*) &arr.byte_offset),  // NOLINT(*)
-    };
-
-    // Update the device type to look like a host, because from the device's
-    // perspective, it is the host.
-    CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
-      << "attempt to write TVMArray with non-micro device type";
-    dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-    tvm_arr_slot.WriteValue(dev_arr);
-    return tvm_arr_slot.start_addr();
-  } else {
-    CHECK(false) << "invalid word size";
+  // `shape` and `strides` are stored on the host, so we need to write them to
+  // the device first. The `data` field is already allocated on the device and
+  // is a device pointer, so we don't need to write it.
+  shape_slot.WriteArray(arr.shape, arr.ndim);
+  DevPtr shape_dev_addr = shape_slot.start_addr();
+  DevPtr strides_dev_addr = DevPtr(nullptr);
+  if (arr.strides != nullptr) {
+    auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
+    stride_slot.WriteArray(arr.strides, arr.ndim);
+    strides_dev_addr = stride_slot.start_addr();
   }
+
+  T dev_arr(
+      TargetVal { .val64 = reinterpret_cast<uint64_t>(arr.data) },
+      arr.ctx,
+      arr.ndim,
+      arr.dtype,
+      shape_dev_addr.value(),
+      strides_dev_addr.value(),
+      TargetVal { .val64 = arr.byte_offset });
+  CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
+    << "attempt to write TVMArray with non-micro device type";
+  // Update the device type to CPU, because from the microcontroller's
+  // perspective, it is.
+  dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
+  tvm_arr_slot.WriteValue(dev_arr);
+  return tvm_arr_slot.start_addr();
 }
 
 void MicroSession::CheckDeviceError() {
@@ -479,9 +431,9 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   if (word_size_ == 4) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint32_t) runtime_impl_addr.value());
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().val32);
   } else if (word_size_ == 8) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), (uint64_t) runtime_impl_addr.value());
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().val64);
   }
 }
 

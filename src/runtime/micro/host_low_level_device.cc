@@ -69,7 +69,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
   }
 
   void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
-    reinterpret_cast<void (*)(void)>(func_addr.value())();
+    reinterpret_cast<void (*)(void)>(func_addr.value().val64)();
   }
 
   const char* device_type() const final {

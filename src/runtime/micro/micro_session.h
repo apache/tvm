@@ -238,6 +238,7 @@ class MicroSession : public ModuleNode {
    * \param arr TVMArray to be appended
    * \return device address of the allocated `TVMArray`
    */
+  template <typename T>
   DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
 
   /*!
@@ -283,7 +284,26 @@ struct MicroDevSpace {
 // TODO(weberlo): maybe templatize serialization to reduce redundancy
 
 /*! \brief TVM array for serialization to 32-bit devices */
-typedef struct StructTVMArray32 {
+struct TVMArray32 {
+  TVMArray32(
+      TargetVal data,
+      DLContext ctx,
+      int32_t ndim,
+      DLDataType dtype,
+      TargetVal shape,
+      TargetVal strides,
+      TargetVal byte_offset)
+    : data(data.val32),
+      ctx(ctx),
+      ndim(ndim),
+      pad0(0),
+      dtype(dtype),
+      shape(shape.val32),
+      strides(strides.val32),
+      pad1(0),
+      byte_offset(byte_offset.val32),
+      pad2(0) { }
+
   /*!
    * \brief The opaque data pointer points to the allocated data.
    *  This will be CUDA device pointer or cl_mem handle in OpenCL.
@@ -311,10 +331,26 @@ typedef struct StructTVMArray32 {
   uint32_t byte_offset;
   /*! \brief Padding to enforce struct alignment */
   uint32_t pad2;
-} TVMArray32;
+};
 
 /*! \brief TVM array for serialization to 64-bit devices */
-typedef struct StructTVMArray64 {
+struct TVMArray64 {
+  TVMArray64(
+      TargetVal data,
+      DLContext ctx,
+      int32_t ndim,
+      DLDataType dtype,
+      TargetVal shape,
+      TargetVal strides,
+      TargetVal byte_offset)
+    : data(data.val64),
+      ctx(ctx),
+      ndim(ndim),
+      pad0(0),
+      dtype(dtype),
+      shape(shape.val64),
+      strides(strides.val64),
+      byte_offset(byte_offset.val64) { }
   /*!
    * \brief The opaque data pointer points to the allocated data.
    *  This will be CUDA device pointer or cl_mem handle in OpenCL.
@@ -338,7 +374,7 @@ typedef struct StructTVMArray64 {
   uint64_t strides;
   /*! \brief The offset in bytes to the beginning pointer to data */
   uint64_t byte_offset;
-} TVMArray64;
+};
 
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {

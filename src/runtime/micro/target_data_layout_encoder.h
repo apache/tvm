@@ -98,7 +98,7 @@ class TargetDataLayoutEncoder {
    */
   explicit TargetDataLayoutEncoder(DevPtr start_addr, size_t word_size)
       : buf_(std::vector<uint8_t>()), curr_offset_(0), word_size_(word_size) {
-    start_addr_ = DevPtr(UpperAlignValue(start_addr.value(), word_size_));
+    start_addr_ = DevPtr(UpperAlignValue(start_addr.value().val64, word_size_));
   }
 
   /*!

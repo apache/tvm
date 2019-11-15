@@ -52,80 +52,73 @@ enum class SectionKind : size_t {
   kNumKinds,
 };
 
-/*! \brief default size alignment */
+/*! \brief union for storing values on varying target word sizes */
+union TargetVal {
+  /*! \brief 32-bit pointer */
+  uint32_t val32;
+  /*! \brief 64-bit pointer */
+  uint64_t val64;
+};
 
-/*! \brief Base class for interfacing with device locations (pointers/offsets) */
-class DeviceLocation {
+/*! \brief absolute device address */
+class DevPtr {
  public:
-  /*! \brief construct a location with value `value` */
-  explicit DeviceLocation(std::uintptr_t value) : value_(value) {}
+  /*! \brief construct a device address with value `value` */
+  explicit DevPtr(std::uintptr_t value) : value_(TargetVal { .val64 = value }) {}
 
   /*! \brief default constructor */
-  DeviceLocation() : value_(0) {}
+  DevPtr() : value_(TargetVal { .val64 = 0 }) {}
 
-  /*! \brief construct a null location */
-  explicit DeviceLocation(std::nullptr_t value) : value_(0) {}
+  /*! \brief construct a null address */
+  explicit DevPtr(std::nullptr_t value) : value_(TargetVal { .val64 = 0 }) {}
 
   /*! \brief destructor */
-  virtual ~DeviceLocation() {}
+  ~DevPtr() {}
 
   /*!
-   * \brief get value of location
-   * \return value of location
+   * \brief get value of pointer
+   * \return value of pointer
    */
-  std::uintptr_t value() const { return value_; }
+  TargetVal value() const { return value_; }
 
   /*!
    * \brief cast location to type `T`
    * \return casted result
    */
   template <typename T>
-  T cast_to() const { return reinterpret_cast<T>(value_); }
+  T cast_to() const { return reinterpret_cast<T>(value_.val64); }
 
   /*! \brief check if location is null */
-  bool operator==(std::nullptr_t) const { return value_ == 0; }
+  bool operator==(std::nullptr_t) const { return value_.val64 == 0; }
 
   /*! \brief check if location is not null */
-  bool operator!=(std::nullptr_t) const { return value_ != 0; }
-
- protected:
-  /*! \brief raw value storing the location */
-  std::uintptr_t value_;
-};
-
-/*! \brief absolute device address */
-class DevPtr : public DeviceLocation {
- public:
-  /*! \brief construct an absolute address with value `value` */
-  explicit DevPtr(std::uintptr_t val) : DeviceLocation(val) {}
-
-  /*! \brief default constructor */
-  DevPtr() : DeviceLocation() {}
-
-  /*! \brief construct a null absolute address */
-  explicit DevPtr(std::nullptr_t val) : DeviceLocation(val) {}
+  bool operator!=(std::nullptr_t) const { return value_.val64 != 0; }
 
   /*! \brief add an integer to this absolute address to get a larger absolute address */
   DevPtr operator+(size_t n) const {
-    return DevPtr(value_ + n);
+    return DevPtr(value_.val64 + n);
   }
 
   /*! \brief mutably add an integer to this absolute address */
   DevPtr& operator+=(size_t n) {
-    value_ += n;
+    value_.val64 += n;
     return *this;
   }
 
   /*! \brief subtract an integer from this absolute address to get a smaller absolute address */
   DevPtr operator-(size_t n) const {
-    return DevPtr(value_ - n);
+    return DevPtr(value_.val64 - n);
   }
 
   /*! \brief mutably subtract an integer from this absolute address */
   DevPtr& operator-=(size_t n) {
-    value_ -= n;
+    value_.val64 -= n;
     return *this;
   }
+
+ private:
+  /*! \brief raw value storing the pointer */
+  TargetVal value_;
 };
 
 /*!
