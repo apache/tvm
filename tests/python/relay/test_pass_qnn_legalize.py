@@ -187,6 +187,8 @@ def test_qnn_legalize_qnn_dense():
                 data, kernel,
                 input_zero_point=1,
                 kernel_zero_point=1,
+                input_scale=1,
+                kernel_scale=1,
                 out_dtype='int32')
 
         mod = relay.Function(relay.analysis.free_vars(func), func)
