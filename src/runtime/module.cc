@@ -97,7 +97,7 @@ Module Module::LoadFromFile(const std::string& file_name,
 }
 
 bool Module::IsEmpty() const {
-  return node_.get() == nullptr;
+  return this->operator->() == nullptr;
 }
 
 void ModuleNode::SaveToFile(const std::string& file_name,
