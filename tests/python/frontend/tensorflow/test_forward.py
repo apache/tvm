@@ -1076,7 +1076,7 @@ def _test_forward_floormod(in_shape, if_shape, dtype):
     tf.reset_default_graph()
     numerator = tf.placeholder(dtype, in_shape, name="numer")
     factor = tf.placeholder(dtype, if_shape, name="factor")
-    tf.math.floormod(numerator, factor, name='FloorMod')
+    tf.floormod(numerator, factor, name='FloorMod')
     compare_tf_with_tvm([np_numer, np_factor], ['numer:0', 'factor:0'], 'FloorMod:0')
 
 def test_forward_floormod():
