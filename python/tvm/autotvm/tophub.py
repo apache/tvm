@@ -50,7 +50,7 @@ PACKAGE_VERSION = {
     'arm_cpu':          "v0.04",
     'llvm':             "v0.03",
 
-    'cuda':             "v0.05",
+    'cuda':             "v0.06",
     'rocm':             "v0.03",
     'opencl':           "v0.03",
     'mali':             "v0.05",
