@@ -31,6 +31,9 @@ extern "C" {
 #else
 #include <cblas.h>
 #endif
+#if USE_DNNL == 1
+#include <dnnl.h>
+#endif
 }
 
 namespace tvm {
@@ -40,12 +43,19 @@ using namespace runtime;
 
 inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
 
+inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+
 struct CblasSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
+#if USE_DNNL == 1
+    dnnl_sgemm(BooleanToTransposeChar(tb), BooleanToTransposeChar(ta), N, M, K, alpha, B,
+               ldb, A, lda, beta, C, ldc);
+#else
     cblas_sgemm(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, alpha, A,
                 lda, B, ldb, beta, C, ldc);
+#endif
   }
 };
 
