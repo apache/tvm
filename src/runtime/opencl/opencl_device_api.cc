@@ -114,6 +114,7 @@ void OpenCLWorkspace::GetAttr(
       *rv = ss.str();
       break;
     }
+    case kGcnArch: return;
   }
 }
 

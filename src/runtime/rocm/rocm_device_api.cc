@@ -26,9 +26,10 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
+#include <tvm/runtime/registry.h>
+#include "../../../include/tvm/runtime/device_api.h"
 #include "rocm_common.h"
 
 namespace tvm {
@@ -62,16 +63,17 @@ class ROCMDeviceAPI final : public DeviceAPI {
         break;
       }
       case kMaxSharedMemoryPerBlock: return;
-      case kComputeVersion: {
+      case kComputeVersion:
+      case kDeviceName: return;
+      case kMaxClockRate: return;
+      case kMultiProcessorCount: return;
+      case kMaxThreadDimensions: return;
+      case kGcnArch: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, ctx.device_id));
         *rv = prop.gcnArch;
         return;
       }
-      case kDeviceName: return;
-      case kMaxClockRate: return;
-      case kMultiProcessorCount: return;
-      case kMaxThreadDimensions: return;
     }
     *rv = value;
   }
