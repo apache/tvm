@@ -564,6 +564,13 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
 LoweredFunc InferFragment(LoweredFunc f);
 
 /*!
+ * \brief skip assert stmt generation
+ * \param f The function to be transformed.
+ * \return Transformed function.
+ */
+LoweredFunc SkipAssert(LoweredFunc f);
+
+/*!
  * \brief Verify if memory accesses are legal for a specific target device type.
  *
  *  In the case that tgt is cuda, if not all workload is bound with
