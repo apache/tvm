@@ -95,6 +95,8 @@ ALLOW_SPECIFIC_FILE = {
     "docker/with_the_same_user",
     "LICENSE",
     "NOTICE",
+    "KEYS",
+    "DISCLAIMER",
     "Jenkinsfile",
     # sgx file
     "apps/sgx/enclave/sgx-deps.diff",
