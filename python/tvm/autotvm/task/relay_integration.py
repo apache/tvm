@@ -72,8 +72,8 @@ def extract_from_program(func, params, ops, target, target_host=None,
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    template_keys: direct of topi op to str
-        The tuning template keys for schedules, default to None.
+    template_keys: dict of topi op to str
+        The tuning template keys map for schedules, default to None.
         Example: {topi.nn.conv2d: 'direct'}
 
     Returns
@@ -104,8 +104,9 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    template_keys: direct of topi op to str
-        The tuning template keys for schedules, default to None.
+    template_keys: dict of topi op to str
+        The tuning template keys map for schedules, default to None.
+        Example: {topi.nn.conv2d: 'direct'}
 
     Returns
     -------
@@ -155,20 +156,20 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
         logger.disabled = old_state
 
     # convert *topi op to template key* map to *task name to template key* map
-    task_keys = dict()
+    task_name_to_keys = {}
     if template_keys is not None:
-        for op in list(template_keys.keys()):
+        for op in template_keys.keys():
             if op in env.topi_to_task:
-                task_keys[env.topi_to_task[op]] = template_keys[op]
+                task_name_to_keys[env.topi_to_task[op]] = template_keys[op]
             else:
                 logger.warning("Invalid template key, fallback to direct")
-                task_keys[env.topi_to_task[op]] = 'direct'
+                task_name_to_keys[env.topi_to_task[op]] = 'direct'
 
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
         try:
-            key = task_keys[task_name] if task_name in task_keys else 'direct'
+            key = task_name_to_keys[task_name] if task_name in task_name_to_keys else 'direct'
             tsk = create(task_name, args,
                          target=target, target_host=target_host,
                          template_key=key)
