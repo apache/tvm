@@ -513,17 +513,19 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
-    Expr cond = (body_begin - min >= 0);
-    if (!analyzer_.CanProve(cond)) {
-      LOG(WARNING) << "Cannot prove: " << cond
-                   << ", when generating the pre doubt loop";
-      body_begin = Max::make(body_begin, min);
-      // stop recursing on this interval if we can't prove it has non-negative length
-      pre_stmt_recurse = false;
-    }
-    if (!partition_thread_scope) {
-      Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
-      pre_stmt = MakeFor(node, body_begin - min, pre_body);
+    if (!analyzer_.CanProve(body_begin == min)) {
+      Expr cond = (body_begin - min >= 0);
+      if (!analyzer_.CanProve(cond)) {
+        LOG(WARNING) << "Cannot prove: " << cond
+                     << ", when generating the pre doubt loop";
+        body_begin = Max::make(body_begin, min);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        pre_stmt_recurse = false;
+      }
+      if (!partition_thread_scope) {
+        Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+        pre_stmt = MakeFor(node, body_begin - min, pre_body);
+      }
     }
   } else {
     body_begin = min;
@@ -536,19 +538,21 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
-    // require the extent to be non-negative
-    Expr cond = (max - post_doubt_begin + 1 >= 0);
-    if (!analyzer_.CanProve(cond)) {
-      LOG(WARNING) << "Cannot prove: " << cond
-                   << ", when generating the post doubt loop";
-      post_doubt_begin = Min::make(post_doubt_begin, max+1);
-      // stop recursing on this interval if we can't prove it has non-negative length
-      post_stmt_recurse = false;
-    }
-    if (!partition_thread_scope) {
-      Stmt post_body =
-        Substitute(body, {{Var{var}, var + post_doubt_begin}});
-      post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+    if (!analyzer_.CanProve(middle_interval.max() == max)) {
+      // require the extent to be non-negative
+      Expr cond = (max - post_doubt_begin + 1 >= 0);
+      if (!analyzer_.CanProve(cond)) {
+        LOG(WARNING) << "Cannot prove: " << cond
+                     << ", when generating the post doubt loop";
+        post_doubt_begin = Min::make(post_doubt_begin, max+1);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        post_stmt_recurse = false;
+      }
+      if (!partition_thread_scope) {
+        Stmt post_body =
+          Substitute(body, {{Var{var}, var + post_doubt_begin}});
+        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+      }
     }
   } else {
     post_doubt_begin = max + 1;
