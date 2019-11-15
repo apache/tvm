@@ -26,6 +26,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
+#include <tvm/build_module.h>
 #include <dmlc/memory_io.h>
 #include <sstream>
 #include <iostream>
@@ -40,12 +41,21 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
   if (pos != std::string::npos) {
     mode = mode.substr(0, pos);
   }
+  Array<LoweredFunc> transformed_funcs;
+  for (const auto& x : funcs) {
+    if (BuildConfig::Current()->disable_assert) {
+      auto func = ir::SkipAssert(x);
+      transformed_funcs.push_back(func);
+    }
+  }
   std::string build_f_name = "codegen.build_" + mode;
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr)
       << "Target " << target << " is not enabled";
-  runtime::Module m = (*bf)(funcs, target);
+  runtime::Module m = transformed_funcs.empty() ?
+                      (*bf)(funcs, target) :
+                      (*bf)(transformed_funcs, target);
   return m;
 }
 
