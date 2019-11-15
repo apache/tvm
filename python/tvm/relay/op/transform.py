@@ -634,7 +634,7 @@ def strided_slice(data, begin, end, strides=None):
     ret : relay.Expr
         The computed result.
     """
-    strides = strides or const(1)
+    strides = strides or const([1], dtype="int32")
     return _make.strided_slice(data, begin, end, strides)
 
 

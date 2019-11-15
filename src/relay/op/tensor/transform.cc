@@ -1676,6 +1676,66 @@ Array<Integer> GetIntArray(Array<IndexExpr> arr) {
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 
+int64_t* ToVector(const runtime::NDArray& array) {
+  size_t len = array.Shape().front();
+  int64_t* rel_vec = new int64_t[len];
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      int8_t* init_array = reinterpret_cast<int8_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 16) {
+      int16_t* init_array = reinterpret_cast<int16_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 32) {
+      int32_t* init_array = reinterpret_cast<int32_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 64) {
+      int64_t* init_array = reinterpret_cast<int64_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      uint8_t* init_array = reinterpret_cast<uint8_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 16) {
+      uint16_t* init_array = reinterpret_cast<uint16_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 32) {
+      uint32_t* init_array = reinterpret_cast<uint32_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    } else if (array->dtype.bits == 64) {
+      uint64_t* init_array = reinterpret_cast<uint64_t*>(array->data);
+      for (size_t i = 0; i < len; ++i) {
+        rel_vec[i] = int64_t(init_array[i]);
+      }
+      return rel_vec;
+    }
+  }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  return rel_vec;
+}
+
 bool StridedSliceRel(const Array<Type>& types,
                      int num_inputs,
                      const Attrs& attrs,
@@ -1686,7 +1746,7 @@ bool StridedSliceRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   auto dshape = data->shape;
-  auto num_axis = dshape.size();
+  int64_t num_axis = dshape.size();
 
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
@@ -1695,32 +1755,32 @@ bool StridedSliceRel(const Array<Type>& types,
       (cend = param->end.as<ConstantNode>()) &&
       (cstrides = param->strides.as<ConstantNode>())) {
     std::vector<int64_t> stride_vec;
-    int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
-    for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+    int64_t* strides_val = ToVector(cstrides->data);
+    for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
       stride_vec.push_back(strides_val[i]);
     }
-    for (size_t i = stride_vec.size(); i < num_axis; ++i) {
+    for (int64_t i = stride_vec.size(); i < num_axis; ++i) {
       stride_vec.push_back(1);
     }
     const int64_t max_range = std::numeric_limits<int64_t>::max();
     std::vector<int64_t> begin_vec;
-    int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
-    for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+    int64_t* begin_val = ToVector(cbegin->data);
+    for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
       begin_vec.push_back(begin_val[i]);
     }
-    for (size_t i = begin_vec.size(); i < num_axis; ++i) {
+    for (int64_t i = begin_vec.size(); i < num_axis; ++i) {
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
     }
     std::vector<int64_t> end_vec;
-    int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
-    for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+    int64_t* end_val = ToVector(cend->data);
+    for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
       end_vec.push_back(end_val[i]);
     }
-    for (size_t i = end_vec.size(); i < num_axis; ++i) {
+    for (int64_t i = end_vec.size(); i < num_axis; ++i) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     }
 
-    for (size_t i = 0; i < num_axis; ++i) {
+    for (int64_t i = 0; i < num_axis; ++i) {
       int64_t stride_v = stride_vec[i];
       int64_t begin_v = begin_vec[i];
       int64_t end_v = end_vec[i];
@@ -1784,9 +1844,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
   }
 
   CHECK(old_in_layouts.defined());
-  CHECK_EQ(old_in_layouts.size(), 1);
+  CHECK_GE(old_in_layouts.size(), 1);
   CHECK(old_in_shapes.defined());
-  CHECK_EQ(old_in_shapes.size(), 1);
+  CHECK_GE(old_in_shapes.size(), 1);
 
   auto layout = old_in_layouts[0];
   if (layout.defined() && new_in_layouts.defined()) {
@@ -1802,17 +1862,16 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     if ((cbegin = params->begin.as<ConstantNode>()) &&
         (cend = params->end.as<ConstantNode>()) &&
         (cstrides = params->strides.as<ConstantNode>())) {
-
-      int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
-      for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+      int64_t* strides_val = ToVector(cstrides->data);
+      for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
         strides.push_back(strides_val[i]);
       }
-      int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
-      for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+      int64_t* begin_val = ToVector(cbegin->data);
+      for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
         begin.push_back(begin_val[i]);
       }
-      int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
-      for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+      int64_t* end_val = ToVector(cend->data);
+      for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
         end.push_back(end_val[i]);
       }
     }
@@ -1859,11 +1918,12 @@ inline Tensor DynamicStridedSlice(const tvm::Tensor& input,
                                   const tvm::Tensor& strides,
                                   std::string name = "T_strided_slice_dynamic",
                                   std::string tag = topi::kInjective) {
-  size_t src_tensor_dim = static_cast<size_t>(input->shape.size());
+  int64_t src_tensor_dim = input->shape.size();
   Array<tvm::Expr> out_shape;
-  for(size_t i = 0; i < src_tensor_dim; ++i){
+  for (int64_t i = 0; i < src_tensor_dim; ++i) {
     out_shape.push_back(tvm::Var("dim"));
   }
+  // TODO(yongwww): move the compute into topi after nnvm is removed
   return tvm::compute(out_shape, [&](const Array<tvm::Var>& indices) {
       Array<tvm::Expr> real_indices;
       for (int32_t i = 0; i < src_tensor_dim; ++i) {
@@ -1882,16 +1942,16 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
       (cend = param->end.as<ConstantNode>()) &&
       (cstrides = param->strides.as<ConstantNode>())) {
     Array<Integer> begin, end, strides;
-    int32_t* strides_val = reinterpret_cast<int32_t*>(cstrides->data->data);
-    for (size_t i = 0; i < cstrides->data.Shape().front(); ++i){
+    int64_t* strides_val = ToVector(cstrides->data);
+    for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
       strides.push_back(strides_val[i]);
     }
-    int32_t* begin_val = reinterpret_cast<int32_t*>(cbegin->data->data);
-    for (size_t i = 0; i < cbegin->data.Shape().front(); ++i){
+    int64_t* begin_val = ToVector(cbegin->data);
+    for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
       begin.push_back(begin_val[i]);
     }
-    int32_t* end_val = reinterpret_cast<int32_t*>(cend->data->data);
-    for (size_t i = 0; i < cend->data.Shape().front(); ++i){
+    int64_t* end_val = ToVector(cend->data);
+    for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
       end.push_back(end_val[i]);
     }
     return Array<te::Tensor>{

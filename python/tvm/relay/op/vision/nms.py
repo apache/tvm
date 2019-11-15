@@ -47,16 +47,19 @@ def get_valid_counts(data,
 
     out_tensor : relay.Expr
         Rearranged data tensor.
+
+    out_indices: relay.Expr
+        Indices in input data
     """
     return expr.TupleWrapper(
         _make.get_valid_counts(data, score_threshold,
-                               id_index, score_index), 2)
+                               id_index, score_index), 3)
 
 
 def non_max_suppression(data,
                         valid_count,
+                        indices,
                         max_output_size=-1,
-                        score_threshold=0.0,
                         iou_threshold=0.5,
                         force_suppress=False,
                         top_k=-1,
@@ -79,12 +82,12 @@ def non_max_suppression(data,
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
 
+    indices: relay.Expr
+        2-D tensor with shape [batch_size, num_anchors]
+
     max_output_size : int, optional
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
-
-    score_threshold : float, optional
-        Lower limit of score for valid bounding boxes.
 
     iou_threshold : float, optional
         Non-maximum suppression threshold.
@@ -120,8 +123,8 @@ def non_max_suppression(data,
     """
     out = _make.non_max_suppression(data,
                                     valid_count,
+                                    indices,
                                     max_output_size,
-                                    score_threshold,
                                     iou_threshold,
                                     force_suppress,
                                     top_k,

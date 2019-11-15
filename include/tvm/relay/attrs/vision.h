@@ -89,7 +89,6 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
 /*! \brief Attributes used in non_maximum_suppression operator */
 struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
   int max_output_size;
-  double score_threshold;
   double iou_threshold;
   bool force_suppress;
   int top_k;
