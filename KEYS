@@ -1,0 +1,74 @@
+This file contains the PGP keys of various developers.
+Please don't use them for email unless you have to. Their main
+purpose is code signing.
+
+Examples of importing this file in your keystore:
+ gpg --import KEYS.txt
+ (need pgp and other examples here)
+
+Examples of adding your key to this file:
+ pgp -kxa <your name> and append it to this file.
+ (pgpk -ll <your name> && pgpk -xa <your name>) >> this file.
+ (gpg --list-sigs <your name>
+     && gpg --armor --export <your name>) >> this file.
+
+-----------------------------------------------------------------------------------
+pub   rsa4096 2019-11-15 [SC]
+      EF52D68AD5276994249816836754EA97C55E3DEB
+uid           [ultimate] Tianqi Chen (CODE SIGNING KEY) <tqchen@apache.org>
+sig 3        6754EA97C55E3DEB 2019-11-15  Tianqi Chen (CODE SIGNING KEY) <tqchen@apache.org>
+sub   rsa4096 2019-11-15 [E]
+sig          6754EA97C55E3DEB 2019-11-15  Tianqi Chen (CODE SIGNING KEY) <tqchen@apache.org>
+
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+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
+ha8fS9ysWDy/Ye65MP4=
+=MSiP
+-----END PGP PUBLIC KEY BLOCK-----
