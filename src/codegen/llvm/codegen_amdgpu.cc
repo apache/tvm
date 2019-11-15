@@ -174,7 +174,7 @@ inline int DetectROCMComputeVersion(const std::string& target) {
     TVMRetValue val;
     api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
     if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kGcnArch, &val);
       return val.operator int();
     }
   }

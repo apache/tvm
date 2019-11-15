@@ -398,6 +398,8 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       break;
     case kMaxThreadDimensions:
       break;
+    case kGcnArch:
+      return;
   }
 }
 
