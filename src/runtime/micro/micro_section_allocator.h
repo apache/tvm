@@ -76,7 +76,8 @@ class MicroSectionAllocator {
    * \note simple allocator scheme, more complex versions will be implemented later
    */
   void Free(DevPtr addr) {
-    CHECK(alloc_map_.find(addr.value().val64) != alloc_map_.end()) << "freed pointer was never allocated";
+    CHECK(alloc_map_.find(addr.value().val64) != alloc_map_.end())
+      << "freed pointer was never allocated";
     alloc_map_.erase(addr.value().val64);
     if (alloc_map_.empty()) {
       size_ = 0;
