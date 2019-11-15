@@ -1340,13 +1340,12 @@ class OperatorConverter(object):
         alpha_tensor = input_tensors[1]
         alpha_tensor_type = alpha_tensor.tensor.Type()
         alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
-        alpha_expr = self.exp_tab.new_const(self.get_tensor_value(alpha_tensor),
+        alpha_expr = self.exp_tab.new_const(self.get_tensor_value(alpha_tensor).flatten(),
                                             dtype=alpha_tensor_type_str)
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
 
         return out
-
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
