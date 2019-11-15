@@ -318,8 +318,8 @@ def quantize(mod, params=None, dataset=None):
 
     Parameters
     ---------
-    mod: Function
-        The original graph.
+    mod: Module
+        The original module.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change

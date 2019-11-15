@@ -41,13 +41,13 @@ def collect_stats(mod, dataset):
 
     Parameters
     ----------
-    graph: Function
+    mod: Module
         The simulation graph after annotation.
 
     Returns
     -------
-    ret: Function
-        The profile graph which outputs a tuple of profile data.
+    ret: list of ndarray
+        List of output data of each layer
     """
 
     logging.info("collecting statistics for calibration...")
