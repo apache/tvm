@@ -55,7 +55,7 @@ def _lower(func,
 
 
 def extract_from_program(func, params, ops, target, target_host=None,
-                         template_key='direct'):
+                         template_keys=dict()):
     """ Extract tuning tasks from a relay program.
 
     This function is the single program version of extract_from_multiple_program.
@@ -72,8 +72,9 @@ def extract_from_program(func, params, ops, target, target_host=None,
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    template_key: str
-        The tuning template key for schedules, default to `direct`
+    template_keys: direct of topi op to str
+        The tuning template keys for schedules, default to None.
+        Example: {topi.nn.conv2d: 'direct'}
 
     Returns
     -------
@@ -81,11 +82,11 @@ def extract_from_program(func, params, ops, target, target_host=None,
         collected tasks
     """
     return extract_from_multiple_program([func], [params], ops, target, target_host,
-                                         template_key=template_key)
+                                         template_keys=template_keys)
 
 
 def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
-                                  template_key='direct'):
+                                  template_keys=dict()):
     """ Extract tuning tasks from multiple relay programs.
 
     This function collects tuning tasks by building a list of programs
@@ -103,8 +104,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    template_key: str
-        The tuning template key for schedules, default to `direct`
+    template_keys: direct of topi op to str
+        The tuning template keys for schedules, default to None.
 
     Returns
     -------
@@ -153,15 +154,25 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
 
         logger.disabled = old_state
 
+    # convert *topi op to template key* map to *task name to template key* map
+    task_keys = dict()
+    for op in list(template_keys.keys()):
+        if op in env.topi_to_task:
+            task_keys[env.topi_to_task[op]] = template_keys[op]
+        else:
+            logger.warn("Invalid template key, fallback to direct")
+            task_keys[env.topi_to_task[op]] = 'direct'
+
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
         try:
+            key = task_keys[task_name] if task_name in task_keys else 'direct'
             tsk = create(task_name, args,
                          target=target, target_host=target_host,
-                         template_key=template_key)
+                         template_key=key)
             tasks.append(tsk)
         except topi.InvalidShapeError:
-            print("[Warning] Invalid shape during AutoTVM task creation")
+            logger.warn("Invalid shape during AutoTVM task creation")
 
     return tasks
