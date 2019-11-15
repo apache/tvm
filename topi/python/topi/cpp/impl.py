@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI for C++ TOPI ops and schedules"""
+"""Load Lib for C++ TOPI ops and schedules"""
 import sys
 import os
 import ctypes
+
 from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
 
