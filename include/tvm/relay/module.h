@@ -145,6 +145,13 @@ class ModuleNode : public RelayNode {
   TVM_DLL bool ContainGlobalVar(const std::string& name) const;
 
   /*!
+   * \brief Check if the global_type_var_map_ contains a global type variable.
+   * \param name The variable name.
+   * \returns true if contains, otherise false.
+   */
+  TVM_DLL bool ContainGlobalTypeVar(const std::string& name) const;
+
+  /*!
    * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
@@ -197,13 +204,6 @@ class ModuleNode : public RelayNode {
    * \return The type definition.
    */
   TVM_DLL TypeData LookupDef(const std::string& var) const;
-
-  /*!
-   * \brief Check if a global type definition exists
-   * \param var The name of the global type definition.
-   * \return Whether the definition exists.
-   */
-  TVM_DLL bool HasDef(const std::string& var) const;
 
   /*!
    * \brief Look up a constructor by its tag.

@@ -68,6 +68,10 @@ bool ModuleNode::ContainGlobalVar(const std::string& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
 }
 
+bool ModuleNode::ContainGlobalTypeVar(const std::string& name) const {
+  return global_type_var_map_.find(name) != global_type_var_map_.end();
+}
+
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
   auto it = global_var_map_.find(name);
   CHECK(it != global_var_map_.end())
@@ -239,11 +243,6 @@ TypeData ModuleNode::LookupDef(const std::string& name) const {
   return this->LookupDef(id);
 }
 
-bool ModuleNode::HasDef(const std::string& name) const {
-  auto it = global_type_var_map_.find(name);
-  return it != global_type_var_map_.end();
-}
-
 Constructor ModuleNode::LookupTag(const int32_t tag) {
   auto it = constructor_tag_map_.find(tag);
   CHECK(it != constructor_tag_map_.end())
@@ -336,7 +335,8 @@ TVM_REGISTER_API("relay._module.Module_Add")
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
-    mod_copy = transform::EtaExpand()(mod_copy);
+    mod_copy = transform::EtaExpand(
+      /* expand_constructor */ false, /* expand_global_var */ true)(mod_copy);
     auto func = mod_copy->Lookup(gv->name_hint);
     mod->Add(var, Downcast<Function>(func), update);
   } else {
