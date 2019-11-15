@@ -332,7 +332,6 @@ def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
                                     in_filter,
                                     output_shape=deconv_output_shape,
                                     strides=strides,
-                                    dilations=dilations,
                                     padding=padding,
                                     data_format=data_format)
 
