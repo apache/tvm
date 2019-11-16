@@ -24,7 +24,35 @@ from ..transform import concatenate, strided_slice
 @tvm.tag_scope(tag=tag.INJECTIVE+",fifo_buffer")
 def fifo_buffer(data, buffer, axis):
     """
-    Implements the FIFO buffer
+    FIFO buffer to enable computation reuse in CNNs with sliding indow input
+
+    Compute equivalent of
+
+    .. code-block:: python
+
+        concat(buffer, data, axis=axis)
+        .slice_axis(axis=axis,
+                    begin=data.shape[axis],
+                    end=data.shape[axis]+buffer.shape[axis])
+
+    Useful for
+
+    * Encoding explicit re-use of computation in convolution ops operated on a sliding window input
+    * Implementing a FIFO queue to cache intermediate results, e.g. as in Fast WaveNet.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        The input data
+    buffer : tvm.Tensor
+        Previous value of the FIFO buffer
+    axis : int
+        Specify which axis should be used for buffering
+
+    Returns
+    -------
+    result : tvm.Tensor
+        Updated value for the buffer
     """
     assert len(data.shape) == len(buffer.shape), \
         'buffer and data must have same number of dimensions, ' + \
