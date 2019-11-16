@@ -288,6 +288,7 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, ['cuda', 'gpu'], ['int8'])
 def schedule_dense_int8(cfg, outs):
+    """Dense schedule for int8 on CUDA"""
     s = tvm.create_schedule([x.op for x in outs])
     target = tvm.target.current_target()
 

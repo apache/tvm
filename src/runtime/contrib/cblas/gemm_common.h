@@ -170,7 +170,8 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue *ret, TBatchGemmOp op) {
   DType *C_data = reinterpret_cast<typename TBatchGemmOp::TDatatype *>(
       static_cast<char *>(C->data) + C->byte_offset);
   op(batch_size, transb, transa, ColumnCount3D(B, transb),
-     RowCount3D(A, transa), ColumnCount3D(A, transa), static_cast<typename TBatchGemmOp::TDatatype>(alpha),
+     RowCount3D(A, transa), ColumnCount3D(A, transa),
+     static_cast<typename TBatchGemmOp::TDatatype>(alpha),
      B_data, B_size, ColumnStride3D(B), A_data, A_size, ColumnStride3D(A),
      static_cast<typename TBatchGemmOp::TDatatype>(beta), C_data, C_size, ColumnStride3D(C));
 }

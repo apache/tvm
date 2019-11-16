@@ -254,7 +254,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
   if (cudnnGetVersion() > 7000) {
     CUDNN_CALL(cudnnSetConvolutionMathType(entry_ptr->conv_entry.conv_desc, CUDNN_TENSOR_OP_MATH))
   }
-  
+
   int returned_algo_count = 0;
   cudnnConvolutionFwdAlgoPerf_t perf_results[CUDNN_CONVOLUTION_FWD_ALGO_COUNT];
   CUDNN_CALL(cudnnFindConvolutionForwardAlgorithm(entry_ptr->handle,

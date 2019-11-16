@@ -282,7 +282,7 @@ def conv2d_find_algo(tensor_format,
     data_dtype: str
         data type
     conv_dtype: str
-        conv type
+        convolution type
 
     Returns
     -------
@@ -355,8 +355,8 @@ def conv2d_forward(x,
     algo: int
         Forward algorithm, get index from ```algo_to_index``` function
         if algo == -1, the best algo will be chosen by CUDNN
-    dtype: str
-        data type
+    conv_dtype: str
+        convolution type
 
     Returns
     -------
@@ -378,7 +378,7 @@ def conv2d_forward(x,
                                  conv_dtype)
     if algo == -1:
         # For now if we try to call `cudnnFindConvolutionForwardAlgorithm` when
-        # using INT8 data type, CuDNN will crack down.
+        # using INT8 data type, CuDNN will crash down.
         # On the other hand, CuDNN only support IMPLICIT_​PRECOMP_GEMM at NHWC format
         if tensor_format == 1 and conv_dtype == "int32":
             algo = 1

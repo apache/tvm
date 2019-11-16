@@ -40,7 +40,7 @@ inline bool TypeMatch(TVMType t, int code, int bits, int lanes = 1) {
   return t.code == code && t.bits == bits && t.lanes == lanes;
 }
 /*!
- * \brief Check whether type matches the given spec.
+ * \brief Check whether two types are equal .
  * \param lhs The left operand.
  * \param rhs The right operand.
  */

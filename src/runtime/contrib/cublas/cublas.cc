@@ -48,8 +48,7 @@ struct CublasHgemmOp {
   typedef half TDatatype;
   cublasHandle_t handle;
   explicit CublasHgemmOp(cublasHandle_t hdl)
-      : handle(hdl)
-  {}
+      : handle(hdl) {}
 
   void operator()(bool ta, bool tb,
                   int M, int N, int K,
@@ -70,8 +69,7 @@ struct CublasSgemmOp {
   typedef float TDatatype;
   cublasHandle_t handle;
   explicit CublasSgemmOp(cublasHandle_t hdl)
-    : handle(hdl)
-    {}
+    : handle(hdl) {}
 
   void operator()(bool ta, bool tb,
                   int M, int N, int K,
@@ -92,8 +90,7 @@ struct CublasDgemmOp {
   typedef double TDatatype;
   cublasHandle_t handle;
   explicit CublasDgemmOp(cublasHandle_t hdl)
-    : handle(hdl)
-    {}
+    : handle(hdl) {}
   void operator()(bool ta, bool tb,
                   int M, int N, int K,
                   double alpha, double* A, int lda,
@@ -113,8 +110,7 @@ struct CublasHgemmBatchOp {
   typedef half TDatatype;
   cublasHandle_t handle;
   explicit CublasHgemmBatchOp(cublasHandle_t hdl)
-      : handle(hdl)
-  {}
+      : handle(hdl) {}
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, half alpha, half* A,
                   int a_stride, int lda, half* B, int b_stride, int ldb, half beta, half* C,
                   int c_stride, int ldc) {
@@ -135,8 +131,7 @@ struct CublasSgemmBatchOp {
   typedef float TDatatype;
   cublasHandle_t handle;
   explicit CublasSgemmBatchOp(cublasHandle_t hdl)
-    : handle(hdl)
-    {}
+    : handle(hdl) {}
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, float alpha, float* A,
                   int a_stride, int lda, float* B, int b_stride, int ldb, float beta, float* C,
                   int c_stride, int ldc) {
@@ -157,8 +152,7 @@ struct CublasDgemmBatchOp {
   typedef double TDatatype;
   cublasHandle_t handle;
   explicit CublasDgemmBatchOp(cublasHandle_t hdl)
-    : handle(hdl)
-    {}
+    : handle(hdl) {}
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, double alpha, double* A,
                   int a_stride, int lda, double* B, int b_stride, int ldb, double beta, double* C,
                   int c_stride, int ldc) {
@@ -176,7 +170,7 @@ struct CublasDgemmBatchOp {
 };
 
 // Check cublas supported mix-precision computation type and return computeType
-bool CheckCublasMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_support = true) {
+bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_support = true) {
   if (int_support && TypeMatch(out_dtype, kDLInt, 32)) {
     return TypeMatch(in_dtype, kDLInt, 8);
   } else if (TypeMatch(out_dtype, kDLFloat, 32)) {
@@ -210,7 +204,7 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue *ret, cublasHandle_t hdl) {
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(CheckCublasMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  CHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
   CHECK(!TypeMatch(A->dtype, kDLInt, 8) ||
       ColumnStride(A) % 4 == 0) << "leading dimension must divide 4 for int8 gemm";
   CHECK(!TypeMatch(B->dtype, kDLInt, 8) ||
@@ -278,7 +272,7 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue *ret, cublasHandle_t hdl) 
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(CheckCublasMixPrecisionType(A->dtype, C->dtype, false)) << "Unsupported data type";
+  CHECK(CheckMixPrecisionType(A->dtype, C->dtype, false)) << "Unsupported data type";
   CHECK(!TypeMatch(A->dtype, kDLInt, 8) ||
       ColumnStride(A) % 4 == 0) << "leading dimension must divide 4 for int8 gemm";
   CHECK(!TypeMatch(B->dtype, kDLInt, 8) ||
