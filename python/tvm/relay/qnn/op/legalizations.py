@@ -88,6 +88,8 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     new_attrs = {k : attrs[k] for k in attrs.keys()}
     del new_attrs['kernel_zero_point']
     del new_attrs['input_zero_point']
+    del new_attrs['input_scale']
+    del new_attrs['kernel_scale']
     return relay_op(shift_data, shift_kernel, **new_attrs)
 
 # Helper function to change dtypes to uint8 x int8. Intel VNNI instructions prefer this setting.

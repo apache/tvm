@@ -31,13 +31,15 @@ def make_requantize_params(input_scale, output_scale, output_zero_point, out_dty
     return config
 
 
-def make_configuration(quantized_data, 
+def make_configuration(quantized_data,
                        quantized_kernel,
                        dtype,
                        input_shape,
                        kernel_shape,
                        input_zero_point,
                        kernel_zero_point,
+                       input_scale,
+                       kernel_scale,
                        units,
                        output,
                        out_dtype='int32',
@@ -53,6 +55,8 @@ def make_configuration(quantized_data,
         'kernel_shape': kernel_shape,
         'input_zero_point': input_zero_point,
         'kernel_zero_point': kernel_zero_point,
+        'input_scale': input_scale,
+        'kernel_scale': kernel_scale,
         'units': units,
         'output': output,
         'out_dtype': out_dtype,
@@ -65,6 +69,9 @@ def make_configuration(quantized_data,
 def make_uint_configuration(use_bias=False, requantize_output=False):
     input_shape, kernel_shape, output_shape = (2, 10), (3,10), (2, 3)
     input_zero_point, kernel_zero_point = 127, 127
+    input_scale = 0.5
+    kernel_scale = 0.5
+    output_scale = 1.0
     in_dtype = 'uint8'
     out_dtype = 'int32' if not requantize_output else 'uint8'
     units = 3
@@ -78,7 +85,7 @@ def make_uint_configuration(use_bias=False, requantize_output=False):
         .astype(in_dtype) \
         .reshape(kernel_shape)
     bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
-    requant_params = make_requantize_params(0.25, 1.0, 127, 'uint8') if requantize_output else None
+    requant_params = make_requantize_params(input_scale * kernel_scale, output_scale, 127, 'uint8') if requantize_output else None
 
     if requantize_output:
         assert use_bias
@@ -95,6 +102,8 @@ def make_uint_configuration(use_bias=False, requantize_output=False):
                               kernel_shape=kernel_shape,
                               input_zero_point=input_zero_point,
                               kernel_zero_point=kernel_zero_point,
+                              input_scale=input_scale,
+                              kernel_scale= kernel_scale,
                               units=units,
                               output=output,
                               bias=bias,
@@ -116,8 +125,11 @@ def make_int_configuration(use_bias=False, requantize_output=False):
                                     1, 3, 5, 7, 9, 11, 13, 15, 17, 19]) \
         .astype(in_dtype) \
         .reshape(kernel_shape)
+    input_scale = 0.5
+    kernel_scale = 0.5
+    output_scale = 1.0
     bias = np.array([4, 8, 12]).astype(out_dtype).reshape((units, )) if use_bias else None
-    requant_params = make_requantize_params(0.25, 1.0, -1, 'int8') if requantize_output else None
+    requant_params = make_requantize_params(input_scale * kernel_scale, output_scale, -1, 'int8') if requantize_output else None
 
     if requantize_output:
         assert use_bias
@@ -134,6 +146,8 @@ def make_int_configuration(use_bias=False, requantize_output=False):
                               kernel_shape=kernel_shape,
                               input_zero_point=input_zero_point,
                               kernel_zero_point=kernel_zero_point,
+                              input_scale=input_scale,
+                              kernel_scale=kernel_scale,
                               units=units,
                               output=output,
                               bias=bias,
@@ -158,6 +172,8 @@ def qnn_dense_driver(test_configuration):
         quantized_kernel,
         test_configuration['input_zero_point'],
         test_configuration['kernel_zero_point'],
+        test_configuration['input_scale'],
+        test_configuration['kernel_scale'],
         test_configuration['units'])
     if test_configuration[bias_name] is not None:
         bias = relay.var(bias_name,
