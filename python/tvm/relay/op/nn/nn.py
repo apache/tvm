@@ -606,15 +606,19 @@ def dense(data, weight, units=None, out_dtype=""):
 
 
 def fifo_buffer(data, buffer, axis):
-    """FIFO buffer
+    """FIFO buffer to enable computation reuse in CNNs with sliding indow input
 
     Compute equivalent of
-    ```
-    concat(buffer, data, axis=axis) \
-    .slice_axis(axis=axis, begin=data.shape[axis], end=data.shape[axis]+buffer.shape[axis])
-    ```
+
+    .. code-block:: python
+
+        concat(buffer, data, axis=axis)
+        .slice_axis(axis=axis,
+                    begin=data.shape[axis],
+                    end=data.shape[axis]+buffer.shape[axis])
 
     Useful for
+
     * Encoding explicit re-use of computation in convolution ops operated on a sliding window input
     * Implementing a FIFO queue to cache intermediate results, e.g. as in Fast WaveNet.
 
