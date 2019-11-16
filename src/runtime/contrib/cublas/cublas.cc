@@ -215,18 +215,17 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue *ret, cublasHandle_t hdl) {
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
   cudaDataType_t cuda_out_type = GetCudaDataType(C->dtype);
   cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT;
-  void *alpha_ptr, *beta_ptr;
-
+  void *alpha_ptr = nullptr, *beta_ptr = nullptr;
+  auto alpha_int = static_cast<int32_t>(alpha);
+  auto beta_int = static_cast<int32_t>(beta);
+  auto alpha_float = static_cast<float>(alpha);
+  auto beta_float = static_cast<float>(beta);
   if (C->dtype.code == kDLInt) {
-    auto alpha_t = static_cast<int32_t>(alpha);
-    alpha_ptr = &alpha_t;
-    auto beta_t = static_cast<int32_t>(beta);
-    beta_ptr = &beta_t;
+    alpha_ptr = &alpha_int;
+    beta_ptr = &beta_int;
   } else if (C->dtype.code == kDLFloat) {
-    auto alpha_t = static_cast<float>(alpha);
-    alpha_ptr = &alpha_t;
-    auto beta_t = static_cast<float>(beta);
-    beta_ptr = &beta_t;
+    alpha_ptr = &alpha_float;
+    beta_ptr = &beta_float;
   }
 
   auto A_data = reinterpret_cast<void *>(static_cast<char *>(A->data) + A->byte_offset);
@@ -287,18 +286,17 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue *ret, cublasHandle_t hdl) 
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
   cudaDataType_t cuda_out_type = GetCudaDataType(C->dtype);
   cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT;
-  void *alpha_ptr, *beta_ptr;
-
+  void *alpha_ptr = nullptr, *beta_ptr = nullptr;
+  auto alpha_int = static_cast<int32_t>(alpha);
+  auto beta_int = static_cast<int32_t>(beta);
+  auto alpha_float = static_cast<float>(alpha);
+  auto beta_float = static_cast<float>(beta);
   if (C->dtype.code == kDLInt) {
-    auto alpha_t = static_cast<int32_t>(alpha);
-    alpha_ptr = &alpha_t;
-    auto beta_t = static_cast<int32_t>(beta);
-    beta_ptr = &beta_t;
+    alpha_ptr = &alpha_int;
+    beta_ptr = &beta_int;
   } else if (C->dtype.code == kDLFloat) {
-    auto alpha_t = static_cast<float>(alpha);
-    alpha_ptr = &alpha_t;
-    auto beta_t = static_cast<float>(beta);
-    beta_ptr = &beta_t;
+    alpha_ptr = &alpha_float;
+    beta_ptr = &beta_float;
   }
 
   auto A_data = reinterpret_cast<void *>(static_cast<char *>(A->data) + A->byte_offset);

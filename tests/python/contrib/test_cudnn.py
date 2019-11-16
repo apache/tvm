@@ -19,7 +19,7 @@ from tvm.contrib import cudnn
 import numpy as np
 
 
-def test_conv2d(data_dtype, conv_dtype, tensor_format=0):
+def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
     in_channel = 4
     out_channel = 32
     filter_h = 3
@@ -77,9 +77,12 @@ def test_conv2d(data_dtype, conv_dtype, tensor_format=0):
 
     verify()
 
+def test_conv2d():
+    verify_conv2d("float32", "float32", tensor_format=0)
+    verify_conv2d("float16", "float32", tensor_format=1)
+    verify_conv2d("float16", "float16", tensor_format=0)
+    verify_conv2d("int8", "int32", tensor_format=1)
+
 
 if __name__ == "__main__":
-    test_conv2d("float32", "float32", tensor_format=0)
-    test_conv2d("float16", "float32", tensor_format=1)
-    test_conv2d("float16", "float16", tensor_format=0)
-    test_conv2d("int8", "int32", tensor_format=1)
+    test_conv2d()
