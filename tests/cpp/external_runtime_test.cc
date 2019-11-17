@@ -185,6 +185,9 @@ class ExampleJSonModule : public ModuleNode {
     return Module(n);
   }
 
+  void SaveToFile(const std::string& file_name, const std::string& format) final {}
+  std::string GetSource(const std::string& format = "") final { return ""; }
+
  private:
   // op -> inputs
   std::map<int, std::vector<int> > graph_;
