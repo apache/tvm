@@ -81,6 +81,9 @@ int Sub(TVMValue* value, int* type_code, int nargs) {
 
 class ExampleJSonModule : public ModuleNode {
  public:
+  ExampleJSonModule() {}
+  ~ExampleJSonModule() {}
+
   PackedFunc GetFunction(const std::string& name,
                          const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "example_json_rt") {
