@@ -21,6 +21,14 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.contrib import graph_runtime
+from tvm.relay.testing.temp_op_attr import TempOpAttr
+
+# We use llvm target for testing functionality. `llvm` points to an older Intel
+# generation machine, that legalizes to a simple lowering. Therefore, the
+# legalization is overwritten such that it can be skipped and we use the
+# QNNCanonicalizeOps lowering for the testing.
+def legalize_qnn_conv2d(attrs, inputs, types):
+    return None
 
 def get_ref_func(data,
                  kernel,
@@ -173,522 +181,548 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape,
     np.testing.assert_equal(qnn_output, golden_output)
 
 def test_no_zero_point():
-    # uint8 input
-    data_shape = (2, 1, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 1, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=0,
-                                   kernel_zero_point=0,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # int8 input
-    data_shape = (2, 1, 2, 4)
-    data_dtype = 'int8'
-    kernel_shape = (3, 1, 2, 2)
-    kernel_dtype = 'int8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=0,
-                                   kernel_zero_point=0,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (2, 1, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 1, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=0,
+                                       kernel_zero_point=0,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 1, 2, 4)
+        data_dtype = 'int8'
+        kernel_shape = (3, 1, 2, 2)
+        kernel_dtype = 'int8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=0,
+                                       kernel_zero_point=0,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 def test_kernel_zero_point():
-    # uint8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=0,
-                                   kernel_zero_point=1,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # int8 input
-    data_shape = (2, 1, 2, 4)
-    data_dtype = 'int8'
-    kernel_shape = (3, 1, 2, 2)
-    kernel_dtype = 'int8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=0,
-                                   kernel_zero_point=5,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=0,
+                                       kernel_zero_point=1,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 1, 2, 4)
+        data_dtype = 'int8'
+        kernel_shape = (3, 1, 2, 2)
+        kernel_dtype = 'int8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=0,
+                                       kernel_zero_point=5,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 
 def test_input_zero_point():
-    # uint8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=0,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # int8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'int8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'int8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=0,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=0,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'int8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'int8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=0,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 def test_both_zero_point():
-    # uint8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # int8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'int8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'int8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'int8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'int8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 def test_layout():
-    # uint8 input
-    data_shape = (2, 2, 4, 4) # NHWC
-    data_dtype = 'uint8'
-    kernel_shape = (2, 2, 4, 3) # HWIO
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NHWC",
-                                   kernel_layout="HWIO",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # NHWC and HWIO layout. Used in depthwise conv.
-    data_shape = (2, 2, 4, 1) # NHWC
-    data_dtype = 'uint8'
-    kernel_shape = (2, 2, 1, 1) # HWOI
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NHWC",
-                                   kernel_layout="HWOI",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (2, 2, 4, 4) # NHWC
+        data_dtype = 'uint8'
+        kernel_shape = (2, 2, 4, 3) # HWIO
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWIO",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # NHWC and HWIO layout. Used in depthwise conv.
+        data_shape = (2, 2, 4, 1) # NHWC
+        data_dtype = 'uint8'
+        kernel_shape = (2, 2, 1, 1) # HWOI
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWOI",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 
 
 def test_padding():
-    # uint8 input
-    data_shape = (1, 4, 2, 2)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=8,
-                                   kernel_zero_point=5,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(1, 1),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # Try different layout
-    data_shape = (2, 2, 4, 4) # NHWC
-    data_dtype = 'uint8'
-    kernel_shape = (2, 2, 4, 3) # HWIO
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=8,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(1, 1),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NHWC",
-                                   kernel_layout="HWIO",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+        # uint8 input
+        data_shape = (1, 4, 2, 2)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=8,
+                                       kernel_zero_point=5,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(1, 1),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # Try different layout
+        data_shape = (2, 2, 4, 4) # NHWC
+        data_dtype = 'uint8'
+        kernel_shape = (2, 2, 4, 3) # HWIO
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=8,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(1, 1),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWIO",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 def test_dilation():
-    # uint8 input
-    data_shape = (2, 4, 4, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(2, 2),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input
+        data_shape = (2, 4, 4, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(2, 2),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 
 def test_const_folding():
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 2, 2)
-    kernel_dtype = 'uint8'
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    golden_weight = np.random.random_integers(low=0, high=255,
-            size=kernel_shape).astype(kernel_dtype)
-    data = relay.var("data", shape=data_shape,
-            dtype=data_dtype)
-    kernel = relay.const(golden_weight)
-    qnn_func = get_qnn_func(data,
-                            kernel,
-                            input_zero_point=8,
-                            kernel_zero_point=3,
-                            kernel_size=(2, 2),
-                            input_scale=1.0,
-                            kernel_scale=1.0,
-                            padding=(0, 0),
-                            strides=(1, 1),
-                            dilation=(1, 1),
-                            data_layout="NCHW",
-                            kernel_layout="OIHW",
-                            out_dtype="int32")
-    folded_mod = transform.FoldConstant()(qnn_func)
-    folded_func = folded_mod["main"]
-    assert "reshape" not in folded_func.astext()
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+
+        golden_weight = np.random.random_integers(low=0, high=255,
+                size=kernel_shape).astype(kernel_dtype)
+        data = relay.var("data", shape=data_shape,
+                dtype=data_dtype)
+        kernel = relay.const(golden_weight)
+        qnn_func = get_qnn_func(data,
+                                kernel,
+                                input_zero_point=8,
+                                kernel_zero_point=3,
+                                kernel_size=(2, 2),
+                                input_scale=1.0,
+                                kernel_scale=1.0,
+                                padding=(0, 0),
+                                strides=(1, 1),
+                                dilation=(1, 1),
+                                data_layout="NCHW",
+                                kernel_layout="OIHW",
+                                out_dtype="int32")
+        folded_mod = transform.FoldConstant()(qnn_func)
+        folded_func = folded_mod["main"]
+        assert "reshape" not in folded_func.astext()
 
 def test_kernel_size_1x1():
-    # uint8 input
-    data_shape = (2, 4, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 4, 1, 1)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=5,
-                                   kernel_zero_point=3,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(1, 1),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    assert 'avg_pool2d' not in qnn_func.astext()
-    verify(ref_func, qnn_func, data_shape, data_dtype,
-            kernel_shape, kernel_dtype)
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 1, 1)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(1, 1),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        assert 'avg_pool2d' not in qnn_func.astext()
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
 
 def test_tflite_large_irregular():
-    # uint8 input
-    data_shape = (1, 1024, 1, 1)
-    data_dtype = 'uint8'
-    kernel_shape = (1001, 1024, 1, 1)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=127,
-                                   kernel_zero_point=127,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(1, 1),
-                                   padding=(0, 0),
-                                   strides=(1, 1),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    golden_data = np.full(data_shape, 127).astype('uint8')
-    golden_weight = np.full(kernel_shape, 127).astype('uint8')
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    with relay.build_config(opt_level=2):
-        params = {'kernel': golden_weight}
-        graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-        mod.set_input("data", golden_data)
-        mod.set_input(**params)
-        mod.run()
-        qnn_output = mod.get_output(0).asnumpy()
-    golden_output = np.full((1, 1001, 1, 1), 0).astype('uint8')
-    np.testing.assert_equal(qnn_output, golden_output)
+        # uint8 input
+        data_shape = (1, 1024, 1, 1)
+        data_dtype = 'uint8'
+        kernel_shape = (1001, 1024, 1, 1)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=127,
+                                       kernel_zero_point=127,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(1, 1),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        golden_data = np.full(data_shape, 127).astype('uint8')
+        golden_weight = np.full(kernel_shape, 127).astype('uint8')
+
+        with relay.build_config(opt_level=2):
+            params = {'kernel': golden_weight}
+            graph, lib, params = relay.build(qnn_func, "llvm", params=params)
+            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod.set_input("data", golden_data)
+            mod.set_input(**params)
+            mod.run()
+            qnn_output = mod.get_output(0).asnumpy()
+        golden_output = np.full((1, 1001, 1, 1), 0).astype('uint8')
+        np.testing.assert_equal(qnn_output, golden_output)
 
 def test_tflite_output_multiplier_greater_than_one():
-    # uint8 input
-    data_shape = (2, 1, 2, 4)
-    data_dtype = 'uint8'
-    kernel_shape = (3, 1, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   input_zero_point=128,
-                                   kernel_zero_point=128,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(2, 2),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    golden_data = 128 + np.array((1, 1, 1, 1,
-                                  2, 2, 2, 2,
-                                  1, 2, 3, 4,
-                                  1, 2, 3, 4)).reshape(data_shape).astype('uint8')
-    golden_weight = 128 + np.array((1, 2, 3, 4,
-                                    -1, 1, -1, 1,
-                                    -1, -1, 1, 1)).reshape(kernel_shape)
-    golden_weight = golden_weight.astype('uint8')
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    with relay.build_config(opt_level=2):
-        params = {'kernel': golden_weight}
-        graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-        mod.set_input("data", golden_data)
-        mod.set_input(**params)
-        mod.run()
-        qnn_output = mod.get_output(0).asnumpy()
-    golden_output = np.array((17, 17,
-                              0, 0,
-                              2, 2,
-                              16, 36,
-                              2, 2,
-                              0, 0)).reshape(2, 3, 1, 2)
-    np.testing.assert_equal(qnn_output, golden_output)
+        # uint8 input
+        data_shape = (2, 1, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 1, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       input_zero_point=128,
+                                       kernel_zero_point=128,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(2, 2),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        golden_data = 128 + np.array((1, 1, 1, 1,
+                                      2, 2, 2, 2,
+                                      1, 2, 3, 4,
+                                      1, 2, 3, 4)).reshape(data_shape).astype('uint8')
+        golden_weight = 128 + np.array((1, 2, 3, 4,
+                                        -1, 1, -1, 1,
+                                        -1, -1, 1, 1)).reshape(kernel_shape)
+        golden_weight = golden_weight.astype('uint8')
+
+        with relay.build_config(opt_level=2):
+            params = {'kernel': golden_weight}
+            graph, lib, params = relay.build(qnn_func, "llvm", params=params)
+            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod.set_input("data", golden_data)
+            mod.set_input(**params)
+            mod.run()
+            qnn_output = mod.get_output(0).asnumpy()
+        golden_output = np.array((17, 17,
+                                  0, 0,
+                                  2, 2,
+                                  16, 36,
+                                  2, 2,
+                                  0, 0)).reshape(2, 3, 1, 2)
+        np.testing.assert_equal(qnn_output, golden_output)
 
 def test_tflite_anistropic_strides():
-    # uint8 input
-    data_shape = (1, 1, 3, 6)
-    data_dtype = 'uint8'
-    kernel_shape = (1, 1, 2, 2)
-    kernel_dtype = 'uint8'
-    ref_func, qnn_func = get_funcs(data_shape=data_shape,
-                                   data_dtype=data_dtype,
-                                   kernel_shape=kernel_shape,
-                                   kernel_dtype=kernel_dtype,
-                                   input_zero_point=127,
-                                   kernel_zero_point=127,
-                                   input_scale=1.0,
-                                   kernel_scale=1.0,
-                                   kernel_size=(2, 2),
-                                   padding=(0, 0),
-                                   strides=(1, 3),
-                                   dilation=(1, 1),
-                                   data_layout="NCHW",
-                                   kernel_layout="OIHW",
-                                   out_dtype="int32")
-    golden_data = np.array((133, 131, 129, 125, 123, 121,
-                            135, 133, 131, 123, 121, 119,
-                            137, 135, 133, 121, 119, 117)).reshape(data_shape)
-    golden_data = golden_data.astype('uint8')
-    golden_weight = np.array((129, 131, 133, 135)).reshape(kernel_shape)
-    golden_weight = golden_weight.astype('uint8')
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    with relay.build_config(opt_level=2):
-        params = {'kernel': golden_weight}
-        graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-        mod.set_input("data", golden_data)
-        mod.set_input(**params)
-        mod.run()
-        qnn_output = mod.get_output(0).asnumpy()
-    golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
-    np.testing.assert_equal(qnn_output, golden_output)
+        # uint8 input
+        data_shape = (1, 1, 3, 6)
+        data_dtype = 'uint8'
+        kernel_shape = (1, 1, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=127,
+                                       kernel_zero_point=127,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 3),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        golden_data = np.array((133, 131, 129, 125, 123, 121,
+                                135, 133, 131, 123, 121, 119,
+                                137, 135, 133, 121, 119, 117)).reshape(data_shape)
+        golden_data = golden_data.astype('uint8')
+        golden_weight = np.array((129, 131, 133, 135)).reshape(kernel_shape)
+        golden_weight = golden_weight.astype('uint8')
+
+        with relay.build_config(opt_level=2):
+            params = {'kernel': golden_weight}
+            graph, lib, params = relay.build(qnn_func, "llvm", params=params)
+            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod.set_input("data", golden_data)
+            mod.set_input(**params)
+            mod.run()
+            qnn_output = mod.get_output(0).asnumpy()
+        golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
+        np.testing.assert_equal(qnn_output, golden_output)
 
 def test_broadcast_layout():
-    # Test broadcast support for NHWC layout.
-    data_shape = (1, 229, 229, 3) # NHWC
-    data_dtype = 'uint8'
-    kernel_shape = (7, 7, 3, 64) # HWIO
-    kernel_dtype = 'int8'
-    _, qnn_func = get_funcs(data_shape=data_shape,
-                            data_dtype=data_dtype,
-                            kernel_shape=kernel_shape,
-                            kernel_dtype=kernel_dtype,
-                            input_zero_point=8,
-                            kernel_zero_point=3,
-                            input_scale=1.0,
-                            kernel_scale=1.0,
-                            kernel_size=(7, 7),
-                            padding=(1, 1),
-                            strides=(1, 1),
-                            dilation=(1, 1),
-                            data_layout="NHWC",
-                            kernel_layout="HWIO",
-                            out_dtype="int32")
-    func = qnn_func['main'].body
-    bias = relay.var("bias", shape=(64,), dtype="int32")
-    bias2 = relay.var("bias2", shape=(1, 225, 225, 1), dtype="int32")
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-    # Check broadcast support on both lhs and rhs
-    func = relay.add(func, bias2)
-    func = relay.add(bias2, func)
-    func = relay.add(bias, func)
-    func = relay.add(func, bias)
-    func = relay.Function(relay.analysis.free_vars(func), func)
-    mod = relay.Module.from_expr(func)
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
+        # Test broadcast support for NHWC layout.
+        data_shape = (1, 229, 229, 3) # NHWC
+        data_dtype = 'uint8'
+        kernel_shape = (7, 7, 3, 64) # HWIO
+        kernel_dtype = 'int8'
+        _, qnn_func = get_funcs(data_shape=data_shape,
+                                data_dtype=data_dtype,
+                                kernel_shape=kernel_shape,
+                                kernel_dtype=kernel_dtype,
+                                input_zero_point=8,
+                                kernel_zero_point=3,
+                                input_scale=1.0,
+                                kernel_scale=1.0,
+                                kernel_size=(7, 7),
+                                padding=(1, 1),
+                                strides=(1, 1),
+                                dilation=(1, 1),
+                                data_layout="NHWC",
+                                kernel_layout="HWIO",
+                                out_dtype="int32")
+        func = qnn_func['main'].body
+        bias = relay.var("bias", shape=(64,), dtype="int32")
+        bias2 = relay.var("bias2", shape=(1, 225, 225, 1), dtype="int32")
+
+        # Check broadcast support on both lhs and rhs
+        func = relay.add(func, bias2)
+        func = relay.add(bias2, func)
+        func = relay.add(bias, func)
+        func = relay.add(func, bias)
+        func = relay.Function(relay.analysis.free_vars(func), func)
+        mod = relay.Module.from_expr(func)
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
 if __name__ == "__main__":
     test_no_zero_point()

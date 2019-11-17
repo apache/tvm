@@ -20,8 +20,8 @@ import tvm
 
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.qnn.op import register_qnn_legalize
 from tvm.relay import transform, analysis
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def alpha_equal(x, y):
     """
@@ -54,7 +54,6 @@ def test_qnn_legalize():
         y = relay.Function([x], y)
         return y
 
-    @register_qnn_legalize("qnn.requantize", level=100)
     def legalize_qnn_requantize(attrs, inputs, types):
         data = inputs[0]
         data = relay.add(relay.const(0, 'int8'), data)
@@ -80,15 +79,17 @@ def test_qnn_legalize():
 
     a = before()
 
-    # Check that Relay Legalize does not change the graph.
-    a = run_opt_pass(a, relay.transform.Legalize())
-    b = run_opt_pass(before(), transform.InferType())
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    with TempOpAttr("qnn.requantize", "FTVMQnnLegalize", legalize_qnn_requantize):
 
-    # Check that QNN Legalize modifies the graph.
-    a = run_opt_pass(a, relay.qnn.transform.Legalize())
-    b = run_opt_pass(expected(), transform.InferType())
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+        # Check that Relay Legalize does not change the graph.
+        a = run_opt_pass(a, relay.transform.Legalize())
+        b = run_opt_pass(before(), transform.InferType())
+        assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+        # Check that QNN Legalize modifies the graph.
+        a = run_opt_pass(a, relay.qnn.transform.Legalize())
+        b = run_opt_pass(expected(), transform.InferType())
+        assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_qnn_legalize_qnn_conv2d():

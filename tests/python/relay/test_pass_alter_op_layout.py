@@ -18,9 +18,8 @@
 import tvm
 
 from tvm import relay
-from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
-
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -30,7 +29,6 @@ def run_opt_pass(expr, passes):
         mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
-
 
 def test_alter_op():
     """Test directly replacing an operator with a new one"""
@@ -45,8 +43,6 @@ def test_alter_op():
         y = relay.Function([x, weight], y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=100)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         weight = relay.multiply(weight, relay.const(2.0, "float32"))
@@ -63,9 +59,10 @@ def test_alter_op():
         y = relay.Function([x, weight], y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-    b = run_opt_pass(expected(), transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -80,17 +77,15 @@ def test_alter_return_none():
 
     called = [False]
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.global_max_pool2d", level=101)
     def alter_conv2d(attrs, inputs, tinfos):
         called[0] = True
         return None
 
-    a = before()
-    a = run_opt_pass(a, transform.AlterOpLayout())
+    with TempOpAttr("nn.global_max_pool2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(before(), transform.InferType())
 
-    b = before()
-    b = run_opt_pass(b, transform.InferType())
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
@@ -114,14 +109,13 @@ def test_alter_layout():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=102)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         new_attrs['kernel_layout'] = 'OIHW16i'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -149,12 +143,11 @@ def test_alter_layout():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -183,13 +176,12 @@ def test_alter_layout_dual_path():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=103)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -215,11 +207,10 @@ def test_alter_layout_dual_path():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -245,13 +236,12 @@ def test_alter_layout_resnet():
         y = relay.nn.global_max_pool2d(y)
         return relay.Function(analysis.free_vars(y), y)
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=104)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -274,11 +264,10 @@ def test_alter_layout_resnet():
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
         return relay.Function(analysis.free_vars(y), y)
 
-    a = before()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -296,8 +285,6 @@ def test_alter_layout_broadcast_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=105)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -323,12 +310,11 @@ def test_alter_layout_broadcast_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -344,8 +330,6 @@ def test_alter_layout_scalar():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=106)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -368,25 +352,23 @@ def test_alter_layout_scalar():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_concatenate():
     """ NCHW, NHWC and corner case concatenate layout transform."""
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=107)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     # NCHW layout transformation.
     def before_nchw():
@@ -425,11 +407,10 @@ def test_alter_layout_concatenate():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nchw()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nchw()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nchw()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nchw(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -472,11 +453,10 @@ def test_alter_layout_concatenate():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nhwc()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nhwc()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -492,8 +472,6 @@ def test_alter_layout_nchw_upsamping_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=108)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -512,12 +490,10 @@ def test_alter_layout_nchw_upsamping_op():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -532,8 +508,6 @@ def test_alter_layout_strided_slice():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=109)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -551,12 +525,11 @@ def test_alter_layout_strided_slice():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -570,11 +543,10 @@ def test_alter_layout_depthwise_conv2d():
         return y
 
     import topi
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=110)
     def alter_conv2d(attrs, inputs, tinfos):
         with tvm.target.create("llvm"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, relay)
+
 
     def expected():
         x = relay.var("x", shape=(1, 32, 56, 56))
@@ -588,12 +560,11 @@ def test_alter_layout_depthwise_conv2d():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                         transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert(analysis.alpha_equal(a, b))
 
@@ -608,8 +579,6 @@ def test_alter_layout_prelu():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=111)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -632,24 +601,22 @@ def test_alter_layout_prelu():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, [transform.CanonicalizeOps(), transform.AlterOpLayout()])
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(), transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert(analysis.alpha_equal(a, b))
 
 
 def test_alter_layout_pad():
     """ Check NCHW, NHWC and corner case for pad layout conversion"""
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=112)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     # Check NCHW conversion.
     def before_nchw():
@@ -677,11 +644,10 @@ def test_alter_layout_pad():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nchw()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nchw()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nchw()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nchw(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -712,15 +678,14 @@ def test_alter_layout_pad():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nhwc()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nhwc()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
-    # Check that conversion does not happen when padding along split axis..
+    # Check that conversion does not happen when padding along split axis.
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var('weight1')
@@ -746,24 +711,22 @@ def test_alter_layout_pad():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_pool():
     """ Check NCHW, NHWC pool layout conversion"""
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=113)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     # Check NCHW conversion.
     def before_nchw():
@@ -791,11 +754,10 @@ def test_alter_layout_pool():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nchw()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nchw()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nchw()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nchw(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -826,24 +788,22 @@ def test_alter_layout_pool():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nhwc()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nhwc()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_sum():
     """ Check NCHW, NHWC sum layout conversion"""
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=114)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
         return relay.nn.conv2d(data, weight, **new_attrs)
+
 
     # Check NCHW conversion.
     def before_nchw():
@@ -871,11 +831,10 @@ def test_alter_layout_sum():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nchw()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nchw()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nchw()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nchw(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -907,19 +866,16 @@ def test_alter_layout_sum():
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
-    a = before_nhwc()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nhwc()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_nhwc_nchw_arm():
     """ Check NHWC to NHCW conversion for a small sequence of ops."""
-    # Register alter op layout. "level" is used to override the previously registered functions.
-    @register_alter_op_layout("nn.conv2d", level=115)
     def alter_conv2d(attrs, inputs, tinfos):
         from topi.arm_cpu.conv2d import _alter_conv2d_layout_arm
         return _alter_conv2d_layout_arm(attrs, inputs, tinfos, tvm.relay)
@@ -968,11 +924,10 @@ def test_alter_layout_nhwc_nchw_arm():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    a = before_nhwc()
-    a = run_opt_pass(a, transform.AlterOpLayout())
-
-    b = expected_nhwc()
-    b = run_opt_pass(b, transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before_nhwc()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected_nhwc(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
