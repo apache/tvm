@@ -491,6 +491,55 @@ def test_engine_extern():
                  options=["-O2", "-std=c++11", "-I"+tmp_path.relpath("")])
 
 
+def test_json_extern():
+    if which("gcc") is None:
+        print("Skip test because gcc is not available.")
+
+    # Get Json.
+    graph_json = get_whole_graph_json()
+
+    # Get subgraph Json.
+    subgraph_json = ("gcc_0\n" +
+                     "input 0 10 10\n" +
+                     "input 1 10 10\n" +
+                     "input 2 10 10\n" +
+                     "input 3 10 10\n" +
+                     "add 4 inputs: 0 1 shape: 10 10\n" +
+                     "sub 5 inputs: 4 2 shape: 10 10\n" +
+                     "mul 6 inputs: 5 3 shape: 10 10\n" +
+                     "gcc_1\n" +
+                     "input 0 10 10\n" +
+                     "input 1 10 10\n" +
+                     "input 2 10 10\n" +
+                     "input 3 10 10\n" +
+                     "add 4 inputs: 0 1 shape: 10 10\n" +
+                     "sub 5 inputs: 4 2 shape: 10 10\n" +
+                     "mul 6 inputs: 5 3 shape: 10 10")
+
+    # load module for execution.
+    lib = tvm.module.load(subgraph_json, 'gcc')
+    mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
+
+    x_data = np.random.rand(10, 10).astype('float32')
+    mod.set_input("x", x_data)
+    w_data = []
+    for i in range(8):
+        data = np.random.rand(10, 10).astype('float32')
+        w_data.append(data)
+        var = "w" + str(i)
+        mod.set_input(var, data)
+    mod.run()
+    out = tvm.nd.empty((30, 10), ctx=tvm.cpu())
+    out = mod.get_output(0, out)
+    tvm.testing.assert_allclose(
+        out.asnumpy(),
+        np.concatenate((((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                        ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                        x_data + w_data[6] - w_data[7]),
+                       axis=0))
+
+
 if __name__ == "__main__":
     test_dso_extern()
     test_engine_extern()
+    #test_json_extern()
