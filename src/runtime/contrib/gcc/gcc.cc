@@ -83,8 +83,7 @@ PackedFunc ExampleJSonModule::GetFunction(const std::string& name,
       }
       *rv = data_entry_.back();
     });
-  }
-  else {
+  } else {
     LOG(FATAL) << "Unkown runtime type: " << name << "\n";
     return PackedFunc();
   }
@@ -166,5 +165,5 @@ void ExampleJSonModule::ParseJson(const std::string& json) {
 
 TVM_REGISTER_GLOBAL("module.loadfile_gcc").set_body_typed(ExampleJSonModule::LoadFromFile);
 
-}
-}
+}  // namespace runtime
+}  // namespace tvm

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file external_runtime_test.cc
+ * \file gcc.h
  * \brief Test an example runtime module to interpreting a json string.
  */
 #ifndef TVM_RUNTIME_CONTRIB_GCC_H_
@@ -33,8 +33,10 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <map>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -73,7 +75,6 @@ class ExampleJSonModule : public ModuleNode {
   // id -> op
   std::vector<std::string> op_id_;
 };
-#endif
-
-}
-}
+#endif  // TVM_RUNTIME_CONTRIB_GCC_H_
+}  // namespace runtime
+}  // namespace tvm
