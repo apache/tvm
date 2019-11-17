@@ -62,6 +62,9 @@ class ExampleJSonModule : public ModuleNode {
     return Module(n);
   }
 
+  void SaveToFile(const std::string& file_name, const std::string& format) final {}
+  std::string GetSource(const std::string& format = "") final { return ""; }
+
  private:
   std::string curr_subgraph_;
   // op -> inputs
