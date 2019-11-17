@@ -17,9 +17,6 @@
 
 message(STATUS "Build with relay.backend.contrib")	
 
-list(FIND USE_EXTERN "gcc" _gcc_idx)	
-if(_gcc_idx GREATER -1)	
-    file(GLOB GCC_CONTRIB_SRC src/runtime/contrib/gcc/*.cc)
-    list(APPEND RUNTIME_SRCS ${GCC_CONTRIB_SRC})	
-    message(STATUS "Use extern runtime: GCC")	
-endif()
+file(GLOB GCC_CONTRIB_SRC src/runtime/contrib/gcc/*.cc)
+list(APPEND RUNTIME_SRCS ${GCC_CONTRIB_SRC})	
+message(STATUS "Use extern runtime: GCC")	
