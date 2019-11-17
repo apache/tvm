@@ -46,7 +46,7 @@ def hybrid_rearrange_out(data, one):
         [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5],
         or 2-D tensor with shape [batch_size, num_anchors].
 
-    valid_box_count : tvm.Tensor or numpy NDArray
+    valid_box_count : tvm.te.Tensor or numpy NDArray
         Tensor with shape [batch_size, 1], indicates
         the valid number of boxes.
     """
@@ -205,7 +205,7 @@ def hybrid_nms(data, sorted_index, valid_count, indices, max_output_size,
     valid_count : tvm.te.Tensor or numpy NDArray
         1-D tensor for valid number of boxes.
 
-    indices : tvm.Tensor or numpy.NDArray
+    indices : tvm.te.Tensor or numpy.NDArray
         indices in original tensor, with shape [batch_size, num_anchors]
 
     max_output_size : tvm.tir.const
@@ -382,7 +382,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
     valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
 
-    indices : tvm.Tensor
+    indices : tvm.te.Tensor
         2-D tensor with shape [batch_size, num_anchors].
 
     max_output_size : optional, int

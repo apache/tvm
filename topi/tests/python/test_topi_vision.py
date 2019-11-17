@@ -102,11 +102,17 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
         tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
         tvm_out3 = tvm.nd.array(np.zeros(np_out3.shape, dtype="int32"), ctx)
-        f = tvm.build(s, [data, outs[0], outs[1], outs[2]], device)
-        f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
-        tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
-        tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
-        tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
+        if device == "llvm":
+            f = tvm.build(s, [data, outs[0], outs[1], outs[2]], device)
+            f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
+            tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
+            tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
+            tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
+        else:
+            f = tvm.build(s, [data, outs[0], outs[1]], device)
+            f(tvm_input_data, tvm_out1, tvm_out2)
+            tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
+            tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
     """ Skip this test as it is intermittent
         see https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094
@@ -161,10 +167,13 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
         tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
-        f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
-        # TODO (yongwww): add dynamic nms for gpu
-        # tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
+        if device == 'llvm':
+            f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
+            f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
+        else:
+            f = tvm.build(indices_s, [data, valid_count, indices, indices_out], device)
+            f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
+        tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
@@ -175,24 +184,24 @@ def test_non_max_suppression():
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
-    np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+    np_indices = np.array([[0, 1, 2, 3, 4]]).astype("int32")
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[4, 0, -1, -1, -1]])
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
 
-    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result, 0.6, True, 2, 2, 1, 0)
+    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result, 0.7, True, 2, 2, 1, 0)
 
     np_data = np.array([[[0.8, 1, 20, 25, 45], [0.7, 30, 60, 50, 80],
                          [0.4, 4, 21, 19, 40], [0.9, 35, 61, 52, 79],
                          [0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
-    np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+    np_indices = np.array([[0, 1, 2, 3, 4]]).astype("int32")
     np_result = np.array([[[0.9, 35, 61, 52, 79], [0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1], [-1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[4, 0, -1, -1, -1]])
-    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result, 0.6, False, 2, 1, 0, -1)
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
+    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result, 0.7, False, 2, 1, 0, -1)
 
 
 def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
