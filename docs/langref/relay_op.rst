@@ -226,7 +226,9 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.subtract
 .. autofunction:: tvm.relay.multiply
 .. autofunction:: tvm.relay.divide
+.. autofunction:: tvm.relay.floor_divide
 .. autofunction:: tvm.relay.mod
+.. autofunction:: tvm.relay.floor_mod
 .. autofunction:: tvm.relay.tanh
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.expand_dims

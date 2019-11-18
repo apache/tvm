@@ -1243,8 +1243,13 @@ def _topk():
 def _floordiv():
     def _impl(inputs, attr, params):
         assert len(inputs) == 2
-        div = AttrCvt('divide')(inputs, attr)
-        return get_relay_op('floor')(div)
+        return AttrCvt('floor_divide')(inputs, attr)
+    return _impl
+
+def _floormod():
+    def _impl(inputs, attr, params):
+        assert len(inputs) == 2
+        return AttrCvt('floor_mod')(inputs, attr)
     return _impl
 
 def _logical(name):
@@ -1437,6 +1442,7 @@ _convert_map = {
     'Fill'                              : _fill(),
     'Floor'                             : AttrCvt('floor'),
     'FloorDiv'                          : _floordiv(),
+    'FloorMod'                          : _floormod(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
     'FusedBatchNormV2'                  : _fused_batch_norm(),
     'Gather'                            : _gather(),
