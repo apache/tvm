@@ -117,7 +117,7 @@ def non_max_suppression(data,
     -------
     out : relay.Expr or relay.Tuple
         return relay.Expr if return_indices is disabled, a 3-D tensor
-        with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 6].
+        with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
         if return_indices is True, return relay.Tuple of two 2-D tensors, with
         shape [batch_size, num_anchors] and [batch_size, num_valid_anchors] respectively.
     """

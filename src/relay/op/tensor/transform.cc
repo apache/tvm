@@ -1732,7 +1732,7 @@ int64_t* ToVector(const runtime::NDArray& array) {
       return rel_vec;
     }
   }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
   return rel_vec;
 }
 
@@ -1825,7 +1825,7 @@ bool StridedSliceRel(const Array<Type>& types,
       oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
     }
   } else {
-    for (size_t i = 0; i < num_axis; ++i) {
+    for (int64_t i = 0; i < num_axis; ++i) {
       oshape[i] = Any::make();
     }
   }
@@ -1850,7 +1850,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
 
   auto layout = old_in_layouts[0];
   if (layout.defined() && new_in_layouts.defined()) {
-    CHECK_EQ(new_in_layouts.size(), 1);
+    CHECK_GE(new_in_layouts.size(), 1);
     auto new_layout = new_in_layouts[0];
     auto shape = old_in_shapes[0];
 
@@ -1907,25 +1907,44 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         new_end.push_back(tvm::Integer(ed / factor));
       }
     }
+
     layout = new_layout;
+
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    auto begin_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
+                                                 DataType::Int(64), ctx);
+    auto end_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
+                                               DataType::Int(64), ctx);
+    auto strides_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
+                                                   DataType::Int(64), ctx);
+    int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
+    int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
+    for (size_t i = 0; i < new_begin.size(); ++i) {
+      begin_data[i] = new_begin[i];
+      end_data[i] = new_end[i];
+    }
+    params->begin = Constant(begin_ndarray);
+    params->end = Constant(end_ndarray);
   }
-  return {{layout}, {layout}};
+  return {{layout, Layout("C"), Layout("C"), Layout("C")}, {layout}};
 }
 
-inline Tensor DynamicStridedSlice(const tvm::Tensor& input,
-                                  const tvm::Tensor& begin,
-                                  const tvm::Tensor& end,
-                                  const tvm::Tensor& strides,
+inline te::Tensor DynamicStridedSlice(const te::Tensor& input,
+                                  const te::Tensor& begin,
+                                  const te::Tensor& end,
+                                  const te::Tensor& strides,
                                   std::string name = "T_strided_slice_dynamic",
                                   std::string tag = topi::kInjective) {
   int64_t src_tensor_dim = input->shape.size();
-  Array<tvm::Expr> out_shape;
+  Array<IndexExpr> out_shape;
   for (int64_t i = 0; i < src_tensor_dim; ++i) {
-    out_shape.push_back(tvm::Var("dim"));
+    out_shape.push_back(tvm::tir::Var("dim"));
   }
-  // TODO(yongwww): move the compute into topi after nnvm is removed
-  return tvm::compute(out_shape, [&](const Array<tvm::Var>& indices) {
-      Array<tvm::Expr> real_indices;
+  // TODO(yongwww): move the compute into topi
+  return te::compute(out_shape, [&](const Array<tvm::tir::Var>& indices) {
+      Array<IndexExpr> real_indices;
       for (int32_t i = 0; i < src_tensor_dim; ++i) {
         real_indices.push_back(indices[i] * strides(i) + begin(i));
       }
@@ -1958,12 +1977,12 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
       topi::strided_slice(inputs[0], begin, end, strides)
     };
   } else {
-    Tensor data = inputs[0];
-    Tensor begin = inputs[1];
-    Tensor end = inputs[2];
-    Tensor strides = inputs[3];
+    te::Tensor data = inputs[0];
+    te::Tensor begin = inputs[1];
+    te::Tensor end = inputs[2];
+    te::Tensor strides = inputs[3];
     // Dynamic computation
-    return Array<Tensor>{
+    return Array<te::Tensor>{
       DynamicStridedSlice(data, begin, end, strides)
     };
   }

@@ -190,7 +190,6 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                                        target=device, out_names=out_name,
                                        num_output=len(out_name), opt_level=opt_level, mode=mode,
                                        cuda_layout=cuda_layout)
-
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -3321,7 +3320,6 @@ if __name__ == '__main__':
     test_forward_space_to_batch_nd()
     test_forward_batch_to_space_nd()
     test_forward_dilation()
-    test_forward_nms_v3()
 
     # End to End
     test_forward_inception_v3()

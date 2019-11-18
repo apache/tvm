@@ -184,9 +184,12 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       DLContext ctx;
       ctx.device_type = kDLCPU;
       ctx.device_id = 0;
-      auto begin_ndarray = runtime::NDArray::Empty({1}, DataType::Int(64), ctx);
-      auto end_ndarray = runtime::NDArray::Empty({1}, DataType::Int(64), ctx);
-      auto strides_ndarray = runtime::NDArray::Empty({1}, DataType::Int(64), ctx);
+      auto begin_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
+                                                   DataType::Int(64), ctx);
+      auto end_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
+                                                 DataType::Int(64), ctx);
+      auto strides_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
+                                                     DataType::Int(64), ctx);
       int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
       int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
 
@@ -196,9 +199,9 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       }
 
       auto slice = MakeStridedSlice(data,
-                                    ConstantNode::make(begin_ndarray),
-                                    ConstantNode::make(end_ndarray),
-                                    ConstantNode::make(strides_ndarray));
+                                    Constant(begin_ndarray),
+                                    Constant(end_ndarray),
+                                    Constant(strides_ndarray));
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }

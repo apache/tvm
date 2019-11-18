@@ -617,7 +617,7 @@ def _conv3d(opname):
         return out
 
 def _nms():
-    def _impl(inputs, attr, params):
+    def _impl(inputs, attr, params, mod):
         # Get parameter values
         max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
         iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
@@ -626,6 +626,7 @@ def _nms():
 
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims",
+                         ignores=['T_threshold'],
                          extras={'axis': -1, 'num_newaxis': 1})([inputs[1]], attr)
         data = get_relay_op('concatenate')([scores, inputs[0]], -1)
         data = get_relay_op('expand_dims')(data, 0, 1)
@@ -651,6 +652,7 @@ def _nms():
                                                       id_index=-1,
                                                       return_indices=True,
                                                       invalid_to_bottom=False)
+
         # squeeze it, TF NMS is not batched
         end = get_relay_op("squeeze")(nms_ret[1], axis=[1])
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
@@ -2531,7 +2533,7 @@ class LoopBound(ExprVisitor):
     .. code-block:: python
 
         i = tf.constant(0)
-        data = tf.compat.v1.placeholder(tf.float32, shape=(1024, 1024))
+        data = tf.placeholder(tf.float32, shape=(1024, 1024))
         slice = tf.strided_slice(data, 0, 512)
         def c(i): return tf.less(i, 10)
         def b(i): return [tf.add(i, 1), tf.add(i, 1) + slice]

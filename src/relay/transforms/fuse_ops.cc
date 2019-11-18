@@ -249,6 +249,23 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       this->Update(call->op, node, kOpaque);
     }
 
+    if (call->attrs.as<StridedSliceAttrs>()) {
+      bool is_dyn{false};
+      for (auto arg :  call->args) {
+        auto arg_tt = arg->checked_type().as<TensorTypeNode>();
+        if (arg_tt) {
+          for (auto dim : arg_tt->shape) {
+            if (dim.as<Any>()) {
+              is_dyn = true;
+            }
+          }
+        }
+        if (is_dyn) break;
+      }
+      if (!is_dyn) {
+        op_pattern = kInjective;
+      }
+    }
     node->pattern = op_pattern;
     this->Update(call->op, nullptr, kOpaque);
     const auto* rtype = call->checked_type().as<TensorTypeNode>();

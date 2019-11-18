@@ -620,7 +620,7 @@ def test_alter_layout_strided_slice():
         x = relay.var("x", shape=(1, 32, 28, 28))
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
-        y = relay.strided_slice(y, begin=[0, 16], end=[None, None])
+        y = relay.strided_slice(y, begin=relay.const([0, 16], "int32"), end=relay.const([1, 32], "int32"))
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
@@ -636,7 +636,7 @@ def test_alter_layout_strided_slice():
         x = relay.layout_transform(x, "NCHW", "NCHW4c")
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
                             data_layout="NCHW4c")
-        y = relay.strided_slice(y, begin=[0, 4], end=[None, 8])
+        y = relay.strided_slice(y, begin=relay.const([0, 4], "int32"), end=relay.const([1, 8], "int32"))
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
         y = relay.Function(analysis.free_vars(y), y)
         return y

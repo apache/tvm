@@ -455,20 +455,20 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   sort_tensor,
                                   valid_count,
                                   indices,
-                                  tvm.const(max_output_size, dtype="int32"),
-                                  tvm.const(iou_threshold, dtype=data.dtype),
-                                  tvm.const(force_suppress, dtype="bool"),
-                                  tvm.const(top_k, dtype="int32"),
-                                  tvm.const(coord_start, dtype="int32"),
-                                  tvm.const(score_index, dtype="int32"),
-                                  tvm.const(id_index, dtype="int32"),
-                                  tvm.const(return_indices, dtype="bool"),
-                                  zero=tvm.const(0, dtype=data.dtype),
-                                  one=tvm.const(1, dtype=data.dtype))
+                                  tvm.tir.const(max_output_size, dtype="int32"),
+                                  tvm.tir.const(iou_threshold, dtype=data.dtype),
+                                  tvm.tir.const(force_suppress, dtype="bool"),
+                                  tvm.tir.const(top_k, dtype="int32"),
+                                  tvm.tir.const(coord_start, dtype="int32"),
+                                  tvm.tir.const(score_index, dtype="int32"),
+                                  tvm.tir.const(id_index, dtype="int32"),
+                                  tvm.tir.const(return_indices, dtype="bool"),
+                                  zero=tvm.tir.const(0, dtype=data.dtype),
+                                  one=tvm.tir.const(1, dtype=data.dtype))
     if return_indices:
-        box_indices, out_shape = hybrid_rearrange_out(box_indices, one=tvm.const(1, dtype="int32"))
+        box_indices, out_shape = hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"))
         return tuple([box_indices, out_shape])
 
     if invalid_to_bottom:
-        out, out_shape = hybrid_rearrange_out(out, one=tvm.const(1, dtype=data.dtype))
+        out, out_shape = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype))
     return out

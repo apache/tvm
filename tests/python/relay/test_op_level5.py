@@ -288,13 +288,13 @@ def test_non_max_suppression():
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
-        x2 = relay.var("x2", relay.ty.TensorType((dshape[0],dshape[1]), "int32"))
+        x2 = relay.var("x2", relay.ty.TensorType((dshape[0], dshape[1]), "int32"))
         z = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
             iou_threshold=iou_threshold, force_suppress=force_suppress, \
             top_k=top_k, return_indices=False)
         z_indices = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
                     iou_threshold=iou_threshold, force_suppress=force_suppress, \
-                    top_k=top_k)
+                    top_k=top_k, return_indices=True)
         if isinstance(z_indices, relay.expr.TupleWrapper):
             z_indices = z_indices.astuple()
         assert "iou_threshold" in z.astext()
@@ -340,7 +340,7 @@ def test_non_max_suppression():
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
     num_anchors = 5
 
-    dshape = (tvm.var("n"), num_anchors, 6)
+    dshape = (te.size_var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, np_indices, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
@@ -351,7 +351,7 @@ def test_non_max_suppression():
                            [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
     np_indices_result = np.array([[3, 0, 1, -1, -1]])
-    dshape = (tvm.var("n"), num_anchors, 6)
+    dshape = (te.size_var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)

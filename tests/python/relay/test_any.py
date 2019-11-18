@@ -645,7 +645,7 @@ def test_arange_with_dynamic_shape():
 
 def verify_any_strided_slice(data_shape, begin_shape, end_shape,
                              strides_shape, data_np_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     data = relay.var('data', shape=data_shape, dtype='float32')
     begin = relay.var('begin', shape=begin_shape, dtype="int32")
     end = relay.var('end', shape=end_shape, dtype="int32")
