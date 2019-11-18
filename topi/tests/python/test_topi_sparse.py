@@ -25,6 +25,8 @@ from collections import namedtuple
 import time
 import scipy.sparse as sp
 
+from common import get_all_backend
+
 def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
     nr, nc, n = tvm.var("nr"), tvm.var("nc"), tvm.var("n")
     dtype = 'float32'
@@ -218,12 +220,19 @@ def test_dense():
 
 
 def test_sparse_dense_csr():
-    M, N, K, density = 1, 17, 47, 0.2
-    X_np = np.random.randn(M, K).astype("float32")
+    M, N, K, density = 1, 100, 128, 0.1
+    X_np = np.random.uniform(size=(M, K)).astype("float32")
     W_sp_np = sp.random(N, K, density=density, format='csr', dtype="float32")
-    W_np = W_sp_np.todense()
+    W_np = W_sp_np.todense().astype("float32")
     Y_np = X_np.dot(W_np.T)
 
+    X = tvm.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    W_data = tvm.placeholder(shape=W_sp_np.data.shape, 
+                             dtype=str(W_sp_np.data.dtype))
+    W_indices = tvm.placeholder(shape=W_sp_np.indices.shape, 
+                                dtype=str(W_sp_np.indices.dtype))
+    W_indptr = tvm.placeholder(shape=W_sp_np.indptr.shape, 
+                               dtype=str(W_sp_np.indptr.dtype))
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -232,19 +241,21 @@ def test_sparse_dense_csr():
         print("Running on target: %s" % device)
 
         with tvm.target.create(device):
-            W_data = tvm.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
-            W_indices = tvm.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
-            W_indptr = tvm.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
-            X = tvm.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
             Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-            s = tvm.create_schedule(Y.op)
+            s = topi.generic.schedule_sparse_dense([Y])
 
-        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y], device)
-        Y_tvm = tvm.ndarray.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
-        func(tvm.ndarray.array(X_np), tvm.ndarray.array(W_sp_np.data), tvm.ndarray.array(W_sp_np.indices), tvm.ndarray.array(W_sp_np.indptr), Y_tvm)
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y], 
+                         device)
+        Y_tvm = tvm.ndarray.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx)
+        func(tvm.ndarray.array(X_np, ctx), 
+             tvm.ndarray.array(W_sp_np.data, ctx), 
+             tvm.ndarray.array(W_sp_np.indices, ctx), 
+             tvm.ndarray.array(W_sp_np.indptr, ctx), 
+             Y_tvm)
         tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
-    check_device('llvm')
+    for device in ["llvm", "cuda", "cuda -libs=cusparse"]:
+        check_device(device)
 
 def test_sparse_transpose_csr():
     N, density = 1023, 0.3
@@ -346,12 +357,12 @@ def test_sparse_dense_bsr_randomized():
 
 def test_sparse_dense():
     test_sparse_dense_csr()
-    #test_sparse_dense_bsr()
-    #test_sparse_dense_bsr_randomized()
+    test_sparse_dense_bsr()
+    test_sparse_dense_bsr_randomized()
 
 if __name__ == "__main__":
-    #test_csrmv()
-    #test_csrmm()
-    #test_dense()
+    test_csrmv()
+    test_csrmm()
+    test_dense()
     test_sparse_dense()
-    #test_sparse_transpose_csr()
+    test_sparse_transpose_csr()
