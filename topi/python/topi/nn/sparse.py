@@ -19,6 +19,7 @@
 from __future__ import absolute_import
 import tvm
 from tvm.contrib import cusparse
+from tvm.contrib import cublas
 
 from ..util import get_const_tuple
 

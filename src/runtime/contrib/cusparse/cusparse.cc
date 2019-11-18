@@ -43,7 +43,6 @@ struct CuSparseScsrmmOp {
   explicit CuSparseScsrmmOp(cusparseHandle_t hdl, cusparseMatDescr_t des)
     : handle(hdl), descr(des)
     {}
-
   void operator()(bool ta, int M, int N, int K, int NNZ,
                   float alpha, float* valA, int* rowPtrA, int* colIndA,
                   float* B, int ldb, float beta,
