@@ -32,20 +32,20 @@ namespace tvm {
 namespace runtime {
 
 /**
- * @brief Base template for classes with array like memory layout.
+ * \brief Base template for classes with array like memory layout.
  *
  *        It provides general methods to access the memory. The memory
  *        layout is ArrayType + [ElemType]. The alignment of ArrayType
  *        and ElemType is handled by the memory allocator.
  *
- * @tparam ArrayType
- * @tparam ElemType
+ * \tparam ArrayType
+ * \tparam ElemType
  */
 template <typename ArrayType, typename ElemType>
 class InplaceArrayBase {
  public:
   /**
-   * @brief Initialize the elements in the array.
+   * \brief Initialize the elements in the array.
    */
   void Init() {
     CHECK_EQ(sizeof(ArrayType) % alignof(ElemType), 0);
@@ -56,11 +56,11 @@ class InplaceArrayBase {
   }
 
   /**
-   * @brief Initialize the elements in the array.
+   * \brief Initialize the elements in the array.
    *
-   * @tparam Iterator Iterator type of the array.
-   * @param begin The begin iterator.
-   * @param end The end iterator.
+   * \tparam Iterator Iterator type of the array.
+   * \param begin The begin iterator.
+   * \param end The end iterator.
    */
   template <typename Iterator>
   void Init(Iterator begin, Iterator end) {
@@ -80,9 +80,9 @@ class InplaceArrayBase {
   }
 
   /**
-   * @brief Initialize the elements in the array.
+   * \brief Initialize the elements in the array.
    *
-   * @param init The initializer list of elements.
+   * \param init The initializer list of elements.
    */
   void Init(std::initializer_list<ElemType> init) {
     CHECK_EQ(sizeof(ArrayType) % alignof(ElemType), 0);
@@ -96,17 +96,15 @@ class InplaceArrayBase {
    */
   ElemType& operator[](size_t idx) const {
     size_t size = Self()->size();
-    if (idx > size) {
-      LOG(FATAL) << "Index " << idx << " out of bounds " << size << "\n";
-    }
+    CHECK_LT(idx > size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
   /**
-   * @brief Destroy the Inplace Array Base object
+   * \brief Destroy the Inplace Array Base object
    */
   virtual ~InplaceArrayBase() {
-    if (!IsPOD()) {
+    if (is_pod_) {
       size_t size = Self()->size();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
@@ -117,32 +115,32 @@ class InplaceArrayBase {
 
  private:
   /**
-   * @brief Check if the ElemType is Plain Old Data.
-   *
-   * @return If ElemType is POD.
+   * \brief If the ElemType is Plain Old Data.
    */
-  inline bool IsPOD() const {
-    return std::is_standard_layout<ElemType>::value &&
-           std::is_trivial<ElemType>::value;
-  }
+  static constexpr bool is_pod_ = std::is_standard_layout<ElemType>::value &&
+                                  std::is_trivial<ElemType>::value;
 
   /**
-   * @brief Return the self object for the array.
+   * \brief Offset inside the object to the start of array data
+   */
+  static constexpr size_t kDataStart = sizeof(ArrayType);
+
+  /**
+   * \brief Return the self object for the array.
    *
-   * @return Pointer to ArrayType.
+   * \return Pointer to ArrayType.
    */
   inline ArrayType* Self() const {
     return static_cast<ArrayType*>(const_cast<InplaceArrayBase*>(this));
   }
 
   /**
-   * @brief Return the raw pointer to the element at idx.
+   * \brief Return the raw pointer to the element at idx.
    *
-   * @param idx The index of the element.
-   * @return Raw pointer to the element.
+   * \param idx The index of the element.
+   * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
-    const size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
     char* data_start = reinterpret_cast<char*>(self) + kDataStart;
     return data_start + idx * sizeof(ElemType);
@@ -159,12 +157,12 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   // The fields of the structure follows directly in memory.
 
   /**
-   * @brief The number of elements in the array.
+   * \brief The number of elements in the array.
    */
   inline size_t size() const { return size_; }
 
   /**
-   * @brief Destroy the ADTObj object
+   * \brief Destroy the ADTObj object
    */
   ~ADTObj() {}
 
