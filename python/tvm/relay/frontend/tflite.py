@@ -729,9 +729,13 @@ class OperatorConverter(object):
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
         if input_tensor.qnn_params:
+            input_scale = input_tensor.qnn_params['scale']
+            kernel_scale = weight_tensor.qnn_params['scale']
             out = _qnn.op.dense(in_expr, weight_expr,
                                 input_zero_point=input_tensor.qnn_params['zero_point'],
                                 kernel_zero_point=weight_tensor.qnn_params['zero_point'],
+                                input_scale=input_scale,
+                                kernel_scale=kernel_scale,
                                 out_dtype='int32')
         else:
             out = _op.nn.dense(in_expr, weight_expr)
@@ -935,6 +939,8 @@ class OperatorConverter(object):
             qnn_conv2d_params['input_zero_point'] = input_tensor.qnn_params['zero_point']
             qnn_conv2d_params['kernel_zero_point'] = weight_tensor.qnn_params['zero_point']
             qnn_conv2d_params['out_dtype'] = 'int32'
+            qnn_conv2d_params['input_scale'] = input_tensor.qnn_params['scale']
+            qnn_conv2d_params['kernel_scale'] = weight_tensor.qnn_params['scale']
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
         else:
             out = _op.nn.conv2d(in_expr, weight_expr, **params)

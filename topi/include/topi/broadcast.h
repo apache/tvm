@@ -196,6 +196,25 @@ TOPI_DEFINE_OP_OVERLOAD(operator*, multiply);
 TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
 
 /*!
+ * \fn floor divide
+ * \brief Compute floor(A / B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(floor_divide, {
+  if (a.type().is_int() || a.type().is_uint()) {
+    return floordiv(a, b);
+  } else {
+    return floor(div(a, b));
+  }
+});
+
+/*!
  * \fn mod
  * \brief Compute A % B with auto-broadcasting.
  *
@@ -207,6 +226,25 @@ TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(mod, { return truncmod(a, b); });
+
+/*!
+ * \fn floor mod
+ * \brief Compute A - floor_div(A, B) * B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(floor_mod, {
+  if (a.type().is_int() || a.type().is_uint()) {
+    return floormod(a, b);
+  } else {
+    return a - floor_divide(a, b) * b;
+  }
+});
 
 /*!
  * \fn maximum

@@ -163,7 +163,9 @@ topi
 .. autofunction:: topi.subtract
 .. autofunction:: topi.multiply
 .. autofunction:: topi.divide
+.. autofunction:: topi.floor_divide
 .. autofunction:: topi.mod
+.. autofunction:: topi.floor_mod
 .. autofunction:: topi.maximum
 .. autofunction:: topi.minimum
 .. autofunction:: topi.power

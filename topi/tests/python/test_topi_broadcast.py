@@ -139,6 +139,13 @@ def test_divide():
     verify_broadcast_binary_ele(
         (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
 
+def test_floor_divide():
+    verify_broadcast_binary_ele(
+        None, (10,), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (), None, topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (2, 3, 1, 32), (64, 32), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
 
 def test_maximum_minmum():
     verify_broadcast_binary_ele(
@@ -156,6 +163,11 @@ def test_mod():
     verify_broadcast_binary_ele(
         (1, 2, 2), (2,), topi.mod, np.mod, lhs_min=0.001, rhs_min=1, dtype="int32")
 
+def test_floor_mod():
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.floor_mod, np.fmod, lhs_min=0.001, rhs_min=1, dtype="int32")
+    verify_broadcast_binary_ele(
+        (3, 4, 5), (3, 4, 5), topi.floor_mod, np.fmod, lhs_min=0.001, rhs_min=1, dtype="float32")
 
 def test_cmp():
     # explicit specify the output type
@@ -298,9 +310,11 @@ if __name__ == "__main__":
     test_shift()
     test_cmp()
     test_mod()
+    test_floor_mod()
     test_subtract()
     test_multiply()
     test_divide()
+    test_floor_divide()
     test_maximum_minmum()
     test_power()
     test_broadcast_to()

@@ -135,6 +135,10 @@ struct QnnConv2DAttrs : public tvm::AttrsNode<QnnConv2DAttrs> {
   // Quantization related attributes.
   int32_t input_zero_point;
   int32_t kernel_zero_point;
+  // The input tensor scale and kernel tensor scales are stored
+  // for easy access to this information.
+  double input_scale;
+  double kernel_scale;
 
   TVM_DECLARE_ATTRS(QnnConv2DAttrs, "relay.attrs.QnnConv2DAttrs") {
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
@@ -177,6 +181,10 @@ struct QnnConv2DAttrs : public tvm::AttrsNode<QnnConv2DAttrs> {
         .describe("The zero point of the input tensor.");
     TVM_ATTR_FIELD(kernel_zero_point)
         .describe("The zero point of the kernel tensor.");
+    TVM_ATTR_FIELD(input_scale)
+      .describe("The quantization scale for the input tensor.");
+    TVM_ATTR_FIELD(kernel_scale)
+      .describe("The quantization scale for the weight tensor.");
   }
 };
 
@@ -212,6 +220,8 @@ struct QnnDenseAttrs : public tvm::AttrsNode<QnnDenseAttrs> {
   // Quantization related attributes.
   int32_t input_zero_point;
   int32_t kernel_zero_point;
+  double input_scale;
+  double kernel_scale;
 
   TVM_DECLARE_ATTRS(QnnDenseAttrs, "relay.attrs.QnnDenseAttrs") {
     TVM_ATTR_FIELD(units)
@@ -222,6 +232,10 @@ struct QnnDenseAttrs : public tvm::AttrsNode<QnnDenseAttrs> {
       .describe("The zero point of the input tensor.");
     TVM_ATTR_FIELD(kernel_zero_point)
       .describe("The zero point of the kernel tensor.");
+    TVM_ATTR_FIELD(input_scale)
+      .describe("The input tensor scale.");
+    TVM_ATTR_FIELD(kernel_scale)
+      .describe("The kernel tensor scale.");
   }
 };
 

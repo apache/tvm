@@ -295,7 +295,8 @@ def test_forward_pooling():
 
 
 def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
-                      dilations, strides, padding, data_format):
+                      dilations, strides, padding, data_format,
+                      deconv_output_shape=[]):
     """ One iteration of convolution with given shapes and attributes """
 
     total_size_1 = np.prod(tensor_in_sizes)
@@ -326,6 +327,16 @@ def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
 
             compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
                                 'Placeholder:0', 'Conv2D:0')
+        elif opname == 'conv_transpose':
+            nn_ops.conv2d_transpose(in_data,
+                                    in_filter,
+                                    output_shape=deconv_output_shape,
+                                    strides=strides,
+                                    padding=padding,
+                                    data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'conv2d_transpose:0')
         else:
             nn_ops.depthwise_conv2d_native(in_data,
                                            in_filter,
@@ -349,6 +360,14 @@ def test_forward_convolution():
         _test_convolution('depthwise', [4, 124, 17, 17], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NCHW')
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 19, 8, 8], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 19, 17, 17])
+        _test_convolution('conv_transpose', [4, 19, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 124, 17, 17])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 12, 17, 17])
 
     _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
@@ -359,6 +378,15 @@ def test_forward_convolution():
     _test_convolution('depthwise', [4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 17, 17, 19])
+    _test_convolution('conv_transpose', [4, 17, 17, 19], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 17, 17, 124])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 17, 17, 12])
+
 
 #######################################################################
 # BiasAdd
@@ -1041,8 +1069,6 @@ def test_forward_stridedslice():
 #######################################################################
 # FloorDiv, RealDiv
 # -----------------
-
-
 def _test_forward_divide(ip_shape, dtype):
     np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
     np_denomin = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
@@ -1055,7 +1081,7 @@ def _test_forward_divide(ip_shape, dtype):
 
 
 def _test_forward_floordiv(ip_shape, dtype):
-    np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    np_numer = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
     tf.reset_default_graph()
     numerator = tf.placeholder(dtype, ip_shape, name="numer")
     tf.math.floordiv(numerator, tf.constant(5, dtype=dtype), name='FloorDiv')
@@ -1067,6 +1093,26 @@ def test_forward_divide():
     _test_forward_divide((4,), 'int32')
     _test_forward_divide((4, 3, 7), 'float32')
     _test_forward_floordiv((4, 3, 7), 'float32')
+    _test_forward_floordiv((4, 3, 7), 'int32')
+
+#######################################################################
+# FloorMod
+# --------
+def _test_forward_floormod(in_shape, if_shape, dtype):
+    np_numer = np.random.uniform(1, 100, size=in_shape).astype(dtype)
+    np_factor = np.random.uniform(1, 100, size=if_shape).astype(dtype)
+    tf.reset_default_graph()
+    numerator = tf.placeholder(dtype, in_shape, name="numer")
+    factor = tf.placeholder(dtype, if_shape, name="factor")
+    tf.floormod(numerator, factor, name='FloorMod')
+    compare_tf_with_tvm([np_numer, np_factor], ['numer:0', 'factor:0'], 'FloorMod:0')
+
+def test_forward_floormod():
+    '''test FloorMod'''
+    _test_forward_floormod((10,), (10,), 'float32')
+    _test_forward_floormod((8, 2), (1,), 'float32')
+    _test_forward_floormod((4, 3, 7), (4, 3, 7), 'float32')
+    _test_forward_floormod((4, 3, 7), (4, 3, 7), 'int32')
 
 
 #######################################################################
@@ -2765,6 +2811,7 @@ if __name__ == '__main__':
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
+    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
@@ -2778,6 +2825,7 @@ if __name__ == '__main__':
     test_forward_erf()
     test_forward_squared_difference()
     test_forward_add_n()
+    test_forward_floormod()
 
     # Reductions
     test_forward_argminmax()
