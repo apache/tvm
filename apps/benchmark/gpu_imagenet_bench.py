@@ -25,8 +25,7 @@ import numpy as np
 import tvm
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
-import nnvm.compiler
-import nnvm.testing
+from tvm import relay
 
 from util import get_network
 
@@ -34,8 +33,8 @@ from util import get_network
 def benchmark(network, target):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
-    with nnvm.compiler.build_config(opt_level=3):
-        graph, lib, params = nnvm.compiler.build(
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(
             net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
 
     # create runtime
