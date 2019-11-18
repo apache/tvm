@@ -126,7 +126,9 @@ def test_binary_op():
     for opfunc, ref in [(relay.add, np.add),
                         (relay.subtract, np.subtract),
                         (relay.multiply, np.multiply),
-                        (relay.divide, np.divide)]:
+                        (relay.divide, np.divide),
+                        (relay.floor_divide, np.floor_divide),
+                        (relay.floor_mod, np.fmod)]:
         for dtype in ['float16', 'float32']:
             check_binary_op(opfunc, ref, dtype)
 
