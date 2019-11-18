@@ -119,6 +119,7 @@ header_groovystyle = """
 FMT_MAP = {
     "sh" : header_pystyle,
     "cc" : header_cstyle,
+    "java" : header_cstyle,
     "h" : header_cstyle,
     "py" : header_pystyle,
     "toml" : header_pystyle,
