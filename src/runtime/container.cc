@@ -32,7 +32,7 @@ namespace runtime {
 template <typename Iterator>
 ADT::ADT(uint32_t tag, Iterator begin, Iterator end) {
   size_t num_elems = std::distance(begin, end);
-  auto ptr = make_array<ADTObj, ObjectRef>(num_elems);
+  auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
   ptr->tag_ = tag;
   ptr->size_ = num_elems;
   ptr->Init(begin, end);
