@@ -93,9 +93,20 @@ class InplaceArrayBase {
   /*!
    * \brief Access element at index
    * \param idx The index of the element.
+   * \return Const reference to ElemType at the index.
+   */
+  const ElemType& operator[](size_t idx) const {
+    size_t size = Self()->size();
+    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
+    return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
+  }
+
+  /*!
+   * \brief Access element at index
+   * \param idx The index of the element.
    * \return Reference to ElemType at the index.
    */
-  ElemType& operator[](size_t idx) const {
+  ElemType& operator[](size_t idx) {
     size_t size = Self()->size();
     CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
