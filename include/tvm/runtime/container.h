@@ -23,6 +23,7 @@
  */
 #ifndef TVM_RUNTIME_CONTAINER_H_
 #define TVM_RUNTIME_CONTAINER_H_
+#include <dmlc/logging.h>
 #include <tvm/runtime/object.h>
 #include <initializer_list>
 #include <type_traits>
