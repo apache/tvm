@@ -97,7 +97,7 @@ class InplaceArrayBase {
    */
   ElemType& operator[](size_t idx) const {
     size_t size = Self()->size();
-    CHECK_LT(idx > size) << "Index " << idx << " out of bounds " << size << "\n";
+    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
