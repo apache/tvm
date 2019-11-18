@@ -77,23 +77,23 @@ class ObjAllocatorBase {
   }
 
   /*!
-   * \tparam T The type to be allocated.
-   * \tparam ElemType The type to array element.
+   * \tparam ArrayType The type to be allocated.
+   * \tparam ElemType The type of array element.
    * \tparam Args The constructor signature.
    * \param num_elems The number of array elements.
    * \param args The arguments.
    */
-  template<typename T, typename ElemType, typename... Args>
-  inline ObjectPtr<T> make_array(size_t num_elems, Args&&... args) {
-    using Handler = typename Derived::template Handler<T, ElemType>;
-    static_assert(std::is_base_of<Object, T>::value,
+  template<typename ArrayType, typename ElemType, typename... Args>
+  inline ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
+    using Handler = typename Derived::template Handler<ArrayType, ElemType>;
+    static_assert(std::is_base_of<Object, ArrayType>::value,
                   "make_node can only be used to create NodeBase");
-    T* ptr = Handler::New(static_cast<Derived*>(this),
-                          num_elems,
-                          std::forward<Args>(args)...);
-    ptr->type_index_ = T::RuntimeTypeIndex();
+    ArrayType* ptr = Handler::New(static_cast<Derived*>(this),
+                                  num_elems,
+                                  std::forward<Args>(args)...);
+    ptr->type_index_ = ArrayType::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
-    return ObjectPtr<T>(ptr);
+    return ObjectPtr<ArrayType>(ptr);
   }
 };
 
