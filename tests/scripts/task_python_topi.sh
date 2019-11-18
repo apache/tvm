@@ -27,4 +27,4 @@ make cython3
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 rm -rf topi/python/topi/*.pyc topi/python/topi/*/*.pyc topi/python/topi/*/*/*.pyc topi/python/topi/*/*/*/*.pyc
 
-python3 -m pytest -v topi/tests/python
+python3 -m pytest -v --durations=0 topi/tests/python

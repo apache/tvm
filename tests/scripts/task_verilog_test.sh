@@ -21,5 +21,5 @@ set -u
 
 export PYTHONPATH=python
 make verilog
-python3 -m pytest -v tests/verilog/unittest
-python3 -m pytest -v tests/verilog/integration
+python3 -m pytest -v --durations=0 tests/verilog/unittest
+python3 -m pytest -v --durations=0 tests/verilog/integration

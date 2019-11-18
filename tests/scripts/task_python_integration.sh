@@ -35,13 +35,13 @@ rm -rf lib
 make
 cd ../..
 
-python3 -m pytest -v apps/extension/tests
+python3 -m pytest -v --durations=0 apps/extension/tests
 
-TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
-TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
+TVM_FFI=ctypes python3 -m pytest -v --durations=0 tests/python/integration
+TVM_FFI=ctypes python3 -m pytest -v --durations=0 tests/python/contrib
 
-TVM_FFI=ctypes python3 -m pytest -v tests/python/relay
+TVM_FFI=ctypes python3 -m pytest -v --durations=0 tests/python/relay
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m pytest -v tests/webgl
-# TVM_FFI=ctypes python3 -m pytest -v tests/webgl
+# TVM_FFI=cython python -m pytest -v --durations=0 tests/webgl
+# TVM_FFI=ctypes python3 -m pytest -v --durations=0 tests/webgl
