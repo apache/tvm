@@ -49,3 +49,5 @@ lib/cpp_deploy_pack: cpp_deploy.cc lib/test_addone_sys.o lib/libtvm_runtime_pack
 lib/cpp_deploy_normal: cpp_deploy.cc lib/test_addone_sys.o
 	@mkdir -p $(@D)
 	$(CXX) $(PKG_CFLAGS) -o $@  $^ -ltvm_runtime $(PKG_LDFLAGS)
+clean:
+	rm -rf lib/
