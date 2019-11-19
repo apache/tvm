@@ -36,10 +36,15 @@
 #include <string>
 #include <vector>
 
-using namespace tvm::runtime;
-
 namespace tvm {
 namespace runtime {
+
+// A simple JSON node that contains multiple inputs and a single output.
+struct NodeEntry {
+  int id;
+  int output;
+  std::vector<int> inputs;
+};
 
 void Add_(float* a, int len_a, float* b, int len_b, float* c) {
   for (int i = 0; i < len_a * len_b; i++) {
@@ -95,8 +100,8 @@ int Mul(TVMValue* value, int* type_code, int nargs) {
 class ExampleJsonModule : public ModuleNode {
  public:
   ExampleJsonModule(std::string graph_json) {
-      this->graph_json_ = graph_json;
-      ParseJson(graph_json);
+    this->graph_json_ = graph_json;
+    ParseJson(graph_json);
   }
 
   PackedFunc GetFunction(const std::string& name,
@@ -117,9 +122,10 @@ class ExampleJsonModule : public ModuleNode {
           }
         }
         for (const auto& it : this->graph_[this->curr_subgraph_]) {
-          this->Run(it.first, it.second);
+          this->Run(it.id, it.inputs, it.output);
         }
-        auto out_idx = outs_[this->curr_subgraph_];
+        CHECK_GT(graph_.count(this->curr_subgraph_), 0U);
+        auto out_idx = graph_[this->curr_subgraph_].back().output;
         if (args[args.size() - 1].type_code() == kArrayHandle) {
           DLTensor* arg = args[args.size() - 1];
           this->data_entry_[out_idx].CopyTo(arg);
@@ -135,23 +141,25 @@ class ExampleJsonModule : public ModuleNode {
     }
   }
 
-  void Run(int id, const std::vector<int>& inputs) {
-    std::vector<TVMValue> values(inputs.size());
-    std::vector<int> type_codes(inputs.size());
+  void Run(int id, const std::vector<int>& inputs, int output) {
+    std::vector<int> args(inputs.begin(), inputs.end());
+    args.push_back(output);
+    std::vector<TVMValue> values(args.size());
+    std::vector<int> type_codes(args.size());
     TVMArgsSetter setter(values.data(), type_codes.data());
 
     if (op_id_[id] == "add" || op_id_[id] == "sub" || op_id_[id] == "mul") {
-      for (size_t i = 0; i < inputs.size(); i++) {
-        setter(i, data_entry_[inputs[i]]);
+      for (size_t i = 0; i < args.size(); i++) {
+        setter(i, data_entry_[args[i]]);
       }
     }
 
     if (op_id_[id] == "add") {
-      Add(values.data(), type_codes.data(), inputs.size());
+      Add(values.data(), type_codes.data(), args.size());
     } else if (op_id_[id] == "sub") {
-      Sub(values.data(), type_codes.data(), inputs.size());
+      Sub(values.data(), type_codes.data(), args.size());
     } else if (op_id_[id] == "mul") {
-      Mul(values.data(), type_codes.data(), inputs.size());
+      Mul(values.data(), type_codes.data(), args.size());
     } else {
       LOG(FATAL) << "Unknown op: " << op_id_[id] << "\n";
     }
@@ -179,7 +187,6 @@ class ExampleJsonModule : public ModuleNode {
       ss2 >> token;
       if (token.find("json_rt_") != std::string::npos) {
         curr_subgraph = token;
-        graph_[curr_subgraph];
         continue;
       }
 
@@ -200,6 +207,7 @@ class ExampleJsonModule : public ModuleNode {
       } else {
         op_id_[id] = token;
         bool shape_data = false;
+        NodeEntry entry;
         while (ss2 >> token) {
           if (token == "shape:") {
             shape_data = true;
@@ -207,11 +215,12 @@ class ExampleJsonModule : public ModuleNode {
             total_elements *= std::stoll(token);
             shape.push_back(std::stoll(token));
           } else if (token != "inputs:") {
-            graph_[curr_subgraph][id].push_back(std::stoi(token));
+            entry.inputs.push_back(std::stoi(token));
           }
         }
-        graph_[curr_subgraph][id].push_back(id);
-        outs_[curr_subgraph] = id;
+        entry.id = id;
+        entry.output = id;
+        graph_[curr_subgraph].push_back(entry);
       }
       DLContext ctx;
       ctx.device_type = static_cast<DLDeviceType>(1);
@@ -227,30 +236,28 @@ class ExampleJsonModule : public ModuleNode {
   }
 
   static Module LoadFromBinary(void* strm) {
-      dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-      std::string graph_json;
-      stream->Read(&graph_json);
-      auto n = tvm::runtime::make_object<ExampleJsonModule>(graph_json);
-      return Module(n);
+    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+    std::string graph_json;
+    stream->Read(&graph_json);
+    auto n = tvm::runtime::make_object<ExampleJsonModule>(graph_json);
+    return Module(n);
   }
 
  private:
   std::string graph_json_;
   std::string curr_subgraph_;
-  // subgraph_id -> op -> inputs
-  std::map<std::string, std::map<int, std::vector<int>>> graph_;
-  // subgraph_id -> out
-  std::map<std::string, int> outs_;
+  // A simple graph.
+  std::map<std::string, std::vector<NodeEntry> > graph_;
   std::vector<NDArray> data_entry_;
   // id -> op
   std::vector<std::string> op_id_;
 };
 
 TVM_REGISTER_GLOBAL("ext_json_rt.create_json_rt")
-    .set_body_typed(ExampleJsonModule::LoadFromFile);
+.set_body_typed(ExampleJsonModule::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
-    .set_body_typed(ExampleJsonModule::LoadFromBinary);
+.set_body_typed(ExampleJsonModule::LoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm
