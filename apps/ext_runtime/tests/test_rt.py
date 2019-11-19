@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for external runtime."""
+import ext_json_rt
 from shutil import which
 import json
 import pytest
+import sys
 import numpy as np
 
 import tvm
@@ -69,7 +70,7 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int gcc_1(TVMValue* value, int* type_code, int nargs) {
+    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
       if (nargs != 5) {
         printf("Expect 5 args, but get %d", nargs);
         return 1;
@@ -100,7 +101,7 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
+    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
       if (nargs != 5) {
         printf("Expect 5 args, but get %d", nargs);
         return 1;
@@ -144,7 +145,7 @@ def generate_engine_module():
     }
 
 
-    extern "C" int gcc_1(TVMValue* value, int* type_code, int nargs) {
+    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
         if (nargs != 5) {
             printf("Expect 5 args, but get %d", nargs);
             return 1;
@@ -173,7 +174,7 @@ def generate_engine_module():
 
     }
 
-    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
+    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
         if (nargs != 5) {
             printf("Expect 5 args, but get %d", nargs);
             return 1;
@@ -351,7 +352,6 @@ def get_synthetic_lib():
     _, lib, _ = relay.build(mod, "llvm")
     return lib
 
-
 def get_whole_graph_json():
     nodex = {"op": "null", "name": "x", "inputs": []}
     node0 = {"op": "null", "name": "w0", "inputs": []}
@@ -365,11 +365,11 @@ def get_whole_graph_json():
 
     subgraph0 = {
         "op": "tvm_op",
-        "name": "gcc_0",
+        "name": "json_rt_0",
         "attrs": {
             "num_outputs": "1",
             "num_inputs": "4",
-            "func_name": "gcc_0",
+            "func_name": "json_rt_0",
             "flatten_data": "0"
         },
         "inputs": [
@@ -381,11 +381,11 @@ def get_whole_graph_json():
     }
     subgraph1 = {
         "op": "tvm_op",
-        "name": "gcc_1",
+        "name": "json_rt_1",
         "attrs": {
             "num_outputs": "1",
             "num_inputs": "4",
-            "func_name": "gcc_1",
+            "func_name": "json_rt_1",
             "flatten_data": "0"
         },
         "inputs": [
@@ -443,7 +443,7 @@ def get_whole_graph_json():
     return json.dumps(graph)
 
 
-def check_extern(label, get_extern_src, **kwargs):
+def run_extern(label, get_extern_src, **kwargs):
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
 
@@ -483,15 +483,69 @@ def check_extern(label, get_extern_src, **kwargs):
                        axis=0))
 
 
-def test_dso_extern():
-    check_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
+def tutorial_dso_extern():
+    run_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
 
 
-def test_engine_extern():
-    check_extern("engine", generate_engine_module,
-                 options=["-O2", "-std=c++11", "-I"+tmp_path.relpath("")])
+def tutorial_engine_extern():
+    run_extern("engine",
+               generate_engine_module,
+               options=["-O2", "-std=c++11", "-I" + tmp_path.relpath("")])
+
+def tutorial_json_extern():
+    if which("gcc") is None:
+        print("Skip test because gcc is not available.")
+
+    # Get subgraph Json.
+    subgraph_json = ("json_rt_0\n" +
+                     "input 0 10 10\n" +
+                     "input 1 10 10\n" +
+                     "input 2 10 10\n" +
+                     "input 3 10 10\n" +
+                     "add 4 inputs: 0 1 shape: 10 10\n" +
+                     "sub 5 inputs: 4 2 shape: 10 10\n" +
+                     "mul 6 inputs: 5 3 shape: 10 10\n" +
+                     "json_rt_1\n" +
+                     "input 0 10 10\n" +
+                     "input 1 10 10\n" +
+                     "input 2 10 10\n" +
+                     "input 3 10 10\n" +
+                     "add 4 inputs: 0 1 shape: 10 10\n" +
+                     "sub 5 inputs: 4 2 shape: 10 10\n" +
+                     "mul 6 inputs: 5 3 shape: 10 10")
+
+    # Get Json and module.
+    graph_json = get_whole_graph_json()
+    lib = get_synthetic_lib()
+    ext_lib = ext_json_rt.create_json_rt(subgraph_json, "")
+    lib.import_module(ext_lib)
+    lib.export_library('external.so')
+
+    # load module for execution.
+    lib = tvm.module.load('external.so')
+    mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
+
+    x_data = np.random.rand(10, 10).astype('float32')
+    mod.set_input("x", x_data)
+    w_data = []
+    for i in range(8):
+        data = np.random.rand(10, 10).astype('float32')
+        w_data.append(data)
+        var = "w" + str(i)
+        mod.set_input(var, data)
+
+    mod.run()
+    out = tvm.nd.empty((30, 10), ctx=tvm.cpu())
+    out = mod.get_output(0, out)
+    tvm.testing.assert_allclose(
+        out.asnumpy(),
+        np.concatenate((((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                        ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                        x_data + w_data[6] - w_data[7]),
+                       axis=0))
 
 
 if __name__ == "__main__":
-    test_dso_extern()
-    test_engine_extern()
+    tutorial_dso_extern()
+    tutorial_engine_extern()
+    tutorial_json_extern()

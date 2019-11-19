@@ -22,7 +22,6 @@
  * \brief Test an example runtime module to interpreting a json string.
  */
 #include <dmlc/logging.h>
-#include <gtest/gtest.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/module.h>
@@ -37,15 +36,10 @@
 #include <string>
 #include <vector>
 
-using tvm::runtime::Module;
-using tvm::runtime::ModuleNode;
-using tvm::runtime::NDArray;
-using tvm::runtime::Object;
-using tvm::runtime::ObjectPtr;
-using tvm::runtime::PackedFunc;
-using tvm::runtime::TVMArgs;
-using tvm::runtime::TVMArgsSetter;
-using tvm::runtime::TVMRetValue;
+using namespace tvm::runtime;
+
+namespace tvm {
+namespace runtime {
 
 void Add_(float* a, int len_a, float* b, int len_b, float* c) {
   for (int i = 0; i < len_a * len_b; i++) {
@@ -81,19 +75,57 @@ int Sub(TVMValue* value, int* type_code, int nargs) {
   return 0;
 }
 
-class ExampleJSonModule : public ModuleNode {
+void Mul_(float* a, int len_a, float* b, int len_b, float* c) {
+  for (int i = 0; i < len_a * len_b; i++) {
+    c[i] = a[i] * b[i];
+  }
+}
+
+int Mul(TVMValue* value, int* type_code, int nargs) {
+  CHECK_EQ(nargs, 3U) << "Expect 3 args, but get " << nargs << "\n";
+  DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+  DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+  DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
+  Mul_(static_cast<float*>(arg0->data), arg0->shape[0],
+       static_cast<float*>(arg1->data), arg1->shape[0],
+       static_cast<float*>(out->data));
+  return 0;
+}
+
+class ExampleJsonModule : public ModuleNode {
  public:
+  ExampleJsonModule(std::string graph_json) {
+      this->graph_json_ = graph_json;
+      ParseJson(graph_json);
+  }
+
   PackedFunc GetFunction(const std::string& name,
                          const ObjectPtr<Object>& sptr_to_self) final {
     if (this->graph_.find(name) != this->graph_.end()) {
       this->curr_subgraph_ = name;
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         for (auto i = 0; i < args.size(); ++i) {
-          NDArray arg = args[i];
-          this->data_entry_[i].CopyFrom(arg);
+          CHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
+              << "Expect NDArray or DLTensor as inputs"
+              << "\n";
+          if (args[i].type_code() == kArrayHandle) {
+            DLTensor* arg = args[i];
+            this->data_entry_[i].CopyFrom(arg);
+          } else {
+            NDArray arg = args[i];
+            this->data_entry_[i].CopyFrom(arg);
+          }
         }
         for (const auto& it : this->graph_[this->curr_subgraph_]) {
-          this->run(it.first, it.second);
+          this->Run(it.first, it.second);
+        }
+        auto out_idx = outs_[this->curr_subgraph_];
+        if (args[args.size() - 1].type_code() == kArrayHandle) {
+          DLTensor* arg = args[args.size() - 1];
+          this->data_entry_[out_idx].CopyTo(arg);
+        } else {
+          NDArray arg = args[args.size() - 1];
+          this->data_entry_[out_idx].CopyTo(arg);
         }
         *rv = data_entry_.back();
       });
@@ -103,12 +135,12 @@ class ExampleJSonModule : public ModuleNode {
     }
   }
 
-  void run(int id, const std::vector<int>& inputs) {
+  void Run(int id, const std::vector<int>& inputs) {
     std::vector<TVMValue> values(inputs.size());
     std::vector<int> type_codes(inputs.size());
     TVMArgsSetter setter(values.data(), type_codes.data());
 
-    if (op_id_[id] == "add" || op_id_[id] == "sub") {
+    if (op_id_[id] == "add" || op_id_[id] == "sub" || op_id_[id] == "mul") {
       for (size_t i = 0; i < inputs.size(); i++) {
         setter(i, data_entry_[inputs[i]]);
       }
@@ -118,13 +150,17 @@ class ExampleJSonModule : public ModuleNode {
       Add(values.data(), type_codes.data(), inputs.size());
     } else if (op_id_[id] == "sub") {
       Sub(values.data(), type_codes.data(), inputs.size());
+    } else if (op_id_[id] == "mul") {
+      Mul(values.data(), type_codes.data(), inputs.size());
+    } else {
+      LOG(FATAL) << "Unknown op: " << op_id_[id] << "\n";
     }
   }
 
   const char* type_key() const { return "examplejson"; }
 
   void SaveToBinary(dmlc::Stream* stream) final {
-    // Write to a json string.
+      stream->Write(this->graph_json_);
   }
 
   // Note this is a very simple json that only serves for demostration purpose.
@@ -175,6 +211,7 @@ class ExampleJSonModule : public ModuleNode {
           }
         }
         graph_[curr_subgraph][id].push_back(id);
+        outs_[curr_subgraph] = id;
       }
       DLContext ctx;
       ctx.device_type = static_cast<DLDeviceType>(1);
@@ -185,61 +222,36 @@ class ExampleJSonModule : public ModuleNode {
 
   static Module LoadFromFile(const std::string& json,
                              const std::string& format) {
-    auto n = tvm::runtime::make_object<ExampleJSonModule>();
-    n->ParseJson(json);
+    auto n = tvm::runtime::make_object<ExampleJsonModule>(json);
     return Module(n);
   }
 
+  static Module LoadFromBinary(void* strm) {
+      dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+      std::string graph_json;
+      stream->Read(&graph_json);
+      auto n = tvm::runtime::make_object<ExampleJsonModule>(graph_json);
+      return Module(n);
+  }
+
  private:
+  std::string graph_json_;
   std::string curr_subgraph_;
-  // op -> inputs
+  // subgraph_id -> op -> inputs
   std::map<std::string, std::map<int, std::vector<int>>> graph_;
+  // subgraph_id -> out
+  std::map<std::string, int> outs_;
   std::vector<NDArray> data_entry_;
   // id -> op
   std::vector<std::string> op_id_;
 };
 
-TEST(ExampleModule, Basic) {
-  // This is a simple json format used for testing. Users/vendors can define
-  // their own format.
-  std::string json =
-      "json_rt_0\n"
-      "input 0 10 10\n"
-      "input 1 10 10\n"
-      "input 2 10 10\n"
-      "add 3 inputs: 0 1 shape: 10 10\n"
-      "sub 4 inputs: 3 2 shape: 10 10";
+TVM_REGISTER_GLOBAL("ext_json_rt.create_json_rt")
+    .set_body_typed(ExampleJsonModule::LoadFromFile);
 
-  Module mod = ExampleJSonModule::LoadFromFile(json, "");
-  PackedFunc f = mod.GetFunction("json_rt_0", false);
+TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
+    .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
-  auto a_val = NDArray::Empty({10, 10}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto b_val = NDArray::Empty({10, 10}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto c_val = NDArray::Empty({10, 10}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-
-  float* pa = (float*)a_val.ToDLPack()->dl_tensor.data;
-  float* pb = (float*)b_val.ToDLPack()->dl_tensor.data;
-  float* pc = (float*)c_val.ToDLPack()->dl_tensor.data;
-
-  // Assign values.
-  for (int i = 0; i < 10 * 10; i++) {
-    pa[i] = i;
-    pb[i] = i + 1.0;
-    pc[i] = i + 2.0;
-  }
-
-  NDArray out = f(a_val, b_val, c_val);
-  float* p_out = (float*)out.ToDLPack()->dl_tensor.data;
-
-  // Check correctness of result
-  for (int i = 0; i < 10; i++) {
-    CHECK_LT(std::fabs(p_out[i] - ((i + (i + 1.0) - (i + 2.0)))), 1e-5);
-  }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
+}  // namespace runtime
+}  // namespace tvm
 
