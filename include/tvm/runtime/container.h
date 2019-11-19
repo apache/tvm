@@ -99,7 +99,7 @@ class InplaceArrayBase {
    *
    * \param val The value to be added.
    */
-  void push_back(ElemType& val) {
+  void push_back(const ElemType& val) {
     size_t size = Self()->size();
     CHECK_LT(size, Self()->capacity());
     (*this)[size] = val;
