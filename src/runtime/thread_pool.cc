@@ -373,7 +373,7 @@ class ThreadPool {
   int num_workers_;
   // number of workers used (can be restricted with affinity pref)
   int num_workers_used_;
-  // if excluding worker 0 and using master to run task 0
+  // if or not to exclude worker 0 and use master to run task 0
 #ifndef _LIBCPP_SGX_CONFIG
   bool exclude_worker0_{true};
 #else
