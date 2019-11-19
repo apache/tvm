@@ -22,10 +22,13 @@ configuring the passes and scripting them in Python.
 """
 from . import _analysis
 from . import _make
-from .expr import Expr
+from .expr import Expr, Function, Var, Call, TupleGetItem
+from .op.op import Op
 from .ty import Type
 from .module import Module
 from .feature import Feature
+
+import json
 
 
 def post_order_visit(expr, fvisit):
@@ -408,3 +411,116 @@ def structural_hash(value):
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
+
+def _export_as_relayviz(expr):
+    """Export a Relay function as a nested dictionary, following the RelayViz spec
+    (https://discuss.tvm.ai/t/rfc-visualizing-relay-program-as-graph/4825/10). The dictionary will
+    contain all information useful for visualizing the Relay program and is meant to be consumed
+    by other visualizers.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    viz : dict
+        Nested dictionary
+    """
+
+    # node_dict maps a Relay node to an index (node ID)
+    def _traverse_expr(node, node_dict):
+        if node in node_dict:
+            return
+        node_dict[node] = len(node_dict)
+
+    node_dict = {}
+    post_order_visit(expr, lambda x: _traverse_expr(x, node_dict))
+
+    relayviz_nodes = []
+
+    # Sort by node ID
+    for node, node_idx in sorted(node_dict.items(), key=lambda x: x[1]):
+        if isinstance(node, Function):
+            relayviz_nodes.append({
+                'node_kind': 'Function',
+                'body': node_dict[node.body],
+                'params': [node_dict[x] for x in node.params],
+                'ret_type': {
+                    'dtype': node.ret_type.dtype,
+                    'shape': [int(x) for x in node.ret_type.shape]
+                }
+            })
+        elif isinstance(node, Var):
+            relayviz_nodes.append({
+                'node_kind': 'Var',
+                'name': node.name_hint,
+                'dtype': node.type_annotation.dtype,
+                'shape': [int(x) for x in node.type_annotation.shape]
+            })
+        elif isinstance(node, Call):
+            relayviz_nodes.append({
+                'node_kind': 'Call',
+                'op': node_dict[node.op],
+                'args': [node_dict[arg] for arg in node.args]
+            })
+        elif isinstance(node, Op):
+            relayviz_nodes.append({
+                'node_kind': 'Op',
+                'name': node.name,
+                'attrs': {}
+            })
+        elif isinstance(node, TupleGetItem):
+            relayviz_nodes.append({
+                'node_kind': 'TupleGetItem',
+                'tuple_value': node_dict[node.tuple_value],
+                'index': node.index
+            })
+        else:
+            raise RuntimeError(
+                    'Unknown node type. node_idx: {}, node: {}'.format(node_idx, type(node)))
+
+    obj = {}
+    obj['format'] = 'relayviz'
+    obj['version'] = [1, 0]
+    obj['nodes'] = relayviz_nodes
+    return obj
+
+def _export_as_graphviz(expr):
+    from graphviz import Digraph
+    obj = _export_as_relayviz(expr)
+    dot = Digraph(format='svg')
+    dot.attr(rankdir='BT')
+    dot.attr('node', shape='box')
+    for node_id, node in enumerate(obj['nodes']):
+        if node['node_kind'] == 'Var':
+            dot.node(str(node_id),
+                     '{}:\nTensor[{}, {}])'.format(
+                         node['name'], tuple(node['shape']), node['dtype']
+                     ))
+        elif node['node_kind'] == 'Call':
+            dot.node(str(node_id), 'Call(op={})'.format(obj['nodes'][ node['op'] ]['name']))
+            for arg in node['args']:
+                dot.edge(str(arg), str(node_id))
+        elif node['node_kind'] == 'Function':
+            dot.node(str(node_id), 'Function')
+            dot.edge(str(node['body']), str(node_id))
+        elif node['node_kind'] == 'TupleGetItem':
+            dot.node(str(node_id), 'TupleGetItem(idx={})'.format(node['index']))
+            dot.edge(str(node['tuple_value']), str(node_id))
+        elif node['node_kind'] == 'Op':
+            pass
+        else:
+            raise RuntimeError(
+                    'Node type {} not supported by GraphViz visualizer.'.format(node['node_kind']))
+    return dot
+
+
+def visualize(expr, output_format='graphviz'):
+    possible_format = ['graphviz']
+    if output_format not in possible_format:
+        raise RuntimeError('output_format should be one of {}'.format(possible_format))
+
+    if output_format == 'graphviz':
+        return _export_as_graphviz(expr)
