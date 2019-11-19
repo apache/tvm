@@ -29,6 +29,7 @@
 
 #include <initializer_list>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -115,7 +116,7 @@ class InplaceArrayBase {
   /*!
    * \brief Destroy the Inplace Array Base object
    */
-  virtual ~InplaceArrayBase() {
+  ~InplaceArrayBase() {
     if (!IsPOD()) {
       size_t size = Self()->size();
       for (size_t i = 0; i < size; ++i) {
@@ -170,11 +171,6 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
    * \brief The number of elements in the array.
    */
   inline size_t size() const { return size_; }
-
-  /*!
-   * \brief Destroy the ADTObj object
-   */
-  ~ADTObj() {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
