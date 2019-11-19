@@ -48,8 +48,6 @@ def get_network(name, batch_size, dtype='float32'):
 
     if name == 'mobilenet':
         net, params = testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
-    elif name == 'mobilenet_v2':
-        net, params = testing.mobilenet_v2.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'inception_v3':
         input_shape = (batch_size, 3, 299, 299)
         net, params = testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
@@ -61,7 +59,7 @@ def get_network(name, batch_size, dtype='float32'):
         net, params = testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif "densenet" in name:
         n_layer = int(name.split('-')[1])
-        net, params = testing.densenet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        net, params = testing.densenet.get_workload(densenet_size=n_layer, batch_size=batch_size, dtype=dtype)
     elif "squeezenet" in name:
         version = name.split("_v")[1]
         net, params = testing.squeezenet.get_workload(batch_size=batch_size, version=version, dtype=dtype)
