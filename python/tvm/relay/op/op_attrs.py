@@ -114,6 +114,9 @@ class DeformableConv2DAttrs(Attrs):
 class ResizeAttrs(Attrs):
     """Attributes for image.resize"""
 
+@register_relay_attr_node
+class CropAndResizeAttrs(Attrs):
+    """Attributes for image.crop_and_resize"""
 
 @register_relay_attr_node
 class ArgsortAttrs(Attrs):

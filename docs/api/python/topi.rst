@@ -104,6 +104,7 @@ List of operators
    topi.ndarray_size
    topi.layout_transform
    topi.image.resize
+   topi.image.crop_and_resize
    topi.argsort
    topi.topk
    topi.sequence_mask
@@ -207,6 +208,7 @@ topi.nn
 topi.image
 ~~~~~~~~~~
 .. autofunction:: topi.image.resize
+.. autofunction:: topi.image.crop_and_resize
 
 topi.sparse
 ~~~~~~~~~~~

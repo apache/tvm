@@ -25,7 +25,6 @@ from ..op import schedule_injective
 # resize
 reg.register_schedule("image.resize", schedule_injective)
 
-
 @reg.register_compute("image.resize")
 def compute_resize(attrs, inputs, out_type, target):
     size = attrs.size
@@ -34,3 +33,18 @@ def compute_resize(attrs, inputs, out_type, target):
     coord_trans = attrs.coordinate_transformation_mode
     out_dtype = attrs.out_dtype
     return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]
+
+
+# crop and resize
+reg.register_schedule("image.crop_and_resize", schedule_injective)
+
+@reg.register_compute("image.crop_and_resize")
+def compute_crop_and_resize(attrs, inputs, out_type, target):
+    crop_size = attrs.crop_size
+    layout = attrs.layout
+    method = attrs.method
+    extrapolation_value = attrs.extrapolation_value
+    out_dtype = attrs.out_dtype
+    return [topi.image.crop_and_resize(inputs[0], inputs[1], inputs[2],
+                                       crop_size, layout, method,
+                                       extrapolation_value, out_dtype)]
