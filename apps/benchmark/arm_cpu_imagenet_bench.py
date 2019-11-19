@@ -40,8 +40,7 @@ def evaluate_network(network, target, target_host, repeat):
     print_progress("%-20s building..." % network)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(
-            net, target=target, target_host=target_host,
-            shape={'data': input_shape}, params=params, dtype=dtype)
+            net, target=target, target_host=target_host, params=params)
 
     tmp = tempdir()
     if 'android' in str(target):

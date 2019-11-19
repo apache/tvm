@@ -23,7 +23,6 @@ import threading
 import numpy as np
 
 import tvm
-from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
 from tvm import relay
 
@@ -34,8 +33,7 @@ def benchmark(network, target):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(
-            net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
+        graph, lib, params = relay.build(net, target=target, params=params)
 
     # create runtime
     ctx = tvm.context(str(target), 0)
