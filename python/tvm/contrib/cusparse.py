@@ -46,7 +46,7 @@ def matmul(lhs, rhs_data, rhs_indices, rhs_indptr, transb=False):
     m = rhs_indptr.shape[0]-1
 
     return _api.extern(
-        (n, m), [lhs, rhs_data, rhs_indices, rhs_indptr],
-        lambda ins, outs: _intrin.call_packed("tvm.contrib.cusparse.matmul",
-        ins[0], ins[1], ins[2], ins[3], outs[0], transb),
-        name="C", dtype=lhs.dtype)
+        (n, m), [lhs, rhs_data, rhs_indices, rhs_indptr],\
+            lambda ins, outs: _intrin.call_packed("tvm.contrib.cusparse.matmul",\
+            ins[0], ins[1], ins[2], ins[3], outs[0], transb),\
+            name="C", dtype=lhs.dtype)
