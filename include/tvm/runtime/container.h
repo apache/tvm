@@ -49,48 +49,31 @@ template <typename ArrayType, typename ElemType>
 class InplaceArrayBase {
  public:
   /*!
-   * \brief Initialize the elements in the array.
-   */
-  void Init() {
-    CHECK_EQ(sizeof(ArrayType) % alignof(ElemType), 0);
-    for (size_t i = 0; i < Self()->size(); ++i) {
-      void* field_ptr = AddressOf(i);
-      new (field_ptr) ElemType();
-    }
-  }
-
-  /*!
-   * \brief Initialize the elements in the array.
+   * \brief Replace the elements in the array.
    *
    * \tparam Iterator Iterator type of the array.
    * \param begin The begin iterator.
    * \param end The end iterator.
    */
   template <typename Iterator>
-  void Init(Iterator begin, Iterator end) {
-    CHECK_EQ(sizeof(ArrayType) % alignof(ElemType), 0);
-    ArrayType* self = Self();
+  void assign(Iterator begin, Iterator end) {
     size_t num_elems = std::distance(begin, end);
-    if (num_elems != self->size()) {
-      LOG(FATAL)
-          << "Number of initializer values does not match number of elements\n";
-    }
     auto it = begin;
     for (size_t i = 0; i < num_elems; ++i) {
       void* field_ptr = AddressOf(i);
       new (field_ptr) ElemType(*it);
       ++it;
     }
+    Self()->set_size(num_elems);
   }
 
   /*!
-   * \brief Initialize the elements in the array.
+   * \brief Replace the elements in the array.
    *
    * \param init The initializer list of elements.
    */
-  void Init(std::initializer_list<ElemType> init) {
-    CHECK_EQ(sizeof(ArrayType) % alignof(ElemType), 0);
-    Init(init.begin(), init.end());
+  void assign(std::initializer_list<ElemType> init) {
+    assign(init.begin(), init.end());
   }
 
   /*!
@@ -109,8 +92,32 @@ class InplaceArrayBase {
    * \param idx The index of the element.
    * \return Reference to ElemType at the index.
    */
-  ElemType& operator[](size_t idx) {
-    return this->operator[](idx);
+  ElemType& operator[](size_t idx) { return this->operator[](idx); }
+
+  /*!
+   * \brief Push a value to the end of the array.
+   *
+   * \param val The value to be added.
+   */
+  void push_back(ElemType& val) {
+    size_t size = Self()->size();
+    CHECK_LT(size, Self()->capacity());
+    (*this)[size] = val;
+    Self()->set_size(size + 1);
+  }
+
+  /*!
+   * \brief Construct a value in the end of the array.
+   *
+   * \tparam Args Type parameters of the arguments.
+   * \param args Arguments used to construct the new value.
+   */
+  template <typename... Args>
+  void emplace_back(Args&&... args) {
+    size_t size = Self()->size();
+    CHECK_LT(size, Self()->capacity());
+    EmplaceInit(size, std::forward<Args>(args)...);
+    Self()->set_size(size + 1);
   }
 
   /*!
@@ -124,6 +131,23 @@ class InplaceArrayBase {
         fp->ElemType::~ElemType();
       }
     }
+  }
+
+ protected:
+  /*!
+   * \brief Construct a value in place with the arguments.
+   *
+   * \tparam Args Type parameters of the arguments.
+   * \param idx Index of the element.
+   * \param args Arguments to construct the new value.
+   */
+  template <typename... Args>
+  void EmplaceInit(size_t idx, Args&&... args) {
+    size_t size = Self()->size();
+    CHECK_LT(size, Self()->capacity()) << "InplaceArray out of capacity\n";
+    void* field_ptr = AddressOf(size);
+    new (field_ptr) ElemType(std::forward<Args>(args)...);
+    Self()->set_size(size + 1);
   }
 
  private:
@@ -172,6 +196,11 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
    */
   inline size_t size() const { return size_; }
 
+  /*!
+   * \brief Set the number of elements in the array.
+   */
+  inline void set_size(size_t v) { size_ = v; }
+
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
@@ -201,8 +230,7 @@ class ADT : public ObjectRef {
     size_t num_elems = std::distance(begin, end);
     auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
     ptr->tag_ = tag;
-    ptr->size_ = num_elems;
-    ptr->Init(begin, end);
+    ptr->assign(begin, end);
     data_ = std::move(ptr);
   }
 
