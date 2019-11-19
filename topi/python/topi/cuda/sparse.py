@@ -22,6 +22,19 @@ from .injective import schedule_injective
 
 @generic.schedule_sparse_dense.register(["gpu", "cuda"])
 def _schedule_sparse_dense(outs):
+    """Schedule for sparse_dense operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of dense
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for sparse_dense.
+    """
     target = tvm.target.current_target()
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
