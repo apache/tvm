@@ -116,7 +116,7 @@ class InplaceArrayBase {
    * \brief Destroy the Inplace Array Base object
    */
   virtual ~InplaceArrayBase() {
-    if (is_pod_) {
+    if (!IsPOD()) {
       size_t size = Self()->size();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
@@ -129,13 +129,10 @@ class InplaceArrayBase {
   /**
    * \brief If the ElemType is Plain Old Data.
    */
-  static constexpr bool is_pod_ = std::is_standard_layout<ElemType>::value &&
-                                  std::is_trivial<ElemType>::value;
-
-  /**
-   * \brief Offset inside the object to the start of array data
-   */
-  static constexpr size_t kDataStart = sizeof(ArrayType);
+  inline bool IsPOD() const {
+    return std::is_standard_layout<ElemType>::value &&
+           std::is_trivial<ElemType>::value;
+  }
 
   /**
    * \brief Return the self object for the array.
@@ -153,6 +150,7 @@ class InplaceArrayBase {
    * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
+    size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
     char* data_start = reinterpret_cast<char*>(self) + kDataStart;
     return data_start + idx * sizeof(ElemType);
