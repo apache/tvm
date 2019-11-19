@@ -74,7 +74,10 @@ def compile_cuda(code,
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
-    cmd += ["-arch", arch]
+    if isinstance(arch, list):
+        cmd += arch
+    else:
+        cmd += ["-arch", arch]
 
     if options:
         if isinstance(options, str):
