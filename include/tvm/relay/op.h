@@ -258,6 +258,12 @@ class OpRegistry {
   inline OpRegistry& set_attr(const std::string& attr_name,  // NOLINT(*)
                               const ValueType& value, int plevel = 10);
 
+  /*!
+   * \brief Resets an attr of the registry.
+   * \param attr_name The name of the attribute.
+   */
+  inline void reset_attr(const std::string& attr_name);
+
   // set the name of the op to be the same as registry
   inline OpRegistry& set_name() {  // NOLINT(*)
     if (get()->name.length() == 0) {
