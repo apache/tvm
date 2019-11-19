@@ -109,9 +109,7 @@ class InplaceArrayBase {
    * \return Reference to ElemType at the index.
    */
   ElemType& operator[](size_t idx) {
-    size_t size = Self()->size();
-    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
-    return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
+    return this->operator[](idx);
   }
 
   /*!
