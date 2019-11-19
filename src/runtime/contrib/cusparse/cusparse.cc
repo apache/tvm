@@ -31,7 +31,7 @@ namespace contrib {
 using namespace runtime;
 
 inline cusparseOperation_t BooleanToTranspose(bool item) {
-  return item ? CUSPARSE_OPERATION_TRANSPOSE : 
+  return item ? CUSPARSE_OPERATION_TRANSPOSE :
                 CUSPARSE_OPERATION_NON_TRANSPOSE;
 }
 
@@ -50,7 +50,7 @@ struct CuSparseScsrmmOp {
     CHECK_CUSPARSE_ERROR(cusparseScsrmm(handle,
                                         BooleanToTranspose(ta),
                                         M, N, K, NNZ,
-                                        &alpha, descr, 
+                                        &alpha, descr,
                                         valA, rowPtrA, colIndA,
                                         B, ldb, &beta,
                                         C, ldc));
@@ -72,7 +72,7 @@ struct CuSparseDcsrmmOp {
     CHECK_CUSPARSE_ERROR(cusparseDcsrmm(handle,
                                         BooleanToTranspose(ta),
                                         M, N, K, NNZ,
-                                        &alpha, descr, 
+                                        &alpha, descr,
                                         valA, rowPtrA, colIndA,
                                         B, ldb, &beta,
                                         C, ldc));

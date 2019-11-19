@@ -32,8 +32,8 @@ namespace contrib {
 CuSparseThreadEntry::CuSparseThreadEntry() {
   CHECK_CUSPARSE_ERROR(cusparseCreate(&handle));
   CHECK_CUSPARSE_ERROR(cusparseCreateMatDescr(&descr));
-  CHECK_CUSPARSE_ERROR(cusparseSetMatType(descr,CUSPARSE_MATRIX_TYPE_GENERAL));
-  CHECK_CUSPARSE_ERROR(cusparseSetMatIndexBase(descr,CUSPARSE_INDEX_BASE_ZERO));
+  CHECK_CUSPARSE_ERROR(cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL));
+  CHECK_CUSPARSE_ERROR(cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO));
 }
 
 
