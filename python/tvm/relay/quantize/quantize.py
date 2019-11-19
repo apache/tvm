@@ -142,9 +142,9 @@ def qconfig(**kwargs):
         Number of bit for every kind of annotate field.
 
     calibrate_mode: str
-        The calibration mode. 'global_scale' or 'kl'.
+        The calibration mode. 'global_scale' or 'kl_divergence'.
         global_scale: use global scale
-        kl: find scales by kl divergence on the dataset.
+        kl_divergence: find scales by kl divergence on the dataset.
 
     global_scale: float
         The global scale for calibration.

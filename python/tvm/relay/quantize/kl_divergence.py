@@ -54,7 +54,7 @@ def _find_scale_by_kl(arr, quantized_dtype='int8', num_bins=8001, num_quantized_
     http://on-demand.gputechconf.com/gtc/2017/presentation/s7310-8-bit-inference-with-tensorrt.pdf
     """
     assert isinstance(arr, np.ndarray)
-    assert stats is not None, "scipy need to be installed for \
+    assert stats is not None, "scipy needs to be installed for \
     utilizing kl calibration during quantization"
 
     min_val = np.min(arr)

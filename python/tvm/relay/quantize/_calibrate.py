@@ -165,7 +165,7 @@ def calibrate(dataset=None):
         """make transform.module pass happy"""
         cfg = quantize.current_qconfig()
 
-        if cfg.calibrate_mode == 'kl':
+        if cfg.calibrate_mode == 'kl_divergence':
             stats = collect_stats(mod, dataset)
             input_scale_func = _kl_scale(stats)
         elif cfg.calibrate_mode == 'global_scale':
