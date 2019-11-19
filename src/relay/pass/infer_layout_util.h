@@ -18,18 +18,20 @@
  */
 
 /*!
- * \file alter_op_layout.h
- * \brief Alternate the layouts of operators or replace primitive operators with
+ * \file infer_layout_util.h
+ * \brief Utility functions to alter the layouts of operators or replace primitive operators with
           other expressions. This pass can be used for computing convolution in
           custom layouts or other general weight pre-transformation.
  */
 
-#ifndef TVM_RELAY_PASS_ALTER_OP_LAYOUT_H_
-#define TVM_RELAY_PASS_ALTER_OP_LAYOUT_H_
+#ifndef TVM_RELAY_PASS_INFER_LAYOUT_UTIL_H_
+#define TVM_RELAY_PASS_INFER_LAYOUT_UTIL_H_
 
 #include <tvm/data_layout.h>
 #include <tvm/relay/expr.h>
 #include <string>
+#include <tuple>
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -193,7 +195,40 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
   }
 }
 
+/*!
+ * Call registered FInferCorrectLayout of an op.
+ * Parameters are the same as the parameters for FInferCorrectLayout
+ * Returns inferred_input_layout, inferred_output_layout, success
+ */
+static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts(
+    const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>>& old_in_shapes) {
+  static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
+  if (!call->op.as<OpNode>()) {
+    return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
+  }
+
+  Op op = Downcast<Op>(call->op);
+  if (finfer_layout.count(op)) {
+    Array<Array<Layout>> inferred_layouts;
+    inferred_layouts =
+        finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_shapes);
+    CHECK_EQ(inferred_layouts.size(), 2)
+        << "FInferCorrectLayout should return an array with size of 2";
+    for (auto x : inferred_layouts) {
+      for (auto y : x) {
+        if (!y.defined()) {  // inference fails
+          return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
+        }
+      }
+    }
+    return std::make_tuple<>(inferred_layouts[0], inferred_layouts[1], true);
+  } else {
+    return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
+  }
+}
+
 }  //  namespace relay
 }  //  namespace tvm
 
-#endif  // TVM_RELAY_PASS_ALTER_OP_LAYOUT_H_
+#endif  // TVM_RELAY_PASS_INFER_LAYOUT_UTIL_H_
