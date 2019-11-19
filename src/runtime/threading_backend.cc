@@ -134,21 +134,28 @@ class ThreadGroup::Impl {
 #endif
     }
     if (exclude_worker0) {  // bind the master thread to core 0
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
       if (reverse) {
-        CPU_SET(sorted_order_[sorted_order_.size() - 1], &cpuset);
+        core0_id_ = sorted_order_[sorted_order_.size() - 1];
       } else {
-        CPU_SET(sorted_order_[0], &cpuset);
+        core0_id_ = sorted_order_[0];
       }
+     pthread_atfork(nullptr, nullptr, ThreadGroup::Impl::BindMasterThreadToCore0);
+    }
+#endif
+  }
+
+  static void BindMasterThreadToCore0() {
+#if defined(__linux__) || defined(__ANDROID__)
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(ThreadGroup::Impl::core0_id_, &cpuset);
 #if defined(__ANDROID__)
-      sched_setaffinity(pthread_self(),
+    sched_setaffinity(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #else
-      pthread_setaffinity_np(pthread_self(),
+    pthread_setaffinity_np(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #endif
-    }
 #endif
   }
 
@@ -198,7 +205,10 @@ class ThreadGroup::Impl {
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
+  static int core0_id_;
 };
+
+int ThreadGroup::Impl::core0_id_ = 0;
 
 ThreadGroup::ThreadGroup(int num_workers,
                          std::function<void(int)> worker_callback,

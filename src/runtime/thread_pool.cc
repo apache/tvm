@@ -284,8 +284,8 @@ class ThreadPool {
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
     }
     const char* exclude_worker0 = getenv("TVM_EXCLUDE_WORKER0");
-    if (exclude_worker0 && atoi(exclude_worker0) == 1) {
-      exclude_worker0_ = true;
+    if (exclude_worker0 && atoi(exclude_worker0) == 0) {
+      exclude_worker0_ = false;
     }
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
@@ -374,7 +374,11 @@ class ThreadPool {
   // number of workers used (can be restricted with affinity pref)
   int num_workers_used_;
   // if excluding worker 0 and using master to run task 0
+#ifndef _LIBCPP_SGX_CONFIG
+  bool exclude_worker0_{true};
+#else
   bool exclude_worker0_{false};
+#endif
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
