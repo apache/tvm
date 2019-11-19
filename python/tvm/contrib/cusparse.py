@@ -21,14 +21,13 @@ from .. import api as _api
 from .. import intrin as _intrin
 
 def matmul(lhs, rhs_data, rhs_indices, rhs_indptr, transb=False):
-    """Create an extern op that compute matrix mult of 
+    """Create an extern op that compute matrix multiplication of 
        lhs and rhs with cuSPARSE
 
     Parameters
     ----------
     lhs : Tensor
         The left matrix operand
-    rhs is a sparse matrix in csr format
     rhs_data : Tensor
         The CSR format data array of rhs
     rhs_indices : Tensor
@@ -36,7 +35,7 @@ def matmul(lhs, rhs_data, rhs_indices, rhs_indptr, transb=False):
     rhs_indptr : Tensor
         The CSR format index pointer array of rhs
     transb : bool
-        Whether transpose rhs
+        Whether to transpose rhs
 
     Returns
     -------
