@@ -27,7 +27,8 @@
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
+#include "../op_common.h"
 #include "convolution.h"
 
 namespace tvm {
