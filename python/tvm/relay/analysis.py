@@ -487,20 +487,19 @@ def _export_as_relayviz(expr):
     obj['nodes'] = relayviz_nodes
     return obj
 
-def _export_as_graphviz(expr):
+def _export_as_graphviz(relayviz_obj):
     from graphviz import Digraph
-    obj = _export_as_relayviz(expr)
     dot = Digraph(format='svg')
     dot.attr(rankdir='BT')
     dot.attr('node', shape='box')
-    for node_id, node in enumerate(obj['nodes']):
+    for node_id, node in enumerate(relayviz_obj['nodes']):
         if node['node_kind'] == 'Var':
             dot.node(str(node_id),
                      '{}:\nTensor[{}, {}])'.format(
                          node['name'], tuple(node['shape']), node['dtype']
                      ))
         elif node['node_kind'] == 'Call':
-            dot.node(str(node_id), 'Call(op={})'.format(obj['nodes'][ node['op'] ]['name']))
+            dot.node(str(node_id), 'Call(op={})'.format(relayviz_obj['nodes'][ node['op'] ]['name']))
             for arg in node['args']:
                 dot.edge(str(arg), str(node_id))
         elif node['node_kind'] == 'Function':
@@ -522,5 +521,6 @@ def visualize(expr, output_format='graphviz'):
     if output_format not in possible_format:
         raise RuntimeError('output_format should be one of {}'.format(possible_format))
 
+    relayviz_obj = _export_as_relayviz(expr)
     if output_format == 'graphviz':
-        return _export_as_graphviz(expr)
+        return _export_as_graphviz(relayviz_obj)
