@@ -626,8 +626,14 @@ def _tile():
 
 def _slice():
     def _impl(inputs, attr, params):
-        begin = _get_list_param(params, inputs[1])
-        size = _get_list_param(params, inputs[2])
+        try:
+            begin = _get_list_param(params, inputs[1])
+        except:
+            begin = _infer_value_simulated(inputs[1], params).asnumpy()[0]
+        try:
+            size = _get_list_param(params, inputs[2])
+        except:
+            size = _infer_value_simulated(inputs[2], params).asnumpy()[0]
         data_shape = attr['_input_shapes'][inputs[0]]
         data_dim = len(data_shape)
         end = size
