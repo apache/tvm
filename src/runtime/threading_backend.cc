@@ -150,10 +150,10 @@ class ThreadGroup::Impl {
     CPU_ZERO(&cpuset);
     CPU_SET(ThreadGroup::Impl::core0_id_, &cpuset);
 #if defined(__ANDROID__)
-    sched_setaffinity(pthread_self(),
+      sched_setaffinity(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #else
-    pthread_setaffinity_np(pthread_self(),
+      pthread_setaffinity_np(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #endif
 #endif
