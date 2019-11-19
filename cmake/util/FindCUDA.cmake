@@ -34,6 +34,7 @@
 # - CUDA_NVRTC_LIBRARY
 # - CUDA_CUDNN_LIBRARY
 # - CUDA_CUBLAS_LIBRARY
+# - CUDA_CUSPARSE_LIBRARY
 #
 macro(find_cuda use_cuda)
   set(__use_cuda ${use_cuda})
@@ -101,5 +102,6 @@ macro(find_cuda use_cuda)
     message(STATUS "Found CUDA_NVRTC_LIBRARY=" ${CUDA_NVRTC_LIBRARY})
     message(STATUS "Found CUDA_CUDNN_LIBRARY=" ${CUDA_CUDNN_LIBRARY})
     message(STATUS "Found CUDA_CUBLAS_LIBRARY=" ${CUDA_CUBLAS_LIBRARY})
+    message(STATUS "Found CUDA_CUSPARSE_LIBRARY=" ${CUDA_CUSPARSE_LIBRARY})
   endif(CUDA_FOUND)
 endmacro(find_cuda)
