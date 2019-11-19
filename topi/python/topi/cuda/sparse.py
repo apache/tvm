@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""sparse_dense schedule on GPU"""
 import tvm
 
-from .. import generic 
+from .. import generic
 from .injective import schedule_injective
 
 @generic.schedule_sparse_dense.register(["gpu", "cuda"])
