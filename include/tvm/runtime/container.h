@@ -24,7 +24,9 @@
 #ifndef TVM_RUNTIME_CONTAINER_H_
 #define TVM_RUNTIME_CONTAINER_H_
 #include <dmlc/logging.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+
 #include <initializer_list>
 #include <type_traits>
 #include <vector>
@@ -32,7 +34,7 @@
 namespace tvm {
 namespace runtime {
 
-/**
+/*!
  * \brief Base template for classes with array like memory layout.
  *
  *        It provides general methods to access the memory. The memory
@@ -45,7 +47,7 @@ namespace runtime {
 template <typename ArrayType, typename ElemType>
 class InplaceArrayBase {
  public:
-  /**
+  /*!
    * \brief Initialize the elements in the array.
    */
   void Init() {
@@ -56,7 +58,7 @@ class InplaceArrayBase {
     }
   }
 
-  /**
+  /*!
    * \brief Initialize the elements in the array.
    *
    * \tparam Iterator Iterator type of the array.
@@ -80,7 +82,7 @@ class InplaceArrayBase {
     }
   }
 
-  /**
+  /*!
    * \brief Initialize the elements in the array.
    *
    * \param init The initializer list of elements.
@@ -112,7 +114,7 @@ class InplaceArrayBase {
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
-  /**
+  /*!
    * \brief Destroy the Inplace Array Base object
    */
   virtual ~InplaceArrayBase() {
@@ -126,7 +128,7 @@ class InplaceArrayBase {
   }
 
  private:
-  /**
+  /*!
    * \brief If the ElemType is Plain Old Data.
    */
   inline bool IsPOD() const {
@@ -134,7 +136,7 @@ class InplaceArrayBase {
            std::is_trivial<ElemType>::value;
   }
 
-  /**
+  /*!
    * \brief Return the self object for the array.
    *
    * \return Pointer to ArrayType.
@@ -143,7 +145,7 @@ class InplaceArrayBase {
     return static_cast<ArrayType*>(const_cast<InplaceArrayBase*>(this));
   }
 
-  /**
+  /*!
    * \brief Return the raw pointer to the element at idx.
    *
    * \param idx The index of the element.
@@ -166,12 +168,12 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   uint32_t size_;
   // The fields of the structure follows directly in memory.
 
-  /**
+  /*!
    * \brief The number of elements in the array.
    */
   inline size_t size() const { return size_; }
 
-  /**
+  /*!
    * \brief Destroy the ADTObj object
    */
   ~ADTObj() {}
@@ -193,7 +195,7 @@ class ADT : public ObjectRef {
   ADT(uint32_t tag, std::vector<ObjectRef> fields)
       : ADT(tag, fields.begin(), fields.end()){};
 
-  /**
+  /*!
    * \brief construct an ADT object reference.
    * \param tag The tag of the ADT object.
    * \param begin The begin iterator to the start of the fields array.
@@ -201,9 +203,16 @@ class ADT : public ObjectRef {
    * \return The constructed ADT object reference.
    */
   template <typename Iterator>
-  ADT(uint32_t tag, Iterator begin, Iterator end);
+  ADT(uint32_t tag, Iterator begin, Iterator end) {
+    size_t num_elems = std::distance(begin, end);
+    auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
+    ptr->tag_ = tag;
+    ptr->size_ = num_elems;
+    ptr->Init(begin, end);
+    data_ = std::move(ptr);
+  }
 
-  /**
+  /*!
    * \brief construct an ADT object reference.
    * \param tag The tag of the ADT object.
    * \param init The initializer list of fields.

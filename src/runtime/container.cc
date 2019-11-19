@@ -22,22 +22,14 @@
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/container.h>
+
 #include <cstdint>
+
 #include "object_internal.h"
 #include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {
-
-template <typename Iterator>
-ADT::ADT(uint32_t tag, Iterator begin, Iterator end) {
-  size_t num_elems = std::distance(begin, end);
-  auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
-  ptr->tag_ = tag;
-  ptr->size_ = num_elems;
-  ptr->Init(begin, end);
-  data_ = std::move(ptr);
-}
 
 ADT ADT::Tuple(std::vector<ObjectRef> fields) { return ADT(0, fields); }
 
