@@ -70,7 +70,7 @@ class RPCSession(object):
         ctx: TVMContext
             The corresponding encoded remote context.
         """
-        if '-device=micro_dev' in dev_type:
+        if isinstance(dev_type, str) and '-device=micro_dev' in dev_type:
             dev_type = 'micro_dev'
         ctx = nd.context(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
