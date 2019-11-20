@@ -51,7 +51,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
                                 ftopi, fnumpy,
                                 lhs_min=-100, lhs_max=100,
                                 rhs_min=-100, rhs_max=100,
-                                dtype="float32"):
+                                dtype="float32", adjust_unstable_points=False):
     # Build the logic and compile the function
     A = (tvm.var("A", dtype=dtype) if lhs_shape is None
          else tvm.placeholder(shape=lhs_shape, name="A", dtype=dtype))
@@ -62,6 +62,34 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         assert(isinstance(C, tvm.expr.Expr))
         return
 
+    def gen_operand(shape, low, high, ctx):
+        if shape is None:
+            npy = float(np.random.uniform(low=low, high=high))
+            if dtype.startswith('int'):
+                npy = int(npy)
+            nd = npy
+        else:
+            npy = np.random.uniform(low=low, high=high,
+                                    size=shape).astype(dtype)
+            nd = tvm.nd.array(npy, ctx)
+        return npy, nd
+
+    def adj_operand(npy, adj_npy, adj_nd, unstable_points, ctx):
+        if isinstance(npy, np.ndarray):
+            reduce_axis = []
+            # reverse operation of broadcast
+            for i in range(len(unstable_points.shape)):
+                j = i - len(unstable_points.shape) + len(npy.shape)
+                if j < 0 or npy.shape[j] != unstable_points.shape[i]:
+                    reduce_axis.append(i)
+            unstable_points = np.logical_or.reduce(unstable_points, axis=tuple(reduce_axis), keepdims=True)
+            unstable_points = np.reshape(unstable_points, newshape=npy.shape)
+            # backtrace unstable points to its source and replace with new random number
+            npy = (adj_npy * unstable_points + npy * ~unstable_points).astype(dtype)
+            nd = tvm.nd.array(npy, ctx)
+            return npy, nd
+        return adj_npy, adj_nd
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -71,27 +99,19 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(C)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
-        if lhs_shape is None:
-            lhs_npy = float(np.random.uniform(low=lhs_min, high=lhs_max))
-            if dtype.startswith('int'):
-                lhs_npy = int(lhs_npy)
-            lhs_nd = lhs_npy
-        else:
-            lhs_npy = np.random.uniform(low=lhs_min, high=lhs_max,
-                                        size=lhs_shape).astype(A.dtype)
-            lhs_nd = tvm.nd.array(lhs_npy, ctx)
 
-        if rhs_shape is None:
-            rhs_npy = float(np.random.uniform(low=rhs_min, high=rhs_max))
-            if dtype.startswith('int'):
-                rhs_npy = int(rhs_npy)
-            rhs_nd = rhs_npy
-        else:
-            rhs_npy = np.random.uniform(low=rhs_min, high=rhs_max,
-                                        size=rhs_shape).astype(A.dtype)
-            rhs_nd = tvm.nd.array(rhs_npy, ctx)
+        lhs_npy, lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
+        rhs_npy, rhs_nd = gen_operand(rhs_shape, rhs_min, rhs_max, ctx)
 
         out_npy = fnumpy(lhs_npy, rhs_npy)
+        # avoid check too close to 0.5
+        unstable_points = np.abs(out_npy) - 0.5 < 1e-6
+        while adjust_unstable_points and unstable_points.any():
+            adj_lhs, adj_lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
+            lhs_npy, lhs_nd = adj_operand(lhs_npy, adj_lhs, adj_lhs_nd, unstable_points, ctx)
+            out_npy = fnumpy(lhs_npy, rhs_npy)
+            unstable_points = np.abs(out_npy) - 0.5 < 1e-6
+
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
         tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
@@ -141,11 +161,14 @@ def test_divide():
 
 def test_floor_divide():
     verify_broadcast_binary_ele(
-        None, (10,), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        None, (10,), topi.floor_divide, np.floor_divide,
+        rhs_min=0.0001, adjust_unstable_points=True)
     verify_broadcast_binary_ele(
-        (), None, topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        (), None, topi.floor_divide, np.floor_divide,
+        rhs_min=0.0001, adjust_unstable_points=True)
     verify_broadcast_binary_ele(
-        (2, 3, 1, 32), (64, 32), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
+        (2, 3, 1, 32), (64, 32), topi.floor_divide,
+        np.floor_divide, rhs_min=0.0001, adjust_unstable_points=True)
 
 def test_maximum_minmum():
     verify_broadcast_binary_ele(
