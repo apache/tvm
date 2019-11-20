@@ -281,7 +281,7 @@ if (INDEX_DEFAULT_I64)
 endif()
 
 list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
-list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
+list(APPEND RUNTIME_SRCS 3rdparty/posit32/posit32-wrapper.cc)
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
