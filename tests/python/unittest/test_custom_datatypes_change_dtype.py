@@ -196,6 +196,39 @@ def setup():
     # TODO(gus) I think this is right
     register_min_func(lambda num_bits: -64, "posit16")
 
+    register("noptype", 134)
+    register_op(create_lower_func("FloatToNop32"), "Cast", "llvm", "noptype",
+                "float")
+    register_op(create_lower_func("Nop32ToFloat"), "Cast", "llvm", "float",
+                "noptype")
+    register_op(create_lower_func("IntToNop32"), "Cast", "llvm", "noptype",
+                "int")
+    register_op(create_lower_func("Nop32Add"), "Add", "llvm", "noptype")
+    register_op(create_lower_func("Nop32Sub"), "Sub", "llvm", "noptype")
+    register_op(create_lower_func("FloatToNop32"), "FloatImm", "llvm",
+                "noptype")
+    register_op(create_lower_func("Nop32Mul"), "Mul", "llvm", "noptype")
+    register_op(create_lower_func("Nop32Div"), "Div", "llvm", "noptype")
+    register_op(create_lower_func("Nop32Max"), "Max", "llvm", "noptype")
+    register_op(create_lower_func("Nop32Sqrt"),
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    register_op(lower_ite,
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="tvm_if_then_else")
+    register_op(create_lower_func("Nop32Exp"),
+                "Call",
+                "llvm",
+                "noptype",
+                intrinsic_name="exp")
+    # This can be anything, considering the type isn't functionally correct.
+    register_min_func(lambda num_bits: 0, "noptype")
+
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
