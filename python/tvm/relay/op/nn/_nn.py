@@ -165,8 +165,14 @@ def compute_conv2d(attrs, inputs, out_type, target):
         weight_shape = get_const_tuple(inputs[1].shape)
         if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
-        return weight_shape[0] * weight_shape[1]
-
+        # in ARM CPU contrib_spatial_pack schedule, we will prepack weight layout
+        else:
+            if len(weight_shape) == 4:
+                return weight_shape[0] * weight_shape[1]
+            else:
+                assert len(weight_shape) == 5
+                C, M, _, _, VC = weight_shape
+                return C * VC * M
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
