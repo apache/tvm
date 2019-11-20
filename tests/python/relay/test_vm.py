@@ -47,18 +47,14 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        exe = relay.vm.compile(mod, target)
-        vm = relay.vm.VirtualMachine(exe)
-        vm.init(ctx)
-        return vm.invoke("main", *args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        exe = relay.vm.compile(mod, target)
-        vm = relay.vm.VirtualMachine(exe)
-        vm.init(ctx)
-        ret = vm.invoke("main", *args)
-        return ret
+    exe = relay.vm.compile(mod, target)
+    vm = relay.vm.VirtualMachine(exe)
+    vm.init(ctx)
+    ret = vm.invoke("main", *args)
+    return ret
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.vm.Tensor):
@@ -595,7 +591,6 @@ if __name__ == "__main__":
     test_let_scalar()
     test_compose()
     test_list_hd()
-    test_list_tl_empty_list()
     test_list_tl()
     test_list_nth()
     test_list_update()

@@ -632,32 +632,18 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(exec_) << "The executable is not created yet.";
       std::string func_name = args[0];
-      auto gvit = exec_->global_map.find(func_name);
-      CHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
-      auto func_index = gvit->second;
-      const auto& vm_func = exec_->functions[func_index];
-      const auto& param_names = vm_func.params;
-      auto ctx = this->GetParamsContext();
-
-      std::vector<ObjectRef> func_args;
-
-      if (args.size() == 1) {
-        if (param_names.size() > 0) {
-          auto argit = inputs_.find(func_name);
-          CHECK(argit != inputs_.end()) << "No arguments are set for " << func_name;
-          func_args = argit->second;
-        }
+      auto git = exec_->global_map.find(func_name);
+      CHECK(git != exec_->global_map.end())
+        << "Cannot find function " << func_name << " in the executable";
+      auto func = exec_->functions[git->second];
+      if (func.params.empty()) {
+        *rv = Invoke(func, {});
       } else {
-        CHECK_EQ(args.size() - 1, param_names.size()) <<
-            "The number of provided parameters doesn't match the number of arguments";
-        // Prepare the func args
-        std::vector<ObjectRef> func_args(param_names.size());
-        for (int i = 1; i < args.size(); ++i) {
-          ObjectRef obj = CopyTo(args[i], ctx);
-          func_args[i - 1] = obj;
-        }
+        auto it = inputs_.find(func_name);
+        CHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
+        const std::vector<ObjectRef> &func_args = it->second;
+        *rv = Invoke(func_name, func_args);
       }
-      *rv = this->Invoke(vm_func, func_args);
     });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -672,7 +658,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       this->Init(contexts);
     });
-  } else if (name == "set_inputs") {
+  } else if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(exec_) << "The executable is not created yet.";
       std::string func_name = args[0];
@@ -681,6 +667,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto func_index = gvit->second;
       const auto& vm_func = exec_->functions[func_index];
       const auto& param_names = vm_func.params;
+      // TODO(icemelon9): For heterogeneous execution, get input device information
       TVMContext ctx = ctxs_[0];
       CHECK_EQ(args.size() - 1, param_names.size()) <<
           "The number of provided parameters doesn't match the number of arguments";
@@ -754,7 +741,10 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
 
 ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
   CHECK(exec_) << "The executable has not been created yet.";
-  auto func_index_ = exec_->global_map.at(name);
+  auto it = exec_->global_map.find(name);
+  CHECK(it != exec_->global_map.end())
+    << "Cannot find function " << name << " in the executable";
+  auto func_index_ = it->second;
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index_;
   return Invoke(exec_->functions[func_index_], args);
 }

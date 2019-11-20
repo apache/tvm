@@ -44,7 +44,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(_obj.tuple_object(field_args))
     else:
-        raise "unsupported type"
+        raise "Unsupported type: %s" % (type(arg))
 
 
 def convert(args):
@@ -269,7 +269,7 @@ class VirtualMachine(object):
         self._exec = mod
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
-        self._set_inputs = self.mod["set_inputs"]
+        self._set_input = self.mod["set_input"]
 
     def init(self, ctx):
         """Initialize the context in the VM.
@@ -282,8 +282,20 @@ class VirtualMachine(object):
         args = [ctx.device_type, ctx.device_id]
         self._init(*args)
 
-    def set_inputs(self, func_name, *args, **kwargs):
-        new_args = []
+    def set_input(self, func_name, *args, **kwargs):
+        """Set the input to a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
+        """
         if kwargs:
             func_params = self._exec.get_function_params(func_name)
             new_args = [None] * len(func_params)
@@ -300,7 +312,7 @@ class VirtualMachine(object):
                         break
             args = new_args
         cargs = convert(args)
-        self._set_inputs(func_name, *cargs)
+        self._set_input(func_name, *cargs)
 
     def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.
@@ -313,29 +325,18 @@ class VirtualMachine(object):
         args : list[NDArray] or list[np.ndarray]
             The arguments to the function.
 
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
+
         Returns
         -------
         result : Object
             The output.
         """
-        # if kwargs:
-        #     func_params = self._exec.get_function_params(func_name)
-        #     new_args = [None] * len(func_params)
-        #     assert len(args) + len(kwargs) == len(func_params)
-        #     for k in kwargs:
-        #         idx = func_params.index(k)
-        #         new_args[idx] = kwargs[k]
-        #     idx = 0
-        #     for i in range(len(new_args)):
-        #         if new_args[i] is None:
-        #             new_args[i] = args[idx]
-        #             idx += 1
-        #             if idx == len(args):
-        #                 break
-        #     args = new_args
-        # if args:
-        #     cargs = convert(args)
-        return self._invoke(func_name) #, *cargs)
+        if args or kwargs:
+            print('set input')
+            self.set_input(func_name, *args, **kwargs)
+        return self._invoke(func_name)
 
     def run(self, *args, **kwargs):
         """Run the main function.
@@ -344,6 +345,9 @@ class VirtualMachine(object):
         ----------
         args : list[NDArray] or list[np.ndarray]
             The arguments to the function.
+
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
 
         Returns
         -------
