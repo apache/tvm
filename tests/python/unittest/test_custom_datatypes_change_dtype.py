@@ -490,6 +490,7 @@ def test_models():
     # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit32]32')
     # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit32]32')
     # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit32]32')
+
     # Run cifar-10 sizes to be a little faster...
     run_model(get_mobilenet, (3, 32, 32),
               'float32',
@@ -503,6 +504,26 @@ def test_models():
     #           'float32',
     #           'custom[posit32]32',
     #           num_classes=10)
+
+    # Meanwhile, noptype is not slow.
+    run_model(get_mobilenet, (3, 224, 224),
+              'float32',
+              'custom[noptype]32',
+              num_classes=1000,
+              rtol=float("inf"),
+              atol=float("inf"))
+    run_model(get_inception, (3, 299, 299),
+              'float32',
+              'custom[noptype]32',
+              num_classes=1000,
+              rtol=float("inf"),
+              atol=float("inf"))
+    run_model(get_resnet, (3, 224, 224),
+              'float32',
+              'custom[noptype]32',
+              num_classes=1000,
+              rtol=float("inf"),
+              atol=float("inf"))
 
 
 if __name__ == "__main__":
