@@ -130,6 +130,72 @@ def setup():
     # TODO(gus) these aren't actually right. these are double min(actually lowest)/max.
     register_min_func(lambda num_bits: -1.79769e+308, "posit32")
 
+    register("posit8", 132)
+    register_op(create_lower_func("FloatToPosit8es0"), "Cast", "llvm",
+                "posit8", "float")
+    register_op(create_lower_func("Posit8es0ToFloat"), "Cast", "llvm", "float",
+                "posit8")
+    register_op(create_lower_func("IntToPosit8es0"), "Cast", "llvm", "posit8",
+                "int")
+    register_op(create_lower_func("Posit8es0Add"), "Add", "llvm", "posit8")
+    register_op(create_lower_func("Posit8es0Sub"), "Sub", "llvm", "posit8")
+    register_op(create_lower_func("FloatToPosit8es0"), "FloatImm", "llvm",
+                "posit8")
+    register_op(create_lower_func("Posit8es0Mul"), "Mul", "llvm", "posit8")
+    register_op(create_lower_func("Posit8es0Div"), "Div", "llvm", "posit8")
+    register_op(create_lower_func("Posit8es0Max"), "Max", "llvm", "posit8")
+    register_op(create_lower_func("Posit8es0Sqrt"),
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    register_op(lower_ite,
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="tvm_if_then_else")
+    register_op(create_lower_func("Posit8es0Exp"),
+                "Call",
+                "llvm",
+                "posit8",
+                intrinsic_name="exp")
+    # TODO(gus) I think this is right
+    register_min_func(lambda num_bits: -64, "posit8")
+
+    register("posit16", 133)
+    register_op(create_lower_func("FloatToPosit16es1"), "Cast", "llvm",
+                "posit16", "float")
+    register_op(create_lower_func("Posit16es1ToFloat"), "Cast", "llvm",
+                "float", "posit16")
+    register_op(create_lower_func("IntToPosit16es1"), "Cast", "llvm",
+                "posit16", "int")
+    register_op(create_lower_func("Posit16es1Add"), "Add", "llvm", "posit16")
+    register_op(create_lower_func("Posit16es1Sub"), "Sub", "llvm", "posit16")
+    register_op(create_lower_func("FloatToPosit16es1"), "FloatImm", "llvm",
+                "posit16")
+    register_op(create_lower_func("Posit16es1Mul"), "Mul", "llvm", "posit16")
+    register_op(create_lower_func("Posit16es1Div"), "Div", "llvm", "posit16")
+    register_op(create_lower_func("Posit16es1Max"), "Max", "llvm", "posit16")
+    register_op(create_lower_func("Posit16es1Sqrt"),
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    register_op(lower_ite,
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="tvm_if_then_else")
+    register_op(create_lower_func("Posit16es1Exp"),
+                "Call",
+                "llvm",
+                "posit16",
+                intrinsic_name="exp")
+    # TODO(gus) I think this is right
+    register_min_func(lambda num_bits: -64, "posit16")
+
 
 def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
@@ -361,6 +427,12 @@ def run_conv2d(src_dtype, dst_dtype):
 
 
 def test_ops():
+    # TODO(gus) these tolerances are high, and still sometimes fail;
+    # this is expected, b/c we're comparing between 32bit float and 8
+    # bit posit.
+    # Figure out a more logical way to test here.
+    run_ops('float32', 'custom[posit8]8', rtol=1, atol=1)
+    run_ops('float32', 'custom[posit16]16', rtol=0.001, atol=0.1)
     run_ops('float32', 'custom[posit32]32')
 
 
