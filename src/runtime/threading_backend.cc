@@ -248,7 +248,6 @@ int MaxConcurrency() {
   }
   return std::max(max_concurrency, 1);
 }
-
-}  // namespace threading
-}  // namespace runtime
-}  // namespace tvm
+} // namespace threading
+} // namespace runtime
+} // namespace tvm
