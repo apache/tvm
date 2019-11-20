@@ -131,7 +131,7 @@ def setup():
     register_min_func(lambda num_bits: -1.79769e+308, "posit32")
 
 
-def run_ops(src_dtype, dst_dtype):
+def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
     """Run the same op, but with two different datatypes"""
     def check_unary_op(op, src_dtype, dst_dtype):
         t1 = relay.TensorType((5, 10, 5))
@@ -154,8 +154,10 @@ def run_ops(src_dtype, dst_dtype):
             maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
         np.testing.assert_allclose(maybe_correct_converted.asnumpy(),
                                    correct.asnumpy(),
-                                   rtol=0.0001,
-                                   atol=0.0001)
+                                   rtol=rtol,
+                                   atol=atol)
+        # print(maybe_correct_converted)
+        # print(correct)
 
     for op in [
             relay.nn.softmax,
@@ -197,8 +199,8 @@ def run_ops(src_dtype, dst_dtype):
             maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
         np.testing.assert_allclose(correct.asnumpy(),
                                    maybe_correct_converted.asnumpy(),
-                                   rtol=0.001,
-                                   atol=0.001)
+                                   rtol=rtol,
+                                   atol=atol)
 
     for op in [
             relay.add,
