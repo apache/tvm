@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,11 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file dso_dll_module.cc
  * \brief Module to load from dynamic shared library.
  */
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include "module_util.h"
@@ -50,7 +50,7 @@ class DSOModuleNode final : public ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     BackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name = reinterpret_cast<const char*>(
@@ -124,7 +124,7 @@ class DSOModuleNode final : public ModuleNode {
 
 TVM_REGISTER_GLOBAL("module.loadfile_so")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<DSOModuleNode> n = std::make_shared<DSOModuleNode>();
+    auto n = make_object<DSOModuleNode>();
     n->Init(args[0]);
     *rv = runtime::Module(n);
   });

@@ -112,7 +112,15 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
-            inputs.append(tvm.nd.array(params[param.name_hint]))
+            found = False
+            for i, n in enumerate(input_node):
+                if n == param.name_hint:
+                    found = True
+                    inputs.append(tvm.nd.array(input_data[i]))
+                    break
+            # Interpreter doesn't bind constants, so still need to find in params
+            if not found:
+                inputs.append(tvm.nd.array(params[param.name_hint]))
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
     else:
@@ -287,7 +295,8 @@ def test_forward_pooling():
 
 
 def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
-                      dilations, strides, padding, data_format):
+                      dilations, strides, padding, data_format,
+                      deconv_output_shape=[]):
     """ One iteration of convolution with given shapes and attributes """
 
     total_size_1 = np.prod(tensor_in_sizes)
@@ -318,6 +327,16 @@ def _test_convolution(opname, tensor_in_sizes, filter_in_sizes,
 
             compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
                                 'Placeholder:0', 'Conv2D:0')
+        elif opname == 'conv_transpose':
+            nn_ops.conv2d_transpose(in_data,
+                                    in_filter,
+                                    output_shape=deconv_output_shape,
+                                    strides=strides,
+                                    padding=padding,
+                                    data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'conv2d_transpose:0')
         else:
             nn_ops.depthwise_conv2d_native(in_data,
                                            in_filter,
@@ -341,6 +360,14 @@ def test_forward_convolution():
         _test_convolution('depthwise', [4, 124, 17, 17], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NCHW')
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 19, 8, 8], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 19, 17, 17])
+        _test_convolution('conv_transpose', [4, 19, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 124, 17, 17])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 12, 17, 17])
 
     _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
@@ -351,6 +378,15 @@ def test_forward_convolution():
     _test_convolution('depthwise', [4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC')
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 17, 17, 19])
+    _test_convolution('conv_transpose', [4, 17, 17, 19], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 17, 17, 124])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 17, 17, 12])
+
 
 #######################################################################
 # BiasAdd
@@ -543,6 +579,17 @@ def _test_reshape(data, out_shape):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_with_call():
+    """ relay.expr.Call as shape """
+    data = np.zeros((6, 4, 2))
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out_shape = tf.constant([1, 2, 3], dtype="int32")
+        out_shape = tf.multiply(out_shape, 2)
+        array_ops.reshape(in_data, out_shape)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
+
 def _test_reshape_like(data, shape_like):
     """ A special case for reshape. """
 
@@ -559,6 +606,7 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1, 2])
     _test_reshape(np.arange(6), [3, -1])
     _test_reshape(np.arange(6), [-1])
+    _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
 
 #######################################################################
@@ -726,7 +774,8 @@ def test_tensor_array_concat():
                                  infer_shape=False, dynamic_size=False)
             ta2 = ta1.split(t, split_length)
             t = ta2.concat()
-            compare_tf_with_tvm([], [], ['TensorArrayConcatV3:0'], mode='debug')
+            out = tf.identity(t)
+            compare_tf_with_tvm([], [], ['Identity:0'], mode='debug')
     for dtype in tf_dtypes.keys():
         run(dtype)
 
@@ -741,6 +790,26 @@ def test_tensor_array_size():
             compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
     for dtype in tf_dtypes.keys():
         run(dtype)
+
+def test_tensor_array_unstack():
+    def run(dtype_str, input_shape):
+        with tf.Graph().as_default():
+            dtype = tf_dtypes[dtype_str]
+            t = tf.constant(np.random.choice([0, 1, 2, 3],
+                                             size=input_shape).astype(dtype.name))
+            ta1 = tf.TensorArray(dtype=dtype, infer_shape=False, size=input_shape[0])
+            ta2 = ta1.unstack(t)
+            out0 = ta2.size()
+            out1 = ta2.read(0)
+            compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
+            compare_tf_with_tvm([], [], 'TensorArrayReadV3:0', mode='debug')
+    for dtype in tf_dtypes.keys():
+        run(dtype, (5,))
+        run(dtype, (5, 5))
+        run(dtype, (5, 5, 5))
+        run(dtype, (5, 5, 5, 5))
+        run(dtype, (5, 5, 5, 5, 5))
+        run(dtype, (5, 5, 5, 5, 5, 5))
 
 #######################################################################
 # ConcatV2
@@ -1000,8 +1069,6 @@ def test_forward_stridedslice():
 #######################################################################
 # FloorDiv, RealDiv
 # -----------------
-
-
 def _test_forward_divide(ip_shape, dtype):
     np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
     np_denomin = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
@@ -1014,7 +1081,7 @@ def _test_forward_divide(ip_shape, dtype):
 
 
 def _test_forward_floordiv(ip_shape, dtype):
-    np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    np_numer = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
     tf.reset_default_graph()
     numerator = tf.placeholder(dtype, ip_shape, name="numer")
     tf.math.floordiv(numerator, tf.constant(5, dtype=dtype), name='FloorDiv')
@@ -1026,6 +1093,26 @@ def test_forward_divide():
     _test_forward_divide((4,), 'int32')
     _test_forward_divide((4, 3, 7), 'float32')
     _test_forward_floordiv((4, 3, 7), 'float32')
+    _test_forward_floordiv((4, 3, 7), 'int32')
+
+#######################################################################
+# FloorMod
+# --------
+def _test_forward_floormod(in_shape, if_shape, dtype):
+    np_numer = np.random.uniform(1, 100, size=in_shape).astype(dtype)
+    np_factor = np.random.uniform(1, 100, size=if_shape).astype(dtype)
+    tf.reset_default_graph()
+    numerator = tf.placeholder(dtype, in_shape, name="numer")
+    factor = tf.placeholder(dtype, if_shape, name="factor")
+    tf.floormod(numerator, factor, name='FloorMod')
+    compare_tf_with_tvm([np_numer, np_factor], ['numer:0', 'factor:0'], 'FloorMod:0')
+
+def test_forward_floormod():
+    '''test FloorMod'''
+    _test_forward_floormod((10,), (10,), 'float32')
+    _test_forward_floormod((8, 2), (1,), 'float32')
+    _test_forward_floormod((4, 3, 7), (4, 3, 7), 'float32')
+    _test_forward_floormod((4, 3, 7), (4, 3, 7), 'int32')
 
 
 #######################################################################
@@ -1617,6 +1704,11 @@ def test_forward_range():
     tf.range(1, 18, 3, name="range")
     compare_tf_with_tvm([], [], 'range:0')
 
+    """test type assignment for operator Range"""
+    tf.reset_default_graph()
+    tf.range(1, 256 + 1, 1, dtype=tf.float32)
+    compare_tf_with_tvm([], [], 'range:0')
+
 #######################################################################
 # Pad
 # ---
@@ -2068,6 +2160,22 @@ def _test_forward_transpose(ishape, axes=None):
 
         compare_tf_with_tvm(data, 'transpose_data:0', 'transpose:0')
 
+def _test_forward_tranapose_axes_input(ishape, axes):
+    data = np.random.uniform(size=ishape).astype(np.float32)
+    axes_np = np.array(axes).astype(np.int32)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(
+            shape=data.shape, dtype=data.dtype, name="transpose_data")
+
+        const1 = tf.constant(axes_np, dtype=tf.int32)
+
+        # make axes an input to tf.transpose, but not an input to the graph,
+        # so it can be extracted with infer_value_simulated
+        axes = tf.reverse(const1, axis=[-1])
+        tf.transpose(in1, axes)
+
+        compare_tf_with_tvm([data], ['transpose_data:0'], 'transpose:0')
 
 def test_forward_transpose():
     _test_forward_transpose((2, 3, 4), (1, 2, 0))
@@ -2076,6 +2184,8 @@ def test_forward_transpose():
     _test_forward_transpose((2, 3, 4), (1, 2, 0))
     _test_forward_transpose((2, 3, 4), (0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
+    _test_forward_tranapose_axes_input((2, 3, 4), (1, 2, 0))
+    _test_forward_tranapose_axes_input((2, 3, 4, 5), (3, 0, 1, 2))
 
 
 def test_forward_ceil():
@@ -2099,19 +2209,20 @@ def test_forward_floor():
 def test_forward_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.nn.relu(in1)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Relu:0')
-
+    for mode in ['graph_runtime', 'vm']:
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.nn.relu(in1)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Relu:0', mode=mode)
 
 def test_forward_leaky_relu():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.nn.leaky_relu(in1, alpha=0.4)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
+    for mode in ['graph_runtime', 'vm']:
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.nn.leaky_relu(in1, alpha=0.4)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0', mode=mode)
 
 
 def test_forward_elu():
@@ -2423,8 +2534,7 @@ def test_forward_size():
 
 #######################################################################
 # All, Any, Max, Min
-# -------------
-
+# ------------------
 
 def test_forward_reduce_all():
     """Test the All operator."""
@@ -2434,7 +2544,14 @@ def test_forward_reduce_all():
     tf.reduce_all(in_data, name="all")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
 
-
+def test_forward_reduce_any():
+    """Test the Any operator."""
+    np_data = np.random.choice([True, False], size=(5, 7, 11))
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
+    tf.reduce_any(in_data, name="any")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
+    
 def test_forward_reduce_max():
     def check_max(ishape, axis, keepdims, dtype):
         tf.reset_default_graph()
@@ -2694,6 +2811,7 @@ if __name__ == '__main__':
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
+    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
@@ -2707,6 +2825,7 @@ if __name__ == '__main__':
     test_forward_erf()
     test_forward_squared_difference()
     test_forward_add_n()
+    test_forward_floormod()
 
     # Reductions
     test_forward_argminmax()

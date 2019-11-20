@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tcl_socket.h
  * \brief TCP socket wrapper for communicating using Tcl commands
  */

@@ -80,7 +80,7 @@ def AddShapesToGraphDef(session, out_node):
 
     """
 
-    graph_def = tf.graph_util.convert_variables_to_constants(
+    graph_def = tf.compat.v1.graph_util.convert_variables_to_constants(
         session,
         session.graph.as_graph_def(add_shapes=True),
         [out_node],
@@ -112,13 +112,13 @@ class NodeLookup(object):
             dict from integer node ID to human-readable string.
 
         """
-        if not tf.gfile.Exists(uid_lookup_path):
+        if not tf.compat.v1.io.gfile.exists(uid_lookup_path):
             tf.logging.fatal('File does not exist %s', uid_lookup_path)
-        if not tf.gfile.Exists(label_lookup_path):
+        if not tf.compat.v1.io.gfile.exists(label_lookup_path):
             tf.logging.fatal('File does not exist %s', label_lookup_path)
 
         # Loads mapping from string UID to human-readable string
-        proto_as_ascii_lines = tf.gfile.GFile(uid_lookup_path).readlines()
+        proto_as_ascii_lines = tf.compat.v1.gfile.GFile(uid_lookup_path).readlines()
         uid_to_human = {}
         p = re.compile(r'[n\d]*[ \S,]*')
         for line in proto_as_ascii_lines:
@@ -129,7 +129,7 @@ class NodeLookup(object):
 
         # Loads mapping from string UID to integer node ID.
         node_id_to_uid = {}
-        proto_as_ascii = tf.gfile.GFile(label_lookup_path).readlines()
+        proto_as_ascii = tf.compat.v1.gfile.GFile(label_lookup_path).readlines()
         for line in proto_as_ascii:
             if line.startswith('  target_class:'):
                 target_class = int(line.split(': ')[1])
@@ -209,7 +209,7 @@ def get_workload(model_path, model_sub_path=None):
         path_model = download_testdata(model_url, model_path, module='tf')
 
     # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(path_model, 'rb') as f:
+    with tf.compat.v1.gfile.FastGFile(path_model, 'rb') as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
@@ -299,7 +299,7 @@ def _create_ptb_vocabulary(data_dir):
     file_name = 'ptb.train.txt'
     def _read_words(filename):
         """Read the data for creating vocabulary"""
-        with tf.gfile.GFile(filename, "r") as f:
+        with tf.compat.v1.gfile.GFile(filename, "r") as f:
             return f.read().encode("utf-8").decode("utf-8").replace("\n", "<eos>").split()
 
     def _build_vocab(filename):

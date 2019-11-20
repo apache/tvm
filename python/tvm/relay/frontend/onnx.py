@@ -298,6 +298,12 @@ class MatMul(OnnxOpConverter):
             # Convert a and b into 3 dimensional tensors.
             a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
             b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
+            # Broadcast b to match batch size of a
+            new_b_shape = list(infer_shape(b))
+            new_a_shape = infer_shape(a)
+            if new_a_shape[0] > new_b_shape[0]:
+                new_b_shape[0] = new_a_shape[0]
+                b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
@@ -465,6 +471,76 @@ class Reshape(OnnxOpConverter):
             out = _op.reshape(data, newshape=tuple(
                 static_shape.asnumpy().astype('int32')))
         return out
+
+
+class DepthToSpace(OnnxOpConverter):
+    """ Operator converter for DepthToSpace.
+    """
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+
+        block_size = int(attr['blocksize'])
+        mode = attr.get("mode", "DCR")
+
+        # handle NCHW layout
+        indata = infer_value_simulated(inputs[0], params)
+        in_n, in_c, in_h, in_w = indata.shape
+
+        # reshape to proper output
+        new_c = int(in_c / (block_size * block_size))
+        new_h = in_h * block_size
+        new_w = in_w * block_size
+        newshape = (in_n, new_c, new_h, new_w)
+
+        if mode == "DCR":
+            # expand input to larger dimension.
+            expanded = _op.reshape(inputs[0],
+                                   newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            # reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
+
+        else:  # CRD mode
+            # expand input to larger dimension.
+            expanded = _op.reshape(inputs[0],
+                                   newshape=(in_n, new_c, block_size, block_size, in_h, in_w))
+            # reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 4, 2, 5, 3))
+
+        return AttrCvt(op_name="reshape",
+                       extras={'newshape': newshape},
+                       ignores=['mode', 'blocksize'])([transposed], attr)
+
+
+class SpaceToDepth(OnnxOpConverter):
+    """ Operator converter for SpaceToDepth.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+
+        block_size = int(attr['blocksize'])
+
+        # handle NCHW layout
+        indata = infer_value_simulated(inputs[0], params)
+        in_n, in_c, in_h, in_w = indata.shape
+
+        # reshape to proper output
+        new_c = in_c * (block_size * block_size)
+        new_h = int(in_h / block_size)
+        new_w = int(in_w / block_size)
+        newshape = (in_n, new_c, new_h, new_w)
+
+        # expand input to larger dimension.
+        expanded = _op.reshape(inputs[0],
+                               newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+        # reorder to expand spatial blocks.
+        transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+
+        return AttrCvt(op_name="reshape",
+                       extras={'newshape': newshape},
+                       ignores=['blocksize'])([transposed], attr)
+
 
 class Concat(OnnxOpConverter):
     """ Operator converter for Concat.
@@ -987,6 +1063,14 @@ class Where(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
+        # x and y can be broadcasted
+        condition_shape = infer_shape(inputs[0])
+        x_shape = infer_shape(inputs[1])
+        y_shape = infer_shape(inputs[2])
+        if len(condition_shape) > len(x_shape):
+            inputs[1] = _op.broadcast_to(inputs[1], condition_shape)
+        if len(condition_shape) > len(y_shape):
+            inputs[2] = _op.broadcast_to(inputs[2], condition_shape)
         return _op.where(inputs[0], inputs[1], inputs[2])
 
 class Or(Elemwise):
@@ -995,6 +1079,7 @@ class Or(Elemwise):
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1106,6 +1191,8 @@ def _get_convert_map(opset):
         'Split': Split.get_converter(opset),
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
+        'DepthToSpace': DepthToSpace.get_converter(opset),
+        'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),

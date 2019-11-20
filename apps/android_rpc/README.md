@@ -39,7 +39,7 @@ dependencies {
     compile 'com.android.support:appcompat-v7:26.0.1'
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     compile 'com.android.support:design:26.0.1'
-    compile 'ml.dmlc.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
     testCompile 'junit:junit:4.12'
 }
 ```
@@ -64,12 +64,12 @@ If you see error:
 
     adb: failed to install app/build/outputs/apk/release/tvmrpc-release.apk:
       Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE:
-      Package ml.dmlc.tvm.tvmrpc signatures do not match the previously installed version; ignoring!]
+      Package org.apache.tvm.tvmrpc signatures do not match the previously installed version; ignoring!]
 
 Run uninstall first:
 
 ```bash
-$ANDROID_HOME/platform-tools/adb uninstall ml.dmlc.tvm.tvmrpc
+$ANDROID_HOME/platform-tools/adb uninstall org.apache.tvm.tvmrpc
 ```
 
 ### Build with OpenCL

@@ -460,6 +460,11 @@ def _convert_batchnorm(inexpr, keras_layer, etab):
     moving_var = keras_layer.get_weights()[idx + 1]
     params['moving_mean'] = etab.new_const(moving_mean)
     params['moving_var'] = etab.new_const(moving_var)
+    # in case beta or gamma is not defined
+    params['beta'] = etab.new_const(np.zeros(moving_mean.shape)) if \
+                     'beta' not in params else params['beta']
+    params['gamma'] = etab.new_const(np.ones(moving_mean.shape)) if \
+                      'gamma' not in params else params['gamma']
     result, moving_mean, moving_var = _op.nn.batch_norm(inexpr, **params)
     return result
 

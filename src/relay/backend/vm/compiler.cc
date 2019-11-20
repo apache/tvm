@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
@@ -55,6 +54,7 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
+Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
@@ -745,7 +745,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
-                                   const std::shared_ptr<ModuleNode>& sptr_to_self) {
+                                   const ObjectPtr<Object>& sptr_to_self) {
   if (name == "compile") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
@@ -864,6 +864,8 @@ void VMCompiler::Compile(Module mod,
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
+  Array<tvm::Expr> entry_functions{tvm::Expr{"main"}};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
 
@@ -871,6 +873,10 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   if (targets.size() == 1) {
     pass_seqs.push_back(transform::Legalize());
   }
+
+  // eta expand to support constructors in argument position
+  pass_seqs.push_back(transform::EtaExpand(
+    /* expand_constructor */ true, /* expand_global_var */ false));
 
   pass_seqs.push_back(transform::SimplifyInference());
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
@@ -974,7 +980,7 @@ void VMCompiler::LibraryCodegen() {
 }
 
 runtime::Module CreateVMCompiler() {
-  std::shared_ptr<VMCompiler> exec = std::make_shared<VMCompiler>();
+  auto exec = make_object<VMCompiler>();
   return runtime::Module(exec);
 }
 

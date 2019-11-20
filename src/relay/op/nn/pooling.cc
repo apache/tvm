@@ -102,14 +102,25 @@ bool Pool2DRel(const Array<Type>& types,
     oshape.push_back(e);
   }
 
-  if (param->ceil_mode) {
-    oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
-                    param->strides[0] - 1) / param->strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] +
-                    param->strides[1] - 1) / param->strides[1]) + 1;
+  if (dshape[hidx].as<ir::Any>()) {
+    oshape[hidx] = dshape[hidx];
   } else {
-    oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
+    if (param->ceil_mode) {
+      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
+                       param->strides[0] - 1) / param->strides[0]) + 1;
+    } else {
+      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
+    }
+  }
+  if (dshape[widx].as<ir::Any>()) {
+    oshape[widx] = dshape[widx];
+  } else {
+    if (param->ceil_mode) {
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] +
+                       param->strides[1] - 1) / param->strides[1]) + 1;
+    } else {
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
+    }
   }
 
   // assign output type

@@ -206,6 +206,20 @@ Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size,
                     bool create_bound_attribute = false);
+
+/*!
+ * \brief Try to modify the AST to support TensorCore
+ *
+ * \param stmt The stmt to be trasnformed.
+ * \param schedule The original schedule.
+ * \param extern_buffer Map specifies external
+ *    buffer assignment of input and outputs.
+ * \return Transformed stmt.
+ */
+Stmt RewriteForTensorCore(Stmt stmt,
+                          Schedule schedule,
+                          Map<Tensor, Buffer> extern_buffer);
+
 /*!
  * \brief Verify if there is any argument bound to compact buffer.
  *
@@ -548,6 +562,13 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
  * \return Transformed function.
  */
 LoweredFunc InferFragment(LoweredFunc f);
+
+/*!
+ * \brief skip assert stmt generation
+ * \param f The function to be transformed.
+ * \return Transformed function.
+ */
+LoweredFunc SkipAssert(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

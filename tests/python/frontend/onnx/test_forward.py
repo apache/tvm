@@ -77,19 +77,19 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         return tvm_output.asnumpy()
 
 
-def get_caffe2_output(model, x, dtype='float32'):
-    import caffe2.python.onnx.backend
-    prepared_backend = caffe2.python.onnx.backend.prepare(model)
-    W = {model.graph.input[0].name: x.astype(dtype)}
-    c2_out = prepared_backend.run(W)[0]
-    return c2_out
+def get_onnxruntime_output(model, x, dtype='float32'):
+    import onnxruntime.backend
+    rep = onnxruntime.backend.prepare(model, 'CPU')
+    x = x.astype(dtype)
+    ort_out = rep.run(x)[0]
+    return ort_out
 
 
 def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     dtype = 'float32'
     x = np.random.uniform(size=data_shape)
     model = onnx.load_model(graph_file)
-    c2_out = get_caffe2_output(model, x, dtype)
+    c2_out = get_onnxruntime_output(model, x, dtype)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
@@ -140,6 +140,57 @@ def test_reshape():
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
+
+def verify_depth_to_space(inshape, outshape, mode, blockSize):
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=blockSize)
+
+    graph = helper.make_graph([node],
+                              "depth_to_space_test",
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(inshape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(outshape))])
+
+    model = helper.make_model(graph, producer_name='depth_to_space_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=inshape).astype('float32')
+        tvm_out = get_tvm_output(model, x, target, ctx, outshape, 'float32')
+        onnx_out = get_onnxruntime_output(model, x, 'float32')
+        tvm.testing.assert_allclose(onnx_out, tvm_out)
+
+
+def test_depth_to_space():
+    # current onnx.checker use OpSet-1 version of DepthToSpace, which doesn't have a mode argument.
+    # TO-DO, we can add mode arguement to test CRD mode and DCR mode
+    # in the future when we update to a newer onnx version.
+    verify_depth_to_space((1, 8, 2, 3), (1, 2, 4, 6), mode="CRD", blockSize=2)
+
+
+def verify_space_to_depth(inshape, outshape, blockSize):
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=blockSize)
+
+    graph = helper.make_graph([node],
+                              "space_to_depth_test",
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(inshape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(outshape))])
+
+    model = helper.make_model(graph, producer_name='space_to_depth_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=inshape).astype('float32')
+        tvm_out = get_tvm_output(model, x, target, ctx, outshape, 'float32')
+        onnx_out = get_onnxruntime_output(model, x, 'float32')
+        tvm.testing.assert_allclose(onnx_out, tvm_out)
+
+
+def test_space_to_depth():
+    verify_space_to_depth((1, 1, 4, 6), (1, 4, 2, 3), 2)
 
 
 def test_shape():
@@ -498,11 +549,7 @@ def test_matmul():
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
-
-def test_batch_matmul():
-    a_shape = (2, 3, 4, 3)
-    b_shape = (2, 3, 3, 4)
-
+def verify_batch_matmul(a_shape, b_shape):
     a_array = np.random.uniform(size=a_shape).astype('float32')
     b_array = np.random.uniform(size=b_shape).astype('float32')
     out_np = np.matmul(a_array, b_array)
@@ -525,6 +572,10 @@ def test_batch_matmul():
             model, [a_array, b_array], target, ctx, out_np.shape)
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+def test_batch_matmul():
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
+    verify_batch_matmul((2, 4, 3), (3, 4))
+    verify_batch_matmul((2, 3, 4, 3), (3, 4))
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
@@ -1372,7 +1423,7 @@ def check_torch_conversion(model, input_size):
     onnx_model = onnx.load(file_name)
     for target, ctx in ctx_list():
         input_data = np.random.uniform(size=input_size).astype('int32')
-        c2_out = get_caffe2_output(onnx_model, input_data)
+        c2_out = get_onnxruntime_output(onnx_model, input_data)
         tvm_out = get_tvm_output(onnx_model, input_data, target, ctx)
         tvm.testing.assert_allclose(c2_out, tvm_out)
 
@@ -1574,6 +1625,7 @@ def test_erf():
     z = scipy.special.erf(x)
     verify_erf(x, z)
 
+
 def verify_where(condition, x, y, dtype, outdata):
     node = helper.make_node('Where', inputs=['condition', 'x', 'y'], outputs=['out'])
     graph = helper.make_graph([node],
@@ -1588,6 +1640,7 @@ def verify_where(condition, x, y, dtype, outdata):
         tvm_out = get_tvm_output(model, [condition, x, y], target, ctx, outdata.shape)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
+
 def test_where():
     condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
     x = np.array([[1, 2], [3, 4]], dtype=np.int64)
@@ -1597,6 +1650,11 @@ def test_where():
 
     x = np.array([[1, 2], [3, 4]], dtype=np.float32)
     y = np.array([[9, 8], [7, 6]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
+    x = np.array(1, dtype=np.float32)
+    y = np.array([2], dtype=np.float32)
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
@@ -1699,3 +1757,5 @@ if __name__ == '__main__':
     test_erf()
     test_where()
     test_or()
+    test_depth_to_space()
+    test_space_to_depth()

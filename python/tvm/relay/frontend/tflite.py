@@ -94,7 +94,8 @@ class OperatorConverter(object):
             'CAST': self.convert_cast,
             'TILE': self.convert_tile,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
-            'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd
+            'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
+            'PRELU': self.convert_prelu,
         }
 
     def check_unsupported_ops(self):
@@ -264,7 +265,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert input_tensors, "input tensors should not be empty"
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 
@@ -574,8 +575,7 @@ class OperatorConverter(object):
         """Convert TFLite MUL"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized mul operator is not supported yet.')
+            return self._convert_elemwise(_qnn.op.mul, op)
         return self._convert_elemwise(_op.multiply, op)
 
     def convert_div(self, op):
@@ -729,9 +729,13 @@ class OperatorConverter(object):
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
         if input_tensor.qnn_params:
+            input_scale = input_tensor.qnn_params['scale']
+            kernel_scale = weight_tensor.qnn_params['scale']
             out = _qnn.op.dense(in_expr, weight_expr,
                                 input_zero_point=input_tensor.qnn_params['zero_point'],
                                 kernel_zero_point=weight_tensor.qnn_params['zero_point'],
+                                input_scale=input_scale,
+                                kernel_scale=kernel_scale,
                                 out_dtype='int32')
         else:
             out = _op.nn.dense(in_expr, weight_expr)
@@ -935,6 +939,8 @@ class OperatorConverter(object):
             qnn_conv2d_params['input_zero_point'] = input_tensor.qnn_params['zero_point']
             qnn_conv2d_params['kernel_zero_point'] = weight_tensor.qnn_params['zero_point']
             qnn_conv2d_params['out_dtype'] = 'int32'
+            qnn_conv2d_params['input_scale'] = input_tensor.qnn_params['scale']
+            qnn_conv2d_params['kernel_scale'] = weight_tensor.qnn_params['scale']
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
         else:
             out = _op.nn.conv2d(in_expr, weight_expr, **params)
@@ -1324,6 +1330,28 @@ class OperatorConverter(object):
         reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
 
         return reshaped_permuted_reshaped_padded
+
+    def convert_prelu(self, op):
+        """Convert TFLite PReLU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        input_tensor = input_tensors[0]
+        alpha_tensor = input_tensors[1]
+        alpha_tensor_type = alpha_tensor.tensor.Type()
+        alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
+        alpha_expr = self.exp_tab.new_const(self.get_tensor_value(alpha_tensor).flatten(),
+                                            dtype=alpha_tensor_type_str)
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
+
+        return out
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))

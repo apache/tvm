@@ -94,6 +94,12 @@ TVM_REGISTER_API("ir_pass.StorageFlatten")
     }
   });
 
+TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
+.set_body_typed<Stmt(const Stmt&, const Schedule&, const Map<Tensor, Buffer>&)>
+  ([](const Stmt& stmt, const Schedule& schedule, const Map<Tensor, Buffer>& extern_buffer) {
+      return RewriteForTensorCore(stmt, schedule, extern_buffer);
+  });
+
 TVM_REGISTER_API("ir_pass.AttrsEqual")
 .set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
     return AttrsEqual()(lhs, rhs);

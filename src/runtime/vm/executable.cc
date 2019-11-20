@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/runtime/vm/executable.cc
  * \brief The implementation of a virtual machine executable APIs.
  */
@@ -51,7 +50,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr);
 Instruction DeserializeInstruction(const VMInstructionSerializer& instr);
 
 PackedFunc Executable::GetFunction(const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetLib();
@@ -440,7 +439,7 @@ void LoadHeader(dmlc::Stream* strm) {
 }
 
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
-  std::shared_ptr<Executable> exec = std::make_shared<Executable>();
+  auto exec = make_object<Executable>();
   exec->lib = lib;
   exec->code_ = code;
   dmlc::MemoryStringStream strm(&exec->code_);

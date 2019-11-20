@@ -408,7 +408,12 @@ bool BatchFlattenRel(const Array<Type>& types,
   auto target_dim = make_const(Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    target_dim = target_dim * data->shape[i];
+    if (!data->shape[i].as<ir::Any>()) {
+      target_dim = target_dim * data->shape[i];
+    } else {
+      target_dim = data->shape[i];
+      break;
+    }
   }
 
   std::vector<IndexExpr> oshape({data->shape[0], target_dim});

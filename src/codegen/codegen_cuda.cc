@@ -27,6 +27,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include "literal/cuda_half_t.h"
 #include "codegen_cuda.h"
 
 namespace tvm {
@@ -50,25 +51,36 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
 
 std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
     decl_stream << "#include <cuda_fp16.h>\n";
     decl_stream << "__device__ half max"
                 << "(half a, half b)\n"
                 << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
     decl_stream << "__device__ half min(half a, half b)\n"
                 << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "__device__ half operator<="
-                << "(__half a,  __half b)\n"
-                << "{\n  return __hlt(a, b);\n}\n";
-    decl_stream << "__device__ half operator+"
-                << "(__half a,  __half &b)\n"
-                <<"{\n  return __hadd(a, b);\n}\n";
-    decl_stream << "__device__ half operator*"
-                << "(__half a, __half b)\n"
-                <<   "{\n  return __hmul(a, b);\n}\n";
+    // FIXME(tvm-team): "volatile" is used to enable cross thread reduction,
+    // which is needed by operations such as softmax.
+    // However, volatile overloading is not supported in NVRTC and CUDA < 9.2.
+    // We need to figure out a solution which can satisfy both scenario.
+    // decl_stream << "__device__ half operator<="
+    //             << "(const volatile __half &a,  const volatile __half &b)\n"
+    //             << "{\n  return __hlt(a, b);\n}\n";
+    // decl_stream << "__device__ half operator+"
+    //             << "(const volatile __half &a,  const volatile __half &b)\n"
+    //             <<"{\n  return __hadd(a, b);\n}\n";
+    // decl_stream << "__device__ half operator*"
+    //             << "(const volatile __half &a, const volatile __half &b)\n"
+    //             <<   "{\n  return __hmul(a, b);\n}\n";
+    // otherwise simulate computation via float32
+    decl_stream << "#else\n";
+    decl_stream << _cuda_half_t_def;
+    decl_stream << "#endif\n\n";
   }
 
   if (enable_int8_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
     decl_stream << "#include <sm_61_intrinsics.h>\n";
+    decl_stream << "#endif\n";
   }
 
   if (need_math_constants_h_) {
