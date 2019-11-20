@@ -59,43 +59,6 @@ def setup():
     # You can pick a code for your datatype arbitrarily, as long as it is
     # greater than 128 and has not already been chosen.
 
-    register("bfloat", 129)
-
-    register_op(create_lower_func("FloatToBFloat16_wrapper"), "Cast", "llvm",
-                "bfloat", "float")
-    register_op(create_lower_func("BFloat16ToFloat_wrapper"), "Cast", "llvm",
-                "float", "bfloat")
-    register_op(create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
-                "bfloat")
-    register_op(create_lower_func("BFloat16Sub_wrapper"), "Sub", "llvm",
-                "bfloat")
-    register_op(create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
-                "llvm", "bfloat")
-    register_op(create_lower_func("BFloat16Mul_wrapper"), "Mul", "llvm",
-                "bfloat")
-    register_op(create_lower_func("BFloat16Div_wrapper"), "Div", "llvm",
-                "bfloat")
-    register_op(create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
-                "bfloat")
-    register_min_func(lambda num_bits: -3.38953139e38, "bfloat")
-
-    register_op(create_lower_func("BFloat16Sqrt_wrapper"),
-                "Call",
-                "llvm",
-                "bfloat",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
-    register_op(lower_ite,
-                "Call",
-                "llvm",
-                "bfloat",
-                intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("BFloat16Exp_wrapper"),
-                "Call",
-                "llvm",
-                "bfloat",
-                intrinsic_name="exp")
-
     register("notbfloat", 130)
 
     register_op(create_lower_func("FloatToNotBFloat16_wrapper"), "Cast",
