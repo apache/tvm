@@ -155,5 +155,5 @@ def download_testdata(url, relpath, module=None):
     else:
         raise ValueError("Unsupported module: " + module)
     abspath = os.path.join(TEST_DATA_ROOT_PATH, module_path, relpath)
-    download(url, abspath, overwrite=False, size_compare=True)
+    download(url, abspath, overwrite=False, size_compare=False)
     return abspath
