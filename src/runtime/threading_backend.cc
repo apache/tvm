@@ -133,27 +133,37 @@ class ThreadGroup::Impl {
           sizeof(cpu_set_t), &cpuset);
 #endif
     }
-    if (exclude_worker0) {  // bind the master thread to core 0
-      if (reverse) {
-        core0_id_ = sorted_order_[sorted_order_.size() - 1];
-      } else {
-        core0_id_ = sorted_order_[0];
+    if (exclude_worker0) {  // master thread run task
+#if defined(__ANDROID__)
+      SetFullCpuAffinity();
+#else
+      const char* bind_master_thread = getenv("TVM_BIND_MASTER_THREAD");
+      if (bind_master_thread) {
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        if (reverse) {
+          CPU_SET(sorted_order_[sorted_order_.size() - 1], &cpuset);
+        } else {
+          CPU_SET(sorted_order_[0], &cpuset);
+        }
       }
-     pthread_atfork(nullptr, nullptr, ThreadGroup::Impl::BindMasterThreadToCore0);
+     pthread_atfork(nullptr, nullptr, ThreadGroup::Impl::SetFullCpuAffinity);
     }
+#endif
 #endif
   }
 
-  static void BindMasterThreadToCore0() {
+  static void SetFullCpuAffinity() {
 #if defined(__linux__) || defined(__ANDROID__)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(ThreadGroup::Impl::core0_id_, &cpuset);
+    for (unsigned i = 0; i < std::thread::hardware_concurrency(); i++)
+      CPU_SET(i, &cpuset);
 #if defined(__ANDROID__)
-      sched_setaffinity(pthread_self(),
+    sched_setaffinity(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #else
-      pthread_setaffinity_np(pthread_self(),
+    pthread_setaffinity_np(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
 #endif
 #endif
@@ -205,10 +215,7 @@ class ThreadGroup::Impl {
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
-  static int core0_id_;
 };
-
-int ThreadGroup::Impl::core0_id_ = 0;
 
 ThreadGroup::ThreadGroup(int num_workers,
                          std::function<void(int)> worker_callback,
