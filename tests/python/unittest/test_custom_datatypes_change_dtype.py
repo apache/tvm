@@ -443,6 +443,8 @@ def test_conv2d():
 
 
 def test_models():
+    # Expected posit8 might be faster, but it's not.
+    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit8]8')
     # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit32]32')
     # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit32]32')
     # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit32]32')
