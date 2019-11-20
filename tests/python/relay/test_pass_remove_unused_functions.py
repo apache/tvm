@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import transform
@@ -70,6 +71,22 @@ def test_multiple_entry_functions():
     mod = relay.transform.RemoveUnusedFunctions(['main1', 'main2'])(mod)
     l = set([x[0].name_hint for x in mod.functions.items()])
     assert l == set(['tl', 'hd', 'main2', 'id_func', 'main1'])
+
+def test_globalvar_as_call_arg():
+    mod = relay.Module()
+    p = Prelude(mod)
+    tensor_array = p.get_var('tensor_array', 'int32')
+    tensor1 = p.get_var('tensor1', 'int32')
+    write = p.get_var('tensor_array_write', 'int32')
+    stack = p.get_var('tensor_array_stack', 'int32')
+    v = relay.var('v')
+    init_tensor_array = tensor_array(relay.const(3))
+    tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
+    tensor_array2 = stack(tensor_array1)
+    mod["main"] = relay.Function([v], tensor_array2)
+    mod = relay.transform.RemoveUnusedFunctions()(mod)
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert 'tensor_array_int32' in l
 
 if __name__ == '__main__':
     pytest.main()
