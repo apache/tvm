@@ -75,7 +75,7 @@ def context(dev_type, dev_id=0):
       assert tvm.context("cuda", 0) == tvm.gpu(0)
     """
     if isinstance(dev_type, string_types):
-        if '-device_name=micro_dev' in dev_type:
+        if '-device=micro_dev' in dev_type:
             dev_type = 'micro_dev'
         else:
             dev_type = dev_type.split()[0]
