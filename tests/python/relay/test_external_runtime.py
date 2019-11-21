@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import ext_json_rt
 from shutil import which
 import json
 import pytest
@@ -483,16 +482,16 @@ def run_extern(label, get_extern_src, **kwargs):
                        axis=0))
 
 
-def tutorial_dso_extern():
+def test_dso_extern():
     run_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
 
 
-def tutorial_engine_extern():
+def test_engine_extern():
     run_extern("engine",
                generate_engine_module,
                options=["-O2", "-std=c++11", "-I" + tmp_path.relpath("")])
 
-def tutorial_json_extern():
+def test_json_extern():
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
 
@@ -517,12 +516,14 @@ def tutorial_json_extern():
     # Get Json and module.
     graph_json = get_whole_graph_json()
     lib = get_synthetic_lib()
-    ext_lib = ext_json_rt.create_json_rt(subgraph_json, "")
+    ext_lib = tvm.module.load(subgraph_json, "examplejson")
     lib.import_module(ext_lib)
-    lib.export_library('external.so')
+    lib_name = 'external.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path)
 
     # load module for execution.
-    lib = tvm.module.load('external.so')
+    lib = tvm.module.load(lib_path)
     mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
@@ -546,6 +547,6 @@ def tutorial_json_extern():
 
 
 if __name__ == "__main__":
-    tutorial_dso_extern()
-    tutorial_engine_extern()
-    tutorial_json_extern()
+    test_dso_extern()
+    test_engine_extern()
+    test_json_extern()

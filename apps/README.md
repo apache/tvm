@@ -26,4 +26,3 @@ If you are interested in writing optimized kernels with TVM, checkout [TOPI: TVM
 - [android_rpc](android_rpc) Android RPC server.
 - [benchmark](benchmark) Example end to end compilation benchmarks
 - [howto_deploy](howto_deploy) Tutorial on how to deploy TVM with minimum code dependency.
-- [ext_runtime](ext_runtime) How to extend TVM runtime for external backends.

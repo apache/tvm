@@ -62,6 +62,12 @@ struct NodeEntry {
   std::vector<int> inputs;
 };
 
+/*!
+ * \brief The following 6 functions are examples for demonstration. Users need
+ * to provide their own API when they use the external library. The ones that
+ * accecpt TVMValue are wrappers used to bridge the PackedFunc and user-defined
+ * kernels.
+ */
 void Add_(float* a, int len_a, float* b, int len_b, float* c) {
   for (int i = 0; i < len_a * len_b; i++) {
     c[i] = a[i] + b[i];
@@ -113,9 +119,14 @@ int Mul(TVMValue* value, int* type_code, int nargs) {
   return 0;
 }
 
+/*!
+ * \brief The example json runtime module. Here we define a simple format for
+ * the computational graph using json for demonstration purpose. Users should
+ * customize their own format.
+ */
 class ExampleJsonModule : public ModuleNode {
  public:
-  ExampleJsonModule(std::string graph_json) {
+  explicit ExampleJsonModule(std::string graph_json) {
     this->graph_json_ = graph_json;
     ParseJson(graph_json);
   }
@@ -200,6 +211,12 @@ class ExampleJsonModule : public ModuleNode {
 
   const char* type_key() const { return "examplejson"; }
 
+  /*!
+   * \brief Save the json runtime to a binary stream, which can then be
+   * serialized to disk.
+   *
+   * \param stream. The stream to save the binary.
+   */
   void SaveToBinary(dmlc::Stream* stream) final {
       stream->Write(this->graph_json_);
   }
@@ -298,16 +315,19 @@ class ExampleJsonModule : public ModuleNode {
   }
 
  private:
+  /* \brief The json string that represents a computational graph. */
   std::string graph_json_;
+  /* \brief The subgraph that being processed. */
   std::string curr_subgraph_;
-  // A simple graph.
+  /*! \brief A simple graph from subgraph id to node entries. */
   std::map<std::string, std::vector<NodeEntry> > graph_;
+  /* \brief A simple pool to contain the tensor for each node in the graph. */
   std::vector<NDArray> data_entry_;
-  // id -> op
+  /* \brief A mapping from node id to op name. */
   std::vector<std::string> op_id_;
 };
 
-TVM_REGISTER_GLOBAL("ext_json_rt.create_json_rt")
+TVM_REGISTER_GLOBAL("module.loadfile_examplejson")
 .set_body_typed(ExampleJsonModule::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")

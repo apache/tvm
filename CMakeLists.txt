@@ -231,6 +231,12 @@ if(USE_VM_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
+if(USE_EXAMPLE_EXT_RUNTIME)
+  message(STATUS "Build with Relay VM profiler support...")
+  file(GLOB RUNTIME_EXAMPLE_EXTERNAL_SRCS src/runtime/contrib/exmaple_ext_runtime/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_EXAMPLE_EXTERNAL_SRCS})
+endif(USE_EXAMPLE_EXT_RUNTIME)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
