@@ -503,6 +503,8 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
 
 Expr MakeConcatenate(Expr data, int axis);
 
+Expr MakeRepeat(Expr data, int repeats, int axis);
+
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
 Expr MakeStack(Expr data, int axis);
