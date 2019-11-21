@@ -35,9 +35,9 @@ def extract(path):
         raise RuntimeError('Could not decompress the file: ' + path)
 
 
-#########################################################
+###################################
 # Download TFLite pre-trained model
-# -------------------------------------------------------
+# ---------------------------------
 
 model_url = "https://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.4_224.tgz"
 model_path = download_testdata(model_url, "mobilenet_v2_1.4_224.tgz", module=['tf', 'official'])
@@ -77,9 +77,9 @@ with relay.build_config(opt_level=3):
     graph, lib, params = relay.build_module.build(
         mod, target, params=params)
 
-###########################################################
+###############################################
 # Save the graph, lib and parameters into files
-# ---------------------------------------------------------
+# ---------------------------------------------
 
 lib.export_library("./mobilenet.so")
 print('lib export succeefully')
