@@ -295,7 +295,7 @@ measure_option = autotvm.measure_option(
     runner=autotvm.LocalRunner(number=5))
 
 # begin tuning, log records to file `matmul.log`
-tuner = autotvm.tuner.RandomTuner(task)
+tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(n_trial=10,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('matmul.log')])
