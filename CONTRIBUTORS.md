@@ -103,6 +103,7 @@ We do encourage everyone to work anything they are interested in.
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
+- [Logan Weber](https://github.com/weberlo): @weberlo
 - [Jian Weng](https://github.com/were): @were
 - [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
