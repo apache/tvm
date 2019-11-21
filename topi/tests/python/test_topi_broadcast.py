@@ -51,7 +51,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
                                 ftopi, fnumpy,
                                 lhs_min=-100, lhs_max=100,
                                 rhs_min=-100, rhs_max=100,
-                                dtype="float32", adjust_unstable_points=False):
+                                dtype="float32"):
     # Build the logic and compile the function
     A = (tvm.var("A", dtype=dtype) if lhs_shape is None
          else tvm.placeholder(shape=lhs_shape, name="A", dtype=dtype))
@@ -74,22 +74,6 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
             nd = tvm.nd.array(npy, ctx)
         return npy, nd
 
-    def adj_operand(npy, adj_npy, adj_nd, unstable_points, ctx):
-        if isinstance(npy, np.ndarray):
-            reduce_axis = []
-            # reverse operation of broadcast
-            for i in range(len(unstable_points.shape)):
-                j = i - len(unstable_points.shape) + len(npy.shape)
-                if j < 0 or npy.shape[j] != unstable_points.shape[i]:
-                    reduce_axis.append(i)
-            unstable_points = np.logical_or.reduce(unstable_points, axis=tuple(reduce_axis), keepdims=True)
-            unstable_points = np.reshape(unstable_points, newshape=npy.shape)
-            # backtrace unstable points to its source and replace with new random number
-            npy = (adj_npy * unstable_points + npy * ~unstable_points).astype(dtype)
-            nd = tvm.nd.array(npy, ctx)
-            return npy, nd
-        return adj_npy, adj_nd
-
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -102,15 +86,20 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
 
         lhs_npy, lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
         rhs_npy, rhs_nd = gen_operand(rhs_shape, rhs_min, rhs_max, ctx)
-
         out_npy = fnumpy(lhs_npy, rhs_npy)
-        # avoid check too close to 0.5
-        unstable_points = np.abs(out_npy) - 0.5 < 1e-6
-        while adjust_unstable_points and unstable_points.any():
-            adj_lhs, adj_lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
-            lhs_npy, lhs_nd = adj_operand(lhs_npy, adj_lhs, adj_lhs_nd, unstable_points, ctx)
-            out_npy = fnumpy(lhs_npy, rhs_npy)
-            unstable_points = np.abs(out_npy) - 0.5 < 1e-6
+
+        if fnumpy == np.floor_divide:
+            # avoid check too close to X.5 and X.0
+            # FIXME: floor_divide(94.90735, 0.6731018) behaves as floor(div(94.90735, 0.6731018))
+            # However the result is somehow incorrect - need to further investigate.
+            # And looks like numpy's floor_div(a,b) is implemented different from floor(div(a,b))
+            mask = np.logical_or(np.abs(np.abs(np.fmod(lhs_npy / rhs_npy, 1)) - 0.5) < 1e-6,
+                                 np.abs(np.fmod(lhs_npy / rhs_npy, 1)) < 1e-6)
+            if mask.any():
+                lhs_npy = lhs_npy + mask * 1e-3  * rhs_npy
+                lhs_npy = lhs_npy.astype(dtype)
+                lhs_nd = tvm.nd.array(lhs_npy, ctx) if lhs_shape is not None else lhs_npy.item()
+                out_npy = fnumpy(lhs_npy, rhs_npy)
 
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
@@ -161,14 +150,11 @@ def test_divide():
 
 def test_floor_divide():
     verify_broadcast_binary_ele(
-        None, (10,), topi.floor_divide, np.floor_divide,
-        rhs_min=0.0001, adjust_unstable_points=True)
+        None, (10,), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
     verify_broadcast_binary_ele(
-        (), None, topi.floor_divide, np.floor_divide,
-        rhs_min=0.0001, adjust_unstable_points=True)
+        (), None, topi.floor_divide, np.floor_divide, rhs_min=0.0001)
     verify_broadcast_binary_ele(
-        (2, 3, 1, 32), (64, 32), topi.floor_divide,
-        np.floor_divide, rhs_min=0.0001, adjust_unstable_points=True)
+        (2, 3, 64, 32), (64, 32), topi.floor_divide, np.floor_divide, rhs_min=0.0001)
 
 def test_maximum_minmum():
     verify_broadcast_binary_ele(
