@@ -53,8 +53,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     exe = relay.vm.compile(mod, target)
     vm = relay.vm.VirtualMachine(exe)
     vm.init(ctx)
-    ret = vm.invoke("main", *args)
-    return ret
+    return vm.invoke("main", *args)
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.vm.Tensor):
