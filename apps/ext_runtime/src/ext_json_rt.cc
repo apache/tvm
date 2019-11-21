@@ -20,6 +20,22 @@
 /*!
  * \file external_runtime_test.cc
  * \brief Test an example runtime module to interpreting a json string.
+ *
+ * This is an exmaple runtime employed to show how we can interprete and execute
+ * a json string that represents a simple computational (sub)graph. Users will
+ * mainly need to implement four functions as follows:
+ *  - GetFunction. It is used to get the packed function from the json runtime
+ * module using a provided function name. This function returns a PackedFunc
+ * that can be directly invoked by feeding it with parameters.
+ *  - SaveToBinary. This function is used to achieve the serialization purpose.
+ * The emitted binary stream can be directly saved to disk so that users can
+ * load then back when needed.
+ *  - LoadFromFile. This is a static function that acts as a helper to create
+ * a json runtime module using a given json string. The json string could be
+ * conveniently loaded from the front-end and passed to this interface through
+ * PackedFunc.
+ *  - LoadFromBinary. This function uses binary stream to load the json that
+ * saved by SaveToBinary which essentially performs deserialization.
  */
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -104,6 +120,14 @@ class ExampleJsonModule : public ModuleNode {
     ParseJson(graph_json);
   }
 
+  /*!
+   * \brief Get a PackedFunc from the example json module.
+   *
+   * \param name the name of the function.
+   * \param sptr_to_self The ObjectPtr that points to this module node.
+   *
+   * \return The function pointer when it is found, otherwise, PackedFunc(nullptr).
+   */
   PackedFunc GetFunction(const std::string& name,
                          const ObjectPtr<Object>& sptr_to_self) final {
     if (this->graph_.find(name) != this->graph_.end()) {
@@ -141,6 +165,15 @@ class ExampleJsonModule : public ModuleNode {
     }
   }
 
+  /*!
+   * \brief Execute a function with provided arguments. The output will be
+   * packed to the last argument according to TVM's calling convention.
+   *
+   * \param id The id of the function.
+   * \param inputs The input indices that indicate where the data should be
+   * fetched in the data entry pool.
+   * \param output The output index.
+   */
   void Run(int id, const std::vector<int>& inputs, int output) {
     std::vector<int> args(inputs.begin(), inputs.end());
     args.push_back(output);
@@ -171,9 +204,15 @@ class ExampleJsonModule : public ModuleNode {
       stream->Write(this->graph_json_);
   }
 
-  // Note this is a very simple json that only serves for demostration purpose.
-  // Users usually have their own format and they can serialize it using the
-  // SaveToBinary method and deserialize it using LoadFromFile.
+  /*!
+   * \brief Parse the example json string.
+   *
+   * \param json. The json string that represents a simple computational graph.
+   *
+   * \Note this is a very simple json that only serves for demostration purpose.
+   * Users usually have their own format and they can serialize it using the
+   * SaveToBinary method and deserialize it using LoadFromFile.
+   */
   void ParseJson(const std::string& json) {
     std::string line;
     std::string curr_subgraph;
@@ -229,12 +268,27 @@ class ExampleJsonModule : public ModuleNode {
     }
   }
 
+  /*!
+   * \brief Load a json module from a json string.
+   *
+   * \param json The json string that represents a computational graph.
+   * \param format The format of the file which is not used here.
+   *
+   * \return The created json module.
+   */
   static Module LoadFromFile(const std::string& json,
                              const std::string& format) {
     auto n = tvm::runtime::make_object<ExampleJsonModule>(json);
     return Module(n);
   }
 
+  /*!
+   * \brief Load a json module from stream.
+   *
+   * \param strm The binary stream to load json.
+   *
+   * \return The created json module.
+   */
   static Module LoadFromBinary(void* strm) {
     dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
     std::string graph_json;
