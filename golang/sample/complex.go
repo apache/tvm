@@ -88,7 +88,7 @@ func main() {
     fmt.Printf("Graph runtime Created\n")
 
     // Array allocation attributes
-    tshapeIn  := []int64{1, 3, 224, 224}
+    tshapeIn  := []int64{1, 224, 224, 3}
     tshapeOut := []int64{1, 1000}
 
     // Allocate input Array
