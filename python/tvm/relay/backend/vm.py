@@ -305,12 +305,10 @@ class VirtualMachine(object):
                 idx = func_params.index(k)
                 new_args[idx] = kwargs[k]
             idx = 0
-            for i in range(len(new_args)):
-                if new_args[i] is None:
+            for i, arg in enumerate(new_args):
+                if arg is None:
                     new_args[i] = args[idx]
                     idx += 1
-                    if idx == len(args):
-                        break
             args = new_args
         cargs = convert(args)
         self._set_input(func_name, *cargs)
