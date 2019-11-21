@@ -642,7 +642,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         auto it = inputs_.find(func_name);
         CHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
         const std::vector<ObjectRef> &func_args = it->second;
-        *rv = Invoke(func_name, func_args);
+        *rv = Invoke(func, func_args);
       }
     });
   } else if (name == "init") {

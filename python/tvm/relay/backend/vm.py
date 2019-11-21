@@ -334,7 +334,6 @@ class VirtualMachine(object):
             The output.
         """
         if args or kwargs:
-            print('set input')
             self.set_input(func_name, *args, **kwargs)
         return self._invoke(func_name)
 

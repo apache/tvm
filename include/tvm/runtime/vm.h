@@ -664,23 +664,6 @@ class VirtualMachine : public runtime::ModuleNode {
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self);
 
-  /*!
-   * \brief Invoke a PackedFunction
-   *
-   * \param packed_index The offset of the PackedFunction in all functions.
-   * \param func The PackedFunction to be invoked.
-   * \param arg_count The number of arguments to the PackedFunction.
-   * \param output_size The number of outputs of the PackedFunction.
-   * \param args Arguments to the PackedFunction.
-   *
-   * \note The return value will be stored in the last output_size slots of args.
-   */
-  virtual void InvokePacked(Index packed_index,
-                            const PackedFunc& func,
-                            Index arg_count,
-                            Index output_size,
-                            const std::vector<ObjectRef>& args);
-
   virtual ~VirtualMachine() {}
 
   const char* type_key() const final {
@@ -692,7 +675,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief load the executable for the virtual machine.
    *  \param exec The executable.
    */
-  void LoadExecutable(const Executable* exec);
+  virtual void LoadExecutable(const Executable* exec);
 
  protected:
   /*! \brief The virtual machine's packed function table. */
@@ -744,7 +727,8 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   int32_t LoadScalarInt(RegName reg) const;
 
-  /*! \brief Invoke a VM function.
+  /*!
+   * \brief Invoke a VM function.
    * \param func The function.
    * \param args The arguments to the function.
    * \return The object representing the result.
@@ -760,21 +744,38 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
 
-  /*! \brief Initialize the virtual machine for a set of contexts.
-   *  \param contexts The set of TVM contexts.
+  /*!
+   * \brief Invoke a PackedFunction
+   *
+   * \param packed_index The offset of the PackedFunction in all functions.
+   * \param func The PackedFunction to be invoked.
+   * \param arg_count The number of arguments to the PackedFunction.
+   * \param output_size The number of outputs of the PackedFunction.
+   * \param args Arguments to the PackedFunction.
+   *
+   * \note The return value will be stored in the last output_size slots of args.
+   */
+  virtual void InvokePacked(Index packed_index,
+                            const PackedFunc& func,
+                            Index arg_count,
+                            Index output_size,
+                            const std::vector<ObjectRef>& args);
+
+  /*!
+   * \brief Initialize the virtual machine for a set of contexts.
+   * \param contexts The set of TVM contexts.
    */
   void Init(const std::vector<TVMContext>& contexts);
 
-  /*! \brief Run VM dispatch loop.
-   */
+  /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get device context for params.
-   */
+  /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
 
  private:
-  /*! \brief Invoke a global setting up the VM state to execute.
+  /*!
+   * \brief Invoke a global setting up the VM state to execute.
    *
    * This does not begin execution of the VM.
    */
