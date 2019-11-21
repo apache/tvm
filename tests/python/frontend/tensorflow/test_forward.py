@@ -2774,7 +2774,6 @@ def test_forward_add_n():
 # Main
 # ----
 if __name__ == '__main__':
-
     # Transforms
     test_forward_slice()
     test_forward_transpose()
