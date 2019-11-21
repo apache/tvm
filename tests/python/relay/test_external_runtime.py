@@ -513,10 +513,16 @@ def test_json_extern():
                      "sub 5 inputs: 4 2 shape: 10 10\n" +
                      "mul 6 inputs: 5 3 shape: 10 10")
 
+    subgraph_path = tmp_path.relpath('subgraph.examplejson')
+    with open(subgraph_path, 'w') as f:
+        f.write(subgraph_json)
+
     # Get Json and module.
     graph_json = get_whole_graph_json()
+
+
     lib = get_synthetic_lib()
-    ext_lib = tvm.module.load(subgraph_json, "examplejson")
+    ext_lib = tvm.module.load(subgraph_path, "examplejson")
     lib.import_module(ext_lib)
     lib_name = 'external.so'
     lib_path = tmp_path.relpath(lib_name)

@@ -232,8 +232,8 @@ if(USE_VM_PROFILER)
 endif(USE_VM_PROFILER)
 
 if(USE_EXAMPLE_EXT_RUNTIME)
-  message(STATUS "Build with Relay VM profiler support...")
-  file(GLOB RUNTIME_EXAMPLE_EXTERNAL_SRCS src/runtime/contrib/exmaple_ext_runtime/*.cc)
+  message(STATUS "Build with example external runtime...")
+  file(GLOB RUNTIME_EXAMPLE_EXTERNAL_SRCS src/runtime/contrib/example_ext_runtime/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_EXAMPLE_EXTERNAL_SRCS})
 endif(USE_EXAMPLE_EXT_RUNTIME)
 

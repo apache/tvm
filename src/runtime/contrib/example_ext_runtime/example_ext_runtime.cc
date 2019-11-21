@@ -30,10 +30,6 @@
  *  - SaveToBinary. This function is used to achieve the serialization purpose.
  * The emitted binary stream can be directly saved to disk so that users can
  * load then back when needed.
- *  - LoadFromFile. This is a static function that acts as a helper to create
- * a json runtime module using a given json string. The json string could be
- * conveniently loaded from the front-end and passed to this interface through
- * PackedFunc.
  *  - LoadFromBinary. This function uses binary stream to load the json that
  * saved by SaveToBinary which essentially performs deserialization.
  */
@@ -46,6 +42,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <fstream>
 #include <cmath>
 #include <map>
 #include <sstream>
@@ -128,7 +125,7 @@ class ExampleJsonModule : public ModuleNode {
  public:
   explicit ExampleJsonModule(std::string graph_json) {
     this->graph_json_ = graph_json;
-    ParseJson(graph_json);
+    ParseJson(this->graph_json_);
   }
 
   /*!
@@ -286,16 +283,23 @@ class ExampleJsonModule : public ModuleNode {
   }
 
   /*!
-   * \brief Load a json module from a json string.
+   * \brief Create a module from a file path of a serialized graph.
    *
-   * \param json The json string that represents a computational graph.
-   * \param format The format of the file which is not used here.
+   * \param path The file path contains a computational graph representation.
    *
    * \return The created json module.
    */
-  static Module LoadFromFile(const std::string& json,
-                             const std::string& format) {
-    auto n = tvm::runtime::make_object<ExampleJsonModule>(json);
+  static Module Create(const std::string& path) {
+    std::ifstream filep;
+    filep.open(path, std::ios::in);
+    std::string graph_json;
+    std::string line;
+    while (std::getline(filep, line)) {
+      graph_json += line;
+      graph_json += "\n";
+    }
+    filep.close();
+    auto n = tvm::runtime::make_object<ExampleJsonModule>(graph_json);
     return Module(n);
   }
 
@@ -328,7 +332,9 @@ class ExampleJsonModule : public ModuleNode {
 };
 
 TVM_REGISTER_GLOBAL("module.loadfile_examplejson")
-.set_body_typed(ExampleJsonModule::LoadFromFile);
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = ExampleJsonModule::Create(args[0]);
+});
 
 TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
 .set_body_typed(ExampleJsonModule::LoadFromBinary);
