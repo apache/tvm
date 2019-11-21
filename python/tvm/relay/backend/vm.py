@@ -245,6 +245,7 @@ class Executable(object):
         return self.mod
 
     def get_function_params(self, func_name):
+        """Get VM Function parameters"""
         if func_name in self._function_params:
             return self._function_params[func_name]
         arity = self._get_function_arity(func_name)
