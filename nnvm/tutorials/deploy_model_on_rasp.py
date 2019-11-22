@@ -52,7 +52,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   git clone --recursive https://github.com/apache/incubator-tvm
+#   git clone --recursive https://github.com/apache/incubator-tvm tvm
 #   cd tvm
 #   make runtime -j4
 #
