@@ -17,7 +17,6 @@
 """Test Tuning Job"""
 import copy
 import numpy as np
-import random
 import tempfile
 
 from tvm.autotvm.tuner.tuning_job import TuningJob
@@ -30,14 +29,13 @@ class MockTuner:
 
 
 def test_log_configs():
-    r = random.Random()
-    r.seed(42)
     with tempfile.TemporaryFile("w") as log_file:
         job = TuningJob(
             log_file,
             "llvm",
         )
-        timings = [[r.randint(0, 10) for _ in range(4)] for _ in range(10)]
+        timings = [[1, 4, 2], [5, 1, 3], [8, 3, 2], [9, 7, 8], [3, 7, 6],
+                   [2, 8, 2], [1, 2, 1], [7, 7, 7], [9, 3, 3], [5, 3, 9]]
         avg_timings = np.mean(timings, axis=1)
         min_time = min(avg_timings)
         # Create first workload results

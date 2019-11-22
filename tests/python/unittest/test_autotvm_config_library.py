@@ -21,7 +21,6 @@ import datetime
 import filecmp
 import json
 import os
-import random
 import tempfile
 
 from tvm.autotvm.config_library import ConfigLibrary
@@ -33,23 +32,21 @@ from test_autotvm_common import get_sample_records
 
 
 def get_random_configs(n):
-    records = get_sample_records(n)
+    hard_configs = [
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 141, 126, 115, 'float32'], {'i': 0, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 1]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[1], 0, 0, 1574432749.5476737], 'v': 0.1, 't': [10, 'TunerA', 25]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 45, 217, 17, 'float32'], {'i': 1, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 2]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[2], 0, 1, 1574432749.5476935], 'v': 0.1, 't': [2, 'TunerC', 104]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 120, 14, 102, 'float32'], {'i': 2, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 4]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[3], 0, 2, 1574432749.5477045], 'v': 0.1, 't': [0, 'TunerA', 223]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 215, 113, 230, 'float32'], {'i': 3, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 8]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[4], 0, 3, 1574432749.547714], 'v': 0.1, 't': [10, 'TunerC', 558]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 4, 82, 217, 'float32'], {'i': 4, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 16]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[5], 0, 4, 1574432749.5477228], 'v': 0.1, 't': [9, 'TunerB', 828]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 111, 173, 53, 'float32'], {'i': 5, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 32]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[6], 0, 5, 1574432749.5477316], 'v': 0.1, 't': [5, 'TunerB', 159]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 184, 177, 136, 'float32'], {'i': 6, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 64]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[7], 0, 6, 1574432749.5477402], 'v': 0.1, 't': [1, 'TunerB', 99]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 64, 194, 41, 'float32'], {'i': 7, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 128]], ['tile_x', 'sp', [-1, 1]]]}], 'r': [[8], 0, 7, 1574432749.547748], 'v': 0.1, 't': [0, 'TunerC', 470]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 186, 99, 36, 'float32'], {'i': 8, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 1]], ['tile_x', 'sp', [-1, 2]]]}], 'r': [[9], 0, 8, 1574432749.547757], 'v': 0.1, 't': [8, 'TunerB', 849]},
+        {'i': ['llvm', 'matmul', [128, 128, 128, 'float32'], {}, ['matmul', 149, 41, 120, 'float32'], {'i': 9, 't': '', 'c': None, 'e': [['tile_y', 'sp', [-1, 2]], ['tile_x', 'sp', [-1, 2]]]}], 'r': [[10], 0, 9, 1574432749.5477653], 'v': 0.1, 't': [0, 'TunerC', 233]},
+    ]
     random_configs = []
-    r = random.Random()
-    r.seed(42)
-    for record in records:
-        inp, result = record
-        config = json.loads(encode(inp, result))
-        # Generate random tuning data
-        job_id = r.randint(0, 10)
-        tuner = r.choice(["TunerA", "TunerB", "TunerC"])
-        trials = r.randint(0, 1000)
-        config["t"] = [job_id, tuner, trials]
-        # Generate random workload
-        config["i"][4][1] = r.randint(1, 256)
-        config["i"][4][2] = r.randint(1, 256)
-        config["i"][4][3] = r.randint(1, 256)
-        random_configs.append(config)
+    for i in range(n):
+        random_configs.append(hard_configs[i // 10])
 
     return random_configs
 
@@ -178,8 +175,6 @@ def test_save_job():
     class _MockJob:
         pass
 
-    r = random.Random()
-    r.seed(42)
     with tempfile.TemporaryDirectory() as tmp_config_dir:
         config_library = ConfigLibrary(tmp_config_dir)
         # Make a mock TuningJob object
