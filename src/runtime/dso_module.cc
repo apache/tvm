@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file dso_dll_module.cc
+ * \file dso_module.cc
  * \brief Module to load from dynamic shared library.
  */
 #include <tvm/runtime/module.h>

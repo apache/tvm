@@ -111,7 +111,7 @@ class Module : public ObjectRef {
  *
  * \endcode
  */
-class ModuleNode : public Object {
+class TVM_DLL ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
   virtual ~ModuleNode() {}

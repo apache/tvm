@@ -144,7 +144,12 @@ class Module(ModuleBase):
             else:
                 fcompile = _cc.create_shared
         if self.type_key == "c":
-            kwargs.update({'options': ["-I" + path for path in find_include_path()]})
+            options = []
+            if "options" in kwargs:
+                opts = kwargs["options"]
+                options = opts if isinstance(opts, (list, tuple)) else [opts]
+            opts = options + ["-I" + path for path in find_include_path()]
+            kwargs.update({'options': opts})
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
