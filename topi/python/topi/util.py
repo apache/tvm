@@ -309,6 +309,30 @@ def get_max_power2_factor(n, max_value=None):
     return x
 
 
+def get_powers_of_two_in_range(minimum, maximum):
+    """Returns list of powers of two between
+    minimum and maximum.
+
+    Parameter
+    ---------
+    minimum : int
+              The minimum value. Should be a power of two.
+    maximum : int
+              The maximum value. Should be a power of two.
+
+    Returns
+    -------
+    powers : list(int)
+             List of powers of two between minimum and maximum
+    """
+    powers = []
+    cur_val = maximum
+    while cur_val >= minimum:
+        powers.append(int(cur_val))
+        cur_val = cur_val / 2
+    return powers
+
+
 def get_shape(src_shape, src_layout, dst_layout):
     """Given a source shape, a source layout and a destination layout, infer
     the destination shape.

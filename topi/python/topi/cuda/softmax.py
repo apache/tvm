@@ -20,18 +20,7 @@ import tvm
 from tvm import autotvm
 from .. import generic
 from .injective import schedule_injective_from_existing
-
-def get_possible_num_thread():
-    """Returns list of possible thread counts
-    """
-    min_num_thread = 32
-    max_num_thread = tvm.target.current_target(allow_none=False).max_num_threads
-    possible_num_thread = []
-    cur_num_thread = max_num_thread
-    while cur_num_thread >= min_num_thread:
-        possible_num_thread.append(cur_num_thread)
-        cur_num_thread = cur_num_thread / 2
-    return possible_num_thread 
+from ..util import get_powers_of_two_in_range
 
 @autotvm.register_topi_schedule(generic.schedule_softmax, ["cuda", "gpu"], "direct")
 def schedule_softmax(cfg, outs):
@@ -68,7 +57,8 @@ def schedule_softmax(cfg, outs):
                          Got {0}'.format(op_tag))
 
     # create tuning space
-    cfg.define_knob("num_thread", get_possible_num_thread())
+    possible_num_thread = get_powers_of_two_in_range(32, tvm.target.current_target(allow_none=False).max_num_threads)
+    cfg.define_knob("num_thread", possible_num_thread)
 
     if len(softmax.shape) > 2:
         ops = [max_elem.op, expsum.op, softmax.op]
