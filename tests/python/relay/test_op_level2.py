@@ -895,6 +895,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_nhwc_run()
     test_conv2d_run()
     test_conv2d_winograd()
+    test_conv3d_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
