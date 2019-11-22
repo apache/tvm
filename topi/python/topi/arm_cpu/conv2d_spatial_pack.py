@@ -283,8 +283,11 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
                     kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
                     axis=[ic, kh, kw]), name='conv')
 
+    idiv = tvm.indexdiv
+    imod = tvm.indexmod
     output = tvm.compute(oshape, lambda n, oho, owo, oc:
-                         conv[n][oho//OHI][owo//OWI][oc//OCI][oho%OHI][owo%OWI][oc%OCI],
+                         conv[n][idiv(oho, OHI)][idiv(owo, OWI)][idiv(oc, OCI)]\
+                             [imod(oho, OHI)][imod(owo, OWI)][imod(oc, OCI)],
                          name='output_unpack', tag='spatial_conv_output_NHWC')
     return output
 
@@ -308,10 +311,10 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
     owo, owi = cfg['tile_ow'].apply(s, output, ow)
     s[output].reorder(n, oho, owo, oco, ohi, owi, oci)
     cfg['ann_spatial'].apply(s, output, [ohi, owi, oci], axis_lens=[OHI, OWI, OCI],
-                             max_unroll=32, cfg=cfg)
+                             max_unroll=16, cfg=cfg)
     cfg.define_knob('compat', [0, 1, 2])
     if cfg['compat'].val < 2:
-        compat_axis = [owo, oco][cfg['compat'].val]
+        compat_axis = [owo, oco][cfg['compat'].val] # pylint: disable=R1706
         s[conv].compute_at(s[output], compat_axis)
     paxis = s[output].fuse(n, oho)
     s[output].parallel(paxis)
@@ -323,12 +326,12 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
     cfg['ann_reduce'].apply(s, conv, [kh, kw],
                             axis_lens=[get_const_int(kh.dom.extent),
                                        get_const_int(kw.dom.extent)],
-                            max_unroll=32,
+                            max_unroll=16,
                             cfg=cfg)
     cfg['ann_spatial'].apply(s, conv, [ohi, owi, oci], axis_lens=[OHI, OWI, OCI],
-                             max_unroll=32, cfg=cfg)
+                             max_unroll=16, cfg=cfg)
     if cfg['compat'].val < 2:
-        compat_axis = [owo, oco][cfg['compat'].val]
+        compat_axis = [owo, oco][cfg['compat'].val] # pylint: disable=R1706
         s[kernel_vec].compute_at(s[conv], compat_axis)
         s[data_vec].compute_at(s[conv], compat_axis)
 
