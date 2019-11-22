@@ -60,7 +60,7 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   DevPtr Allocate(size_t size) {
-    size_ = UpperAlignValue(size_, 8);
+    size_ = UpperAlignValue(size_, word_size_);
     CHECK(size_ + size < capacity_)
         << "cannot alloc " << size << " bytes in section with start_addr " <<
         start_addr_.cast_to<void*>();
