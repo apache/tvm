@@ -19,8 +19,8 @@ from collections import OrderedDict
 
 from . import create_micro_lib_base, register_device
 
-DEVICE_ID = 'riscv_spike'
-TOOLCHAIN_PREFIX = 'riscv64-unknown-elf-'
+DEVICE_ID = "riscv_spike"
+TOOLCHAIN_PREFIX = "riscv64-unknown-elf-"
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None):
     """Wrapper over `create_micro_lib_base` to add device-specific options
@@ -68,50 +68,50 @@ def default_config(base_addr, server_addr, server_port):
         MicroTVM config dict for this device
     """
     res = {
-        'device_id': DEVICE_ID,
-        'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': OrderedDict([
-            ('text', {
-                'size': 20480,
+        "device_id": DEVICE_ID,
+        "toolchain_prefix": TOOLCHAIN_PREFIX,
+        "mem_layout": OrderedDict([
+            ("text", {
+                "size": 20480,
             }),
-            ('rodata', {
-                'size': 20480,
+            ("rodata", {
+                "size": 20480,
             }),
-            ('data', {
-                'size': 768,
+            ("data", {
+                "size": 768,
             }),
-            ('bss', {
-                'size': 768,
+            ("bss", {
+                "size": 768,
             }),
-            ('args', {
-                'size': 1280,
+            ("args", {
+                "size": 1280,
             }),
-            ('heap', {
-                'size': 262144,
+            ("heap", {
+                "size": 262144,
             }),
-            ('workspace', {
-                'size': 20480,
+            ("workspace", {
+                "size": 20480,
             }),
-            ('stack', {
-                'size': 80,
+            ("stack", {
+                "size": 80,
             }),
         ]),
-        'word_size': 4,
-        'thumb_mode': True,
-        'comms_method': 'openocd',
-        'server_addr': server_addr,
-        'server_port': server_port,
+        "word_size": 4,
+        "thumb_mode": True,
+        "comms_method": "openocd",
+        "server_addr": server_addr,
+        "server_port": server_port,
     }
     # generate section start addresses from the given `base_addr`
     curr_offset = 0
-    mem_layout = res['mem_layout']
+    mem_layout = res["mem_layout"]
     for region_dict in mem_layout.values():
-        region_dict['start'] = base_addr + curr_offset
-        curr_offset += region_dict['size']
+        region_dict["start"] = base_addr + curr_offset
+        curr_offset += region_dict["size"]
     return res
 
 
 register_device(DEVICE_ID, {
-    'create_micro_lib': create_micro_lib,
-    'default_config': default_config,
+    "create_micro_lib": create_micro_lib,
+    "default_config": default_config,
 })

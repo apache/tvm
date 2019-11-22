@@ -19,8 +19,8 @@ import sys
 
 from . import create_micro_lib_base, register_device
 
-DEVICE_ID = 'host'
-TOOLCHAIN_PREFIX = ''
+DEVICE_ID = "host"
+TOOLCHAIN_PREFIX = ""
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None):
     """Wrapper over `create_micro_lib_base` to add device-specific options
@@ -41,8 +41,8 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
     """
     if options is None:
         options = []
-    if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
-        options += ['-mcmodel=large']
+    if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
+        options += ["-mcmodel=large"]
     create_micro_lib_base(
         obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
 
@@ -56,41 +56,41 @@ def default_config():
         MicroTVM config dict for this device
     """
     return {
-        'device_id': DEVICE_ID,
-        'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': {
-            'text': {
-                'size': 20480,
+        "device_id": DEVICE_ID,
+        "toolchain_prefix": TOOLCHAIN_PREFIX,
+        "mem_layout": {
+            "text": {
+                "size": 20480,
             },
-            'rodata': {
-                'size': 20480,
+            "rodata": {
+                "size": 20480,
             },
-            'data': {
-                'size': 768,
+            "data": {
+                "size": 768,
             },
-            'bss': {
-                'size': 768,
+            "bss": {
+                "size": 768,
             },
-            'args': {
-                'size': 1280,
+            "args": {
+                "size": 1280,
             },
-            'heap': {
-                'size': 262144,
+            "heap": {
+                "size": 262144,
             },
-            'workspace': {
-                'size': 20480,
+            "workspace": {
+                "size": 20480,
             },
-            'stack': {
-                'size': 80,
+            "stack": {
+                "size": 80,
             },
         },
-        'word_size': 8 if sys.maxsize > 2**32 else 4,
-        'thumb_mode': False,
-        'comms_method': 'host',
+        "word_size": 8 if sys.maxsize > 2**32 else 4,
+        "thumb_mode": False,
+        "comms_method": "host",
     }
 
 
 register_device(DEVICE_ID, {
-    'create_micro_lib': create_micro_lib,
-    'default_config': default_config,
+    "create_micro_lib": create_micro_lib,
+    "default_config": default_config,
 })
