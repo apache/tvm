@@ -92,6 +92,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
             topi.nn.bitserial_dense: "topi_nn_bitserial_dense",
             topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
+            topi.nn.softmax: "topi_nn_softmax"
         }
 
         self.topi_to_schedule = {
@@ -109,6 +110,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
             topi.nn.bitserial_dense: [topi.generic.schedule_bitserial_dense],
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
+            topi.nn.softmax: [topi.generic.schedule_softmax]
         }
 
         # function reflection for tracing
@@ -125,6 +127,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nhwc', x),
             topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
             topi.nn.deformable_conv2d_nchw: lambda x: setattr(topi.nn, 'deformable_conv2d_nchw', x),
+            topi.nn.softmax:                lambda x: setattr(topi.nn, 'softmax', x)
         }
 
         self.allow_duplicate = allow_duplicate
@@ -280,6 +283,21 @@ class TaskExtractEnv:
             C = topi.nn.conv2d_NCHWc(*args, **kwargs)
             s = topi.generic.schedule_conv2d_NCHWc([C])
             return s, [A, W, C]
+
+        @register("topi_nn_softmax")
+        def _topi_nn_softmax(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            if len(args) > 1:
+                x, axis = args[:2]
+            else:
+                x = args[0]
+                axis = None
+            C = topi.nn.softmax(*args, **kwargs)
+            s = topi.generic.schedule_softmax([C])
+            if axis is not None:
+                return s, [x, B, C]
+            return s, [x, C]
 
     def reset(self, wanted_topi_funcs):
         """Reset task collections
