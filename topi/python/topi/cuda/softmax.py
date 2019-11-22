@@ -17,15 +17,30 @@
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
 import tvm
+from tvm import autotvm
 from .. import generic
 from .injective import schedule_injective_from_existing
 
-@generic.schedule_softmax.register(["cuda", "gpu"])
-def schedule_softmax(outs):
+def get_possible_num_thread():
+    """Returns list of possible thread counts
+    """
+    min_num_thread = 32
+    max_num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+    possible_num_thread = []
+    cur_num_thread = max_num_thread
+    while cur_num_thread >= min_num_thread:
+        possible_num_thread.append(cur_num_thread)
+        cur_num_thread = cur_num_thread / 2
+    return possible_num_thread 
+
+@autotvm.register_topi_schedule(generic.schedule_softmax, ["cuda", "gpu"], "direct")
+def schedule_softmax(cfg, outs):
     """Schedule for softmax op.
 
     Parameters
     ----------
+    cfg : ConfigSpace
+        AutoTVM tuning space config file.
     outs: Array of Tensor
           The computation graph description of reduce in the format
           of an array of tensors.
@@ -52,13 +67,17 @@ def schedule_softmax(outs):
         raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
                          Got {0}'.format(op_tag))
 
+    # create tuning space
+    cfg.define_knob("num_thread", get_possible_num_thread())
+
     if len(softmax.shape) > 2:
         ops = [max_elem.op, expsum.op, softmax.op]
         if exp != None:
             ops.append(exp.op)
             
         for op in ops:
-            s = schedule_injective_from_existing(s, op.output(0))
+            num_thread = cfg["num_thread"]
+            s = schedule_injective_from_existing(s, op.output(0), num_thread=num_thread)
     else:
         num_thread = 64
         block_x = tvm.thread_axis("blockIdx.x")

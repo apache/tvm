@@ -20,7 +20,7 @@ import tvm
 from .. import generic, util
 
 @generic.schedule_injective_from_existing.register(["cuda", "gpu"])
-def schedule_injective_from_existing(sch, out):
+def schedule_injective_from_existing(sch, out, num_thread=-1):
     """Schedule for injective op from existing schedule.
 
     Parameters
@@ -29,6 +29,10 @@ def schedule_injective_from_existing(sch, out):
          The schedule to update.
     out: Tensor
          The tensor representing the injective op.
+    num_thread: int
+         The number of threads to use for the injective op.
+         If left as default, will use the device's max
+         number of threads.
 
     Returns
     -------
@@ -36,7 +40,9 @@ def schedule_injective_from_existing(sch, out):
          The updated schedule.
     """
     fused = sch[out].fuse(*sch[out].op.axis)
-    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+    if num_thread == -1:
+        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+
     max_block = 256
 
     try:
