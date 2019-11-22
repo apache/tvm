@@ -265,7 +265,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert input_tensors, "input tensors should not be empty"
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 

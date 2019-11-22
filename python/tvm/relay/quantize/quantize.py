@@ -17,14 +17,10 @@
 #pylint: disable=unused-argument
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
-import numpy as np
-
 from . import _quantize
+from ._calibrate import calibrate
 from .. import expr as _expr
-from .. import module as _module
-from .. import analysis as _analysis
 from .. import transform as _transform
-from .. import op as _op
 from ... import make as _make
 from ..base import NodeBase, register_relay_node
 
@@ -78,7 +74,9 @@ class QConfig(NodeBase):
         "dtype_input": "int8",
         "dtype_weight": "int8",
         "dtype_activation": "int32",
+        "calibrate_mode": "global_scale",
         "global_scale": 8.0,
+        "weight_scale": "power2",
         "skip_conv_layers": [0],
         "do_simulation": False,
         "round_for_shift": True,
@@ -143,8 +141,19 @@ def qconfig(**kwargs):
     nbit_dict: dict of QAnnotateKind -> int
         Number of bit for every kind of annotate field.
 
+    calibrate_mode: str
+        The calibration mode. 'global_scale' or 'kl_divergence'.
+        global_scale: use global scale
+        kl_divergence: find scales by kl divergence on the dataset.
+
     global_scale: float
         The global scale for calibration.
+
+    weight_scale: str
+        The way to calculate scales for weights (annotated with QAnnotateKind.WEIGHT).
+        power2: Find the maximum of the absolute value of the tensor, and then round up to power
+        of two.
+        max: Find the maximum of the absolute value of the tensor
 
     skip_conv_layers: list
         Specifying which layers to be skipped. Provide a list of indices
@@ -249,113 +258,6 @@ def annotate():
     return _quantize.QuantizeAnnotate()
 
 
-def collect_stats(graph):
-    """Given an annotated graph, create a profile graph to collect profile data from the
-    calibration dataset. This pass collects simulated_quantize op input into a tuple.
-    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
-    graph.
-
-    Parameters
-    ----------
-    graph: Function
-        The simulation graph after annotation.
-
-    Returns
-    -------
-    ret: Function
-        The profile graph which outputs a tuple of profile data.
-    """
-    return _quantize.CollectStats(graph)
-
-
-def calibrate(graph, mod=None, ctx=None, weight_scales='power2', scales=None):
-    """The calibrate procedure will try to calculate the content of
-    dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
-    operator.
-
-    Parameters
-    ---------
-    graph: Function
-        The simulation graph after annotation.
-
-    mod: tvm.relay.Module
-        The module where calibration happens on.
-
-    ctx: tvm.relay.PassContext
-        The pass context used for calibration.
-
-    weight_scales: 'power2' or 'max'.
-        The way to calculate scales for weights (annotated with QAnnotateKind.WEIGHT).
-        power2: Find the maximum of the absolute value of the tensor, and then round up to power
-        of two.
-        max: Find the maximum of the absolute value of the tensor.
-
-    scales: List[float]
-        Pre-calculated scales for input and activations. Length and the order of elements of the
-        scales list should match the output tuple of the profile graph created by collect_stats.
-
-    Returns
-    -------
-    ret: Function
-        The graph after calibration
-    """
-    def power2_scale(arr):
-        """calculate weight scale with nearest mode-2 scale"""
-        val = np.amax(np.abs(arr.asnumpy()))
-        return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
-
-    def max_scale(arr):
-        """calculate weight scale with maximum absolute value"""
-        val = np.amax(np.abs(arr.asnumpy()))
-        return val
-
-    scale_idx = 0
-
-    cfg = current_qconfig()
-    const_params = {}
-    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
-
-    def visit_func(expr):
-        """Internal visit function"""
-        nonlocal scale_idx
-        if isinstance(expr, _expr.Call) and expr.op == quantize_op:
-            _, ndom_scale, nclip_min, nclip_max = expr.args
-            attrs = expr.attrs
-            kind = attrs.kind
-            nbit = cfg.get_nbit_by_kind(kind)
-
-            valid_bit = nbit - attrs.sign
-            if kind in [QAnnotateKind.WEIGHT]:
-                if all([isinstance(arg, _expr.Constant)
-                        for arg in [ndom_scale, nclip_min, nclip_max]]):
-                    return
-                var = expr.args[0]
-                assert isinstance(var, _expr.Constant)
-                if weight_scales == 'max':
-                    scale = max_scale(var.data)
-                elif weight_scales == 'power2':
-                    scale = power2_scale(var.data)
-                else:
-                    raise ValueError('{} not supported'.format(weight_scales))
-            elif scales is not None:
-                scale = scales[scale_idx]
-                scale_idx += 1
-            else:
-                scale = cfg.global_scale
-
-            def _make_const(val):
-                return _expr.const(val, 'float32')
-
-            valid_range = 2**valid_bit
-            const_params[ndom_scale] = _make_const(scale / valid_range)
-            const_params[nclip_min] = _make_const(- (valid_range - 1))
-            const_params[nclip_max] = _make_const((valid_range - 1))
-
-    _analysis.post_order_visit(graph, visit_func)
-    ret = _expr.bind(graph, const_params)
-    return ret
-
-
 def realize():
     """The realize pass will transform the simulated quantized graph, which
     actually computes with float32, to a real low-bit integer graph. It will
@@ -391,7 +293,7 @@ def _bind_params(func, params):
     return _expr.bind(func, bind_dict)
 
 
-def prerequisite_optimize(graph, params=None):
+def prerequisite_optimize(mod, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
@@ -402,15 +304,13 @@ def prerequisite_optimize(graph, params=None):
                                       _transform.FoldConstant()])
 
     if params:
-        graph = _bind_params(graph, params)
+        mod['main'] = _bind_params(mod['main'], params)
 
-    mod = _module.Module.from_expr(graph)
-    with _transform.PassContext(opt_level=3):
-        mod = optimize(mod)
-    return mod["main"]
+    mod = optimize(mod)
+    return mod
 
 
-def quantize(graph, params=None, dataset=None):
+def quantize(mod, params=None, dataset=None):
     """ The quantization procedure. Before running the three main
     procedure of quantization, "annotate", "calibrate" and "realize"
     , we need to do "SimplifyInference", "FoldScaleAxis", "FoldConstant"
@@ -418,8 +318,8 @@ def quantize(graph, params=None, dataset=None):
 
     Parameters
     ---------
-    graph: Function
-        The original graph.
+    mod: Module
+        The original module.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -433,11 +333,10 @@ def quantize(graph, params=None, dataset=None):
     ret: Function
         The graph after quantization
     """
-    graph = prerequisite_optimize(graph, params)
+    mod = prerequisite_optimize(mod, params)
 
-    mod = _module.Module.from_expr(graph)
-    calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
-                                              name="QuantizeCalibrate")
+    calibrate_pass = _transform.module_pass(calibrate(dataset), opt_level=1,
+                                            name="QuantizeCalibrate")
     quant_passes = [partition(),
                     annotate(),
                     calibrate_pass]
@@ -452,4 +351,4 @@ def quantize(graph, params=None, dataset=None):
         with quantize_context():
             mod = quantize_seq(mod)
 
-    return mod["main"]
+    return mod

@@ -38,6 +38,7 @@ try:
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
 
+from tvm.contrib.download import download_testdata
 import tvm.relay.testing.tf as tf_testing
 from packaging import version as package_version
 
@@ -1133,9 +1134,29 @@ def test_forward_ssd_mobilenet_v1():
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor')
-    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
-                                rtol=1e-5, atol=1e-5)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=2)
+    for i in range(2):
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
+                                    rtol=1e-5, atol=2e-5)
+
+#######################################################################
+# MediaPipe
+# -------------
+
+def test_forward_mediapipe_hand_landmark():
+    """Test MediaPipe 2D hand landmark TF Lite model."""
+    # MediaPipe 2D hand landmark TF
+    tflite_model_file = download_testdata(
+        "https://github.com/google/mediapipe/raw/master/mediapipe/models/hand_landmark.tflite",
+        "hand_landmark.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 256, 256, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input_1', num_output=2)
+    for i in range(2):
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
+                                    rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Main
@@ -1192,6 +1213,7 @@ if __name__ == '__main__':
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
     test_forward_ssd_mobilenet_v1()
+    test_forward_mediapipe_hand_landmark()
 
     # End to End quantized
     test_forward_qnn_inception_v1_net()

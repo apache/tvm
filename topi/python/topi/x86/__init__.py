@@ -25,6 +25,7 @@ from .binary_dense import schedule_binary_dense
 from .nn import *
 from .conv2d_int8 import *
 from .injective import *
+from .reduction import *
 from .pooling import schedule_pool, schedule_adaptive_pool
 from .bitserial_conv2d import schedule_bitserial_conv2d
 from .bitserial_dense import schedule_bitserial_dense

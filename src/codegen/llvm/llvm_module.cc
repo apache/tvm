@@ -91,9 +91,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
 #endif
       pass.run(*m);
@@ -109,9 +113,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
 #endif
       pass.run(*m);
@@ -152,9 +160,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
           CHECK(tm_->addPassesToEmitFile(
               pass, rso, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
               << "Cannot emit target CGFT_AssemblyFile";
-    #else
+    #elif TVM_LLVM_VERSION <= 90
           CHECK(tm_->addPassesToEmitFile(
               pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #else
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, nullptr, llvm::CGFT_AssemblyFile) == 0)
               << "Cannot emit target CGFT_AssemblyFile";
     #endif
           pass.run(*m);

@@ -28,7 +28,7 @@ def test_basic():
     ctx = tvm.cpu()
     if not relay.profiler_vm.enabled():
         return
-    exe = relay.profiler_vm.compile(mod, target, params=params)
+    exe = relay.vm.compile(mod, target, params=params)
     vm = relay.profiler_vm.VirtualMachineProfiler(exe)
     vm.init(ctx)
 

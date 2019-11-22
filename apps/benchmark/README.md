@@ -35,9 +35,9 @@ In general, the performance should also be good.
 
 It is recommended that you run tuning by yourself if you have your customized network or devices.
 Please follow the tutorial for
-[NVIDIA GPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_cuda.html),
-[ARM CPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html),
-[Mobile GPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_mobile_gpu.html).
+[NVIDIA GPU](https://docs.tvm.ai/tutorials/autotvm/tune_conv2d_cuda.html),
+[ARM CPU](https://docs.tvm.ai/tutorials/autotvm/tune_relay_arm.html),
+[Mobile GPU](https://docs.tvm.ai/tutorials/autotvm/tune_relay_mobile_gpu.html).
 
 ### NVIDIA GPU
 
@@ -67,7 +67,7 @@ python3 -m tvm.exec.rpc_tracker
 
 2. Register devices to the tracker
 * For Linux device
-  * Build tvm runtime on your device [Help](https://docs.tvm.ai/tutorials/nnvm/deploy_model_on_rasp.html#build-tvm-runtime-on-device)
+  * Build tvm runtime on your device [Help](https://docs.tvm.ai/tutorials/frontend/deploy_model_on_rasp.html#build-tvm-runtime-on-device)
   * Register your device to tracker by
   ```bash
   python3 -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=[DEVICE_KEY]

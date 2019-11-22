@@ -64,6 +64,16 @@ class Op(Expr):
         """
         _OpSetAttr(self, attr_name, value, plevel)
 
+    def reset_attr(self, attr_name):
+        """Reset attribute about the operator.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name
+        """
+        _OpResetAttr(self, attr_name)
+
 
 def get(op_name):
     """Get the Op for a given name
