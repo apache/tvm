@@ -34,7 +34,9 @@ Tensor = _obj.Tensor
 ADT = _obj.ADT
 
 def _convert(arg, cargs):
-    if isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
+    if isinstance(arg, _obj.Object):
+        cargs.append(arg)
+    elif isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
         cargs.append(_obj.Tensor(arg))
     elif isinstance(arg, (tuple, list)):
         field_args = []
@@ -42,7 +44,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(_obj.tuple_object(field_args))
     else:
-        raise "unsupported type"
+        raise "Unsupported type: %s" % (type(arg))
 
 
 def convert(args):
@@ -57,10 +59,13 @@ class Executable(object):
     """Relay VM executable"""
     def __init__(self, mod):
         self.mod = mod
+        self._function_params = {}
         self._save = self.mod["save"]
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_stats = self.mod["get_stats"]
+        self._get_function_arity = self.mod["get_function_arity"]
+        self._get_function_param_name = self.mod["get_function_param_name"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -239,6 +244,20 @@ class Executable(object):
         """Return the runtime module contained in a virtual machine executable."""
         return self.mod
 
+    def get_function_params(self, func_name):
+        """Get VM Function parameters"""
+        if func_name in self._function_params:
+            return self._function_params[func_name]
+        arity = self._get_function_arity(func_name)
+        assert arity >= 0
+        params = []
+        for i in range(arity):
+            p = self._get_function_param_name(func_name, i)
+            assert p
+            params.append(p)
+        self._function_params[func_name] = params
+        return params
+
 
 class VirtualMachine(object):
     """Relay VM runtime."""
@@ -248,8 +267,10 @@ class VirtualMachine(object):
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
         self.mod = _vm._VirtualMachine(m)
+        self._exec = mod
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
+        self._set_input = self.mod["set_input"]
 
     def init(self, ctx):
         """Initialize the context in the VM.
@@ -262,7 +283,37 @@ class VirtualMachine(object):
         args = [ctx.device_type, ctx.device_id]
         self._init(*args)
 
-    def invoke(self, func_name, *args):
+    def set_input(self, func_name, *args, **kwargs):
+        """Set the input to a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
+        """
+        if kwargs:
+            func_params = self._exec.get_function_params(func_name)
+            new_args = [None] * len(func_params)
+            assert len(args) + len(kwargs) == len(func_params)
+            for k in kwargs:
+                idx = func_params.index(k)
+                new_args[idx] = kwargs[k]
+            idx = 0
+            for i, arg in enumerate(new_args):
+                if arg is None:
+                    new_args[i] = args[idx]
+                    idx += 1
+            args = new_args
+        cargs = convert(args)
+        self._set_input(func_name, *cargs)
+
+    def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.
 
         Parameters
@@ -273,15 +324,19 @@ class VirtualMachine(object):
         args : list[NDArray] or list[np.ndarray]
             The arguments to the function.
 
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
+
         Returns
         -------
         result : Object
             The output.
         """
-        cargs = convert(args)
-        return self._invoke(func_name, *cargs)
+        if args or kwargs:
+            self.set_input(func_name, *args, **kwargs)
+        return self._invoke(func_name)
 
-    def run(self, *args):
+    def run(self, *args, **kwargs):
         """Run the main function.
 
         Parameters
@@ -289,12 +344,15 @@ class VirtualMachine(object):
         args : list[NDArray] or list[np.ndarray]
             The arguments to the function.
 
+        kwargs: dict of str to NDArray or np.ndarray
+            Named arguments to the function.
+
         Returns
         -------
         result : Object
             The output.
         """
-        return self.invoke("main", *args)
+        return self.invoke("main", *args, **kwargs)
 
 
 def compile(mod, target=None, target_host=None, params=None):

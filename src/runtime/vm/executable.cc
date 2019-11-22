@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <memory>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -67,44 +68,76 @@ PackedFunc Executable::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->Save();
     });
+  } else if (name == "get_function_arity") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      *rv = this->GetFunctionArity(func_name);
+    });
+  } else if (name == "get_function_param_name") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      int index = args[1];
+      *rv = this->GetFunctionParameterName(func_name, index);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc(nullptr);
   }
 }
 
+int Executable::GetFunctionArity(std::string func_name) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return -1;
+  }
+  const auto& func = functions[it->second];
+  return func.params.size();
+}
+
+std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return "";
+  }
+  const auto& func = functions[it->second];
+  if (index > func.params.size()) {
+    LOG(ERROR) << "Invalid parameter index";
+    return "";
+  }
+  return func.params[index];
+}
+
 std::string Executable::GetBytecode() const {
   std::ostringstream oss;
 
-  for (const auto& func : functions) {
+  for (size_t i = 0; i < functions.size(); ++i) {
+    const auto& func = functions[i];
     // Print the header of the function format.
-    oss << "# func name, reg file size, param count, inst count:"
-        << std::endl;
-    oss << func.name << " "
-        << func.register_file_size << " "
-        << func.params.size() << " "
-        << func.instructions.size() << std::endl;
-
-    // Print pramams of a `VMFunction`.
-    oss << "# Parameters: "<< std::endl;
+    oss << "VM Function[" << i << "]: " << func.name << "(";
     for (const auto& param : func.params) {
-      oss << param << " ";
+      oss << param << ", ";
     }
-    oss << std::endl;
+    oss.seekp(-2, std::ios_base::end);
+    oss << ")" << std::endl;
+    oss << "# reg file size = " << func.register_file_size << std::endl;
+    oss << "# instruction count = " << func.instructions.size() << std::endl;
 
     // Print the instructions of a `VMFunction`.
     // The part after ";" is the instruction in text format.
-    oss << "hash, opcode, fields # inst(text):"<< std::endl;
-    for (const auto& instr : func.instructions) {
+    oss << "opcode, fields # inst(text):" << std::endl;
+    for (size_t idx = 0; idx < func.instructions.size(); ++idx) {
+      const auto& instr = func.instructions[idx];
       const auto& serialized_instr = SerializeInstruction(instr);
-      oss << std::hex << "0x" << serialized_instr.Hash() << " "
-          << std::dec << serialized_instr.opcode << " ";
+      oss << std::setw(2) << idx << ": " << serialized_instr.opcode << " ";
       for (auto it : serialized_instr.fields) {
         oss << it << " ";
       }
       oss << "  # " << instr;
       if (oss.str().back() != '\n') oss << std::endl;
     }
+    oss << std::endl;
   }
 
   return oss.str();
