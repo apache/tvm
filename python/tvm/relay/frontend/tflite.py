@@ -658,7 +658,24 @@ class OperatorConverter(object):
         reduce_options.Init(op_options.Bytes, op_options.Pos)
         keep_dims = reduce_options.KeepDims()
 
+        if input_tensor.qnn_params:
+            in_expr = _op.cast(in_expr, "int32")
+
         out = relay_op(in_expr, axis, keep_dims)
+
+        # Finally if the reduce is quantized. Add a requantize at the end.
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+        if output_tensor.qnn_params:
+            out = _qnn.op.requantize(out,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
+
         return out
 
     def _convert_reduce_min(self, op):
