@@ -186,7 +186,7 @@
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright {yyyy} {name of copyright owner}
+   Copyright 2017 by Contributors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -199,35 +199,3 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
-------------------------------------------------------------------------------------
-This product bundles various third-party components under other open source licenses.
-This section summarizes those components and their licenses. See licenses/
-for text of these licenses.
-
-
-Apache Software Foundation License 2.0
---------------------------------------
-
-3rdparty/bfloat16/bfloat16.cc
-3rdparty/dlpack
-3rdparty/dmlc-core
-3rdparty/picojson
-
-
-MIT License
------------
-
-3rdparty/cma
-
-
-LLVM Release License
---------------------
-
-3rdparty/compiler-rt/builtin_fp16.h
-
-
-The Unlicense
--------------
-
-3rdparty/rang
