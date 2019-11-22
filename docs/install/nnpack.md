@@ -85,7 +85,7 @@ sudo ldconfig
 ## Build TVM with NNPACK support
 
 ```bash
-git clone --recursive https://github.com/apache/incubator-tvm
+git clone --recursive https://github.com/apache/incubator-tvm tvm
 ```
 
 * Set `set(USE_NNPACK ON)` in config.cmake.
