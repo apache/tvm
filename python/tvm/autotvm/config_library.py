@@ -28,10 +28,6 @@ from . import record
 from .task import ApplyHistoryBest
 
 
-class ConfigLibraryException(Exception):
-    pass
-
-
 class ConfigLibrary:
     """A library to store auto-tuning results for any number of targets/workloads.
 
