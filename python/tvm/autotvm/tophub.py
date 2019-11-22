@@ -218,12 +218,14 @@ def load_reference_log(backend, model, workload_name, template_key):
         if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
             find = False
             inp = None
+            counts = dict()
             for inp, res in load_from_file(filename):
+                counts[inp.target.model] = counts.get(inp.target.model, 0) + 1
                 if model == inp.target.model:
                     find = True
                     break
-            if not find and inp:
-                model = inp.target.model
+            if not find and len(counts) > 0:
+                model = max(counts.items(), key=lambda k: k[1])[0]
 
             for inp, res in load_from_file(filename):
                 if (model == inp.target.model and inp.task.workload[0] == workload_name and
