@@ -15,14 +15,13 @@
     specific language governing permissions and limitations
     under the License.
 
-====================================
-**Benchmark Performance Log Format**
-====================================
+********************************
+Benchmark Performance Log Format
+********************************
 This page details schema v0.1 for a unified benchmark log format. This schema will allow easier cross-references with other frameworks/runs, experiment reproduction, data for nightly perf regression, and the separation of logging/visualization efforts.
 
-*******************
 Log Format Overview
-*******************
+~~~~~~~~~~~~~~~~~~~
 
 +-----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------+------------------------------------------------------------------------------+
 | header                | examples                                                                                                                                                   | category     | notes/justification                                                          |
@@ -58,7 +57,12 @@ Log Format Overview
 | statistics            | {“runtime\_ms\_mean”: 12,“runtime\_ms\_std”: 12}                                                                                                           | statistics   | all metrics, other optional fields ``binary_size``, ``compile_time``, etc.   |
 +-----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------+------------------------------------------------------------------------------+
 
-Sample data: 
+
+Storage format
+~~~~~~~~~~~~~~
+Currently we're prototyping benchmark data as JSON objects for extensibility and convenience, especially in early versions of the schema. However, as we scale up benchmark aggregation and stabilize parameters, we anticipate switching to a columnar format, such as Arrow or Parquet.
+
+Here is sample data encoded as JSON:
 
 ::
 
@@ -74,7 +78,7 @@ Sample data:
       "engine_version":"3486e2c2cf9d0c7c20853f3503528444ce824c1b",
       "hardware_config":"mbp13inch2019",
       "metadata":{
-         "docker_tag":"gcr.io/octomizer/aquarium/bd666860528b06b09ceac8dd17f3f635"
+         "docker_tag":"tvmai/ci-gpu:v0.53"
       },   
       "schema_version":0.1,
       "software_config":{
