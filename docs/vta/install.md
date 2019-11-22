@@ -103,7 +103,7 @@ Because the direct board-to-computer connection prevents the board from directly
 mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 cd <mountpoint>
-git clone --recursive https://github.com/apache/incubator-tvm
+git clone --recursive https://github.com/apache/incubator-tvm tvm
 # When finished, you can leave the moutpoint and unmount the directory
 cd ~
 sudo umount <mountpoint>
