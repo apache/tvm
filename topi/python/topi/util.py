@@ -317,6 +317,7 @@ def get_powers_of_two_in_range(minimum, maximum):
     ---------
     minimum : int
               The minimum value. Should be a power of two.
+
     maximum : int
               The maximum value. Should be a power of two.
 

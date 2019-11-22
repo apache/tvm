@@ -30,6 +30,7 @@ def schedule_softmax(cfg, outs):
     ----------
     cfg : ConfigSpace
         AutoTVM tuning space config file.
+
     outs: Array of Tensor
           The computation graph description of reduce in the format
           of an array of tensors.
