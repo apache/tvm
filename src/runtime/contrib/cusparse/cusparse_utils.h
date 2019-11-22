@@ -94,6 +94,9 @@ inline void CallCsrmm(TVMArgs args, TVMRetValue *ret, TCsrmmOp op) {
   CHECK_EQ(ElementStride(A), 1);
   CHECK_EQ(ElementStride(C), 1);
 
+  // B cannot be transposed due to lack of shape info in current interface
+  CHECK_EQ(transb, false);
+
   // C can never be transposed.
   CHECK(!IsInPlaceTransposed(C));
 
