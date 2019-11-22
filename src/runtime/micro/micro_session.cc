@@ -213,7 +213,6 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
   if (thumb_mode_) {
     func_ptr += 1;
   }
-  TargetVal func_dev_addr = { .val64 = func_ptr.value() };
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
@@ -229,11 +228,11 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
                             reinterpret_cast<void*>(encoder.data()),
                             encoder.buf_size());
 
-  TargetVal arg_values_dev_addr = { .val64 = std::get<0>(arg_field_addrs).value() };
-  TargetVal arg_type_codes_dev_addr = { .val64 = std::get<1>(arg_field_addrs).value() };
+  TargetVal arg_values_dev_addr = std::get<0>(arg_field_addrs).value();
+  TargetVal arg_type_codes_dev_addr = std::get<1>(arg_field_addrs).value();
   if (word_size_ == 4) {
     UTVMTask32 task = {
-      .func = func_dev_addr.val32,
+      .func = func_ptr.value().val32,
       .arg_values = arg_values_dev_addr.val32,
       .arg_type_codes = arg_type_codes_dev_addr.val32,
       .num_args = args.num_args,
@@ -242,7 +241,7 @@ double MicroSession::PushToExecQueue(DevPtr func_ptr, const TVMArgs& args) {
     DevSymbolWrite(runtime_symbol_map_, "utvm_task", task);
   } else if (word_size_ == 8) {
     UTVMTask64 task = {
-      .func = func_dev_addr.val64,
+      .func = func_ptr.value().val64,
       .arg_values = arg_values_dev_addr.val64,
       .arg_type_codes = arg_type_codes_dev_addr.val64,
       .num_args = args.num_args,

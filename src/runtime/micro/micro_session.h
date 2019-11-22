@@ -204,8 +204,6 @@ class MicroSession : public ModuleNode {
   /*! \brief array of memory allocators for each on-device section */
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
-  /*! \brief total number of bytes of usable device memory for this session */
-  size_t memory_size_;
   /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
   /*! \brief whether the target device requires a thumb-mode bit on function addresses
