@@ -42,9 +42,9 @@ def matmul(lhs, rhs_data, rhs_indices, rhs_indptr, transb=False):
     C : Tensor
         The result tensor.
     """
-    assert (transb == False),\
-           "transb needs to be False, i.e., rhs matrix cannot be transposed\
-            due to lack of shape info in current interface"
+    # transb needs to be False, i.e., rhs matrix cannot be transposed
+    # due to lack of shape info in current interface"
+    assert transb is False
 
     n = lhs.shape[0]
     m = rhs_indptr.shape[0]-1
