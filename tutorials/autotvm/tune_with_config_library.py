@@ -103,13 +103,14 @@ def tune_kernels(tasks,
             # Create tuner
             tuner_obj = GridSearchTuner(task)
 
-            # Do tuning - the tuner will skip tasks which have already been tuned
-            # in the config library
+            # Do tuning - by setting allow_skipping=True, the tuner will skip
+            # tasks which have already been tuned in the config library
             tuner_obj.tune(
                 n_trial=n_trial,
                 early_stopping=n_trial,
                 measure_option=measure_option,
                 callbacks=[autotvm.callback.progress_bar(n_trial, prefix=prefix)],
+                allow_skipping=True,
             )
 
 ########################################################################

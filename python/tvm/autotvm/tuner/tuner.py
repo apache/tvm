@@ -87,7 +87,12 @@ class Tuner(object):
             result for measurement
         """
 
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), allow_skipping=True):
+    def tune(self,
+             n_trial,
+             measure_option,
+             early_stopping=None,
+             callbacks=(),
+             allow_skipping=False):
         """Begin tuning
 
         Parameters
