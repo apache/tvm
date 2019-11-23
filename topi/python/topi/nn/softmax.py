@@ -20,6 +20,7 @@ from __future__ import absolute_import
 import tvm
 
 @tvm.tag_scope(tag='softmax_output')
+@tvm.target.generic_func
 def softmax(x, axis=-1):
     """Perform softmax activation on the data
 
