@@ -111,15 +111,15 @@ class Module : public ObjectRef {
  *
  * \endcode
  */
-class TVM_DLL ModuleNode : public Object {
+class ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
-  virtual ~ModuleNode() {}
+  TVM_DLL virtual ~ModuleNode() {}
   /*!
    * \return The per module type key.
    * \note This key is used to for serializing custom modules.
    */
-  virtual const char* type_key() const = 0;
+  TVM_DLL virtual const char* type_key() const = 0;
   /*!
    * \brief Get a PackedFunc from module.
    *
@@ -137,7 +137,7 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(
+  TVM_DLL virtual PackedFunc GetFunction(
       const std::string& name,
       const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
