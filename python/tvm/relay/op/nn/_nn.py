@@ -278,6 +278,26 @@ def schedule_conv2d_transpose(attrs, outs, target):
         return topi.generic.schedule_conv2d_transpose_nchw(outs)
 
 
+@reg.register_legalize("nn.conv2d_transpose")
+def legalize_conv2d_transpose(attrs, inputs, types):
+    """Legalize conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
+
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # bias_add
