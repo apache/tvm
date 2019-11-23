@@ -37,7 +37,8 @@ from vta.testing import simulator
 
 Workload = namedtuple("Conv2DTransposeWorkload",
                       ['batch', 'height', 'width', 'in_filter', 'out_filter',
-                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride',
+                       'o_hpad', 'o_wpad'])
 
 # Get batch info from env
 env = vta.get_env()
@@ -45,9 +46,9 @@ env = vta.get_env()
 # DCGAN workloads
 dcgan_wklds = [
     # dcgan
-    ('DCGAN.CT1', Workload(env.BATCH,  4,  4, 1024, 512, 4, 4, 1, 1, 2, 2)),
-    ('DCGAN.CT2', Workload(env.BATCH,  8,  8,  512, 256, 4, 4, 1, 1, 2, 2)),
-    ('DCGAN.CT3', Workload(env.BATCH, 16, 16,  256, 128, 4, 4, 1, 1, 2, 2)),
+    ('DCGAN.CT1', Workload(env.BATCH,  4,  4, 1024, 512, 4, 4, 1, 1, 2, 2, 0, 0)),
+    ('DCGAN.CT2', Workload(env.BATCH,  8,  8,  512, 256, 4, 4, 1, 1, 2, 2, 0, 0)),
+    ('DCGAN.CT3', Workload(env.BATCH, 16, 16,  256, 128, 4, 4, 1, 1, 2, 2, 0, 0)),
 ]
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
@@ -102,7 +103,8 @@ def run_conv2d_transpose(env, remote, wl, target,
     # Define base computation schedule
     with target:
         res = topi.nn.conv2d_transpose_nchw(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), env.acc_dtype)
+            data, kernel, (wl.hstride, wl.wstride),
+            (wl.hpad, wl.wpad), env.acc_dtype, (wl.o_hpad, wl.o_wpad))
         res = topi.right_shift(res, env.WGT_WIDTH)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
@@ -112,8 +114,8 @@ def run_conv2d_transpose(env, remote, wl, target,
             print(vta.lower(s, [data, kernel, res], simple_mode=True))
 
     # Derive number of ops
-    fout_height = (wl.height - 1) * wl.hstride - 2 * wl.hpad + wl.hkernel
-    fout_width = (wl.width - 1) * wl.wstride - 2 * wl.wpad + wl.wkernel
+    fout_height = (wl.height - 1) * wl.hstride - 2 * wl.hpad + wl.hkernel + wl.o_hpad
+    fout_width = (wl.width - 1) * wl.wstride - 2 * wl.wpad + wl.wkernel + wl.o_wpad
     num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
 
     # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
