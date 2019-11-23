@@ -144,16 +144,17 @@ TVM_REGISTER_API("relay.op.nn._make.conv3d")
 
 
 RELAY_REGISTER_OP("nn.conv3d")
-.describe(R"code(3D convolution layer (e.g. spatial convolution over images).
+.describe(R"code(3D convolution layer (e.g. convolution over 3D image data,
+like Magnetic Resonance Imaging (MRI) data in medicine).
 
 This layer creates a convolution kernel that is convolved
 with the layer input to produce a tensor of outputs.
 
-- **data**: This depends on the `layout` parameter. Input is 4D array of shape
-            (batch_size, in_channels, height, width) if `layout` is `NCHW`.
-- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
-- **out**:  This depends on the `layout` parameter. Output is 4D array of shape
-            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+- **data**: This depends on the `layout` parameter. Input is 5D array of shape
+            (batch_size, in_channels, depth, height, width) if `layout` is `NCDHW`.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1], kernel_size[2])
+- **out**:  This depends on the `layout` parameter. Output is 5D array of shape
+            (batch_size, channels, out_depth, out_height, out_width) if `layout` is `NCDHW`.
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type<Conv3DAttrs>()
