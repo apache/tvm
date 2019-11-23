@@ -40,6 +40,8 @@ def _declaration_conv2d_transpose(cfg,
     c_o, _, k_h, k_w, t_co, t_ci = kshape
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
+    # FIXME(tmoreau89): currently IR pass breaks when output padding != (0,0)
+    assert opad_h == 0 and opad_w == 0, "VTA does not support output padding for now"
 
     # derive padding parameters
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (k_h, k_w))
