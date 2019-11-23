@@ -311,8 +311,8 @@ def test_conv2d_transpose_infer_type():
         (10, 15, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, c, h, w = tvm.var("n"), 10, 10, 12
-    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    n, h, w, c = tvm.var("n"), 10, 10, 12
+    x = relay.var("x", relay.TensorType((n, h, w, c), "float32"))
     w = relay.var("w", relay.TensorType((12, 11, 5, 5), "float32"))
     y = relay.nn.conv2d_transpose(x, w,
                                   output_padding=(1, 1),
@@ -323,7 +323,7 @@ def test_conv2d_transpose_infer_type():
         (n, 15, 15, 11), "float32")
 
 
-def test_conv2d_transpose_run():
+def test_conv2d_transpose_nchw_run():
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
     oshape = (1, 10, 37, 37)
@@ -347,6 +347,33 @@ def test_conv2d_transpose_run():
         op_res1 = intrp1.evaluate(func)(data, kernel)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+
+def test_conv2d_transpose_nhwc_run():
+    dshape_nhwc = (1, 18, 18, 3)
+    kshape_hwoi = (3, 3, 10, 3)
+    oshape_nhwc = (1, 37, 37, 10)
+    x = relay.var("x", shape=dshape_nhwc)
+    w = relay.var("w")
+    # kshape and kernel_layout should have swapped IO.
+    # kshape is HWOI and kernel_layout is HWIO
+    y = relay.nn.conv2d_transpose(x, w,
+                                  channels=10, kernel_size=(3, 3), strides=(2, 2),
+                                  padding=(1, 1), output_padding=(2, 2),
+                                  data_layout="NHWC", kernel_layout="HWIO")
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape_nhwc).astype(dtype)
+    kernel = np.random.uniform(size=kshape_hwoi).astype(dtype)
+    # use true kshape layout here - HWOI
+    c_np = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI', 2, 1)
+    d_np = np.zeros(shape=oshape_nhwc)
+    d_np[:,0:c_np.shape[1],0:c_np.shape[2],:] = c_np
+    ref_res = d_np
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 def test_upsampling_infer_type():
@@ -819,7 +846,8 @@ if __name__ == "__main__":
     test_pad_infer_type()
     test_pad_run()
     test_conv2d_transpose_infer_type()
-    test_conv2d_transpose_run()
+    test_conv2d_transpose_nchw_run()
+    test_conv2d_transpose_nhwc_run()
     test_conv2d_run()
     test_conv2d_winograd()
     test_bitserial_conv2d_infer_type()
