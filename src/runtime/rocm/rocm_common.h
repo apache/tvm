@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rocm_common.h
  * \brief Common utilities for ROCM
  */

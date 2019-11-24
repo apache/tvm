@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Lower TVM related buildin intrinsics such as packed call.
  * \file lower_tvm_buildin.cc
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */

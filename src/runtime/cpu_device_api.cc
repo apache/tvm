@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file cpu_device_api.cc
  */
 #include <dmlc/logging.h>

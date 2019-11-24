@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file codegen_x86_64.cc
  * \brief X86-64 specific code generator
  */

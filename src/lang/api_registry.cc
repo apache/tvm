@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file api_registry.cc
  */
 #include <tvm/api_registry.h>

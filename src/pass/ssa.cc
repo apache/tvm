@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  SSA related checks and pass.
  *
  *  SSA requires each varaible to be only defined once.

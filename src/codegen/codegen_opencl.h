@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_opencl.h
  * \brief Generate OpenCL device code.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
