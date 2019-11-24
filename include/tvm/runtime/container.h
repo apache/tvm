@@ -262,11 +262,22 @@ class ADT : public ObjectRef {
   size_t size() const { return operator->()->size(); }
 
   /*!
-   * \brief construct a tuple object.
+   * \brief
    * \param fields The fields of the tuple.
    * \return The constructed tuple type.
    */
-  static ADT Tuple(std::vector<ObjectRef> fields) { return ADT(0, fields); }
+
+  /*!
+   * \brief Construct a tuple object.
+   *
+   * \tparam Args Type params of tuple feilds.
+   * \param args Tuple fields.
+   * \return ADT The tuple object reference.
+   */
+  template <typename... Args>
+  static ADT Tuple(Args&&... args) {
+    return ADT(0, std::forward<Args>(args)...);
+  }
 
   TVM_DEFINE_OBJECT_REF_METHODS(ADT, ObjectRef, ADTObj);
 };
