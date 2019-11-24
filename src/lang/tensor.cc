@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tensor.cc
  */
 #include <tvm/tensor.h>

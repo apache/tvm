@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file unsafe_select_rewrite.cc
  * \brief Rewrite uinsafe select expression.
  */

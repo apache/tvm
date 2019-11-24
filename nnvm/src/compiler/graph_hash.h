@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_hash.h
  * \brief The graph hashing function.
  */

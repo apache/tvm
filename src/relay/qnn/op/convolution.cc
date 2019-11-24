@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/convolution.cc
  * \brief Property def of qnn convolution operator.
  */

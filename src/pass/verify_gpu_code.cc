@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file verify_gpu_code.cc
  * \brief Verify the correctness of a GPU IR.
  *        It will check the whether the amount of memory usage or the number of threads

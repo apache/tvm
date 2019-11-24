@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file error_reporter.h
  * \brief The set of errors raised by Relay.
  */

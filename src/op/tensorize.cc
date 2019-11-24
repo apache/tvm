@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Logics related to tensorize, used by ComputeOpNode.
  * \file tensorize.cc
  */

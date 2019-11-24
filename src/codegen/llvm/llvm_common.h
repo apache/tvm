@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file llvm_common.h
  * \brief Common utilities for llvm initialization.
  */

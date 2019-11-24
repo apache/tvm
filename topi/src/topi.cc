@@ -18,7 +18,6 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
 * \brief Registration of TVM operators and schedules
 * \file topi.cc
 */

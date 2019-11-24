@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file ir_mutator.cc
  */
 #include <tvm/ir.h>

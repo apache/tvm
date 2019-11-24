@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application to demonstrate function conversion to packed function.
  * \file pack_func_convert.go
  */

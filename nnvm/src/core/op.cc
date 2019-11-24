@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file op.cc
  * \brief Support for operator registry.
  */

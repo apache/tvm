@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file forward_rewrite.cc
  * \brief Apply rewriting rules in a forward fashion.

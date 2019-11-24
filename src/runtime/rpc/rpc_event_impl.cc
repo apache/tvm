@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_event_impl.cc
  * \brief Event based RPC server implementation.
  */

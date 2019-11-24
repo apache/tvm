@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file storage_access.h
  * \brief Common data structure for storage access analysis.
  */

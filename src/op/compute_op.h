@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Helper utilities to implement compute_op.
  * \file compute_op.h
  */

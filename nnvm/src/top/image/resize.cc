@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file resize.cc
  * \brief Property def of resize operators.
  */

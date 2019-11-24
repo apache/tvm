@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \brief Infer TensorCore metadata from tensor intrinsic.
  * \file tensorcore_fragment.cc
  */

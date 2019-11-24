@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file verify_compact_buffer.cc
  * \brief Verify if there was any compact buffer bound to a statement.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nnvm/compiler/packed_func_ext.h
  * \brief Extension to enable packed functionn for nnvm types
  */

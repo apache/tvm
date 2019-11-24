@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Logics related to cross thread reduction, used by ComputeOpNode.
  * \file cross_thread_reduction.cc
  */

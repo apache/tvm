@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file bitserial.cc
  * \brief Property def of bitserial operators.
  */

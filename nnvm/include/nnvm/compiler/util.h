@@ -18,7 +18,6 @@
  */
 
 /*!
-*  Copyright (c) 2016 by Contributors
 * \file nnvm/compiler/util.h
 * \brief Utility functions for nnvm compiler
 */

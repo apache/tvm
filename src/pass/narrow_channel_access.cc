@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file narrow_channel_access.cc
  * \brief Narrow channel access to a smaller range
  *  when possible by bringing it to the internal loop.

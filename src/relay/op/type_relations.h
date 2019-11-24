@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/op/type_relations.h
  * \brief A set of utilities and common functionality
  * for type relations.

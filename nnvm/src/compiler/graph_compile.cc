@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file graph_compile.cc
  * \brief Compile a graph. It lowers the graph nodes into low level IR.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file de_duplicate.cc
  * \brief Use a fresh Id for every Var to make the result well-formed.

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file resize.h
  */
 #ifndef NNVM_TOP_IMAGE_RESIZE_H_

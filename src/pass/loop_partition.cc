@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file loop_partition.cc
  */
 #include <tvm/ir.h>

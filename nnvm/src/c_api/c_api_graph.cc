@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file c_api_graph.cc
  * \brief C API related to Graph IR.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_stack_vm.h
  * \brief Codegen into Simple Stack VM.
  */

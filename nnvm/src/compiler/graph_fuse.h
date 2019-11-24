@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file graph_fuse.h
  * \brief Definition of structs used by graph fusion
 */

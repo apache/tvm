@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nn.cc
  * \brief Property def of nn operators.
  */

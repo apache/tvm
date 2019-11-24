@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file combine_parallel_conv2d.cc
  * \brief Combine parallel 2d convolutions into a single convolution.

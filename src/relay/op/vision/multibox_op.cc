@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file multibox_op.cc
  * \brief Multibox related operators
  */

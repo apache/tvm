@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Reorg op constructions
  * \file vision/reorg.h
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/concatenate.cc
  * \brief QNN concatenate operator. It concatenates quantized input tensors along a given axis.
  */

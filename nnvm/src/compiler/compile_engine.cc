@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file compile_engine.cc
  * \brief The compile engine.
  */
