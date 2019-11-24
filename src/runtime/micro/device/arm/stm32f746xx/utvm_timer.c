@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file utvm_timer.c
  * \brief uTVM timer API definitions for STM32F746XX-series boards
  */

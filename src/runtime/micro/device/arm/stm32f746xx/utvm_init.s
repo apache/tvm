@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file utvm_init.s
  * \brief uTVM init definition for STM32F746XX-series boards
  */
