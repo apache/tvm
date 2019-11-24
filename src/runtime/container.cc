@@ -31,7 +31,7 @@
 namespace tvm {
 namespace runtime {
 
-ADT ADT::Tuple(std::vector<ObjectRef> fields) { return ADT(0, fields); }
+ADT ADT::Tuple(std::vector<ObjectRef> fields) {  }
 
 }  // namespace runtime
 }  // namespace tvm

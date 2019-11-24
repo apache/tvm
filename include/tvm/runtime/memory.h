@@ -68,7 +68,7 @@ class ObjAllocatorBase {
   inline ObjectPtr<T> make_object(Args&&... args) {
     using Handler = typename Derived::template Handler<T>;
     static_assert(std::is_base_of<Object, T>::value,
-                  "make_node can only be used to create NodeBase");
+                  "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this),
                          std::forward<Args>(args)...);
     ptr->type_index_ = T::RuntimeTypeIndex();
@@ -87,7 +87,7 @@ class ObjAllocatorBase {
   inline ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
     using Handler = typename Derived::template Handler<ArrayType, ElemType>;
     static_assert(std::is_base_of<Object, ArrayType>::value,
-                  "make_node can only be used to create NodeBase");
+                  "make_inplace_array can only be used to create Object");
     ArrayType* ptr = Handler::New(static_cast<Derived*>(this),
                                   num_elems,
                                   std::forward<Args>(args)...);

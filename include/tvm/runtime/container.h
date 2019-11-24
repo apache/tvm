@@ -49,34 +49,6 @@ template <typename ArrayType, typename ElemType>
 class InplaceArrayBase {
  public:
   /*!
-   * \brief Replace the elements in the array.
-   *
-   * \tparam Iterator Iterator type of the array.
-   * \param begin The begin iterator.
-   * \param end The end iterator.
-   */
-  template <typename Iterator>
-  void assign(Iterator begin, Iterator end) {
-    size_t num_elems = std::distance(begin, end);
-    auto it = begin;
-    for (size_t i = 0; i < num_elems; ++i) {
-      void* field_ptr = AddressOf(i);
-      new (field_ptr) ElemType(*it);
-      ++it;
-    }
-    Self()->set_size(num_elems);
-  }
-
-  /*!
-   * \brief Replace the elements in the array.
-   *
-   * \param init The initializer list of elements.
-   */
-  void assign(std::initializer_list<ElemType> init) {
-    assign(init.begin(), init.end());
-  }
-
-  /*!
    * \brief Access element at index
    * \param idx The index of the element.
    * \return Const reference to ElemType at the index.
@@ -92,32 +64,10 @@ class InplaceArrayBase {
    * \param idx The index of the element.
    * \return Reference to ElemType at the index.
    */
-  ElemType& operator[](size_t idx) { return this->operator[](idx); }
-
-  /*!
-   * \brief Push a value to the end of the array.
-   *
-   * \param val The value to be added.
-   */
-  void push_back(const ElemType& val) {
+  ElemType& operator[](size_t idx) {
     size_t size = Self()->size();
-    CHECK_LT(size, Self()->capacity());
-    (*this)[size] = val;
-    Self()->set_size(size + 1);
-  }
-
-  /*!
-   * \brief Construct a value in the end of the array.
-   *
-   * \tparam Args Type parameters of the arguments.
-   * \param args Arguments used to construct the new value.
-   */
-  template <typename... Args>
-  void emplace_back(Args&&... args) {
-    size_t size = Self()->size();
-    CHECK_LT(size, Self()->capacity());
-    EmplaceInit(size, std::forward<Args>(args)...);
-    Self()->set_size(size + 1);
+    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
+    return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
   /*!
@@ -143,18 +93,16 @@ class InplaceArrayBase {
    */
   template <typename... Args>
   void EmplaceInit(size_t idx, Args&&... args) {
-    size_t size = Self()->size();
-    CHECK_LT(size, Self()->capacity()) << "InplaceArray out of capacity\n";
-    void* field_ptr = AddressOf(size);
+    CHECK_LT(idx, Self()->capacity()) << "InplaceArray out of capacity\n";
+    void* field_ptr = AddressOf(idx);
     new (field_ptr) ElemType(std::forward<Args>(args)...);
-    Self()->set_size(size + 1);
   }
 
  private:
   /*!
    * \brief If the ElemType is Plain Old Data.
    */
-  inline bool IsPOD() const {
+  bool IsPOD() const {
     return std::is_standard_layout<ElemType>::value &&
            std::is_trivial<ElemType>::value;
   }
@@ -192,14 +140,30 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   // The fields of the structure follows directly in memory.
 
   /*!
-   * \brief The number of elements in the array.
+   * \brief Initialize the elements in the array.
+   *
+   * \tparam Iterator Iterator type of the array.
+   * \param begin The begin iterator.
+   * \param end The end iterator.
    */
-  inline size_t size() const { return size_; }
+  template <typename Iterator>
+  void Init(Iterator begin, Iterator end) {
+    size_t num_elems = std::distance(begin, end);
+    auto it = begin;
+    for (size_t i = 0; i < num_elems; ++i) {
+      InplaceArrayBase::EmplaceInit(i, *it++);
+    }
+  }
 
   /*!
-   * \brief Set the number of elements in the array.
+   * \brief The number of elements the array can hold.
    */
-  inline void set_size(size_t v) { size_ = v; }
+  size_t capacity() const { return size_; }
+
+  /*!
+   * \brief The number of elements in the array.
+   */
+  size_t size() const { return size_; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
@@ -230,7 +194,8 @@ class ADT : public ObjectRef {
     size_t num_elems = std::distance(begin, end);
     auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
     ptr->tag_ = tag;
-    ptr->assign(begin, end);
+    ptr->size_ = num_elems;
+    ptr->Init(begin, end);
     data_ = std::move(ptr);
   }
 
@@ -248,7 +213,7 @@ class ADT : public ObjectRef {
    * \param fields The fields of the tuple.
    * \return The constructed tuple type.
    */
-  static ADT Tuple(std::vector<ObjectRef> fields);
+  static ADT Tuple(std::vector<ObjectRef> fields) { return ADT(0, fields); }
 
   TVM_DEFINE_OBJECT_REF_METHODS(ADT, ObjectRef, ADTObj);
 };
