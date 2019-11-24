@@ -48,7 +48,7 @@ namespace runtime {
  *
  * \code
  * // Example usage of the template to define a simple array wrapper
- * class ArrayObj : public InplaceArrayBase<ArrayObj, ObjectRef> {
+ * class ArrayObj : public InplaceArrayBase<ArrayObj, Elem> {
  * public:
  *  // Wrap EmplaceInit to initialize the elements
  *  template <typename Iterator>
