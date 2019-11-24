@@ -59,17 +59,15 @@ TVM_REGISTER_GLOBAL("_vmobj.GetTensorData")
 TVM_REGISTER_GLOBAL("_vmobj.GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  *rv = static_cast<int64_t>(cell->tag_);
+  const auto& adt = Downcast<ADT>(obj);
+  *rv = static_cast<int64_t>(adt.tag());
 });
 
 TVM_REGISTER_GLOBAL("_vmobj.GetADTNumberOfFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  *rv = static_cast<int64_t>(cell->size_);
+  const auto& adt = Downcast<ADT>(obj);
+  *rv = static_cast<int64_t>(adt.size());
 });
 
 
@@ -77,10 +75,9 @@ TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  CHECK_LT(idx, cell->size_);
-  *rv = (*cell)[idx];
+  const auto& adt = Downcast<ADT>(obj);
+  CHECK_LT(idx, adt.size());
+  *rv = adt[idx];
 });
 
 TVM_REGISTER_GLOBAL("_vmobj.Tensor")

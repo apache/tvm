@@ -246,6 +246,13 @@ class ADT : public ObjectRef {
   }
 
   /*!
+   * \brief Return the number of fields.
+   */
+  size_t size() const {
+    return this->as<ADTObj>()->size();
+  }
+
+  /*!
    * \brief construct a tuple object.
    * \param fields The fields of the tuple.
    * \return The constructed tuple type.
