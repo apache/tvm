@@ -131,16 +131,22 @@ FMT_MAP = {
     "rs" : header_cstyle,
     "md" : header_mdstyle,
     "cmake" : header_pystyle,
+    "mk" : header_pystyle,
     "rst" : header_rststyle,
     "gradle" : header_groovystyle,
-    "xml": header_mdstyle,
     "tcl": header_pystyle,
+    "xml": header_mdstyle,
+    "storyboard": header_mdstyle,
+    "pbxproj": header_cstyle,
+    "plist": header_mdstyle,
+    "xcworkspacedata": header_mdstyle,
+    "html": header_mdstyle,
 }
 
 
 def copyright_line(line):
     # Following two items are intentionally break apart
-    # so that the copyright detector won't detect the file itself.
+    # so that the copyright detector won"t detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
         return True
     if (line.find("Copyright") != -1 and
@@ -176,10 +182,14 @@ def add_header(fname, header):
         skipline = False
         ext = os.path.splitext(fname)[1][1:]
 
-        if ext == 'sh' and lines[0][:2] == '#!':
+        if lines[0][:2] == "#!":
             skipline = True
-        elif ext == 'xml' and lines[0][:2] == '<?':
+        elif lines[0][:2] == "<?":
             skipline = True
+        elif lines[0].startswith("<html>"):
+            skipline = True
+        elif lines[0].startswith("// !$"):
+            skipline =True
 
         if skipline:
             outfile.write(lines[0])
@@ -210,8 +220,8 @@ def main(args):
         suffix = fname.split(".")[-1]
         if suffix in FMT_MAP:
             add_header(fname, FMT_MAP[suffix])
-        elif os.path.basename(fname) == 'gradle.properties':
-            add_header(fname, FMT_MAP['h'])
+        elif os.path.basename(fname) == "gradle.properties":
+            add_header(fname, FMT_MAP["h"])
         else:
             print("Cannot handle %s ..." % fname)
 
