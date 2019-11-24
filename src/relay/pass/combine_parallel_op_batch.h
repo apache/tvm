@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file combine_parallel_op_batch.cc
  * \brief Combine parallel ops into a single batch op.
  */

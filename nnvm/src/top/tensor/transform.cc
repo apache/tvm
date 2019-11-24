@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file transform.cc
  * \brief Injective transformation of shape or type.
  */

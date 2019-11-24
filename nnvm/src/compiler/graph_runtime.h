@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file graph_runtime.h
  * \brief Interface code with TVM graph runtime.
 */

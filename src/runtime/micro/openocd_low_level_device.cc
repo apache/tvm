@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file openocd_low_level_device.cc
  */
 #include <sstream>

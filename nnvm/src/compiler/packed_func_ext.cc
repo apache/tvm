@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file packed_func_ext.cc
  * \brief Registeration of extension type.
  */

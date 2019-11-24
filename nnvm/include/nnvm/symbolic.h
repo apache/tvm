@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/symbolic.h
  * \brief Symbolic graph construction API
  *

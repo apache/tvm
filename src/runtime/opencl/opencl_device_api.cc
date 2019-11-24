@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opencl_device_api.cc
  */
 #include <tvm/runtime/registry.h>

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file driver.h
  * \brief Driver interface that is used by runtime.
  *

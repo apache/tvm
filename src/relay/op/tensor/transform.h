@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/op/tensor/transform.h
  * \brief Transform op attributes that can be shared among Relay and its dialects.
  */

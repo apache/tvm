@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_session.cc
  * \brief RPC session for remote function call.
  */

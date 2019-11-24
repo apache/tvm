@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule.h
  * \brief Utility to generate intrinsic rules
  */

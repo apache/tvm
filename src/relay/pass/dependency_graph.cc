@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file tvm/relay/pass/dependency_graph.cc
  * \brief
  */

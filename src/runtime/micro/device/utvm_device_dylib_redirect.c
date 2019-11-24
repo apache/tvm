@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file utvm_device_dylib_redirect.cc
  * \brief uTVM dynamic linking stubs
  *

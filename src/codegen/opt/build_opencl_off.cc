@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  *  Optional module when build opencl is switched to off
  */
 #include "../codegen_source_base.h"

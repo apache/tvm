@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/graph_mem_alloca.cc
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.

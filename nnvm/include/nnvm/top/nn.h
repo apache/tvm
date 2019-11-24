@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nnvm/top/nn.h
  * \brief Auxiliary param for tensor primitive.
  */

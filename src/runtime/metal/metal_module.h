@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file metal_module.h
  * \brief Execution handling of Metal kernels
  */

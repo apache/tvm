@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file ecall_registry.h
  * \brief The global registry of packed functions available via ecall_packed_func.
  */

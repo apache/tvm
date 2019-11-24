@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file feature_visitor.cc
  * \brief Base class for feature extractor.
  *        These features are used for machine learning cost model

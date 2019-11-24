@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \brief Helper utilities to implement hybrid_op.
  * \file hybrid_op.h
  */

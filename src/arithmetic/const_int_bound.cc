@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/const_int_bound.cc
  */
 #include <tvm/arithmetic.h>

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file split_pipeline.cc
  * \brief Split statement into pipeline stage modules.
  */

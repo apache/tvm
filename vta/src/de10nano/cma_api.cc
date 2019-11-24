@@ -25,7 +25,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file cma_api.cc
  * \brief Application layer implementation for contigous memory allocation.
  */

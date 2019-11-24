@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file bounds_checker.cc
  */
 // Instrument checkers for out of the bounds access.

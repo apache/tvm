@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_fuse.cc
  * \brief Fuse the operators together.
  */

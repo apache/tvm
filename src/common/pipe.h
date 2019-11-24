@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file pipe.h
  * \brief Platform independent pipe, used for IPC.
  */

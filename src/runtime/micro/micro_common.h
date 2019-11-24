@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file micro_common.h
  */
 #ifndef TVM_RUNTIME_MICRO_MICRO_COMMON_H_
