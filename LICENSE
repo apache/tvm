@@ -214,10 +214,16 @@ Apache Software Foundation License 2.0
 3rdparty/dmlc-core
 
 
-BSD License
------------
+BSD 2-clause License
+--------------------
 
 3rdparty/picojson
+3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
+
+
+BSD 2-clause License + zlib License
+-----------------------------------
+
 3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
 
 
@@ -225,7 +231,6 @@ MIT License
 -----------
 
 3rdparty/cma
-vta/src/de10nano/cma_api.cc
 3rdparty/compiler-rt/builtin_fp16.h
 
 
