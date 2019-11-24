@@ -215,8 +215,9 @@ def main():
         report += "------Found %d files that has ASF header with copyright message----\n" % len(asf_copyright_list)
         report += "--- Files with ASF header do not need Copyright lines.\n"
         report += "--- Contributors retain copyright to their contribution by default.\n"
+        report += "--- If a file comes with a different license, consider put it under the 3rdparty folder instead.\n"
         report += "---\n"
-        report += "--- Use the following steps to remove the copyright lines\n"
+        report += "--- You can use the following steps to remove the copyright lines\n"
         report += "--- Create file_list.txt in your text editor\n"
         report += "--- Copy paste the above content in file-list into file_list.txt\n"
         report += "--- python3 tests/lint/add_asf_header.py file_list.txt\n"
