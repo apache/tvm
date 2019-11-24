@@ -123,10 +123,10 @@ class InplaceArrayBase {
    * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
-    // Check the size and alignment of ArrayType respects ElemType's alignment
-    // requirement
     static_assert(alignof(ArrayType) % alignof(ElemType) == 0 &&
-                  sizeof(ArrayType) % alignof(ElemType) == 0);
+                      sizeof(ArrayType) % alignof(ElemType) == 0,
+                  "The size and alignment of ArrayType should respect "
+                  "ElemType's alignment.");
 
     size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
@@ -170,6 +170,11 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
    */
   size_t size() const { return size_; }
 
+  /*!
+   * \brief Return the ADT tag.
+   */
+  size_t tag() const { return tag_; }
+
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
@@ -212,6 +217,33 @@ class ADT : public ObjectRef {
    */
   ADT(uint32_t tag, std::initializer_list<ObjectRef> init)
       : ADT(tag, init.begin(), init.end()){};
+
+  /*!
+   * \brief Access element at index.
+   *
+   * \param idx The array index
+   * \return const ObjectRef
+   */
+  const ObjectRef operator[](size_t idx) const {
+    return this->as<ADTObj>()->operator[](idx);
+  }
+
+  /*!
+   * \brief Access element at index.
+   *
+   * \param idx The array index
+   * \return const ObjectRef
+   */
+  ObjectRef operator[](size_t idx) {
+    return this->as<ADTObj>()->operator[](idx);
+  }
+
+  /*!
+   * \brief Return the ADT tag.
+   */
+  size_t tag() const {
+    return this->as<ADTObj>()->tag();
+  }
 
   /*!
    * \brief construct a tuple object.

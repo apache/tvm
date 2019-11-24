@@ -926,23 +926,16 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetField: {
         auto object = ReadRegister(instr.object);
-        const auto* tuple = object.as<ADTObj>();
-        CHECK(tuple != nullptr)
-            << "Object is not data type object, register " << instr.object << ", Object tag "
-            << object->type_index();
-        auto field = (*tuple)[instr.field_index];
+        const auto& tuple = Downcast<ADT>(object);
+        auto field = tuple[instr.field_index];
         WriteRegister(instr.dst, field);
         pc_++;
         goto main_loop;
       }
       case Opcode::GetTag: {
         auto object = ReadRegister(instr.get_tag.object);
-        const auto* data = object.as<ADTObj>();
-        CHECK(data != nullptr)
-            << "Object is not data type object, register "
-            << instr.get_tag.object << ", Object tag "
-            << object->type_index();
-        auto tag = data->tag_;
+        const auto& adt = Downcast<ADT>(object);
+        auto tag = adt.tag();
         auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
         WriteRegister(instr.dst, Tensor(tag_tensor));
