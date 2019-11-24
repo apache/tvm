@@ -74,7 +74,8 @@ class InplaceArrayBase {
    * \brief Destroy the Inplace Array Base object
    */
   ~InplaceArrayBase() {
-    if (!IsPOD()) {
+    if (!(std::is_standard_layout<ElemType>::value &&
+          std::is_trivial<ElemType>::value)) {
       size_t size = Self()->size();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
@@ -99,14 +100,6 @@ class InplaceArrayBase {
   }
 
  private:
-  /*!
-   * \brief If the ElemType is Plain Old Data.
-   */
-  bool IsPOD() const {
-    return std::is_standard_layout<ElemType>::value &&
-           std::is_trivial<ElemType>::value;
-  }
-
   /*!
    * \brief Return the self object for the array.
    *
@@ -145,22 +138,6 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   // The fields of the structure follows directly in memory.
 
   /*!
-   * \brief Initialize the elements in the array.
-   *
-   * \tparam Iterator Iterator type of the array.
-   * \param begin The begin iterator.
-   * \param end The end iterator.
-   */
-  template <typename Iterator>
-  void Init(Iterator begin, Iterator end) {
-    size_t num_elems = std::distance(begin, end);
-    auto it = begin;
-    for (size_t i = 0; i < num_elems; ++i) {
-      InplaceArrayBase::EmplaceInit(i, *it++);
-    }
-  }
-
-  /*!
    * \brief The number of elements the array can hold.
    */
   size_t capacity() const { return size_; }
@@ -178,6 +155,25 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
+
+ private:
+  /*!
+   * \brief Initialize the elements in the array.
+   *
+   * \tparam Iterator Iterator type of the array.
+   * \param begin The begin iterator.
+   * \param end The end iterator.
+   */
+  template <typename Iterator>
+  void Init(Iterator begin, Iterator end) {
+    size_t num_elems = std::distance(begin, end);
+    auto it = begin;
+    for (size_t i = 0; i < num_elems; ++i) {
+      InplaceArrayBase::EmplaceInit(i, *it++);
+    }
+  }
+
+  friend class ADT;
 };
 
 /*! \brief reference to algebraic data type objects. */
@@ -225,7 +221,7 @@ class ADT : public ObjectRef {
    * \return const ObjectRef
    */
   const ObjectRef operator[](size_t idx) const {
-    return this->as<ADTObj>()->operator[](idx);
+    return operator->()->operator[](idx);
   }
 
   /*!
@@ -235,22 +231,18 @@ class ADT : public ObjectRef {
    * \return const ObjectRef
    */
   ObjectRef operator[](size_t idx) {
-    return this->as<ADTObj>()->operator[](idx);
+    return operator->()->operator[](idx);
   }
 
   /*!
    * \brief Return the ADT tag.
    */
-  size_t tag() const {
-    return this->as<ADTObj>()->tag();
-  }
+  size_t tag() const { return operator->()->tag(); }
 
   /*!
    * \brief Return the number of fields.
    */
-  size_t size() const {
-    return this->as<ADTObj>()->size();
-  }
+  size_t size() const { return operator->()->size(); }
 
   /*!
    * \brief construct a tuple object.
