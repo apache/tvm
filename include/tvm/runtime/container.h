@@ -123,6 +123,11 @@ class InplaceArrayBase {
    * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
+    // Check the size and alignment of ArrayType respects ElemType's alignment
+    // requirement
+    static_assert(alignof(ArrayType) % alignof(ElemType) == 0 &&
+                  sizeof(ArrayType) % alignof(ElemType) == 0);
+
     size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
     char* data_start = reinterpret_cast<char*>(self) + kDataStart;
