@@ -262,12 +262,6 @@ class ADT : public ObjectRef {
   size_t size() const { return operator->()->size(); }
 
   /*!
-   * \brief
-   * \param fields The fields of the tuple.
-   * \return The constructed tuple type.
-   */
-
-  /*!
    * \brief Construct a tuple object.
    *
    * \tparam Args Type params of tuple feilds.

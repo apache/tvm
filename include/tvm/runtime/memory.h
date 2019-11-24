@@ -85,7 +85,7 @@ class ObjAllocatorBase {
    */
   template<typename ArrayType, typename ElemType, typename... Args>
   inline ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
-    using Handler = typename Derived::template Handler<ArrayType, ElemType>;
+    using Handler = typename Derived::template ArrayHandler<ArrayType, ElemType>;
     static_assert(std::is_base_of<Object, ArrayType>::value,
                   "make_inplace_array can only be used to create Object");
     ArrayType* ptr = Handler::New(static_cast<Derived*>(this),
@@ -144,19 +144,15 @@ class SimpleObjAllocator :
       delete reinterpret_cast<StorageType*>(tptr);
     }
   };
-};
 
-// Array allocator that uses new/delete.
-class ArrayObjAllocator :
-      public ObjAllocatorBase<ArrayObjAllocator> {
- public:
+  // Array handler that uses new/delete.
   template<typename ArrayType, typename ElemType>
-  class Handler {
+  class ArrayHandler {
    public:
     using StorageType = typename std::aligned_union<sizeof(ArrayType), ArrayType, ElemType>::type;
 
     template<typename... Args>
-    static ArrayType* New(ArrayObjAllocator*, size_t num_elems, Args&&... args) {
+    static ArrayType* New(SimpleObjAllocator*, size_t num_elems, Args&&... args) {
       // NOTE: the first argument is not needed for ArrayObjAllocator
       // It is reserved for special allocators that needs to recycle
       // the object to itself (e.g. in the case of object pool).
@@ -205,7 +201,7 @@ inline ObjectPtr<T> make_object(Args&&... args) {
 
 template<typename ArrayType, typename ElemType, typename... Args>
 inline ObjectPtr<ArrayType> make_inplace_array_object(size_t num_elems, Args&&... args) {
-  return ArrayObjAllocator().make_inplace_array<ArrayType, ElemType>(
+  return SimpleObjAllocator().make_inplace_array<ArrayType, ElemType>(
     num_elems, std::forward<Args>(args)...);
 }
 
