@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file make_api.cc Build API function.
  */
 #include <tvm/ir_pass.h>

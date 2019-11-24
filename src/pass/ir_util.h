@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file ir_util.h
  * \brief Helper functions to construct and compose IR nodes.
  */

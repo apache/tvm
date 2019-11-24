@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file buffer.cc
  */
 #include <tvm/buffer.h>

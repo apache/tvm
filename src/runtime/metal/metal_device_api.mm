@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file metal_device_api.mm
  */
 #include <tvm/runtime/registry.h>

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file verify_memory.cc
  * \brief Pass to check if memory accesses are legal.
  */

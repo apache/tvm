@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_cuda.cc
  * \brief CUDA intrinsic rules.
  */

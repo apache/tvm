@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file codegen_source_base.h
  * \brief Common utilities to source code in text form.
  */
