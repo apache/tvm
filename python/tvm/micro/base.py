@@ -138,11 +138,11 @@ class Session:
         Raises error if not supported.
         """
         if not sys.platform.startswith("linux"):
-            raise RuntimeError("MicroTVM is currently only supported on Linux")
+            raise RuntimeError("MicroTVM is currently only supported on Linux hosts")
         # TODO(weberlo): Add 32-bit support.
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
-            raise RuntimeError("MicroTVM is currently only supported on 64-bit platforms")
+            raise RuntimeError("MicroTVM is currently only supported on 64-bit host platforms")
 
     def __enter__(self):
         self._enter()

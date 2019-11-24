@@ -302,11 +302,7 @@ struct TVMArray32 {
       byte_offset(byte_offset.val32),
       pad2(0) { }
 
-  /*!
-   * \brief The opaque data pointer points to the allocated data.
-   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
-   *  This pointer is always aligns to 256 bytes as in CUDA.
-   */
+  /*! \brief opaque pointer to the allocated data */
   uint32_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
@@ -349,11 +345,8 @@ struct TVMArray64 {
       shape(shape.val64),
       strides(strides.val64),
       byte_offset(byte_offset.val64) { }
-  /*!
-   * \brief The opaque data pointer points to the allocated data.
-   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
-   *  This pointer is always aligns to 256 bytes as in CUDA.
-   */
+
+  /*! \brief opaque pointer to the allocated data */
   uint64_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
