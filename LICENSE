@@ -224,7 +224,7 @@ BSD 2-clause License
 BSD 2-clause License + zlib License
 -----------------------------------
 
-3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
+3rdparty/dmlc-core/include/dmlc/blockingconcurrentqueue.h
 
 
 MIT License
