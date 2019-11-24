@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_llvm.h
  * \brief Common base class for generating into LLVM IR
  */

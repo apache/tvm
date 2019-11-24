@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Broadcast op constructions
  * \file topi/broadcast.h
  */

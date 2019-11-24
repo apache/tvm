@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */

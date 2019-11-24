@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/remove_unused_funcs.cc
  * \brief Remove unused global relay functions in a relay module.
  */

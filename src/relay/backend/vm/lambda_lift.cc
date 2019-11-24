@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/lambda_lift.cc
  * \brief Lift all local functions into global functions.
  */

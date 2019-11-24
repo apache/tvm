@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors.
  * \file tvm/relay/pass/dependency_graph.h
  * \brief create a dependency graph.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file codegen_spirv.cc
  * \brief Generate SPIRV block
  */

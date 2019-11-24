@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file External random functions for tensor.
  */
 #include <tvm/runtime/registry.h>

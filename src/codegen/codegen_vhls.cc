@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file codegen_vhls.cc
  */
 #include <tvm/build_module.h>

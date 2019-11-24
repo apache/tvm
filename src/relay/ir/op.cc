@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/op.cc
  * \brief Resolve incomplete types to complete types.
  */

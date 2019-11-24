@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Dense op constructions
  * \file nn/dense.h
  */

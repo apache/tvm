@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_deep_compare.cc
  * \brief Deep compare two graph structure
  */

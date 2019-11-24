@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/quantize.cc
  * \brief QNN dequantize operator. Dequantize operator converts from quantized
  * domain to unquantized domain.

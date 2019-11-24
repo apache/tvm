@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/ir/pattern_functor.cc
  * \brief Implementations of visitors and mutators for ADT patterns.
  */

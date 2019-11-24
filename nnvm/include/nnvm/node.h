@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/node.h
  * \brief Graph node data structure.
  */

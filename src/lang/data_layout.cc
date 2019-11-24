@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */

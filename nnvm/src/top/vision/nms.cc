@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nms.cc
  * \brief Property def of SSD non-maximum suppression operator.
  */

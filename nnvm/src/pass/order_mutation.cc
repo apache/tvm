@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file order_mutation.cc
  * \brief Add control flow dependencies between nodes
  *  To correctly order mutation and read to resolve

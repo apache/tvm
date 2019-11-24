@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file ir_builder.h
  * \brief Utility for building SPIRV code block
  */

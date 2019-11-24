@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/inline_primitives.cc
  * \brief Ensure that primitives only appear in the call position.
  */

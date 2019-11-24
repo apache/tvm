@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_cuda.h
  * \brief Utility to generate cuda code
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file place_device.cc
  * \brief Inference the device of each operator given known information.
  *  Insert a copy node automatically when there is a cross device.

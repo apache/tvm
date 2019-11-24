@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tensor_core.cc
  */
 // IR Passes for TensorCore CodeGen

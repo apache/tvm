@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sparse.cc
  * \brief Property def of nn.sparse_dense operator.
  */

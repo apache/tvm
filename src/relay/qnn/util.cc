@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/util.cc
  * \brief Utility functions for QNN.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file channel.cc
  */
 #include <tvm/channel.h>
