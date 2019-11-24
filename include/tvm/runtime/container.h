@@ -42,8 +42,35 @@ namespace runtime {
  *        layout is ArrayType + [ElemType]. The alignment of ArrayType
  *        and ElemType is handled by the memory allocator.
  *
- * \tparam ArrayType
- * \tparam ElemType
+ * \tparam ArrayType The array header type, contains object specific metadata.
+ * \tparam ElemType The type of objects stored in the array right after
+ * ArrayType.
+ *
+ * \code
+ * // Example usage of the template to define a simple array wrapper
+ * class ArrayObj : public InplaceArrayBase<ArrayObj, ObjectRef> {
+ * public:
+ *  // Wrap EmplaceInit to initialize the elements
+ *  template <typename Iterator>
+ *  void Init(Iterator begin, Iterator end) {
+ *   size_t num_elems = std::distance(begin, end);
+ *   auto it = begin;
+ *   for (size_t i = 0; i < num_elems; ++i) {
+ *     InplaceArrayBase::EmplaceInit(i, *it++);
+ *   }
+ *  }
+ * }
+ *
+ * void test_function() {
+ *   vector<Elem> fields;
+ *   auto ptr = make_inplace_array_object<ArrayObj, Elem>(fields.size());
+ *   ptr->Init(fields.begin(), fields.end());
+ *
+ *   // Access the 0th element in the array.
+ *   assert(ptr->operator[](0) == fields[0]);
+ * }
+ *
+ * \endcode
  */
 template <typename ArrayType, typename ElemType>
 class InplaceArrayBase {
@@ -138,17 +165,17 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   // The fields of the structure follows directly in memory.
 
   /*!
-   * \brief The number of elements the array can hold.
+   * \return The number of elements the array can hold.
    */
   size_t capacity() const { return size_; }
 
   /*!
-   * \brief The number of elements in the array.
+   * \return The number of elements in the array.
    */
   size_t size() const { return size_; }
 
   /*!
-   * \brief Return the ADT tag.
+   * \return Return the ADT tag.
    */
   size_t tag() const { return tag_; }
 
@@ -220,17 +247,7 @@ class ADT : public ObjectRef {
    * \param idx The array index
    * \return const ObjectRef
    */
-  const ObjectRef operator[](size_t idx) const {
-    return operator->()->operator[](idx);
-  }
-
-  /*!
-   * \brief Access element at index.
-   *
-   * \param idx The array index
-   * \return const ObjectRef
-   */
-  ObjectRef operator[](size_t idx) {
+  const ObjectRef& operator[](size_t idx) const {
     return operator->()->operator[](idx);
   }
 
