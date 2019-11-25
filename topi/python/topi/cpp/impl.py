@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI for C++ TOPI ops and schedules"""
+"""Load Lib for C++ TOPI ops and schedules"""
 import sys
 import os
 import ctypes
-from imp import new_module as _new_module
+
 from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
 
@@ -42,27 +42,3 @@ def _load_lib():
 _LIB, _LIB_NAME = _load_lib()
 
 _init_api_prefix("topi.cpp", "topi")
-
-def _create_module(name):
-    fullname = __name__ + "." + name
-    mod = _new_module(fullname)
-    sys.modules[fullname] = mod
-    return mod
-
-# pylint: disable-msg=C0103
-nn = _create_module("nn")
-_init_api_prefix("topi.cpp.nn", "topi.nn")
-generic = _create_module("generic")
-_init_api_prefix("topi.cpp.generic", "topi.generic")
-cuda = _create_module("cuda")
-_init_api_prefix("topi.cpp.cuda", "topi.cuda")
-rocm = _create_module("rocm")
-_init_api_prefix("topi.cpp.rocm", "topi.rocm")
-x86 = _create_module("x86")
-_init_api_prefix("topi.cpp.x86", "topi.x86")
-vision = _create_module("vision")
-_init_api_prefix("topi.cpp.vision", "topi.vision")
-yolo = _create_module("vision.yolo")
-_init_api_prefix("topi.cpp.vision.yolo", "topi.vision.yolo")
-image = _create_module("image")
-_init_api_prefix("topi.cpp.image", "topi.image")

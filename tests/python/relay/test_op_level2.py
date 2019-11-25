@@ -22,6 +22,7 @@ from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
+from tvm.contrib import util
 import topi.testing
 
 def run_infer_type(expr):
@@ -134,6 +135,46 @@ def test_conv2d_run():
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+    def compile_test_conv2d_arm_cpu(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1),
+                        groups=1,
+                        dilation=(1, 1),
+                        **attrs):
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv2d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        mod = tvm.relay.Module()
+        mod["main"] = func
+
+        test_schedule='{"i": ["llvm -device=arm_cpu", "topi_nn_depthwise_conv2d_nchw", \
+                        [["TENSOR", [1, 512, 32, 32], "float32"], \
+                        ["TENSOR", [512, 1, 3, 3], "float32"], \
+                        [1, 1], [1, 1], [1, 1], "float32"], {}, \
+                        ["depthwise_conv2d_nchw", [1, 512, 32, 32, "float32"], \
+                        [512, 1, 3, 3, "float32"], [1, 1], [1, 1], [1, 1], "float32"], \
+                        {"i": 743640, "t": "contrib_spatial_pack", "c": null, \
+                        "e": [["tile_co", "sp", [512, 1]], ["tile_oh", "sp", [8, 1]], \
+                        ["tile_ow", "sp", [1, 8]], \
+                        ["reorder_0", "re", [0, 1, 2, 3, 4, 5, 8, 6, 7]], \
+                        ["reorder_1", "re", [0, 1, 2, 3, 6, 4, 5]], \
+                        ["ann_reduce", "an", ["unroll", "none"]], \
+                        ["ann_spatial", "an", ["unroll", "unroll", "vec"]], \
+                        ["data_pad_inline", "ot", 4], ["data_vec_inline", "ot", 1], \
+                        ["conv_inline", "ot", 0]]}], "r": [[0.0002933163], \
+                        0, 3.1976189613342285, 1570811630.6058347], "v": 0.1}'
+        temp = util.tempdir()
+        with open(temp.relpath("temp.log"), "w") as log_file:
+            log_file.write(test_schedule)
+        with autotvm.apply_history_best(temp.relpath("temp.log")):
+            with relay.build_config(opt_level=3):
+                print('Compiling...')
+                graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
+
     # depthwise conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
@@ -141,6 +182,13 @@ def test_conv2d_run():
                     padding=(1, 1), channels=32, groups=32, kernel_size=(3 ,3),
                     fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
                         x, w, (1, 1), "SAME"))
+
+    # depthwise conv2d for arm_cpu
+    dshape = (1, 512, 32, 32)
+    kshape = (512, 1, 3, 3)
+    compile_test_conv2d_arm_cpu("float32", "float32", 1, dshape, kshape,
+                                padding=(1, 1), channels=512, 
+                                groups=512, kernel_size=(3 ,3))
 
     # CUDA is disabled for 'direct' schedule:
     # https://github.com/apache/incubator-tvm/pull/3070#issuecomment-486597553
