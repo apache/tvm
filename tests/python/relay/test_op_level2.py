@@ -158,7 +158,7 @@ def test_conv2d_run():
                         ["depthwise_conv2d_nchw", [1, 512, 32, 32, "float32"], \
                         [512, 1, 3, 3, "float32"], [1, 1], [1, 1], [1, 1], "float32"], \
                         {"i": 743640, "t": "contrib_spatial_pack", "c": null, \
-                        "e": [["tile_co", "sp", [512, 1]], ["tile_oh", "sp", [8, 1]], \
+                        "e": [["tile_co", "sp", [32, 16]], ["tile_oh", "sp", [8, 1]], \
                         ["tile_ow", "sp", [1, 8]], \
                         ["reorder_0", "re", [0, 1, 2, 3, 4, 5, 8, 6, 7]], \
                         ["reorder_1", "re", [0, 1, 2, 3, 6, 4, 5]], \
