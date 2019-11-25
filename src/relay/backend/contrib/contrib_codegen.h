@@ -25,8 +25,9 @@
 #define TVM_RELAY_BACKEND_CONTRIB_CONTRIB_CODEGEN_H_
 
 #include <tvm/relay/expr.h>
+#include <sstream>
 #include <string>
-#include "../../../runtime/contrib/extern_common.h"
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -37,32 +38,158 @@ class ExternCodegenBase {
   ExternCodegenBase() = default;
 
   /*!
-   * \brief Compile the external library.
-   */
-  virtual void CompileExternLib() = 0;
-
-  /*!
-   * \brief Build the shared library of external ops.
+   * \brief Create a runtime module for the external library. For example, it
+   * could be a CSourceModule that can be directly compiled and linked together
+   * with a DSOModule, or a json style module that emitts a json artifact that
+   * is able to be executed by a customized json runtime.
    *
    * \param ref The subgraph Relay expression/module to be executed using extern ops.
    *
+   * \return A runtime module.
    */
-  virtual void Build(const NodeRef& ref) = 0;
+  virtual runtime::Module CreateExternModule(const NodeRef& ref) = 0;
 
   /*!
    * \brief Split the Relay function name to tokens.
    *
    * \param func The provided function.
+   * \param prefix The prefix of the function name, i.e. dnnl.
    *
    * \return A vector of tokenized function name splitted by "_".
    */
-  std::string GetSubgraphID(const Function& func) const {
+  std::string GetSubgraphID(const Function& func, const std::string& prefix) const {
     const auto name_node =
         FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
     CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
     std::string name = name_node->value;
-    return runtime::contrib::GetSubgraphID(name);
+    return GetSubgraphID(name, prefix);
   }
+
+  /*!
+   * \brief Split the encoded function name to tokens.
+   *
+   * \param the function name string.
+   *
+   * \return a vector of tokenized function name splitted by "_".
+   */
+  std::string GetSubgraphID(const std::string& name, const std::string& prefix) const {
+    std::string temp = name;
+    std::vector<std::string> tokens;
+    std::string delimiter = "_";
+    size_t pos = 0;
+    std::string token;
+    while ((pos = temp.find(delimiter)) != std::string::npos) {
+      token = temp.substr(0, pos);
+      tokens.push_back(token);
+      temp.erase(0, pos + delimiter.length());
+    }
+    tokens.push_back(temp);
+
+    CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
+    CHECK(tokens[0] == prefix)
+        << "Function name: " << name
+        << " does not start with: " << prefix;
+    return tokens[1];
+  }
+};
+
+// A helper class to write the declaration of external functions.
+class ExternSourcePrinter {
+ protected:
+  /*! \brief Print indents using spaces. */
+  void PrintIndents() {
+    for (int i = 0; i < indent_; i++) {
+      code_stream_ << ' ';
+    }
+  }
+
+  /*!
+   * \brief Enter a new scope.
+   */
+  void EnterScope() { indent_ += 2; }
+
+  /*!
+   * \brief Exit a scope.
+   */
+  void ExitScope() {
+    CHECK_GE(indent_, 2U) << "Wrong ident found.";
+    indent_ -= 2;
+  }
+
+  /*!
+   * \brief Gerenate a wrapper for the subgraph that will use external codegen.
+   *
+   * \param func_name The name of wrapper function.
+   * \param arg_cnt The expected number of arguments for the wrapper.
+   *
+   * \code
+   *
+   * // An example code for the wrapper.
+   * extern "C" void foo(TVMValue* value, int* type_code, int nargs) {
+   *   if (nargs != 3) {
+   *     printf("foo expects 3 args, but received %d\n", nargs);
+   *     return 1;
+   *   }
+   *
+   *   DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
+   *   DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
+   *   DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
+   *
+   *   foo_(static_cast<float*>(arg0->data),
+   *        static_cast<float*>(arg1->data),
+   *        static_cast<float*>(out->data));
+   *   return 0;
+   * }
+   *
+   * \endcode
+   */
+  void GenerateSubgraphWrapper(const std::string& func_name, int arg_cnt) {
+    // Print signature
+    code_stream_ << "\n";
+    code_stream_ << "extern \"C\" int " << func_name;
+    code_stream_ << "(TVMValue* value, int* type_code, int nargs) {\n";
+    EnterScope();
+    // Print guard
+    PrintIndents();
+    code_stream_ << "if (nargs != " << arg_cnt << "){\n";
+    EnterScope();
+    PrintIndents();
+    code_stream_ << "printf(\"" << func_name << " expects " << arg_cnt
+                 << "arguments, but received %d\\n\", nargs);\n";
+    PrintIndents();
+    code_stream_ << "return 1;\n";
+    ExitScope();
+    PrintIndents();
+    code_stream_ << "}\n";
+
+    // According to TVM's calling convention, the last one is output.
+    for (int i = 0; i < arg_cnt; i++) {
+      PrintIndents();
+      code_stream_ << "DLTensor* arg" << i << " = "
+                   << "static_cast<DLTensor*>(value[" << i << "].v_handle);\n";
+    }
+    // Generate the call.
+    PrintIndents();
+    code_stream_ << func_name << "_(";
+    for (int i = 0; i < arg_cnt - 1; i++) {
+      code_stream_ << "static_cast<float*>(arg" << i << "->data), ";
+    }
+    if (arg_cnt > 0) {
+      code_stream_ << "static_cast<float*>(arg" << arg_cnt - 1 << "->data)";
+    }
+    code_stream_ << ");\n\n";
+    PrintIndents();
+    code_stream_ << "return 0;\n";
+    ExitScope();
+    code_stream_ << "}";
+  }
+
+  /*! \brief The external function source code stream. */
+  std::ostringstream code_stream_;
+
+ private:
+  /*! \brief Indent of the source code. */
+  int indent_{0};
 };
 
 }  // namespace contrib

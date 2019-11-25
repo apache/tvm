@@ -17,8 +17,8 @@
 
 message(STATUS "Build with relay.backend.contrib")
 
-list(FIND USE_EXTERN "gcc" _gcc_idx)
-if(_gcc_idx GREATER -1)
+list(FIND USE_EXTERN "gcc" GCC_IDX)
+if(GCC_IDX GREATER -1)
     file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
     list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
 
@@ -27,13 +27,15 @@ if(_gcc_idx GREATER -1)
     message(STATUS "Use extern library: GCC")
 endif()
 
-list(FIND USE_EXTERN "dnnl" _dnnl_idx)
-if(_dnnl_idx GREATER -1)
-    file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
-    list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
+list(FIND USE_EXTERN "dnnl" DNNL_IDX)
+if(DNNL_IDX GREATER -1)
+  file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
+  list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
 
-    file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
-    list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
-    message(STATUS "Use extern library: MKLDNN")
+  find_library(EXTERN_LIBRARY_DNNL dnnl)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
+  file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
+  list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
+  message(STATUS "Use extern library: MKLDNN" ${EXTERN_LIBRARY_DNNL})
 endif()
 

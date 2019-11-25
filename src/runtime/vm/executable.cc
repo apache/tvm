@@ -308,17 +308,10 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       // Number of fields = 0
       break;
     }
-    case Opcode::InvokeExternal: {
+    case Opcode::InvokePacked: {
       // Number of fields = 3 + instr.arity
       // Note that arity includes both input arguments and outputs. We will
       // put all the `arity` number of fields in the end for serialization.
-      fields.assign({instr.ext_index, instr.ext_arity, instr.ext_output_size});
-      // Save the args.
-      fields.insert(fields.end(), instr.ext_args, instr.ext_args + instr.ext_arity);
-      break;
-    }
-    case Opcode::InvokePacked: {
-      // Number of fields = 3 + instr.arity
       fields.assign({instr.packed_index, instr.arity, instr.output_size});
       // Save the args.
       fields.insert(fields.end(), instr.packed_args, instr.packed_args + instr.arity);
@@ -563,17 +556,6 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       // Number of fields = 0
       DCHECK(instr.fields.empty());
       return Instruction::Fatal();
-    }
-    case Opcode::InvokeExternal: {
-      // Number of fields = 3 + instr.arity
-      DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
-
-      Index ext_index = instr.fields[0];
-      Index arity = instr.fields[1];
-      Index output_size = instr.fields[2];
-      std::vector<RegName> args = ExtractFields(instr.fields, 3, arity);
-      return Instruction::InvokePacked(ext_index, arity, output_size, args);
     }
     case Opcode::InvokePacked: {
       // Number of fields = 3 + instr.arity

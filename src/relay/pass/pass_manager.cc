@@ -331,9 +331,9 @@ Module FunctionPassNode::operator()(const Module& mod,
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
   NodeRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
-  NodeRef is_extern = FunctionGetAttr(func, attr::kExternal);
+  NodeRef ext = FunctionGetAttr(func, attr::kExternal);
   const ir::IntImm* pval = skip_opt.as<ir::IntImm>();
-  const ir::StringImm* sval = is_extern.as<ir::StringImm>();
+  const ir::StringImm* sval = ext.as<ir::StringImm>();
   return (pval && pval->value != 0) || (sval && sval->value.size() > 0);
 }
 

@@ -27,22 +27,20 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
 
-#include <random>
 #include <fstream>
 #include <sstream>
-#include <streambuf>
 
-#include "../../../../runtime/contrib/dnnl/dnnl.h"
 #include "../contrib_codegen.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 
-// FIXME: This is an experimental implementation. We should implement all utilities
-// and make a base class such as ExternBuilder for users to implement.
-class DnnlBuilder : public ExprVisitor {
+// TODO(@zhiics, @comaniac): This is basic implementation. We should implement
+// all utilities and make a base class for users to implement.
+class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
  public:
   explicit DnnlBuilder(const std::string& id) { this->subgraph_id_ = id; }
 
@@ -57,15 +55,13 @@ class DnnlBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    // Make function declaration
-    std::string decl = "";
-
+    std::ostringstream decl_stream;
+    std::ostringstream buf_stream;
     // Args: ID
-    std::string func_name = "";
     std::vector<std::string> args;
 
     if (IsOp(call, "nn.conv2d")) {
-      func_name = "dnnl_conv2d";
+      decl_stream << "dnnl_conv2d";
       const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
 
       auto ishape = GetShape(call->args[0]->checked_type());
@@ -86,7 +82,7 @@ class DnnlBuilder : public ExprVisitor {
       args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
       args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
     } else if (IsOp(call, "nn.dense")) {
-      func_name = "dnnl_dense";
+      decl_stream << "dnnl_dense";
       auto ishape = GetShape(call->args[0]->checked_type());
       auto wshape = GetShape(call->args[1]->checked_type());
 
@@ -96,7 +92,7 @@ class DnnlBuilder : public ExprVisitor {
       args.push_back(std::to_string(wshape[0]));
 
     } else if (IsOp(call, "nn.relu")) {
-      func_name = "dnnl_relu";
+      decl_stream << "dnnl_relu";
       auto ishape = GetShape(call->args[0]->checked_type());
 
       // Args: N, C, H, W
@@ -104,7 +100,7 @@ class DnnlBuilder : public ExprVisitor {
         args.push_back(std::to_string(s));
       }
     } else if (IsOp(call, "nn.batch_norm")) {
-      func_name = "dnnl_bn";
+      decl_stream << "dnnl_bn";
       const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
       auto ishape = GetShape(call->args[0]->checked_type());
 
@@ -116,7 +112,7 @@ class DnnlBuilder : public ExprVisitor {
       // Args: epilson
       args.push_back(std::to_string(bn_attr->epsilon));
     } else if (IsOp(call, "add")) {
-      func_name = "dnnl_add";
+      decl_stream << "dnnl_add";
       auto ishape = GetShape(call->args[0]->checked_type());
 
       // Args: H, W
@@ -129,15 +125,15 @@ class DnnlBuilder : public ExprVisitor {
 
     // Make function call with input buffers when visiting arguments
     bool first = true;
-    std::string func_call = func_name + "(";
+    decl_stream << "(";
     for (size_t i = 0; i < call->args.size(); ++i) {
       VisitExpr(call->args[i]);
       for (auto out : out_) {
         if (!first) {
-          func_call += ", ";
+          decl_stream << ", ";
         }
         first = false;
-        func_call += out.first;
+        decl_stream << out.first;
       }
     }
 
@@ -151,58 +147,90 @@ class DnnlBuilder : public ExprVisitor {
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    std::string buf_decl =
-        "float* " + out + " = (float*)malloc(4 * " + std::to_string(out_size) + ");";
-    buf_decl_.push_back(buf_decl);
-    func_call += ", " + out;
+    this->PrintIndents();
+    buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
+    buf_decl_.push_back(buf_stream.str());
+    decl_stream << ", " << out;
 
     // Attach attribute arguments
     for (size_t i = 0; i < args.size(); ++i) {
-      func_call += ", " + args[i];
+      decl_stream  << ", " << args[i];
     }
-    func_call += ");";
-    subgraph_body.push_back(func_call);
+    decl_stream << ");";
+    subgraph_body.push_back(decl_stream.str());
 
     // Update output buffer
     out_.clear();
     out_.push_back({out, out_size});
   }
 
-  std::string build() {
-    std::string code = "";
+  std::string jit_dnnl() {
+    // Create the signature. For example, it could be:
+    // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
+    code_stream_ << "extern \"C\" void " << subgraph_id_ << "_(";
 
-    // Write subgraph function declaration
-    code += "extern \"C\" void " + subgraph_id_ + "(DnnlPackedArgs args, float* out) {\n";
-
-    // Unpack inputs
-    for (size_t i = 0; i < subgraph_args_.size(); ++i) {
-      code +=
-          "  float* " + subgraph_args_[i] + " = (float*) args.data[" + std::to_string(i) + "];\n";
+    for (const auto& arg : subgraph_args_) {
+      code_stream_ << "float* " << arg << ", ";
     }
+    code_stream_ << "float* out) {\n";
+    this->EnterScope();
+
     // Function body
     for (auto decl : buf_decl_) {
-      code += "  " + decl + "\n";
+      this->PrintIndents();
+      code_stream_ << decl << "\n";
     }
+    code_stream_ << "\n";
     for (auto stmt : subgraph_body) {
-      code += "  " + stmt + "\n";
+      this->PrintIndents();
+      code_stream_ << stmt << "\n";
     }
 
     // Copy output
-    CHECK(out_.size() == 1) << "Internal error";
-    code += "  memcpy(out, " + out_[0].first + ", 4 *" + std::to_string(out_[0].second) + ");\n";
+    CHECK_EQ(out_.size(), 1U) << "Internal error: only single output is support yet.";
+    this->PrintIndents();
+    code_stream_ << "std::memcpy(out, " << out_[0].first << ", 4 * "
+                 << out_[0].second << ");\n";
 
-    code += "}\n";
-    return code;
+    // Free buffers
+    for (size_t i = 0; i < buf_decl_.size(); i++) {
+      this->PrintIndents();
+      code_stream_ << "std::free(buf_" << i << ");\n";
+    }
+
+    this->ExitScope();
+    code_stream_ << "}\n";
+
+    // Create the wrapper to call the subgraph
+    this->GenerateSubgraphWrapper(subgraph_id_,
+                                  subgraph_args_.size() + 1 /* output */);
+    return code_stream_.str();
   }
 
  private:
-  std::string subgraph_id_ = "";
-  int buf_idx_ = 0;
+  /*! \brief The id of the external dnnl subgraph. */
+  std::string subgraph_id_{""};
+  /*!
+   * \brief The index to track the output buffer. Each kernel will redirect the
+   * output to a buffer that may be consumed by other kernels.
+   */
+  int buf_idx_{0};
+  /*! \brief The arguments used by a wrapped external function. */
   std::vector<std::string> subgraph_args_;
+  /*! \brief statement of the external function. */
   std::vector<std::string> subgraph_body;
+  /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The name of the the outputs. */
   std::vector<std::pair<std::string, int>> out_;
 
+  /*!
+   * \brief Extract the shape from a Relay tensor type.
+   *
+   * \param type The provided type.
+   *
+   * \return The extracted shape in a list.
+   */
   std::vector<int> GetShape(const Type& type) const {
     const auto* ttype = type.as<TensorTypeNode>();
     CHECK(ttype);
@@ -215,7 +243,16 @@ class DnnlBuilder : public ExprVisitor {
     return shape;
   }
 
-  bool IsOp(const CallNode* call, std::string op_name) {
+  /*!
+   * \brief Check if a call has the provided name.
+   *
+   * \param call A Relay call node.
+   * \param op_name The name of the expected call.
+   *
+   * \return true if the call's name is equivalent to the given name. Otherwise,
+   * false.
+   */
+  bool IsOp(const CallNode* call, std::string op_name) const {
     const auto* op_node = call->op.as<OpNode>();
     CHECK(op_node) << "Expects a single op.";
     Op op = GetRef<Op>(op_node);
@@ -223,70 +260,71 @@ class DnnlBuilder : public ExprVisitor {
   }
 };
 
+/*!
+ * \brief The DNNL codegen helper to generate wrapepr function calls of DNNL
+ * libraries. The code is a CSourceModule that can be compiled separately and
+ * linked together with a DSOModule.
+ */
 class DNNLCodegen : public ExternCodegenBase {
  public:
-  std::string GetLibPath() const {
-    return lib_path_;
-  }
-
-  void CreateExternSignature(const Function& func, bool update) {
+  // Create a corresponding external function for the given relay Function.
+  void CreateExternFunction(const Function& func) {
     CHECK(func.defined())
         << "Input error: external codegen expects a Relay function.";
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "DNNL expects a single convolution or dense op";
 
     // Record subgraph ID for runtime invoke.
-    auto sid = GetSubgraphID(func);
+    auto sid = GetSubgraphID(func, "dnnl");
 
-    if (update) {
-      std::random_device rd;
-      std::mt19937 gen(rd());
-      std::uniform_int_distribution<uint64_t> distr;
-      std::stringstream ss;
-      ss << std::hex << distr(gen);
-      std::ifstream lib_file("src/relay/backend/contrib/dnnl/libs.cc");
-      code_.assign((std::istreambuf_iterator<char>(lib_file)),
-                    std::istreambuf_iterator<char>());
-      lib_path_ = "/tmp/relay_dnnl_lib_" + ss.str() + ".so";
-    }
-
-    auto builder = DnnlBuilder(runtime::contrib::kDnnlPrefix + sid);
+    auto builder = DnnlBuilder("dnnl_" + sid);
     builder.VisitExpr(func->body);
-    code_ += builder.build();
+    code_stream_ << builder.jit_dnnl();
   }
 
-  void CompileExternLib() override {
-    std::string code = "echo \'" + code_ + "\'";
-    std::string cmd = "g++ -O2 -Wall -std=c++11 -shared -fPIC -xc++ - -o " + lib_path_ +
-                      " -ldl -lpthread -lm -ldnnl";
-    cmd = code + " | " + cmd;
-    int ret = std::system(cmd.c_str());
-    if (ret < 0) {
-      LOG(FATAL) << "Failed to compile DNNL library. Error code: " << ret;
-    }
-  }
+  /*!
+   * \brief The overridden function that will create a CSourceModule. In order
+   * to compile the generated C source code, users need to specify the paths to
+   * some libraries, including some TVM required and dnnl specific ones. To make
+   * linking simpiler, the DNNL kernels are wrapped in a TVM compatible manner
+   * and are live under include/tvm/runtime/contrib/dnnl folder.
+   *
+   * \param ref A object ref that could be either a Relay function or module.
+   *
+   * \return The runtime module that contains C source code.
+   */
+  runtime::Module CreateExternModule(const NodeRef& ref) {
+    // Create headers
+    code_stream_ << "#include <cstdint>\n";
+    code_stream_ << "#include <cstdlib>\n";
+    code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <dlpack/dlpack.h>\n";
+    code_stream_ << "#include <tvm/runtime/contrib/dnnl/dnnl_kernel.h>\n";
+    code_stream_ << "using namespace tvm::runtime::contrib;\n";
+    code_stream_ << "\n";
 
-  void Build(const NodeRef& ref) override {
     if (ref->IsInstance<FunctionNode>()) {
-      CreateExternSignature(Downcast<Function>(ref), true);
-      CompileExternLib();
+      CreateExternFunction(Downcast<Function>(ref));
     } else if (ref->IsInstance<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
-      bool update = true;
       for (const auto& it : mod->functions) {
-        CreateExternSignature(Downcast<Function>(it.second), update);
-        update = false;
+        CreateExternFunction(Downcast<Function>(it.second));
       }
-      CompileExternLib();
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
+
+    // Create a CSourceModule
+    const auto* pf = runtime::Registry::Get("module.csource_module_create");
+    CHECK(pf != nullptr) << "Cannot find csource module to create the external function";
+    return (*pf)(code_stream_.str(), "cc");
   }
 
  private:
-  std::string code_;
-  std::string lib_path_;
+  /*! \brief The code stream that prints the external functions. */
+  std::ostringstream code_stream_;
 };
 
 /*!
@@ -295,10 +333,7 @@ class DNNLCodegen : public ExternCodegenBase {
  */
 runtime::Module DNNLCompiler(const NodeRef& ref) {
   DNNLCodegen dnnl;
-  dnnl.Build(ref);
-  std::shared_ptr<runtime::contrib::DNNLModule> n =
-      std::make_shared<runtime::contrib::DNNLModule>(dnnl.GetLibPath());
-  return runtime::Module(n);
+  return dnnl.CreateExternModule(ref);
 }
 
 TVM_REGISTER_API("relay.ext.dnnl")

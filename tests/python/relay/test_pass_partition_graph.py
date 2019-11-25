@@ -24,6 +24,8 @@ import tvm.relay.testing
 import tvm.relay.transform
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.annotation import subgraph_begin, subgraph_end
+from tvm.contrib import util
+
 
 class GCCAnnotator(ExprMutator):
     """
@@ -40,12 +42,13 @@ class GCCAnnotator(ExprMutator):
        -- end --
            |
     """
+
     def __init__(self):
         super(GCCAnnotator, self).__init__()
         self.in_subgraph = 0
 
     def visit_call(self, call):
-        if call.op.name == "add": # Annotate begin at args
+        if call.op.name == "add":  # Annotate begin at args
             if self.in_subgraph == 1:
                 lhs = subgraph_begin(super().visit(call.args[0]), "gcc")
                 rhs = subgraph_begin(super().visit(call.args[1]), "gcc")
@@ -61,7 +64,7 @@ class GCCAnnotator(ExprMutator):
                 if isinstance(rhs, relay.expr.Var):
                     rhs = subgraph_begin(rhs, "gcc")
                 return relay.subtract(lhs, rhs)
-        elif call.op.name == "multiply": # Annotate end at output
+        elif call.op.name == "multiply":  # Annotate end at output
             self.in_subgraph = 1
             lhs = super().visit(call.args[0])
             rhs = super().visit(call.args[1])
@@ -135,14 +138,14 @@ class MobileNetAnnotator(ExprMutator):
 
 def test_multi_node_subgraph():
     x = relay.var('x', shape=(10, 10))
-    w0 = relay.var('w', shape=(10, 10))
-    w1 = relay.var('w', shape=(10, 10))
-    w2 = relay.var('w', shape=(10, 10))
-    w3 = relay.var('w', shape=(10, 10))
-    w4 = relay.var('w', shape=(10, 10))
-    w5 = relay.var('w', shape=(10, 10))
-    w6 = relay.var('w', shape=(10, 10))
-    w7 = relay.var('w', shape=(10, 10))
+    w0 = relay.var('w0', shape=(10, 10))
+    w1 = relay.var('w1', shape=(10, 10))
+    w2 = relay.var('w2', shape=(10, 10))
+    w3 = relay.var('w3', shape=(10, 10))
+    w4 = relay.var('w4', shape=(10, 10))
+    w5 = relay.var('w5', shape=(10, 10))
+    w6 = relay.var('w6', shape=(10, 10))
+    w7 = relay.var('w7', shape=(10, 10))
 
     # Subgraph on GCC
     # FIXME: We generate two subgraphs for this case but they should be merged to one
@@ -172,16 +175,34 @@ def test_multi_node_subgraph():
     for _ in range(8):
         w_data.append(np.random.rand(10, 10).astype('float32'))
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(0))
-        res = ex.evaluate()(x_data, *w_data)
-        tvm.testing.assert_allclose(
-            res.asnumpy(),
-            np.concatenate(
-                (((x_data + w_data[0]) - w_data[1]) * w_data[2],
-                 ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-                 x_data + w_data[6] - w_data[7]),
-                axis=0))
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, "llvm")
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++11"]
+    tmp_path = util.tempdir()
+    lib_name = 'lib.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.module.load(lib_path)
+
+    ctx = tvm.cpu()
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    for i in range(8):
+        data = np.random.rand(10, 10).astype('float32')
+        w_data.append(data)
+        var = "w" + str(i)
+        rt_mod.set_input(var, data)
+    rt_mod.run()
+    out = tvm.nd.empty((30, 10), ctx=ctx)
+    out = rt_mod.get_output(0, out)
+
+    tvm.testing.assert_allclose(
+        out.asnumpy(),
+        np.concatenate(
+            (((x_data + w_data[0]) - w_data[1]) * w_data[2],
+             ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+             x_data + w_data[6] - w_data[7]),
+            axis=0))
 
 
 def test_extern_gcc_single_op():
@@ -195,10 +216,25 @@ def test_extern_gcc_single_op():
     mod["main"] = f
     mod = relay.build_extern(mod, "gcc")
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        res = ex.evaluate()(x_data, y_data)
-        tvm.testing.assert_allclose(res.asnumpy(), (x_data + y_data))
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, "llvm")
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++11"]
+    tmp_path = util.tempdir()
+    lib_name = 'lib.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.module.load(lib_path)
+
+    ctx = tvm.cpu()
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod.set_input("x", x_data)
+    rt_mod.set_input("y", y_data)
+    rt_mod.run()
+    out = tvm.nd.empty((8, 8), ctx=ctx)
+    out = rt_mod.get_output(0, out)
+
+    tvm.testing.assert_allclose(out.asnumpy(), (x_data + y_data))
 
 
 def test_extern_gcc():
@@ -213,11 +249,27 @@ def test_extern_gcc():
     mod["main"] = f
     mod = relay.build_extern(mod, "gcc")
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        res = ex.evaluate()(x_data, y_data)
-        tvm.testing.assert_allclose(res.asnumpy(),
-                                    (y_data * y_data) - (x_data + x_data))
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, "llvm")
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++11"]
+    tmp_path = util.tempdir()
+    lib_name = 'lib.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.module.load(lib_path)
+
+    ctx = tvm.cpu()
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod.set_input("x", x_data)
+    rt_mod.set_input("y", y_data)
+    rt_mod.run()
+    out = tvm.nd.empty((2, 2), ctx=ctx)
+    out = rt_mod.get_output(0, out)
+
+    tvm.testing.assert_allclose(out.asnumpy(),
+                                (y_data * y_data) - (x_data + x_data))
+
 
 def test_extern_dnnl():
     dtype = 'float32'
@@ -249,21 +301,37 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu())
-        res = ex.evaluate()(i_data, w1_data)
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, "llvm")
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++11"]
+    tmp_path = util.tempdir()
+    lib_name = 'lib.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.module.load(lib_path)
 
-        ref_ex = relay.create_executor(kind, mod=ref_mod, ctx=tvm.cpu(0))
-        ref_res = ref_ex.evaluate()(i_data, w1_data)
+    ctx = tvm.cpu()
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod.set_input("data", i_data)
+    rt_mod.set_input("weight1", w1_data)
+    rt_mod.run()
+    out = tvm.nd.empty((1, 32, 14, 14), ctx=ctx)
+    out = rt_mod.get_output(0, out)
 
-        tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=ctx)
+    ref_res = ref_ex.evaluate()(i_data, w1_data)
+
+    tvm.testing.assert_allclose(out.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
 
 @nottest
 def test_extern_dnnl_mobilenet():
     # FIXME: This test is only for demo purpose and supposed to be removed.
     dtype = 'float32'
     ishape = (1, 3, 224, 224)
-    mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
+    mod, params = relay.testing.mobilenet.get_workload(
+        batch_size=1, dtype='float32')
 
     mod = relay.build_extern(mod, "dnnl")
 
@@ -283,8 +351,8 @@ def test_extern_dnnl_mobilenet():
 
 
 if __name__ == "__main__":
-    test_multi_node_subgraph()
-    test_extern_gcc_single_op()
-    test_extern_gcc()
-    #test_extern_dnnl()
-    #test_extern_dnnl_mobilenet()
+    # test_multi_node_subgraph()
+    # test_extern_gcc_single_op()
+    # test_extern_gcc()
+    test_extern_dnnl()
+    # test_extern_dnnl_mobilenet()

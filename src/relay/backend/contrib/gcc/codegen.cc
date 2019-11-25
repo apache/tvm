@@ -20,22 +20,23 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/object.h>
 
-#include <random>
 #include <fstream>
 #include <sstream>
-#include <streambuf>
 
 #include "../contrib_codegen.h"
-#include "../../../../runtime/contrib/gcc/gcc.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 
-// FIXME: This is an experimental implementation. We should implement all utilities
-// and make a base claaa such as ExternBuilder for users to implement.
-class GccBuilder : public ExprVisitor {
+/*!
+ * \brief An example codegen that is only used for quick prototyping and testing
+ * purpose. Only several binary options are covered in the GCC builder. Users
+ * may need to extend them to cover more operators.
+ */
+class GccBuilder : public ExprVisitor, public ExternSourcePrinter {
  public:
   explicit GccBuilder(const std::string& id) { this->subgraph_id_ = id; }
 
@@ -46,41 +47,44 @@ class GccBuilder : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
+    std::ostringstream macro_stream;
+    std::ostringstream decl_stream;
+    std::ostringstream buf_stream;
+
     auto op_node = call->op.as<OpNode>();
     std::string func_name = subgraph_id_ + "_" + std::to_string(func_idx++);
 
     // Make function declaration
-    std::string decl = "GCC_BINARY_OP_" + std::to_string(call->args.size()) +
-                       "D(" + func_name + ", ";
+    macro_stream << "GCC_BINARY_OP_" << call->args.size() << "D(" << func_name << ", ";
 
     if (GetRef<Op>(op_node) == Op::Get("add")) {
-      decl += "+";
+      macro_stream << "+";
     } else if (GetRef<Op>(op_node) == Op::Get("subtract")) {
-      decl += "-";
+      macro_stream << "-";
     } else if (GetRef<Op>(op_node) == Op::Get("multiply")) {
-      decl += "*";
+      macro_stream << "*";
     } else {
       LOG(FATAL) << "Unrecognized op";
     }
 
     auto in_shape = GetShape(call->args[0]->checked_type());
     for (size_t i = 0; i < in_shape.size(); ++i) {
-      decl += ", " + std::to_string(in_shape[i]);
+      macro_stream << ", " << in_shape[i];
     }
-    decl += ");";
-    func_decl_.push_back(decl);
+    macro_stream << ");";
+    func_decl_.push_back(macro_stream.str());
 
     // Make function call when visiting arguments
     bool first = true;
-    std::string gcc_call = func_name + "(";
+    decl_stream << func_name << "(";
     for (size_t i = 0; i < call->args.size(); ++i) {
       VisitExpr(call->args[i]);
       for (auto out : out_) {
         if (!first) {
-          gcc_call += ", ";
+          decl_stream << ", ";
         }
         first = false;
-        gcc_call += out.first;
+        decl_stream << out.first;
       }
     }
 
@@ -93,47 +97,62 @@ class GccBuilder : public ExprVisitor {
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    std::string buf_decl =
-        "float* " + out + " = (float*)malloc(4 * " + std::to_string(out_size) + ");";
-    buf_decl_.push_back(buf_decl);
+    buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
+    buf_decl_.push_back(buf_stream.str());
 
-    gcc_call += ", " + out + ");";
-    subgraph_body.push_back(gcc_call);
+    decl_stream << ", " << out << ");";
+    subgraph_body.push_back(decl_stream.str());
 
     // Update output buffer
     out_.clear();
     out_.push_back({out, out_size});
   }
 
-  std::string build() {
-    std::string code = "";
-
+  std::string jit_csource() {
     // Write function macros
     for (auto decl : func_decl_) {
-      code += decl + "\n";
+      code_stream_ << decl << "\n";
     }
 
     // Write subgraph function declaration
-    code += "extern  \"C\" void " + subgraph_id_ + "(GccPackedArgs args, float* out) {\n";
+    code_stream_ << "extern  \"C\" void " << subgraph_id_ << "_(";
 
-    // Unpack inputs
-    for (size_t i = 0; i < subgraph_args_.size(); ++i) {
-      code += "  float* " + subgraph_args_[i] + " = args.data[" + std::to_string(i) + "];\n";
+    for (const auto& arg : subgraph_args_) {
+      code_stream_ << "float* " << arg << ", ";
     }
+
+    code_stream_ << "float* out) {\n";
+    this->EnterScope();
+
     // Function body
     for (auto decl : buf_decl_) {
-      code += "  " + decl + "\n";
+      this->PrintIndents();
+      code_stream_ << decl << "\n";
     }
+    code_stream_ << "\n";
     for (auto stmt : subgraph_body) {
-      code += "  " + stmt + "\n";
+      this->PrintIndents();
+      code_stream_ << stmt << "\n";
     }
 
     // Copy output
     CHECK(out_.size() == 1) << "Internal error";
-    code += "  memcpy(out, " + out_[0].first + ", 4 *" + std::to_string(out_[0].second) + ");\n";
+    this->PrintIndents();
+    code_stream_ << "std::memcpy(out, " << out_[0].first << ", 4 * " << out_[0].second << ");\n";
 
-    code += "}\n";
-    return code;
+    // Free buffers
+    for (size_t i = 0; i < buf_decl_.size(); i++) {
+      this->PrintIndents();
+      code_stream_ << "std::free(buf_" << i << ");\n";
+    }
+
+    this->ExitScope();
+    code_stream_ << "}\n";
+
+    // Create the wrapper to call the subgraph
+    this->GenerateSubgraphWrapper(subgraph_id_,
+                                  subgraph_args_.size() + 1 /* output */);
+    return code_stream_.str();
   }
 
  private:
@@ -161,72 +180,71 @@ class GccBuilder : public ExprVisitor {
 
 class GccCodegen : public ExternCodegenBase {
  public:
-  std::string GetLibPath() const {
-    return lib_path_;
-  }
-
-  void CreateExternSignature(const Function& func, bool update) {
+  void CreateExternFunction(const Function& func) {
     CHECK(func.defined())
         << "Input error: external codegen expects a Relay function.";
-    const auto* call = func->body.as<CallNode>();
-    CHECK(call) << "Unknown error";  // comaniac: Don't know in what case this will fail.
 
     // Record subgraph ID for runtime invoke.
-    auto sid = GetSubgraphID(func);
+    auto sid = GetSubgraphID(func, "gcc");
 
-    // Prepare library source
-    if (update) {
-      std::random_device rd;
-      std::mt19937 gen(rd());
-      std::uniform_int_distribution<uint64_t> distr;
-      std::stringstream ss;
-      ss << std::hex << distr(gen);
-      std::ifstream lib_file("src/relay/backend/contrib/gcc/libs.cc");
-      code_.assign((std::istreambuf_iterator<char>(lib_file)),
-                    std::istreambuf_iterator<char>());
-      lib_path_ = "/tmp/relay_gcc_lib_" + ss.str() + ".so";
-    }
-
-    auto builder = GccBuilder(runtime::contrib::kGccPrefix + sid);
+    auto builder = GccBuilder("gcc_" + sid);
     builder.VisitExpr(func->body);
-    std::string code = builder.build();
-
-    // Append the signature.
-    code_ = code_ + code;
+    code_stream_ << builder.jit_csource();
   }
 
-  void CompileExternLib() override {
-    // Compile from pipe and generate the library.
-    std::string code = "echo \'" + code_ + "\'";
-    std::string cmd = "g++ -std=c++11 -shared -fPIC -ldl -o " + lib_path_ + " -xc++ -";
-    cmd = code + " | " + cmd;
+  runtime::Module CreateExternModule(const NodeRef& ref) {
+    // Create headers
+    code_stream_ << "#include <cstdint>\n";
+    code_stream_ << "#include <iostream>\n";
+    code_stream_ << "#include <cstdlib>\n";
+    code_stream_ << "#include <stdio.h>\n";
+    code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <dlpack/dlpack.h>\n";
 
-    int ret = std::system(cmd.c_str());
-    if (ret != 0) {
-      LOG(FATAL) << "Failed to compile GCC library. Error code: " << ret;
-    }
-  }
+    // Append some common macro for operator definition.
+    const char* operator_macro = R"op_marco(
+    #define GCC_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)           \
+      extern "C" void p_ID_(float* a, float* b, float* out) { \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {               \
+          out[i] = a[i] p_OP_ b[i];                           \
+        }                                                     \
+      }
+    
+    #define GCC_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
+      extern "C" void p_ID_(float* a, float* b, float* out) { \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {               \
+          for (int64_t j = 0; j < p_DIM2_; ++j) {             \
+            int64_t k = i * p_DIM2_ + j;                      \
+            out[k] = a[k] p_OP_ b[k];                         \
+            std::cout << a[k] << "  " << b[k] << out[k] << std::endl;        \
+          }                                                   \
+        }                                                     \
+      }
+    )op_marco";
 
-  void Build(const NodeRef& ref) override {
+    code_stream_ << operator_macro << "\n\n";
+
     if (ref->IsInstance<FunctionNode>()) {
-      CreateExternSignature(Downcast<Function>(ref), true);
+      CreateExternFunction(Downcast<Function>(ref));
     } else if (ref->IsInstance<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
-      bool update = true;
       for (const auto& it : mod->functions) {
-        CreateExternSignature(Downcast<Function>(it.second), update);
-        update = false;
+        CreateExternFunction(Downcast<Function>(it.second));
       }
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
-    CompileExternLib();
+    LOG(INFO) << code_stream_.str();
+    // Create a CSourceModule
+    const auto* pf = runtime::Registry::Get("module.csource_module_create");
+    CHECK(pf != nullptr) << "Cannot find csource module to create the external function";
+    return (*pf)(code_stream_.str(), "cc");
   }
 
  private:
-  std::string code_;
-  std::string lib_path_;
+  std::ostringstream code_stream_;
 };
 
 /*!
@@ -239,10 +257,7 @@ class GccCodegen : public ExternCodegenBase {
  */
 runtime::Module GccCompiler(const NodeRef& ref) {
   GccCodegen gcc;
-  gcc.Build(ref);
-  std::shared_ptr<runtime::contrib::GccModule> n =
-    std::make_shared<runtime::contrib::GccModule>(gcc.GetLibPath());
-  return runtime::Module(n);
+  return gcc.CreateExternModule(ref);
 }
 
 TVM_REGISTER_API("relay.ext.gcc")

@@ -199,7 +199,7 @@ class Partitioner : public ExprMutator {
           FunctionNode::make(params, input, call->args[0]->checked_type_, {}, Attrs());
 
       Expr arg0 = call->args[0];
-      std::string name = "subgraph_" + std::to_string(subgraph->id);
+      std::string name = subgraph_attrs->compiler + "_" + std::to_string(subgraph->id);
       subgraph_func =
           FunctionSetAttr(subgraph_func, attr::kFuncName, tvm::ir::StringImm::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));

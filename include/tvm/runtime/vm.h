@@ -24,7 +24,6 @@
 #ifndef TVM_RUNTIME_VM_H_
 #define TVM_RUNTIME_VM_H_
 
-#include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -140,7 +139,6 @@ enum class Opcode {
   LoadConsti = 14U,
   Fatal = 15U,
   AllocStorage = 16U,
-  InvokeExternal = 17U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -203,16 +201,6 @@ struct Instruction {
       Index output_size;
       /*! \brief The arguments to pass to the packed function. */
       RegName* packed_args;
-    };
-    struct /* InvokeExternal Operands */ {
-      /*! \brief The index into the external function table. */
-      Index ext_index;
-      /*! \brief The arity of the external function. */
-      Index ext_arity;
-      /*! \brief The number of outputs produced by the external function. */
-      Index ext_output_size;
-      /*! \brief The arguments to pass to the external function. */
-      RegName* ext_args;
     };
     struct /* If Operands */ {
       /*! \brief The register containing the test value. */
@@ -301,7 +289,7 @@ struct Instruction {
    */
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
                                   const std::vector<RegName>& args);
-  /*! 
+  /*!
    * \brief Construct an allocate tensor instruction with constant shape.
    * \param storage The storage to allocate out of.
    * \param shape The shape of the tensor.
@@ -311,16 +299,6 @@ struct Instruction {
    */
   static Instruction AllocTensor(RegName storage,
                                  const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
-  /*! 
-   * \brief Construct an invoke external instruction.
-   * \param packed_index The index of the external function.
-   * \param ext_arity The arity of the function.
-   * \param ext_output_size The number of outputs of the external function.
-   * \param args The argument registers.
-   * \return The invoke external instruction.
-   */
-  static Instruction InvokeExternal(Index external_index, Index ext_arity, Index ext_output_size,
-                                    const std::vector<RegName>& args);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
@@ -611,13 +589,9 @@ class Executable : public ModuleNode {
     return "VMExecutable";
   }
 
-  /*!
-   * \brief The runtime module/library that contains both the host and also the device
-   * code when executing on non-CPU devices.
-   */
+  /*! \brief The runtime module/library that contains both the host and also the device
+   * code when executing on non-CPU devices. */
   runtime::Module lib;
-  /*! \brief The external module/library. */
-  std::vector<runtime::Module> ext_libs;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
   /*! \brief A map from globals (as strings) to their index in the function map. */
@@ -628,13 +602,6 @@ class Executable : public ModuleNode {
   std::unordered_map<std::string, Index> primitive_map;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
-  /*! \brief A mapping from the subgraph id to the external library index in the
-   * `ext_libs`.
-   */
-  std::unordered_map<Index, Index> external_map;
-  /*! \brief A mapping from the subgraph id to the external function name.
-   */
-  std::unordered_map<Index, std::string> external_func_map;
 
  private:
   /*!
@@ -747,8 +714,6 @@ class VirtualMachine : public runtime::ModuleNode {
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
-  /*! \brief The virtual machine's external function table. */
-  std::vector<PackedFunc> external_funcs;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */

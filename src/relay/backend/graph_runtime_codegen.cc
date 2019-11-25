@@ -24,6 +24,7 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 
@@ -55,6 +56,7 @@ using TargetsMap = std::unordered_map<int, Target>;
 struct LoweredOutput {
   std::string graph_json;
   Map<std::string, Array<LoweredFunc> > lowered_funcs;
+  Array<Function> external_funcs;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
 
@@ -212,6 +214,7 @@ class GraphRuntimeCodegen
     LoweredOutput ret;
     ret.graph_json = os.str();
     ret.params = params_;
+    ret.external_funcs = external_funcs_;
     for (auto& kv : lowered_funcs_) {
       if (ret.lowered_funcs.count(kv.first) == 0) {
         ret.lowered_funcs.Set(kv.first, Array<LoweredFunc>());
@@ -380,6 +383,28 @@ class GraphRuntimeCodegen
     }
     return fields;
   }
+
+  std::vector<GraphNodeRef> InvokeExternalCodegen(const CallNode* op, const Function& func) {
+    CHECK(func->IsExternal());
+    std::vector<GraphNodeRef> inputs;
+    for (auto arg : op->args) {
+      auto res = VisitExpr(arg);
+      for (auto nr : res) {
+        inputs.push_back(nr);
+      }
+    }
+    external_funcs_.push_back(func);
+    const auto name_node = FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
+    CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
+    std::string op_name = name_node->value;
+    auto node = GraphOpNode::make_node_ptr(_GetUniqueName(op_name),
+                                           GraphAttrs(),
+                                           op_name,
+                                           inputs,
+                                           GraphAttrs());
+    return AddNode(node, GetRef<Expr>(op));
+  }
+
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
     Expr expr = GetRef<Expr>(op);
     Function func;
@@ -390,6 +415,9 @@ class GraphRuntimeCodegen
       LOG(FATAL) << "Not implemented";
     } else if (op->op.as<FunctionNode>()) {
       func = GetRef<Function>(op->op.as<FunctionNode>());
+      if (func->IsExternal()) {
+        return InvokeExternalCodegen(op, func);
+      }
     } else {
       LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
     }
@@ -470,7 +498,7 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    throw std::invalid_argument("function not supported");
+    CHECK(op->IsExternal()) << "Only external function is supported";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
@@ -587,6 +615,8 @@ class GraphRuntimeCodegen
   std::unordered_map<std::string, size_t> name_map_;
   /*! \brief compile engine */
   CompileEngine compile_engine_;
+  /*! \brief external functions */
+  Array<Function> external_funcs_;
 };
 
 class GraphRuntimeCodegenModule : public runtime::ModuleNode {
@@ -628,7 +658,6 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
         }
         *rv = ret;
       });
-
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         std::string key = args[0];
@@ -638,6 +667,35 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_lowered_funcs") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.lowered_funcs;
+      });
+    } else if (name == "get_external_funcs") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->output_.external_funcs;
+      });
+    } else if (name == "get_external_module") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK(!this->output_.external_funcs.empty()) << "No external function is annotated.";
+        // Invoke the external codegen to generate a external runtime module.
+        auto compiler = FunctionGetAttr(output_.external_funcs[0], attr::kExternal);
+        const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
+        CHECK(code_gen) << "No external codegen is set";
+        std::string ext_name = "relay.ext." + code_gen->value;
+        auto pf = tvm::runtime::Registry::Get(ext_name);
+        CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
+
+        // Invoke the 3rd party codegen to generate a library for the external
+        // functions.
+        relay::Module rly_mod = relay::ModuleNode::make({}, {});
+        for (const auto& func : output_.external_funcs) {
+          auto ext_func_name = FunctionGetAttr(func, attr::kFuncName);
+          const tvm::ir::StringImm* func_name = ext_func_name.as<tvm::ir::StringImm>();
+          CHECK(func_name) << "No external function name is set for:\n" << AsText(func, false);
+          auto gv = GlobalVarNode::make(func_name->value);
+          rly_mod->Add(gv, func);
+        }
+        runtime::Module ext_mod = (*pf)(rly_mod);
+        CHECK(ext_mod.defined()) << "No external runtime is generated.";
+        *rv = ext_mod;
       });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});

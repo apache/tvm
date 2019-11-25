@@ -16,7 +16,7 @@
 # under the License.
 """
 
-.. _tutorial-custom-relay-backend
+.. _tutorial-custom-relay-backend:
 
 Bring Your Own Codegen To TVM
 ============================================
@@ -28,7 +28,7 @@ scientists from worrying about the performance when developing a new model, hard
 provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators,
 or provide frameworks such as TensorRT to let users describle their models in a certain way to
 achieve high performance. However, users have to learn a new programming interface when they
-attempt to work on a new libaray or device. As a result, the demand of a unified programming
+attempt to work on a new library or device. As a result, the demand of a unified programming
 interface becomes more and more important to 1) let all users and hardware vendors stand on the
 same page, and 2) provide a feasible solution to allow a specialized hardware or library to only
 support widely used operators with extremely high perofrmance, but fallback unsupported operators
@@ -51,7 +51,7 @@ specialized Relay backend to the TVM codebase and rebuild TVM for enabling.
 # Define The Supported Operators
 # ------------------------------
 # The first step is to define which operators are supported by your backend.
-# A templated is provided to ease vendor's effort to add the supported
+# A template is provided to ease vendor's effort to add the supported
 # operators.
 #
 # For example, We create a new Python file at python/relay/backend/op/contrib/gcc/extern_op.py,
@@ -105,7 +105,7 @@ def multiply(attrs, args):
 # a Relay IR mutator to find the supported subgraphs, which may include multiple operators,
 # for the target backend. Here we implement an annotator that includes an entire Relay graph
 # to be offloaded. Specifically, we are going to do two tasks:
-# - insert `aubgraph_begin` after all input variables
+# - insert `subgraph_begin` after all input variables
 # - insert `subgraph_end` before the primary output. For example, given a Relay graph as follows:
 #       input_a
 #          |
@@ -265,7 +265,7 @@ print(mod['main'])
 
 
 ######################################################################
-# We can now build TVM with the external GCC backedn and test the correctness:
+# We can now build TVM with the external GCC backend and test the correctness:
 # 1. cd build
 # 2. set(USE_EXTERN gcc) in config.cmake
 # 3. cmake ..; make -j
