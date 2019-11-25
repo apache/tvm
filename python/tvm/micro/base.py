@@ -51,7 +51,7 @@ class Session:
       c_mod = ...  # some module generated with "c" as the target
       dev_config = micro.device.arm.stm32f746xx.default_config("127.0.0.1", 6666)
       with tvm.micro.Session(dev_config) as sess:
-          micro_mod = sess.create_micro_mod(c_mod)
+          micro_mod = create_micro_mod(c_mod, dev_config)
     """
 
     def __init__(self, config):
@@ -111,27 +111,6 @@ class Session:
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
 
-    def create_micro_mod(self, c_mod):
-        """Produces a micro module from a given module.
-
-        Parameters
-        ----------
-        c_mod : tvm.module.Module
-            module with "c" as its target backend
-
-        Return
-        ------
-        micro_mod : tvm.module.Module
-            micro module for the target device
-        """
-        temp_dir = _util.tempdir()
-        lib_obj_path = temp_dir.relpath("dev_lib.obj")
-        c_mod.export_library(
-            lib_obj_path,
-            fcompile=cross_compiler(self.create_micro_lib, LibType.OPERATOR))
-        micro_mod = tvm.module.load(lib_obj_path)
-        return micro_mod
-
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
 
@@ -152,16 +131,40 @@ class Session:
         self._exit()
 
 
-def cross_compiler(create_micro_lib, lib_type):
+def create_micro_mod(c_mod, dev_config):
+    """Produces a micro module from a given module.
+
+    Parameters
+    ----------
+    c_mod : tvm.module.Module
+        module with "c" as its target backend
+
+    dev_config : Dict[str, Any]
+        MicroTVM config dict for the target device
+
+    Return
+    ------
+    micro_mod : tvm.module.Module
+        micro module for the target device
+    """
+    temp_dir = _util.tempdir()
+    lib_obj_path = temp_dir.relpath("dev_lib.obj")
+    c_mod.export_library(
+        lib_obj_path,
+        fcompile=cross_compiler(dev_config, LibType.OPERATOR))
+    micro_mod = tvm.module.load(lib_obj_path)
+    return micro_mod
+
+
+def cross_compiler(dev_config, lib_type):
     """Create a cross-compile function that wraps `create_lib` for a `Binutil` instance.
 
     For use in `tvm.module.Module.export_library`.
 
     Parameters
     ----------
-    create_micro_lib : func
-        function for creating MicroTVM libraries for a specific device (e.g.,
-        `tvm.micro.device.get_device_funcs("arm.stm32f746xx")["create_micro_lib"]`)
+    dev_config : Dict[str, Any]
+        MicroTVM config dict for the target device
 
     lib_type : micro.LibType
         whether to compile a MicroTVM runtime or operator library
@@ -177,9 +180,11 @@ def cross_compiler(create_micro_lib, lib_type):
     .. code-block:: python
 
       c_mod = ...  # some module generated with "c" as the target
-      fcompile = tvm.micro.cross_compiler("arm.stm32f746xx", LibType.OPERATOR)
+      fcompile = tvm.micro.cross_compiler(dev_config, LibType.OPERATOR)
       c_mod.export_library("dev_lib.obj", fcompile=fcompile)
     """
+    dev_funcs = tvm.micro.device.get_device_funcs(dev_config['device_id'])
+    create_micro_lib = dev_funcs['create_micro_lib']
     def compile_func(obj_path, src_path, **kwargs):
         if isinstance(obj_path, list):
             obj_path = obj_path[0]
