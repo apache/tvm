@@ -32,7 +32,7 @@ from .conv2d_transpose_nchw import *
 from .deformable_conv2d import *
 from .conv3d import *
 from .reduction import schedule_reduce
-from .softmax import schedule_softmax
+from .softmax import *
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .dense import *
 from .pooling import *

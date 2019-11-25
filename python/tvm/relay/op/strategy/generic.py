@@ -107,11 +107,22 @@ def schedule_adaptive_pool(attrs, outs, target):
         return topi.generic.schedule_adaptive_pool(outs)
 
 # softmax
-@generic_func
-def schedule_softmax(attrs, outs, target):
-    """Schedule softmax"""
-    with target:
-        return topi.generic.schedule_softmax(outs)
+def wrap_compute_softmax(topi_compute):
+    """Wrap softmax topi compute"""
+    def _compute_softmax(attrs, inputs, out_type):
+        axis = attrs.get_int("axis")
+        return [topi_compute(inputs[0], axis)]
+    return _compute_softmax
+
+@override_native_generic_func("softmax_strategy")
+def softmax_strategy(attrs, outs, target):
+    """softmax generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implemenation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="softmax.generic")
+    return strategy
 
 # lrn
 @generic_func

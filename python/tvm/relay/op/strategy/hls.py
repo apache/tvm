@@ -50,11 +50,15 @@ def schedule_adaptive_pool_hls(attrs, outs, target):
     with target:
         return topi.hls.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register("hls")
-def schedule_softmax_hls(attrs, outs, target):
-    """schedule softmax for hls"""
-    with target:
-        return topi.hls.schedule_softmax(outs)
+@softmax_strategy.register("hls")
+def softmax_strategy_hls(attrs, inputs, out_type, target):
+    """softmax hls strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.hls.schedule_softmax),
+        name="softmax.hls")
+    return strategy
 
 @override_native_generic_func("conv2d_strategy")
 def conv2d_strategy_hls(attrs, inputs, out_type, target):

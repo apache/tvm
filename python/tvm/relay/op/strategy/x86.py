@@ -55,11 +55,15 @@ def schedule_adaptive_pool_cpu(attrs, outs, target):
     with target:
         return topi.x86.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register("cpu")
-def schedule_softmax_cpu(attrs, outs, target):
-    """schedule softmax for x86"""
-    with target:
-        return topi.x86.schedule_softmax(outs)
+@softmax_strategy.register("cpu")
+def softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="softmax.x86")
+    return strategy
 
 @conv2d_strategy.register("cpu")
 def conv2d_strategy_cpu(attrs, inputs, out_type, target):
