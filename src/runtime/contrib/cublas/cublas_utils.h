@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_CONTRIB_CUBLAS_CUBLAS_UTILS_H_
 
 #include <dmlc/logging.h>
-
+#include <dlpack/dlpack.h>
 #include <cublas_v2.h>
 
 namespace tvm {
@@ -62,7 +62,27 @@ struct CuBlasThreadEntry {
   static CuBlasThreadEntry* ThreadLocal();
 };  // CuBlasThreadEntry
 
-
+inline cudaDataType_t GetCudaDataType(DLDataType type) {
+  if (type.code == kDLInt) {
+    switch (type.bits) {
+      case 8: return CUDA_R_8I;
+      case 32: return CUDA_R_32I;
+    }
+  } else if (type.code == kDLUInt) {
+    switch (type.bits) {
+      case 8: return CUDA_R_8U;
+      case 32: return CUDA_R_32U;
+    }
+  } else if (type.code == kDLFloat) {
+    switch (type.bits) {
+      case 16: return CUDA_R_16F;
+      case 32: return CUDA_R_32F;
+      case 64: return CUDA_R_64F;
+    }
+  }
+  LOG(FATAL) << "Unsupported cuda type";
+  return CUDA_R_16F;
+}
 }  // namespace contrib
 }  // namespace tvm
 
