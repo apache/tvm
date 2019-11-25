@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file pad.cc
  * \brief Implementation of operator pad
  */

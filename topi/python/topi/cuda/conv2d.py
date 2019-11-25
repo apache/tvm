@@ -89,6 +89,13 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) *\
                     ((KW - 1) * dilation_w + 1))
 
+        if data.dtype == "int8" or kernel.dtype == "int8":
+            if layout == 'NCHW':
+                raise ValueError("NCHW layout do not support int8 in cudnn")
+            dtype = "int32"
+        else:
+            dtype = data.dtype
+
         return cudnn.conv2d_forward(data,
                                     kernel,
                                     stride_h,
@@ -99,7 +106,8 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
                                     dilation_w,
                                     conv_mode=1,
                                     tensor_format=tensor_format,
-                                    algo=-1)  # let CUDNN choose the best algo
+                                    algo=-1,         # let CUDNN choose the best algo
+                                    conv_dtype=dtype)
 
     if cfg.template_key == 'winograd':
         return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,

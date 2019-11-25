@@ -73,3 +73,50 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding):
                     padded_a_np[n, c], w_np[c, f], mode='valid')
                 b_np[n, f] += out
     return b_np
+
+
+def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding):
+    """Transposed convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    a_nhwc : numpy.ndarray
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    weight : numpy.ndarray
+        4-D in formats HWIO, HWOI, OIHW or IOHW
+
+    weight_format : str
+        ['HWIO', 'HWOI', 'OIHW', 'IOHW']
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    assert a_nhwc.ndim == 4, "a_nhwc number of dimensions should be 4"
+    assert weight.ndim == 4, "weight number of dimensions should be 4"
+
+    a_nchw = np.transpose(a_nhwc, (0, 3, 1, 2))
+
+    # conv2d_transpose_nchw_python needs kernel layout to be IOHW
+    if weight_format == 'HWIO':
+        w_iohw = np.transpose(weight, (2, 3, 0, 1))
+    elif weight_format == 'HWOI':
+        w_iohw = np.transpose(weight, (3, 2, 0, 1))
+    elif weight_format == 'OIHW':
+        w_iohw = np.transpose(weight, (1, 0, 2, 3))
+    elif weight_format == 'IOHW':
+        w_iohw = weight
+    else:
+        raise ValueError('Valid weight_formats are HWIO, HWOI, OIHW or IOHW')
+
+    res_nchw = conv2d_transpose_nchw_python(a_nchw, w_iohw, stride, padding)
+    res_nhwc = np.transpose(res_nchw, (0, 2, 3, 1))
+    return res_nhwc

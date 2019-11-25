@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/op/nn/convolution.h
  * \brief Properties def of convlution operator for sharing.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_opengl.cc
  *
  * We are targeting OpenGL 3.3. The reason of not targeting a recent version

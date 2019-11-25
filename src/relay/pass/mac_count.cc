@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file mac_count.cc
  * \brief Pass to roughly count the number of MACs (Multiply-Accumulate) 

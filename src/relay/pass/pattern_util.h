@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
  *
  * \file tvm/relay/pass/pattern_util.h
  * \brief Header of internal operator functions
@@ -502,6 +501,8 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
 }
 
 Expr MakeConcatenate(Expr data, int axis);
+
+Expr MakeRepeat(Expr data, int repeats, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 

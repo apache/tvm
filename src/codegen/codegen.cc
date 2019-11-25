@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rocm_module.h
  * \brief Execution handling of ROCM kernels
  */

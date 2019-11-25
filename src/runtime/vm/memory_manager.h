@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/memory_manager.h
  * \brief Abstract device memory management API
  */

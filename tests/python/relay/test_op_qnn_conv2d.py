@@ -42,7 +42,9 @@ def get_ref_func(data,
                  dilation,
                  data_layout,
                  kernel_layout,
-                 out_dtype):
+                 out_dtype,
+                 groups,
+                 channels=None):
     casted_data = relay.op.cast(data, "int32")
     casted_kernel = relay.op.cast(kernel, "int32")
     shifted_data = relay.op.subtract(casted_data,
@@ -54,6 +56,8 @@ def get_ref_func(data,
                              padding=padding,
                              strides=strides,
                              dilation=dilation,
+                             groups=groups,
+                             channels=channels,
                              kernel_size=kernel_size,
                              out_dtype=out_dtype,
                              data_layout=data_layout,
@@ -74,7 +78,9 @@ def get_qnn_func(data,
                  dilation,
                  data_layout,
                  kernel_layout,
-                 out_dtype):
+                 out_dtype,
+                 groups,
+                 channels=None):
     func = relay.qnn.op.conv2d(
             data, kernel,
             input_zero_point=input_zero_point,
@@ -86,6 +92,8 @@ def get_qnn_func(data,
             dilation=dilation,
             padding=padding,
             out_dtype=out_dtype,
+            groups=groups,
+            channels=channels,
             data_layout=data_layout,
             kernel_layout=kernel_layout)
 
@@ -107,7 +115,9 @@ def get_funcs(data_shape,
               dilation,
               data_layout,
               kernel_layout,
-              out_dtype):
+              out_dtype,
+              groups=1,
+              channels=None):
     data = relay.var("data", shape=data_shape,
             dtype=data_dtype)
     kernel = relay.var("kernel", shape=kernel_shape,
@@ -124,8 +134,11 @@ def get_funcs(data_shape,
                             dilation,
                             data_layout,
                             kernel_layout,
-                            out_dtype)
+                            out_dtype,
+                            groups,
+                            channels)
     ref_func = run_infer_type(ref_func)
+    ref_func = relay.Module.from_expr(ref_func)
     qnn_func = get_qnn_func(data,
                             kernel,
                             input_zero_point,
@@ -138,7 +151,9 @@ def get_funcs(data_shape,
                             dilation,
                             data_layout,
                             kernel_layout,
-                            out_dtype)
+                            out_dtype,
+                            groups,
+                            channels)
     return (ref_func, qnn_func)
 
 def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape,
@@ -151,14 +166,14 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape,
         if data_dtype == "uint8":
             low = 0
             high = 255
-        golden_data = np.random.random_integers(low=low, high=high,
+        golden_data = np.random.randint(low=low, high=high,
                 size=data_shape).astype(data_dtype)
         low = -128
         high = 127
         if kernel_dtype == "uint8":
             low = 0
             high = 255
-        golden_weight = np.random.random_integers(low=low, high=high,
+        golden_weight = np.random.randint(low=low, high=high,
                 size=kernel_shape).astype(kernel_dtype)
         return (golden_data, golden_weight)
 
@@ -512,7 +527,7 @@ def test_const_folding():
         kernel_shape = (3, 4, 2, 2)
         kernel_dtype = 'uint8'
 
-        golden_weight = np.random.random_integers(low=0, high=255,
+        golden_weight = np.random.randint(low=0, high=255,
                 size=kernel_shape).astype(kernel_dtype)
         data = relay.var("data", shape=data_shape,
                 dtype=data_dtype)
@@ -529,7 +544,8 @@ def test_const_folding():
                                 dilation=(1, 1),
                                 data_layout="NCHW",
                                 kernel_layout="OIHW",
-                                out_dtype="int32")
+                                out_dtype="int32",
+                                groups=1)
         folded_mod = transform.FoldConstant()(qnn_func)
         folded_func = folded_mod["main"]
         assert "reshape" not in folded_func.astext()
@@ -724,6 +740,112 @@ def test_broadcast_layout():
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
+def test_depthwise_depth_multiplier():
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input, NCHW and OIHW
+        # Depthwise multiplier = 1
+        data_shape = (2, 4, 16, 16)
+        data_dtype = 'uint8'
+        kernel_shape = (4, 1, 3, 3)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(3, 3),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32",
+                                       groups=4,
+                                       channels=4)
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+        
+        
+        # Depthwise multiplier = 2
+        data_shape = (10, 4, 16, 16)
+        data_dtype = 'uint8'
+        kernel_shape = (4, 2, 3, 3)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(3, 3),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32",
+                                       groups=8,
+                                       channels=8)
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+        
+        # uint8 input, NHWC and HWOI
+        # Depthwise multiplier = 1
+        data_shape = (2, 16, 16, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 3, 4, 1)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(3, 3),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWOI",
+                                       out_dtype="int32",
+                                       groups=4,
+                                       channels=4)
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+        
+        # Depthwise multiplier = 2
+        data_shape = (2, 16, 16, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 3, 4, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=5,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(3, 3),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWOI",
+                                       out_dtype="int32",
+                                       groups=8,
+                                       channels=8)
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
 if __name__ == "__main__":
     test_no_zero_point()
     test_input_zero_point()
@@ -738,3 +860,4 @@ if __name__ == "__main__":
     test_broadcast_layout()
     test_tflite_output_multiplier_greater_than_one()
     test_tflite_anistropic_strides()
+    test_depthwise_depth_multiplier()

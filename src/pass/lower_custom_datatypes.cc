@@ -17,7 +17,6 @@
  * under the License.
  */
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/src/pass/lower_custom_datatypes.cc
  * \brief Pass for lowering custom datatypes
  */

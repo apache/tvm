@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief A hook to launch RPC server via xcodebuild test
  * \file tvmrpcLauncher.mm
  */

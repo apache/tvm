@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief bias_add op constructions
  * \file nn/bias_add.h
  */

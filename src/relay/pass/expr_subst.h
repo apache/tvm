@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file expr_subst.h
  * \brief Utility functions for substituting expressions.
  */

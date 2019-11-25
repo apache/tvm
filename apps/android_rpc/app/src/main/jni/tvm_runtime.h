@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm_runtime.h
  * \brief Pack all tvm runtime source files
  */

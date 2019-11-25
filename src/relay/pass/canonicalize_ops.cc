@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file canonicalize_ops.cc
  * \brief Canonicalize special operators to basic operators.
     This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)

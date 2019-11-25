@@ -500,7 +500,6 @@ class RefReadNode : public ExprNode {
 };
 
 RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
-
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
 class RefWriteNode : public ExprNode {

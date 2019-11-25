@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application to demonstrate go-closure given to a packed function argument.
  * \file pack_func_closure_arg.go
  */

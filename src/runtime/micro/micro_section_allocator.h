@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file micro_section_allocator.h
  */
 #ifndef TVM_RUNTIME_MICRO_MICRO_SECTION_ALLOCATOR_H_

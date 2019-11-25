@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file elemwise_op_common.h
  * \brief Common operator utilities
  */

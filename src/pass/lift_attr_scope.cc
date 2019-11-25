@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *
  * \brief Lift specified AttrStmt scope to outer if
  *   the body contains the same scope.

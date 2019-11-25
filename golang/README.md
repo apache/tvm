@@ -68,6 +68,8 @@ To Demonstrates sample TVM module compilation using python and deploy via golang
 
 To deploy a realtime module with lib, graph and param.
 ```bash
+python3 gen_mobilenet_lib.py
+
 ./complex
 ```
 
@@ -80,13 +82,13 @@ To demonstrate go function closure conversion to packed function handle.
 To demonstrate a packed function handle given as an argument.
 
 ```bash
-pack_func_handle_arg
+./pack_func_handle_arg
 ```
 
 To register go function with runtime as a global function.
 
 ```bash
-pack_func_register
+./pack_func_register
 ```
 
 To demonstrate function closure passed as argument to a function call.
@@ -120,5 +122,5 @@ Please refer ```docker/install/ubuntu_install_golang.sh``` for the packages depe
 go compiler 1.10 on ubuntu doesn't install on standard path, hence an explicit export may be needed as shown below.
 
 ```bash
-export PATH="/usr/lib/go-1.10/bin:$PATH"```
+export PATH="/usr/lib/go-1.10/bin:$PATH"
 ```

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_metal.cc
  */
 #include <tvm/packed_func_ext.h>

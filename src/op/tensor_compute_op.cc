@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Tensor Compute Op.
  * \file tensor_compute_op.cc
  */

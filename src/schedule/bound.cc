@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file bound.cc
  * \brief The bound inference logic.
  */

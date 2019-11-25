@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_solver.h
  * \brief Solver logic for type inference.
  */

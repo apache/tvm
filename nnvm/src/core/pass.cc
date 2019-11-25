@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file pass.cc
  * \brief Support for pass registry.
  */

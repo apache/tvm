@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
  *
  * \file tvm/relay/pass/pass_util.h
  * \brief Utilities for writing passes

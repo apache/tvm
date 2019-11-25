@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file combine_parallel_op.cc
  * \brief Abstract class to combine parallel ops and their successive element-wise ops.
