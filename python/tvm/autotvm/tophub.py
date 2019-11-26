@@ -198,7 +198,7 @@ def load_reference_log(backend, model, workload_name, template_key):
     backend: str
         The backend name
     model: str
-        The name of the model
+        The name of the device model
     workload_name: str
         The name of the workload. (The first item in the workload tuple)
     template_key: str
@@ -224,6 +224,7 @@ def load_reference_log(backend, model, workload_name, template_key):
                 if model == inp.target.model:
                     find = True
                     break
+            # if device model is not find, use the device model with the most tuned worklaods
             if not find and counts:
                 model = max(counts.items(), key=lambda k: k[1])[0]
 
