@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import autotvm
 import topi
-from topi.util import get_const_tuple
 
 from ..environment import get_env
 
