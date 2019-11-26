@@ -23,7 +23,6 @@ from tvm import autotvm
 import topi
 from topi.util import get_const_tuple
 
-from .util import is_packed_layout
 from ..environment import get_env
 
 @autotvm.register_topi_compute(topi.nn.group_conv2d_nchw, 'vta', 'direct')
@@ -92,7 +91,7 @@ def schedule_packed_group_conv2d(cfg, outs):
     def _traverse(op):
         if topi.tag.is_broadcast(op.tag):
             if not op.same_as(output.op):
-                if len(op.axis) == 0:
+                if not op.axis:
                     const_ops.append(op)
                 else:
                     ewise_ops.append(op)
@@ -111,13 +110,13 @@ def schedule_packed_group_conv2d(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, co, h, w, bi, ci = s[conv2d_stage].op.axis
-    ci, kh, kw, bci = s[conv2d_stage].op.reduce_axis
+    b, c_o, x_i, x_j, _, _ = s[conv2d_stage].op.axis
+    c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_h', h, num_outputs=2)
-    cfg.define_split('tile_w', w, num_outputs=2)
-    cfg.define_split('tile_ci', ci, num_outputs=2)
-    cfg.define_split('tile_co', co, num_outputs=2)
+    cfg.define_split('tile_h', x_i, num_outputs=2)
+    cfg.define_split('tile_w', x_j, num_outputs=2)
+    cfg.define_split('tile_ci', c_i, num_outputs=2)
+    cfg.define_split('tile_co', c_o, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
     cfg.define_knob('h_nthread', [1, 2])
     ###### space definition end ######
@@ -131,9 +130,6 @@ def schedule_packed_group_conv2d(cfg, outs):
         pad_data = None
 
     env = get_env()
-    load_inp = load_wgt = load_acc = store_out = env.dma_copy
-    alu = env.alu
-    gemm = env.gemm
 
     # setup pad
     if pad_data is not None:
@@ -153,7 +149,7 @@ def schedule_packed_group_conv2d(cfg, outs):
     # set ewise scope
     for op in ewise_ops:
         s[op].set_scope(env.acc_scope)
-        s[op].pragma(s[op].op.axis[0], alu)
+        s[op].pragma(s[op].op.axis[0], env.alu)
 
     for op in const_ops:
         s[op].compute_inline()
@@ -173,7 +169,7 @@ def schedule_packed_group_conv2d(cfg, outs):
 
     for tensor in cache_read_ewise:
         s[tensor].compute_at(s[output], store_pt)
-        s[tensor].pragma(s[tensor].op.axis[0], load_acc)
+        s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
 
     # virtual threading along output channel axes
     if cfg['oc_nthread'].val > 1:
@@ -196,9 +192,9 @@ def schedule_packed_group_conv2d(cfg, outs):
     s[ckernel].compute_at(s[conv2d_stage], k_o)
 
     # Use VTA instructions
-    s[cdata].pragma(s[cdata].op.axis[0], load_inp)
-    s[ckernel].pragma(s[ckernel].op.axis[0], load_wgt)
-    s[conv2d_stage].tensorize(x_bi, gemm)
-    s[output].pragma(x_co1, store_out)
+    s[cdata].pragma(s[cdata].op.axis[0], env.dma_copy)
+    s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
+    s[conv2d_stage].tensorize(x_bi, env.gemm)
+    s[output].pragma(x_co1, env.dma_copy)
 
     return s

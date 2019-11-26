@@ -65,9 +65,9 @@ def my_clip(x, a_min, a_max):
     x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
-def run_conv2d(env, remote, wl, target,
-               check_correctness=True, print_ir=False,
-               samples=4):
+def run_group_conv2d(env, remote, wl, target,
+                     check_correctness=True, print_ir=False,
+                     samples=4):
 
     # Workload assertions
     assert wl.hpad == wl.wpad
@@ -234,7 +234,7 @@ def test_conv2d(device="vta"):
         with autotvm.tophub.context(target): # load pre-tuned schedule parameters
             for _, wl in mobilenet_wkls:
                 print(wl)
-                run_conv2d(env, remote, wl, target)
+                run_group_conv2d(env, remote, wl, target)
     vta.testing.run(_run)
 
 if __name__ == "__main__":
