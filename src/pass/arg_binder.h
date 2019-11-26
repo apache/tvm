@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file arg_binder.h
  * \brief Helper utility to match and bind arguments.
  */

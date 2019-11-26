@@ -396,7 +396,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
   // Get compiled function from the module that contains both host and device
   // code.
-  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
+  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
   auto fexec = [arg_ptr, pf]() {

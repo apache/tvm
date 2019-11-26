@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief NN op constructions
  * \file topi/nn.h
  */

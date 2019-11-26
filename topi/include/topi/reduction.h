@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file topi/reduction.h
  * \brief Reduction op constructors
  */

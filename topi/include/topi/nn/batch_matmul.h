@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \brief Batch matmul op constructions
  * \file nn/batch_matmul.h
  */

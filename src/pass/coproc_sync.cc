@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file coproc_sync.cc
  */
 #include <tvm/ir.h>

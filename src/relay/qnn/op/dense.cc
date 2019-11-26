@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/dense.cc
  * \brief Property def of qnn dense operator.
  */

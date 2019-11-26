@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Detail broadcast.
  * \file topi/detail/broadcast.h
  */

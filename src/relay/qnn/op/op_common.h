@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/relay/qnn/op/op_common.h
  * \brief A set of utilities and common functionality for QNN ops.
  */

@@ -42,9 +42,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
   int stride_w = args[6];
   int dilation_h = args[7];
   int dilation_w = args[8];
-  DLTensor *x = args[9];
-  DLTensor *w = args[10];
-  DLTensor *y = args[11];
+  DLTensor* x = args[9];
+  DLTensor* w = args[10];
+  DLTensor* y = args[11];
+  std::string conv_dtype = args[12];
+
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
@@ -55,7 +57,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
   // Set Ctx
   entry_ptr->conv_entry.ctx = x->ctx;
   // Set Data Type
-  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
+  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
   // Set Desc
   CUDNN_CALL(cudnnSetConvolution2dDescriptor(entry_ptr->conv_entry.conv_desc,
                                              pad_h,
@@ -68,8 +71,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
                                              entry_ptr->conv_entry.data_type));
   // Set Filter
   CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
-                                        entry_ptr->conv_entry.data_type,
-                                        CUDNN_TENSOR_NCHW,
+                                        data_type,
+                                        entry_ptr->conv_entry.tensor_format,
                                         static_cast<int>(w->shape[0]),
                                         static_cast<int>(w->shape[1]),
                                         static_cast<int>(w->shape[2]),
@@ -77,7 +80,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
   // Set Input
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                         entry_ptr->conv_entry.tensor_format,
-                                        entry_ptr->conv_entry.data_type,
+                                        data_type,
                                         static_cast<int>(x->shape[0]),
                                         static_cast<int>(x->shape[1]),
                                         static_cast<int>(x->shape[2]),
@@ -85,11 +88,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
   // Set Output
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.output_desc,
                                         entry_ptr->conv_entry.tensor_format,
-                                        entry_ptr->conv_entry.data_type,
+                                        data_type,
                                         static_cast<int>(y->shape[0]),
                                         static_cast<int>(y->shape[1]),
                                         static_cast<int>(y->shape[2]),
                                         static_cast<int>(y->shape[3])));
+  if (cudnnGetVersion() > 7000) {
+    CUDNN_CALL(cudnnSetConvolutionMathType(entry_ptr->conv_entry.conv_desc, CUDNN_TENSOR_OP_MATH))
+  }
+
   // Set workspace
   size_t workspace_size = 0;
   CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(entry_ptr->handle,
@@ -135,6 +142,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.output_shape")
   int w_dim2 = args[13];
   int w_dim3 = args[14];
   void *out_shape = args[15];
+  std::string data_dtype = args[16];
+  std::string conv_dtype = args[17];
+  // Set Data Type
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
+  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(data_dtype));
   // Set Format
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // conv desc
@@ -150,15 +162,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.output_shape")
   // input desc
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                         entry_ptr->conv_entry.tensor_format,
-                                        CUDNN_DATA_FLOAT,
+                                        data_type,
                                         x_dim0,
                                         x_dim1,
                                         x_dim2,
                                         x_dim3));
   // filter desc
   CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
-                                        CUDNN_DATA_FLOAT,
-                                        CUDNN_TENSOR_NCHW,
+                                        data_type,
+                                        entry_ptr->conv_entry.tensor_format,
                                         w_dim0,
                                         w_dim1,
                                         w_dim2,
@@ -196,7 +208,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
   int y_dim1 = args[16];
   int y_dim2 = args[17];
   int y_dim3 = args[18];
+  std::string data_dtype = args[19];
+  std::string conv_dtype = args[20];
 
+  // Set Data Type
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
+  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(data_dtype));
   // Set Format
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // conv desc
@@ -212,15 +229,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
   // input desc
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                         entry_ptr->conv_entry.tensor_format,
-                                        CUDNN_DATA_FLOAT,
+                                        data_type,
                                         x_dim0,
                                         x_dim1,
                                         x_dim2,
                                         x_dim3));
   // filter desc
   CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
-                                        CUDNN_DATA_FLOAT,
-                                        CUDNN_TENSOR_NCHW,
+                                        data_type,
+                                        entry_ptr->conv_entry.tensor_format,
                                         w_dim0,
                                         w_dim1,
                                         w_dim2,
@@ -229,11 +246,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.find_algo")
   // output desc
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.output_desc,
                                         entry_ptr->conv_entry.tensor_format,
-                                        entry_ptr->conv_entry.data_type,
+                                        data_type,
                                         y_dim0,
                                         y_dim1,
                                         y_dim2,
                                         y_dim3));
+  if (cudnnGetVersion() > 7000) {
+    CUDNN_CALL(cudnnSetConvolutionMathType(entry_ptr->conv_entry.conv_desc, CUDNN_TENSOR_OP_MATH))
+  }
 
   int returned_algo_count = 0;
   cudnnConvolutionFwdAlgoPerf_t perf_results[CUDNN_CONVOLUTION_FWD_ALGO_COUNT];

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rcnn_op.cc
  * \brief Faster RCNN and Mask RCNN operators
  */

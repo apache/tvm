@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file feature.cc
  * \brief Detect features used in Expr/Module
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file simplify_inference.cc
  */
 #include <tvm/relay/analysis.h>

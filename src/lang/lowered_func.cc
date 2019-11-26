@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file lowered_func.cc
  */
 #include <tvm/lowered_func.h>

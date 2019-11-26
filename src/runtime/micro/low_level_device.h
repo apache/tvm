@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file low_level_device.h
  * \brief Abstract low-level micro device management
  */

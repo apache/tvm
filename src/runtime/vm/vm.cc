@@ -47,7 +47,7 @@ namespace vm {
 
 inline Storage make_storage(size_t size, size_t alignment, TVMType dtype_hint, TVMContext ctx) {
   // We could put cache in here, from ctx to storage allocator.
-  auto storage_obj = SimpleObjAllocator().make<StorageObj>();
+  auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
   auto alloc = MemoryManager::Global()->GetAllocator(ctx);
   DCHECK(alloc != nullptr)
     << "allocator must not null";

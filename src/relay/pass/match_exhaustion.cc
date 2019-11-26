@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file match_exhaustion.cc
  * \brief Checking Relay match expression exhaustiveness.
  *

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file registry.cc
  * \brief The global registry of packed function.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Pooling op constructions
  * \file nn/pooling.h
  */

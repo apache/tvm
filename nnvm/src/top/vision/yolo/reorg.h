@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file reorg.h
  */
 #ifndef NNVM_TOP_VISION_YOLO_REORG_H_

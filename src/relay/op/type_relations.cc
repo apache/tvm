@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_relations.cc
  * \brief A set of utilities and common functionality
  * for type relations.

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_nvptx.cc
  * \brief NVPTX code generator.
  */

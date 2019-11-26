@@ -18,7 +18,6 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
 * \file ravel_unravel.h
 * \brief Index ravel and unraval operations
 */

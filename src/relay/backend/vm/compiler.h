@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/compiler.h
  * \brief A compiler from relay::Module to the VM byte code.
  */

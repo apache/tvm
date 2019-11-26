@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file well_formed.cc
  * \brief check that expression is well formed.
  */

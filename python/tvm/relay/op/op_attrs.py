@@ -284,3 +284,8 @@ class BinaryConv2DAttrs(Attrs):
 @register_relay_attr_node
 class BinaryDenseAttrs(Attrs):
     """Attributes used in bitserial dense operators"""
+
+
+@register_relay_attr_node
+class Conv2DTransposeAttrs(Attrs):
+    """Attributes used in Transposed Conv2D operators"""

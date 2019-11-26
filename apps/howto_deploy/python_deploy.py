@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Copyright (c) 2017 by Contributors
 # brief Example code on load and run TVM module.s
 # file python_deploy.py
 

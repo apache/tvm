@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file src/relay/op/annotation/annotation.cc
  * \brief Registration of annotation operators.

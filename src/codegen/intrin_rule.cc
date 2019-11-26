@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_default.cc
  * \brief Default intrinsic rules.
  */

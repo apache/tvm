@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_infer.cc
  * \brief Relay type inference and checking.
  *

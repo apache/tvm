@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file graph_attr_types.cc
  * \brief Graph node data structure.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file infer_shape.cc
  * \brief Inference the shapes given existin information.
  */

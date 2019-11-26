@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_llvm.cc
  */
 #ifdef TVM_LLVM_VERSION

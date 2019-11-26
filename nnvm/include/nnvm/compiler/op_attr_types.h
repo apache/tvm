@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nnvm/compiler/op_attr_types.h
  * \brief The Expr and related elements in DataFlow construction.
  */

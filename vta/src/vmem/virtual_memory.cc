@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file virtual_memory.cc
  * \brief Thread-safe virtal memory manager
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file param_dict.h
  * \brief Definitions for serializing and deserializing parameter dictionaries.
  */

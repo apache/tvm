@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file runtime.cc
  * \brief Generic VTA runtime in C++11.
  *

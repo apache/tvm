@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file target_data_layout_encoder.h
  * \brief uTVM data layout encoder
  */

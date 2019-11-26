@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*!  Copyright (c) 2019 by Contributors
+/*!
  * \file codegen_hybrid.cc
  */
 #include <iomanip>
