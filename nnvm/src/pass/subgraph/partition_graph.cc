@@ -17,11 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- * \file partition_graph.cc
- * \brief Partition a computational graph based upon a custom rule.
- */
 #include <nnvm/graph.h>
 #include <nnvm/pass.h>
 #include <unordered_set>

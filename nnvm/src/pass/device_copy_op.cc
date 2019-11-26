@@ -17,11 +17,6 @@
  * under the License.
  */
 
-/*
- * Copyright (c) 2018 by Contributors
- * \file device_copy_op.h
- * \brief Register an operator to perform data copy across different devices.
- */
 #include <nnvm/op.h>
 #include <nnvm/op_attr_types.h>
 

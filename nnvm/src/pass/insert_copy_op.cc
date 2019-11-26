@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*!
- * Copyright (c) 2018 by Contributors
- * \file insert_copy_op.cc
- * \brief Place corss device data copy nodes on entries where two nodes are
- * assigned to different devices.
- */
 #include <nnvm/graph.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/pass.h>

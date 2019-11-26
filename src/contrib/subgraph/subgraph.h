@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- *
- * \brief Subgraph data structure.
- * \file subgraph.h
- */
 #ifndef TVM_CONTRIB_SUBGRAPH_SUBGRAPH_H_
 #define TVM_CONTRIB_SUBGRAPH_SUBGRAPH_H_
 

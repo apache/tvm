@@ -17,11 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- * \file c_api_subgraph.cc
- * \brief C API of nnvm for the ease of testing backend in Python
- */
 #include <nnvm/c_api_subgraph.h>
 #include <nnvm/pass.h>
 #include "./c_api_common.h"

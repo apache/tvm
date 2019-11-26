@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- * \file tensorrt_subgraph_op.cc
- * \brief Subgraph operator for wrapping TensorRT.
- */
-
 #include <nnvm/compiler/op_attr_types.h>
 #include "./common.h"
 

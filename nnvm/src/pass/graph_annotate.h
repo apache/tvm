@@ -17,11 +17,6 @@
  * under the License.
  */
 
-/*!
- * Copyright (c) 2018 by Contributors
- * \file graph_annotate.h
- * \brief Define rules to annotate a graph.
- */
 #ifndef NNVM_PASS_GRAPH_ANNOTATE_H_
 #define NNVM_PASS_GRAPH_ANNOTATE_H_
 

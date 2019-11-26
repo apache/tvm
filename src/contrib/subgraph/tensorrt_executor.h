@@ -17,14 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- *
- * \brief TensorRT executor manager. The manager is owned
- * by GraphRuntime if TensorRT is enabled in the build. The manager
- * owns TensorRT inference engines and contexts.
- * \file tensorrt_executor.h
- */
 #ifndef TVM_CONTRIB_SUBGRAPH_TENSORRT_EXECUTOR_H_
 #define TVM_CONTRIB_SUBGRAPH_TENSORRT_EXECUTOR_H_
 

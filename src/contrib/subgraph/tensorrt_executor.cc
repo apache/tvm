@@ -17,13 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- *
- * \brief Implementation of TensorRT executor manager.
- * \file tensorrt_executor.cc
- */
-
 #include <tvm/runtime/c_runtime_api.h>
 #include <dmlc/parameter.h>
 #include <dmlc/timer.h>

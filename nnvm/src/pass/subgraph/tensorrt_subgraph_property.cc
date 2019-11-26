@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2018 by Contributors
- * \file tensorrt_subgraph_property.cc
- * \brief Graph partitioning rule for _tensorrt_subgraph_op.
- */
-
 #include <nnvm/symbolic.h>
 #include <vector>
 #include <string>
