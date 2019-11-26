@@ -118,6 +118,9 @@ class InplaceArrayBase {
    * \tparam Args Type parameters of the arguments.
    * \param idx Index of the element.
    * \param args Arguments to construct the new value.
+   *
+   * \note Please make sure Array::GetSize returns 0 before first call of
+   * EmplaceInit, and increment GetSize by 1 each time EmplaceInit succeeds.
    */
   template <typename... Args>
   void EmplaceInit(size_t idx, Args&&... args) {
@@ -183,9 +186,12 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   template <typename Iterator>
   void Init(Iterator begin, Iterator end) {
     size_t num_elems = std::distance(begin, end);
+    this->size = 0;
     auto it = begin;
     for (size_t i = 0; i < num_elems; ++i) {
       InplaceArrayBase::EmplaceInit(i, *it++);
+      // Only increment size after the initialization succeeds
+      this->size++;
     }
   }
 
