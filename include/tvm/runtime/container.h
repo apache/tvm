@@ -119,7 +119,7 @@ class InplaceArrayBase {
    * \param idx Index of the element.
    * \param args Arguments to construct the new value.
    *
-   * \note Please make sure Array::GetSize returns 0 before first call of
+   * \note Please make sure ArrayType::GetSize returns 0 before first call of
    * EmplaceInit, and increment GetSize by 1 each time EmplaceInit succeeds.
    */
   template <typename... Args>
