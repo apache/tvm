@@ -304,12 +304,17 @@ def test_strided_set():
     def verify(dshape, begin, end, strides, vshape, test_ref=True):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         v = relay.var("v", relay.TensorType(vshape, "float32"))
-        z = relay.strided_set(x, v, begin=begin, end=end, strides=strides)
+        begin_c = relay.const(begin, dtype="int32")
+        end_c = relay.const(end, dtype="int32")
+        if strides:
+            strides_c = relay.const(strides, dtype="int32")
+            z = relay.strided_set(x, v, begin=begin_c, end=end_c, strides=strides_c)
+        else:
+            z = relay.strided_set(x, v, begin=begin_c, end=end_c)
         func = relay.Function([x, v], z)
         func = run_infer_type(func)
         text = func.astext()
-        assert "begin=" in text
-        assert "end=" in text
+        assert "strided_set" in text
         print(text)
         assert func.body.checked_type == relay.ty.TensorType(dshape, "float32")
         if not test_ref:
@@ -323,8 +328,6 @@ def test_strided_set():
             op_res = intrp.evaluate(func)(x_data, v_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
-    verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))

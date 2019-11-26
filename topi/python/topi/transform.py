@@ -204,23 +204,35 @@ def strided_set(a, v, begin, end, strides=None):
         return tvm.expr.Select(a > b, a, b)
 
     if strides is None:
-        t_strides = [tvm.const(1, 'int32')] * n
-        strides = t_strides
+        strides = [tvm.const(1, 'int32')] * n
+    else:
+        strides = [tvm.if_then_else(strides.shape[0] > i,
+                                    strides[i],
+                                    tvm.const(1, 'int32'))
+                   for i in range(n)]
 
-    t_begin = begin
-    t_end = end
+    begin = [tvm.if_then_else(begin.shape[0] > i,
+                              begin[i],
+                              tvm.expr.Select(strides[i] > 0,
+                                              tvm.const(0, 'int32'),
+                                              a.shape[i]))
+               for i in range(n)]
+    end = [tvm.if_then_else(end.shape[0] > i,
+                            end[i],
+                            tvm.expr.Select(strides[i] > 0,
+                                            a.shape[i] + 1,
+                                            -(a.shape[i] + 1)))
+           for i in range(n)]
 
-    begin = [None] * n
-    end = [None] * n
 
     # Convert negative indexes
     for i in range(n):
-        begin[i] = tvm.if_then_else(t_begin[i] < 0,
-                                    t_begin[i] + a.shape[i],
-                                    t_begin[i])
-        end[i] = tvm.if_then_else(t_end[i] < 0,
-                                  t_end[i] + a.shape[i],
-                                  t_end[i])
+        begin[i] = tvm.if_then_else(begin[i] < 0,
+                                    begin[i] + a.shape[i],
+                                    begin[i])
+        end[i] = tvm.if_then_else(end[i] < 0,
+                                  end[i] + a.shape[i],
+                                  end[i])
 
     def _select(*indices):
         from_val = []

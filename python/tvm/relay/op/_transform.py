@@ -308,8 +308,7 @@ def compute_argwhere(attrs, inputs, output_type, _):
 @_reg.register_compute("strided_set")
 def compute_strided_set(attrs, inputs, output_type, _):
     """Compute definition of strided_set"""
-    return [topi.strided_set(inputs[0], inputs[1],
-                             attrs.begin, attrs.end, attrs.strides)]
+    return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
 @script
 def _layout_transform_shape_func(data_shape,
