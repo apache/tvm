@@ -48,35 +48,31 @@ def packed_group_conv2d(cfg,
     assert kernel.dtype == "int8", kernel.dtype
     assert out_dtype == "int32", out_dtype
 
-    N, CI, IH, IW, B_BATCH, B_CI = get_const_tuple(data.shape)
-    CO, CI_G, KH, KW, B_CO, B_CI = get_const_tuple(kernel.shape)
-    PAD_H, PAD_W = padding
-    STR_H, STR_W = strides
+    oheight = topi.util.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
+    owidth = topi.util.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
+    oshape = (data.shape[0], kernel.shape[0], oheight, owidth, data.shape[4], kernel.shape[4])
 
-    OH = (IH + 2 * PAD_H - KH) // strides[0] + 1
-    OW = (IW + 2 * PAD_W - KW) // strides[1] + 1
-
-    assert group * CI_G == CI
-    assert CO % group == 0
-
-    oshape = (N, CO, OH, OW, B_BATCH, B_CO)
-
-    kh = tvm.reduce_axis((0, KH), name='d_i')
-    kw = tvm.reduce_axis((0, KW), name='d_j')
-    ci_o = tvm.reduce_axis((0, CI_G), name='k_o')
-    ci_i = tvm.reduce_axis((0, B_CI), name='k_ten')
-
+    ishape = topi.util.get_const_tuple(data.shape)
+    kshape = topi.util.get_const_tuple(kernel.shape)
+    assert group * kshape[1] == ishape[1]
+    assert kshape[0] % group == 0
+    d_i = tvm.reduce_axis((0, kshape[2]), name='d_i')
+    d_j = tvm.reduce_axis((0, kshape[3]), name='d_j')
+    k_o = tvm.reduce_axis((0, kshape[1]), name='k_o')
+    k_i = tvm.reduce_axis((0, kshape[-1]), name='k_i')
+    hstride, wstride = strides
     out = tvm.compute(
         oshape,
-        lambda n, co, h, w, b_n, b_co: tvm.sum(
-            pad_data[n, co // (CO // group) * CI_G + ci_o, h * STR_H + kh,
-                     w * STR_W + kw, b_n, ci_i].astype(out_dtype) *
-            kernel[co, ci_o, kh, kw, b_co, ci_i].astype(out_dtype),
-            axis=[ci_o, kh, kw, ci_i]),
+        lambda b_o, c_o, i, j, b_i, c_i: tvm.sum(
+            pad_data[b_o, c_o // (kshape[0] // group) * kshape[1] + k_o, i * hstride + d_i,
+                     j * wstride + d_j, b_i, k_i].astype(out_dtype) *
+            kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
+            axis=[k_o, d_i, d_j, k_i]),
         name="res", tag="packed_group_conv2d")
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
-                 KH * KW * CI * B_CI)
+                 kshape[2] * kshape[3] * ishape[1] * kshape[-1])
+
     return out
 
 
