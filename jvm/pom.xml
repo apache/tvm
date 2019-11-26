@@ -20,8 +20,8 @@
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git@github.com:dmlc/tvm.git</connection>
-    <developerConnection>scm:git:git@github.com:dmlc/tvm.git</developerConnection>
+    <connection>scm:git:git@github.com:apache/incubator-tvm.git</connection>
+    <developerConnection>scm:git:git@github.com:apache/incubator-tvm.git</developerConnection>
     <url>https://github.com/apache/incubator-tvm</url>
   </scm>
 
