@@ -31,7 +31,7 @@ def resize(data,
     with data of shape (n, c, h, w)
     out will have a shape (n, c, size[0], size[1])
 
-    method indicates the algorithm to be used while calculating ghe out value
+    method indicates the algorithm to be used while calculating the out value
     and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
 
     Parameters
@@ -75,7 +75,7 @@ def crop_and_resize(data,
                     out_dtype=None):
     """Crop input images and resize them.
 
-    method indicates the algorithm to be used while calculating ghe out value
+    method indicates the algorithm to be used while calculating the out value
     and method can be either "bilinear" or "nearest_neighbor".
 
     Parameters

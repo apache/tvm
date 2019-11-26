@@ -148,18 +148,21 @@ def test_crop_and_resize():
                                method="bilinear", extrapolation_value=0.0):
 
         images = tvm.placeholder(image_shape, name='images', dtype='float32')
-        dtype = images.dtype
-        np_images = np.random.uniform(size=image_shape).astype(dtype)
+        np_images = np.random.uniform(size=image_shape).astype("float32")
         boxes = tvm.placeholder(np_boxes.shape, name="boxes", dtype="float32")
         box_ind = tvm.placeholder(np_box_indices.shape, name="box_ind", dtype="int32")
 
+        batch = len(np_box_indices)
+        target_height, target_width = np_crop_size[0], np_crop_size[1]
         if layout == 'NHWC':
-            out_shape = (len(np_box_indices), np_crop_size[0], np_crop_size[1], image_shape[3])
+            channel = image_shape[3]
+            out_shape = (batch, target_height, target_width, channel)
         elif layout == 'NCHW':
-            out_shape = (len(np_box_indices), image_shape[1], np_crop_size[0], np_crop_size[1])
+            channel = image_shape[1]
+            out_shape = (batch, channel, target_height, target_width)
         else:
             raise NotImplementedError(
-                'Layout not supported {} '.format(layout))
+                'Layout {} is not supported.'.format(layout))
 
         out = topi.image.crop_and_resize(images, boxes, box_ind, np_crop_size, layout=layout,
                                          method=method, extrapolation_value=extrapolation_value)
@@ -175,24 +178,24 @@ def test_crop_and_resize():
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = topi.generic.schedule_injective(out)
-            nd_images = tvm.nd.array(np_images, ctx)
-            nd_boxes = tvm.nd.array(np_boxes, ctx)
-            nd_indices = tvm.nd.array(np_box_indices, ctx)
-            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype=images.dtype), ctx)
-            f = tvm.build(s, [images, boxes, box_ind, out], device)
-            f(nd_images, nd_boxes, nd_indices, tvm_out)
+            tvm_images = tvm.nd.array(np_images, ctx)
+            tvm_boxes = tvm.nd.array(np_boxes, ctx)
+            tvm_indices = tvm.nd.array(np_box_indices, ctx)
+            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), ctx)
+            f = tvm.build(s, [images, boxes, box_ind, out], device, name="crop_and_resize")
+            f(tvm_images, tvm_boxes, tvm_indices, tvm_out)
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
-        for device in get_all_backend():
+        for device in ['llvm', 'cuda']:
             check_device(device)
 
-    boxes_1 = np.array([[.2, .3, .7, .9]]).astype("float32")
-    boxes_2 = np.array([[.2, .3, .7, .9], [0, .1, .8, 1]]).astype("float32")
-    indices_1 = np.array([0]).astype("int32")
-    indices_2 = np.array([1, 0]).astype("int32")
-    size_1 = np.array([7, 11]).astype("int32")
-    size_2 = np.array([90, 60]).astype("int32")
+    boxes_1 = np.array([[.2, .3, .7, .9]], dtype="float32")
+    boxes_2 = np.array([[.2, .3, .7, .9], [0, .1, .8, 1]], dtype="float32")
+    indices_1 = np.array([0], dtype="int32")
+    indices_2 = np.array([1, 0], dtype="int32")
+    size_1 = np.array([7, 11], dtype="int32")
+    size_2 = np.array([90, 60], dtype="int32")
 
     verify_crop_and_resize((1, 255, 255, 3), boxes_1, indices_1, size_1, layout="NHWC")
     verify_crop_and_resize((10, 224, 224, 5), boxes_2, indices_2,

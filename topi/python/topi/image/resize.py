@@ -26,6 +26,7 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
                             box_indices=None, extrapolation_value=None, layout='NCHW',
                             coordinate_transformation_mode="align_corners",
                             out_dtype=None):
+
     """Perform resize operation with nearest neighbor method on the data.
     For details about Nearest-neighbor interpolation please refer to
     https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation.
@@ -167,7 +168,6 @@ def resize_bilinear(indices, data, image_height, image_width,
                     box_indices=None, extrapolation_value=None, layout='NCHW',
                     coordinate_transformation_mode="align_corners",
                     out_dtype=None):
-
 
     """Perform resize operation with bilinear method on the data.
     For details about Bilinear interpolation please refer to
@@ -321,10 +321,10 @@ def resize_bilinear(indices, data, image_height, image_width,
 
 
 def resize_bicubic(indices, data, image_height, image_width,
-                    target_height, target_width, boxes=None,
-                    box_indices=None, extrapolation_value=None, layout='NCHW',
-                    coordinate_transformation_mode="align_corners",
-                    out_dtype=None):
+                   target_height, target_width, boxes=None,
+                   box_indices=None, extrapolation_value=None, layout='NCHW',
+                   coordinate_transformation_mode="align_corners",
+                   out_dtype=None):
     """Perform resize operation with bicubic method on the data.
     More details about Bicubic interpolation please refer to
     https://en.wikipedia.org/wiki/Bicubic_interpolation.
@@ -552,18 +552,24 @@ def resize(data, size, layout="NCHW", method="bilinear",
 
 
     def _nearest_neighbor(*indices):
-        return resize_nearest_neighbor(indices, data, in_h, in_w, size[0], size[1], layout=layout,
-                                       coordinate_transformation_mode=coordinate_transformation_mode,
+        return resize_nearest_neighbor(indices, data, in_h, in_w,
+                                       size[0], size[1], layout=layout,
+                                       coordinate_transformation_mode= \
+                                           coordinate_transformation_mode,
                                        out_dtype=out_dtype)
 
     def _bilinear(*indices):
-        return resize_bilinear(indices, data, in_h, in_w, size[0], size[1], layout=layout,
-                               coordinate_transformation_mode=coordinate_transformation_mode,
+        return resize_bilinear(indices, data, in_h, in_w,
+                               size[0], size[1], layout=layout,
+                               coordinate_transformation_mode= \
+                                   coordinate_transformation_mode,
                                out_dtype=out_dtype)
 
     def _bicubic(*indices):
-        return resize_bicubic(indices, data, in_h, in_w, size[0], size[1], layout,
-                              coordinate_transformation_mode=coordinate_transformation_mode,
+        return resize_bicubic(indices, data, in_h, in_w,
+                              size[0], size[1], layout,
+                              coordinate_transformation_mode= \
+                                  coordinate_transformation_mode,
                               out_dtype=out_dtype)
 
     # Determine which interpolation method to use then run it.

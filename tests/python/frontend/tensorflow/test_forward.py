@@ -1725,35 +1725,29 @@ def test_forward_crop_and_resize():
     _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3])
     _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3], 0.2)
     _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3], 0.2, 'nearest')
-    _test_forward_crop_and_resize([1, 11, 11, 3], [[.3, .3,  1,  1]], [0], [21, 23])
-    _test_forward_crop_and_resize([1, 41, 41, 3], [[.2, .4, .8, .8]], [0], [50, 60])
+    _test_forward_crop_and_resize([1, 11, 11, 3], [[.3, .3,  1,  1]], [0], [21, 21])
+    _test_forward_crop_and_resize([1, 41, 41, 3], [[.2, .4, .8, .8]], [0], [21, 11])
     _test_forward_crop_and_resize([1, 100, 100, 3], [[ 0,  0, .9, .9]], [0], [30, 30])
     _test_forward_crop_and_resize([1, 224, 224, 3], [[.1, .2,  1,  1]], [0], [9, 9])
-    _test_forward_crop_and_resize([1, 250, 250, 3], [[.2, .2, .9, .8]], [0], [6, 7])
-    _test_forward_crop_and_resize([1, 200, 200, 3], [[.2, .3, .6, .8]], [0], [100, 150])
+    _test_forward_crop_and_resize([1, 249, 249, 3], [[ 0,  0,  1,  1]], [0], [9, 9])
+    _test_forward_crop_and_resize([1, 201, 301, 3], [[.2, .3, .7, .8]], [0], [51, 51])
     _test_forward_crop_and_resize(img_shape=[10, 11, 11, 3],
                                   boxes=[[ 0,  0, .9, .9],
                                          [.2, .2, .8, .8]],
                                   box_idx=[0, 1], crop_size=[5, 5])
-    _test_forward_crop_and_resize(img_shape=[20, 229, 229, 3],
-                                  boxes=[[ 0,  0, .9, .9],
-                                         [.3, .3,  1,  1],
-                                         [.2, .1, .7, .8],
-                                         [ 0,  0,  1,  1]],
-                                  box_idx=[0, 1, 2, 3], crop_size=[60, 90])
-    _test_forward_crop_and_resize(img_shape=[20, 229, 229, 3],
-                                  boxes=[[ 0,  0, .9, .9],
-                                         [.3, .3,  1,  1],
-                                         [.2, .1, .7, .8],
-                                         [ 0,  0,  1,  1]],
-                                  box_idx=[3, 0, 2, 1], crop_size=[60, 90],
+    _test_forward_crop_and_resize(img_shape=[20, 576, 576, 3],
+                                  boxes=[[ 0,  0,  1,  1],
+                                         [ 0,  0, .8, .8],
+                                         [.1, .2, .9,  1],
+                                         [.2,  0,  1,  1]],
+                                  box_idx=[1, 0, 2, 3], crop_size=[24, 24],
                                   extrapolation_value=0.3)
     _test_forward_crop_and_resize(img_shape=[20, 229, 229, 3],
                                   boxes=[[ 0,  0, .9, .9],
                                          [.3, .3,  1,  1],
                                          [.2, .1, .7, .8],
                                          [ 0,  0,  1,  1]],
-                                  box_idx=[3, 0, 2, 1], crop_size=[60, 90],
+                                  box_idx=[3, 0, 2, 1], crop_size=[58, 58],
                                   extrapolation_value=0.2, method='nearest')
 
 

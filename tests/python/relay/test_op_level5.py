@@ -99,7 +99,7 @@ def test_crop_and_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(image_data, boxes, box_indices)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-04)
 
     boxes_nhwc = np.array([[.1, .2, .8, .7], [.2, 0, 1, .6]]).astype("float32")
     indices_nhwc = np.array([1, 0]).astype("int32")
