@@ -169,13 +169,13 @@ def strided_set(a, v, begin, end, strides=None):
     v : tvm.Tensor
         The values to set
 
-    begin: list of Expr
+    begin: tvm.Tensor
         The indices to begin with in the slicing.
 
-    end: list of Expr
+    end: tvm.Tensor
         Indicies indicating end of the slice.
 
-    strides: list of Expr, optional
+    strides: tvm.Tensor, optional
         Specifies the stride values, it can be negative
         in that case, the input tensor will be reversed
         in that particular axis.
@@ -185,31 +185,42 @@ def strided_set(a, v, begin, end, strides=None):
     ret : tvm.Tensor
     """
     n = len(a.shape)
-    if strides is None:
-        strides = [1] * n
 
-    if len(begin) != n:
-        raise ValueError("size mismatch")
-    if len(end) != n:
-        raise ValueError("size mismatch")
-    if len(strides) != n:
-        raise ValueError("size mismatch")
-
-    begin = list(map(tvm.convert, begin))
-    end = list(map(tvm.convert, end))
-    strides = list(map(tvm.convert, strides))
+    if len(begin.shape) != 1:
+        raise ValueError("begin should be a vector")
+    if not begin.dtype == 'int32':
+        raise TypeError("begin should be int32")
+    if len(end.shape) != 1:
+        raise ValueError("end should be a vector")
+    if not end.dtype == 'int32':
+        raise TypeError("end should be int32")
+    if strides is not None:
+        if len(strides.shape) != 1:
+            raise ValueError("strides should be a vector")
+        if not strides.dtype == 'int32':
+            raise TypeError("strides should be int32")
 
     def _max(a, b):
         return tvm.expr.Select(a > b, a, b)
 
+    if strides is None:
+        t_strides = [tvm.const(1, 'int32')] * n
+        strides = t_strides
+
+    t_begin = begin
+    t_end = end
+
+    begin = [None] * n
+    end = [None] * n
+
     # Convert negative indexes
     for i in range(n):
-        begin[i] = tvm.if_then_else(begin[i] < 0,
-                                    begin[i] + a.shape[i],
-                                    begin[i])
-        end[i] = tvm.if_then_else(end[i] < 0,
-                                  end[i] + a.shape[i],
-                                  end[i])
+        begin[i] = tvm.if_then_else(t_begin[i] < 0,
+                                    t_begin[i] + a.shape[i],
+                                    t_begin[i])
+        end[i] = tvm.if_then_else(t_end[i] < 0,
+                                  t_end[i] + a.shape[i],
+                                  t_end[i])
 
     def _select(*indices):
         from_val = []

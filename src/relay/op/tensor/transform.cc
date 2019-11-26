@@ -2054,22 +2054,18 @@ bool StridedSetRel(const Array<Type>& types,
                    int num_inputs,
                    const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
-  reporter->Assign(types[2], types[0]);
+  CHECK_EQ(types.size(), 6);
+  reporter->Assign(types[5], types[0]);
   return true;
 }
 
 Expr MakeStridedSet(Expr data,
                     Expr v,
-                    Array<Integer> begin,
-                    Array<Integer> end,
-                    Array<Integer> strides) {
-  auto attrs = make_node<StridedSliceAttrs>();
-  attrs->begin = std::move(begin);
-  attrs->end = std::move(end);
-  attrs->strides = std::move(strides);
+                    Expr begin,
+                    Expr end,
+                    Expr strides) {
   static const Op& op = Op::Get("strided_set");
-  return CallNode::make(op, {data, v}, Attrs(attrs), {});
+  return CallNode::make(op, {data, v, begin, end, strides}, {});
 }
 
 TVM_REGISTER_API("relay.op._make.strided_set")
@@ -2092,11 +2088,13 @@ Example::
        [  2.,  44.,  55.,  66.],
        [  3.,   6.,   9.,  12.]]
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(2)
+.set_num_inputs(5)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("v", "Tensor", "The data to set.")
+.add_argument("begin", "Tensor", "Indices for the start of the slice.")
+.add_argument("end", "Tensor", "Indices indicating the end of the slice.")
+.add_argument("strides", "Tensor", "The strides values.")
 .set_support_level(4)
-.set_attrs_type<StridedSliceAttrs>()
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .add_type_rel("StridedSet", StridedSetRel);
 

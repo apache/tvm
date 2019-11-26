@@ -642,13 +642,13 @@ def strided_set(data, v, begin, end, strides=None):
     v : relay.Expr
         The data to be set.
 
-    begin: list of int
+    begin: relay.Expr
         The indices to begin with in the slicing.
 
-    end: list of int
+    end: relay.Expr
         Indices indicating end of the slice.
 
-    strides: list of int, optional
+    strides: relay.Expr, optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
@@ -657,8 +657,8 @@ def strided_set(data, v, begin, end, strides=None):
     ret : relay.Expr
         The computed result.
     """
-    strides = strides or []
-    return _make.strided_set(data, v, list(begin), list(end), list(strides))
+    strides = strides or const([1], dtype="int32")
+    return _make.strided_set(data, v, begin, end, strides)
 
 
 def slice_like(data, shape_like, axes=None):
