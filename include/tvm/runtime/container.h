@@ -55,8 +55,10 @@ namespace runtime {
  *  void Init(Iterator begin, Iterator end) {
  *   size_t num_elems = std::distance(begin, end);
  *   auto it = begin;
+ *   this->size = 0;
  *   for (size_t i = 0; i < num_elems; ++i) {
  *     InplaceArrayBase::EmplaceInit(i, *it++);
+ *     this->size++;
  *   }
  *  }
  * }
@@ -223,7 +225,6 @@ class ADT : public ObjectRef {
     size_t num_elems = std::distance(begin, end);
     auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
     ptr->tag = tag;
-    ptr->size = num_elems;
     ptr->Init(begin, end);
     data_ = std::move(ptr);
   }
