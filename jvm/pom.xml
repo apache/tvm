@@ -10,8 +10,8 @@
   <url>https://github.com/apache/incubator-tvm/tree/master/jvm</url>
   <description>TVM4J Package</description>
   <organization>
-    <name>Distributed (Deep) Machine Learning Community</name>
-    <url>http://dmlc.ml</url>
+    <name>Apache Software Foundation</name>
+    <url>https://apache.org</url>
   </organization>
   <licenses>
     <license>
