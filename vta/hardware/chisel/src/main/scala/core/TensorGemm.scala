@@ -46,7 +46,10 @@ class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
   io.y := add
 }
 
-/** Pipelined adder */
+/** PipeAdder
+  *
+  * This unit loads input bits into register and performs addition in the next cycle
+  */
 class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
   val outBits = Math.max(aBits, bBits) + 1
   val io = IO(new Bundle {
@@ -61,7 +64,11 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
   io.y := add
 }
 
-/** Adder */
+/** Adder
+  *
+  * This unit wires input bits to an adder directly.
+  * The output comes out of combinational logic without waiting for another cycle.
+  */
 class Adder(aBits: Int = 8, bBits: Int = 8) extends Module {
   val outBits = Math.max(aBits, bBits) + 1
   val io = IO(new Bundle {
