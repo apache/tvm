@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, too-many-lines
 """Tensorflow lite frontend."""
 from __future__ import absolute_import as _abs
 import math
@@ -96,6 +96,7 @@ class OperatorConverter(object):
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'PRELU': self.convert_prelu,
+            'TRANSPOSE_CONV': self.convert_transpose_conv,
         }
 
     def check_unsupported_ops(self):
@@ -1367,6 +1368,84 @@ class OperatorConverter(object):
                                             dtype=alpha_tensor_type_str)
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
+
+        return out
+
+    def convert_transpose_conv(self, op):
+        """Convert TFLite TRANSPOSE_CONV"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.TensorType import TensorType
+            from tflite.Operator import Operator
+            from tflite.TransposeConvOptions import TransposeConvOptions
+            from tflite.Padding import Padding
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        # Input (data) Tensor. NHWC layout
+        input_tensor = input_tensors[2]
+        _, _, _, input_c = input_tensor.tensor.ShapeAsNumpy()
+        # Weights tensor. TFLite uses OHWI layout
+        weights_tensor = input_tensors[1]
+        out_channels, kernel_h, kernel_w, in_channels = weights_tensor.tensor.ShapeAsNumpy()
+        assert input_c == in_channels, \
+            "Input channel in the filter should match to channel in the input"
+        # output_shape Tensor. NHWC layout
+        output_shape_tensor = input_tensors[0]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_tensor_type = output_tensor.tensor.Type()
+        output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.TransposeConvOptions
+        op_options = op.BuiltinOptions()
+        deconv_options = TransposeConvOptions()
+        deconv_options.Init(op_options.Bytes, op_options.Pos)
+
+        padding = deconv_options.Padding()
+        stride_h = deconv_options.StrideH()
+        stride_w = deconv_options.StrideW()
+        assert padding in (Padding.VALID, Padding.SAME), \
+            'Padding format {} is not supported for operator TRANSPOSE_CONV'.format(padding)
+
+        # Data
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # Weights
+        weights_tensor_type = weights_tensor.tensor.Type()
+        # weights tensor type should be UINT8 (quantization) or FLOAT32
+        assert weights_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
+        weight_value_ohwi = self.get_tensor_value(weights_tensor)
+        # Relay kernel_layout should be OIHW
+        # Relay weights layout should be different from kernel_layout - it should be IOHW
+        weight_value_iohw = np.transpose(weight_value_ohwi, (3, 0, 1, 2))
+        weight_expr_iohw = self.exp_tab.new_const(weight_value_iohw, dtype=weight_tensor_type_str)
+
+        # Output shape value
+        output_shape_value = self.get_tensor_value(output_shape_tensor)
+        # Relay expects filter output channel to match to output tensor channel.
+        assert out_channels == output_shape_value[3], \
+            "Output channel in the filter should match to channel in the output_shape"
+
+        # TF frontend supports 'SAME' padding for kernel 1x1 only. Lets do the same here
+        if padding == Padding.SAME:
+            assert (kernel_h, kernel_w) == (1, 1), \
+                "SAME padding is supported for kernel (1,1) only"
+
+        out = _op.nn.conv2d_transpose(in_expr, weight_expr_iohw,
+                                      strides=(stride_h, stride_w),
+                                      channels=int(out_channels),
+                                      kernel_size=(int(kernel_h), int(kernel_w)),
+                                      data_layout="NHWC",
+                                      kernel_layout="OIHW",
+                                      out_dtype=output_tensor_type_str)
 
         return out
 
