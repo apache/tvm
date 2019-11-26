@@ -1,0 +1,3 @@
+# Put this file in your home directory as .lldbinit
+# Update the line below to point to the pretty printer script
+command script import ~/bin/lldb/tvm.py
