@@ -756,7 +756,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* obj = args[i].as<ADTObj>()) {
-      arity += obj->size_;
+      arity += obj->size;
     } else {
       ++arity;
     }
@@ -768,7 +768,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   int idx = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* dt_cell = args[i].as<ADTObj>()) {
-      for (size_t fi = 0; fi < dt_cell->size_; ++fi) {
+      for (size_t fi = 0; fi < dt_cell->size; ++fi) {
         auto obj = (*dt_cell)[fi];
         const auto* tensor = obj.as<TensorObj>();
         CHECK(tensor != nullptr);

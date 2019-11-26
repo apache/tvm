@@ -81,7 +81,7 @@ class InplaceArrayBase {
    * \return Const reference to ElemType at the index.
    */
   const ElemType& operator[](size_t idx) const {
-    size_t size = Self()->size();
+    size_t size = Self()->GetSize();
     CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
@@ -92,7 +92,7 @@ class InplaceArrayBase {
    * \return Reference to ElemType at the index.
    */
   ElemType& operator[](size_t idx) {
-    size_t size = Self()->size();
+    size_t size = Self()->GetSize();
     CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
@@ -103,7 +103,7 @@ class InplaceArrayBase {
   ~InplaceArrayBase() {
     if (!(std::is_standard_layout<ElemType>::value &&
           std::is_trivial<ElemType>::value)) {
-      size_t size = Self()->size();
+      size_t size = Self()->GetSize();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
         fp->ElemType::~ElemType();
@@ -121,7 +121,6 @@ class InplaceArrayBase {
    */
   template <typename... Args>
   void EmplaceInit(size_t idx, Args&&... args) {
-    CHECK_LT(idx, Self()->capacity()) << "InplaceArray out of capacity\n";
     void* field_ptr = AddressOf(idx);
     new (field_ptr) ElemType(std::forward<Args>(args)...);
   }
@@ -159,31 +158,21 @@ class InplaceArrayBase {
 class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
  public:
   /*! \brief The tag representing the constructor used. */
-  uint32_t tag_;
+  uint32_t tag;
   /*! \brief Number of fields in the ADT object. */
-  uint32_t size_;
+  uint32_t size;
   // The fields of the structure follows directly in memory.
-
-  /*!
-   * \return The number of elements the array can hold.
-   */
-  size_t capacity() const { return size_; }
-
-  /*!
-   * \return The number of elements in the array.
-   */
-  size_t size() const { return size_; }
-
-  /*!
-   * \return Return the ADT tag.
-   */
-  size_t tag() const { return tag_; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
   static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
 
  private:
+  /*!
+   * \return The number of elements in the array.
+   */
+  size_t GetSize() const { return size; }
+
   /*!
    * \brief Initialize the elements in the array.
    *
@@ -201,6 +190,7 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   }
 
   friend class ADT;
+  friend class InplaceArrayBase;
 };
 
 /*! \brief reference to algebraic data type objects. */
@@ -226,8 +216,8 @@ class ADT : public ObjectRef {
   ADT(uint32_t tag, Iterator begin, Iterator end) {
     size_t num_elems = std::distance(begin, end);
     auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
-    ptr->tag_ = tag;
-    ptr->size_ = num_elems;
+    ptr->tag = tag;
+    ptr->size = num_elems;
     ptr->Init(begin, end);
     data_ = std::move(ptr);
   }
@@ -254,12 +244,12 @@ class ADT : public ObjectRef {
   /*!
    * \brief Return the ADT tag.
    */
-  size_t tag() const { return operator->()->tag(); }
+  size_t tag() const { return operator->()->tag; }
 
   /*!
    * \brief Return the number of fields.
    */
-  size_t size() const { return operator->()->size(); }
+  size_t size() const { return operator->()->size; }
 
   /*!
    * \brief Construct a tuple object.
