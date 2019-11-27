@@ -145,6 +145,8 @@ set(USE_RANDOM OFF)
 # Whether use NNPack
 set(USE_NNPACK OFF)
 
+set(USE_TFLITE ON)
+
 # Whether use CuDNN
 set(USE_CUDNN OFF)
 
