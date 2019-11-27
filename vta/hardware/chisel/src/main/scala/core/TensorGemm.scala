@@ -152,6 +152,8 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
   })
   val dot = Seq.fill(size)(
     Module(new DotProduct(aBits = inpBits, bBits = wgtBits, size)))
+  // Latency is defined as two in the following, because there is one cycle in the MAC module,
+  // and another cycle in the pipelined adders as the first layer of the accumulator
   val acc = Seq.fill(size)(Module(new Pipe(UInt(accBits.W), latency = 2)))
   val add = Seq.fill(size)(Wire(SInt(accBits.W)))
   val vld = Wire(Vec(size, Bool()))
@@ -213,6 +215,8 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
   val wgt_i = Reg(chiselTypeOf(dec.uop_end))
   val pBits = log2Ceil(p(CoreKey).blockOut) + 1
   val inflight = Reg(UInt(pBits.W))
+  // Latency is defined as two in the following, because there is one cycle in the MAC module,
+  // and another cycle in the pipelined adders as the first layer of the accumulator
   val wrpipe = Module(new Pipe(chiselTypeOf(dec.uop_end), latency = 2))
   val done = inflight === 0.U &
     ((state === sExe &
