@@ -65,44 +65,31 @@ class LambdaLifter : public ExprMutator {
   explicit LambdaLifter(const Module& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) final {
-    std::cout << "============================================\n";
-    std::cout << "Visit let: " << AsText(GetRef<Let>(let_node), false) << "\n";
     bool is_lambda = false;
     if (auto func = let_node->value.as<FunctionNode>()) {
       if (!func->IsPrimitive()) {
-        std::cout << "[Letrec] push back " << let_node->var << "\n";
         is_lambda = true;
         letrec_.push_back(let_node->var);
       }
     }
-    auto new_let = ExprMutator::VisitExpr_(let_node);
+    auto value = VisitExpr(let_node->value);
     if (is_lambda) {
-      std::cout << "[Letrec] pop\n";
       letrec_.pop_back();
     }
-    std::cout << "[NEW let] " << AsText(new_let, false) << "\n";
-    return new_let;
+    auto body = VisitExpr(let_node->body);
+    return LetNode::make(let_node->var, value, body);
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    std::cout << "============================================\n";
-    std::cout << "Visit call: " << AsText(GetRef<Call>(call_node), false) << "\n";
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
     if (auto var_node = call_node->op.as<VarNode>()) {
       auto var = GetRef<Var>(var_node);
-      auto it = lambda_map_.find(var);
-      if (it != lambda_map_.end()) {
-        auto new_call = CallNode::make(it->second, call->args, call_node->attrs, call_node->type_args);
-        std::cout << "[new call] " << AsText(new_call, false) << "\n";
+      if (!letrec_.empty() && var == letrec_.back()) {
+        auto it = lambda_map_.find(var);
+        CHECK(it != lambda_map_.end());
+        auto new_call = CallNode::make(it->second, call->args, call_node->attrs,
+                                       call_node->type_args);
         return new_call;
-        // CHECK_GT(lambda_captured_vars_.count(var), 0);
-        // auto args = call->args;
-        // for (auto arg : lambda_captured_vars_.at(var)) {
-        //   args.push_back(arg);
-        // }
-        // auto new_call = CallNode::make(it->second, args, call_node->attrs, call_node->type_args);
-        // std::cout << "[NEW call] " << AsText(new_call, false) << "\n";
-        // return new_call;
       }
     }
     return call;
@@ -110,8 +97,6 @@ class LambdaLifter : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
-    std::cout << "============================================\n";
-    std::cout << "Visit func: " << AsText(func, false) << "\n";
 
     // We should not transform primitive functions.
     if (func->IsPrimitive()) {
@@ -120,23 +105,29 @@ class LambdaLifter : public ExprMutator {
 
     auto name = GenerateName(func);
     auto global = GlobalVarNode::make(name);
-    
     auto free_vars = FreeVars(func);
+    auto free_type_vars = FreeTypeVars(func, module_);
+
     Array<Var> captured_vars;
     bool recursive = false;
     for (const auto& var : free_vars) {
       if (!letrec_.empty() && var == letrec_.back()) {
-        std::cout << "recursive: " << var <<"\n";
         recursive = true;
         continue;
       }
       captured_vars.push_back(var);
     }
     if (recursive) {
-      lambda_map_.emplace(letrec_.back(), global);
-      lambda_captured_vars_.emplace(letrec_.back(), captured_vars);
+      if (!captured_vars.empty()) {
+        Array<Expr> fvs;
+        for (auto fv : captured_vars) {
+          fvs.push_back(fv);
+        }
+        lambda_map_.emplace(letrec_.back(), CallNode::make(global, fvs));
+      } else {
+        lambda_map_.emplace(letrec_.back(), global);
+      }
     }
-    auto free_type_vars = FreeTypeVars(func, module_);
     auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
 
     // When performing this optimization there are two cases.
@@ -165,16 +156,9 @@ class LambdaLifter : public ExprMutator {
     if (captured_vars.size() == 0 && free_type_vars.size() == 0) {
       lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, body->type_params);
     } else {
-      auto params = body->params;
-      for (auto var : captured_vars) {
-        params.push_back(var);
-      }
-      // lifted_func = FunctionNode::make(params, body->body, body->ret_type, body->type_params);
-      
       lifted_func =
           FunctionNode::make(captured_vars, body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
-      std::cout << "lifted function (closure): " << AsText(lifted_func, false) << "\n";
     }
 
     CHECK(lifted_func.defined());
@@ -187,12 +171,8 @@ class LambdaLifter : public ExprMutator {
       global = module_->GetGlobalVar(name);
     } else {
       // Add the lifted function to the module.
-      LOG(INFO) << "add lifted function";
       module_->Add(global, lifted_func);
-      LOG(INFO) << "After added lifted func: " << AsText(module_, false);
     }
-
-    // return std::move(global);
 
     if (captured_vars.size() == 0) {
       return std::move(global);
@@ -212,22 +192,18 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       auto func = pair.second;
-      LOG(INFO) << "Lifting " << AsText(func, false);
       func = FunctionNode::make(func->params,
                                 VisitExpr(func->body),
                                 func->ret_type,
                                 func->type_params,
                                 func->attrs);
-      LOG(INFO) << "new func: " << AsText(func, false);
       module_->Add(pair.first, func, true);
     }
-    LOG(INFO) << "After lambda lift: " << AsText(module_, false);
     return module_;
   }
 
  private:
-  std::unordered_map<Var, GlobalVar, NodeHash, NodeEqual> lambda_map_;
-  std::unordered_map<Var, Array<Var>, NodeHash, NodeEqual> lambda_captured_vars_;
+  std::unordered_map<Var, Expr, NodeHash, NodeEqual> lambda_map_;
   std::vector<Var> letrec_;
   Module module_;
 };

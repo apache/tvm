@@ -140,7 +140,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
       GetScope(e)->ll->Push(v, memo.at(e));
     }
     auto ret = memo.at(e);
-    //CHECK(IsAtomic(ret));
+    CHECK(IsAtomic(ret));
     return ret;
   }
 
@@ -221,18 +221,10 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
-    LOG(INFO) << "Visit letnode: " << AsText(GetRef<Let>(l), false);
     Expr e = GetRef<Expr>(l);
-    auto value = VisitExpr(l->value, l->var);
+    VisitExpr(l->value, l->var);
     Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body));
-    if (auto func = l->value.as<FunctionNode>()) {
-      if (!func->IsPrimitive()) {
-        LOG(INFO) << AsText(value, false);
-        LOG(INFO) << AsText(ret, false);
-      }
-    }
-    return ret;
-    //return Compound(e, ret, v);
+    return Compound(e, ret, v);
   }
 
   Expr VisitExpr_(const ConstantNode* c, const Var& v) final {

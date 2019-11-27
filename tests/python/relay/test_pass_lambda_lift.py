@@ -43,20 +43,11 @@ def test_closure():
     y = relay.var('y', shape=(2,))
     inner_func = relay.Function([x], x + y)
     outer_func = relay.Function([y], inner_func)
-    # x_call = inner_func(relay.ones(shape=(2,), dtype="float32"))
     clo = outer_func(relay.ones(shape=(2,), dtype="float32"))
     mod["main"] = relay.Function([], relay.Call(clo, [relay.zeros(shape=(2,), dtype="float32")]))
-    print(mod)
 
-    # new_mod = transform.LambdaLift()(mod)
-    # print('---------------new mod')
-    # print(new_mod)
-    # print('---------------origin mod')
-    # print(mod)
-    # return
-    ex = relay.create_executor('vm', mod=mod)
-    relay_out = ex.evaluate()()
-    print(relay_out.asnumpy())
+    new_mod = transform.LambdaLift()(mod)
+    assert len(new_mod.functions) == 3
     
 def test_recursive():
     mod = relay.Module()
@@ -65,6 +56,7 @@ def test_recursive():
     i = relay.var('i', shape=(), dtype='int32')
     s = relay.var('s', shape=(2,))
     cond = i < relay.const(10, dtype='int32')
+
     loop = relay.var('while_loop')
     sb = relay.scope_builder.ScopeBuilder()
     with sb.if_scope(cond):
@@ -73,27 +65,15 @@ def test_recursive():
         sb.ret(loop(ii, ss))
     with sb.else_scope():
         sb.ret(s)
-    print(sb.get())
-    print([i, s])
     func = relay.Function([i, s], sb.get())
-    print(func)
-    let = relay.Let(loop, func, loop)
-    print(let)
 
-    ret = relay.Call(let, [relay.const(0, dtype='int32'), relay.zeros(shape=(2,), dtype='float32')])
-    
+    ret = relay.Let(loop, func, loop(relay.const(0, dtype='int32'), relay.zeros(shape=(2,), dtype='float32')))
     mod["main"] = relay.Function([x], ret)
-    print(mod)
 
     new_mod = transform.LambdaLift()(mod)
-    print('---------------new mod')
-    print(new_mod)
-    
+    assert len(new_mod.functions) == 2
 
 
 if __name__ == "__main__":
-    # test_basic()
-    # test_closure()
-    test_recursive()
-    #pytest.main()
+    pytest.main()
 
