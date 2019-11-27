@@ -91,13 +91,13 @@ def compile_network(env, target, model, start_pack, stop_pack):
     # Perform quantization in Relay
     with relay.quantize.qconfig(global_scale=8.0,
                                 skip_conv_layers=[0]):
-        relay_prog = relay.quantize.quantize(mod["main"], params=params)
+        mod = relay.quantize.quantize(mod, params=params)
 
     # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
         assert env.BLOCK_IN == env.BLOCK_OUT
         relay_prog = graph_pack(
-            relay_prog,
+            mod["main"],
             env.BATCH,
             env.BLOCK_OUT,
             env.WGT_WIDTH,
