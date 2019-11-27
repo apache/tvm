@@ -55,7 +55,7 @@ PACKAGE_VERSION = {
     'mali':             "v0.05",
     'intel_graphics':   "v0.01",
 
-    'vta':              "v0.06",
+    'vta':              "v0.07",
 }
 
 logger = logging.getLogger('autotvm')
