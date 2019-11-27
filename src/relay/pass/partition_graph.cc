@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*! Copyright (c) 2019 by Contributorsr
+/*
  * \file src/relay/pass/partition_graph.cc
  *
  * \brief  Partition an input function into multiple Functions according based

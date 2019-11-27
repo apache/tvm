@@ -108,51 +108,12 @@ class GccBuilder : public ExprVisitor, public ExternSourcePrinter {
     out_.push_back({out, out_size});
   }
 
-  std::string jit_csource() {
+  std::string JIT(void) {
     // Write function macros
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
     }
-
-    // Write subgraph function declaration
-    code_stream_ << "extern  \"C\" void " << subgraph_id_ << "_(";
-
-    for (const auto& arg : subgraph_args_) {
-      code_stream_ << "float* " << arg << ", ";
-    }
-
-    code_stream_ << "float* out) {\n";
-    this->EnterScope();
-
-    // Function body
-    for (auto decl : buf_decl_) {
-      this->PrintIndents();
-      code_stream_ << decl << "\n";
-    }
-    code_stream_ << "\n";
-    for (auto stmt : subgraph_body) {
-      this->PrintIndents();
-      code_stream_ << stmt << "\n";
-    }
-
-    // Copy output
-    CHECK(out_.size() == 1) << "Internal error";
-    this->PrintIndents();
-    code_stream_ << "std::memcpy(out, " << out_[0].first << ", 4 * " << out_[0].second << ");\n";
-
-    // Free buffers
-    for (size_t i = 0; i < buf_decl_.size(); i++) {
-      this->PrintIndents();
-      code_stream_ << "std::free(buf_" << i << ");\n";
-    }
-
-    this->ExitScope();
-    code_stream_ << "}\n";
-
-    // Create the wrapper to call the subgraph
-    this->GenerateSubgraphWrapper(subgraph_id_,
-                                  subgraph_args_.size() + 1 /* output */);
-    return code_stream_.str();
+    return JitImpl(subgraph_id_, subgraph_args_, buf_decl_, subgraph_body, out_);
   }
 
  private:
@@ -189,7 +150,7 @@ class GccCodegen : public ExternCodegenBase {
 
     auto builder = GccBuilder("gcc_" + sid);
     builder.VisitExpr(func->body);
-    code_stream_ << builder.jit_csource();
+    code_stream_ << builder.JIT();
   }
 
   runtime::Module CreateExternModule(const NodeRef& ref) {
@@ -217,7 +178,6 @@ class GccCodegen : public ExternCodegenBase {
           for (int64_t j = 0; j < p_DIM2_; ++j) {             \
             int64_t k = i * p_DIM2_ + j;                      \
             out[k] = a[k] p_OP_ b[k];                         \
-            std::cout << a[k] << "  " << b[k] << out[k] << std::endl;        \
           }                                                   \
         }                                                     \
       }
@@ -236,7 +196,7 @@ class GccCodegen : public ExternCodegenBase {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
-    LOG(INFO) << code_stream_.str();
+
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external function";

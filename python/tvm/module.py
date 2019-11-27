@@ -142,7 +142,6 @@ class Module(ModuleBase):
                     path_cc = temp.relpath(c_file_name)
                     with open(path_cc, "w") as f:
                         f.write(m.get_source())
-                        print(m.get_source())
                     files.append(path_cc)
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:

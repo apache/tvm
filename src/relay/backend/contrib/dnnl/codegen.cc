@@ -164,47 +164,8 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
     out_.push_back({out, out_size});
   }
 
-  std::string jit_dnnl() {
-    // Create the signature. For example, it could be:
-    // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
-    code_stream_ << "extern \"C\" void " << subgraph_id_ << "_(";
-
-    for (const auto& arg : subgraph_args_) {
-      code_stream_ << "float* " << arg << ", ";
-    }
-    code_stream_ << "float* out) {\n";
-    this->EnterScope();
-
-    // Function body
-    for (auto decl : buf_decl_) {
-      this->PrintIndents();
-      code_stream_ << decl << "\n";
-    }
-    code_stream_ << "\n";
-    for (auto stmt : subgraph_body) {
-      this->PrintIndents();
-      code_stream_ << stmt << "\n";
-    }
-
-    // Copy output
-    CHECK_EQ(out_.size(), 1U) << "Internal error: only single output is support yet.";
-    this->PrintIndents();
-    code_stream_ << "std::memcpy(out, " << out_[0].first << ", 4 * "
-                 << out_[0].second << ");\n";
-
-    // Free buffers
-    for (size_t i = 0; i < buf_decl_.size(); i++) {
-      this->PrintIndents();
-      code_stream_ << "std::free(buf_" << i << ");\n";
-    }
-
-    this->ExitScope();
-    code_stream_ << "}\n";
-
-    // Create the wrapper to call the subgraph
-    this->GenerateSubgraphWrapper(subgraph_id_,
-                                  subgraph_args_.size() + 1 /* output */);
-    return code_stream_.str();
+  std::string JIT(void) {
+    return JitImpl(subgraph_id_, subgraph_args_, buf_decl_, subgraph_body, out_);
   }
 
  private:
@@ -279,7 +240,7 @@ class DNNLCodegen : public ExternCodegenBase {
 
     auto builder = DnnlBuilder("dnnl_" + sid);
     builder.VisitExpr(func->body);
-    code_stream_ << builder.jit_dnnl();
+    code_stream_ << builder.JIT();
   }
 
   /*!

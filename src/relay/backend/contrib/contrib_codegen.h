@@ -184,6 +184,53 @@ class ExternSourcePrinter {
     code_stream_ << "}";
   }
 
+  virtual std::string JIT(void) = 0;
+
+  std::string JitImpl(std::string subgraph_id,
+                  std::vector<std::string> args,
+                  std::vector<std::string> buf_decl,
+                  std::vector<std::string> body,
+                  std::vector<std::pair<std::string, int>> out) {
+    // Create the signature. For example, it could be:
+    // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
+    code_stream_ << "extern \"C\" void " << subgraph_id << "_(";
+
+    for (const auto& arg : args) {
+      code_stream_ << "float* " << arg << ", ";
+    }
+    code_stream_ << "float* out) {\n";
+    this->EnterScope();
+
+    // Function body
+    for (auto decl : buf_decl) {
+      this->PrintIndents();
+      code_stream_ << decl << "\n";
+    }
+    code_stream_ << "\n";
+    for (auto stmt : body) {
+      this->PrintIndents();
+      code_stream_ << stmt << "\n";
+    }
+
+    // Copy output
+    CHECK_EQ(out.size(), 1U) << "Internal error: only single output is support.";
+    this->PrintIndents();
+    code_stream_ << "std::memcpy(out, " << out[0].first << ", 4 * " << out[0].second << ");\n";
+
+    // Free buffers
+    for (size_t i = 0; i < buf_decl.size(); i++) {
+      this->PrintIndents();
+      code_stream_ << "std::free(buf_" << i << ");\n";
+    }
+
+    this->ExitScope();
+    code_stream_ << "}\n";
+
+    // Create the wrapper to call the subgraph
+    this->GenerateSubgraphWrapper(subgraph_id, args.size() + 1 /* output */);
+    return code_stream_.str();
+  }
+
   /*! \brief The external function source code stream. */
   std::ostringstream code_stream_;
 

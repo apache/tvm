@@ -135,6 +135,28 @@ class MobileNetAnnotator(ExprMutator):
         new_call = relay.Call(call.op, params, call.attrs)
         return new_call
 
+def check_result(mod, map_inputs, out_shape, result, tol=1e-7):
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, "llvm")
+    kwargs = {}
+    kwargs["options"] = ["-O2", "-std=c++11"]
+    tmp_path = util.tempdir()
+    lib_name = 'lib.so'
+    lib_path = tmp_path.relpath(lib_name)
+    lib.export_library(lib_path, fcompile=False, **kwargs)
+    lib = tvm.module.load(lib_path)
+
+    ctx = tvm.cpu()
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+
+    for name, data in map_inputs.items():
+        rt_mod.set_input(name, data)
+    rt_mod.run()
+    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = rt_mod.get_output(0, out)
+
+    tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+
 
 def test_multi_node_subgraph():
     x = relay.var('x', shape=(10, 10))
@@ -175,34 +197,14 @@ def test_multi_node_subgraph():
     for _ in range(8):
         w_data.append(np.random.rand(10, 10).astype('float32'))
 
-    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, "llvm")
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++11"]
-    tmp_path = util.tempdir()
-    lib_name = 'lib.so'
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.module.load(lib_path)
-
-    ctx = tvm.cpu()
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-    for i in range(8):
-        data = np.random.rand(10, 10).astype('float32')
-        w_data.append(data)
-        var = "w" + str(i)
-        rt_mod.set_input(var, data)
-    rt_mod.run()
-    out = tvm.nd.empty((30, 10), ctx=ctx)
-    out = rt_mod.get_output(0, out)
-
-    tvm.testing.assert_allclose(
-        out.asnumpy(),
-        np.concatenate(
-            (((x_data + w_data[0]) - w_data[1]) * w_data[2],
-             ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-             x_data + w_data[6] - w_data[7]),
-            axis=0))
+    map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
+    map_inputs["x"] = x_data
+    check_result(
+        mod, map_inputs, (30, 10),
+        np.concatenate((((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                        ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                        x_data + w_data[6] - w_data[7]),
+                       axis=0))
 
 
 def test_extern_gcc_single_op():
@@ -216,25 +218,7 @@ def test_extern_gcc_single_op():
     mod["main"] = f
     mod = relay.build_extern(mod, "gcc")
 
-    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, "llvm")
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++11"]
-    tmp_path = util.tempdir()
-    lib_name = 'lib.so'
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.module.load(lib_path)
-
-    ctx = tvm.cpu()
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-    rt_mod.set_input("x", x_data)
-    rt_mod.set_input("y", y_data)
-    rt_mod.run()
-    out = tvm.nd.empty((8, 8), ctx=ctx)
-    out = rt_mod.get_output(0, out)
-
-    tvm.testing.assert_allclose(out.asnumpy(), (x_data + y_data))
+    check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
 def test_extern_gcc():
@@ -249,26 +233,7 @@ def test_extern_gcc():
     mod["main"] = f
     mod = relay.build_extern(mod, "gcc")
 
-    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, "llvm")
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++11"]
-    tmp_path = util.tempdir()
-    lib_name = 'lib.so'
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.module.load(lib_path)
-
-    ctx = tvm.cpu()
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-    rt_mod.set_input("x", x_data)
-    rt_mod.set_input("y", y_data)
-    rt_mod.run()
-    out = tvm.nd.empty((2, 2), ctx=ctx)
-    out = rt_mod.get_output(0, out)
-
-    tvm.testing.assert_allclose(out.asnumpy(),
-                                (y_data * y_data) - (x_data + x_data))
+    check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
 
 
 def test_extern_dnnl():
@@ -301,28 +266,10 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, "llvm")
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++11"]
-    tmp_path = util.tempdir()
-    lib_name = 'lib.so'
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.module.load(lib_path)
-
-    ctx = tvm.cpu()
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-    rt_mod.set_input("data", i_data)
-    rt_mod.set_input("weight1", w1_data)
-    rt_mod.run()
-    out = tvm.nd.empty((1, 32, 14, 14), ctx=ctx)
-    out = rt_mod.get_output(0, out)
-
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=ctx)
+    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w1_data)
-
-    tvm.testing.assert_allclose(out.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    check_result(mod, {"data": i_data, "weight1": w1_data},
+                 (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
 
 @nottest
@@ -351,8 +298,8 @@ def test_extern_dnnl_mobilenet():
 
 
 if __name__ == "__main__":
-    # test_multi_node_subgraph()
-    # test_extern_gcc_single_op()
-    # test_extern_gcc()
+    test_multi_node_subgraph()
+    test_extern_gcc_single_op()
+    test_extern_gcc()
     test_extern_dnnl()
     # test_extern_dnnl_mobilenet()

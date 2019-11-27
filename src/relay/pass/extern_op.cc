@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file src/relay/pass/extern_op.cc
  * \brief Wraps a call with subgraph_begin and subgraph_end to indicate that
  * the op of this call node will use external compiler.
