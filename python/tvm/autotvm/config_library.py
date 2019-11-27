@@ -112,7 +112,7 @@ class ConfigLibrary:
             self.backup_dir, self.JOBS_INDEX_FILE_NAME + ".backup"
         )
         copyfile(self.jobs_index, backup_jobs_index)
-        with open(self.jobs_index, 'r+') as f:
+        with open(self.jobs_index, "r+") as f:
             job_index = json.load(f)
             highest_job_id = 0
             for job_id in job_index:
@@ -137,7 +137,7 @@ class ConfigLibrary:
 
             for workload in job.results_by_workload:
                 inp, best_result, tuner_name, trials = job.results_by_workload[workload]
-                config_entry_str = record.encode(inp, best_result, 'json')
+                config_entry_str = record.encode(inp, best_result, "json")
                 config_entry = json.loads(config_entry_str)
                 config_entry["t"] = [job_id, tuner_name, trials]
                 task_entry = json.dumps(config_entry)
@@ -175,7 +175,7 @@ class ConfigLibrary:
             self.backup_dir, self._get_target_file_name(target) + ".configs.backup"
         )
         copyfile(config_file, backup_config_file)
-        with open(config_file, 'r+') as f:
+        with open(config_file, "r+") as f:
             existing_configs = json.load(f)
             if new_config_key in existing_configs:
                 existing_config = existing_configs[new_config_key]
