@@ -97,8 +97,16 @@ def test_save_config():
         # Check the target configs files have been created
         llvm_file = os.path.join(tmp_config_dir, "llvm.configs")
         opencl_file = os.path.join(tmp_config_dir, "opencl.configs")
+        backup_llvm_file = os.path.join(
+            tmp_config_dir, ConfigLibrary.BACKUP_DIRECTORY_NAME, "llvm.configs.backup"
+        )
+        backup_opencl_file = os.path.join(
+            tmp_config_dir, ConfigLibrary.BACKUP_DIRECTORY_NAME, "opencl.configs.backup"
+        )
         assert os.path.isfile(llvm_file)
         assert os.path.isfile(opencl_file)
+        assert os.path.isfile(backup_llvm_file)
+        assert os.path.isfile(backup_opencl_file)
         with open(llvm_file) as f:
             f.seek(0)
             configs = json.load(f)
@@ -211,6 +219,12 @@ def test_save_job():
         mock_job.log = tuning_log
         # Save the mock job
         config_library.save_job(mock_job, save_history=True)
+        backup_job_index = os.path.join(
+            tmp_config_dir,
+            ConfigLibrary.BACKUP_DIRECTORY_NAME,
+            ConfigLibrary.JOBS_INDEX_FILE_NAME + ".backup",
+        )
+        assert os.path.isfile(backup_job_index)
         saved_log = os.path.join(tmp_config_dir, "jobs/1_llvm.log")
         with open(config_library.jobs_index) as f:
             jobs_index = json.load(f)

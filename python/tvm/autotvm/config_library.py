@@ -44,6 +44,7 @@ class ConfigLibrary:
     LIBRARY_INDEX_FILE_NAME = "index.json"
     JOBS_INDEX_FILE_NAME = "jobs.json"
     JOBS_DIRECTORY_NAME = "jobs"
+    BACKUP_DIRECTORY_NAME = "backup"
 
     def __init__(self, library_dir):
         # Handle if the directory doesn't exist
@@ -71,6 +72,9 @@ class ConfigLibrary:
         self.jobs_index = os.path.join(self.library_dir, self.JOBS_INDEX_FILE_NAME)
         if not os.path.isdir(self.jobs_dir):
             os.makedirs(self.jobs_dir)
+        self.backup_dir = os.path.join(self.library_dir, self.BACKUP_DIRECTORY_NAME)
+        if not os.path.isdir(self.backup_dir):
+            os.makedirs(self.backup_dir)
 
     def load(self, target):
         """Load the configs for a given TVM target string.
@@ -103,6 +107,11 @@ class ConfigLibrary:
             Whether to save the history log of the job.
 
         """
+        # Write a backup in case the save fails
+        backup_jobs_index = os.path.join(
+            self.backup_dir, self.JOBS_INDEX_FILE_NAME + ".backup"
+        )
+        copyfile(self.jobs_index, backup_jobs_index)
         with open(self.jobs_index, 'r+') as f:
             job_index = json.load(f)
             highest_job_id = 0
@@ -136,6 +145,7 @@ class ConfigLibrary:
                 job_entry["tasks"].append(task_entry)
 
             job_index[job_id] = job_entry
+            f.truncate(0)
             f.seek(0)
             json.dump(job_index, f, indent=4)
 
@@ -160,6 +170,11 @@ class ConfigLibrary:
         workload = str(new_config["i"][4])
         new_config_key = workload
         config_file = self.get_config_file(target)
+        # Write a backup in case the save fails
+        backup_config_file = os.path.join(
+            self.backup_dir, self._get_target_file_name(target) + ".configs.backup"
+        )
+        copyfile(config_file, backup_config_file)
         with open(config_file, 'r+') as f:
             existing_configs = json.load(f)
             if new_config_key in existing_configs:
