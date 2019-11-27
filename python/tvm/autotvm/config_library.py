@@ -169,16 +169,9 @@ class ConfigLibrary:
             else:
                 existing_configs[new_config_key] = new_config
 
-            for config_key in existing_configs:
-                existing_configs[config_key] = NoIndent(existing_configs[config_key])
-
-            configs_str = json.dumps(existing_configs, indent=4, cls=NoIndentEncoder)
-            # Delete the current file, then write the new configs
-            # TODO @mbarrett97 We should make a copy of the existing file here in
-            # case something bad happens before the write and the data is lost
             f.truncate(0)
             f.seek(0)
-            f.write(configs_str)
+            json.dump(existing_configs, f)
 
     def get_config(self, target, workload):
         """Get a config for a given target/workload from the library.
@@ -236,40 +229,3 @@ class ConfigLibrary:
         options = target.split(" ")
         sorted_options = [options[0]] + sorted(options[1:])
         return "-".join(sorted_options)
-
-
-class NoIndent(object):
-    def __init__(self, value):
-        self.value = value
-
-
-# TODO @mbarrett97 Find a more efficient way to pretty print the JSON
-class NoIndentEncoder(json.JSONEncoder):
-    """JSON pretty printing class to print configs on one line."""
-    marker = "~@{}@~"
-
-    def default(self, obj):
-        if isinstance(obj, NoIndent):
-            return self.marker.format(id(obj))
-        else:
-            super(NoIndentEncoder, self).default(obj)
-
-    def encode(self, obj):
-        json_obj = super(NoIndentEncoder, self).encode(obj)
-        offset = 0
-        while offset != -1:
-            no_indent_index_start = json_obj.find("~@", offset)
-            no_indent_index_stop = json_obj.find("@~", offset)
-            if no_indent_index_start == -1:
-                break
-
-            no_indent_id = int(json_obj[no_indent_index_start+2:no_indent_index_stop])
-            no_indent_obj = PyObj_FromPtr(no_indent_id)
-            no_indent_json = json.dumps(no_indent_obj.value)
-            json_obj = json_obj.replace(
-                '"{}"'.format(self.marker.format(no_indent_id)),
-                no_indent_json,
-            )
-            offset = no_indent_index_stop + 2
-
-        return json_obj
