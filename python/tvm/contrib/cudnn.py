@@ -148,31 +148,6 @@ def _get_np_int32_array_handle(arr):
     return ctypes.cast(ptr, ctypes.c_void_p)
 
 
-def conv2d_w_shape(in_channel,
-                   out_channel,
-                   filter_h,
-                   filter_w):
-    """Get weight shape for a 2D convolution
-
-    Parameters
-    ----------
-    in_channel: int
-        input channel
-    out_channel: int
-        output channel
-    filter_h: int
-        filter height
-    filter_w: int
-        filter width
-
-    Returns
-    -------
-    wshape: list
-        weight shape
-    """
-    return [out_channel, in_channel, filter_h, filter_w]
-
-
 def conv2d_output_shape(tensor_format,
                         pad_h,
                         pad_w,
@@ -412,33 +387,6 @@ def conv2d_forward(x,
             outs[0],
             conv_dtype), name="y")
 
-
-def conv3d_w_shape(in_channel,
-                   out_channel,
-                   filter_d,
-                   filter_h,
-                   filter_w):
-    """Get weight shape for a 3D convolution
-
-    Parameters
-    ----------
-    in_channel: int
-        input channel
-    out_channel: int
-        output channel
-    filter_d: int
-        filter depth
-    filter_h: int
-        filter height
-    filter_w: int
-        filter width
-
-    Returns
-    -------
-    wshape: list
-        weight shape
-    """
-    return [out_channel, in_channel, filter_d, filter_h, filter_w]
 
 def conv3d_output_shape(tensor_format,
                         pad_d,

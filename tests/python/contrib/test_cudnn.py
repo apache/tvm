@@ -43,10 +43,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
         return
     if tensor_format == 0:
         xshape = [batch, in_channel, height, weight]
-        wshape = cudnn.conv2d_w_shape(in_channel,
-                                      out_channel,
-                                      filter_h,
-                                      filter_w)
+        wshape = [out_channel, in_channel, filter_h, filter_w]
     else:
         xshape = [batch, height, weight, in_channel]
         wshape = [out_channel, filter_h, filter_w, in_channel]
@@ -92,7 +89,7 @@ def test_conv2d():
     verify_conv2d("float32", "float32", tensor_format=0)
     verify_conv2d("float16", "float32", tensor_format=1)
     #Not pass accuracy test, need check
-    #verify_conv2d("float16", "float16", tensor_format=0) 
+    #verify_conv2d("float16", "float16", tensor_format=0)
     verify_conv2d("int8", "int32", tensor_format=1)
 
 
@@ -124,12 +121,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
         return
 
     xshape = [batch, in_channel, depth, height, weight]
-    wshape = cudnn.conv3d_w_shape(in_channel,
-                          out_channel,
-                          filter_d,
-                          filter_h,
-                          filter_w)
-
+    wshape = [out_channel, in_channel, filter_d, filter_h, filter_w]
 
     X = tvm.placeholder(xshape, name='X', dtype=data_dtype)
     W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
