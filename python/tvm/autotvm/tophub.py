@@ -54,7 +54,6 @@ PACKAGE_VERSION = {
     'opencl':           "v0.04",
     'mali':             "v0.06",
     'intel_graphics':   "v0.02",
-
     'vta':              "v0.08",
     'amd_apu':          "v0.01",
 }
