@@ -87,12 +87,11 @@ class LambdaLifter : public ExprMutator {
       if (!letrec_.empty() && var == letrec_.back()) {
         auto it = lambda_map_.find(var);
         CHECK(it != lambda_map_.end());
-        auto new_call = CallNode::make(it->second, call->args, call_node->attrs,
-                                       call_node->type_args);
-        return new_call;
+        return CallNode::make(it->second, call->args, call_node->attrs,
+                              call_node->type_args);
       }
     }
-    return call;
+    return std::move(call);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
