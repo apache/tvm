@@ -76,7 +76,8 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding=(0,
     return b_np
 
 
-def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding):
+def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding,
+                                 output_padding=(0, 0)):
     """Transposed convolution operator in NHWC layout.
 
     Parameters
@@ -118,6 +119,7 @@ def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding)
     else:
         raise ValueError('Valid weight_formats are HWIO, HWOI, OIHW or IOHW')
 
-    res_nchw = conv2d_transpose_nchw_python(a_nchw, w_iohw, stride, padding)
+    res_nchw = conv2d_transpose_nchw_python(a_nchw, w_iohw, stride, padding,
+                                            output_padding=output_padding)
     res_nhwc = np.transpose(res_nchw, (0, 2, 3, 1))
     return res_nhwc
