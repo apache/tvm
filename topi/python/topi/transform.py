@@ -216,7 +216,7 @@ def strided_set(a, v, begin, end, strides=None):
                               tvm.expr.Select(strides[i] > 0,
                                               tvm.const(0, 'int32'),
                                               a.shape[i]))
-               for i in range(n)]
+             for i in range(n)]
     end = [tvm.if_then_else(end.shape[0] > i,
                             end[i],
                             tvm.expr.Select(strides[i] > 0,
