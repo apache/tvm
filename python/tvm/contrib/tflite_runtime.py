@@ -41,8 +41,7 @@ def create(tflite_fname, ctx):
         Runtime graph module that can be used to execute the graph.
     """
     if not isinstance(tflite_fname, string_types):
-        except AttributeError:
-            raise ValueError("Type %s is not supported" % type(tflite_fname))
+        raise ValueError("Type %s is not supported" % type(tflite_fname))
 
     fcreate = get_global_func("tvm.tflite_runtime.create")
     return TfliteModule(fcreate(tflite_fname, ctx))
@@ -71,9 +70,9 @@ class TfliteModule(object):
         self._set_input = module["set_input"]
         self._invoke = module["invoke"]
         self._get_output = module["get_output"]
-        self._get_input = module["get_input"]
+        self._allocate_tensors = module["allocate_tensors"]
 
-    def set_input(self, key=None, value=None, **params):
+    def set_input(self, index, value):
         """Set inputs to the module via kwargs
 
         Parameters
@@ -87,17 +86,9 @@ class TfliteModule(object):
         params : dict of str to NDArray
            Additonal arguments
         """
-        if key is not None:
-            self._get_input(key).copyfrom(value)
+        self._set_input(index, value)
 
-        if params:
-            # upload big arrays first to avoid memory issue in rpc mode
-            keys = list(params.keys())
-            keys.sort(key=lambda x: -np.prod(params[x].shape))
-            for k in keys:
-                self._get_input(k).copyfrom(params[k])
-
-    def run(self, **input_dict):
+    def invoke(self):
         """Run forward execution of the graph
 
         Parameters
@@ -105,26 +96,11 @@ class TfliteModule(object):
         input_dict: dict of str to NDArray
             List of input values to be feed to
         """
-        if input_dict:
-            self.set_input(**input_dict)
-        self._run()
+        self._invoke()
 
-    def get_input(self, index, out=None):
-        """Get index-th input to out
+    def allocate_tensors(self):
+        self._allocate_tensors()
 
-        Parameters
-        ----------
-        index : int
-            The input index
-
-        out : NDArray
-            The output array container
-        """
-        if out:
-            self._get_input(index).copyto(out)
-            return out
-
-        return self._get_input(index)
 
     def get_output(self, index, out=None):
         """Get index-th output to out

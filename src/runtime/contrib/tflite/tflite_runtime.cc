@@ -97,17 +97,29 @@ void TfliteRuntime::Init(const std::string& tflite_fname,
   std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromFile(tflite_fname.c_str());
   tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
-  interpreter_->AllocateTensors();
+  LOG(INFO) << "Init TFLite Interpreter...";
 
+  LOG(INFO) << "Number of inputs: " << interpreter_->inputs().size();
+  LOG(INFO) << interpreter_->GetInputName(0);
+  LOG(INFO) << "Number of outputs: " << interpreter_->outputs().size();
+  LOG(INFO) << interpreter_->GetOutputName(0);
   ctx_ = ctx;
 }
 
+void TfliteRuntime::AllocateTensors() {
+  LOG(INFO) << "AllocateTensors";
+  interpreter_->AllocateTensors();
+}
+
 void TfliteRuntime::Invoke() {
+  LOG(INFO) << "Invoke";
   interpreter_->Invoke();
 }
 
 void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
+  LOG(INFO) << "SetInput";
   DataType dtype(data_in->dtype);
+  LOG(INFO) << "data type: " << dtype;
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = interpreter_->typed_input_tensor<DType>(index);
       DType* src = static_cast<DType*>(data_in->data);
@@ -123,6 +135,7 @@ void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
 }
 
 NDArray TfliteRuntime::GetOutput(int index) const {
+  LOG(INFO) << "GetOutput";
   TfLiteTensor* output = interpreter_->output_tensor(index);
   DataType dtype = TfLiteDType2TVMDType(output->type);
   TfLiteIntArray* dims = output->dims;
@@ -136,7 +149,7 @@ NDArray TfliteRuntime::GetOutput(int index) const {
   NDArray ret = NDArray::Empty(shape, dtype, ctx_);
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = static_cast<DType*>(ret->data);
-      DType* src = interpreter_->typed_input_tensor<DType>(index);
+      DType* src = interpreter_->typed_output_tensor<DType>(index);
       for (int64_t i = 0; i < size; ++i) {
         dest[i] = src[i];
       }
@@ -158,15 +171,13 @@ PackedFunc TfliteRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetOutput(args[0]);
       });
-  } else if (name == "get_input") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        int in_idx = args[0];
-        CHECK_GE(in_idx, 0);
-        *rv = this->GetInput(in_idx);
-      });
   } else if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Invoke();
+      });
+  } else if (name == "allocate_tensors") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->AllocateTensors();
       });
   } else {
     return PackedFunc();
@@ -182,7 +193,7 @@ Module TfliteRuntimeCreate(const std::string& tflite_fname,
 
 TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = TfliteRuntimeCreate(args[0], contexts);
+    *rv = TfliteRuntimeCreate(args[0], args[1]);
   });
 
 }  // namespace runtime

@@ -64,6 +64,8 @@ class TfliteRuntime : public ModuleNode {
   const char* type_key() const final {
     return "TfliteRuntime";
   }
+
+  void AllocateTensors();
   void Invoke();
 
   /*!
