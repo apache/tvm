@@ -178,7 +178,7 @@ The RPC server itself is minimum and can be bundled into the runtime. We can sta
 RPC server on iPhone/android/raspberry pi or even the browser. The cross compilation on server and shipping of the module for testing can be done in the same script. Checkout
 `Cross compilation and RPC tutorial`_ for more details.
 
-.. _Cross compilation and RPC tutorial: http://docs.tvm.ai/tutorials/deployment/cross_compilation_and_rpc.html#sphx-glr-tutorials-deployment-cross-compilation-and-rpc-py
+.. _Cross compilation and RPC tutorial: https://docs.tvm.ai/tutorials/cross_compilation_and_rpc.html#sphx-glr-tutorials-cross-compilation-and-rpc-py
 
 This instant feedback gives us a lot of advantages. For example, to test the correctness of generated code on iPhone, we no longer have to write test-cases in swift/objective-c from scratch -- We can use RPC to execute on iPhone, copy the result back and do verification on the host via numpy. We can also do the profiling using the same script.
 
@@ -197,7 +197,7 @@ All the language object in the compiler stack is a subclass of Node. Each node c
 the type of object. We choose string instead of int as type key so new Node class can be added in the decentralized fashion without
 adding the code back to the central repo. To ease the speed of dispatching, we allocate an integer type_index at runtime for each type_key.
 
-.. _Node: https://github.com/dmlc/HalideIR/blob/master/src/tvm/node.h#L52
+.. _Node: https://github.com/dmlc/HalideIR/blob/master/src/tvm/node/node.h#L61
 
 Since usually one Node object could be referenced in multiple places in the language, we use a shared_ptr to keep
 track of reference. We use NodeRef class to represent a reference to the Node.
