@@ -26,7 +26,6 @@ from collections import namedtuple
 import tvm
 from tvm import autotvm
 from tvm.contrib import util
-from tvm.contrib.pickle_memoize import memoize
 import topi
 import topi.testing
 import vta
@@ -119,7 +118,6 @@ def run_group_conv2d(env, remote, wl, target,
     num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * \
         wl.out_filter * wl.in_filter // wl.groups
 
-    # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
     def get_ref_data():
         # derive min max for act, wgt, and bias types (max non inclusive)
         a_min, a_max = 0 - (1 << (env.INP_WIDTH - 1)), (1 << (env.INP_WIDTH - 1))
@@ -238,5 +236,5 @@ def test_conv2d(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    # test_conv2d(device="arm_cpu")
+    test_conv2d(device="arm_cpu")
     test_conv2d(device="vta")

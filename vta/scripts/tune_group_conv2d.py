@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Tuning a single conv2d operator"""
+"""Tuning a single group conv2d operator"""
 
 from collections import namedtuple
 import logging
@@ -92,7 +92,6 @@ if __name__ == '__main__':
 
     # Logging config (for printing tuning log to the screen)
     logging.basicConfig()
-    # logging.getLogger('autotvm').setLevel(logging.DEBUG)
 
     # Tuning log files
     log_file = "%s.group_conv2d.log" % (env.TARGET)
