@@ -89,9 +89,11 @@ def compile_network(env, target, model, start_pack, stop_pack):
     dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
 
     # Perform quantization in Relay
-    with relay.quantize.qconfig(global_scale=8.0,
-                                skip_conv_layers=[0]):
-        mod = relay.quantize.quantize(mod, params=params)
+    # Note: We set opt_level to 3 in order to fold batch norm
+    with relay.build_config(opt_level=3):
+        with relay.quantize.qconfig(global_scale=8.0,
+                                    skip_conv_layers=[0]):
+            mod = relay.quantize.quantize(mod, params=params)
 
     # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
