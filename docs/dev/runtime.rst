@@ -197,7 +197,7 @@ All the language object in the compiler stack is a subclass of Node. Each node c
 the type of object. We choose string instead of int as type key so new Node class can be added in the decentralized fashion without
 adding the code back to the central repo. To ease the speed of dispatching, we allocate an integer type_index at runtime for each type_key.
 
-.. _Node: https://github.com/dmlc/HalideIR/blob/master/src/tvm/node.h#L52
+.. _Node: https://github.com/dmlc/HalideIR/blob/master/src/tvm/node/node.h#L61
 
 Since usually one Node object could be referenced in multiple places in the language, we use a shared_ptr to keep
 track of reference. We use NodeRef class to represent a reference to the Node.
