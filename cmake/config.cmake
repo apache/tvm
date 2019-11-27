@@ -165,7 +165,6 @@ set(USE_SORT ON)
 
 # Whether use contrib extern (use ";" to separate multiple externs)
 # Available externs:
-#   gcc
 #   dnnl
 set(USE_EXTERN none)
 

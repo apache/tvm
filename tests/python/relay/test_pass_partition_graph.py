@@ -16,15 +16,15 @@
 # under the License.
 """Unit tests for graph partitioning."""
 import numpy as np
-from nose.tools import nottest
+import pytest
 
 import tvm
-from tvm import relay
 import tvm.relay.testing
 import tvm.relay.transform
-from tvm.relay.expr_functor import ExprMutator
-from tvm.relay.annotation import subgraph_begin, subgraph_end
+from tvm import relay
 from tvm.contrib import util
+from tvm.relay.annotation import subgraph_begin, subgraph_end
+from tvm.relay.expr_functor import ExprMutator
 
 
 class GCCAnnotator(ExprMutator):
@@ -236,6 +236,7 @@ def test_extern_gcc():
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
 
 
+@pytest.mark.skip(reason="Only for DEMO purpose")
 def test_extern_dnnl():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
@@ -272,7 +273,7 @@ def test_extern_dnnl():
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
 
-@nottest
+@pytest.mark.skip(reason="Only for DEMO purpose")
 def test_extern_dnnl_mobilenet():
     # FIXME: This test is only for demo purpose and supposed to be removed.
     dtype = 'float32'
@@ -301,5 +302,5 @@ if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
     test_extern_gcc()
-    test_extern_dnnl()
+    # test_extern_dnnl()
     # test_extern_dnnl_mobilenet()

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/contrib/dnnl/dnnl_kernel.h
+ * \file include/tvm/runtime/contrib/dnnl/dnnl_kernel.h
  * \brief Use external dnnl library kernels.
  */
 
