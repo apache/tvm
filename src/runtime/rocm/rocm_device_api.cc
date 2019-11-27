@@ -78,8 +78,13 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = os.str();
         return;
       }
-      case kDeviceName:
+      case kDeviceName: {
+        std::string name(256, 0);
+        ROCM_CALL(hipDeviceGetName(&name[0], name.size(), ctx.device_id));
+        name.resize(strlen(name.c_str()));
+        *rv = std::move(name);
         return;
+      }
       case kMaxClockRate: {
         ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeClockRate,
                                         ctx.device_id));
