@@ -20,7 +20,6 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay import loops
 
 def test_basic():
     mod = relay.Module()
