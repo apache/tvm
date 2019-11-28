@@ -41,10 +41,12 @@ def test_tflite_runtime():
         tflite_model = create_tflite_model()
         temp = util.tempdir()
         tflite_model_path = temp.relpath(tflite_fname)
+        print(tflite_model_path)
         open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
-        interpreter = tflite.Interpreter(model_path="/tmp/model.tflite")
+        print('interpreter')
+        interpreter = tflite.Interpreter(model_path=tflite_model_path)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
@@ -55,8 +57,9 @@ def test_tflite_runtime():
         interpreter.invoke()
         tflite_output = interpreter.get_tensor(output_details[0]['index'])
         
+        print('tvm tflite runtime')
         # inference via tvm tflite runtime
-        runtime = tflite_runtime.create(tflite_fname, tvm.cpu(0))
+        runtime = tflite_runtime.create(tflite_model_path, tvm.cpu(0))
         runtime.allocate_tensors()
         runtime.set_input(0, tvm.nd.array(tflite_input))
         runtime.invoke()
@@ -72,7 +75,7 @@ def test_tflite_runtime():
         open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
-        interpreter = tflite.Interpreter(model_path="/tmp/model.tflite")
+        interpreter = tflite.Interpreter(model_path=tflite_model_path)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()

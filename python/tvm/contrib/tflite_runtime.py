@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Minimum graph runtime that executes graph containing TVM PackedFunc."""
+"""TFLite runtime that load and run tflite models."""
 import numpy as np
 
 from .._ffi.base import string_types
@@ -50,12 +50,12 @@ def create(tflite_fname, ctx):
         device_id = ctx.device_id
         remote_ctx = context(device_type, device_id)
         fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
-        return TfliteModule(fcreate(tflite_fname, ctx))
+        return TFLiteModule(fcreate(tflite_fname, ctx))
     fcreate = get_global_func("tvm.tflite_runtime.create")
-    return TfliteModule(fcreate(tflite_fname, ctx))
+    return TFLiteModule(fcreate(tflite_fname, ctx))
 
 
-class TfliteModule(object):
+class TFLiteModule(object):
     """Wrapper runtime module.
 
     This is a thin wrapper of the underlying TVM module.
