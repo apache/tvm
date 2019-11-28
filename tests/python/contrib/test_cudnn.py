@@ -38,7 +38,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
     if not tvm.module.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
-    if not tvm.get_global_func("tvm.contrib.cudnn.conv2d.output_shape", True):
+    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return
     if tensor_format == 0:
@@ -50,18 +50,16 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
 
     X = tvm.placeholder(xshape, name='X', dtype=data_dtype)
     W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
-    Y = cudnn.conv2d_forward(X,
-                             W,
-                             stride_h,
-                             stride_w,
-                             pad_h,
-                             pad_w,
-                             dilation_h,
-                             dilation_w,
-                             conv_mode=1,
-                             tensor_format=tensor_format,
-                             conv_dtype=conv_dtype,
-                             algo=-1)
+    Y = cudnn.conv_forward(X,
+                           W,
+                           2,
+                           [pad_h, pad_w],
+                           [stride_h, stride_w],
+                           [dilation_h, dilation_w],
+                           conv_mode=1,
+                           tensor_format=tensor_format,
+                           conv_dtype=conv_dtype,
+                           algo=-1)
     yshape = [x.value for x in Y.shape]
     s = tvm.create_schedule(Y.op)
 
@@ -116,7 +114,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
     if not tvm.module.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
-    if not tvm.get_global_func("tvm.contrib.cudnn.conv3d.output_shape", True):
+    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
         print("skip because cudnn is not enabled...")
         return
 
@@ -125,21 +123,16 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
 
     X = tvm.placeholder(xshape, name='X', dtype=data_dtype)
     W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
-    Y = cudnn.conv3d_forward(X,
-                             W,
-                             stride_d,
-                             stride_h,
-                             stride_w,
-                             pad_d,
-                             pad_h,
-                             pad_w,
-                             dilation_d,
-                             dilation_h,
-                             dilation_w,
-                             conv_mode=1,
-                             tensor_format=tensor_format,
-                             algo=-1,
-                             conv_dtype=conv_dtype)
+    Y = cudnn.conv_forward(X,
+                           W,
+                           3,
+                           [pad_d, pad_h, pad_w],
+                           [stride_d, stride_h, stride_w],
+                           [dilation_d, dilation_h, dilation_w],
+                           conv_mode=1,
+                           tensor_format=tensor_format,
+                           algo=-1,
+                           conv_dtype=conv_dtype)
     yshape = [x.value for x in Y.shape]
     s = tvm.create_schedule(Y.op)
 
