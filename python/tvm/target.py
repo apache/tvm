@@ -475,6 +475,7 @@ def arm_cpu(model='unknown', options=None):
         "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
         "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
         "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf -mattr=+neon"],
         "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
         "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
