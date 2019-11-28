@@ -93,7 +93,7 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
 }
 
 
-void TfliteRuntime::Init(const std::string& tflite_fname,
+void TFLiteRuntime::Init(const std::string& tflite_fname,
                          TVMContext ctx) {
   std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromFile(tflite_fname.c_str());
   tflite::ops::builtin::BuiltinOpResolver resolver;
@@ -101,15 +101,15 @@ void TfliteRuntime::Init(const std::string& tflite_fname,
   ctx_ = ctx;
 }
 
-void TfliteRuntime::AllocateTensors() {
+void TFLiteRuntime::AllocateTensors() {
   interpreter_->AllocateTensors();
 }
 
-void TfliteRuntime::Invoke() {
+void TFLiteRuntime::Invoke() {
   interpreter_->Invoke();
 }
 
-void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
+void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
   DataType dtype(data_in->dtype);
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = interpreter_->typed_input_tensor<DType>(index);
@@ -125,7 +125,7 @@ void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
     });
 }
 
-NDArray TfliteRuntime::GetOutput(int index) const {
+NDArray TFLiteRuntime::GetOutput(int index) const {
   TfLiteTensor* output = interpreter_->output_tensor(index);
   DataType dtype = TfLiteDType2TVMDType(output->type);
   TfLiteIntArray* dims = output->dims;
@@ -147,7 +147,7 @@ NDArray TfliteRuntime::GetOutput(int index) const {
   return ret;
 }
 
-PackedFunc TfliteRuntime::GetFunction(
+PackedFunc TFLiteRuntime::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
@@ -174,16 +174,16 @@ PackedFunc TfliteRuntime::GetFunction(
   }
 }
 
-Module TfliteRuntimeCreate(const std::string& tflite_fname,
+Module TFLiteRuntimeCreate(const std::string& tflite_fname,
                            TVMContext ctx) {
-  auto exec = make_object<TfliteRuntime>();
+  auto exec = make_object<TFLiteRuntime>();
   exec->Init(tflite_fname, ctx);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = TfliteRuntimeCreate(args[0], args[1]);
+    *rv = TFLiteRuntimeCreate(args[0], args[1]);
   });
 }  // namespace runtime
 }  // namespace tvm

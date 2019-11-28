@@ -26,14 +26,9 @@
 #define TVM_RUNTIME_TFLITE_TFLITE_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
-#include <dmlc/memory_io.h>
-#include <dmlc/json.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <memory>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 #include <string>
 
@@ -47,7 +42,7 @@ namespace runtime {
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
-class TfliteRuntime : public ModuleNode {
+class TFLiteRuntime : public ModuleNode {
  public:
   /*!
    * \brief Get member function to front-end
@@ -62,7 +57,7 @@ class TfliteRuntime : public ModuleNode {
    * \return The type key of the executor.
    */
   const char* type_key() const final {
-    return "TfliteRuntime";
+    return "TFLiteRuntime";
   }
 
   void AllocateTensors();
