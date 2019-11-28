@@ -19,19 +19,19 @@
 .. _tutorial-custom-relay-backend:
 
 Bring Your Own Codegen To TVM
-============================================
+=============================
 **Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Hao Yu <https:://github.com/comaniac>`_
 
 As the hardware devices targeted by deep learning workloads keep increasing, the required knowledge
 for users to achieve high performance on various devices keeps increasing as well. To free data
 scientists from worrying about the performance when developing a new model, hardware vendors either
 provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators,
-or provide frameworks such as TensorRT to let users describle their models in a certain way to
+or provide frameworks such as TensorRT to let users describe their models in a certain way to
 achieve high performance. However, users have to learn a new programming interface when they
 attempt to work on a new library or device. As a result, the demand of a unified programming
 interface becomes more and more important to 1) let all users and hardware vendors stand on the
 same page, and 2) provide a feasible solution to allow a specialized hardware or library to only
-support widely used operators with extremely high perofrmance, but fallback unsupported operators
+support widely used operators with extremely high performance, but fallback unsupported operators
 to general devices like CPU/GPU.
 
 In this tutorial, we demonstrate how a hardware vendor can easily implement
@@ -86,14 +86,14 @@ def multiply(attrs, args):
 # can define more complicated rules. For example, we can only support conv2d
 # with float32 data type or with kernel size 1x1. In addition, the vendors can
 # also check the attributes associated with a given operator to decide if it is
-# supported by checking the fields in `attrs`. In a even more complicated but
+# supported by checking the fields in `attrs`. In an even more complicated but
 # interesting scenario, we also allow developers to check the sequence of
 # operators through iterating on the `agrs`. However, this is only
 # unidirectional as only the inputs are visible.
 #
 # After annotating whether an operator can be executed on the given backend.
 # Users can directly invoke the partitioning pass to separate the graph into
-# multiple segments. The C++ backend implements a partitioning pass to fullfil
+# multiple segments. The C++ backend implements a partitioning pass to fulfill
 # the task and creates subgraphs/sub-functions with *External* attribute,
 # indicating that this function will be handled by external codegen tool.
 # Therefore, Relay passes should skip optimizations on them.
@@ -274,7 +274,7 @@ print(mod['main'])
 #     The complete GCC backend implementation is in the TVM codebase
 #     so we can directly use it in this tutorial for demonstration.
 #
-#     Multiple external backends can be eneabled simultaneously by ";".
+#     Multiple external backends can be enabled simultaneously by ";".
 #     For example: set(USE_EXTERN gcc;dnnl)
 
 import numpy as np

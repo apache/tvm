@@ -186,25 +186,6 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
   std::vector<std::pair<std::string, int>> out_;
 
   /*!
-   * \brief Extract the shape from a Relay tensor type.
-   *
-   * \param type The provided type.
-   *
-   * \return The extracted shape in a list.
-   */
-  std::vector<int> GetShape(const Type& type) const {
-    const auto* ttype = type.as<TensorTypeNode>();
-    CHECK(ttype);
-    std::vector<int> shape;
-    for (size_t i = 0; i < ttype->shape.size(); ++i) {
-      auto* val = ttype->shape[i].as<IntImm>();
-      CHECK(val);
-      shape.push_back(val->value);
-    }
-    return shape;
-  }
-
-  /*!
    * \brief Check if a call has the provided name.
    *
    * \param call A Relay call node.

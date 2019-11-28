@@ -20,10 +20,6 @@ message(STATUS "Build with relay.backend.contrib")
 file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/gcc/codegen.cc)
 list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
 
-file(GLOB GCC_CONTRIB_SRC src/runtime/contrib/gcc/*.cc)
-list(APPEND RUNTIME_SRCS ${GCC_CONTRIB_SRC})
-message(STATUS "Use extern library: GCC")
-
 list(FIND USE_EXTERN "dnnl" DNNL_IDX)
 if(DNNL_IDX GREATER -1)
   file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)

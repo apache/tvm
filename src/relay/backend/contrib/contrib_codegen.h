@@ -185,8 +185,46 @@ class ExternSourcePrinter {
     code_stream_ << "}";
   }
 
-  virtual std::string JIT(void) = 0;
+  /*!
+   * \brief Emit the code for external runtime.
+   *
+   * \return The code string.
+   */
+  virtual std::string JIT() = 0;
 
+  /*!
+   * \brief Extract the shape from a Relay tensor type.
+   *
+   * \param type The provided type.
+   *
+   * \return The extracted shape in a list.
+   */
+  std::vector<int> GetShape(const Type& type) const {
+    const auto* ttype = type.as<TensorTypeNode>();
+    CHECK(ttype) << "Expect TensorTypeNode";
+    std::vector<int> shape;
+    for (size_t i = 0; i < ttype->shape.size(); ++i) {
+      auto* val = ttype->shape[i].as<IntImm>();
+      CHECK(val);
+      shape.push_back(val->value);
+    }
+    return shape;
+  }
+
+  /*!
+   * \briefa A common interface that that used by various external runtime to
+   * generate the wrapper to invoke external kernels.
+   *
+   * \param subgraph_id The unique id of an external function. It will be used
+   * during runtime to pick the correct external function.
+   * \param args The arguments used by the external function.
+   * \param buf_decl The declaration of temporary buffers that used to store the
+   * intermeidate of each external kernel.
+   * \param body The statements of the external function.
+   * \param out The name and id pairs for output.
+   *
+   * \return The emitted code string.
+   */
   std::string JitImpl(std::string subgraph_id,
                   std::vector<std::string> args,
                   std::vector<std::string> buf_decl,

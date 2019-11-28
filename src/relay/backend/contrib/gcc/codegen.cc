@@ -108,7 +108,12 @@ class GccBuilder : public ExprVisitor, public ExternSourcePrinter {
     out_.push_back({out, out_size});
   }
 
-  std::string JIT(void) {
+  /*!
+   * \brief Emit the source code that invokes gcc compatible wrappers.
+   *
+   * \return The emitted code.
+   */
+  std::string JIT() {
     // Write function macros
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
@@ -117,26 +122,22 @@ class GccBuilder : public ExprVisitor, public ExternSourcePrinter {
   }
 
  private:
+  /*! \brief The subgraph id that represents an GCC external function. */
   std::string subgraph_id_ = "";
+  /*! \brief The index of an external function. */
   int func_idx = 0;
+  /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
+  /*! \brief The arguments of a GCC compatible external function. */
   std::vector<std::string> subgraph_args_;
+  /*! \brief The statements of a GCC compatible external function. */
   std::vector<std::string> subgraph_body;
+  /*! \brief The declaration statements of a GCC compatible external function. */
   std::vector<std::string> func_decl_;
+  /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The name and index pairs for output. */
   std::vector<std::pair<std::string, int>> out_;
-
-  std::vector<int> GetShape(const Type& type) const {
-    const auto* ttype = type.as<TensorTypeNode>();
-    CHECK(ttype);
-    std::vector<int> shape;
-    for (size_t i = 0; i < ttype->shape.size(); ++i) {
-      auto* val = ttype->shape[i].as<IntImm>();
-      CHECK(val);
-      shape.push_back(val->value);
-    }
-    return shape;
-  }
 };
 
 class GccCodegen : public ExternCodegenBase {

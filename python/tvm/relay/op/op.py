@@ -275,8 +275,8 @@ def register_extern_op(op_name, fextern=None, level=10):
     op_name : str
         The name of the operator.
 
-    fextern: function (attrs: Attrs, args: List[Expr], compiler: str) ->
-    new_expr: Expr
+    fextern : function (attrs: Attrs, args: List[Expr], compiler: str)
+              -> new_expr: Expr
         The function for wrapping a call expr with subgraph_start and
         subgraph_end.
 
