@@ -18,7 +18,6 @@
 """Config Library to store tuning configs"""
 import json
 import os
-from _ctypes import PyObj_FromPtr
 from shutil import copyfile
 from pathlib import Path
 
