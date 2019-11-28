@@ -18,6 +18,7 @@
 import numpy as np
 
 from .._ffi.base import string_types
+from .._ffi.ndarray import context
 from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
@@ -26,7 +27,7 @@ def create(tflite_fname, ctx):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
-    graph_json_str : str or graph class
+    tflite_fname : str
         The graph to be deployed in json format output by nnvm graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
@@ -43,6 +44,13 @@ def create(tflite_fname, ctx):
     if not isinstance(tflite_fname, string_types):
         raise ValueError("Type %s is not supported" % type(tflite_fname))
 
+    device_type = ctx.device_type
+    if device_type >= rpc_base.RPC_SESS_MASK:
+        device_type = ctx.device_type % rpc_base.RPC_SESS_MASK
+        device_id = ctx.device_id
+        remote_ctx = context(device_type, device_id)
+        fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
+        return TfliteModule(fcreate(tflite_fname, ctx))
     fcreate = get_global_func("tvm.tflite_runtime.create")
     return TfliteModule(fcreate(tflite_fname, ctx))
 

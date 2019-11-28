@@ -88,6 +88,7 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
       return Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
+      return Float(32);
   }
 }
 
@@ -97,29 +98,19 @@ void TfliteRuntime::Init(const std::string& tflite_fname,
   std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromFile(tflite_fname.c_str());
   tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
-  LOG(INFO) << "Init TFLite Interpreter...";
-
-  LOG(INFO) << "Number of inputs: " << interpreter_->inputs().size();
-  LOG(INFO) << interpreter_->GetInputName(0);
-  LOG(INFO) << "Number of outputs: " << interpreter_->outputs().size();
-  LOG(INFO) << interpreter_->GetOutputName(0);
   ctx_ = ctx;
 }
 
 void TfliteRuntime::AllocateTensors() {
-  LOG(INFO) << "AllocateTensors";
   interpreter_->AllocateTensors();
 }
 
 void TfliteRuntime::Invoke() {
-  LOG(INFO) << "Invoke";
   interpreter_->Invoke();
 }
 
 void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
-  LOG(INFO) << "SetInput";
   DataType dtype(data_in->dtype);
-  LOG(INFO) << "data type: " << dtype;
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = interpreter_->typed_input_tensor<DType>(index);
       DType* src = static_cast<DType*>(data_in->data);
@@ -135,7 +126,6 @@ void TfliteRuntime::SetInput(int index, DLTensor* data_in) {
 }
 
 NDArray TfliteRuntime::GetOutput(int index) const {
-  LOG(INFO) << "GetOutput";
   TfLiteTensor* output = interpreter_->output_tensor(index);
   DataType dtype = TfLiteDType2TVMDType(output->type);
   TfLiteIntArray* dims = output->dims;
@@ -195,6 +185,5 @@ TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = TfliteRuntimeCreate(args[0], args[1]);
   });
-
 }  // namespace runtime
 }  // namespace tvm

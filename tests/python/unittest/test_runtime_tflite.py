@@ -22,8 +22,6 @@ import tensorflow as tf
 import tflite_runtime.interpreter as tflite
 
 
-
-
 def test_tflite_runtime():
 
     def create_tflite_model():
@@ -41,7 +39,9 @@ def test_tflite_runtime():
     def check_verify():
         tflite_fname = "model.tflite"
         tflite_model = create_tflite_model()
-        open('/tmp/model.tflite', 'wb').write(tflite_model)
+        temp = util.tempdir()
+        tflite_model_path = temp.relpath(tflite_fname)
+        open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
         interpreter = tflite.Interpreter(model_path="/tmp/model.tflite")
@@ -51,13 +51,9 @@ def test_tflite_runtime():
         
         input_shape = input_details[0]['shape']
         tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
-        print(tflite_input)
         interpreter.set_tensor(input_details[0]['index'], tflite_input)
         interpreter.invoke()
-        
         tflite_output = interpreter.get_tensor(output_details[0]['index'])
-        print(tflite_output)
-        
         
         # inference via tvm tflite runtime
         runtime = tflite_runtime.create(tflite_fname, tvm.cpu(0))
@@ -65,31 +61,44 @@ def test_tflite_runtime():
         runtime.set_input(0, tvm.nd.array(tflite_input))
         runtime.invoke()
         out = runtime.get_output(0)
-        print(out)
         np.testing.assert_equal(out.asnumpy(), tflite_output)
 
 
-    # def check_remote():
-    #     if not tvm.module.enabled("llvm"):
-    #         print("Skip because llvm is not enabled")
-    #         return
-    #     server = rpc.Server("localhost")
-    #     remote = rpc.connect(server.host, server.port)
-    #     temp = util.tempdir()
-    #     ctx = remote.cpu(0)
-    #     path_dso = temp.relpath("dev_lib.so")
-    #     mlib.export_library(path_dso)
-    #     remote.upload(path_dso)
-    #     mlib = remote.load_module("dev_lib.so")
-    #     mod = graph_runtime.create(graph, mlib, remote.cpu(0))
-    #     a = np.random.uniform(size=(n,)).astype(A.dtype)
-    #     mod.run(x=tvm.nd.array(a, ctx))
-    #     out = tvm.nd.empty((n,), ctx=ctx)
-    #     out = mod.get_output(0, out)
-    #     np.testing.assert_equal(out.asnumpy(), a + 1)
+    def check_remote():
+        tflite_fname = "model.tflite"
+        tflite_model = create_tflite_model()
+        temp = util.tempdir()
+        tflite_model_path = temp.relpath(tflite_fname)
+        open(tflite_model_path, 'wb').write(tflite_model)
+
+        # inference via tflite interpreter python apis
+        interpreter = tflite.Interpreter(model_path="/tmp/model.tflite")
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
+        input_shape = input_details[0]['shape']
+        tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
+        interpreter.set_tensor(input_details[0]['index'], tflite_input)
+        interpreter.invoke()
+        tflite_output = interpreter.get_tensor(output_details[0]['index'])
+
+        # inference via remote tvm tflite runtime
+        server = rpc.Server("localhost")
+        remote = rpc.connect(server.host, server.port)
+        ctx = remote.cpu(0)
+        a = remote.upload(tflite_model_path)
+
+        runtime = tflite_runtime.create(tflite_model_path, remote.cpu(0))
+        runtime.allocate_tensors()
+        runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
+        runtime.invoke()
+        out = runtime.get_output(0)
+        np.testing.assert_equal(out.asnumpy(), tflite_output)
+
 
     check_verify()
-    # check_remote()
+    check_remote()
 
 if __name__ == "__main__":
     test_tflite_runtime()

@@ -17,16 +17,13 @@
 
 if(USE_TFLITE)
   message(STATUS "Build with contrib.tflite")
-  message("current path: ${CMAKE_CURRENT_SOURCE_DIR}")
-  # if (TENSORFLOW_PATH STREQUAL "")
+  if (NOT DEFINED TENSORFLOW_PATH) 
     set(TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
-    # endif()
-  message("tfpath: ${TENSORFLOW_PATH}")
+  endif()
   file(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
   list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
   include_directories(${TENSORFLOW_PATH})
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/linux_x86_64/lib)
-  message("tflite lib: ${TFLITE_CONTRIB_LIB}")
 
   list(APPEND TVM_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_LINKER_LIBS rt dl flatbuffers)
