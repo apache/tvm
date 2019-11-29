@@ -37,9 +37,9 @@ void ConvolutionForward(
   int mode,
   int format,
   int algo,
-  const std::vector<int> pad,
-  const std::vector<int> stride,
-  const std::vector<int> dilation,
+  const std::vector<int>& pad,
+  const std::vector<int>& stride,
+  const std::vector<int>& dilation,
   DLTensor* x,
   DLTensor* w,
   DLTensor* y,
@@ -185,11 +185,11 @@ void ConvolutionForward(
 
 void OutputShape(
   int format,
-  const std::vector<int> pad,
-  const std::vector<int> stride,
-  const std::vector<int> dilation,
-  const std::vector<int> x_dim,
-  const std::vector<int> w_dim,
+  const std::vector<int>& pad,
+  const std::vector<int>& stride,
+  const std::vector<int>& dilation,
+  const std::vector<int>& x_dim,
+  const std::vector<int>& w_dim,
   void *out_shape,
   const std::string& data_dtype,
   const std::string& conv_dtype) {
@@ -267,12 +267,12 @@ void OutputShape(
 
 void FindAlgo(
   int format,
-  const std::vector<int> pad,
-  const std::vector<int> stride,
-  const std::vector<int> dilation,
-  const std::vector<int> x_dim,
-  const std::vector<int> w_dim,
-  const std::vector<int> y_dim,
+  const std::vector<int>& pad,
+  const std::vector<int>& stride,
+  const std::vector<int>& dilation,
+  const std::vector<int>& x_dim,
+  const std::vector<int>& w_dim,
+  const std::vector<int>& y_dim,
   const std::string& data_dtype,
   const std::string& conv_dtype,
   TVMRetValue *ret) {
