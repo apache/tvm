@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/op/nn/nn.h
  * \brief Properties def of nn operators for sharing.
  */

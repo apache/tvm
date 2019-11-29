@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file schedule_ops.cc
  */
 #include <tvm/ir.h>

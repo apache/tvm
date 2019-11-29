@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file runtime_t.cc
  */
 #include <tvm/runtime/c_runtime_api.h>

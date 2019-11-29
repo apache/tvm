@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file cuda_half_t.h
  * \brief half_t (fp16) definition for cuda codegen.
  */

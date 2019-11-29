@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Lower allreduce to device implementable ir.
  * \file lower_thread_allreduce.cc
  */

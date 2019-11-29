@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opengl_module.cc
  */
 #include <tvm/runtime/registry.h>

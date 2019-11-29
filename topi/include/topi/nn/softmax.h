@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Softmax op constructions
  * \file nn/softmax.h
  */

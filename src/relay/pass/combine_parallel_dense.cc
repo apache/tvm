@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file combine_parallel_dense.cc
  * \brief Combine parallel dense ops into a single dense.

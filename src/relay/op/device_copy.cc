@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file src/relay/op/device_copy.cc
  * \brief Crossing device data copy operator.

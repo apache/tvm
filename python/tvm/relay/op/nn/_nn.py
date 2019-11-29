@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-arguments
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -163,10 +163,17 @@ def compute_conv2d(attrs, inputs, out_type, target):
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
+        # NHWC layout
         if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
-        return weight_shape[0] * weight_shape[1]
-
+        # NCHW layout.
+        # in ARM CPU contrib_spatial_pack schedule, we will prepack weight layout
+        if len(weight_shape) == 4:
+            return weight_shape[0] * weight_shape[1]
+        else:
+            assert len(weight_shape) == 5
+            C, M, _, _, VC = weight_shape
+            return C * VC * M
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
@@ -277,6 +284,26 @@ def schedule_conv2d_transpose(attrs, outs, target):
     with target:
         return topi.generic.schedule_conv2d_transpose_nchw(outs)
 
+
+@reg.register_legalize("nn.conv2d_transpose")
+def legalize_conv2d_transpose(attrs, inputs, types):
+    """Legalize conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 

@@ -39,7 +39,7 @@ Check out the `/tvm/install/ubuntu_install_sgx.sh` for the commands to get these
 If using Docker, start by running
 
 ```
-git clone --recursive https://github.com/apache/incubator-tvm.git
+git clone --recursive https://github.com/apache/incubator-tvm.git tvm
 docker run --rm -it -v $(pwd)/tvm:/mnt tvmai/ci-cpu /bin/bash
 ```
 then, in the container

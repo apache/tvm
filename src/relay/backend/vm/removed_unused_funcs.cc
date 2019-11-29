@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/remove_unused_funcs.cc
  * \brief Remove unused global relay functions in a relay module.
  */
@@ -54,12 +53,8 @@ struct CallTracer : ExprVisitor {
       called_funcs_{},
       visiting_{} {}
 
-  void VisitExpr_(const CallNode* call_node) final {
-    Expr op = call_node->op;
-    for (auto param : call_node->args) {
-      VisitExpr(param);
-    }
-    if (auto func_node = op.as<FunctionNode>()) {
+  void CheckExpr(const Expr& expr) {
+    if (auto func_node = expr.as<FunctionNode>()) {
       auto func = GetRef<Function>(func_node);
       auto it = visiting_.find(func);
       if (it != visiting_.end()) {
@@ -67,7 +62,7 @@ struct CallTracer : ExprVisitor {
       }
       visiting_.insert(func);
       VisitExpr(func);
-    } else if (auto global = op.as<GlobalVarNode>()) {
+    } else if (auto global = expr.as<GlobalVarNode>()) {
       called_funcs_.insert(global->name_hint);
       auto func = module_->Lookup(global->name_hint);
       auto it = visiting_.find(func);
@@ -76,6 +71,15 @@ struct CallTracer : ExprVisitor {
       }
       visiting_.insert(func);
       VisitExpr(func);
+    } else {
+      VisitExpr(expr);
+    }
+  }
+
+  void VisitExpr_(const CallNode* call_node) final {
+    CheckExpr(call_node->op);
+    for (auto param : call_node->args) {
+      CheckExpr(param);
     }
   }
 

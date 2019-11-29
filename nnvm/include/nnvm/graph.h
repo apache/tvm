@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/graph.h
  * \brief Configuation of nnvm as well as basic data structure.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file compile_engine.h
  * \brief Internal engine to compile a subgraph fragment and cache compilation.
  */

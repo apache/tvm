@@ -21,7 +21,7 @@
  * TVM Javascript web runtime library.
  *
  * @projectname tvm
- * @version 0.6.dev
+ * @version 0.6.0
  */
 /* eslint no-unused-vars: "off" */
 /* eslint no-unexpected-multiline: "off" */

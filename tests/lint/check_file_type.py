@@ -146,6 +146,38 @@ def filename_allowed(name):
 
     return False
 
+
+def copyright_line(line):
+    # Following two items are intentionally break apart
+    # so that the copyright detector won't detect the file itself.
+    if line.find("Copyright " + "(c)") != -1:
+        return True
+    if (line.find("Copyright") != -1 and
+        line.find(" by") != -1):
+        return True
+    return False
+
+
+def check_asf_copyright(fname):
+    if fname.endswith(".png"):
+        return True
+    if not os.path.isfile(fname):
+        return True
+    has_asf_header = False
+    has_copyright = False
+    try:
+        for line in open(fname):
+            if line.find("Licensed to the Apache Software Foundation") != -1:
+                has_asf_header = True
+            if copyright_line(line):
+                has_copyright = True
+            if has_asf_header and has_copyright:
+                return False
+    except UnicodeDecodeError:
+        pass
+    return True
+
+
 def main():
     cmd = ["git", "ls-files"]
     proc = subprocess.Popen(
@@ -153,20 +185,42 @@ def main():
     (out, _) = proc.communicate()
     assert proc.returncode == 0
     res = out.decode("utf-8")
-
+    flist = res.split()
     error_list = []
 
-    for fname in res.split():
+    for fname in flist:
         if not filename_allowed(fname):
             error_list.append(fname)
 
     if error_list:
-        report = "====File type check report=====\n"
+        report = "------File type check report----\n"
         report += "\n".join(error_list)
         report += "\nFound %d files that are now allowed\n" % len(error_list)
         report += ("We do not check in binary files into the repo.\n"
                    "If necessary, please discuss with committers and"
                    "modify tests/lint/check_file_type.py to enable the file you need.\n")
+        sys.stderr.write(report)
+        sys.stderr.flush()
+        sys.exit(-1)
+
+    asf_copyright_list = []
+
+    for fname in res.split():
+        if not check_asf_copyright(fname):
+            asf_copyright_list.append(fname)
+
+    if asf_copyright_list:
+        report = "------File type check report----\n"
+        report += "\n".join(asf_copyright_list) + "\n"
+        report += "------Found %d files that has ASF header with copyright message----\n" % len(asf_copyright_list)
+        report += "--- Files with ASF header do not need Copyright lines.\n"
+        report += "--- Contributors retain copyright to their contribution by default.\n"
+        report += "--- If a file comes with a different license, consider put it under the 3rdparty folder instead.\n"
+        report += "---\n"
+        report += "--- You can use the following steps to remove the copyright lines\n"
+        report += "--- Create file_list.txt in your text editor\n"
+        report += "--- Copy paste the above content in file-list into file_list.txt\n"
+        report += "--- python3 tests/lint/add_asf_header.py file_list.txt\n"
         sys.stderr.write(report)
         sys.stderr.flush()
         sys.exit(-1)

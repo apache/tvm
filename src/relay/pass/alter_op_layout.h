@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file alter_op_layout.h
  * \brief Alternate the layouts of operators or replace primitive operators with
           other expressions. This pass can be used for computing convolution in

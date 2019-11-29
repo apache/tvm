@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file micro_common.cc
  * \brief common utilties for uTVM
  */

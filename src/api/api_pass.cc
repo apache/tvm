@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Exposre of pass functions.
  * \file api_pass.cc
  */

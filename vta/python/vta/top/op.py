@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument, ungrouped-imports
-"""Namespace for supporting packed_conv2d + ewise variant of nnvm."""
+"""Namespace for supporting Relay operators on VTA."""
 from __future__ import absolute_import as _abs
 
 import tvm

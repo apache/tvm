@@ -2188,6 +2188,20 @@ def test_forward_transpose():
     _test_forward_tranapose_axes_input((2, 3, 4, 5), (3, 0, 1, 2))
 
 
+def _test_forward_slice_operation_input(input_value, begin_value, size_value):
+    input_data = np.array(input_value, dtype=np.float32)
+    with tf.Graph().as_default():
+        input_tensor = tf.placeholder(
+            shape=input_data.shape, dtype=input_data.dtype, name="input")
+        begin_tensor = tf.expand_dims(begin_value, axis=0)
+        size_tensor = tf.expand_dims(size_value, axis=0)
+        slice_tensor = tf.slice(input_tensor, begin_tensor, size_tensor, name='slice_output')
+        compare_tf_with_tvm([input_data], ['input:0'], 'slice_output:0')
+
+
+def test_forward_slice():
+    _test_forward_slice_operation_input([1, 1], 0, 2)
+
 def test_forward_ceil():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(size=ishape).astype(np.float32)
@@ -2760,8 +2774,8 @@ def test_forward_add_n():
 # Main
 # ----
 if __name__ == '__main__':
-
     # Transforms
+    test_forward_slice()
     test_forward_transpose()
     test_forward_reshape()
     test_forward_depthtospace()

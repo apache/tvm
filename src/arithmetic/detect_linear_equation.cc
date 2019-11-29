@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file detect_linear_equation.cc
  * \brief Utility to detect patterns in the expression.
  */

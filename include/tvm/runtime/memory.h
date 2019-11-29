@@ -58,12 +58,13 @@ template<typename Derived>
 class ObjAllocatorBase {
  public:
   /*!
+   * \brief Make a new object using the allocator.
    * \tparam T The type to be allocated.
    * \tparam Args The constructor signature.
    * \param args The arguments.
    */
   template<typename T, typename... Args>
-  inline ObjectPtr<T> make(Args&&... args) {
+  inline ObjectPtr<T> make_object(Args&&... args) {
     using Handler = typename Derived::template Handler<T>;
     static_assert(std::is_base_of<Object, T>::value,
                   "make_node can only be used to create NodeBase");
@@ -126,7 +127,7 @@ class SimpleObjAllocator :
 
 template<typename T, typename... Args>
 inline ObjectPtr<T> make_object(Args&&... args) {
-  return SimpleObjAllocator().make<T>(std::forward<Args>(args)...);
+  return SimpleObjAllocator().make_object<T>(std::forward<Args>(args)...);
 }
 
 }  // namespace runtime

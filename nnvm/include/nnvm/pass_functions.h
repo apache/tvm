@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/pass_functions.h
  * \brief Pass functions that simply redirect the calls to ApplyPass
  *

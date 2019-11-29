@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file precompute_prune.cc
  * \brief Split the graph into a pre-compute graph and a execution graph.
  *

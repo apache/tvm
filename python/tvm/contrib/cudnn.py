@@ -22,7 +22,6 @@ from .. import api as _api
 from .. import intrin as _intrin
 from .. import get_global_func as _get_global_func
 
-
 # algos can be read from cudnn.h
 _FWD_ALGOS = [
     "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM",
@@ -66,6 +65,7 @@ _ALGO_TYPE = [
     "bwd_filter",
     "bwd_data"
 ]
+
 
 def algo_to_index(algo_type, algo_name):
     """Return a index represents the algorithm, which can be used in
@@ -172,6 +172,7 @@ def conv2d_w_shape(in_channel,
     """
     return [out_channel, in_channel, filter_h, filter_w]
 
+
 def conv2d_output_shape(tensor_format,
                         pad_h,
                         pad_w,
@@ -180,7 +181,9 @@ def conv2d_output_shape(tensor_format,
                         dilation_h,
                         dilation_w,
                         x_shape,
-                        w_shape):
+                        w_shape,
+                        data_dtype,
+                        conv_dtype):
     """Get output shape of 2D convolution
 
     Paramters
@@ -232,7 +235,9 @@ def conv2d_output_shape(tensor_format,
          w_shape[1].value,
          w_shape[2].value,
          w_shape[3].value,
-         _get_np_int32_array_handle(oshape))
+         _get_np_int32_array_handle(oshape),
+         data_dtype,
+         conv_dtype)
     return list(oshape)
 
 
@@ -245,7 +250,9 @@ def conv2d_find_algo(tensor_format,
                      dilation_w,
                      x_shape,
                      w_shape,
-                     y_shape):
+                     y_shape,
+                     data_dtype,
+                     conv_dtype):
     """Choose the best algo for the given input.
 
     Paramters
@@ -272,6 +279,10 @@ def conv2d_find_algo(tensor_format,
         weight shape
     y_shape: list
         output shape
+    data_dtype: str
+        data type
+    conv_dtype: str
+        convolution type
 
     Returns
     -------
@@ -297,7 +308,9 @@ def conv2d_find_algo(tensor_format,
                 int(y_shape[0]),
                 int(y_shape[1]),
                 int(y_shape[2]),
-                int(y_shape[3]))
+                int(y_shape[3]),
+                data_dtype,
+                conv_dtype)
 
 
 def conv2d_forward(x,
@@ -310,7 +323,8 @@ def conv2d_forward(x,
                    dilation_w=1,
                    conv_mode=1,
                    tensor_format=0,
-                   algo=-1):
+                   algo=-1,
+                   conv_dtype=None):
     """Create an extern op that compute 2D convolution with CuDNN
 
     Parameters
@@ -341,12 +355,16 @@ def conv2d_forward(x,
     algo: int
         Forward algorithm, get index from ```algo_to_index``` function
         if algo == -1, the best algo will be chosen by CUDNN
+    conv_dtype: str
+        convolution type
 
     Returns
     -------
     y: Tensor
         The result tensor
     """
+    conv_dtype = x.dtype if conv_dtype is None else conv_dtype
+
     oshape = conv2d_output_shape(tensor_format,
                                  pad_h,
                                  pad_w,
@@ -355,18 +373,28 @@ def conv2d_forward(x,
                                  dilation_h,
                                  dilation_w,
                                  list(x.shape),
-                                 list(w.shape))
+                                 list(w.shape),
+                                 x.dtype,
+                                 conv_dtype)
     if algo == -1:
-        algo = conv2d_find_algo(tensor_format,
-                                pad_h,
-                                pad_w,
-                                stride_h,
-                                stride_w,
-                                dilation_h,
-                                dilation_w,
-                                list(x.shape),
-                                list(w.shape),
-                                oshape)
+        # For now if we try to call `cudnnFindConvolutionForwardAlgorithm` when
+        # using INT8 data type, CuDNN will crash down.
+        # On the other hand, CuDNN only support IMPLICIT_​PRECOMP_GEMM at NHWC format
+        if tensor_format == 1 and conv_dtype == "int32":
+            algo = 1
+        else:
+            algo = conv2d_find_algo(tensor_format,
+                                    pad_h,
+                                    pad_w,
+                                    stride_h,
+                                    stride_w,
+                                    dilation_h,
+                                    dilation_w,
+                                    list(x.shape),
+                                    list(w.shape),
+                                    oshape,
+                                    x.dtype,
+                                    conv_dtype)
 
     return _api.extern(
         oshape, [x, w],
@@ -383,4 +411,5 @@ def conv2d_forward(x,
             dilation_w,
             ins[0],
             ins[1],
-            outs[0]), name="y")
+            outs[0],
+            conv_dtype), name="y")

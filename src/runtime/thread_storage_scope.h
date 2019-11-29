@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file thread_storage_scope.h
  * \brief Extract thread axis configuration from TVMArgs.
  */

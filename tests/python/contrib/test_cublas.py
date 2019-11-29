@@ -18,13 +18,13 @@ import tvm
 import numpy as np
 from tvm.contrib import cublas
 
-def test_matmul_add():
+def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     n = 1024
     l = 128
-    m = 235
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((l, m), name='B')
-    C = cublas.matmul(A, B)
+    m = 236
+    A = tvm.placeholder((n, l), name='A', dtype=in_dtype)
+    B = tvm.placeholder((l, m), name='B', dtype=in_dtype)
+    C = cublas.matmul(A, B, dtype=out_dtype)
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
@@ -36,22 +36,22 @@ def test_matmul_add():
             return
         ctx = tvm.gpu(0)
         f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            c.asnumpy(), np.dot(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=rtol)
     verify()
 
-def test_batch_matmul():
+def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
     j = 16
     n = 1024
     l = 128
-    m = 235
-    A = tvm.placeholder((j, n, l), name='A')
-    B = tvm.placeholder((j, l, m), name='B')
-    C = cublas.batch_matmul(A, B)
+    m = 236
+    A = tvm.placeholder((j, n, l), name='A', dtype=in_dtype)
+    B = tvm.placeholder((j, l, m), name='B', dtype=in_dtype)
+    C = cublas.batch_matmul(A, B, dtype=out_dtype)
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
@@ -68,10 +68,22 @@ def test_batch_matmul():
         c = tvm.nd.array(np.zeros((j, n, m), dtype=C.dtype), ctx)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.matmul(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+            c.asnumpy(), np.matmul(a.asnumpy().astype(C.dtype),
+                                   b.asnumpy().astype(C.dtype)).astype(C.dtype), rtol=rtol)
     verify()
 
+def test_matmul_add():
+    verify_matmul_add('float', 'float')
+    verify_matmul_add('float16', 'float')
+    verify_matmul_add('float16', 'float16', rtol=1e-2)
+    verify_matmul_add('int8', 'int32')
+
+def test_batch_matmul():
+    verify_batch_matmul('float', 'float')
+    verify_batch_matmul('float16', 'float')
+    verify_batch_matmul('float16', 'float16', rtol=1e-2)
 
 if __name__ == "__main__":
     test_matmul_add()
     test_batch_matmul()
+

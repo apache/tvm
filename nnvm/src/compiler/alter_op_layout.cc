@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file alter_op_layout.cc
  * \brief Alter the operator layouts. Keep inferred layouts (if any) from previous stages.
  *        e.g., convolution may calculates faster with NCHW16c layout.

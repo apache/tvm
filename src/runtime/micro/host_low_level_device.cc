@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file host_low_level_device.cc
  * \brief emulated low-level micro device implementation on host machine
  */

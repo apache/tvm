@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file storage_flatten.cc
  */
 // Flattens storage from multi-dimensional array to 1D

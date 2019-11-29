@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */

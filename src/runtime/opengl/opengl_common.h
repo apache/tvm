@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opengl_common.h
  * \brief OpenGL common header
  */

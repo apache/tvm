@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file pattern_util.h
  * \brief Utilities for doing various pattern matching in graph.
 */

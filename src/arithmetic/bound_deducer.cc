@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */

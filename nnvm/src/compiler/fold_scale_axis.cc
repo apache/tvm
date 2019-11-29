@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file fold_scale_axis.cc
  * \author Fold scaling parameter of axis into weight of conv/dense
 */

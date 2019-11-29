@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright 2018 by Contributors
  *
  * \file base64.h
  * \brief data stream support to input and output from/to base64 stream

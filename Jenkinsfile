@@ -64,10 +64,16 @@ docker_run = 'docker/bash.sh'
 // timeout in minutes
 max_time = 120
 
-workspace = "workspace/exec_${env.EXECUTOR_NUMBER}"
+def per_exec_ws(folder) {
+  return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
+}
 
 // initialize source codes
 def init_git() {
+  // Add more info about job node
+  sh """
+     echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
+     """
   checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
@@ -88,7 +94,7 @@ def init_git_win() {
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
-      ws("${workspace}/tvm/sanity") {
+      ws(per_exec_ws("tvm/sanity")) {
         init_git()
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
@@ -136,7 +142,7 @@ def unpack_lib(name, libs) {
 stage('Build') {
   parallel 'BUILD: GPU': {
     node('GPUBUILD') {
-      ws("${workspace}/tvm/build-gpu") {
+      ws(per_exec_ws("tvm/build-gpu")) {
         init_git()
         sh """
            mkdir -p build
@@ -157,6 +163,7 @@ stage('Build') {
            echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(USE_BLAS openblas\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
@@ -175,6 +182,7 @@ stage('Build') {
            echo set\\(USE_MICRO ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER clang-7\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
@@ -184,7 +192,7 @@ stage('Build') {
   },
   'BUILD: CPU': {
     node('CPU') {
-      ws("${workspace}/tvm/build-cpu") {
+      ws(per_exec_ws("tvm/build-cpu")) {
         init_git()
         sh """
            mkdir -p build
@@ -195,6 +203,7 @@ stage('Build') {
            echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
@@ -216,7 +225,7 @@ stage('Build') {
   },
   'BUILD : i386': {
     node('CPU') {
-      ws("${workspace}/tvm/build-i386") {
+      ws(per_exec_ws("tvm/build-i386")) {
         init_git()
         sh """
            mkdir -p build
@@ -227,6 +236,7 @@ stage('Build') {
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
+           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
@@ -241,7 +251,7 @@ stage('Build') {
 stage('Unit Test') {
   parallel 'python3: GPU': {
     node('TensorCore') {
-      ws("${workspace}/tvm/ut-python-gpu") {
+      ws(per_exec_ws("tvm/ut-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -253,7 +263,7 @@ stage('Unit Test') {
   },
   'python3: i386': {
     node('CPU') {
-      ws("${workspace}/tvm/ut-python-i386") {
+      ws(per_exec_ws("tvm/ut-python-i386")) {
         init_git()
         unpack_lib('i386', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -266,7 +276,7 @@ stage('Unit Test') {
   },
   'java: GPU': {
     node('GPU') {
-      ws("${workspace}/tvm/ut-java") {
+      ws(per_exec_ws("tvm/ut-java")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -280,7 +290,7 @@ stage('Unit Test') {
 stage('Integration Test') {
   parallel 'topi: GPU': {
     node('GPU') {
-      ws("${workspace}/tvm/topi-python-gpu") {
+      ws(per_exec_ws("tvm/topi-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -291,7 +301,7 @@ stage('Integration Test') {
   },
   'frontend: GPU': {
     node('GPU') {
-      ws("${workspace}/tvm/frontend-python-gpu") {
+      ws(per_exec_ws("tvm/frontend-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -302,7 +312,7 @@ stage('Integration Test') {
   },
   'legacy: GPU': {
     node('GPU') {
-      ws("${workspace}/tvm/legacy-python-gpu") {
+      ws(per_exec_ws("tvm/legacy-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -313,7 +323,7 @@ stage('Integration Test') {
   },
   'docs: GPU': {
     node('GPU') {
-      ws("${workspace}/tvm/docs-python-gpu") {
+      ws(per_exec_ws("tvm/docs-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -345,7 +355,7 @@ stage('Build packages') {
 
 stage('Deploy') {
     node('doc') {
-      ws("${workspace}/tvm/deploy-docs") {
+      ws(per_exec_ws("tvm/deploy-docs")) {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
            sh "tar xf docs.tgz -C /var/docs"

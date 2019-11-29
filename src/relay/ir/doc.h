@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/doc.h
  * \brief Doc ADT used for pretty printing.
  *  Based on Section 1 of
