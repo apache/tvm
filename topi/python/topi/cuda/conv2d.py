@@ -98,7 +98,6 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
 
         return cudnn.conv_forward(data,
                                   kernel,
-                                  2,
                                   [pad_h, pad_w],
                                   [stride_h, stride_w],
                                   [dilation_h, dilation_w],

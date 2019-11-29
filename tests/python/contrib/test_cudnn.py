@@ -52,7 +52,6 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
     W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
     Y = cudnn.conv_forward(X,
                            W,
-                           2,
                            [pad_h, pad_w],
                            [stride_h, stride_w],
                            [dilation_h, dilation_w],
@@ -125,7 +124,6 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
     W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
     Y = cudnn.conv_forward(X,
                            W,
-                           3,
                            [pad_d, pad_h, pad_w],
                            [stride_d, stride_h, stride_w],
                            [dilation_d, dilation_h, dilation_w],

@@ -176,7 +176,6 @@ def _prepare_global_func_params(dims,
 
 
 def conv_output_shape(tensor_format,
-                      dims,
                       pad,
                       stride,
                       dilation,
@@ -192,8 +191,6 @@ def conv_output_shape(tensor_format,
         0: CUDNN_TENSOR_NCHW
         1: CUDNN_TENSOR_NHWC
         2: CUDNN_TENSOR_NCHW_VECT_C
-    dims: int
-        2 for 2D, 3 for 3D
     pad: int or list
         padding
     stride: int or list
@@ -214,12 +211,16 @@ def conv_output_shape(tensor_format,
     oshape: list
         output shape
     """
+    dims = len(x_shape)
+    assert dims in (4, 5)
+
     pad, stride, dilation, xshape, wshape = \
-        _prepare_global_func_params(dims, pad, stride, dilation, x_shape, w_shape)
-    oshape = np.zeros((len(x_shape)), dtype=np.int32)
+        _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
+    oshape = np.zeros((dims), dtype=np.int32)
+
     func = _get_global_func("tvm.contrib.cudnn.conv.output_shape")
     func(tensor_format,
-         dims,
+         dims - 2,
          _get_np_int32_array_handle(pad),
          _get_np_int32_array_handle(stride),
          _get_np_int32_array_handle(dilation),
@@ -232,7 +233,6 @@ def conv_output_shape(tensor_format,
 
 
 def conv_find_algo(tensor_format,
-                   dims,
                    pad,
                    stride,
                    dilation,
@@ -249,8 +249,6 @@ def conv_find_algo(tensor_format,
         0: CUDNN_TENSOR_NCHW
         1: CUDNN_TENSOR_NHWC
         2: CUDNN_TENSOR_NCHW_VECT_C
-    dims: int
-        2 for 2D, 3 for 3D
     pad: int or list
         padding
     stride: int or list
@@ -273,12 +271,15 @@ def conv_find_algo(tensor_format,
     algo: int
         algo chosen by CUDNN
     """
+    dims = len(x_shape)
+    assert dims in (4, 5)
+
     pad, stride, dilation, xshape, wshape = \
-        _prepare_global_func_params(dims, pad, stride, dilation, x_shape, w_shape)
+        _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
     yshape = np.array(y_shape, dtype=np.int32)
     func = _get_global_func("tvm.contrib.cudnn.conv.find_algo")
     return func(tensor_format,
-                dims,
+                dims - 2,
                 _get_np_int32_array_handle(pad),
                 _get_np_int32_array_handle(stride),
                 _get_np_int32_array_handle(dilation),
@@ -291,7 +292,6 @@ def conv_find_algo(tensor_format,
 
 def conv_forward(x,
                  w,
-                 dims,
                  pad,
                  stride,
                  dilation,
@@ -307,8 +307,6 @@ def conv_forward(x,
         input feature map
     w: Tensor
         convolution weight
-    dims: int
-        2 for 2D, 3 for 3D
     pad: int or list
         padding
     stride: int or list
@@ -333,10 +331,12 @@ def conv_forward(x,
     y: Tensor
         The result tensor
     """
+    dims = len(x.shape)
+    assert dims in (4, 5)
+
     conv_dtype = x.dtype if conv_dtype is None else conv_dtype
 
     oshape = conv_output_shape(tensor_format,
-                               dims,
                                pad,
                                stride,
                                dilation,
@@ -352,7 +352,6 @@ def conv_forward(x,
             algo = 1
         else:
             algo = conv_find_algo(tensor_format,
-                                  dims,
                                   pad,
                                   stride,
                                   dilation,
@@ -361,9 +360,13 @@ def conv_forward(x,
                                   oshape,
                                   x.dtype,
                                   conv_dtype)
-    #pad = [convert(x) for x in pad]
-    #stride = [convert(x) for x in stride]
-    #dilation = [convert(x) for x in dilation]
+
+    pad, stride, dilation, _, _ = \
+        _prepare_global_func_params(dims - 2, pad, stride, dilation)
+
+    pad = [convert(x) for x in pad]
+    stride = [convert(x) for x in stride]
+    dilation = [convert(x) for x in dilation]
 
     return _api.extern(
         oshape, [x, w],
@@ -372,7 +375,7 @@ def conv_forward(x,
             conv_mode,
             tensor_format,
             algo,
-            dims,
+            dims - 2,
             convert(pad),
             convert(stride),
             convert(dilation),

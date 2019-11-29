@@ -27,6 +27,7 @@
 #include <dmlc/logging.h>
 #include <cudnn.h>
 #include <tvm/runtime/device_api.h>
+#include <vector>
 #include "../../cuda/cuda_common.h"
 
 
@@ -54,10 +55,12 @@ inline void GetStride(int nbdim, const int *dims, int *strides) {
   }
 }
 
-inline void GetCudnnStride(int nbdim, const int *dims, int *strides) {
+inline void GetCudnnStride(int nbdim,
+                           const std::vector<int>& dims,
+                           std::vector<int>* strides) {
   int mul = 1;
   for (int i = nbdim - 1; i >=0; --i) {
-    strides[i] = mul;
+    (*strides)[i] = mul;
     mul *= dims[i];
   }
 }

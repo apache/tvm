@@ -15,33 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals, too-many-branches
-"""Convolution in python"""
+"""Convolution 3D in python"""
 import numpy as np
 import scipy.signal
 
 
 def _conv3d_ncdhw_python(a_np, w_np, stride, padding):
-    """Convolution operator in NCDHW layout.
-
-    Parameters
-    ----------
-    a_np : numpy.ndarray
-        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
-
-    w_np : numpy.ndarray
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
-
-    stride : int or a list/tuple of three ints
-        Stride size, or [stride_depth, stride_height, stride_width]
-
-    padding : int or str or a list/tuple of three ints
-        Padding size, or ['VALID', 'SAME'], or [pad_depth, pad_height, pad_width]
-
-    Returns
-    -------
-    b_np : np.ndarray
-        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
-    """
     batch, in_channel, in_depth, in_height, in_width = a_np.shape
     num_filter, _, kernel_d, kernel_h, kernel_w = w_np.shape
     if isinstance(stride, int):
@@ -96,7 +75,7 @@ def _conv3d_ncdhw_python(a_np, w_np, stride, padding):
 
 
 def conv3d_ncdhw_python(a_np, w_np, stride, padding, groups=1):
-    """Convolution operator in NCHW layout.
+    """Convolution operator in NCDHW layout.
 
     Parameters
     ----------
