@@ -22,6 +22,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
+#include <tvm/packed_func_ext.h>
+#include <tvm/ir.h>
 #include <tvm/runtime/device_api.h>
 #include "cudnn_utils.h"
 
@@ -29,6 +31,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
+using tvm::ir::IntImm;
 
 void ConvolutionForward(
   int mode,
@@ -377,8 +380,24 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward")
   int algo = args[2];
   int dims = args[3];
 
+  Array<Expr> pads =  args[4];
+  Array<Expr> strides =  args[5];
+  Array<Expr> dilations =  args[6];
+
+
   std::vector<int> pad_v(dims), stride_v(dims), dilation_v(dims);
-  PrepareCommonArgs(args, 4, dims, &pad_v, &stride_v, &dilation_v);
+  for (auto &pad : pads) {
+    int i = 0;
+    pad_v[i++] = pad.as<IntImm>()->value;
+  }
+  for (auto &stride : strides) {
+    int i = 0;
+    pad_v[i++] = strides.as<IntImm>()->value;
+  }
+  for (auto &dilation : dilations) {
+    int i = 0;
+    pad_v[i++] = dilations.as<IntImm>()->value;
+  }
 
   DLTensor* x = args[7];
   DLTensor* w = args[8];

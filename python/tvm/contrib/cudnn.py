@@ -21,6 +21,7 @@ import numpy as np
 from .. import api as _api
 from .. import intrin as _intrin
 from .. import get_global_func as _get_global_func
+from ..api import convert
 
 # algos can be read from cudnn.h
 _FWD_ALGOS = [
@@ -360,8 +361,9 @@ def conv_forward(x,
                                   oshape,
                                   x.dtype,
                                   conv_dtype)
-    pad, stride, dilation, _, _ = \
-        _prepare_global_func_params(dims, pad, stride, dilation)
+    #pad = [convert(x) for x in pad]
+    #stride = [convert(x) for x in stride]
+    #dilation = [convert(x) for x in dilation]
 
     return _api.extern(
         oshape, [x, w],
@@ -371,9 +373,9 @@ def conv_forward(x,
             tensor_format,
             algo,
             dims,
-            _get_np_int32_array_handle(pad),
-            _get_np_int32_array_handle(stride),
-            _get_np_int32_array_handle(dilation),
+            convert(pad),
+            convert(stride),
+            convert(dilation),
             ins[0],
             ins[1],
             outs[0],
