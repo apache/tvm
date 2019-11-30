@@ -21,7 +21,6 @@ import numpy as np
 from .. import api as _api
 from .. import intrin as _intrin
 from .. import get_global_func as _get_global_func
-from ..api import convert
 
 # algos can be read from cudnn.h
 _FWD_ALGOS = [
@@ -335,6 +334,8 @@ def conv_forward(x,
     assert dims in (4, 5)
 
     conv_dtype = x.dtype if conv_dtype is None else conv_dtype
+    pad, stride, dilation, _, _ = \
+        _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
     oshape = conv_output_shape(tensor_format,
                                pad,
@@ -361,24 +362,41 @@ def conv_forward(x,
                                   x.dtype,
                                   conv_dtype)
 
-    pad, stride, dilation, _, _ = \
-        _prepare_global_func_params(dims - 2, pad, stride, dilation)
-
-    pad = [convert(x) for x in pad]
-    stride = [convert(x) for x in stride]
-    dilation = [convert(x) for x in dilation]
+    if dims == 4:
+        return _api.extern(
+            oshape, [x, w],
+            lambda ins, outs: _intrin.call_packed(
+                "tvm.contrib.cudnn.conv2d.forward",
+                conv_mode,
+                tensor_format,
+                algo,
+                pad[0],
+                pad[1],
+                stride[0],
+                stride[1],
+                dilation[0],
+                dilation[1],
+                ins[0],
+                ins[1],
+                outs[0],
+                conv_dtype), name="y")
 
     return _api.extern(
         oshape, [x, w],
         lambda ins, outs: _intrin.call_packed(
-            "tvm.contrib.cudnn.conv.forward",
+            "tvm.contrib.cudnn.conv3d.forward",
             conv_mode,
             tensor_format,
             algo,
-            dims - 2,
-            convert(pad),
-            convert(stride),
-            convert(dilation),
+            pad[0],
+            pad[1],
+            pad[2],
+            stride[0],
+            stride[1],
+            stride[2],
+            dilation[0],
+            dilation[1],
+            dilation[2],
             ins[0],
             ins[1],
             outs[0],

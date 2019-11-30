@@ -37,14 +37,14 @@ void ConvolutionForward(
   int mode,
   int format,
   int algo,
-  const std::vector<int>& pad,
-  const std::vector<int>& stride,
-  const std::vector<int>& dilation,
+  int dims,
+  const int pad[],
+  const int stride[],
+  const int dilation[],
   DLTensor* x,
   DLTensor* w,
   DLTensor* y,
   const std::string& conv_dtype) {
-  int dims = pad.size();
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
@@ -116,9 +116,9 @@ void ConvolutionForward(
   } else {
     CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc,
                                                dims,
-                                               pad.data(),
-                                               stride.data(),
-                                               dilation.data(),
+                                               pad,
+                                               stride,
+                                               dilation,
                                                entry_ptr->conv_entry.mode,
                                                entry_ptr->conv_entry.data_type));
 
@@ -358,39 +358,44 @@ void FindAlgo(
 }
 
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward")
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   int mode = args[0];
   int format = args[1];
   int algo = args[2];
-  int dims = args[3];
-
-  Array<Expr> pads =  args[4];
-  Array<Expr> strides =  args[5];
-  Array<Expr> dilations =  args[6];
-
-  std::vector<int> pad_v(dims), stride_v(dims), dilation_v(dims);
-
-  for (auto &pad : pads) {
-    int i = 0;
-    pad_v[i++] = pad.as<IntImm>()->value;
+  int pad_v[2], stride_v[2], dilation_v[2];
+  for (int i = 0; i < 2; i++) {
+      pad_v[i] = args[3 + i];
+      stride_v[i] = args[5 + i];
+      dilation_v[i] = args[7 + i];
   }
-  for (auto &stride : strides) {
-    int i = 0;
-    pad_v[i++] = strides.as<IntImm>()->value;
-  }
-  for (auto &dilation : dilations) {
-    int i = 0;
-    pad_v[i++] = dilations.as<IntImm>()->value;
-  }
+  DLTensor* x = args[9];
+  DLTensor* w = args[10];
+  DLTensor* y = args[11];
+  std::string conv_dtype = args[12];
 
-  DLTensor* x = args[7];
-  DLTensor* w = args[8];
-  DLTensor* y = args[9];
-  std::string conv_dtype = args[10];
+  ConvolutionForward(mode, format, algo, 2, pad_v, stride_v, dilation_v, x, w, y, conv_dtype);
+});
 
-  ConvolutionForward(mode, format, algo, pad_v, stride_v, dilation_v,
-                     x, w, y, conv_dtype);
+
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  int mode = args[0];
+  int format = args[1];
+  int algo = args[2];
+  int pad_v[3], stride_v[3], dilation_v[3];
+  for (int i = 0; i < 3; i++) {
+      pad_v[i] = args[3 + i];
+      stride_v[i] = args[6 + i];
+      dilation_v[i] = args[9 + i];
+  }
+  DLTensor *x = args[12];
+  DLTensor *w = args[13];
+  DLTensor *y = args[14];
+  std::string conv_dtype = args[15];
+
+  ConvolutionForward(mode, format, algo, 3, pad_v, stride_v, dilation_v, x, w, y,
+                     conv_dtype);
 });
 
 
