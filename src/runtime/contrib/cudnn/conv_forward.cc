@@ -22,8 +22,6 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
-#include <tvm/packed_func_ext.h>
-#include <tvm/ir.h>
 #include <tvm/runtime/device_api.h>
 #include "cudnn_utils.h"
 
@@ -31,7 +29,6 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-using tvm::ir::IntImm;
 
 void ConvolutionForward(
   int mode,
