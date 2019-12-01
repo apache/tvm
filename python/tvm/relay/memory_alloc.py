@@ -28,7 +28,8 @@ from .backend import compile_engine
 
 
 def is_primitive(call):
-    return hasattr(call.op, 'attrs') and int(call.op.attrs.Primitive) == 1
+    return hasattr(call.op, 'attrs') and hasattr(call.op.attrs, 'Primitive') and \
+        int(call.op.attrs.Primitive) == 1
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
