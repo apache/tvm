@@ -22,7 +22,7 @@ Bring Your Own Codegen To TVM
 =============================
 **Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Hao Yu <https:://github.com/comaniac>`_
 
-As the hardware devices targeted by deep learning workloads keep increasing, the required knowledge
+As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge
 for users to achieve high performance on various devices keeps increasing as well. To free data
 scientists from worrying about the performance when developing a new model, hardware vendors either
 provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators,
@@ -134,7 +134,7 @@ def multiply(attrs, args):
 #         out
 #
 # The implementation is shown as follows. As can be seen, the annotator is derived from
-# `ExprMutator` that traverses a Relay graph and allows we to mutate it. We know that all ops
+# `ExprMutator` that traverses a Relay graph and allows us to mutate it. We know that all ops
 # are `call` nodes in Relay graph, so we override the call node mutator `visit_call` in
 # `ExprMutator` and insert annotations.
 

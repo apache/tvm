@@ -154,7 +154,7 @@ class GccCodegen : public ExternCodegenBase {
     code_stream_ << builder.JIT();
   }
 
-  runtime::Module CreateExternModule(const NodeRef& ref) {
+  runtime::Module CreateExternModule(const NodeRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <iostream>\n";

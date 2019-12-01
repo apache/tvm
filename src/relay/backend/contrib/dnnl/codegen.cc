@@ -235,7 +235,7 @@ class DNNLCodegen : public ExternCodegenBase {
    *
    * \return The runtime module that contains C source code.
    */
-  runtime::Module CreateExternModule(const NodeRef& ref) {
+  runtime::Module CreateExternModule(const NodeRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
