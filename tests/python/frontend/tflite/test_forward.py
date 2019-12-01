@@ -478,6 +478,60 @@ def test_forward_convolution():
 
 
 #######################################################################
+# Transpose Convolution
+# ---------------------
+
+def _test_transpose_conv(tensor_in_sizes, filter_in_sizes, output_shape, strides, padding):
+    """ One iteration of transpose convolution with given shapes and attributes """
+
+    total_size_1 = 1
+    total_size_2 = 1
+    for s in tensor_in_sizes:
+        total_size_1 *= s
+    for s in filter_in_sizes:
+        total_size_2 *= s
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
+        strides = [1] + strides + [1]
+        # in_filter layout is HWOI
+        out = nn_ops.conv2d_transpose(in_data,
+                                      in_filter,
+                                      output_shape=output_shape,
+                                      strides=strides,
+                                      padding=padding)
+        data_array = np.reshape(data_array, tensor_in_sizes).astype('float32')
+        compare_tflite_with_tvm(data_array, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_transpose_conv():
+    # kernel 3x3, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 34, 34, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], 'VALID')
+
+    # kernel 2x2, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], 'VALID')
+
+    # kernel 1x1, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], 'VALID')
+
+    # kernel 1x1, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], 'SAME')
+
+
+#######################################################################
 # Reshape
 # -------
 
@@ -1232,6 +1286,7 @@ if __name__ == '__main__':
 
     # NN
     test_forward_convolution()
+    test_forward_transpose_conv()
     test_forward_logistic()
     test_forward_pooling()
     test_forward_softmax()
