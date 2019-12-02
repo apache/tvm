@@ -1419,15 +1419,9 @@ bool TileRel(const Array<Type>& types,
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(tndim);
-  bool is_dynamic_shape = false;
-  for (size_t i = 0; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<IntImm>()) {
-      is_dynamic_shape = true;
-      break;
-    }
-  }
   for (size_t i = 0; i < tndim; ++i) {
-    if (is_dynamic_shape) {
+    // Save Any if it is dynamic shape
+    if (!data_shape[i].as<IntImm>()) {
       oshape.emplace_back(Any::make());
     } else {
       oshape.emplace_back(data_shape[i] * reps_shape[i]);
