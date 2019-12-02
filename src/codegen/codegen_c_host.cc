@@ -33,7 +33,8 @@ CodeGenCHost::CodeGenCHost() {
   module_name_ = GetUniqueName("__tvm_module_ctx");
 }
 
-void CodeGenCHost::Init(bool output_ssa) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
+  emit_asserts_ = emit_asserts;
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "extern void* " << module_name_ << " = NULL;\n";
@@ -237,17 +238,19 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
 }
 
 void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
-  std::string cond = PrintExpr(op->condition);
-  PrintIndent();
-  stream << "if (!(" << cond << ")) {\n";
-  int assert_if_scope = this->BeginScope();
-  PrintIndent();
-  stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
-  PrintIndent();
-  stream << "return -1;\n";
-  this->EndScope(assert_if_scope);
-  PrintIndent();
-  stream << "}\n";
+  if (emit_asserts_) {
+    std::string cond = PrintExpr(op->condition);
+    PrintIndent();
+    stream << "if (!(" << cond << ")) {\n";
+    int assert_if_scope = this->BeginScope();
+    PrintIndent();
+    stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
+    PrintIndent();
+    stream << "return -1;\n";
+    this->EndScope(assert_if_scope);
+    PrintIndent();
+    stream << "}\n";
+  }
   this->PrintStmt(op->body);
 }
 
@@ -277,8 +280,9 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op,
 runtime::Module BuildCHost(Array<LoweredFunc> funcs) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
+  bool emit_asserts = false;
   CodeGenCHost cg;
-  cg.Init(output_ssa);
+  cg.Init(output_ssa, emit_asserts);
   for (LoweredFunc f : funcs) {
     cg.AddFunction(f);
   }
