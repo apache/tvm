@@ -35,7 +35,7 @@ namespace codegen {
 class CodeGenCHost final : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa);
+  void Init(bool output_ssa, bool emit_asserts);
   void AddFunction(LoweredFunc f);
   std::string Finish();
 
@@ -53,6 +53,8 @@ class CodeGenCHost final : public CodeGenC {
 
  private:
   std::string module_name_;
+  /*! \brief whether to emit asserts in the resulting C code */
+  bool emit_asserts_;
 
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
   void PrintFuncCall(const std::string& packed_func_name, int num_args);
