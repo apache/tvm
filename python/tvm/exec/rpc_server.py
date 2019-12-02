@@ -19,14 +19,22 @@
 from __future__ import absolute_import
 
 import argparse
+import ast
 import multiprocessing
 import sys
 import logging
+import tvm
+from tvm import micro
 from .. import rpc
 
 def main(args):
-    """Main function"""
+    """Main function
 
+    Parameters
+    ----------
+    args : argparse.Namespace
+        parsed args from command-line invocation
+    """
     if args.tracker:
         url, port = args.tracker.rsplit(":", 1)
         port = int(port)
@@ -37,6 +45,9 @@ def main(args):
     else:
         tracker_addr = None
 
+    if args.utvm_dev_config or args.utvm_dev_id:
+        init_utvm(args)
+
     server = rpc.Server(args.host,
                         args.port,
                         args.port_end,
@@ -46,6 +57,38 @@ def main(args):
                         custom_addr=args.custom_addr,
                         silent=args.silent)
     server.proc.join()
+
+
+def init_utvm(args):
+    """MicroTVM-specific RPC initialization
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        parsed args from command-line invocation
+    """
+    if args.utvm_dev_config and args.utvm_dev_id:
+        raise RuntimeError('only one of --utvm-dev-config and --utvm-dev-id allowed')
+
+    if args.utvm_dev_config:
+        with open(args.utvm_dev_config, 'r') as dev_conf_file:
+            dev_config = json.load(dev_conf_file)
+    else:
+        dev_config_args = ast.literal_eval(args.utvm_dev_config_args)
+        default_config_func = micro.device.get_device_funcs(args.utvm_dev_id)['default_config']
+        dev_config = default_config_func(*dev_config_args)
+
+    if args.utvm_dev_config or args.utvm_dev_id:
+        # add MicroTVM overrides
+        @tvm.register_func('tvm.rpc.server.start', override=True)
+        def server_start():
+            # pylint: disable=unused-variable
+            session = micro.Session(dev_config)
+            session._enter()
+
+            @tvm.register_func('tvm.rpc.server.shutdown', override=True)
+            def server_shutdown():
+                session._exit()
 
 
 if __name__ == "__main__":
@@ -71,6 +114,13 @@ if __name__ == "__main__":
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
+    parser.add_argument('--utvm-dev-config', type=str,
+                        help='JSON config file for the target device (if using MicroTVM)')
+    parser.add_argument('--utvm-dev-id', type=str,
+                        help='Unique ID for the target device (if using MicroTVM)')
+    parser.add_argument('--utvm-dev-config-args', type=str,
+                        help=('Python list of literals required to generate a default'
+                              ' MicroTVM config (if --utvm-dev-id is specified)'))
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

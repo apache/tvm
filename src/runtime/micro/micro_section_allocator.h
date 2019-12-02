@@ -38,11 +38,15 @@ class MicroSectionAllocator {
    * \brief constructor that specifies section boundaries
    * \param region location and size of the section on the device
    */
-  explicit MicroSectionAllocator(DevMemRegion region)
-    : start_offset_(region.start),
+  explicit MicroSectionAllocator(DevMemRegion region, size_t word_size)
+    : start_addr_(region.start),
       size_(0),
-      capacity_(region.size) {
-      CHECK_EQ(start_offset_.value() % 8, 0) << "micro section not aligned to 8 bytes";
+      capacity_(region.size),
+      word_size_(word_size) {
+      CHECK_EQ(start_addr_.value().val64 % word_size, 0)
+        << "micro section start not aligned to " << word_size << " bytes";
+      CHECK_EQ(capacity_ % word_size, 0)
+        << "micro section end not aligned to " << word_size << " bytes";
     }
 
   /*!
@@ -55,15 +59,15 @@ class MicroSectionAllocator {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevBaseOffset Allocate(size_t size) {
-    size_ = UpperAlignValue(size_, 8);
+  DevPtr Allocate(size_t size) {
+    size_ = UpperAlignValue(size_, word_size_);
     CHECK(size_ + size < capacity_)
         << "cannot alloc " << size << " bytes in section with start_addr " <<
-        start_offset_.value();
-    DevBaseOffset alloc_ptr = start_offset_ + size_;
+        start_addr_.cast_to<void*>();
+    DevPtr alloc_addr = start_addr_ + size_;
     size_ += size;
-    alloc_map_[alloc_ptr.value()] = size;
-    return alloc_ptr;
+    alloc_map_[alloc_addr.value().val64] = size;
+    return alloc_addr;
   }
 
   /*!
@@ -71,10 +75,10 @@ class MicroSectionAllocator {
    * \param offs offset to allocated memory
    * \note simple allocator scheme, more complex versions will be implemented later
    */
-  void Free(DevBaseOffset offs) {
-    std::uintptr_t ptr = offs.value();
-    CHECK(alloc_map_.find(ptr) != alloc_map_.end()) << "freed pointer was never allocated";
-    alloc_map_.erase(ptr);
+  void Free(DevPtr addr) {
+    CHECK(alloc_map_.find(addr.value().val64) != alloc_map_.end())
+      << "freed pointer was never allocated";
+    alloc_map_.erase(addr.value().val64);
     if (alloc_map_.empty()) {
       size_ = 0;
     }
@@ -83,17 +87,17 @@ class MicroSectionAllocator {
   /*!
    * \brief start offset of the memory region managed by this allocator
    */
-  DevBaseOffset start_offset() const { return start_offset_; }
+  DevPtr start_addr() const { return start_addr_; }
 
   /*!
-   * \brief current end offset of the space being used in this memory region
+   * \brief current end addr of the space being used in this memory region
    */
-  DevBaseOffset curr_end_offset() const { return start_offset_ + size_; }
+  DevPtr curr_end_addr() const { return start_addr_ + size_; }
 
   /*!
-   * \brief end offset of the memory region managed by this allocator
+   * \brief end addr of the memory region managed by this allocator
    */
-  DevBaseOffset max_end_offset() const { return start_offset_ + capacity_; }
+  DevPtr max_addr() const { return start_addr_ + capacity_; }
 
   /*!
    * \brief size of the section
@@ -107,13 +111,15 @@ class MicroSectionAllocator {
 
  private:
   /*! \brief start address of the section */
-  DevBaseOffset start_offset_;
+  DevPtr start_addr_;
   /*! \brief current size of the section */
   size_t size_;
   /*! \brief total storage capacity of the section */
   size_t capacity_;
+  /*! \brief number of bytes in a word on the target device */
+  size_t word_size_;
   /*! \brief allocation map for allocation sizes */
-  std::unordered_map<std::uintptr_t, size_t> alloc_map_;
+  std::unordered_map<uint64_t, size_t> alloc_map_;
 };
 
 }  // namespace runtime

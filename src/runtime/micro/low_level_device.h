@@ -40,87 +40,52 @@ class LowLevelDevice {
   virtual ~LowLevelDevice() {}
 
   /*!
-   * \brief reads num_bytes from device memory at base_addr + offset into buffer
-   * \param offset on-device memory offset pointer to be read from
+   * \brief reads num_bytes from device memory at addr into buffer
+   * \param addr on-device memory address to read from
    * \param buffer on-host buffer to be read into
-   * \param num_bytes number of bytes to be read
+   * \param num_bytes number of bytes to read
    */
-  virtual void Read(DevBaseOffset offset,
+  virtual void Read(DevPtr addr,
                     void* buffer,
                     size_t num_bytes) = 0;
 
   /*!
-   * \brief writes num_bytes from buffer to device memory at base_addr + offset
-   * \param offset on-device memory offset pointer to be written to
-   * \param buffer on-host buffer to be written
-   * \param num_bytes number of bytes to be written
+   * \brief writes num_bytes from buffer to device memory at addr
+   * \param addr on-device memory address to write into
+   * \param buffer host buffer to write from
+   * \param num_bytes number of bytes to write
    */
-  virtual void Write(DevBaseOffset offset,
+  virtual void Write(DevPtr addr,
                      const void* buffer,
                      size_t num_bytes) = 0;
 
   /*!
-   * \brief starts execution of device at offset
+   * \brief starts execution of device at func_addr
    * \param func_addr offset of the init stub function
-   * \param breakpoint breakpoint at which to stop function execution
+   * \param breakpoint_addr address at which to stop function execution
    */
-  virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
-
-  // TODO(weberlo): Should we just give the device the *entire* memory layout
-  // decided by the session?
-
-  /*!
-   * \brief sets the offset of the top of the stack section
-   * \param stack_top offset of the stack top
-   */
-  virtual void SetStackTop(DevBaseOffset stack_top) {
-    LOG(FATAL) << "unimplemented";
-  }
-
-  /*!
-   * \brief convert from base offset to absolute address
-   * \param offset base offset
-   * \return absolute address
-   */
-  DevPtr ToDevPtr(DevBaseOffset offset) {
-    return DevPtr(base_addr() + offset.value());
-  }
-
-  /*!
-   * \brief convert from absolute address to base offset
-   * \param ptr absolute address
-   * \return base offset
-   */
-  DevBaseOffset ToDevOffset(DevPtr ptr) {
-    return DevBaseOffset(ptr.value() - base_addr());
-  }
+  virtual void Execute(DevPtr func_addr, DevPtr breakpoint_addr) = 0;
 
   /*!
    * \brief getter function for low-level device type
    * \return string containing device type
    */
   virtual const char* device_type() const = 0;
-
- protected:
-  /*!
-   * \brief getter function for base_addr
-   * \return the base address of the device memory region
-   */
-  virtual std::uintptr_t base_addr() const = 0;
 };
 
 /*!
  * \brief create a host low-level device
  * \param num_bytes size of the memory region
+ * \param base_addr pointer to write the host device's resulting base address into
  */
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes);
+const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr);
 
 /*!
  * \brief connect to OpenOCD and create an OpenOCD low-level device
+ * \param addr address of the OpenOCD server to connect to
  * \param port port of the OpenOCD server to connect to
  */
-const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(std::uintptr_t base_addr,
-                                                                  const std::string& addr,
+const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(const std::string& addr,
                                                                   int port);
 
 }  // namespace runtime

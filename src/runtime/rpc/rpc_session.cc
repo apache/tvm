@@ -21,6 +21,7 @@
  * \file rpc_session.cc
  * \brief RPC session for remote function call.
  */
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -40,6 +41,7 @@
 
 namespace tvm {
 namespace runtime {
+
 // Temp buffer for data array
 struct RPCByteArrayBuffer {
   TVMByteArray arr;
@@ -1215,11 +1217,45 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
+PackedFunc MicroTimeEvaluator(
+    PackedFunc pf,
+    TVMContext ctx,
+    int number,
+    int repeat) {
+  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
+    TVMRetValue temp;
+    std::ostringstream os;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+    for (int i = 0; i < repeat; ++i) {
+      double speed = 0.0;
+      for (int j = 0; j < number; ++j) {
+        pf.CallPacked(args, &temp);
+        DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+        speed += (temp.operator double()) / number;
+      }
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+    }
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  return PackedFunc(ftimer);
+}
+
 PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              TVMContext ctx,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
+  if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
+    return MicroTimeEvaluator(pf, ctx, number, repeat);
+  }
+
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;

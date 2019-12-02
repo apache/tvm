@@ -35,30 +35,6 @@
 namespace tvm {
 namespace runtime {
 
-size_t GetDefaultSectionSize(SectionKind kind) {
-  switch (kind) {
-    case SectionKind::kText:
-      return 0xF000;
-    case SectionKind::kRodata:
-      return 0xF000;
-    case SectionKind::kData:
-      return 0xF00;
-    case SectionKind::kBss:
-      return 0xF00;
-    case SectionKind::kArgs:
-      return 0xF0000;
-    case SectionKind::kStack:
-      return 0xF000;
-    case SectionKind::kHeap:
-      return 0xF00000;
-    case SectionKind::kWorkspace:
-      return 0xF0000;
-    default:
-      LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
-      return 0;
-  }
-}
-
 const char* SectionToString(SectionKind section) {
   switch (section) {
     case SectionKind::kText: return "text";
@@ -66,37 +42,32 @@ const char* SectionToString(SectionKind section) {
     case SectionKind::kData: return "data";
     case SectionKind::kBss: return "bss";
     case SectionKind::kArgs: return "args";
-    case SectionKind::kStack: return "stack";
     case SectionKind::kHeap: return "heap";
     case SectionKind::kWorkspace: return "workspace";
+    case SectionKind::kStack: return "stack";
     default: return "";
   }
 }
 
-static std::string AddrToString(void* addr) {
-  std::stringstream stream;
-  if (addr != nullptr)
-    stream << addr;
-  else
-    stream << "0x0";
-  std::string string_addr = stream.str();
-  return string_addr;
-}
-
-std::string RelocateBinarySections(const std::string& binary_path,
-                                   DevPtr text,
-                                   DevPtr rodata,
-                                   DevPtr data,
-                                   DevPtr bss,
-                                   const std::string& toolchain_prefix) {
+std::string RelocateBinarySections(
+    const std::string& binary_path,
+    size_t word_size,
+    DevPtr text_start,
+    DevPtr rodata_start,
+    DevPtr data_start,
+    DevPtr bss_start,
+    DevPtr stack_end,
+    const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
-                                   AddrToString(text.cast_to<void*>()),
-                                   AddrToString(rodata.cast_to<void*>()),
-                                   AddrToString(data.cast_to<void*>()),
-                                   AddrToString(bss.cast_to<void*>()),
+                                   word_size,
+                                   text_start.cast_to<uint64_t>(),
+                                   rodata_start.cast_to<uint64_t>(),
+                                   data_start.cast_to<uint64_t>(),
+                                   bss_start.cast_to<uint64_t>(),
+                                   stack_end.cast_to<uint64_t>(),
                                    toolchain_prefix);
   return relocated_bin;
 }
