@@ -31,7 +31,7 @@
 #  $ cd build
 #  $ cmake ..
 #
-#  Then buld in parallel with 8 threads
+#  Then build in parallel with 8 threads
 #
 #  $ make -j8
 #--------------------------------------------------------------------
