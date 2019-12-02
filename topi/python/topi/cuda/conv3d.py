@@ -100,7 +100,8 @@ def conv3d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCDHW', o
                                     dilation_w,
                                     conv_mode=1,
                                     tensor_format=tensor_format,
-                                    algo=-1)  # let CUDNN choose the best algo
+                                    algo=-1,         # let CUDNN choose the best algo
+                                    conv_dtype=dtype)
 
     if layout == 'NCDHW':
         return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)

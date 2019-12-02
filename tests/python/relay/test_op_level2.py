@@ -332,7 +332,7 @@ def test_conv3d_run():
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-    # normal conv2d
+    # normal conv3d
     dshape = (1, 3, 5, 224, 224)
     kshape = (10, 3, 3, 3, 3)
     run_test_conv3d("float32", "float32", 1, dshape, kshape,

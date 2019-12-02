@@ -157,7 +157,7 @@ def get_pad_tuple3d(padding, kernel):
         pad_w = padding[1] * 2
         pad_d = padding[2] * 2
     elif isinstance(padding, int):
-        pad_h = pad_w = pad_h = padding * 2
+        pad_d = pad_w = pad_h = padding * 2
     elif padding == "VALID":
         pad_h = 0
         pad_w = 0
