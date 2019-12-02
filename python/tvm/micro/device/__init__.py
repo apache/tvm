@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""MicroTVM module for bare-metal backends"""
+"""Device-specific configuration for MicroTVM"""
 
-from ..contrib import binutil
-from .base import Session, create_micro_mod, cross_compiler
-from .base import LibType, get_micro_host_driven_dir, get_micro_device_dir
-from . import device
+from .base import register_device, get_device_funcs, create_micro_lib_base
+from . import host
+from . import arm
+from . import riscv_spike

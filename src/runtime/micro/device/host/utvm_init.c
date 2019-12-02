@@ -18,35 +18,21 @@
  */
 
 /*!
- * \file utvm_runtime.h
- * \brief uTVM runtime headers
+ * \file utvm_init.c
+ * \brief uTVM init definition for the host emulated device
  */
-#ifndef TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
-#define TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include "utvm_runtime.h"
 
-/*!
- * \brief Task structure for uTVM
- */
-typedef struct {
-  /*! \brief Pointer to function to call for this task */
-  int32_t (*func)(void*, void*, int32_t);
-  /*! \brief Array of argument values */
-  TVMValue* arg_values;
-  /*! \brief Array of type codes for each argument value */
-  int* arg_type_codes;
-  /*! \brief Number of arguments */
-  int32_t num_args;
-} UTVMTask;
+void UTVMInit() {
+  // no init required for the host
+  UTVMMain();
+}
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif
-
-#endif  // TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
