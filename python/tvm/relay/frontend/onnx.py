@@ -1080,6 +1080,18 @@ class Or(Elemwise):
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
 
+class Expand(OnnxOpConverter):
+    """ Operator converter for Expand.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        assert len(inputs) == 2, "ONNX Expand must have 2 inputs."
+        assert isinstance(inputs[1], tvm.relay.expr.Var), "2nd operand of ONNX Expand must be a constant."
+        shape_data = params[inputs[1].name_hint]
+        shape = tuple(shape_data.asnumpy())
+        return _op.broadcast_to(inputs[0], shape=shape)
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1187,6 +1199,7 @@ def _get_convert_map(opset):
         # defs/tensor
         'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
+        'Expand': Expand.get_converter(opset),
         'Concat': Concat.get_converter(opset),
         'Split': Split.get_converter(opset),
         'Slice': Slice.get_converter(opset),
