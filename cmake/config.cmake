@@ -184,3 +184,6 @@ set(USE_VTA_FPGA OFF)
 
 # Whether to build the example external runtime module
 set(USE_EXAMPLE_EXT_RUNTIME OFF)
+
+# Whether to build the TensorFlow TVMDSOOp module
+set(USE_TFOP OFF)
