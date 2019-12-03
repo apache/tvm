@@ -20,10 +20,15 @@ if(USE_TFLITE)
   if (NOT DEFINED TENSORFLOW_PATH) 
     set(TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
   endif()
+
   file(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
   list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
   include_directories(${TENSORFLOW_PATH})
-  find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/linux_x86_64/lib)
+
+  if (NOT DEFINED TFLITE_LIB_PATH)
+    set(TFLITE_LIB_PATH ${TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
+  endif()
+  find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${TFLITE_LIB_PATH})
 
   list(APPEND TVM_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_LINKER_LIBS rt dl flatbuffers)
