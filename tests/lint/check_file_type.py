@@ -25,6 +25,7 @@ ALLOW_EXTENSION = {
     "cc",
     "c",
     "h",
+    "s",
     "rs",
     "m",
     "mm",

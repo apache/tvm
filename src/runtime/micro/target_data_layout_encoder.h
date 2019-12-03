@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
 #include <vector>
-#include "device/utvm_runtime.h"
+#include "host_driven/utvm_runtime.h"
 
 namespace tvm {
 namespace runtime {
@@ -96,9 +96,9 @@ class TargetDataLayoutEncoder {
    * \brief constructor
    * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(DevPtr start_addr)
-      : buf_(std::vector<uint8_t>()), curr_offset_(0) {
-    start_addr_ = DevPtr(UpperAlignValue(start_addr.value(), 8));
+  explicit TargetDataLayoutEncoder(DevPtr start_addr, size_t word_size)
+      : buf_(std::vector<uint8_t>()), curr_offset_(0), word_size_(word_size) {
+    start_addr_ = DevPtr(UpperAlignValue(start_addr.value().val64, word_size_));
   }
 
   /*!
@@ -108,7 +108,7 @@ class TargetDataLayoutEncoder {
    */
   template <typename T>
   Slot<T> Alloc(size_t num_elems = 1) {
-    curr_offset_ = UpperAlignValue(curr_offset_, 8);
+    curr_offset_ = UpperAlignValue(curr_offset_, word_size_);
     size_t size = sizeof(T) * num_elems;
     if (curr_offset_ + size > buf_.size()) {
       buf_.resize(curr_offset_ + size);
@@ -141,6 +141,8 @@ class TargetDataLayoutEncoder {
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
   DevPtr start_addr_;
+  /*! \brief number of bytes in a word on the target device */
+  size_t word_size_;
 };
 
 template <typename T>
