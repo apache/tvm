@@ -15,21 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_TFLITE)
+if(NOT USE_TFLITE STREQUAL "OFF")
   message(STATUS "Build with contrib.tflite")
-  if (NOT DEFINED TENSORFLOW_PATH) 
-    set(TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
+  message("tensorflow path: ${USE_TENSORFLOW_PATH}")
+  if (NOT USE_TENSORFLOW_PATH) 
+    set(USE_TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
   endif()
+  message("tensorflow path: ${USE_TENSORFLOW_PATH}")
 
   file(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
   list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
-  include_directories(${TENSORFLOW_PATH})
+  include_directories(${USE_TENSORFLOW_PATH})
 
-  if (NOT DEFINED TFLITE_LIB_PATH)
-    set(TFLITE_LIB_PATH ${TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
+  if (USE_TFLITE STREQUAL "ON")
+    set(USE_TFLITE ${USE_TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
   endif()
-  find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${TFLITE_LIB_PATH})
+  find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
+  message("tflite lib path: ${TFLITE_CONTRIB_LIB}")
 
   list(APPEND TVM_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_LINKER_LIBS rt dl flatbuffers)
-endif(USE_TFLITE)
+endif()
