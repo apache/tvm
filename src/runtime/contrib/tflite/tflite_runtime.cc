@@ -25,6 +25,7 @@
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
+#include <memory>
 
 
 #include "tflite_runtime.h"

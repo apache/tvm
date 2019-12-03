@@ -22,8 +22,8 @@
  *        containing only tvm PackedFunc.
  * \file graph_runtime.h
  */
-#ifndef TVM_RUNTIME_TFLITE_TFLITE_RUNTIME_H_
-#define TVM_RUNTIME_TFLITE_TFLITE_RUNTIME_H_
+#ifndef TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
+#define TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/ndarray.h>
@@ -98,10 +98,9 @@ class TFLiteRuntime : public ModuleNode {
  private:
   std::unique_ptr<tflite::Interpreter> interpreter_;
   TVMContext ctx_;
-
 };
 
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_TFLITE_TFLITE_RUNTIME_H_
+#endif  // TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
