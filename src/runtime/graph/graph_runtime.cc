@@ -36,7 +36,6 @@
 #include <vector>
 
 #include "graph_runtime.h"
-#include "../object_internal.h"
 
 namespace tvm {
 namespace runtime {
@@ -510,20 +509,6 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
         << args.num_args;
     const auto& contexts = GetAllContext(args);
     *rv = GraphRuntimeCreate(args[0], args[1], contexts);
-  });
-
-TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                  "graph_runtime.remote_create is "
-                                  "at least 4, but it has "
-                               << args.num_args;
-    void* mhandle = args[1];
-    ModuleNode* mnode = ObjectInternal::GetModuleNode(mhandle);
-
-    const auto& contexts = GetAllContext(args);
-    *rv = GraphRuntimeCreate(
-        args[0], GetRef<Module>(mnode), contexts);
   });
 }  // namespace runtime
 }  // namespace tvm
