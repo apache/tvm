@@ -102,6 +102,12 @@ def _extract_tensor_data(prelude, rank, dtype, source):
     get_tensor_func = prelude.get_var(get_tensor_name, dtype)
     return get_tensor_func(source)
 
+def _get_tensor_shape(tensor, mod):
+    if isinstance(tensor, tvm.relay.expr.Var):
+        return tensor.type_annotation.shape
+    # TODO: Run infer_type to get the tensor rank
+    raise Exception("TODO")
+
 def _get_tensor_rank(tensor, mod):
     if isinstance(tensor, tvm.relay.expr.Var):
         return len(tensor.type_annotation.shape)
@@ -549,15 +555,15 @@ def _tensor_array():
 def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
-        values_rank = _get_tensor_rank(inputs[2], prelude.mod)
+        values_shape = _get_tensor_shape(inputs[2], prelude.mod)
+        values_rank = len(values_shape)
         unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
         unstack_function = prelude.get_var(unstack_name, dtype_str)
         values = unstack_function(inputs[2])
 
         tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
         result = tensor_array_scatter_func(inputs[0], inputs[1], values)
-        # Log the tensor rank of the scatter destination tensor array
-        _trace_expr_rank(result, values_rank-1)
+        _tensor_array_shape_tracker.trace(result, tuple(values_shape[1:]))
         return result
     return _impl
 
@@ -567,10 +573,10 @@ def _tensor_array_gather():
         tensor_array_gather_func = prelude.get_var('tensor_array_gather', dtype_str)
         result = tensor_array_gather_func(inputs[2], inputs[1])
 
-        rank = _get_tensor_array_rank(inputs[2])
-        if rank is not None:
+        shape = _tensor_array_shape_tracker.get_shape(inputs[2])
+        if shape is not None:
             return _extract_tensor_data(prelude,
-                                        rank + 1,
+                                        len(shape) + 1,
                                         dtype_str,
                                         result)
         return result
@@ -583,7 +589,8 @@ def _tensor_array_size():
 
 def _tensor_array_write():
     def _impl(inputs, attr, params, prelude):
-        input_rank = len(inputs[2].type_annotation.shape)
+        input_shape = inputs[2].type_annotation.shape
+        input_rank = len(input_shape)
         dtype = attr.get('T').name
 
         tensor_name = 'tensor{}'.format(input_rank)
@@ -592,15 +599,15 @@ def _tensor_array_write():
         write_func = prelude.get_var('tensor_array_write', dtype)
 
         res = write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
-        _trace_expr_rank(inputs[3], input_rank)
-        _unify_expr_ranks(inputs[3], res)
+        _tensor_array_shape_tracker.trace(inputs[3], input_shape)
+        _tensor_array_shape_tracker.union(inputs[3], res)
         return res
     return _impl
 
 def _tensor_array_read():
     def _impl(inputs, attr, params, prelude):
         read_func = prelude.get_var('tensor_array_read', attr.get('dtype').name)
-        rank = _get_tensor_array_rank(inputs[2])
+        rank = len(_tensor_array_shape_tracker.get_shape(inputs[2]))
         if rank is not None:
             # Optimize for the case that all the tensors in the tensor array are of the same rank,
             # we can emit code to extract the tensor out of the ADT object at compile time.
@@ -615,13 +622,17 @@ def _tensor_array_read():
 
 def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
-        input_rank = _get_tensor_rank(inputs[1], prelude.mod)
+        input_shape = _get_tensor_shape(inputs[1], prelude.mod)
+        input_rank = len(input_shape)
         dtype_str = attr.get('T').name
         v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
         lengths = _op.cast(inputs[2], 'int32')
         split_func = prelude.get_var('tensor_array_split', dtype_str)
         result = split_func(inputs[0], v, lengths)
-        _trace_expr_rank(result, input_rank)
+
+        # TODO: How can we calculate the result shape here
+        result_shape = [None] + input_shape[1:]
+        _tensor_array_shape_tracker.trace(result, tuple(result_shape))
         return result
     return _impl
 
@@ -1411,24 +1422,43 @@ def _add_n():
         return  _res
     return _impl
 
+class TensorArrayShapeTracker():
+    def __init__(self):
+        self.expr_shapes_map_ = defaultdict(set)
+        self.expr_union_find = {}
+
+    def find(self, expr):
+        if expr not in self.expr_union_find:
+            self.expr_union_find[expr] = expr
+        while self.expr_union_find[expr] != expr:
+            expr = self.expr_union_find[expr]
+        return expr
+
+    def union(self, a, b):
+        group_a = self.find(a)
+        group_b = self.find(b)
+        if group_a != group_b:
+            self.expr_union_find[group_a] = group_b
+            self.expr_shapes_map_[group_b] = self.expr_shapes_map_[group_b].union(self.expr_shapes_map_[group_a])
+    
+    def trace(self, expr, shape):
+        self.expr_shapes_map_[expr].add(shape)
+
+    def get_shape(self, expr):
+        shapes = self.expr_shapes_map_[self.find(expr)]
+        # TODO: Fix Hack, use string to dedup shapes
+        shapes_str = set(str(x) for x in shapes)
+        if shapes is not None:
+            if len(shapes_str) == 1:
+                return list(set(shapes))[0]
+            else:
+                print("shapes {}".format(shapes))
+                raise None
+        return None
+
 # Remember the rank of tensors stored in each tensor array
 _tensor_array_ranks = defaultdict(set)
-
-def _trace_expr_rank(expr, rank):
-    global _tensor_array_ranks
-    _tensor_array_ranks[expr].add(rank)
-
-def _unify_expr_ranks(a, b):
-    global _tensor_array_ranks
-    _tensor_array_ranks[a].update(_tensor_array_ranks[b])
-    _tensor_array_ranks[b] = _tensor_array_ranks[a]
-
-def _get_tensor_array_rank(expr):
-    global _tensor_array_ranks
-    ranks = _tensor_array_ranks[expr]
-    if len(ranks) == 1:
-        return list(ranks)[0]
-    return None
+_tensor_array_shape_tracker = TensorArrayShapeTracker()
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []

@@ -81,6 +81,10 @@ def vmobj_to_list(o):
             return hd
         elif o.constructor.name_hint == 'Nil':
             return []
+        elif 'tensor_nil' in o.constructor.name_hin:
+            return [0]
+        elif 'tensor' in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
         else:
             raise RuntimeError("Unknown object type: %s" %
                                o.constructor.name_hint)
