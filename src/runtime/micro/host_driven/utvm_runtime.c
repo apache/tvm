@@ -21,9 +21,9 @@
  * \file utvm_runtime.cc
  * \brief uTVM runtime
  *
- * All function calls go through `UTVMMain`, which reads from the current
- * `UTVMTask` and calls the appropriate function with the arguments from the
- * task.
+ * All function calls go through the externally defined `UTVMInit`, which
+ * performs device-specific setup, then calls `UTVMMain`.  `UTVMMain` then
+ * calls the function in `utvm_task` with the arguments from the task.
  *
  * Additionally included in this file are definitions for some of the most
  * common functions used in the C runtime API.
@@ -35,36 +35,58 @@ extern "C" {
 #include "utvm_runtime.h"
 
 // Task pointers must be patched before calling a function.
-UTVMTask task;
+UTVMTask utvm_task = {
+    .func = NULL,
+    .arg_values = NULL,
+    .arg_type_codes = NULL,
+    .num_args = 0,
+};
+
+size_t utvm_word_size = 0;  // NOLINT(*)
 
 // These pointers are patched at load time to point to the workspace section.
-char* utvm_workspace_begin = NULL;  // NOLINT(*)
-char* utvm_workspace_end = NULL;  // NOLINT(*)
-char* utvm_workspace_curr = NULL;  // NOLINT(*)
+char* utvm_workspace_start = NULL;  // NOLINT(*)
+char* utvm_workspace_end = NULL;    // NOLINT(*)
+char* utvm_workspace_curr = NULL;   // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t utvm_num_active_allocs = 0;
 
 const char* utvm_last_error = NULL;  // NOLINT(*)
-int32_t utvm_return_code = 0;  // NOLINT(*)
+int32_t utvm_return_code = 0;        // NOLINT(*)
+
+uint32_t utvm_task_time = 0;
+
+// Gets called by UTVMInit, after device-specific initialization is finished.
+void UTVMMain() {
+  utvm_workspace_curr = utvm_workspace_start;
+  utvm_num_active_allocs = 0;
+  utvm_last_error = NULL;  // NOLINT(*)
+  utvm_return_code = 0;
+  utvm_task_time = 0;
+  UTVMTimerReset();
+  int32_t err = UTVMTimerStart();
+  if (err < 0) {
+    utvm_return_code = err;
+    UTVMDone();
+  }
+  utvm_return_code = utvm_task.func(
+          (void*) utvm_task.arg_values,      // NOLINT(*)
+          (void*) utvm_task.arg_type_codes,  // NOLINT(*)
+          utvm_task.num_args);
+  UTVMTimerStop();
+  utvm_task_time = UTVMTimerRead();
+  UTVMDone();
+}
 
 // We use a dummy function to signal execution is finished for device
 // backends which require breakpoints.
 void UTVMDone() { }
 
-void UTVMMain() {
-  utvm_workspace_curr = utvm_workspace_begin;
-  utvm_num_active_allocs = 0;
-  utvm_last_error = NULL;  // NOLINT(*)
-  utvm_return_code = 0;
-  utvm_return_code = task.func((void*) task.arg_values, (void*) task.arg_type_codes,  // NOLINT(*)
-                               task.num_args);
-  UTVMDone();
-}
-
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
   // Align up to 8 bytes.
-  utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;  // NOLINT(*)
+  utvm_workspace_curr +=
+    (utvm_word_size - ((uintptr_t) utvm_workspace_curr % utvm_word_size)) % utvm_word_size;  // NOLINT(*)
   if (utvm_workspace_curr + size > utvm_workspace_end) {
     // Out of space in workspace.
     return NULL;
@@ -81,11 +103,11 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
     TVMAPISetLastError("free called with no active workspace allocations");
     // Reset allocations and workspace (for future task executions).
     utvm_num_active_allocs = 0;
-    utvm_workspace_curr = utvm_workspace_begin;
+    utvm_workspace_curr = utvm_workspace_start;
     return -1;
   } else if (utvm_num_active_allocs == 0) {
     // No more allocations.  Reset workspace.
-    utvm_workspace_curr = utvm_workspace_begin;
+    utvm_workspace_curr = utvm_workspace_start;
     return 0;
   } else {
     return 0;
