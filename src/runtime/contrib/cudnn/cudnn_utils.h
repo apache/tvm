@@ -27,7 +27,6 @@
 #include <dmlc/logging.h>
 #include <cudnn.h>
 #include <tvm/runtime/device_api.h>
-#include <vector>
 #include "../../cuda/cuda_common.h"
 
 
