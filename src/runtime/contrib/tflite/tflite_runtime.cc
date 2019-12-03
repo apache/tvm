@@ -25,7 +25,6 @@
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
-#include <memory>
 
 
 #include "tflite_runtime.h"
@@ -96,7 +95,10 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
 
 void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
                          TVMContext ctx) {
-  std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromBuffer(tflite_model_bytes.c_str(), tflite_model_bytes.size());
+  const char* buffer = tflite_model_bytes.c_str();
+  size_t buffer_size = tflite_model_bytes.size();
+  std::unique_ptr<tflite::FlatBufferModel> model =
+    tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
   tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
   ctx_ = ctx;
@@ -136,7 +138,6 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
     shape.push_back(dims->data[i]);
     size *= dims->data[i];
   }
-  
   NDArray ret = NDArray::Empty(shape, dtype, ctx_);
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = static_cast<DType*>(ret->data);

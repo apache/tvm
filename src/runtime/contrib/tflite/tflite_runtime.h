@@ -31,6 +31,7 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 
 namespace tvm {
 namespace runtime {
