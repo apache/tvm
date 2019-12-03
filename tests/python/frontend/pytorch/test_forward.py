@@ -503,6 +503,25 @@ def test_densenet201():
 def test_inception_v3():
     verify_model('inception_v3')
 
+def test_alexnet():
+    verify_model('alexnet')
+
+def test_googlenet():
+    verify_model('googlenet')
+
+def test_mnasnet0_5():
+    verify_model('mnasnet0_5')
+
+def test_mnasnet1_0():
+    verify_model('mnasnet1_0')
+
+"""
+def test_shufflenet_v2_x0_5():
+    verify_model('shufflenet_v2_x0_5')
+
+def test_shufflenet_v2_x1_0():
+    verify_model('shufflenet_v2_x1_0')
+"""
 
 if __name__ == '__main__':
 
@@ -580,3 +599,10 @@ if __name__ == '__main__':
     test_densenet169()
     test_densenet201()
     test_inception_v3()
+    test_alexnet()
+    test_googlenet()
+    test_mnasnet0_5()
+    test_mnasnet1_0()
+
+    #test_shufflenet_v2_x0_5()
+    #test_shufflenet_v2_x1_0()

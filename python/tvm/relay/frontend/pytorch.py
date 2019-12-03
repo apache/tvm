@@ -414,6 +414,8 @@ def _size():
         axis = int(inputs[1])
         if isinstance(inputs[0], _expr.Var):
             shape = get_tensor_from_relay_var(inputs[0])
+        elif isinstance(inputs[0], list):
+            shape = inputs[0]
         else:
             shape = _infer_type(inputs[0]).checked_type.shape
         return shape[axis]
@@ -588,6 +590,8 @@ def _expand():
 
 def _int():
     def _impl(inputs):
+        if isinstance(inputs[0], _expr.Call):
+            return inputs[0]
         return int(inputs[0])
     return _impl
 
@@ -649,8 +653,8 @@ _convert_map = {
     'aten::mul'                             : _elemwise('multiply'),
     'aten::mul_'                            : _elemwise('multiply'),
     'aten::pow'                             : _elemwise('power'),
-    'aten::div'                             : _elemwise('div'),
-    'aten::div_'                            : _elemwise('div'),
+    'aten::div'                             : _elemwise('divide'),
+    'aten::div_'                            : _elemwise('divide'),
     'aten::ones'                            : _ones(),
     'aten::zeros'                           : _zeros(),
     'aten::to'                              : _to(),
@@ -682,6 +686,7 @@ _convert_map = {
     'aten::sigmoid'                         : _sigmoid(),
     'aten::avg_pool2d'                      : _avg_pool2d(),
     'aten::dropout'                         : _dropout(),
+    'aten::dropout_'                        : _dropout(),
     'aten::mean'                            : _mean(),
     'aten::chunk'                           : _chunk(),
     'aten::matmul'                          : _matmul(),
@@ -864,6 +869,12 @@ class Graph(object):
                 node_value = '0'
                 if "None" not in node_str and node_expr != "prim::Constant()":
                     node_value = ((node_str.split(' = ')[1]).split('value=')[1]).split(']')[0]
+                    # Quick fix for shufflenet, assume we always have shape w/ a Float tensor
+                    """
+                    if node_value == '<Tensor>':
+                        dims = (node_assign[1][6:-1]).split(', ')
+                        node_value = [int(dim) for dim in dims]
+                    """
                 self._consts[node_name] = node_value
             elif node.kind() == "prim::ListConstruct":
                 list_shape = []
