@@ -33,6 +33,6 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
   message("tflite lib path: ${TFLITE_CONTRIB_LIB}")
 
-  list(APPEND TVM_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
-  list(APPEND TVM_LINKER_LIBS rt dl flatbuffers)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS rt dl flatbuffers)
 endif()
