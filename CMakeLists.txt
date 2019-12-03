@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.9)
 project(tvm C CXX)
 
 # Utility functions
@@ -63,6 +63,7 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
+tvm_option(USE_CXX_RPC "Build CXX RPC" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -275,6 +276,9 @@ add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
+if(USE_CXX_RPC STREQUAL "ON")
+  add_subdirectory("apps/cpp_rpc")
+endif()
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
@@ -405,6 +409,10 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
+  set_property(TARGET tvm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  set_property(TARGET tvm_topi PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  set_property(TARGET tvm_runtime PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  set_property(TARGET nnvm_compiler PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)

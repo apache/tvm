@@ -63,7 +63,7 @@ class RingBuffer {
           size_t ncopy = head_ptr_ + bytes_available_ - old_size;
           memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
         }
-    } else if (ring_.size() > n * 8 && ring_.size() > kInitCapacity) {
+    } else if (ring_.size() > n * 8 && ring_.size() > kInitCapacity && bytes_available_ > 0) {
         // shrink too large temporary buffer to avoid out of memory on some embedded devices
         size_t old_bytes = bytes_available_;
 

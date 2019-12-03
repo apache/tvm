@@ -40,7 +40,7 @@ namespace runtime {
  * \param file The format of file
  * \return Module The loaded module
  */
-Module Load(std::string *path, const std::string fmt = "");
+Module Load(std::string *path, const std::string& fmt = "");
 
 /*!
  * \brief CleanDir Removes the files from the directory
@@ -62,11 +62,11 @@ struct RPCEnv {
    * \param name The file name
    * \return The full path of file.
    */
-  std::string GetPath(std::string file_name);
+  std::string GetPath(const std::string& file_name) const;
   /*!
    * \brief The RPC Environment cleanup function
    */
-  void CleanUp();
+  void CleanUp() const;
 
  private:
   /*!
