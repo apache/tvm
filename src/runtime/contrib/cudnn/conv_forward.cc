@@ -132,7 +132,7 @@ void ConvolutionForward(
     for (int i = 0; i < full_dims; i++) {
       dim[i] = static_cast<int>(x->shape[i]);
     }
-    GetCudnnStride(full_dims, dim, &tensor_stride);
+    GetCudnnStride(full_dims, dim.data(), tensor_stride.data());
     CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc,
                                           data_type,
                                           full_dims,
@@ -142,7 +142,7 @@ void ConvolutionForward(
     for (int i = 0; i < full_dims; i++) {
       dim[i] = static_cast<int>(y->shape[i]);
     }
-    GetCudnnStride(full_dims, dim, &tensor_stride);
+    GetCudnnStride(full_dims, dim.data(), tensor_stride.data());
     CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc,
                                           data_type,
                                           full_dims,
@@ -182,16 +182,15 @@ void ConvolutionForward(
 
 void OutputShape(
   int format,
-  const std::vector<int>& pad,
-  const std::vector<int>& stride,
-  const std::vector<int>& dilation,
-  const std::vector<int>& x_dim,
-  const std::vector<int>& w_dim,
+  int dims,
+  const int pad[],
+  const int stride[],
+  const int dilation[],
+  const int x_dim[],
+  const int w_dim[],
   void *out_shape,
   const std::string& data_dtype,
   const std::string& conv_dtype) {
-  int dims = pad.size();
-
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Data Type
@@ -205,9 +204,9 @@ void OutputShape(
   // conv desc
   CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc,
                                              dims,
-                                             pad.data(),
-                                             stride.data(),
-                                             dilation.data(),
+                                             pad,
+                                             stride,
+                                             dilation,
                                              CUDNN_CROSS_CORRELATION,
                                              entry_ptr->conv_entry.data_type));
 
@@ -240,18 +239,18 @@ void OutputShape(
   } else {
     // Set Input
     std::vector<int> tensor_stride(full_dims);
-    GetCudnnStride(full_dims, x_dim, &tensor_stride);
+    GetCudnnStride(full_dims, x_dim, tensor_stride.data());
     CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc,
                                           data_type,
                                           full_dims,
-                                          x_dim.data(),
+                                          x_dim,
                                           tensor_stride.data()));
     // filter desc
     CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc,
                                           data_type,
                                           entry_ptr->conv_entry.tensor_format,
                                           full_dims,
-                                          w_dim.data()));
+                                          w_dim));
 
     CUDNN_CALL(cudnnGetConvolutionNdForwardOutputDim(entry_ptr->conv_entry.conv_desc,
                                                      entry_ptr->conv_entry.input_desc,
@@ -264,17 +263,16 @@ void OutputShape(
 
 void FindAlgo(
   int format,
-  const std::vector<int>& pad,
-  const std::vector<int>& stride,
-  const std::vector<int>& dilation,
-  const std::vector<int>& x_dim,
-  const std::vector<int>& w_dim,
-  const std::vector<int>& y_dim,
+  int dims,
+  const int pad[],
+  const int stride[],
+  const int dilation[],
+  const int x_dim[],
+  const int w_dim[],
+  const int y_dim[],
   const std::string& data_dtype,
   const std::string& conv_dtype,
   TVMRetValue *ret) {
-  int dims = pad.size();
-
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Data Type
@@ -288,33 +286,33 @@ void FindAlgo(
   // conv desc
   CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc,
                                              dims,
-                                             pad.data(),
-                                             stride.data(),
-                                             dilation.data(),
+                                             pad,
+                                             stride,
+                                             dilation,
                                              CUDNN_CROSS_CORRELATION,
                                              entry_ptr->conv_entry.data_type));
 
   std::vector<int> tensor_stride(full_dims);
   // input desc
-  GetCudnnStride(full_dims, x_dim, &tensor_stride);
+  GetCudnnStride(full_dims, x_dim, tensor_stride.data());
   CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc,
                                         data_type,
                                         full_dims,
-                                        x_dim.data(),
+                                        x_dim,
                                         tensor_stride.data()));
   // filter desc
   CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc,
                                         data_type,
                                         entry_ptr->conv_entry.tensor_format,
                                         full_dims,
-                                        w_dim.data()));
+                                        w_dim));
 
   // output desc
-  GetCudnnStride(full_dims, y_dim, &tensor_stride);
+  GetCudnnStride(full_dims, y_dim, tensor_stride.data());
   CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc,
                                         data_type,
                                         full_dims,
-                                        y_dim.data(),
+                                        y_dim,
                                         tensor_stride.data()));
   if (cudnnGetVersion() > 7000) {
     CUDNN_CALL(cudnnSetConvolutionMathType(entry_ptr->conv_entry.conv_desc, CUDNN_TENSOR_OP_MATH))
@@ -405,18 +403,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.output_shape")
   int* dilation = static_cast<int*>(static_cast<void*>(args[4]));
   int* x_dim = static_cast<int*>(static_cast<void*>(args[5]));
   int* w_dim = static_cast<int*>(static_cast<void*>(args[6]));
-  std::vector<int> pad_v(pad, pad + dims);
-  std::vector<int> stride_v(stride, stride + dims);
-  std::vector<int> dilation_v(dilation, dilation + dims);
-  std::vector<int> x_dim_v(x_dim, x_dim + dims + 2);
-  std::vector<int> w_dim_v(w_dim, w_dim + dims + 2);
-
   void* out_shape = args[7];
   std::string data_dtype = args[8];
   std::string conv_dtype = args[9];
 
-  OutputShape(format, pad_v, stride_v, dilation_v, x_dim_v,
-              w_dim_v, out_shape, data_dtype, conv_dtype);
+  OutputShape(format, dims, pad, stride, dilation, x_dim,
+              w_dim, out_shape, data_dtype, conv_dtype);
 });
 
 
@@ -430,18 +422,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.find_algo")
   int* x_dim = static_cast<int*>(static_cast<void*>(args[5]));
   int* w_dim = static_cast<int*>(static_cast<void*>(args[6]));
   int* y_dim = static_cast<int*>(static_cast<void*>(args[7]));
-  std::vector<int> pad_v(pad, pad + dims);
-  std::vector<int> stride_v(stride, stride + dims);
-  std::vector<int> dilation_v(dilation, dilation + dims);
-  std::vector<int> x_dim_v(x_dim, x_dim + dims + 2);
-  std::vector<int> w_dim_v(w_dim, w_dim + dims + 2);
-  std::vector<int> y_dim_v(y_dim, y_dim + dims + 2);
-
   std::string data_dtype = args[8];
   std::string conv_dtype = args[9];
 
-  FindAlgo(format, pad_v, stride_v, dilation_v, x_dim_v,
-           w_dim_v, y_dim_v, data_dtype, conv_dtype, ret);
+  FindAlgo(format, dims, pad, stride, dilation, x_dim,
+           w_dim, y_dim, data_dtype, conv_dtype, ret);
 });
 
 }  // namespace contrib
