@@ -198,6 +198,7 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   }
 
   friend class ADT;
+  template <typename ArrayType, typename ElemType>
   friend class InplaceArrayBase;
 };
 
