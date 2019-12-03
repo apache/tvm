@@ -870,11 +870,11 @@ class Graph(object):
                 if "None" not in node_str and node_expr != "prim::Constant()":
                     node_value = ((node_str.split(' = ')[1]).split('value=')[1]).split(']')[0]
                     # Quick fix for shufflenet, assume we always have shape w/ a Float tensor
-                    """
-                    if node_value == '<Tensor>':
-                        dims = (node_assign[1][6:-1]).split(', ')
-                        node_value = [int(dim) for dim in dims]
-                    """
+
+                    #if node_value == '<Tensor>':
+                    #    dims = (node_assign[1][6:-1]).split(', ')
+                    #    node_value = [int(dim) for dim in dims]
+
                 self._consts[node_name] = node_value
             elif node.kind() == "prim::ListConstruct":
                 list_shape = []
