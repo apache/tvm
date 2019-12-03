@@ -59,12 +59,13 @@ def test_tflite_runtime():
         
         print('tvm tflite runtime')
         # inference via tvm tflite runtime
-        runtime = tflite_runtime.create(tflite_model_path, tvm.cpu(0))
-        runtime.allocate_tensors()
-        runtime.set_input(0, tvm.nd.array(tflite_input))
-        runtime.invoke()
-        out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        with open(tflite_model_path, 'rb') as model_fin:
+            runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0))
+            runtime.allocate_tensors()
+            runtime.set_input(0, tvm.nd.array(tflite_input))
+            runtime.invoke()
+            out = runtime.get_output(0)
+            np.testing.assert_equal(out.asnumpy(), tflite_output)
 
 
     def check_remote():
@@ -92,12 +93,13 @@ def test_tflite_runtime():
         ctx = remote.cpu(0)
         a = remote.upload(tflite_model_path)
 
-        runtime = tflite_runtime.create(tflite_model_path, remote.cpu(0))
-        runtime.allocate_tensors()
-        runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
-        runtime.invoke()
-        out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        with open(tflite_model_path, 'rb') as model_fin:
+            runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
+            runtime.allocate_tensors()
+            runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
+            runtime.invoke()
+            out = runtime.get_output(0)
+            np.testing.assert_equal(out.asnumpy(), tflite_output)
 
 
     check_verify()

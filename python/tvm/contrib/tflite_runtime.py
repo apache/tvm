@@ -23,7 +23,7 @@ from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
-def create(tflite_fname, ctx):
+def create(tflite_model_bytes, ctx):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
@@ -41,18 +41,15 @@ def create(tflite_fname, ctx):
     graph_module : GraphModule
         Runtime graph module that can be used to execute the graph.
     """
-    if not isinstance(tflite_fname, string_types):
-        raise ValueError("Type %s is not supported" % type(tflite_fname))
-
     device_type = ctx.device_type
     if device_type >= rpc_base.RPC_SESS_MASK:
         device_type = ctx.device_type % rpc_base.RPC_SESS_MASK
         device_id = ctx.device_id
         remote_ctx = context(device_type, device_id)
         fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
-        return TFLiteModule(fcreate(tflite_fname, ctx))
+        return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
     fcreate = get_global_func("tvm.tflite_runtime.create")
-    return TFLiteModule(fcreate(tflite_fname, ctx))
+    return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
 
 
 class TFLiteModule(object):

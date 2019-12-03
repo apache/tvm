@@ -93,9 +93,9 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
 }
 
 
-void TFLiteRuntime::Init(const std::string& tflite_fname,
+void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
                          TVMContext ctx) {
-  std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromFile(tflite_fname.c_str());
+  std::unique_ptr<tflite::FlatBufferModel> model = tflite::FlatBufferModel::BuildFromBuffer(tflite_model_bytes.c_str(), tflite_model_bytes.size());
   tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
   ctx_ = ctx;
@@ -174,10 +174,10 @@ PackedFunc TFLiteRuntime::GetFunction(
   }
 }
 
-Module TFLiteRuntimeCreate(const std::string& tflite_fname,
+Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes,
                            TVMContext ctx) {
   auto exec = make_object<TFLiteRuntime>();
-  exec->Init(tflite_fname, ctx);
+  exec->Init(tflite_model_bytes, ctx);
   return Module(exec);
 }
 

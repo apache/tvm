@@ -72,7 +72,7 @@ class TFLiteRuntime : public ModuleNode {
    *  executed on.
    */
 
-  void Init(const std::string& tflite_fname,
+  void Init(const std::string& tflite_model_bytes,
             TVMContext ctx);
   /*!
    * \brief set index-th input to the graph.
