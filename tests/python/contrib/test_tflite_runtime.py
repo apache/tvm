@@ -18,8 +18,8 @@ import tvm
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util, tflite_runtime
-import tensorflow as tf
-import tflite_runtime.interpreter as tflite
+# import tensorflow as tf
+# import tflite_runtime.interpreter as tflite
 
 
 def skipped_test_tflite_runtime():
