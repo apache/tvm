@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Compute definition for conv2d with cuda backend"""
 import tvm
 from tvm import autotvm
+from tvm import relay
 from tvm.contrib import cudnn
 
 from .. import nn, generic
 from ..util import get_const_tuple, traverse_inline
+from ..nn.conv2d import conv2d_legalize
 
 from .conv2d_direct import schedule_direct_cuda
 from .conv2d_winograd import winograd_cuda, schedule_winograd_cuda
@@ -157,3 +159,54 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+@conv2d_legalize.register("cuda")
+def _conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    if attrs['data_layout'] == 'NHWC':
+        data, kernel = inputs
+        kernel_layout = attrs['kernel_layout']
+        # Convert Kernel layout to OIHW
+        if kernel_layout == 'HWIO':
+            kernel = relay.transpose(kernel, axes=(3, 2, 0, 1))
+        elif kernel_layout == 'HWOI':
+            kernel = relay.transpose(kernel, axes=(2, 3, 0, 1))
+        elif kernel_layout == 'IOHW':
+            kernel = relay.transpose(kernel, axes=(1, 0, 2, 3))
+        elif kernel_layout == 'OIHW':
+            pass
+        else:
+            # Skip legalize. Let relay.nn.conv2d to handle the case
+            return None
+
+        # Set new attrs for conv2d.
+        new_attrs = {k: attrs[k] for k in attrs.keys()}
+        new_attrs['data_layout'] = 'NCHW'
+        # kernel_layout should be swapped - OIHW
+        new_attrs['kernel_layout'] = 'OIHW'
+
+        # Convert data to NCHW.
+        data = relay.transpose(data, axes=(0, 3, 1, 2))
+        conv = relay.nn.conv2d(data, kernel, **new_attrs)
+        # Convert back to original NHWC layout.
+        out = relay.transpose(conv, axes=(0, 2, 3, 1))
+        return out
+
+    return None

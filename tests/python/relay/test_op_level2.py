@@ -187,7 +187,7 @@ def test_conv2d_run():
     dshape = (1, 512, 32, 32)
     kshape = (512, 1, 3, 3)
     compile_test_conv2d_arm_cpu("float32", "float32", 1, dshape, kshape,
-                                padding=(1, 1), channels=512, 
+                                padding=(1, 1), channels=512,
                                 groups=512, kernel_size=(3 ,3))
 
     # CUDA is disabled for 'direct' schedule:
@@ -292,6 +292,51 @@ def test_conv2d_winograd():
     kshape = (192, 80, 7, 7)
     run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
                          padding=(2, 2), channels=192, kernel_size=(7, 7))
+
+
+def test_conv2d_nhwc_run():
+    def run_test_conv2d_nhwc(dtype, out_dtype, dshape, kshape,
+                             strides=(1, 1),
+                             padding=(1, 1),
+                             dilation=(1, 1),
+                             except_targets=None,
+                             **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv2d(x, w,
+                            strides=strides,
+                            padding=padding,
+                            dilation=dilation,
+                            data_layout="NHWC",
+                            kernel_layout="HWIO",
+                            **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-1, 1, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-1, 1, size=kshape).astype(dtype)
+        dkernel = topi.testing.dilate_python(kernel, dilation + (1,1))
+        ref_res = topi.testing.conv2d_nhwc_python(
+            data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding)
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    # normal conv2d
+    dshape = (1, 224, 224, 3)
+    kshape = (3, 3, 3, 10)
+    run_test_conv2d_nhwc("float32", "float32", dshape, kshape,
+                         padding=(1, 1), channels=10, kernel_size=(3, 3))
+    # dilated conv2d
+    dshape = (1, 18, 18, 3)
+    kshape = (3, 3, 3, 10)
+    run_test_conv2d_nhwc("float32", "float32", dshape, kshape,
+                         padding=(1, 1), channels=10, kernel_size=(3, 3), dilation=(3, 3))
 
 
 def test_conv3d_run():
@@ -471,7 +516,7 @@ def _test_pool2d_int(opfunc, reffunc, dtype):
     x = relay.var("x", shape=dshape, dtype=dtype)
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
-    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    data = np.random.randint(low=-128, high=128, size=dshape)
     ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -895,6 +940,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_nhwc_run()
     test_conv2d_run()
     test_conv2d_winograd()
+    test_conv2d_nhwc_run()
     test_conv3d_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()

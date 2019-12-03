@@ -50,12 +50,11 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
         stride_h, stride_w = stride
     if isinstance(padding, int):
         pad_h = pad_w = padding * 2
-    elif padding == 'VALID':
-        pad_h = 0
-        pad_w = 0
-    else: # 'SAME'
-        pad_h = kernel_h - 1
-        pad_w = kernel_w - 1
+    elif isinstance(padding, (list, tuple)):
+        pad_h, pad_w = padding[0] * 2, padding[1] * 2
+    else:
+        pad_h = 0 if padding == 'VALID' else kernel_h - 1
+        pad_w = 0 if padding == 'VALID' else kernel_w - 1
     pad_top = int(np.ceil(float(pad_h) / 2))
     pad_bottom = pad_h - pad_top
     pad_left = int(np.ceil(float(pad_w) / 2))
