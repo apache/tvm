@@ -22,7 +22,7 @@ import tensorflow as tf
 import tflite_runtime.interpreter as tflite
 
 
-def skip_test_tflite_runtime():
+def skipped_test_tflite_runtime():
 
     def create_tflite_model():
         root = tf.Module()
@@ -106,4 +106,4 @@ def skip_test_tflite_runtime():
     check_remote()
 
 if __name__ == "__main__":
-    pass
+    skipped_test_tflite_runtime()

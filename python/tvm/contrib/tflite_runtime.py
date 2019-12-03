@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """TFLite runtime that load and run tflite models."""
-import numpy as np
-
-from .._ffi.base import string_types
 from .._ffi.ndarray import context
 from .._ffi.function import get_global_func
-from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
 def create(tflite_model_bytes, ctx):
@@ -43,9 +39,6 @@ def create(tflite_model_bytes, ctx):
     """
     device_type = ctx.device_type
     if device_type >= rpc_base.RPC_SESS_MASK:
-        device_type = ctx.device_type % rpc_base.RPC_SESS_MASK
-        device_id = ctx.device_id
-        remote_ctx = context(device_type, device_id)
         fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
         return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
     fcreate = get_global_func("tvm.tflite_runtime.create")

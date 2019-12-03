@@ -18,9 +18,9 @@
  */
 
 /*!
- * \brief Tiny graph runtime that can run graph
+ * \brief Tflite runtime that can run tflite model
  *        containing only tvm PackedFunc.
- * \file graph_runtime.h
+ * \file tflite_runtime.h
  */
 #ifndef TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
@@ -38,7 +38,7 @@ namespace runtime {
 
 
 /*!
- * \brief Tiny graph runtime.
+ * \brief Tflite runtime.
  *
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
@@ -61,22 +61,26 @@ class TFLiteRuntime : public ModuleNode {
     return "TFLiteRuntime";
   }
 
+  /*!
+   * \brief Update allocations for all tenssors. This is relatively expensive.
+   */
   void AllocateTensors();
+  /*!
+   * \brief Invoke the internal tflite interpreter and run the whole model in 
+   * dependency order.
+   */
   void Invoke();
 
   /*!
-   * \brief Initialize the graph executor with graph and context.
-   * \param graph_json The execution graph.
-   * \param module The module containing the compiled functions for the host
-   *  processor.
-   * \param ctxs The context of the host and devices where graph nodes will be
-   *  executed on.
+   * \brief Initialize the tflite runtime with tflite model and context.
+   * \param tflite_model_bytes The tflite model.
+   * \param ctx The context where the tflite model will be executed on.
    */
-
   void Init(const std::string& tflite_model_bytes,
             TVMContext ctx);
+
   /*!
-   * \brief set index-th input to the graph.
+   * \brief set index-th input to the model.
    * \param index The input index.
    * \param data_in The input data.
    */
