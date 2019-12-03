@@ -91,6 +91,16 @@ enum class RPCCode : int {
 };
 
 /*!
+ * \brief Function that unwraps a remote object to its handle.
+ * \param rpc_sess_table_index RPC session table index for validation.
+ * \param obj Handle to the object argument.
+ * \return The corresponding handle.
+ */
+typedef void* (*FUnwrapRemoteObject)(
+    int rpc_sess_table_index,
+    const TVMArgValue& obj);
+
+/*!
  * \brief Abstract channel interface used to create RPCSession.
  */
 class RPCChannel {
@@ -144,11 +154,13 @@ class RPCSession {
    * \param handle The function handle
    * \param args The arguments
    * \param rv The return value.
+   * \param funpwrap Function that takes a remote object and returns the raw handle.
    * \param fwrap Wrapper function to turn Function/Module handle into real return.
    */
   void CallFunc(RPCFuncHandle handle,
                 TVMArgs args,
                 TVMRetValue* rv,
+                FUnwrapRemoteObject funwrap,
                 const PackedFunc* fwrap);
   /*!
    * \brief Copy bytes into remote array content.

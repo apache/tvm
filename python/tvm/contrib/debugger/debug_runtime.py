@@ -23,7 +23,6 @@ from tvm._ffi.base import string_types
 from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
 from tvm.ndarray import array
-from tvm.rpc import base as rpc_base
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
@@ -60,25 +59,17 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
         except AttributeError:
             raise ValueError("Type %s is not supported" % type(graph_json_str))
     try:
-        fcreate = get_global_func("tvm.graph_runtime_debug.create")
+        ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
+        if num_rpc_ctx == len(ctx):
+            fcreate = ctx[0]._rpc_sess.get_function(
+                "tvm.graph_runtime_debug.create")
+        else:
+            fcreate = get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
         raise ValueError(
             "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
             "config.cmake and rebuild TVM to enable debug mode"
         )
-
-    ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
-    if num_rpc_ctx == len(ctx):
-        libmod = rpc_base._ModuleHandle(libmod)
-        try:
-            fcreate = ctx[0]._rpc_sess.get_function(
-                "tvm.graph_runtime_debug.remote_create"
-            )
-        except ValueError:
-            raise ValueError(
-                "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
-                "config.cmake and rebuild TVM to enable debug mode"
-            )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 
