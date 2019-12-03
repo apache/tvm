@@ -17,11 +17,9 @@
 
 if(NOT USE_TFLITE STREQUAL "OFF")
   message(STATUS "Build with contrib.tflite")
-  message("tensorflow path: ${USE_TENSORFLOW_PATH}")
   if (USE_TENSORFLOW_PATH STREQUAL "none") 
     set(USE_TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
   endif()
-  message("tensorflow path: ${USE_TENSORFLOW_PATH}")
 
   file(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
   list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
@@ -31,7 +29,6 @@ if(NOT USE_TFLITE STREQUAL "OFF")
     set(USE_TFLITE ${USE_TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
   endif()
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
-  message("tflite lib path: ${TFLITE_CONTRIB_LIB}")
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_RUNTIME_LINKER_LIBS rt dl flatbuffers)
