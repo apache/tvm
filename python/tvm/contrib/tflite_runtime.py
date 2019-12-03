@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """TFLite runtime that load and run tflite models."""
-from .._ffi.ndarray import context
 from .._ffi.function import get_global_func
 from ..rpc import base as rpc_base
 

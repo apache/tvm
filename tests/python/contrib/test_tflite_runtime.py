@@ -106,4 +106,5 @@ def skipped_test_tflite_runtime():
     check_remote()
 
 if __name__ == "__main__":
-    skipped_test_tflite_runtime()
+    # skipped_test_tflite_runtime()
+    pass
