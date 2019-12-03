@@ -170,12 +170,11 @@ class XGBoostCostModel(CostModel):
             # some synchronization by sending an async call and waiting for
             # the queue to have an item set
 
-            # There seems to be diminishing returns on large pool sizes given
-            # the small job sizes mapped later in the code (largest seems to be 128)
-            # so the pool size is capped
-            pool_size = min(16, int(self.num_threads))
+            #pool_size = min(32, int(self.num_threads))
+            pool_size = self.num_threads
+            if self.pool == None:
+                self.pool = ProcessPool(pool_size)
 
-            self.pool = ProcessPool(pool_size)
             manager = pathos_multiprocess.Manager()
 
             pipe_syncs = []
@@ -188,7 +187,7 @@ class XGBoostCostModel(CostModel):
                 queue = manager.Queue(1)
                 results = {
                    "queue": queue,
-                   "apipe": self.pool.apply_async(_set_pool_process_state, (space, target, task, queue))
+                   "apipe": self.pool.apply_async(_set_pool_process_state, args=(space, target, task, queue))
                 }
                 pipe_syncs.append(results)
 
@@ -216,7 +215,10 @@ class XGBoostCostModel(CostModel):
             _extract_task = task
             self.pool = multiprocessing.Pool(self.num_threads)
 
-    def _close_pool(self):
+    def _close_pool(self, force_close=False):
+        if os.name == 'nt' and not force_close:
+            return
+        
         if self.pool:
             self.pool.terminate()
             self.pool.join()
@@ -251,7 +253,7 @@ class XGBoostCostModel(CostModel):
                 self.base_model = None
             else:
                 dtrain.set_base_margin(discount * self.base_model.predict(xs, output_margin=True))
-
+        
         self.bst = xgb.train(self.xgb_params, dtrain,
                              num_boost_round=8000,
                              callbacks=[custom_callback(
@@ -381,7 +383,7 @@ class XGBoostCostModel(CostModel):
         return ret
 
     def __del__(self):
-        self._close_pool()
+        self._close_pool(force_close=True)
 
 
 _extract_space = None
@@ -538,7 +540,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                 res = [x.split(':') for x in bst_eval.split()]
                 for kv in res[1:]:
                     res_dict[kv[0]] = [float(kv[1])]
-
+        
         eval_res = []
         keys = list(res_dict.keys())
         keys.sort(key=lambda x: x if metric_shortname not in x else "a" + x)

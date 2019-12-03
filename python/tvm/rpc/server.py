@@ -43,6 +43,7 @@ import signal
 if os.name == 'nt':
     from pathos.helpers import ProcessPool
     import threading
+    import multiprocessing.pool
 
 from .._ffi.function import register_func
 from .._ffi.base import py_str
@@ -54,26 +55,45 @@ from . base import TrackerCode
 
 logger = logging.getLogger('RPCServer')
 
+_temp = None
+
+class NoDaemonProcess(multiprocessing.Process):
+    # make 'daemon' attribute always return False
+    def _get_daemon(self):
+        return False
+    def _set_daemon(self, value):
+        pass
+    daemon = property(_get_daemon, _set_daemon)
+
+# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
+# because the latter is only a wrapper function, not a proper class.
+class MyPool(multiprocessing.pool.Pool):
+    Process = NoDaemonProcess
+
+# pylint: disable=unused-variable
+@register_func("tvm.rpc.server.workpath", override=True)
+def get_workpath(path):
+    global _temp
+    return _temp.relpath(path)
+
+@register_func("tvm.rpc.server.load_module", override=True)
+def load_module(file_name):
+    """Load module from remote side."""
+    global _temp
+    path = _temp.relpath(file_name)
+    m = _load_module(path)
+    logger.info("load_module %s", path)
+    return m
+
 def _server_env(load_library, work_path=None):
     """Server environment function return temp dir"""
+    global _temp
     if work_path:
         temp = work_path
     else:
         temp = util.tempdir()
 
-    # pylint: disable=unused-variable
-    @register_func("tvm.rpc.server.workpath")
-    def get_workpath(path):
-        return temp.relpath(path)
-
-    @register_func("tvm.rpc.server.load_module", override=True)
-    def load_module(file_name):
-        """Load module from remote side."""
-        path = temp.relpath(file_name)
-        m = _load_module(path)
-        logger.info("load_module %s", path)
-        return m
-
+    _temp = temp
     libs = []
     load_library = load_library.split(":") if load_library else []
     for file_name in load_library:
@@ -85,12 +105,36 @@ def _server_env(load_library, work_path=None):
 
 def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
-    sockfd = sock.fileno()
-    temp = _server_env(load_library, work_path)
-    base._ServerLoop(sockfd)
-    if not work_path:
-        temp.remove()
+    try:
+        sockfd = sock.fileno()
+        temp = _server_env(load_library, work_path)
+        base._ServerLoop(sockfd)
+        if not work_path:
+            temp.remove()
+    except Exception as ex:
+        print(ex)
+        pass
+
     logger.info("Finish serving %s", addr)
+
+def _serve_loop_pool(args):
+    """Server loop"""
+    sock = args["sock"]
+    addr = args["addr"]
+    load_library = args["load_library"] 
+    work_path = args["work_path"]
+
+    try:
+        sockfd = sock.fileno()
+        temp = _server_env(load_library, work_path)
+        base._ServerLoop(sockfd)
+        if not work_path:
+            temp.remove()
+    except Exception as ex:
+        print(ex)
+        pass
+
+    logger.info("Finish serving %s", addr)    
 
 def _parse_server_opt(opts):
     # parse client options
@@ -100,7 +144,12 @@ def _parse_server_opt(opts):
             ret["timeout"] = float(kv[9:])
     return ret
 
+trial_counter = 0
+
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
+    global trial_counter
+    executerPool = MyPool(processes=1)
+
     """Listening loop of the server master."""
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
@@ -204,28 +253,59 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         # step 3: serving
         work_path = util.tempdir()
         logger.info("connection from %s", addr)
-        server_proc = multiprocessing.Process(target=_serve_loop,
-                                              args=(conn, addr, load_library, work_path))
-        server_proc.deamon = True
-        server_proc.start()
-        # close from our side.
-        conn.close()
-        # wait until server process finish or timeout
-        server_proc.join(opts.get("timeout", None))
-        if server_proc.is_alive():
-            logger.info("Timeout in RPC session, kill..")
-            import psutil
+
+        def handle_posix():
+            server_proc = multiprocessing.Process(target=_serve_loop,
+                                                args=(conn, addr, load_library, work_path))
+            server_proc.deamon = True
+            server_proc.start()
+            # close from our side.
+            conn.close()
+            # wait until server process finish or timeout
+            server_proc.join(opts.get("timeout", None))
+            if server_proc.is_alive():
+                logger.info("Timeout in RPC session, kill..")
+                import psutil
+                try:
+                    parent = psutil.Process(server_proc.pid)
+                    # terminate worker childs
+                    # this can throw on Windows
+                    for child in parent.children(recursive=True):
+                        child.terminate()
+                except: # pylint: disable=broad-except
+                    pass
+
+                # terminate the worker
+                server_proc.terminate()
+        def handle_win32():
+            global trial_counter
+            nonlocal executerPool
+
+            trial_counter += 1
+
+            args = {
+                "sock" : conn,
+                "addr" : addr,
+                "load_library" : load_library,
+                "work_path" : work_path
+            }
+
+            executerPool.map(_serve_loop_pool, [args])
+            if trial_counter % 1 == 0:
+                executerPool.terminate()
+                executerPool = MyPool(processes=1)
+
             try:
-                parent = psutil.Process(server_proc.pid)
-                # terminate worker childs
-                # this can throw on Windows
-                for child in parent.children(recursive=True):
-                    child.terminate()
-            except: # pylint: disable=broad-except
+                conn.close()
+                conn.shutdown(1)
+            except:
                 pass
 
-            # terminate the worker
-            server_proc.terminate()
+        if os.name != 'nt':
+            handle_posix()
+        else:
+            handle_win32()
+
         work_path.remove()
 
 
