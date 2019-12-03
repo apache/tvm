@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_tuple
+from topi.util import get_const_tuple, get_const_int
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
 from .._tensor import elemwise_shape_func
@@ -31,6 +31,12 @@ reg.register_schedule("nn.relu", schedule_injective)
 reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 # softmax
+@reg.register_compute("nn.softmax")
+def compute_softmax(attrs, inputs, _):
+    """Compute definition of softmax"""
+    axis = get_const_int(attrs.axis)
+    return [topi.nn.softmax(inputs[0], axis)]
+
 @reg.register_schedule("nn.softmax")
 def schedule_softmax(_, outputs, target):
     """Schedule definition of softmax"""
