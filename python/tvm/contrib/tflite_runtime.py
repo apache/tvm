@@ -97,19 +97,12 @@ class TFLiteModule(object):
         self._allocate_tensors()
 
 
-    def get_output(self, index, out=None):
+    def get_output(self, index):
         """Get index-th output to out
 
         Parameters
         ----------
         index : int
             The output index
-
-        out : NDArray
-            The output array container
         """
-        if out:
-            self._get_output(index, out)
-            return out
-
         return self._get_output(index)
