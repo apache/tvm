@@ -2049,6 +2049,54 @@ Examples::
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
+// strided_set
+bool StridedSetRel(const Array<Type>& types,
+                   int num_inputs,
+                   const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 6);
+  reporter->Assign(types[5], types[0]);
+  return true;
+}
+
+Expr MakeStridedSet(Expr data,
+                    Expr v,
+                    Expr begin,
+                    Expr end,
+                    Expr strides) {
+  static const Op& op = Op::Get("strided_set");
+  return CallNode::make(op, {data, v, begin, end, strides}, {});
+}
+
+TVM_REGISTER_API("relay.op._make.strided_set")
+.set_body_typed(MakeStridedSet);
+
+
+RELAY_REGISTER_OP("strided_set")
+  .describe(R"code(Strided set of an array.
+Example::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  v = [[ 11., 22., 33.]
+       [ 44., 55., 66.]]
+
+  strided_set(x, v, begin=[0, 1], end=[2, 4], stride=[1, 1]) = \
+      [[  1.,  11.,  22.,  33.],
+       [  2.,  44.,  55.,  66.],
+       [  3.,   6.,   9.,  12.]]
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(5)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("v", "Tensor", "The data to set.")
+.add_argument("begin", "Tensor", "Indices for the start of the slice.")
+.add_argument("end", "Tensor", "Indices indicating the end of the slice.")
+.add_argument("strides", "Tensor", "The strides values.")
+.set_support_level(4)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.add_type_rel("StridedSet", StridedSetRel);
 
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
