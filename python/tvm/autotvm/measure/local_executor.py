@@ -103,8 +103,7 @@ if os.name == 'nt':
         # has timed out
         thread = threading.Thread(target=_execute_func, args=(func, queue, args, kwargs))
         thread.start()
-        thread.join(timeout=timeout)
-
+        thread.join()
         queue.put(executor.TimeoutError())
 
         res = queue.get()
@@ -180,7 +179,7 @@ if os.name == 'nt':
 
         def get(self, timeout=None):
             try:
-                res = self._pool_results.get(timeout=timeout)
+                res = self._pool_results.get()
             except Empty:
                 raise executor.TimeoutError()
             self._done = True
