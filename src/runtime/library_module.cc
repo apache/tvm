@@ -28,7 +28,7 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 #include <vector>
-#include <cstdint>
+#include <utility>
 #include "library_module.h"
 
 namespace tvm {
@@ -48,15 +48,15 @@ class LibraryModuleNode final : public ModuleNode {
   PackedFunc GetFunction(
       const std::string& name,
       const ObjectPtr<Object>& sptr_to_self) final {
-    BackendPackedCFunc faddr;
+    TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name = reinterpret_cast<const char*>(
           lib_->GetSymbol(runtime::symbol::tvm_module_main));
       CHECK(entry_name!= nullptr)
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
-      faddr = reinterpret_cast<BackendPackedCFunc>(lib_->GetSymbol(entry_name));
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(entry_name));
     } else {
-      faddr = reinterpret_cast<BackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
     }
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
@@ -77,14 +77,21 @@ class ModuleInternal {
   }
 };
 
-PackedFunc WrapPackedFunc(BackendPackedCFunc faddr,
+PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr,
                           const ObjectPtr<Object>& sptr_to_self) {
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+      TVMValue ret_value;
+      int ret_type_code = kNull;
       int ret = (*faddr)(
           const_cast<TVMValue*>(args.values),
           const_cast<int*>(args.type_codes),
-          args.num_args);
+          args.num_args,
+          &ret_value,
+          &ret_type_code);
       CHECK_EQ(ret, 0) << TVMGetLastError();
+      if (ret_type_code != kNull) {
+        *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
+      }
     });
 }
 

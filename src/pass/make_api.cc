@@ -53,6 +53,8 @@ LoweredFunc MakeAPI(Stmt body,
   Var v_packed_args("args", DataType::Handle());
   Var v_packed_arg_type_ids("arg_type_ids", DataType::Handle());
   Var v_num_packed_args("num_args", DataType::Int(32));
+  Var v_out_ret_value("out_ret_value", DataType::Handle());
+  Var v_out_ret_tcode("out_ret_tcode", DataType::Handle());
   // The arguments of the function.
   Array<Var> args;
   // The device context
@@ -150,6 +152,15 @@ LoweredFunc MakeAPI(Stmt body,
       buf_defs.emplace_back(std::make_pair(Downcast<Buffer>(api_args[i]), v_arg));
     }
   }
+
+  // allow return value if the function is packed.
+  if (num_packed_args != 0) {
+    args.push_back(v_out_ret_value);
+    args.push_back(v_out_ret_tcode);
+  }
+
+  size_t expected_nargs = num_unpacked_args + (num_packed_args != 0 ? 5 : 0);
+  CHECK_EQ(args.size(), expected_nargs);
 
   // Arg definitions are defined before buffer binding to avoid the use before
   // def errors.

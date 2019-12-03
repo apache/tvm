@@ -29,13 +29,6 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <functional>
 
-extern "C" {
-// Function signature for generated packed function in shared library
-typedef int (*BackendPackedCFunc)(void* args,
-                                  int* type_codes,
-                                  int num_args);
-}  // extern "C"
-
 namespace tvm {
 namespace runtime {
 /*!
@@ -58,11 +51,11 @@ class Library : public Object {
 };
 
 /*!
- * \brief Wrap a BackendPackedCFunc to packed function.
+ * \brief Wrap a TVMBackendPackedCFunc to packed function.
  * \param faddr The function address
  * \param mptr The module pointer node.
  */
-PackedFunc WrapPackedFunc(BackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
+PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
 
 /*!
  * \brief Utility to initialize conext function symbols during startup
