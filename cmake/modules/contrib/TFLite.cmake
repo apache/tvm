@@ -18,7 +18,7 @@
 if(NOT USE_TFLITE STREQUAL "OFF")
   message(STATUS "Build with contrib.tflite")
   message("tensorflow path: ${USE_TENSORFLOW_PATH}")
-  if (NOT USE_TENSORFLOW_PATH) 
+  if (USE_TENSORFLOW_PATH STREQUAL "none") 
     set(USE_TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
   endif()
   message("tensorflow path: ${USE_TENSORFLOW_PATH}")
