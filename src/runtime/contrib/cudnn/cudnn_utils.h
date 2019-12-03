@@ -54,6 +54,15 @@ inline void GetStride(int nbdim, const int *dims, int *strides) {
   }
 }
 
+inline void GetCudnnStride(int nbdim,
+                           const int* dims,
+                           int* strides) {
+  int mul = 1;
+  for (int i = nbdim - 1; i >=0; --i) {
+    strides[i] = mul;
+    mul *= dims[i];
+  }
+}
 
 struct ConvEntry {
   cudnnConvolutionDescriptor_t conv_desc;

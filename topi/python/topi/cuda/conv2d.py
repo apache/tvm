@@ -96,18 +96,15 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         else:
             dtype = data.dtype
 
-        return cudnn.conv2d_forward(data,
-                                    kernel,
-                                    stride_h,
-                                    stride_w,
-                                    pad_h,
-                                    pad_w,
-                                    dilation_h,
-                                    dilation_w,
-                                    conv_mode=1,
-                                    tensor_format=tensor_format,
-                                    algo=-1,         # let CUDNN choose the best algo
-                                    conv_dtype=dtype)
+        return cudnn.conv_forward(data,
+                                  kernel,
+                                  [pad_h, pad_w],
+                                  [stride_h, stride_w],
+                                  [dilation_h, dilation_w],
+                                  conv_mode=1,
+                                  tensor_format=tensor_format,
+                                  algo=-1,         # let CUDNN choose the best algo
+                                  conv_dtype=dtype)
 
     if cfg.template_key == 'winograd':
         return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
