@@ -20,22 +20,18 @@ from .._ffi.function import get_global_func
 from ..rpc import base as rpc_base
 
 def create(tflite_model_bytes, ctx):
-    """Create a runtime executor module given a graph and module.
+    """Create a runtime executor module given a tflite model and context.
     Parameters
     ----------
-    tflite_fname : str
-        The graph to be deployed in json format output by nnvm graph.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
-    ctx : TVMContext or list of TVMContext
+    tflite_model_byte : bytes
+        The tflite model to be deployed in bytes string format.
+    ctx : TVMContext
         The context to deploy the module. It can be local or remote when there
-        is only one TVMContext. Otherwise, the first context in the list will
-        be used as this purpose. All context should be given for heterogeneous
-        execution.
+        is only one TVMContext.
     Returns
     -------
-    graph_module : GraphModule
-        Runtime graph module that can be used to execute the graph.
+    tflite_runtime : TFLiteModule
+        Runtime tflite module that can be used to execute the tflite model.
     """
     device_type = ctx.device_type
     if device_type >= rpc_base.RPC_SESS_MASK:
@@ -55,12 +51,12 @@ class TFLiteModule(object):
     Parameters
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The interal tvm module that holds the actual tflite functions.
 
     Attributes
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The interal tvm module that holds the actual tflite functions.
     """
 
     def __init__(self, module):
@@ -87,7 +83,7 @@ class TFLiteModule(object):
         self._set_input(index, value)
 
     def invoke(self):
-        """Run forward execution of the graph
+        """Invoke forward execution of the model
 
         Parameters
         ----------
@@ -97,6 +93,8 @@ class TFLiteModule(object):
         self._invoke()
 
     def allocate_tensors(self):
+        """Allocate space for all tensors.
+        """
         self._allocate_tensors()
 
 
