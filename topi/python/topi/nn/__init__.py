@@ -20,6 +20,7 @@
 from __future__ import absolute_import as _abs
 
 from .conv2d import *
+from .conv3d import *
 from .deformable_conv2d import *
 from .depthwise_conv2d import *
 from .elemwise import *
