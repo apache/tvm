@@ -142,7 +142,6 @@ def _find_conv2d_op(op):
             return op_
     return None
 
-
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -276,6 +275,48 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     out = topi.nn.pad(out,
                       [0, 0, 0, 0], [0, 0, output_padding[0], output_padding[1]])
     return [out]
+
+
+@reg.register_compute("nn.conv3d")
+def compute_conv3d(attrs, inputs, out_type, target):
+    """Compute definition of conv3d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCDHW"]
+    (dilation_d, dilation_h, dilation_w) = dilation
+    if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if groups == 1:
+        out = topi.nn.conv3d(
+            inputs[0], inputs[1], strides, padding,
+            dilation, layout, out_dtype)
+    else:
+        raise ValueError("not support arbitrary group number for now")
+    return [out]
+
+
+@reg.register_schedule("nn.conv3d")
+def schedule_conv3d(attrs, outs, target):
+    """Schedule definition of conv3d"""
+    groups = attrs.groups
+    layout = attrs.data_layout
+
+    with target:
+        if groups == 1 and layout == "NCDHW":
+            return topi.generic.schedule_conv3d_ncdhw(outs)
+
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_schedule("nn.conv2d_transpose")
