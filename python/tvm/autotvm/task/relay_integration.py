@@ -128,7 +128,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
         tvm.relay.op.nn.dense: [topi.nn.dense],
         tvm.relay.op.nn.batch_matmul: [topi.nn.batch_matmul],
         tvm.relay.op.nn.deformable_conv2d: [topi.nn.deformable_conv2d_nchw],
-        tvm.relay.op.nn.softmax: [topi.nn.softmax]
+        tvm.relay.op.nn.softmax: [topi.nn.softmax],
+        tvm.relay.op.nn.log_softmax: [topi.nn.log_softmax]
     }
 
     topi_funcs = []

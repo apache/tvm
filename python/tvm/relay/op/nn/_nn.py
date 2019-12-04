@@ -48,6 +48,10 @@ reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
 
 schedule_broadcast = schedule_injective
 
+@reg.register_compute("nn.log_softmax")
+def compute_log_softmax(attrs, inputs, out_type, target):
+    """Compute definition of log softmax"""
+    return [topi.nn.log_softmax(inputs[0])]
 
 @reg.register_schedule("nn.log_softmax")
 def schedule_log_softmax(_, outputs, target):

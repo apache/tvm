@@ -79,6 +79,7 @@ def softmax(x, axis=-1):
 
 
 @tvm.tag_scope(tag='log_softmax_output')
+@tvm.target.generic_func
 def log_softmax(x):
     """Perform log softmax activation on the data
 

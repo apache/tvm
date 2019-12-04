@@ -23,6 +23,7 @@ from .injective import schedule_injective_from_existing
 from ..util import get_powers_of_two_in_range
 
 autotvm.register_topi_compute(nn.softmax, ["cuda", "gpu"], "direct", nn.softmax.fdefault)
+autotvm.register_topi_compute(nn.log_softmax, ["cuda", "gpu"], "direct", nn.log_softmax.fdefault)
 
 @autotvm.register_topi_schedule(generic.schedule_softmax, ["cuda", "gpu"], "direct")
 def schedule_softmax(cfg, outs):

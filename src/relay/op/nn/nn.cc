@@ -373,17 +373,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  const auto* param = attrs.as<SoftmaxAttrs>();
-  CHECK(param != nullptr);
-  CHECK(param->axis == -1 || param->axis == static_cast<int32_t>(inputs[0].ndim()) - 1)
-      << "log_softmax currently only works on last dimension";
-  return Array<Tensor>{ topi::nn::log_softmax(inputs[0]) };
-});
+.add_type_rel("Identity", IdentityRel);
 
 
 // relay.nn.batch_flatten
