@@ -152,6 +152,7 @@ REGISTER_MAKE(Broadcast);
 REGISTER_MAKE(Shuffle);
 REGISTER_MAKE(Let);
 REGISTER_MAKE(LetStmt);
+REGISTER_MAKE(AssertLowerBound);
 REGISTER_MAKE(AssertStmt);
 REGISTER_MAKE(ProducerConsumer);
 REGISTER_MAKE(Provide);

@@ -144,6 +144,7 @@ class TVM_DLL IRVisitor {
   virtual void Visit_(const UIntImm* op);
   virtual void Visit_(const FloatImm* op);
   virtual void Visit_(const StringImm* op);
+  virtual void Visit_(const AssertLowerBound* op);
 };
 
 /*!

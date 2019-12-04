@@ -487,6 +487,11 @@ Expr IRMutator::Mutate_(const Shuffle *op, const Expr& e) {
   }
 }
 
+Expr IRMutator::Mutate_(const AssertLowerBound *op, const Expr& e) {
+  Expr value = this->Mutate(op->value);
+  return value;
+}
+
 #define DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(OP)              \
   Expr IRMutator::Mutate_(const OP *op, const Expr& e) {    \
     return e;                                               \
@@ -529,6 +534,7 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_expr)
 .DISPATCH_TO_MUTATE_EXPR(UIntImm)
 .DISPATCH_TO_MUTATE_EXPR(FloatImm)
 .DISPATCH_TO_MUTATE_EXPR(StringImm)
+.DISPATCH_TO_MUTATE_EXPR(AssertLowerBound)
 .DISPATCH_TO_MUTATE_EXPR(Shuffle);
 
 }  // namespace ir

@@ -257,6 +257,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = tuple(_make.AssertLowerBound(size, 0) for size in shape)
     dtype = float32 if dtype is None else dtype
     return _api_internal._Placeholder(
         shape, dtype, name)

@@ -103,6 +103,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::Cast* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Call* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Select* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::AssertLowerBound* op, Args... args) ATTR_FUNCTOR_DEFAULT;
 
  private:
   // initialize the vtable.
@@ -138,6 +139,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(Cast);
     ATTR_FUNCTOR_DISPATCH(Call);
     ATTR_FUNCTOR_DISPATCH(Select);
+    ATTR_FUNCTOR_DISPATCH(AssertLowerBound);
     return vtable;
   }
 };

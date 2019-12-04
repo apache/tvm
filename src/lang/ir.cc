@@ -176,6 +176,18 @@ Expr Let::make(Var var, Expr value, Expr body) {
   return Expr(node);
 }
 
+Expr AssertLowerBound::make(Expr value, Expr bound) {
+  CHECK(value.defined());
+  CHECK(bound.defined());
+  CHECK_EQ(value.type(), bound.type());
+
+  NodePtr<AssertLowerBound> node = make_node<AssertLowerBound>();
+  node->type = value.type();
+  node->value = std::move(value);
+  node->bound = std::move(bound);
+  return Expr(node);
+}
+
 const char* Call::vectorizable_intrinsics[] = {
     "floor", "ceil", "sign", "trunc", "fabs", "round", "exp", "tanh", "sqrt",
     "log", "sin", "cos", "pow", ir::Call::shift_left, ir::Call::shift_right,
@@ -836,6 +848,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<AssertLowerBound>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const AssertLowerBound*>(node.get());
+    p->stream << "assert_lower_bound(";
+    p->Print(op->value);
+    p->stream << ", ";
+    p->Print(op->bound);
+    p->stream << ")";
+});
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<LetStmt>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const LetStmt*>(node.get());
     p->PrintIndent();
@@ -1203,6 +1225,7 @@ TVM_REGISTER_NODE_TYPE(Shuffle);
 TVM_REGISTER_NODE_TYPE(Prefetch);
 TVM_REGISTER_NODE_TYPE(Call);
 TVM_REGISTER_NODE_TYPE(Let);
+TVM_REGISTER_NODE_TYPE(AssertLowerBound);
 TVM_REGISTER_NODE_TYPE(LetStmt);
 TVM_REGISTER_NODE_TYPE(AssertStmt);
 TVM_REGISTER_NODE_TYPE(ProducerConsumer);

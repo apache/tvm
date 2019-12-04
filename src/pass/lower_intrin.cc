@@ -284,6 +284,7 @@ LoweredFunc
 LowerIntrin(LoweredFunc f, const std::string& target) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = LowerIntrinStmt(n->body, target);
+//  LOG(INFO) << "after lower intrin " << n->body;
   return LoweredFunc(n);
 }
 
