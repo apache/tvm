@@ -63,6 +63,8 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
+tvm_option(USE_TFLITE "Build with tflite support" OFF)
+tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -257,6 +259,7 @@ include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
+include(cmake/modules/contrib/TFLite.cmake)
 
 if(NOT MSVC)
   include(CheckCXXCompilerFlag)
