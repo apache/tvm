@@ -35,6 +35,7 @@ if(NOT USE_TFOP STREQUAL "OFF")
   file(GLOB_RECURSE TFTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/tf_op/*.cc)
   add_library(${OP_LIBRARY_NAME} SHARED ${TFTVM_SRCS})
   set_target_properties(${OP_LIBRARY_NAME} PROPERTIES PREFIX "")
+  set(TFTVM_LINK_FLAGS  -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
   add_dependencies(${OP_LIBRARY_NAME} tvm) 
 
   set(TFTVM_COMPILE_FLAGS  -O2 -ldl -g)
