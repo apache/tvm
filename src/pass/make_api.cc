@@ -59,12 +59,12 @@ LoweredFunc MakeAPI(Stmt body,
   // The device context
   Var device_type("dev_type"), device_id("dev_id");
   // seq_init gives sequence of initialization
-  // seq_check gives sequence of later checks after iniit
+  // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
   std::unordered_map<const Variable*, Expr> vmap;
   ArgBinder binder(&vmap);
   // ---------------------------
-  // local function defintiions
+  // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](Type t, int i) {
     Array<Expr> call_args{v_packed_args,
