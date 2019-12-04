@@ -73,6 +73,14 @@ struct GraphCodegen {
     return CallFunc<std::string>("get_graph_json", nullptr);
   }
 
+  Array<Function> GetExternalFuncs() {
+    return CallFunc<Array<Function> >("get_external_funcs", nullptr);
+  }
+
+  runtime::Module GetExternalModule() {
+    return CallFunc<runtime::Module>("get_external_module", nullptr);
+  }
+
   Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
     return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
   }
@@ -147,6 +155,14 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "get_lowered_funcs") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
+      });
+    } else if (name == "get_external_funcs") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetExternalFuncs();
+      });
+    } else if (name == "get_external_module") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetExternalModule();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -473,6 +489,16 @@ class RelayBuildModule : public runtime::ModuleNode {
         lowered_funcs,
         target_host_,
         BuildConfig::Current());
+    }
+    Array<Function> external_funcs = graph_codegen_->GetExternalFuncs();
+    if (!external_funcs.empty()) {
+      auto ext_rt_mod = graph_codegen_->GetExternalModule();
+      // Execute the whole module using external runtime.
+      if (lowered_funcs.size() == 0) {
+        ret_.mod = ext_rt_mod;
+      } else {
+        ret_.mod.Import(ext_rt_mod);
+      }
     }
   }
 
