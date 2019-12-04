@@ -87,21 +87,15 @@ def conv3d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCDHW', o
         cfg.add_flop(2 * N * OD * OH * OW * CO * CI * ((DH - 1) * dilation_d + 1) *\
                     ((KH - 1) * dilation_h + 1) * ((KW - 1) * dilation_w + 1))
 
-        return cudnn.conv3d_forward(data,
-                                    kernel,
-                                    stride_d,
-                                    stride_h,
-                                    stride_w,
-                                    pad_d,
-                                    pad_h,
-                                    pad_w,
-                                    dilation_d,
-                                    dilation_h,
-                                    dilation_w,
-                                    conv_mode=1,
-                                    tensor_format=tensor_format,
-                                    algo=-1,         # let CUDNN choose the best algo
-                                    conv_dtype=dtype)
+        return cudnn.conv_forward(data,
+                                  kernel,
+                                  [pad_d, pad_h, pad_w],
+                                  [stride_d, stride_h, stride_w],
+                                  [dilation_d, dilation_h, dilation_w],
+                                  conv_mode=1,
+                                  tensor_format=tensor_format,
+                                  algo=-1,         # let CUDNN choose the best algo
+                                  conv_dtype=dtype)
 
     if layout == 'NCDHW':
         return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
