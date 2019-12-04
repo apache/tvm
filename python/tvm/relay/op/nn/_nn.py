@@ -32,7 +32,7 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 # softmax
 @reg.register_compute("nn.softmax")
-def compute_softmax(attrs, inputs, _):
+def compute_softmax(attrs, inputs, out_type, target):
     """Compute definition of softmax"""
     axis = get_const_int(attrs.axis)
     return [topi.nn.softmax(inputs[0], axis)]

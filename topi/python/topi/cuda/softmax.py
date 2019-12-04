@@ -72,7 +72,7 @@ def schedule_softmax(cfg, outs):
             if cfg.is_fallback:
                 num_thread = -1
             else:
-                num_thread = cfg["num_thread"]
+                num_thread = cfg["num_thread"].val
             s = schedule_injective_from_existing(s, op.output(0), num_thread=num_thread)
     else:
         num_thread = 64
