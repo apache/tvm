@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file auto_inline_elem_wise.cc
  */
 #include <tvm/schedule_pass.h>

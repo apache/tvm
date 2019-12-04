@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file multibox_op.cc
  * \brief Property def of SSD multibox related operators.
  */

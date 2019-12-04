@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-arguments
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -148,7 +148,6 @@ def _find_conv2d_op(op):
             return op_
     return None
 
-
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -169,10 +168,17 @@ def compute_conv2d(attrs, inputs, out_type, target):
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
+        # NHWC layout
         if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
-        return weight_shape[0] * weight_shape[1]
-
+        # NCHW layout.
+        # in ARM CPU contrib_spatial_pack schedule, we will prepack weight layout
+        if len(weight_shape) == 4:
+            return weight_shape[0] * weight_shape[1]
+        else:
+            assert len(weight_shape) == 5
+            C, M, _, _, VC = weight_shape
+            return C * VC * M
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
@@ -277,12 +283,74 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     return [out]
 
 
+@reg.register_compute("nn.conv3d")
+def compute_conv3d(attrs, inputs, out_type, target):
+    """Compute definition of conv3d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCDHW"]
+    (dilation_d, dilation_h, dilation_w) = dilation
+    if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if groups == 1:
+        out = topi.nn.conv3d(
+            inputs[0], inputs[1], strides, padding,
+            dilation, layout, out_dtype)
+    else:
+        raise ValueError("not support arbitrary group number for now")
+    return [out]
+
+
+@reg.register_schedule("nn.conv3d")
+def schedule_conv3d(attrs, outs, target):
+    """Schedule definition of conv3d"""
+    groups = attrs.groups
+    layout = attrs.data_layout
+
+    with target:
+        if groups == 1 and layout == "NCDHW":
+            return topi.generic.schedule_conv3d_ncdhw(outs)
+
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_schedule("nn.conv2d_transpose")
 def schedule_conv2d_transpose(attrs, outs, target):
     """Schedule definition of conv2d_transpose"""
     with target:
         return topi.generic.schedule_conv2d_transpose_nchw(outs)
 
+
+@reg.register_legalize("nn.conv2d_transpose")
+def legalize_conv2d_transpose(attrs, inputs, types):
+    """Legalize conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 

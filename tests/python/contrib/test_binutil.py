@@ -73,12 +73,21 @@ def test_tvm_callback_relocate_binary():
     with open(tmp_bin, "wb") as f:
         f.write(binary)
     def verify():
-        text_loc_str = "0x0"
-        rodata_loc_str = "0x10000"
-        data_loc_str = "0x20000"
-        bss_loc_str = "0x30000"
+        word_size = 8
+        text_loc = 0x0
+        rodata_loc = 0x10000
+        data_loc = 0x20000
+        bss_loc = 0x30000
+        stack_end = 0x50000
         rel_bin = tvm_callback_relocate_binary(
-            tmp_bin, text_loc_str, rodata_loc_str, data_loc_str, bss_loc_str, TOOLCHAIN_PREFIX)
+            tmp_bin,
+            word_size,
+            text_loc,
+            rodata_loc,
+            data_loc,
+            bss_loc,
+            stack_end,
+            TOOLCHAIN_PREFIX)
         print("Relocated binary section sizes")
         test_tvm_callback_get_section_size(binary=rel_bin)
         relf = tmp_dir.relpath("rel.bin")
@@ -88,10 +97,6 @@ def test_tvm_callback_relocate_binary():
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT)
         (out, _) = nm_proc.communicate()
-        # Ensure the relocated symbols are within the ranges we specified.
-        text_loc = int(text_loc_str, 16)
-        data_loc = int(data_loc_str, 16)
-        bss_loc = int(bss_loc_str, 16)
         symbol_entries = out.decode("utf-8").split("\n")
         for entry in symbol_entries:
             if len(entry) == 0:
@@ -127,12 +132,21 @@ def test_tvm_callback_get_symbol_map():
     with open(tmp_bin, "wb") as f:
         f.write(binary)
     def verify():
-        text_loc_str = "0x0"
-        rodata_loc_str = "0x10000"
-        data_loc_str = "0x20000"
-        bss_loc_str = "0x30000"
+        word_size = 8
+        text_loc = 0x0
+        rodata_loc = 0x10000
+        data_loc = 0x20000
+        bss_loc = 0x30000
+        stack_end = 0x50000
         rel_bin = tvm_callback_relocate_binary(
-            tmp_bin, text_loc_str, rodata_loc_str, data_loc_str, bss_loc_str, TOOLCHAIN_PREFIX)
+            tmp_bin,
+            word_size,
+            text_loc,
+            rodata_loc,
+            data_loc,
+            bss_loc,
+            stack_end,
+            TOOLCHAIN_PREFIX)
         symbol_map = tvm_callback_get_symbol_map(rel_bin, TOOLCHAIN_PREFIX)
         symbols = set()
         for i, line in enumerate(symbol_map.split('\n')):

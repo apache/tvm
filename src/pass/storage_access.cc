@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file storage_access.cc
  */
 #include <tvm/ir_pass.h>

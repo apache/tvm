@@ -26,7 +26,6 @@ schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
 
 register_schedule("log", schedule_broadcast)
-register_schedule("log1p", schedule_broadcast)
 register_schedule("cos", schedule_broadcast)
 register_schedule("sin", schedule_broadcast)
 register_schedule("atan", schedule_broadcast)
@@ -123,6 +122,20 @@ def cast_shape_func(attrs, inputs, out_ndims):
 
 # shape func
 @script
+def _full_shape_func(x):
+    out_ndim = len(x)
+    out = output_tensor((out_ndim,), "int64")
+    for i in const_range(out_ndim):
+        out[i] = x[i]
+    return out
+
+def full_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape func for zeros, zeros_like, ones, ones_like.
+    """
+    return [_full_shape_func(*inputs)]
+
+@script
 def _broadcast_shape_func(x, y, ndim):
     out = output_tensor((ndim,), "int64")
     if len(x.shape) == 0:
@@ -163,6 +176,10 @@ def elemwise_shape_func(attrs, inputs, _):
     return [topi.math.identity(inputs[0])]
 
 register_shape_func("cast", False, cast_shape_func)
+register_shape_func("zeros", False, full_shape_func)
+register_shape_func("zeros_like", False, full_shape_func)
+register_shape_func("ones", False, full_shape_func)
+register_shape_func("ones_like", False, full_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)

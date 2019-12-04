@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Combine calls into context related function into one.
  *
  * \file combine_context_call.cc

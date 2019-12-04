@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file broadcast.cc
  * \brief broadcast operator.
  */

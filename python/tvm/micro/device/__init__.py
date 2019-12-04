@@ -14,26 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Device-specific configuration for MicroTVM"""
 
-PATH_SETTINGS?=$(PWD)/settings.mk
-
-# Driver configuration file
-include $(PATH_SETTINGS)
-
-ifeq ($(KERNELRELEASE),)
-# kbuild
-
-default:
-	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KSOURCE_DIR) M=`pwd` modules
-
-clean:
-	make -C $(KSOURCE_DIR) M=`pwd` clean
-
-else
-# run from Kernel Makefile
-
-obj-m 	  := cma.o
-ccflags-y := -DDRIVER_NODE_NAME="\"$(DRIVER_NODE_NAME)\"" \
-			 -DCMA_DEBUG=$(CMA_DEBUG) \
-			 -DCMA_IOC_MAGIC=$(CMA_IOC_MAGIC)
-endif
+from .base import register_device, get_device_funcs, create_micro_lib_base
+from . import host
+from . import arm
+from . import riscv_spike

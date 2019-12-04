@@ -627,7 +627,7 @@ For more pass infra related examples in Python and C++, please refer to
 
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
-.. _Block: https://mxnet.incubator.apache.org/_modules/mxnet/gluon/block.html
+.. _Block: https://mxnet.incubator.apache.org/api/python/docs/api/gluon/block.html#gluon-block
 
 .. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions 
 

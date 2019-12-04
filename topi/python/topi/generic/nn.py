@@ -226,6 +226,24 @@ def schedule_conv2d_winograd_nnpack_without_weight_transform(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv3d_ncdhw(outs):
+    """Schedule for conv3d_ncdhw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file let_list.h
  * \brief LetList record let binding and insert let expression implicitly.
  *  using it, one can treat AST as value instead of expression,

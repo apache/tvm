@@ -48,6 +48,7 @@ _reg.register_schedule("cast", schedule_injective)
 _reg.register_schedule("cast_like", schedule_injective)
 _reg.register_schedule("reinterpret", schedule_injective)
 _reg.register_schedule("strided_slice", schedule_injective)
+_reg.register_schedule("strided_set", schedule_injective)
 _reg.register_schedule("slice_like", schedule_injective)
 _reg.register_schedule("split", schedule_injective)
 _reg.register_schedule("take", schedule_injective)
@@ -303,6 +304,11 @@ def compute_argwhere(attrs, inputs, output_type, _):
             output_shape.append(tvm.var("any_dim", "int32"))
     new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]
+
+@_reg.register_compute("strided_set")
+def compute_strided_set(attrs, inputs, output_type, _):
+    """Compute definition of strided_set"""
+    return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
 @script
 def _layout_transform_shape_func(data_shape,

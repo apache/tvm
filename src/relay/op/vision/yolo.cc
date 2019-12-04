@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file yolo.cc
  * \brief Yolo related operators
  */

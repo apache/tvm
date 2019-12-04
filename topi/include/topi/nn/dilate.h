@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Dilate op constructions
  * \file nn/dilate.h
  */

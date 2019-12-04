@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file legalize.cc
  * \brief Converts an expr to another expr. This pass can be used to transform an op based on its
  * shape, dtype or layout to another op or a sequence of ops.

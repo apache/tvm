@@ -18,7 +18,6 @@
  */
 
  /*!
- *  Copyright (c) 2017 by Contributors
  *  Implementation of basic API functions
  * \file api_base.cc
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application to demonstrate go-closure returned from a callback function.
  * \file pack_func_closure_return.go
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Build cuda modules from source.
  *  requires cuda to be available.
  *

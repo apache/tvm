@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */

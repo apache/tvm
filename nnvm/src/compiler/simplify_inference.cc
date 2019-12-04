@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file simplify_inference.cc
  * \author Ziheng Jiang
 */

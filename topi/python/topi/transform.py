@@ -20,6 +20,8 @@ from __future__ import absolute_import as _abs
 import tvm
 import topi
 from . import cpp
+from . import tag
+from .util import within_index, make_idx
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -154,6 +156,97 @@ def strided_slice(a, begin, end, strides=None):
     if strides is None:
         strides = []
     return cpp.strided_slice(a, begin, end, strides)
+
+@tvm.tag_scope(tag=tag.INJECTIVE+",strided_set")
+def strided_set(a, v, begin, end, strides=None):
+    """Set slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be sliced.
+
+    v : tvm.Tensor
+        The values to set
+
+    begin: tvm.Tensor
+        The indices to begin with in the slicing.
+
+    end: tvm.Tensor
+        Indicies indicating end of the slice.
+
+    strides: tvm.Tensor, optional
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    n = len(a.shape)
+
+    if len(begin.shape) != 1:
+        raise ValueError("begin should be a vector")
+    if not begin.dtype == 'int32':
+        raise TypeError("begin should be int32")
+    if len(end.shape) != 1:
+        raise ValueError("end should be a vector")
+    if not end.dtype == 'int32':
+        raise TypeError("end should be int32")
+    if strides is not None:
+        if len(strides.shape) != 1:
+            raise ValueError("strides should be a vector")
+        if not strides.dtype == 'int32':
+            raise TypeError("strides should be int32")
+
+    def _max(a, b):
+        return tvm.expr.Select(a > b, a, b)
+
+    if strides is None:
+        strides = [tvm.const(1, 'int32')] * n
+    else:
+        strides = [tvm.if_then_else(strides.shape[0] > i,
+                                    strides[i],
+                                    tvm.const(1, 'int32'))
+                   for i in range(n)]
+
+    begin = [tvm.if_then_else(begin.shape[0] > i,
+                              begin[i],
+                              tvm.expr.Select(strides[i] > 0,
+                                              tvm.const(0, 'int32'),
+                                              a.shape[i]))
+             for i in range(n)]
+    end = [tvm.if_then_else(end.shape[0] > i,
+                            end[i],
+                            tvm.expr.Select(strides[i] > 0,
+                                            a.shape[i] + 1,
+                                            -(a.shape[i] + 1)))
+           for i in range(n)]
+
+
+    # Convert negative indexes
+    for i in range(n):
+        begin[i] = tvm.if_then_else(begin[i] < 0,
+                                    begin[i] + a.shape[i],
+                                    begin[i])
+        end[i] = tvm.if_then_else(end[i] < 0,
+                                  end[i] + a.shape[i],
+                                  end[i])
+
+    def _select(*indices):
+        from_val = []
+        index_tuple = []
+        for i in range(n):
+            from_val.append(
+       	        within_index(begin[i], end[i], strides[i], indices[i]))
+            index_tuple.append(
+                make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
+        return tvm.if_then_else(tvm.all(*from_val),
+       	       	                v(*index_tuple),
+                                a(*indices))
+
+    return tvm.compute(a.shape, _select, name="strided_set")
 
 
 def reshape(a, newshape):

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
  */
 #include <tvm/relay/analysis.h>

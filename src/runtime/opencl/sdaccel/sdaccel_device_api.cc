@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sdaccel_device_api.cc
  */
 #include <tvm/runtime/registry.h>

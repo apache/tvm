@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Replace certain copy with copy intrinsics.
  * \file copy_intrin_rewrite.cc
  */

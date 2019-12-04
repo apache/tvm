@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file util.h
  * \brief Defines some common utility function..
  */

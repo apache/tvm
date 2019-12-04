@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file touch_extractor.h
  * \brief Extract feature of touch pattern of axes in lowered IR
  */

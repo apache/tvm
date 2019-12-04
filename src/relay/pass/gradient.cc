@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file ad.cc
  * \brief API for Automatic Differentiation for the Relay IR.
  */

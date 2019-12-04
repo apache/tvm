@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file remap_thread_axis.cc
  */
 #include <tvm/ir.h>

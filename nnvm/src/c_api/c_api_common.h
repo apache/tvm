@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file c_api_error.h
  * \brief Common fields of all C APIs
  */
