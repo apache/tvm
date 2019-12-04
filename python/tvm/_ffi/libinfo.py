@@ -90,7 +90,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
     dll_path = [os.path.realpath(x) for x in dll_path]
     if search_path is not None:
-        if search_path is list:
+        if isinstance(search_path, list):
             dll_path = dll_path + search_path
         else:
             dll_path.append(search_path)
@@ -167,7 +167,7 @@ def find_include_path(name=None, search_path=None, optional=False):
 
     header_path = [os.path.abspath(x) for x in header_path]
     if search_path is not None:
-        if search_path is list:
+        if isinstance(search_path, list):
             header_path = header_path + search_path
         else:
             header_path.append(search_path)
