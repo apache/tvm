@@ -414,8 +414,6 @@ def _size():
         axis = int(inputs[1])
         if isinstance(inputs[0], _expr.Var):
             shape = get_tensor_from_relay_var(inputs[0])
-        elif isinstance(inputs[0], list):
-            shape = inputs[0]
         else:
             shape = _infer_type(inputs[0]).checked_type.shape
         return shape[axis]
