@@ -60,7 +60,8 @@ def schedule_softmax(cfg, outs):
                          Got {0}'.format(op_tag))
 
     # create tuning space
-    possible_num_thread = get_powers_of_two_in_range(32, tvm.target.current_target(allow_none=False).max_num_threads)
+    max_num_threads = tvm.target.current_target(allow_none=False).max_num_threads
+    possible_num_thread = get_powers_of_two_in_range(32, max_num_threads)
     cfg.define_knob("num_thread", possible_num_thread)
 
     if len(softmax.shape) > 2:

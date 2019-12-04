@@ -288,15 +288,9 @@ class TaskExtractEnv:
         def _topi_nn_softmax(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             args = deserialize_args(args)
-            if len(args) > 1:
-                x, axis = args[:2]
-            else:
-                x = args[0]
-                axis = None
+            x = args[0]
             C = topi.nn.softmax(*args, **kwargs)
             s = topi.generic.schedule_softmax([C])
-            if axis is not None:
-                return s, [x, axis, C]
             return s, [x, C]
 
     def reset(self, wanted_topi_funcs):
