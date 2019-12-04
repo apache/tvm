@@ -215,11 +215,11 @@ def verify_model(model_name):
 
         assert_shapes_match(baseline_output, compiled_output)
         tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                    rtol=1e-5, atol=1e-5)
+                                    rtol=1e-3, atol=1e-3)
 
         assert_shapes_match(baseline_output, compiled_relay_output)
         tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
-                                    rtol=1e-5, atol=1e-5)
+                                    rtol=1e-3, atol=1e-3)
 
     if(test_repeats > 0):
         thresh = 1e-2
