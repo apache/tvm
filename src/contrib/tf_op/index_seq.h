@@ -21,23 +21,23 @@ using make_index_sequence = typename IndexSeqHelper<N>::type;
 
 
 template <typename F, typename T, std::size_t N, std::size_t... Idx>
-decltype(auto) apply_variadic_impl(F f, T(&t)[N], IndexSeq<Idx...>) {
-    return f(t[Idx]...);
+void apply_variadic_impl(F f, T(&t)[N], IndexSeq<Idx...>) {
+    f(t[Idx]...);
 }
 
 template <typename F, typename T, std::size_t N>
-decltype(auto) apply_variadic(F f, T(&t)[N]) {
-    return apply_variadic_impl(f, t, make_index_sequence<N>{});
+void apply_variadic(F f, T(&t)[N]) {
+    apply_variadic_impl(f, t, make_index_sequence<N>{});
 }
 
 template <typename F, typename T, std::size_t N, std::size_t... Idx>
-decltype(auto) apply_variadic_by_ptrs_impl(F f, T(&t)[N], IndexSeq<Idx...>) {
-    return f(&t[Idx]...);
+void apply_variadic_by_ptrs_impl(F f, T(&t)[N], IndexSeq<Idx...>) {
+    f(&t[Idx]...);
 }
 
 template <typename F, typename T, std::size_t N>
-decltype(auto) apply_variadic_by_ptrs(F f, T(&t)[N]) {
-    return apply_variadic_by_ptrs_impl(f, t, make_index_sequence<N>{});
+void apply_variadic_by_ptrs(F f, T(&t)[N]) {
+    apply_variadic_by_ptrs_impl(f, t, make_index_sequence<N>{});
 }
 
 #endif
