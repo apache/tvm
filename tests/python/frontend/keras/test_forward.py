@@ -84,17 +84,35 @@ def test_forward_merge():
                    keras.layers.Average(),
                    keras.layers.Concatenate()]
     for merge_func in merge_funcs:
-        if isinstance(merge_func, keras.layers.merge.Subtract):
+        if isinstance(merge_func, (keras.layers.merge.Subtract, keras.layers.merge.Dot)):
             out = merge_func([x, y])
         else:
             out = merge_func([x, y, z])
         keras_model = keras.models.Model(data, out)
         verify_keras_frontend(keras_model)
 
+def test_forward_merge_dot():
+    data1 = keras.layers.Input(shape=(2, 2))
+    data2 = keras.layers.Input(shape=(2, 2))
+    merge_funcs = [keras.layers.Dot(axes=[1, 2]),
+                   keras.layers.Dot(axes=[2, 1]),
+                   keras.layers.Dot(axes=[1, 1]),
+                   keras.layers.Dot(axes=[2, 2]),
+                   keras.layers.Dot(axes=1),
+                   keras.layers.Dot(axes=2)]
+    for merge_func in merge_funcs:
+        out = merge_func([data1, data2])
+        keras_model = keras.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model)
 
 def test_forward_activations():
     data = keras.layers.Input(shape=(32, 32, 3))
     act_funcs = [keras.layers.Activation('softmax'),
+                 keras.layers.Softmax(),
+                 keras.layers.Softmax(axis=-1),
+                 keras.layers.Softmax(axis=1),
+                 keras.layers.Softmax(axis=2),
+                 keras.layers.Softmax(axis=3),
                  keras.layers.Activation('softplus'),
                  keras.layers.Activation('relu'),
                  keras.layers.Activation('softsign'),
@@ -103,9 +121,13 @@ def test_forward_activations():
                  keras.layers.Activation('tanh'),
                  keras.layers.Activation('linear'),
                  keras.layers.Activation('selu'),
-                 keras.layers.Softmax(),
                  keras.layers.ReLU(),
                  keras.layers.ReLU(max_value=6.),
+                 keras.layers.ReLU(max_value=6., threshold=0.),
+                 keras.layers.ReLU(max_value=6., threshold=1.),
+                 keras.layers.ReLU(max_value=6., threshold=1., negative_slope=0.),
+                 keras.layers.ReLU(max_value=6., threshold=1., negative_slope=0.5),
+                 keras.layers.ReLU(max_value=6., threshold=1., negative_slope=1.),
                  keras.layers.LeakyReLU(alpha=0.3),
                  keras.layers.PReLU(weights=np.random.rand(1, 32, 32, 3)),
                  keras.layers.ELU(alpha=0.5),
@@ -159,6 +181,7 @@ def test_forward_conv():
                                       strides=(2, 2), padding='same'),
                   keras.layers.Conv2D(filters=10, kernel_size=(3, 3),
                                       dilation_rate=(2, 2), padding='same'),
+                  keras.layers.Conv2D(filters=1, kernel_size=(3, 3), padding='same'),
                   keras.layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same'),
                   keras.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding='valid'),
                   keras.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding='same')]
@@ -167,19 +190,75 @@ def test_forward_conv():
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
+def test_forward_batch_norm():
+    data = keras.layers.Input(shape=(32, 32, 3))
+    batch_norm_funcs = [keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=True, scale=False,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=True, scale=True,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=False, scale=True,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=False, scale=False,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones')]
+    for batch_norm_func in batch_norm_funcs:
+        x = batch_norm_func(data)
+        keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
 
 def test_forward_upsample(interpolation='nearest'):
     data = keras.layers.Input(shape=(32, 32, 3))
     x = keras.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
     keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
+    verify_keras_frontend(keras_model)
 
 
 def test_forward_reshape():
+    # input_shape len is 3, target_shape len is 3
     data = keras.layers.Input(shape=(32, 32, 3))
-    x = keras.layers.Reshape(target_shape=(32, 32, 3))(data)
+    x = keras.layers.Reshape(target_shape=(16, 64, 3))(data)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
+    # input_shape len is 3, target_shape len is 2
+    data = keras.layers.Input(shape=(32, 8, 3))
+    x = keras.layers.Reshape(target_shape=(256, 3))(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+    # input_shape len is 2, target_shape len is 3
+    data = keras.layers.Input(shape=(256, 3))
+    x = keras.layers.Reshape(target_shape=(8, 32, 3))(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+    # input_shape len is 2, target_shape len is 1
+    data = keras.layers.Input(shape=(2, 8))
+    x = keras.layers.Reshape(target_shape=(16,))(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+    # input_shape len is 1, target_shape len is 2
+    data = keras.layers.Input(shape=(16,))
+    x = keras.layers.Reshape(target_shape=(4, 4))(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+    # input_shape len is 2, target_shape len is 2
+    data = keras.layers.Input(shape=(2, 8))
+    x = keras.layers.Reshape(target_shape=(4, 4))(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
 
 
 def test_forward_crop():
@@ -277,12 +356,14 @@ def test_forward_mobilenet():
 
 if __name__ == '__main__':
     test_forward_merge()
+    test_forward_merge_dot()
     test_forward_activations()
     test_forward_dense()
     test_forward_permute()
     test_forward_sequential()
     test_forward_pool()
     test_forward_conv()
+    test_forward_batch_norm()
     test_forward_upsample(interpolation='nearest')
     test_forward_upsample(interpolation='bilinear')
     test_forward_reshape()

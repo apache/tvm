@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_solver.h
  * \brief Solver logic for type inference.
  */
@@ -63,7 +62,7 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver(const GlobalVar& current_func, ErrorReporter* err_reporter);
+  TypeSolver(const GlobalVar& current_func, const Module& _mod, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
@@ -179,6 +178,8 @@ class TypeSolver {
   GlobalVar current_func;
   /*! \brief Error reporting. */
   ErrorReporter* err_reporter_;
+  /*! \brief The module. */
+  Module module_;
 
   /*!
    * \brief GetTypeNode that is corresponds to t.

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file driver.h
  * \brief Driver interface that is used by runtime.
  *
@@ -53,7 +52,7 @@ extern "C" {
 typedef void * VTADeviceHandle;
 
 /*! \brief physical address */
-#ifdef USE_TSIM
+#ifdef USE_VTA64
 typedef uint64_t vta_phy_addr_t;
 #else
 typedef uint32_t vta_phy_addr_t;
@@ -80,22 +79,10 @@ void VTADeviceFree(VTADeviceHandle handle);
  *
  * \return 0 if running is successful, 1 if timeout.
  */
-#ifdef USE_TSIM
-int VTADeviceRun(VTADeviceHandle device,
-                 vta_phy_addr_t insn_phy_addr,
-                 vta_phy_addr_t uop_phy_addr,
-                 vta_phy_addr_t inp_phy_addr,
-                 vta_phy_addr_t wgt_phy_addr,
-                 vta_phy_addr_t acc_phy_addr,
-                 vta_phy_addr_t out_phy_addr,
-                 uint32_t insn_count,
-                 uint32_t wait_cycles);
-#else
 int VTADeviceRun(VTADeviceHandle device,
                  vta_phy_addr_t insn_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles);
-#endif
 
 /*!
  * \brief Allocates physically contiguous region in memory readable/writeable by FPGA.

@@ -82,9 +82,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func(a, w, c)
 
-        rtol = 1e-5
-        if (kernel > 3):
-          rtol = 2e-5
+        rtol = 1e-3
 
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=rtol)
 
@@ -101,6 +99,7 @@ class WinogradFallback(autotvm.FallbackContext):
         cfg = FallbackConfigEntity()
         cfg.template_key = 'winograd'
         self.memory[key] = cfg
+        cfg.is_fallback = False
         return cfg
 
 

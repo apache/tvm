@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_nvptx.cc
  * \brief NVPTX code generator.
  */
@@ -73,7 +72,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
                 LLVMType(op->type), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+          alloca->setAlignment(llvm::Align(info.alignment));
+#else
           alloca->setAlignment(info.alignment);
+#endif
         }
         buf = alloca;
       } else {
@@ -86,7 +89,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
             nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
+#if TVM_LLVM_VERSION >= 100
+        global->setAlignment(llvm::Align(info.alignment));
+#else
         global->setAlignment(info.alignment);
+#endif
         buf = global;
       }
     }
@@ -232,9 +239,13 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+      pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*module);

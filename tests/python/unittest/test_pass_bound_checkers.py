@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from nose.tools import raises
+import pytest
 import tvm
 import numpy as np
 def collect_visit(stmt, f):
@@ -37,13 +37,14 @@ def lower(sch, args):
     bounds = tvm.schedule.InferBound(sch)
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.RemoveNoOp(stmt)
     stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64, True)
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.VectorizeLoop(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     return stmt
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_llvm(index_a, index_b):
     n = tvm.var("n")
     A = tvm.placeholder ((n,), name='A')
@@ -78,7 +79,7 @@ def test_in_bounds_llvm():
     c = tvm.nd.array(np.zeros(1024, dtype=C.dtype), ctx)
     fadd (a, b, c)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     n = tvm.convert(nn)
     a = tvm.placeholder((n), name='a')
@@ -144,7 +145,7 @@ def test_in_bounds_loop_partition_basic_llvm():
     t = tvm.nd.empty((32,), T.dtype, ctx)
     f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
     n = tvm.var('n')
     A = tvm.placeholder((n, ), name='A')
@@ -229,7 +230,7 @@ def test_in_bounds_const_loop_partition_llvm():
         t = tvm.nd.empty((n,), T.dtype, ctx)
         f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
     with tvm.build_config(instrument_bound_checkers=True, partition_const_loop=True):
         n = 21
@@ -285,7 +286,7 @@ def test_in_bounds_conv_llvm(loop_tiling=False):
     conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), tvm.float32, ctx)
     f(data_input, kernel_input, conv_out)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False):
     HSTR = WSTR = 1
     in_channel = 128
@@ -348,7 +349,7 @@ def test_in_bounds_tensors_with_same_shapes1D_llvm():
     t = tvm.nd.empty((32,), T.dtype, ctx)
     f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape):
     n = tvm.var('n')
     k = tvm.var('k')
@@ -387,7 +388,7 @@ def test_in_bounds_tensors_with_same_shapes2D_llvm():
     t = tvm.nd.empty((32, 32), T.dtype, ctx)
     f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape):
     n = tvm.var('n')
     k = tvm.var('k')
@@ -426,7 +427,7 @@ def test_in_bounds_tensors_with_same_shapes3D_llvm():
     t = tvm.nd.empty((32, 32, 32), T.dtype, ctx)
     f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape):
     n = tvm.var('n')
     k = tvm.var('k')
@@ -446,7 +447,7 @@ def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape
     t = tvm.nd.empty((c_shape[0],c_shape[1],c_shape[2]), T.dtype, ctx)
     f(a, b, t)
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     if not tvm.module.enabled("llvm"):
         return

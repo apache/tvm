@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ir.h>
 #include <tvm/expr_operator.h>
-#include <tvm/node/ir_functor.h>
+#include <tvm/node/functor.h>
 #include <tvm/ir_functor_ext.h>
 
 TEST(IRF, Basic) {
@@ -30,12 +30,12 @@ TEST(IRF, Basic) {
   Var x("x");
   auto z = x + 1;
 
-  IRFunctor<int(const NodeRef& n, int b)> f;
+  NodeFunctor<int(const ObjectRef& n, int b)> f;
   LOG(INFO) << "x";
-  f.set_dispatch<Variable>([](const Variable* n, int b) {
+  f.set_dispatch<Variable>([](const ObjectRef& n, int b) {
       return b;
     });
-  f.set_dispatch<Add>([](const Add* n, int b) {
+  f.set_dispatch<Add>([](const ObjectRef& n, int b) {
       return b + 2;
     });
   CHECK_EQ(f(x, 2),  2);

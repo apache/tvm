@@ -50,7 +50,7 @@ class Tensor : public NodeRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Tensor(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -141,7 +141,7 @@ class Operation : public ir::FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(NodePtr<Node> n) : FunctionRef(n) {}
+  explicit Operation(ObjectPtr<Object> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -171,7 +171,7 @@ class TensorNode : public Node {
   /*! \brief constructor */
   TensorNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
@@ -189,7 +189,7 @@ class TensorNode : public Node {
 
 // Implementations of inline functions
 inline const TensorNode* Tensor::operator->() const {
-  return static_cast<const TensorNode*>(node_.get());
+  return static_cast<const TensorNode*>(get());
 }
 
 inline size_t Tensor::ndim() const {
@@ -235,8 +235,6 @@ DEFINE_OVERLOAD_SLICE_UNARY_OP(-);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(+);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(-);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(*);
-DEFINE_OVERLOAD_SLICE_BINARY_OP(/);
-DEFINE_OVERLOAD_SLICE_BINARY_OP(%);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(==);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(<=);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(>=);
@@ -252,19 +250,17 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::Operation> {
-  std::size_t operator()(const ::tvm::Operation& k) const {
-    return k.hash();
-  }
+struct hash<::tvm::Operation> : public ::tvm::NodeHash {
 };
 
 template <>
 struct hash<::tvm::Tensor> {
   std::size_t operator()(const ::tvm::Tensor& k) const {
+    ::tvm::NodeHash hasher;
     if (k.defined() && k->op.defined()) {
-      return k->op.hash();
+      return hasher(k->op);
     } else{
-      return k.hash();
+      return hasher(k);
     }
   }
 };

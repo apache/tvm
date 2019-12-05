@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file codegen_spirv.cc
  * \brief Generate SPIRV block
  */
@@ -283,6 +282,9 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
+  } else if (op->is_intrinsic(Call::reinterpret)) {
+    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->type),
+                               MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
@@ -603,7 +605,7 @@ void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);

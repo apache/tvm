@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
- *
  * \file partial_eval.cc
  *
  * \brief Perform known computation in compile time.
@@ -112,7 +110,7 @@ using namespace runtime;
  */
 struct VarHash {
   size_t operator()(const Var& v) const {
-    return v->vid.hash();
+    return NodeHash()(v->vid);
   }
 };
 
@@ -138,9 +136,9 @@ class StaticNode : public RelayNode {
 class Static : public NodeRef {
  public:
   Static() {}
-  explicit Static(NodePtr<Node> n) : NodeRef(n) {}
-  const ValueNode* operator->() const {
-    return static_cast<const ValueNode*>(node_.get());
+  explicit Static(ObjectPtr<Object> n) : NodeRef(n) {}
+  const StaticNode* operator->() const {
+    return static_cast<const StaticNode*>(get());
   }
 
   using ContainerType = StaticNode;
@@ -251,7 +249,7 @@ class FuelNode;
 class Fuel : public NodeRef {
  public:
   Fuel() {}
-  explicit Fuel(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Fuel(ObjectPtr<Object> n) : NodeRef(n) {}
   const FuelNode* operator->() const;
 
   using ContainerType = FuelNode;
@@ -285,7 +283,7 @@ class FuelNode : public RelayNode {
 };
 
 const FuelNode* Fuel::operator->() const {
-  return static_cast<const FuelNode*>(node_.get());
+  return static_cast<const FuelNode*>(get());
 }
 
 Fuel MkFSeq(const std::vector<Fuel>& fuels);
@@ -1046,6 +1044,28 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         return current_match_status;
       }
       return MatchStatus::NoMatch;
+    } else {
+      return MatchStatus::Unknown;
+    }
+  }
+
+  MatchStatus VisitPattern_(const PatternTupleNode* op, const PStatic& ps) final {
+    if (ps->pstatic.defined()) {
+      STuple stn = Downcast<STuple>(ps->pstatic);
+      CHECK_EQ(op->patterns.size(), stn->fields.size());
+      MatchStatus current_match_status = MatchStatus::Match;
+      for (size_t i = 0; i < op->patterns.size(); ++i) {
+        MatchStatus ms = VisitPattern(op->patterns[i], stn->fields[i]);
+        switch (ms) {
+        case MatchStatus::Match:
+          continue;
+        case MatchStatus::NoMatch:
+          return MatchStatus::NoMatch;
+        case MatchStatus::Unknown:
+          current_match_status = MatchStatus::Unknown;
+        }
+      }
+      return current_match_status;
     } else {
       return MatchStatus::Unknown;
     }

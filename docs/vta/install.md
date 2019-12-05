@@ -20,8 +20,9 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 1. [Simulator installation](#vta-simulator-installation)
-2. [Hardware test setup](#vta-pynq-based-test-setup)
-3. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
+2. [PYNQ-based test setup](#vta-pynq-based-test-setup)
+3. [Custom test setup for Intel FPGA](#vta-custom-test-setup-for-intel-fpga)
+4. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
 
 ## VTA Simulator Installation
 
@@ -102,7 +103,7 @@ Because the direct board-to-computer connection prevents the board from directly
 mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 cd <mountpoint>
-git clone --recursive https://github.com/dmlc/tvm
+git clone --recursive https://github.com/apache/incubator-tvm tvm
 # When finished, you can leave the moutpoint and unmount the directory
 cd ~
 sudo umount <mountpoint>
@@ -127,7 +128,7 @@ cmake ..
 make runtime vta -j2
 # Build VTA RPC server (takes 1 min)
 cd ..
-sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is 'xilinx'
+sudo ./apps/vta_rpc/start_rpc_server.sh # pw is 'xilinx'
 ```
 
 You should see the following being displayed when starting the RPC server. In order to run the next examples, you'll need to leave the RPC server running in an `ssh` session.
@@ -182,34 +183,105 @@ The performance metrics measured on the Pynq board will be reported for each con
 
 You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
 
+## VTA Custom Test Setup for Intel FPGA
+
+Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano. 
+
+In terms of hardware components, you would need the [DE10-Nano Development Kit](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&No=1046), which can be acquired for $130, or $100 for academics from [Terasic](https://www.terasic.com.tw/). A microSD card would be delivered the kit. Power cables and USB cables would be included as well. However, an additional Ethernet cable would be needed to connect the board to LAN.
+
+The rest part of this guide would provide the steps to
+
+* Flash the microSD card with latest Angstrom Linux image
+* Cross compilation setup
+* Device-side RPC server setup and deployment
+
+### DE10-Nano Board Setup
+
+Before powering up the device, we need to flash the microSD card image with latest Angstrom Linux image.
+
+#### Flash SD Card and Boot Angstrom Linux
+
+To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
+After registration and login on the webpage, the prebuilt Angstrom Linux image would be available for downloading and flashing.
+Specifically, to flash the downloaded Linux SD card image into your physical SD card:
+
+First, extract the gzipped archive file.
+
+``` bash
+tar xf de10-nano-image-Angstrom-v2016.12.socfpga-sdimg.2017.03.31.tgz
+```
+
+This would produce a single SD card image named `de10-nano-image-Angstrom-v2016.12.socfpga-sdimg` (approx. 2.4 GB), it contains all the file systems to boot Angstrom Linux.
+
+Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`. 
+
+Then, flash the disk image into your physical SD card with the following command:
+
+``` bash
+# NOTE: root privilege is typically required to run the following command.
+dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progress
+```
+This would take a few minutes for your PC to write the whole file systems into the SD card.
+After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
+Now you can connect the power cable and serial port to boot the Angstrom Linux.
+
+> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. 
+> In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. 
+> For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage).
+
+After connecting the usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
+
+``` bash
+# NOTE: root privilege is typically required to run the following command.
+minicom -D /dev/ttyUSB0
+```
+
+The default user name for the device would be `root`, and the password is empty for the default user.
+
+You may now start to install supporting Python3 packages (TVM has dropped the support for Python2), specifically, they are `numpy`, `attrs` and `decorator`.
+
+> Note: You might fail to install `numpy` by using `pip3` on the DE10-Nano device. 
+> In that case, you have the option to either build your own filesystem image for the board from [meta-de10-nano](https://github.com/intel/meta-de10-nano) repository; 
+> an alternative option is to download prebuilt packages from existing Linux distributions, e.g. Debian.
+> For a quick fix, we have concatenated the supplementary binary files [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/rootfs_supplement.tgz), and you can extract the files into the root filesystem.
+
+#### Install Required Python Packages
+
+After accessing bash terminal from the serial port, we need to install required Python packages before building and installing TVM and VTA programs.
+
+#### Build Additional Components to Use VTA Bitstream
+
+To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
+Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
+
 ## VTA FPGA Toolchain Installation
 
-This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel compilation toolchains.
+This last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx or Intel compilation toolchains.
 
 ### Xilinx Toolchain Installation
 
-We recommend using `Vivado 2019.1` since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using `Vivado 2018.3` since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2019.1](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPACK 2018.3](https://www.xilinx.com/products/design-tools/vivado.html), which a license-free version of the Vivado HLx toolchain.
 
 #### Obtaining and Launching the Vivado GUI Installer
 
-1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2019-1.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2019.1: WebPACK and Editions.
+1. Go to the [download webpage](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-3.html), and download the Linux Self Extracting Web Installer for Vivado HLx 2018.3: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin`.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called `Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin`.
 4. Now that the file is downloaded, go to your `Downloads` directory, and change the file permissions so it can be executed:
 ```bash
-chmod u+x Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
+chmod u+x Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 5. Now you can execute the binary:
 ```bash
-./Xilinx_Vivado_SDK_Web_2019.1_0524_1430_Lin64.bin
+./Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
 ```
 
 #### Xilinx Vivado GUI Installer Steps
 
-At this point you've launched the Vivado 2019.1 Installer GUI program.
+At this point you've launched the Vivado 2018.3 Installer GUI program.
 
 1. Click “Next” on the *Welcome* screen.
 2. On the *Select Install Type* screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next” .
@@ -231,8 +303,8 @@ At this point you've launched the Vivado 2019.1 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2019.1 environment
-export XILINX_VIVADO=${XILINX_PATH}/Vivado/2019.1
+# Xilinx Vivado 2018.3 environment
+export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 ```
 
@@ -303,7 +375,7 @@ Once the compilation completes, the generated bitstream can be found under `<tvm
 
 ### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
 
@@ -322,50 +394,6 @@ make
 This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
 Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
-
-#### Flash SD Card and Boot Angstrom Linux
-
-To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate to the [Resource](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4) tab of the DE10-Nano product page from Terasic Inc.
-After registeration and login on the webpage, the prebuild Angstrom Linux image would be available for downloading and flashing.
-Specifically, to flash the downloaded Linux SD card image into your physical SD card:
-
-First, extract the gzipped archive file.
-
-``` bash
-tar xf de10-nano-image-Angstrom-v2016.12.socfpga-sdimg.2017.03.31.tgz
-```
-
-This would produce a single SD card image named `de10-nano-image-Angstrom-v2016.12.socfpga-sdimg` (approx. 2.4 GB), it contains all the file systems to boot Angstrom Linux.
-
-Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`. 
-
-Then, flash the disk image into your physical SD card with the following command:
-
-``` bash
-# NOTE: root privilege is typically required to run the following command.
-dd if=de10-nano-image-Angstrom-v2016.12.socfpga-sdimg of=/dev/sdb status=progress
-```
-This would take a few minutes for your PC to write the whole file systems into the SD card.
-After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
-Now you can connect the power cable and serial port to boot the Angstrom Linux.
-
-#### Build Additional Components to Use VTA Bitstream
-
-To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
-Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
-
-For easier program debugging (e.g. `metal_test` program at `vta/tests/hardware/metal_test`), it is also recommended to install `gdbserver` on you device. For instance, you can start your program on the device by runninng:
-
-``` bash
-gdbserver localhost:4444 ./metal_test
-```
-, and then you can set break points and print values of desired varilables on the host:
-``` bash
-gdb-multiarch --fullname metal_test
-(gdb) target remote <device-ip>:4444
-```
-
-In addition, to enable fully featured VTA for DE10-Nano, you would also need `python3-numpy`, `python3-decorate`, `python3-attrs` to be cross-compiled.
 
 ### Use the Custom Bitstream
 

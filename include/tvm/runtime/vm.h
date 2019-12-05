@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/runtime/vm.h
  * \brief A virtual machine for executing Relay programs.
  */
@@ -27,6 +26,7 @@
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -35,6 +35,46 @@
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+/*! \brief An object containing an NDArray. */
+class TensorObj : public Object {
+ public:
+  /*! \brief The NDArray. */
+  NDArray data;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kVMTensor;
+  static constexpr const char* _type_key = "vm.Tensor";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorObj, Object);
+};
+
+/*! \brief reference to tensor. */
+class Tensor : public ObjectRef {
+ public:
+  explicit Tensor(NDArray data);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
+};
+
+/*! \brief An object representing a closure. */
+class ClosureObj : public Object {
+ public:
+  /*! \brief The index into the VM function table. */
+  size_t func_index;
+  /*! \brief The free variables of the closure. */
+  std::vector<ObjectRef> free_vars;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kVMClosure;
+  static constexpr const char* _type_key = "vm.Closure";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClosureObj, Object);
+};
+
+/*! \brief reference to closure. */
+class Closure : public ObjectRef {
+ public:
+  Closure(size_t func_index, std::vector<ObjectRef> free_vars);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
+};
 
 /*! \brief Magic number for NDArray list file  */
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
@@ -60,7 +100,7 @@ enum class Opcode {
   InvokePacked = 4U,
   AllocTensor = 5U,
   AllocTensorReg = 6U,
-  AllocDatatype = 7U,
+  AllocADT = 7U,
   AllocClosure = 8U,
   GetField = 9U,
   If = 10U,
@@ -69,6 +109,7 @@ enum class Opcode {
   GetTag = 13U,
   LoadConsti = 14U,
   Fatal = 15U,
+  AllocStorage = 16U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -89,6 +130,8 @@ struct Instruction {
 
   union {
     struct /* AllocTensor Operands */ {
+      /*! \brief The storage to allocate from. */
+      RegName storage;
       /*! \brief The number of dimensions. */
       uint32_t ndim;
       /*! \brief The shape of tensor. */
@@ -97,6 +140,8 @@ struct Instruction {
       DLDataType dtype;
     } alloc_tensor;
     struct /* AllocTensorReg Operands */ {
+      /*! \brief The storage to allocate from. */
+      RegName storage;
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
       /*! \brief The datatype of tensor to be allocated. */
@@ -168,7 +213,7 @@ struct Instruction {
       /*! \brief The register to project from. */
       RegName object;
     } get_tag;
-    struct /* AllocDatatype Operands */ {
+    struct /* AllocADT Operands */ {
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
       /*! \brief The number of fields to store in the datatype. */
@@ -184,116 +229,155 @@ struct Instruction {
       /*! \brief The free variables as an array. */
       RegName* free_vars;
     };
+    struct /* AllocStorage Operands */ {
+      /*! \brief The size of the allocation. */
+      RegName allocation_size;
+      /*! \brief The alignment of the allocation. */
+      RegName alignment;
+      /*! \brief The hint of the dtype. */
+      DLDataType dtype_hint;
+    } alloc_storage;
   };
 
-  /*! \brief Construct a return instruction.
-   *  \param return_reg The register containing the return value.
-   *  \return The return instruction.
-   * */
+  /*!
+   * \brief Construct a return instruction.
+   * \param return_reg The register containing the return value.
+   * \return The return instruction.
+   */
   static Instruction Ret(RegName return_reg);
-  /*! \brief Construct a fatal instruction.
-   *  \return The fatal instruction.
-   * */  
+  /*!
+   * \brief Construct a fatal instruction.
+   * \return The fatal instruction.
+   */
   static Instruction Fatal();
-  /*! \brief Construct a invoke packed instruction.
-   *  \param packed_index The index of the packed function.
-   *  \param arity The arity of the function.
-   *  \param output_size The number of outputs of the packed function.
-   *  \param args The argument registers.
-   *  \return The invoke packed instruction.
+  /*!
+   * \brief Construct a invoke packed instruction.
+   * \param packed_index The index of the packed function.
+   * \param arity The arity of the function.
+   * \param output_size The number of outputs of the packed function.
+   * \param args The argument registers.
+   * \return The invoke packed instruction.
    */
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
                                   const std::vector<RegName>& args);
-  /*! \brief Construct an allocate tensor instruction with constant shape.
-   *  \param shape The shape of the tensor.
-   *  \param dtype The dtype of the tensor.
-   *  \param dst The destination register.
-   *  \return The allocate tensor instruction.
+  /*!
+   * \brief Construct an allocate tensor instruction with constant shape.
+   * \param storage The storage to allocate out of.
+   * \param shape The shape of the tensor.
+   * \param dtype The dtype of the tensor.
+   * \param dst The destination register.
+   * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(std::vector<int64_t> shape, DLDataType dtype, RegName dst);
-  /*! \brief Construct an allocate tensor instruction with register.
-   *  \param shape_register The register containing the shape.
-   *  \param dtype The dtype of the tensor.
-   *  \param dst The destination register.
-   *  \return The allocate tensor instruction.
+  static Instruction AllocTensor(RegName storage,
+                                 const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
+  /*!
+   * \brief Construct an allocate tensor instruction with register.
+   * \param storage The storage to allocate out of.
+   * \param shape_register The register containing the shape.
+   * \param dtype The dtype of the tensor.
+   * \param dst The destination register.
+   * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName shape_register, DLDataType dtype, RegName dst);
-  /*! \brief Construct an allocate datatype instruction.
-   *  \param tag The datatype tag.
-   *  \param num_fields The number of fields for the datatype.
-   *  \param fields The registers containing the fields.
-   *  \param dst The register name of the destination.
-   *  \return The allocate instruction tensor.
+  static Instruction AllocTensorReg(RegName storage,
+                                    RegName shape_register, DLDataType dtype, RegName dst);
+  /*!
+   * \brief Construct an allocate datatype instruction.
+   * \param tag The datatype tag.
+   * \param num_fields The number of fields for the datatype.
+   * \param fields The registers containing the fields.
+   * \param dst The register name of the destination.
+   * \return The allocate instruction tensor.
    */
-  static Instruction AllocDatatype(Index tag, Index num_fields, const std::vector<RegName>& fields,
-                                   RegName dst);
-  /*! \brief Construct an allocate closure instruction.
-   *  \param func_index The index of the function table.
-   *  \param num_freevar The number of free variables.
-   *  \param free_vars The registers of the free variables.
-   *  \param dst The destination register.
-   *  \return The allocate closure instruction.
+  static Instruction AllocADT(Index tag, Index num_fields, const std::vector<RegName>& fields,
+                              RegName dst);
+  /*!
+   * \brief Construct an allocate closure instruction.
+   * \param func_index The index of the function table.
+   * \param num_freevar The number of free variables.
+   * \param free_vars The registers of the free variables.
+   * \param dst The destination register.
+   * \return The allocate closure instruction.
    */
   static Instruction AllocClosure(Index func_index, Index num_freevar,
                                   const std::vector<RegName>& free_vars, RegName dst);
-  /*! \brief Construct a get field instruction.
-   *  \param object_reg The register containing the object to project from.
-   *  \param field_index The field to read out of the object.
-   *  \param dst The destination register.
-   *  \return The get field instruction.
+  /*!
+   * \brief Construct a get field instruction.
+   * \param object_reg The register containing the object to project from.
+   * \param field_index The field to read out of the object.
+   * \param dst The destination register.
+   * \return The get field instruction.
    */
   static Instruction GetField(RegName object_reg, Index field_index, RegName dst);
-  /*! \brief Construct a get_tag instruction.
-   *  \param object_reg The register containing the object to project from.
-   *  \param dst The destination register.
-   *  \return The get_tag instruction.
+  /*!
+   * \brief Construct a get_tag instruction.
+   * \param object_reg The register containing the object to project from.
+   * \param dst The destination register.
+   * \return The get_tag instruction.
    */
   static Instruction GetTag(RegName object_reg, RegName dst);
-  /*! \brief Construct an if instruction.
-   *  \param test The register containing the test value.
-   *  \param target The register containing the target value.
-   *  \param true_branch The offset to the true branch.
-   *  \param false_branch The offset to the false branch.
-   *  \return The if instruction.
+  /*!
+   * \brief Construct an if instruction.
+   * \param test The register containing the test value.
+   * \param target The register containing the target value.
+   * \param true_branch The offset to the true branch.
+   * \param false_branch The offset to the false branch.
+   * \return The if instruction.
    */
   static Instruction If(RegName test, RegName target, Index true_branch, Index false_branch);
-  /*! \brief Construct a goto instruction.
-   *  \param pc_offset The offset from the current pc.
-   *  \return The goto instruction.
+  /*!
+   * \brief Construct a goto instruction.
+   * \param pc_offset The offset from the current pc.
+   * \return The goto instruction.
    */
   static Instruction Goto(Index pc_offset);
-  /*! \brief Construct an invoke instruction.
-   *  \param func_index The index of the function to invoke.
-   *  \param args The registers containing the arguments.
-   *  \param dst The destination register.
-   *  \return The invoke instruction.
+  /*!
+   * \brief Construct an invoke instruction.
+   * \param func_index The index of the function to invoke.
+   * \param args The registers containing the arguments.
+   * \param dst The destination register.
+   * \return The invoke instruction.
    */
   static Instruction Invoke(Index func_index, const std::vector<RegName>& args, RegName dst);
-  /*! \brief Construct an invoke closure instruction.
-   *  \param closure The register of the closure to invoke.
-   *  \param args The registers containing the arguments.
-   *  \param dst The destination register.
-   *  \return The invoke closure instruction.
+  /*!
+   * \brief Construct an invoke closure instruction.
+   * \param closure The register of the closure to invoke.
+   * \param args The registers containing the arguments.
+   * \param dst The destination register.
+   * \return The invoke closure instruction.
    */
   static Instruction InvokeClosure(RegName closure, const std::vector<RegName>& args, RegName dst);
-  /*! \brief Construct a load constant instruction.
-   *  \param const_index The index of the constant.
-   *  \param dst The destination register.
-   *  \return The load constant instruction.
+  /*!
+   * \brief Construct a load constant instruction.
+   * \param const_index The index of the constant.
+   * \param dst The destination register.
+   * \return The load constant instruction.
    */
   static Instruction LoadConst(Index const_index, RegName dst);
-  /*! \brief Construct a load_constanti instruction.
-   *  \param val The interger constant value.
-   *  \param dst The destination register.
-   *  \return The load_constanti instruction.
+  /*!
+   * \brief Construct a load_constanti instruction.
+   * \param val The interger constant value.
+   * \param dst The destination register.
+   * \return The load_constanti instruction.
    */
   static Instruction LoadConsti(Index val, RegName dst);
-  /*! \brief Construct a move instruction.
-   *  \param src The source register.
-   *  \param dst The destination register.
-   *  \return The move instruction.
+  /*!
+   * \brief Construct a move instruction.
+   * \param src The source register.
+   * \param dst The destination register.
+   * \return The move instruction.
    */
   static Instruction Move(RegName src, RegName dst);
+
+  /*!
+   * \brief Allocate a storage block.
+   * \param size The size of the allocation.
+   * \param alignment The allocation's alignment.
+   * \param dtype_hint The data type hint for the allocator.
+   * \param dst The destination to place the storage.
+   * \return The alloc storage instruction.
+   */
+  static Instruction AllocStorage(RegName size, RegName alignment,
+                                  DLDataType dtype_hint, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
@@ -303,7 +387,8 @@ struct Instruction {
   friend std::ostream& operator<<(std::ostream& os, const Instruction&);
 };
 
-/*! \brief A representation of a Relay function in the VM.
+/*!
+ * \brief A representation of a Relay function in the VM.
  *
  * Contains metadata about the compiled function, as
  * well as the compiled VM instructions.
@@ -331,7 +416,8 @@ struct VMFunction {
   friend std::ostream& operator<<(std::ostream& os, const VMFunction&);
 };
 
-/*! \brief A representation of a stack frame.
+/*!
+ * \brief A representation of a stack frame.
  *
  * A stack frame is a record containing the information needed
  * to restore the caller's virtual machine state after returning
@@ -348,7 +434,7 @@ struct VMFrame {
   const Instruction* code;
 
   /*! \brief Statically allocated space for objects */
-  std::vector<Object> register_file;
+  std::vector<ObjectRef> register_file;
 
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
@@ -362,15 +448,202 @@ struct VMFrame {
         caller_return_register(0) {}
 };
 
-/*! \brief The virtual machine.
+/*!
+ * \brief The executable emitted by the VM compiler.
+ *
+ * The executable contains information (e.g. data in different memory regions)
+ * to run in a virtual machine.
+ *
+ *  - Global section, containing all globals.
+ *  - Constant section, storing the constant pool.
+ *  - Primitive name section, containing the function name of the primitive ops
+ *  used by the virtual machine.
+ *  - Code section, handling the VM functions and bytecode.
+ */
+class Executable : public ModuleNode {
+ public:
+  /*!
+   * \brief Get a PackedFunc from an executable module.
+   *
+   * \param name the name of the function.
+   * \param sptr_to_self The shared_ptr that points to this module node.
+   *
+   * \return PackedFunc or nullptr when it is not available.
+   */
+  PackedFunc GetFunction(const std::string& name,
+                         const ObjectPtr<Object>& sptr_to_self) final;
+
+  /*!
+   * \brief Serialize the executable into global section, constant section, and
+   * code section.
+   *
+   * \return The binary representation of the VM.
+   */
+  TVMByteArray Save();
+
+  /*!
+   * \brief Load the saved VM executable.
+   *
+   * \param code The bytecode in string.
+   * \param lib The compiled runtime library.
+   *
+   * \return exe The constructed executable.
+   */
+  static runtime::Module Load(const std::string& code, const runtime::Module lib);
+
+  /*!
+   * \brief Get the serialized form of the `functions`. This is
+   * essentially bytecode serialization.
+   *
+   * \return The serialized vm bytecode.
+   *
+   * \note The bytecode is in the following format:
+   *   func_name reg_file_size num_instructions
+   *   param1 param2 ... paramM
+   *   instruction1
+   *   instruction2
+   *   ...
+   *   instructionN
+   *
+   * Each instruction is printed in the following format:
+   *   opcode num_fields field1 ... fieldX # The text format.
+   *
+   * Serializing an `Instruction` requires us to deal with the bytecode. Each line
+   * of the instructions could be serialized as the following format:
+   *   hash, opcode, f1, f2, ..., fX, field with variable length
+   *   1. hash: the hash of the instruction. This number will be used to help us
+   * validate if an instruction is well-formed during deserialization.
+   *   2. opcode: the opcode code of the instruction.
+   *   3. f1, f2, ..., fX. These fields together represent the fixed fields in
+   * an instruction, e.g., `from` and `dst` fields of a `Move` instruction. For
+   * example, `DLDataType` will be unpacked into three fields (code, bits, lanes).
+   *   4. The rest of the line indicates the field with variable length, e.g.,
+   * the shape of a tensor, the args used by an `InvokPacked` instruction, etc.
+
+   * The field starting from # is only used for debugging. The serialized code
+   * doesn't contain it, therefore the deserializer doens't need to handle it.
+   */
+  std::string GetBytecode() const;
+
+  /*!
+   * \brief Print the detailed statistics of the given code, i.e. number of
+   * globls and constants, etc.
+   */
+  std::string Stats() const;
+
+  /*!
+   * \brief Get the `lib` module in an executable. Users have the flexibility to call
+   * `export_library` from the frontend to save the library to disk.
+   *
+   * \return The runtime module that contains the hardwre dependent code.
+   */
+  runtime::Module GetLib() const { return lib; }
+
+  /*!
+   * \brief Get the arity of the VM Fucntion.
+   * \param func Function name.
+   * \return The number of parameters.
+   */
+  int GetFunctionArity(std::string func) const;
+
+  /*!
+   * \brief Get the parameter name given the function name and parameter index.
+   * \param func Function name.
+   * \param index Parameter index.
+   * \return The parameter name.
+   */
+  std::string GetFunctionParameterName(std::string func, uint32_t index) const;
+
+  virtual ~Executable() {}
+
+  const char* type_key() const final {
+    return "VMExecutable";
+  }
+
+  /*! \brief The runtime module/library that contains both the host and also the device
+   * code when executing on non-CPU devices. */
+  runtime::Module lib;
+  /*! \brief The global constant pool. */
+  std::vector<ObjectRef> constants;
+  /*! \brief A map from globals (as strings) to their index in the function map. */
+  std::unordered_map<std::string, Index> global_map;
+  /*! \brief A mapping from the packed function (as string) to the index that
+   * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
+   */
+  std::unordered_map<std::string, Index> primitive_map;
+  /*! \brief The virtual machine's function table. */
+  std::vector<VMFunction> functions;
+
+ private:
+  /*!
+   * \brief Save the globals.
+   *
+   * \param strm The input stream.
+   */
+  void SaveGlobalSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Save the constant pool.
+   *
+   * \param strm The input stream.
+   */
+  void SaveConstantSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Save primitive op names.
+   *
+   *  \param strm The input stream.
+   */
+  void SavePrimitiveOpNames(dmlc::Stream* strm);
+
+  /*!
+   * \brief Save the vm functions.
+   *
+   * \param strm The input stream.
+   */
+  void SaveCodeSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the globals.
+   *
+   * \param strm The input stream.
+   */
+  void LoadGlobalSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the constant pool.
+   *
+   * \param strm The input stream.
+   */
+  void LoadConstantSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load primitive op names.
+   *
+   * \param strm The input stream.
+   */
+  void LoadPrimitiveOpNames(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the vm functions.
+   *
+   * \param strm The input stream.
+   */
+  void LoadCodeSection(dmlc::Stream* strm);
+
+  /*! \brief The serialized bytecode. */
+  std::string code_;
+};
+
+/*!
+ * \brief The virtual machine.
  *
  * The virtual machine contains all the current execution state,
- * as well as the global view of functions, the global constant
- * table, the compiled operators.
+ * as well as the executable.
  *
  * The goal is to have a single self-contained object,
  * enabling one to easily pass around VMs, execute them on
- * multiple threads, or serialized them to disk or over the
+ * multiple threads, or serialize them to disk or over the
  * wire.
  */
 class VirtualMachine : public runtime::ModuleNode {
@@ -393,7 +666,88 @@ class VirtualMachine : public runtime::ModuleNode {
    *   it should capture sptr_to_self.
    */
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+                                 const ObjectPtr<Object>& sptr_to_self);
+
+  virtual ~VirtualMachine() {}
+
+  const char* type_key() const final {
+    return "VirtualMachine";
+  }
+
+  VirtualMachine() : frames_(), func_index_(0), code_(nullptr), pc_(0), exec_(nullptr) {}
+
+  /*!
+   * \brief load the executable for the virtual machine.
+   * \param exec The executable.
+   */
+  virtual void LoadExecutable(const Executable* exec);
+
+ protected:
+  /*! \brief The virtual machine's packed function table. */
+  std::vector<PackedFunc> packed_funcs_;
+  /*! \brief The current stack of call frames. */
+  std::vector<VMFrame> frames_;
+  /*! \brief The fuction table index of the current function. */
+  Index func_index_;
+  /*! \brief The current pointer to the code section. */
+  const Instruction* code_;
+  /*! \brief The virtual machine PC. */
+  Index pc_;
+  /*! \brief The special return register. */
+  ObjectRef return_register_;
+  /*! \brief The executable the VM will operate on. */
+  const Executable* exec_;
+  /*! \brief The function name to inputs mapping. */
+  std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
+  /*! \brief The set of TVM contexts the VM is currently executing on. */
+  std::vector<TVMContext> ctxs_;
+
+  /*! \brief Push a call frame on to the call stack. */
+  void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
+
+  /*!
+   * \brief Pop a frame off the call stack.
+   * \return The number of frames left.
+   */
+  Index PopFrame();
+
+  /*!
+   * \brief Write to a VM register.
+   * \param reg The register to write to.
+   * \param obj The object to write to.
+   */
+  inline void WriteRegister(RegName reg, const ObjectRef& obj);
+
+  /*!
+   * \brief Read a VM register.
+   * \param reg The register to read from.
+   * \return The read object.
+   */
+  inline ObjectRef ReadRegister(RegName reg) const;
+
+  /*!
+   * \brief Read a VM register and cast it to int32_t
+   * \param reg The register to read from.
+   * \return The read scalar.
+   */
+  int32_t LoadScalarInt(RegName reg) const;
+
+  /*!
+   * \brief Invoke a VM function.
+   * \param func The function.
+   * \param args The arguments to the function.
+   * \return The object representing the result.
+   */
+  ObjectRef Invoke(const VMFunction& func, const std::vector<ObjectRef>& args);
+
+  // TODO(@jroesch): I really would like this to be a global variable.
+  /*!
+   * \brief Invoke a VM function by name.
+   * \param name The function's name.
+   * \param args The arguments to the function.
+   * \return The object representing the result.
+   */
+  ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
 
   /*!
    * \brief Invoke a PackedFunction
@@ -406,118 +760,37 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * \note The return value will be stored in the last output_size slots of args.
    */
-  virtual void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                            Index output_size, const std::vector<Object>& args);
+  virtual void InvokePacked(Index packed_index,
+                            const PackedFunc& func,
+                            Index arg_count,
+                            Index output_size,
+                            const std::vector<ObjectRef>& args);
 
-  virtual ~VirtualMachine() {}
-
-  const char* type_key() const final {
-    return "VirtualMachine";
-  }
-
-  /*! \brief The runtime module/library that contains generated code. */
-  runtime::Module lib;
-  /*! \brief The virtual machine's packed function table. */
-  std::vector<PackedFunc> packed_funcs;
-  /*! \brief The virtual machine's function table. */
-  std::vector<VMFunction> functions;
-  /*! \brief The current stack of call frames. */
-  std::vector<VMFrame> frames;
-  /*! \brief The global constant pool. */
-  std::vector<Object> constants;
-  /*! \brief The fuction table index of the current function. */
-  Index func_index;
-  /*! \brief The current pointer to the code section. */
-  const Instruction* code;
-  /*! \brief The virtual machine PC. */
-  Index pc;
-
-  /*! \brief The special return register. */
-  Object return_register;
-
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs;
-
-  /*! \brief Push a call frame on to the call stack. */
-  void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
-  /*! \brief Pop a frame off the call stack.
-   *  \return The number of frames left.
-   */
-  Index PopFrame();
-
-  /*! \brief Write to a VM register.
-   *  \param reg The register to write to.
-   *  \param obj The object to write to.
-   */
-  inline void WriteRegister(RegName reg, const Object& obj);
-
-  /*! \brief Read a VM register.
-   *  \param reg The register to read from.
-   *  \return The read object.
-   */
-  inline Object ReadRegister(RegName reg) const;
-
-  /*! \brief Read a VM register and cast it to int32_t
-   *  \param reg The register to read from.
-   *  \return The read scalar.
-   */
-  int32_t LoadScalarInt(RegName reg) const;
-
-  /*! \brief Invoke a VM function.
-   * \param func The function.
-   * \param args The arguments to the function.
-   * \return The object representing the result.
-   */
-  Object Invoke(const VMFunction& func, const std::vector<Object>& args);
-
-  // TODO(@jroesch): I really would like this to be a global variable.
-  /*! \brief Invoke a VM function by name.
-   * \param name The function's name.
-   * \param args The arguments to the function.
-   * \return The object representing the result.
-   */
-  Object Invoke(const std::string& name, const std::vector<Object>& args);
-
-  VirtualMachine() : functions(), frames(), func_index(0), code(nullptr), pc(0) {}
-
-  /*! \brief Initialize the virtual machine for a set of contexts.
-   *  \param contexts The set of TVM contexts.
+  /*!
+   * \brief Initialize the virtual machine for a set of contexts.
+   * \param contexts The set of TVM contexts.
    */
   void Init(const std::vector<TVMContext>& contexts);
 
-  /*! \brief Run VM dispatch loop.
-   */
+  /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get device context for params.
-   */
+  /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
 
-  /*!
-   * \brief Load parameters from the parameter bytearray.
-   * \param params The binary file that contains parameters.
-   */
-  void LoadParams(const std::string& params);
-
-  /*! \brief A map from globals (as strings) to their index in the function map.
-   */
-  std::unordered_map<std::string, Index> global_map;
-
-  /*! \brief A mapping from the packed function (as string) to the index that
-   * corresponds to the position of the `packed_funcs` list.
-   */
-  std::unordered_map<std::string, Index> primitive_map;
-
  private:
-  /*! \brief Invoke a global setting up the VM state to execute.
+  /*!
+   * \brief Invoke a global setting up the VM state to execute.
    *
    * This does not begin execution of the VM.
    */
-  void InvokeGlobal(const VMFunction& func, const std::vector<Object>& args);
+  void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
 
-
-  /*! \brief The parameter name to data mapping. */
-  std::unordered_map<std::string, Object> params_;
+  /*!
+   * \brief The constant pool for runtime. It caches the device dependent
+   * object to avoid rellocation of constants during inference.
+   */
+  std::vector<ObjectRef> const_pool_;
 };
 
 }  // namespace vm

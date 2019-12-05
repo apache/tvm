@@ -27,10 +27,12 @@
 #include <string>
 #include <algorithm>
 #include <unordered_map>
+#include <iostream>
 #include "base.h"
 #include "dtype.h"
+#include "node/node.h"
 #include "node/container.h"
-#include "node/ir_functor.h"
+#include "node/functor.h"
 #include "runtime/c_runtime_api.h"
 
 namespace tvm {
@@ -49,7 +51,7 @@ class ExprNode : public Node {
 class Expr : public NodeRef {
  public:
   Expr() {}
-  explicit Expr(NodePtr<Node> ptr) : NodeRef(ptr) {}
+  explicit Expr(ObjectPtr<Object> ptr) : NodeRef(ptr) {}
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
@@ -92,7 +94,7 @@ class Var;
 /*!
  * \brief A variable node in the IR.
  *
- * A vraible is uniquely identified by its address.
+ * A variable is uniquely identified by its address.
  *
  * Each variable is only binded once in the following nodes:
  * - Allocate
@@ -110,7 +112,7 @@ class Variable : public ExprNode {
 
   static Var make(DataType dtype, std::string name_hint);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("name", &name_hint);
   }
@@ -122,7 +124,7 @@ class Variable : public ExprNode {
 /*! \brief a named variable in TVM */
 class Var : public Expr {
  public:
-  explicit Var(NodePtr<Node> n) : Expr(n) {}
+  explicit Var(ObjectPtr<Object> n) : Expr(n) {}
   TVM_DLL explicit Var(std::string name_hint = "v",
                        Type t = Int(32));
   /*!
@@ -145,7 +147,7 @@ class Var : public Expr {
    * \return the corresponding Variable.
    */
   const Variable* get() const {
-    return static_cast<Variable*>(node_.get());
+    return static_cast<const Variable*>(data_.get());
   }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
@@ -164,7 +166,7 @@ class IntImm : public ExprNode {
   /*! \brief the Internal value. */
   int64_t value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
   }
@@ -187,7 +189,7 @@ class Integer : public Expr {
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(NodePtr<Node> node) : Expr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : Expr(node) {}
   /*!
    * \brief Construct integer from int value.
    */
@@ -197,7 +199,7 @@ class Integer : public Expr {
    * \param other another expression.
    */
   Integer& operator=(const Integer& other) {
-    node_ = other.node_;
+    data_ = other.data_;
     return *this;
   }
   /*!
@@ -205,13 +207,13 @@ class Integer : public Expr {
    * \return the content of the integer.
    */
   const IntImm* operator->() const {
-    return static_cast<const IntImm*>(node_.get());
+    return static_cast<const IntImm*>(get());
   }
   /*!
    * \brief convert to int64_t
    */
   operator int64_t() const {
-    CHECK(node_ != nullptr)
+    CHECK(data_ != nullptr)
         << " Trying to reference a null Integer";
     return (*this)->value;
   }
@@ -230,7 +232,7 @@ class RangeNode : public Node {
   RangeNode() {}
   RangeNode(Expr min, Expr extent) : min(min), extent(extent) {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("min", &min);
     v->Visit("extent", &extent);
   }
@@ -346,7 +348,7 @@ class IterVar : public NodeRef {
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(NodePtr<Node> n) : NodeRef(n) {}
+  explicit IterVar(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -406,7 +408,7 @@ class IterVarNode : public Node {
    */
   std::string thread_tag;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
     v->Visit("var", &var);
     v->Visit("iter_type", &iter_type);
@@ -423,7 +425,7 @@ class IterVarNode : public Node {
 
 // inline implementations
 inline const IterVarNode* IterVar::operator->() const {
-  return static_cast<const IterVarNode*>(node_.get());
+  return static_cast<const IterVarNode*>(data_.get());
 }
 
 inline IterVar::operator Expr() const {
@@ -481,16 +483,16 @@ class IRPrinter {
       : stream(stream) {}
 
   /*! \brief The node to be printed. */
-  TVM_DLL void Print(const NodeRef& node);
+  TVM_DLL void Print(const ObjectRef& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
-  using FType = IRFunctor<void(const NodeRef&, IRPrinter *)>;
+  using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
   TVM_DLL static FType& vtable();
 };
 
 // default print function for all nodes
-inline std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
   IRPrinter(os).Print(n);
   return os;
 }
@@ -498,10 +500,7 @@ inline std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT
 
 namespace std {
 template <>
-struct hash<::tvm::IterVar> {
-  std::size_t operator()(const ::tvm::IterVar& k) const {
-    return k.hash();
-  }
+struct hash<::tvm::IterVar> : public ::tvm::NodeHash {
 };
 }
 #endif  // TVM_EXPR_H_

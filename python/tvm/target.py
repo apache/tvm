@@ -128,6 +128,16 @@ class Target(NodeBase):
                 return opt.value[7:]
         return 'unknown'
 
+    @property
+    def mcpu(self):
+        """Returns the mcpu from the target if it exists."""
+        mcpu = ''
+        if self.options is not None:
+            for opt in self.options:
+                if 'mcpu' in opt:
+                    mcpu = opt.split('=')[1]
+        return mcpu
+
     def __enter__(self):
         _api_internal._EnterTargetScope(self)
         return self
@@ -465,6 +475,7 @@ def arm_cpu(model='unknown', options=None):
         "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
         "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
         "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf -mattr=+neon"],
         "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
         "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
@@ -494,6 +505,19 @@ def vta(model='unknown', options=None):
     opts = _merge_opts(opts, options)
     ret = _api_internal._TargetCreate("ext_dev", *opts)
     return ret
+
+
+def bifrost(model='unknown', options=None):
+    """Return an ARM Mali GPU target (Bifrost architecture).
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    opts = ["-device=bifrost", '-model=%s' % model]
+    opts = _merge_opts(opts, options)
+    return _api_internal._TargetCreate("opencl", *opts)
 
 
 def create(target_str):

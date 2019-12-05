@@ -1,8 +1,24 @@
-"""VTA Package is a TVM backend extension to support VTA hardwares
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-Besides the compiler toolchain.
-It also include utility functions to
-configure the hardware Environment and  access remote through RPC
+"""VTA Package is a TVM backend extension to support VTA hardware.
+
+Besides the compiler toolchain, it also includes utility functions to
+configure the hardware environment and access remote device through RPC.
 """
 from __future__ import absolute_import as _abs
 
@@ -14,9 +30,8 @@ from .rpc_client import reconfig_runtime, program_fpga
 
 __version__ = "0.1.0"
 
-# do not import nnvm/topi when running vta.exec.rpc_server
+# do not import topi when running vta.exec.rpc_server
 # to maintain minimum dependency on the board
 if sys.argv[0] not in ("-c", "-m"):
     from . import top
     from .build_module import build_config, lower, build
-    from . import graph

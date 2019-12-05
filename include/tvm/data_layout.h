@@ -104,7 +104,7 @@ class LayoutNode : public Node {
    */
   Array<IterVar> axes;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("axes", &axes);
   }
@@ -127,7 +127,7 @@ class LayoutNode : public Node {
  */
 class Layout : public NodeRef {
  public:
-  explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Layout(ObjectPtr<Object> n) : NodeRef(n) {}
 
   /*! \brief default constructor */
   Layout() = default;
@@ -152,7 +152,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   const LayoutNode* operator->() const {
-    return static_cast<const LayoutNode*>(node_.get());
+    return static_cast<const LayoutNode*>(get());
   }
 
   /*!
@@ -160,7 +160,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   LayoutNode* operator->() {
-    return static_cast<LayoutNode*>(node_.get());
+    return static_cast<LayoutNode*>(get_mutable());
   }
 
   /*!
@@ -208,6 +208,28 @@ class Layout : public NodeRef {
       }
     }
     return ct;
+  }
+
+  /*!
+   * \brief Returns a new layout where the dims have been expanded to match the primal dimensions.
+   * \param dst_layout The dst layout to which current layout has to be expanded.
+   * \return The expanded Layout.
+   */
+  inline Layout ExpandPrimal(const Layout& dst_layout) {
+    Layout new_src_layout;
+    // 1) Find the axis which are missing in the current layout. Make them the prefix.
+    std::string new_src_layout_str = "";
+    for (auto dst_axis : dst_layout->axes) {
+      if (LayoutAxis::Get(dst_axis).IsPrimal()) {
+        if (!this->Contains(LayoutAxis::Get(dst_axis))) {
+          new_src_layout_str += dst_axis->var->name_hint;
+        }
+      }
+    }
+    // 2) Now, add the primal axis of the current layout.
+    new_src_layout_str += this->name();
+    new_src_layout = Layout(new_src_layout_str);
+    return new_src_layout;
   }
 
   /*!
@@ -303,7 +325,7 @@ class BijectiveLayoutNode : public Node {
   /*! \brief The destination layout */
   Layout dst_layout;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("src_layout", &src_layout);
     v->Visit("dst_layout", &dst_layout);
     v->Visit("forward_rule", &forward_rule);
@@ -347,7 +369,7 @@ class BijectiveLayout : public NodeRef {
 };
 
 inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
-  return static_cast<const BijectiveLayoutNode*>(node_.get());
+  return static_cast<const BijectiveLayoutNode*>(get());
 }
 
 }  // namespace tvm

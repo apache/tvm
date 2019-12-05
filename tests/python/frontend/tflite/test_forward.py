@@ -31,12 +31,14 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import variables
 try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
 
+from tvm.contrib.download import download_testdata
 import tvm.relay.testing.tf as tf_testing
 from packaging import version as package_version
 
@@ -121,7 +123,7 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 
 def compare_tflite_with_tvm(in_data, in_name, input_tensors,
-                            output_tensors, init_global_variables=False, out_names=None):
+                            output_tensors, init_global_variables=False, out_names=None, quantized=False):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
@@ -136,6 +138,18 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         # convert to tflite model
         converter = interpreter_wrapper.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
+
+        if quantized:
+            converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
+            input_arrays = converter.get_input_arrays()
+            input_stats = {}
+            # hardcode the mean_values and std_dev_values (m,s) to be the same
+            # if all inputs are in (float_min; float_max) == (-100, 100)
+            # s = 255/(fmax-fmin);  m = -fmin*s (the zero point)
+            for i in input_arrays:
+                input_stats[i] = (128., 1.275)
+            converter.quantized_input_stats = input_stats
+
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
@@ -147,8 +161,17 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
 
             tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device,
                                        num_output=len(out_names), out_names=out_names)
-            for i in range(len(tflite_output)):
-                tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
+            # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
+            # range for the specific operator. While adding test ensure that we aren't getting only clipped values
+            # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
+            if quantized:
+                for i in range(len(tflite_output)):
+                    # allow absolute tolerance of 1 in the quantized results
+                    tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1, rtol=1e-5)
+            else:
+                for i in range(len(tflite_output)):
+                    tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
 
 def with_fused_activation_function(input_tensor, fn_name):
@@ -229,6 +252,121 @@ def test_forward_transpose():
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), ())
 
+#######################################################################
+# Cast
+# --------
+
+def _test_cast(data, cast_dtype):
+    """ One iteration of CAST """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = math_ops.cast(in_data, cast_dtype)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_cast():
+    """ CAST """
+    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32)
+    _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8)
+    _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
+
+#######################################################################
+# tile
+# ---------
+
+
+def _test_forward_tile(in_shape, reps, dtype):
+    data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+
+        out = array_ops.tile(in_data, reps)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_tile():
+    _test_forward_tile((2, ), (3, ), "int32")
+    _test_forward_tile((2, 2), (2, 3), "float32")
+
+######################################################################
+# BatchToSpaceND
+# --------------
+
+
+def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype=dtype)
+
+        out = array_ops.batch_to_space_nd(in_data, block_shape, crops)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_batch_to_space_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 3],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 2, 2, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+######################################################################
+# SpaceToBatchND
+# --------------
+
+
+def _test_space_to_batch_nd(input_shape, block_shape, paddings, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype=dtype)
+
+        out = array_ops.space_to_batch_nd(in_data, block_shape, paddings)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_space_to_batch_nd():
+    # test cases: https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 3],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 4, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[2, 2, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [2, 0]]
+    )
 
 #######################################################################
 # Pooling
@@ -336,6 +474,61 @@ def test_forward_convolution():
     _test_convolution([4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True)
     _test_convolution([4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True)
     _test_convolution([4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True)
+    _test_convolution([4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC', True)
+
+
+#######################################################################
+# Transpose Convolution
+# ---------------------
+
+def _test_transpose_conv(tensor_in_sizes, filter_in_sizes, output_shape, strides, padding):
+    """ One iteration of transpose convolution with given shapes and attributes """
+
+    total_size_1 = 1
+    total_size_2 = 1
+    for s in tensor_in_sizes:
+        total_size_1 *= s
+    for s in filter_in_sizes:
+        total_size_2 *= s
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
+        strides = [1] + strides + [1]
+        # in_filter layout is HWOI
+        out = nn_ops.conv2d_transpose(in_data,
+                                      in_filter,
+                                      output_shape=output_shape,
+                                      strides=strides,
+                                      padding=padding)
+        data_array = np.reshape(data_array, tensor_in_sizes).astype('float32')
+        compare_tflite_with_tvm(data_array, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_transpose_conv():
+    # kernel 3x3, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 34, 34, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], 'VALID')
+
+    # kernel 2x2, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], 'VALID')
+
+    # kernel 1x1, padding VALID
+    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], 'VALID')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], 'VALID')
+
+    # kernel 1x1, padding SAME
+    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], 'SAME')
+    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], 'SAME')
 
 
 #######################################################################
@@ -428,34 +621,56 @@ def test_forward_concatenation():
 # Element-wise
 # ---
 
-def _test_elemwise(math_op, data, fused_activation_function=None):
+def _test_elemwise(math_op, data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of elemwise """
 
     assert len(data) == 2
 
     # Test with two tensors
     with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in_0'),
-                   array_ops.placeholder(shape=data[1].shape, dtype=data[1].dtype, name='in_1')]
-        out = math_op(in_data[0], in_data[1])
-        out = with_fused_activation_function(out, fused_activation_function)
-        compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0'),
+                   array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')]
+
+        if quantized:
+            # fake_quant will keep the tensors in float32 until the conversion in the session
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0"),
+                        tf.quantization.fake_quant_with_min_max_args(in_data[1], min=-100, max=100, name="inq_1")]
+            out = math_op(inq_data[0], inq_data[1])
+            out = with_fused_activation_function(out, fused_activation_function)
+            # set the quantized output range with respect to the operation
+            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
+            compare_tflite_with_tvm(data, ['inq_0:0', 'inq_1:0'], inq_data, [out], quantized=True)
+        else:
+            out = math_op(in_data[0], in_data[1])
+            out = with_fused_activation_function(out, fused_activation_function)
+            compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
 
     # Test with tensor and constant
     with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
-        out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
-        out = with_fused_activation_function(out, fused_activation_function)
-        compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in_0')]
 
+        if quantized:
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0")]
+            inq_const = tf.quantization.fake_quant_with_min_max_args(data[1], min=-100, max=100, name="const_tensor")
+            # the 2nd tensor is treated as constant and directly added as part of the operation
+            out = math_op(inq_data, ops.convert_to_tensor(inq_const, dtype='float32', name='inq_const'))
+            out = with_fused_activation_function(out, fused_activation_function)
+            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
+            compare_tflite_with_tvm(data[0], ['inq_0:0'], inq_data, [out], quantized=True)
+        else:
+            out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+            out = with_fused_activation_function(out, fused_activation_function)
+            compare_tflite_with_tvm(data[0], ['in_0:0'], in_data, [out])
 
 #######################################################################
 # Add
 # ---
 
-def _test_add(data, fused_activation_function=None):
+def _test_add(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of add """
-    return _test_elemwise(math_ops.add, data, fused_activation_function)
+    return _test_elemwise(math_ops.add, data, fused_activation_function, quantized, qnn_op)
 
 #######################################################################
 # Subtract
@@ -467,9 +682,10 @@ def _test_sub(data, fused_activation_function=None):
 #######################################################################
 # Mul
 # ---
-def _test_mul(data, fused_activation_function=None):
+
+def _test_mul(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of mul """
-    return _test_elemwise(math_ops.multiply, data, fused_activation_function)
+    return _test_elemwise(math_ops.multiply, data, fused_activation_function, quantized, qnn_op)
 
 #######################################################################
 # Divide
@@ -499,24 +715,47 @@ def _test_maximum(data):
 def _test_minimum(data):
     """ One iteration of minimum """
     return _test_elemwise(math_ops.minimum, data)
+#######################################################################
+# Greater
+# -------
+
+def _test_greater(data):
+    """ One iteration of greater """
+    return _test_elemwise(math_ops.greater, data)
 
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
-               np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3))])
+              np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3))])
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
                np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3))])
     testop([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
                np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3))])
 
+def _test_forward_elemwise_quantized(testop):
+    testop([np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8)], quantized=True, qnn_op=testop)
+
+def _test_elemwise_qnn_out_range(qnn_op):
+    # set the fake_quant output range if input tensors are in [-100, 100] float32
+    qnn_out_range = {
+        _test_add: (-200, 200),
+        _test_sub: (-200, 200),
+        _test_mul: (-1e+4, 1e+4),
+    }
+
+    return qnn_out_range[qnn_op]
+
 def test_all_elemwise():
     _test_forward_elemwise(_test_add)
+    _test_forward_elemwise_quantized(_test_add)
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_sub)
     _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_mul)
+    _test_forward_elemwise_quantized(_test_mul)
     _test_forward_elemwise(partial(_test_mul, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_mul, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_div)
@@ -525,6 +764,22 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+    _test_forward_elemwise(_test_greater)
+
+#######################################################################
+# Zeros like
+# --------
+
+def _test_zeros_like(data):
+    """ One iteration of ZEROS LIKE """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = gen_array_ops.zeros_like(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_zeros_like():
+    """ ZEROS LIKE """
+    _test_zeros_like(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
 #######################################################################
 # Reduce
@@ -540,6 +795,19 @@ def _test_reduce(math_op, data, keep_dims=None):
         in_data = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')
         out = math_op(in_data, data[1], keep_dims)
         compare_tflite_with_tvm([data[0]], ['in:0'], [in_data], [out])
+
+def _test_reduce_quantize(math_op, data, keep_dims=None):
+    """ One iteration of reduce """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype="float32", name='in')]
+        inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_0")]
+        out = math_op(inq_data, data[1], keep_dims)
+        out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
+        compare_tflite_with_tvm([data[0]], ['inq_0:0'], [inq_data[0]], [out], quantized=True)
 
 
 #######################################################################
@@ -562,9 +830,12 @@ def _test_reduce_max(data, keep_dims=None):
 # Reduce_mean
 # -----------
 
-def _test_reduce_mean(data, keep_dims=None):
+def _test_reduce_mean(data, keep_dims=None, quantized=False):
     """ One iteration of reduce_mean """
-    return _test_reduce(math_ops.reduce_mean, data, keep_dims)
+    if quantized:
+        return _test_reduce_quantize(math_ops.reduce_mean, data, keep_dims)
+    else:
+        return _test_reduce(math_ops.reduce_mean, data, keep_dims)
 
 #######################################################################
 # Reduce_prod
@@ -573,6 +844,14 @@ def _test_reduce_mean(data, keep_dims=None):
 def _test_reduce_prod(data, keep_dims=None):
     """ One iteration of reduce_prod """
     return _test_reduce(math_ops.reduce_prod, data, keep_dims)
+
+#######################################################################
+# Reduce_sum
+# -----------
+
+def _test_reduce_sum(data, keep_dims=None):
+    """ One iteration of reduce_sum """
+    return _test_reduce(math_ops.reduce_sum, data, keep_dims)
 
 
 def _test_forward_reduce(testop):
@@ -586,12 +865,19 @@ def _test_forward_reduce(testop):
     testop(data1, keep_dims=False)
     testop(data1, keep_dims=True)
 
+def _test_forward_reduce_quantized(testop):
+    data0 = [np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8), np.array([1, 2], dtype=np.int32)]
+    testop(data0, quantized=True)
+    testop(data0, keep_dims=False, quantized=True)
+    testop(data0, keep_dims=True, quantized=True)
 
 def test_all_reduce():
     _test_forward_reduce(_test_reduce_min)
     _test_forward_reduce(_test_reduce_max)
     _test_forward_reduce(_test_reduce_mean)
+    _test_forward_reduce_quantized(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
+    _test_forward_reduce(_test_reduce_sum)
 
 
 #######################################################################
@@ -715,6 +1001,48 @@ def test_forward_softmax():
     """ Softmax """
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+#######################################################################
+# Tanh
+# --------
+
+def _test_tanh(data):
+    """ One iteration of TANH """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = math_ops.sigmoid(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_tanh():
+    """ TANH """
+    _test_tanh(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+#######################################################################
+# ReLu
+# --------
+
+def _test_relu(data):
+    """ One iteration of ReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_ops.relu(in_data)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_relu():
+    """ ReLU """
+    _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+def _test_prelu(data, alpha):
+    """ One iteration of PReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        # This specific pattern will be replaced into PRelu by tflite
+        out = nn_ops.relu(in_data) + (-alpha * nn_ops.relu(-in_data))
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_prelu():
+    """ PReLU """
+    _test_prelu(np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"), np.full((3,), 0.2, dtype="float32"))
+    _test_prelu(np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"), np.full((1, 1, 3), 0.2, dtype="float32"))
 
 #######################################################################
 # Fully Connected
@@ -828,6 +1156,66 @@ def test_forward_inception_v4_net():
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
 
+def test_forward_qnn_inception_v1_net():
+    """Test the Quantized TFLite Inception model."""
+    # InceptionV1
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/inception_v1_224_quant_20181026.tgz",
+        "inception_v1_224_quant.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    # Checking the labels because the requantize implementation is different between TFLite and
+    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
+    np.random.seed(0)
+    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+def test_forward_qnn_mobilenet_v1_net():
+    """Test the Quantized TFLite Mobilenet V1 model."""
+    # MobilenetV1
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+        "mobilenet_v1_1.0_224_quant.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    # Checking the labels because the requantize implementation is different between TFLite and
+    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
+    np.random.seed(0)
+    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+def test_forward_qnn_mobilenet_v2_net():
+    """Test the Quantized TFLite Mobilenet V2 model."""
+    # MobilenetV2
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+        "mobilenet_v2_1.0_224_quant.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    # Checking the labels because the requantize implementation is different between TFLite and
+    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
+    np.random.seed(0)
+    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
 #######################################################################
 # SSD Mobilenet
 # -------------
@@ -842,19 +1230,51 @@ def test_forward_ssd_mobilenet_v1():
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor')
-    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
-                                rtol=1e-5, atol=1e-5)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=2)
+    for i in range(2):
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
+                                    rtol=1e-5, atol=2e-5)
+
+#######################################################################
+# MediaPipe
+# -------------
+
+def test_forward_mediapipe_hand_landmark():
+    """Test MediaPipe 2D hand landmark TF Lite model."""
+    # MediaPipe 2D hand landmark TF
+    tflite_model_file = download_testdata(
+        "https://github.com/google/mediapipe/raw/master/mediapipe/models/hand_landmark.tflite",
+        "hand_landmark.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 256, 256, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input_1', num_output=2)
+    for i in range(2):
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
+                                    rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+    # BatchToSpaceND
+    test_forward_batch_to_space_nd()
+
+    # SpaceToBatchND
+    test_forward_space_to_batch_nd()
+
     # Split
     test_forward_split()
 
     # Transpose
     test_forward_transpose()
+
+    # Cast
+    test_forward_cast()
+
+    # Tile
+    test_forward_tile()
 
     # Transforms
     test_forward_concatenation()
@@ -866,13 +1286,20 @@ if __name__ == '__main__':
 
     # NN
     test_forward_convolution()
+    test_forward_transpose_conv()
     test_forward_logistic()
     test_forward_pooling()
     test_forward_softmax()
+    test_forward_tanh()
+    test_forward_relu()
+    test_forward_prelu()
     test_forward_fully_connected()
 
     # Elemwise
     test_all_elemwise()
+
+    # Zeros Like
+    test_forward_zeros_like()
 
     # Reduce
     test_all_reduce()
@@ -883,3 +1310,9 @@ if __name__ == '__main__':
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
     test_forward_ssd_mobilenet_v1()
+    test_forward_mediapipe_hand_landmark()
+
+    # End to End quantized
+    test_forward_qnn_inception_v1_net()
+    test_forward_qnn_mobilenet_v1_net()
+    test_forward_qnn_mobilenet_v2_net()

@@ -91,7 +91,7 @@ class Registry {
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
-   * 
+   *
    * int multiply(int x, int y) {
    *   return x * y;
    * }
@@ -115,7 +115,7 @@ class Registry {
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
-   * 
+   *
    * // node subclass:
    * struct Example {
    *    int doThing(int x);
@@ -143,7 +143,7 @@ class Registry {
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
-   * 
+   *
    * // node subclass:
    * struct Example {
    *    int doThing(int x);
@@ -168,22 +168,22 @@ class Registry {
 
   /*!
    * \brief set the body of the function to be the passed method pointer.
-   *        Used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Used when calling a method on a Node subclass through a ObjectRef subclass.
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
-   * 
+   *
    * // node subclass:
    * struct ExampleNode: BaseNode {
    *    int doThing(int x);
    * }
-   * 
+   *
    * // noderef subclass
-   * struct Example; 
+   * struct Example;
    *
    * TVM_REGISTER_API("Example_doThing")
    * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
-   * 
+   *
    * // note that just doing:
    * // .set_body_method(&ExampleNode::doThing);
    * // wouldn't work, because ExampleNode can't be taken from a TVMArgValue.
@@ -191,15 +191,15 @@ class Registry {
    * \endcode
    *
    * \param f the method pointer to forward to.
-   * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TObjectRef the node reference type to call the method on
    * \tparam TNode the node type containing the method (inferred).
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename TNodeRef, typename TNode, typename R, typename ...Args,
-    typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
+  template<typename TObjectRef, typename TNode, typename R, typename ...Args,
+    typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...)) {
-    return set_body_typed<R(TNodeRef, Args...)>([f](TNodeRef ref, Args... params) {
+    return set_body_typed<R(TObjectRef, Args...)>([f](TObjectRef ref, Args... params) {
       TNode* target = ref.operator->();
       // call method pointer
       return (target->*f)(params...);
@@ -208,22 +208,22 @@ class Registry {
 
   /*!
    * \brief set the body of the function to be the passed method pointer.
-   *        Used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Used when calling a method on a Node subclass through a ObjectRef subclass.
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
-   * 
+   *
    * // node subclass:
    * struct ExampleNode: BaseNode {
    *    int doThing(int x);
    * }
-   * 
+   *
    * // noderef subclass
-   * struct Example; 
+   * struct Example;
    *
    * TVM_REGISTER_API("Example_doThing")
    * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
-   * 
+   *
    * // note that just doing:
    * // .set_body_method(&ExampleNode::doThing);
    * // wouldn't work, because ExampleNode can't be taken from a TVMArgValue.
@@ -231,15 +231,15 @@ class Registry {
    * \endcode
    *
    * \param f the method pointer to forward to.
-   * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TObjectRef the node reference type to call the method on
    * \tparam TNode the node type containing the method (inferred).
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename TNodeRef, typename TNode, typename R, typename ...Args,
-    typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
+  template<typename TObjectRef, typename TNode, typename R, typename ...Args,
+    typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...) const) {
-    return set_body_typed<R(TNodeRef, Args...)>([f](TNodeRef ref, Args... params) {
+    return set_body_typed<R(TObjectRef, Args...)>([f](TObjectRef ref, Args... params) {
       const TNode* target = ref.operator->();
       // call method pointer
       return (target->*f)(params...);

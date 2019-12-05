@@ -35,7 +35,7 @@ def test_lower_rfactor():
 def test_dependent_output_shape():
     n, m, x = tvm.var('n'), tvm.var('m'), tvm.var('x')
     A = tvm.placeholder((n, m))
-    B = tvm.compute((m, n/x), lambda i, j: A[i,j] , name='B')
+    B = tvm.compute((m, n//x), lambda i, j: A[i,j] , name='B')
     s = tvm.create_schedule(B.op)
     mod = tvm.build(s, [A, B, x])
 

@@ -18,7 +18,6 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
 * \file pad_utils.h
 * \brief Padding helpers
 */
@@ -47,8 +46,8 @@ inline Array<Expr> GetPadTuple(Expr pad_h, Expr pad_w) {
   pad_h *= 2;
   pad_w *= 2;
 
-  auto pad_top = (pad_h + 1) / 2;
-  auto pad_left = (pad_w + 1) / 2;
+  auto pad_top = indexdiv(pad_h + 1, 2);
+  auto pad_left = indexdiv(pad_w + 1, 2);
 
   return { pad_top, pad_left, pad_h - pad_top, pad_w - pad_left };
 }

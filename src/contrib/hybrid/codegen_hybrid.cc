@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*!  Copyright (c) 2019 by Contributors
+/*!
  * \file codegen_hybrid.cc
  */
 #include <iomanip>
@@ -146,13 +146,26 @@ void CodeGenHybrid::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
 void CodeGenHybrid::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
+
 void CodeGenHybrid::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
   if (op->type.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
     PrintBinaryExpr(op, "/", os, this);
 }
+
+void CodeGenHybrid::VisitExpr_(const FloorDiv *op, std::ostream& os) {  // NOLINT(*)
+  if (op->type.is_int())
+    PrintBinaryExpr(op, "//", os, this);
+  else
+    PrintBinaryExpr(op, "/", os, this);
+}
+
 void CodeGenHybrid::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "%", os, this);
+}
+
+void CodeGenHybrid::VisitExpr_(const FloorMod *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
 void CodeGenHybrid::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
@@ -287,7 +300,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
     PrintStmt(op->body);
     indent_ -= tab_;
   } else if (op->attr_key == ir::attr::realize_scope) {
-    auto v = FunctionRef(op->node.node_);
+    auto v = Downcast<FunctionRef>(op->node);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
     PrintStmt(op->body);
   } else {
@@ -395,7 +408,7 @@ void CodeGenHybrid::PrintIndent() {
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
   if (binds_.count(v))
     return binds_[v];
-  auto key = std::make_pair(v->GetNodePtr().get(), 0);
+  auto key = std::make_pair(static_cast<const Node*>(v), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
   }

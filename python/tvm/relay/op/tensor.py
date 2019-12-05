@@ -76,6 +76,21 @@ def sin(data):
     """
     return _make.sin(data)
 
+def atan(data):
+    """Compute elementwise atan of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.atan(data)
+
 def exp(data):
     """Compute elementwise exp of data.
 
@@ -90,6 +105,22 @@ def exp(data):
         The computed result.
     """
     return _make.exp(data)
+
+
+def erf(data):
+    """Compute elementwise error function of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.erf(data)
 
 
 def sqrt(data):
@@ -366,6 +397,24 @@ def divide(lhs, rhs):
     return _make.divide(lhs, rhs)
 
 
+def floor_divide(lhs, rhs):
+    """Floor division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.floor_divide(lhs, rhs)
+
+
 def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
@@ -400,6 +449,24 @@ def mod(lhs, rhs):
         The computed result.
     """
     return _make.mod(lhs, rhs)
+
+
+def floor_mod(lhs, rhs):
+    """Floor mod with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.floor_mod(lhs, rhs)
 
 
 def logical_and(lhs, rhs):

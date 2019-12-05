@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file build_vulkan.cc
  * \brief Build SPIRV block
  */
@@ -29,6 +28,8 @@
 
 #include "codegen_spirv.h"
 #include "../build_common.h"
+
+#include "../../runtime/vulkan/vulkan_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 
 namespace tvm {

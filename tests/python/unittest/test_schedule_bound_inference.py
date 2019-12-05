@@ -69,6 +69,33 @@ def test_bound3():
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 
+def test_bound_split_divisible():
+    m = tvm.var('m')
+    l = tvm.var('l')
+    A = tvm.placeholder((8 * m, l), name='A')
+    B = tvm.compute((8 * m, l), lambda i, j: A[i, j], name='B')
+    s = tvm.create_schedule(B.op)
+    xo, xi = s[B].split(B.op.axis[0], 8)
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert bounds[xo].extent == m
+    assert bounds[xi].extent.value == 8
+
+def test_bound_tile_divisible():
+    m = tvm.var('m')
+    l = tvm.var('l')
+    shape = (8 * m, 32 * l)
+    A = tvm.placeholder(shape, name='A')
+    B = tvm.compute(shape, lambda i, j: A[i, j], name='B')
+    s = tvm.create_schedule(B.op)
+    xo, yo, xi, yi = s[B].tile(B.op.axis[0], B.op.axis[1], 8, 32)
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert bounds[xo].extent == m
+    assert bounds[xi].extent.value == 8
+    assert bounds[yo].extent == l
+    assert bounds[yi].extent.value == 32
+
 def test_bound_fusesplit1():
     m = tvm.var('m')
     l = tvm.var('l')
@@ -84,9 +111,11 @@ def test_bound_fusesplit1():
 
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
-    assert(tvm.ir_pass.Simplify(bounds[A1.op.axis[0]].min - (xo * split1) / l ).value == 0)
+    idxdiv = tvm.indexdiv
+    assert(tvm.ir_pass.Simplify(
+            bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)).value == 0)
 
-    expected_extent = (((xo + 1) * split1 - 1) / l - (xo * split1) / l + 1)
+    expected_extent = (idxdiv((xo + 1) * split1 - 1, l) - idxdiv(xo * split1, l) + 1)
     for i in range(1, 6):
         for j in range(1, 6):
             for k in range(1, 6):
@@ -94,7 +123,7 @@ def test_bound_fusesplit1():
                 comp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value
                 exp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expected_extent, vars)).value
                 assert(comp_ext == exp_ext)
-    
+
     assert(tvm.ir_pass.Simplify(bounds[A1.op.axis[1]].extent - l).value == 0)
 
 def test_bound_fusesplit2():
@@ -367,11 +396,11 @@ def test_bound_simplification_failure():
         if not bounds[A.op.axis[0]].extent.value <= 2:
             print(stmt)
             assert bounds[A.op.axis[0]].extent.value <= 2
-
+    tdiv = tvm.truncdiv
     # These are hard to simplify, moreover we don't simplify them
     _check(tvm.compute((10,), lambda i: A[tvm.min(3*i, 4*i) + tvm.min(-3*i, -2*i)]))
     _check(tvm.compute((10,), lambda i: A[tvm.min(3*i, 4*i) + tvm.max(-3*i, -4*i)]))
-    _check(tvm.compute((10,), lambda i: A[-2*(i/2) - tvm.min(i, 0-i)]))
+    _check(tvm.compute((10,), lambda i: A[-2*tdiv(i,2) - tvm.min(i, 0-i)]))
     _check(tvm.compute((10,), lambda i: A[i + (0 - i)]))
     # This would cause out of bounds, but we nevertheless include it
     _check(tvm.compute((10,), lambda i: A[i]))
@@ -393,3 +422,5 @@ if __name__ == "__main__":
     test_bound_simplification_failure()
     test_bound_fusesplit1()
     test_bound_fusesplit2()
+    test_bound_split_divisible()
+    test_bound_tile_divisible()

@@ -7,6 +7,7 @@ include(cmake/util/FindCUDA.cmake)
 include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
 include(cmake/util/FindROCM.cmake)
+include(cmake/util/FindANTLR.cmake)
 
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
   include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
@@ -33,6 +34,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
@@ -46,10 +48,12 @@ tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
 tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
+tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
+tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
@@ -57,7 +61,10 @@ tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
+tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
+tvm_option(USE_TFLITE "Build with tflite support" OFF)
+tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -66,6 +73,7 @@ include_directories(${DLPACK_PATH})
 include_directories(${DMLC_PATH})
 include_directories(${RANG_PATH})
 include_directories(${COMPILER_RT_PATH})
+include_directories(${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -90,17 +98,15 @@ if(MSVC)
     endforeach(flag_var)
   endif()
 else(MSVC)
-  include(CheckCXXCompilerFlag)
-  check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message("Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS} -rdynamic")
-    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS} -rdynamic")
+    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS} -rdynamic")
   else()
     set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     if (HIDE_PRIVATE_SYMBOLS)
-      message("Hide private symbols...")
+      message(STATUS "Hide private symbols...")
       set(CMAKE_C_FLAGS "-fvisibility=hidden ${CMAKE_C_FLAGS}")
       set(CMAKE_CXX_FLAGS "-fvisibility=hidden ${CMAKE_CXX_FLAGS}")
     endif(HIDE_PRIVATE_SYMBOLS)
@@ -152,6 +158,7 @@ list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
+
 
 if(USE_VM_PROFILER)
   message(STATUS "Build compiler with Relay VM profiler support...")
@@ -227,11 +234,18 @@ if(USE_VM_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
+if(USE_EXAMPLE_EXT_RUNTIME)
+  message(STATUS "Build with example external runtime...")
+  file(GLOB RUNTIME_EXAMPLE_EXTERNAL_SRCS src/runtime/contrib/example_ext_runtime/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_EXAMPLE_EXTERNAL_SRCS})
+endif(USE_EXAMPLE_EXT_RUNTIME)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenGL.cmake)
+include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
 include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
@@ -241,17 +255,34 @@ include(cmake/modules/Micro.cmake)
 include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
+include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
+include(cmake/modules/contrib/TFLite.cmake)
+
+if(NOT MSVC)
+  include(CheckCXXCompilerFlag)
+  if(NOT USE_LLVM STREQUAL "OFF" AND TVM_LLVM_VERSION GREATER 91)
+    check_cxx_compiler_flag("-std=c++14"    SUPPORT_CXX14)
+    message(STATUS "Build with c++14")
+    set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+  else()
+    check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
+    message(STATUS "Build with c++11")
+    set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+  endif()
+endif()
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
+
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
 else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
@@ -278,6 +309,17 @@ target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(nnvm_compiler tvm)
+
+if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
+  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
+  # but it's not available until CMake 3.13. Switch to 'target_link_options'
+  # once minimum CMake version is bumped up to 3.13 or above.
+  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(nnvm_compiler ${HIDE_SYMBOLS_LINKER_FLAGS})
+endif()
 
 # Related headers
 target_include_directories(
@@ -343,6 +385,11 @@ if (INSTALL_DEV)
   )
   install(
     DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+    )
+  install(
+    DIRECTORY "3rdparty/dmlc-core/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/ir/hash.cc
  * \brief Hash functions for Relay types and expressions.
  */
@@ -49,12 +48,12 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t Hash(const NodeRef& ref) {
-    if (!ref.defined()) return ref.hash();
+    if (!ref.defined()) return NodeHash()(ref);
 
-    if (ref->derived_from<TypeNode>()) {
+    if (ref->IsInstance<TypeNode>()) {
       return TypeHash(Downcast<Type>(ref));
     }
-    if (ref->derived_from<ExprNode>()) {
+    if (ref->IsInstance<ExprNode>()) {
       return ExprHash(Downcast<Expr>(ref));
     }
     return AttrHash(ref);
@@ -66,7 +65,9 @@ class RelayHashHandler:
    * \return the hash value
    */
   size_t AttrHash(const NodeRef& ref) {
-    if (!ref.defined()) { return ref.hash(); }
+    if (!ref.defined()) {
+      return NodeHash()(ref);
+    }
     return AttrsHashHandler::Hash(ref);
   }
   /*!
@@ -76,7 +77,9 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t TypeHash(const Type& type) {
-    if (!type.defined()) { return type.hash(); }
+    if (!type.defined()) {
+      return NodeHash()(type);
+    }
     auto found = hash_map_.find(type);
     if (found != hash_map_.end()) {
       return found->second;
@@ -98,7 +101,9 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t ExprHash(const Expr& expr) {
-    if (!expr.defined()) return expr.hash();
+    if (!expr.defined()) {
+      return NodeHash()(expr);
+    }
     auto found = hash_map_.find(expr);
     if (found != hash_map_.end()) {
       return found->second;
@@ -301,7 +306,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const OpNode* op) final {
-    return GetRef<Op>(op).hash();
+    return NodeHash()(GetRef<Op>(op));
   }
 
   size_t VisitExpr_(const ConstantNode* rconst) final {
@@ -384,6 +389,14 @@ class RelayHashHandler:
     size_t hash = std::hash<std::string>()(PatternConstructorNode::_type_key);
     hash = Combine(hash, ExprHash(pcn->constructor));
     for (const auto& p : pcn->patterns) {
+      hash = Combine(hash, PatternHash(p));
+    }
+    return hash;
+  }
+
+  size_t VisitPattern_(const PatternTupleNode* ptn) final {
+    size_t hash = std::hash<std::string>()(PatternTupleNode::_type_key);
+    for (const auto& p : ptn->patterns) {
       hash = Combine(hash, PatternHash(p));
     }
     return hash;

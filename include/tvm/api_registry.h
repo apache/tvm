@@ -58,7 +58,7 @@ class EnvFuncNode : public Node {
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
   }
 
@@ -79,7 +79,7 @@ class EnvFunc : public NodeRef {
   explicit EnvFunc(NodePtr<Node> n) : NodeRef(n) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const {
-    return static_cast<EnvFuncNode*>(node_.get());
+    return static_cast<const EnvFuncNode*>(get());
   }
   /*!
    * \brief Invoke the function.
@@ -124,19 +124,19 @@ class TypedEnvFunc<R(Args...)> : public NodeRef {
   /*! \brief short hand for this function type */
   using TSelf = TypedEnvFunc<R(Args...)>;
   TypedEnvFunc() {}
-  explicit TypedEnvFunc(NodePtr<Node> n) : NodeRef(n) {}
+  explicit TypedEnvFunc(ObjectPtr<Object> n) : NodeRef(n) {}
   /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.
    * \return reference to self.
    */
   TSelf& operator=(const EnvFunc& other) {
-    this->node_ = other.node_;
+    ObjectRef::operator=(other);
     return *this;
   }
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const {
-    return static_cast<EnvFuncNode*>(node_.get());
+    return static_cast<const EnvFuncNode*>(get());
   }
   /*!
    * \brief Invoke the function.

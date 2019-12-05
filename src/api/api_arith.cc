@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to arith
  * \file api_arith.cc
  */
@@ -117,8 +116,7 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            auto& sptr = args[1].node_sptr();
-            if (sptr->is_type<Range::ContainerType>()) {
+            if (args[1].IsObjectRef<Range>()) {
               self->Bind(args[0], args[1].operator Range());
             } else {
               self->Bind(args[0], args[1].operator Expr());

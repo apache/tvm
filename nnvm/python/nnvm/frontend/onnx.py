@@ -307,10 +307,7 @@ class Prelu(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(
             len(inputs))
-        channels = infer_channels(inputs[1], params, False)
-        if channels == 1:
-            return inputs[0] * inputs[1]
-        return _sym.broadcast_mul(inputs[0], inputs[1])
+        return _sym.prelu(inputs[0], inputs[1])
 
 
 class Reciprocal(OnnxOpConverter):

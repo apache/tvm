@@ -18,8 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
- *
  * \file tvm/relay/pass/quantize.h
  * \brief Header of definitions for quantization
  */
@@ -72,24 +70,30 @@ class QConfigNode : public Node {
   DataType dtype_input = Int(8);
   DataType dtype_weight = Int(8);
   DataType dtype_activation = Int(32);
+  std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
+  std::string weight_scale = "power2";
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
   bool do_simulation = false;
   bool round_for_shift = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
+  std::string rounding = "UPWARD";
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);
     v->Visit("nbit_weight", &nbit_weight);
     v->Visit("nbit_activation", &nbit_activation);
     v->Visit("dtype_input", &dtype_input);
     v->Visit("dtype_weight", &dtype_weight);
     v->Visit("dtype_activation", &dtype_activation);
+    v->Visit("calibrate_mode", &calibrate_mode);
     v->Visit("global_scale", &global_scale);
+    v->Visit("weight_scale", &weight_scale);
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
+    v->Visit("rounding", &rounding);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";
@@ -102,14 +106,14 @@ class QConfigNode : public Node {
 class QConfig : public NodeRef {
  public:
   QConfig() {}
-  explicit QConfig(NodePtr<Node> n) : NodeRef(n) {}
+  explicit QConfig(ObjectPtr<Object> n) : NodeRef(n) {}
 
   const QConfigNode* operator->() const {
-    return static_cast<const QConfigNode*>(node_.get());
+    return static_cast<const QConfigNode*>(get());
   }
 
   QConfigNode* operator->() {
-    return static_cast<QConfigNode*>(node_.get());
+    return static_cast<QConfigNode*>(get_mutable());
   }
 
   /*!

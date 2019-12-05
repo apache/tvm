@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file topi/reduction.h
  * \brief Reduction op constructors
  */
@@ -388,6 +387,27 @@ inline Tensor all(const Tensor& data,
                   bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::all, keepdims, atleast1d);
+}
+
+/*!
+* \brief Creates an operation that computes the logical OR of elements
+* over a given axis
+*
+* \param data The input boolean tensor
+* \param axis The axes to reduce. If axis is empty, the operation will
+* perform logical OR over all elements of the array.
+* \param keepdims If this is set to true, the axes which are reduced are
+* left in the result as dimensions with size one. This enables the result
+* to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
+*
+* \return A Tensor whose op member is the all operation
+*/
+inline Tensor any(const Tensor& data,
+                  const Array<Integer>& axis,
+                  bool keepdims = false,
+                  bool atleast1d = false) {
+  return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
 }
 
 /*!

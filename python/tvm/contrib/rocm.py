@@ -46,7 +46,7 @@ def find_lld(required=True):
         major = codegen.llvm_version_major()
         lld_list += ["ld.lld-%d.0" % major]
         lld_list += ["ld.lld-%d" % major]
-    lld_list += ["lld"]
+    lld_list += ["ld.lld"]
     valid_list = [util.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
@@ -132,7 +132,8 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_isa_version_900.amdgcn.bc",
         "oclc_isa_version_906.amdgcn.bc",
         "oclc_unsafe_math_off.amdgcn.bc",
-        "oclc_unsafe_math_on.amdgcn.bc"
+        "oclc_unsafe_math_on.amdgcn.bc",
+        "oclc_wavefrontsize64_on.amdgcn.bc"
     ]
     paths = [join(rocdl_dir, bitcode) for bitcode in bitcode_files]
     return convert([path for path in paths if exists(path)])

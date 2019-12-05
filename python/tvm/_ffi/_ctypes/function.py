@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-branches, global-statement
+# pylint: disable=invalid-name, protected-access, too-many-branches, global-statement, unused-import
 """Function configuration API."""
 from __future__ import absolute_import
 
@@ -32,8 +32,8 @@ from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
-from .node import NodeBase
-from . import node as _node
+from .object import ObjectBase, _set_class_node
+from . import object as _object
 
 FunctionHandle = ctypes.c_void_p
 ModuleHandle = ctypes.c_void_p
@@ -107,9 +107,9 @@ def _make_tvm_args(args, temp_args):
     values = (TVMValue * num_args)()
     type_codes = (ctypes.c_int * num_args)()
     for i, arg in enumerate(args):
-        if isinstance(arg, NodeBase):
+        if isinstance(arg, ObjectBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.NODE_HANDLE
+            type_codes[i] = TypeCode.OBJECT_HANDLE
         elif arg is None:
             values[i].v_handle = None
             type_codes[i] = TypeCode.NULL
@@ -147,7 +147,7 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
             arg = convert_to_node(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.NODE_HANDLE
+            type_codes[i] = TypeCode.OBJECT_HANDLE
             temp_args.append(arg)
         elif isinstance(arg, _CLASS_MODULE):
             values[i].v_handle = arg.handle
@@ -163,9 +163,6 @@ def _make_tvm_args(args, temp_args):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.FUNC_HANDLE
             temp_args.append(arg)
-        elif isinstance(arg, _CLASS_OBJECT):
-            values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.OBJECT_CELL
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
     return values, type_codes, num_args
@@ -225,7 +222,7 @@ def __init_handle_by_constructor__(fconstructor, args):
         raise get_last_ffi_error()
     _ = temp_args
     _ = args
-    assert ret_tcode.value == TypeCode.NODE_HANDLE
+    assert ret_tcode.value == TypeCode.OBJECT_HANDLE
     handle = ret_val.v_handle
     return handle
 
@@ -246,7 +243,7 @@ def _handle_return_func(x):
     return _CLASS_FUNCTION(handle, False)
 
 # setup return handle for function type
-_node.__init_by_constructor__ = __init_handle_by_constructor__
+_object.__init_by_constructor__ = __init_handle_by_constructor__
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
 RETURN_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)

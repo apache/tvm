@@ -40,7 +40,7 @@ IntervalSet::IntervalSet(Expr min_value, Expr max_value) {
   auto node = make_node<IntervalSetNode>();
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
-  node_ = std::move(node);
+  data_ = std::move(node);
 }
 
 IntervalSet MakeIntervalSet(Expr min_value, Expr max_value) {
@@ -227,7 +227,7 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    return IntervalSet::SinglePoint(a->min_value % b->min_value);
+    return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -506,7 +506,7 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExprDefault_(const Node* op) final {
-    DLOG(WARNING) << "cannot evaluate set type " << op->type_key();
+    DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
   }
 
@@ -807,8 +807,11 @@ IntSet EvalSet(Range r,
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
+TVM_REGISTER_NODE_TYPE(IntervalSetNode);
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntervalSetNode>([](const IntervalSetNode *op, IRPrinter *p) {
+.set_dispatch<IntervalSetNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const IntervalSetNode*>(node.get());
     p->stream << "IntervalSet"
               << "[" << op->min_value << ", "
               << op->max_value << ']';

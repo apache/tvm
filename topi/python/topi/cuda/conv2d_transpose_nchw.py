@@ -19,9 +19,10 @@
 
 import tvm
 from tvm import autotvm
-
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn, generic
 from ..util import equal_const_int, get_const_tuple, traverse_inline
+
 
 @autotvm.task.register_topi_compute(nn.conv2d_transpose_nchw, ['cuda', 'gpu'], "direct")
 def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
@@ -68,9 +69,11 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
                       [0, 0, (bpad_bottom + stride_h - 1) // stride_h,
                        (bpad_right + stride_w - 1) // stride_w], name='FirstPad')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     # remove extra padding introduced by dilatation
-    border_h = (stride_h - bpad_top % stride_h) % stride_h
-    border_w = (stride_w - bpad_left % stride_w) % stride_w
+    border_h = idxmod(stride_h - idxmod(bpad_top, stride_h), stride_h)
+    border_w = idxmod(stride_w - idxmod(bpad_left, stride_w), stride_w)
 
     # dilation stage
     data = FirstPad
@@ -82,8 +85,8 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
         index_tuple = []
         for i in range(n):
             if not equal_const_int(strides[i], 1):
-                index_tuple.append(indices[i] // strides[i])
-                not_zero.append((indices[i] % strides[i]).equal(0))
+                index_tuple.append(idxdiv(indices[i], strides[i]))
+                not_zero.append(idxmod(indices[i], strides[i]).equal(0))
             else:
                 index_tuple.append(indices[i])
         if not_zero:
@@ -129,6 +132,36 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
+    def _fallback_schedule(N, F, Y, X):
+        # pylint: disable=unused-argument
+        # split N (batch dimension)
+        if N > 1:
+            cfg["tile_n"] = SplitEntity([-1, 1, 1, 4])
+        else:
+            cfg["tile_n"] = SplitEntity([1, 1, 1, 1])
+        # split F (output channel dimension)
+        cfg["tile_f"] = SplitEntity([-1, 1, 64, 1])
+        # split Y (height dimension)
+        y_split_factor = 1
+        for candidate in range(5, 17):
+            if Y % candidate == 0:
+                y_split_factor = candidate
+                break
+        cfg["tile_y"] = SplitEntity([-1, 1, 1, y_split_factor])
+        # split X (width dimension)
+        x_split_factor = 1
+        for candidate in range(5, 17):
+            if X % candidate == 0:
+                x_split_factor = candidate
+                break
+        cfg["tile_x"] = SplitEntity([-1, x_split_factor, 1, 1])
+        # split RC (input channel dimension, which is a reduction axis)
+        cfg["tile_rc"] = SplitEntity([-1, 1, 16])
+        # other configurations
+        cfg["fuse_yx"] = OtherOptionEntity(False)
+        cfg["unroll_explicit"] = OtherOptionEntity(True)
+        cfg["auto_unroll_max_step"] = OtherOptionEntity(1500)
+
     def _callback(op):
         if op.tag == 'conv2d_transpose_nchw':
             pad_data = op.input_tensors[0]
@@ -150,6 +183,11 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])
+
+            if cfg.is_fallback:
+                N, F, Y, X = get_const_tuple(conv.shape)
+                _fallback_schedule(N, F, Y, X)
+
             ##### space definition end #####
 
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:

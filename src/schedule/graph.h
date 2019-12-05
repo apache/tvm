@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file graph.h
  * \brief Utilities to get information about schedule graph.
  */

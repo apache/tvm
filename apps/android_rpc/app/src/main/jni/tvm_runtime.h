@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm_runtime.h
  * \brief Pack all tvm runtime source files
  */
@@ -55,6 +54,7 @@
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/graph/graph_runtime.cc"
 #include "../src/runtime/ndarray.cc"
+#include "../src/runtime/object.cc"
 
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
@@ -62,12 +62,11 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
-#include "../src/runtime/vulkan/vulkan_device_api.cc"
-#include "../src/runtime/vulkan/vulkan_module.cc"
+#include "../src/runtime/vulkan/vulkan.cc"
 #endif
 
 #ifdef USE_SORT
-#include "../src/contrib/sort/sort.cc"
+#include "../src/runtime/contrib/sort/sort.cc"
 #endif
 
 

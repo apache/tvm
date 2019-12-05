@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file quantize.cc
  *
  * \brief transform a graph to a low-bit graph
@@ -64,7 +62,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .add_argument("dom_scale", "Tensor", "The domain scale of input data. It should be a scalar")
 .add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
 .add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
-.set_attrs_type_key("relay.attrs.SimulatedQuantizeAttrs")
+.set_attrs_type<SimulatedQuantizeAttrs>()
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
@@ -119,16 +117,20 @@ QConfig& QConfig::Current() {
 TVM_REGISTER_NODE_TYPE(QConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<QConfigNode>([](const QConfigNode *op, IRPrinter *p) {
+.set_dispatch<QConfigNode>([](const ObjectRef& ref, IRPrinter* p) {
+  auto* op = static_cast<const QConfigNode*>(ref.get());
   p->stream << "qconfig(";
   p->stream << "nbit_input=" << op->nbit_input << ", ";
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
+  p->stream << "calibrate_mode=" << op->calibrate_mode << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
+  p->stream << "weight_scale=" << op->weight_scale << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "do_simulation==" << op->do_simulation << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
+  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops <<", ";
+  p->stream << "rounding==" << op->rounding;
   p->stream << ")";
 });
 

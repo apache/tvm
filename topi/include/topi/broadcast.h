@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Broadcast op constructions
  * \file topi/broadcast.h
  */
@@ -193,8 +192,26 @@ TOPI_DEFINE_OP_OVERLOAD(operator*, multiply);
  *
  * \return The result.
  */
-TOPI_DEFINE_BCAST_OP(divide, { return a / b; });
-TOPI_DEFINE_OP_OVERLOAD(operator/, divide);
+TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
+
+/*!
+ * \fn floor divide
+ * \brief Compute floor(A / B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(floor_divide, {
+  if (a.type().is_int() || a.type().is_uint()) {
+    return floordiv(a, b);
+  } else {
+    return floor(div(a, b));
+  }
+});
 
 /*!
  * \fn mod
@@ -207,8 +224,26 @@ TOPI_DEFINE_OP_OVERLOAD(operator/, divide);
  *
  * \return The result.
  */
-TOPI_DEFINE_BCAST_OP(mod, { return a % b; });
-TOPI_DEFINE_OP_OVERLOAD(operator%, mod);
+TOPI_DEFINE_BCAST_OP(mod, { return truncmod(a, b); });
+
+/*!
+ * \fn floor mod
+ * \brief Compute A - floor_div(A, B) * B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(floor_mod, {
+  if (a.type().is_int() || a.type().is_uint()) {
+    return floormod(a, b);
+  } else {
+    return a - floor_divide(a, b) * b;
+  }
+});
 
 /*!
  * \fn maximum

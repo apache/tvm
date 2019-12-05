@@ -27,11 +27,21 @@
 
 #include <tvm/expr.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/qnn/attrs.h>
 #include <limits>
+#include <string>
+#include <utility>
 
 namespace tvm {
 namespace relay {
 namespace qnn {
+
+static inline Array<IndexExpr> get_shape(const Type& type) {
+  auto input_tt = type.as<TensorTypeNode>();
+  CHECK(input_tt != nullptr) << "Type information missing."
+                             << " Please run infer_type pass.";
+  return input_tt->shape;
+}
 
 static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
@@ -66,6 +76,55 @@ static inline const int32_t GetQmax(const DataType& dtype) {
     return -1;  // To hide the warning
   }
 }
+
+Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
+                     const Array<IndexExpr>& input_shape, const DataType& out_dtype);
+
+static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
+                              double input_scale, int32_t input_zero_point, double output_scale,
+                              int32_t output_zero_point, const DataType& out_dtype,
+                              const std::string& rounding = "UPWARD") {
+  auto attrs = make_node<RequantizeAttrs>();
+  attrs->input_scale = std::move(input_scale);
+  attrs->input_zero_point = std::move(input_zero_point);
+  attrs->output_scale = std::move(output_scale);
+  attrs->output_zero_point = std::move(output_zero_point);
+  attrs->rounding = std::move(rounding);
+  attrs->out_dtype = std::move(out_dtype);
+  return RequantizeLower(data, attrs.operator->(), input_shape, out_dtype);
+}
+
+static inline int64_t get_const_int(const tvm::Expr& x) {
+  auto* value_ptr = as_const_int(x);
+  CHECK(value_ptr) << "Expr is not a constant int";
+  return value_ptr[0];
+}
+
+/*
+ * \brief Fixed point multiplication between integer tensor with floating point
+ scalar.
+ * \param tensor The quantized input tensor of dtype int64.
+ * \param multiplier The scalar multiplier.
+ * \param input_shape Shape of the input tensor.
+ * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
+ is midway between" "two representable values.
+ * \return The sequence of Relay ops for fixed point multiplication.
+
+ * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ *       integer computation, the multiplication with fp32 scalar can be
+ *       replaced by multiplication with an int value and then right shifting
+ *       the result. This approximates the floating point computation with a
+ *       fixed point computation.
+ *
+ *       Computation of fixed point multiplication is consist of following
+ steps:
+ *       1) Multiply the fixed point multiplier with quantized tensor.
+ *       2) Round the result.
+ *       3) Right shift the result
+ */
+Expr FixedPointMultiply(Expr tensor, double multiplier,
+                        const Array<IndexExpr>& input_shape,
+                        const std::string& rounding);
 
 }  // namespace qnn
 }  // namespace relay

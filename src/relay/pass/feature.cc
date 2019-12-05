@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file feature.cc
  * \brief Detect features used in Expr/Module
  */
@@ -34,13 +33,15 @@ namespace relay {
 
 FeatureSet DetectFeature(const Expr& expr) {
   if (!expr.defined()) {
-    return FeatureSet::NoFeature();
+    return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
     std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
-    FeatureSet fs = FeatureSet::NoFeature();
+    FeatureSet fs = FeatureSet::No();
+
     void VisitExpr(const Expr& expr) final {
       if (visited_.count(expr) == 0) {
+        visited_.insert(expr);
         ExprVisitor::VisitExpr(expr);
       } else {
         if (!IsAtomic(expr)) {
@@ -52,15 +53,20 @@ FeatureSet DetectFeature(const Expr& expr) {
   void VisitExpr_(const CONSTRUCT_NAME##Node* op) final { \
     STMT                                                  \
     fs += f##CONSTRUCT_NAME;                              \
-    ExprVisitor::VisitExpr_(op);                          \
   }
-#define DETECT_DEFAULT_CONSTRUCT(CONSTRUCT_NAME) DETECT_CONSTRUCT(CONSTRUCT_NAME, {})
+#define DETECT_DEFAULT_CONSTRUCT(CONSTRUCT_NAME) DETECT_CONSTRUCT(CONSTRUCT_NAME, { \
+    ExprVisitor::VisitExpr_(op);                                                    \
+  })
     DETECT_DEFAULT_CONSTRUCT(Var)
     DETECT_DEFAULT_CONSTRUCT(GlobalVar)
     DETECT_DEFAULT_CONSTRUCT(Constant)
     DETECT_DEFAULT_CONSTRUCT(Tuple)
     DETECT_DEFAULT_CONSTRUCT(TupleGetItem)
-    DETECT_DEFAULT_CONSTRUCT(Function)
+    DETECT_CONSTRUCT(Function, {
+        if (!op->IsPrimitive()) {
+          ExprVisitor::VisitExpr_(op);
+        }
+      })
     DETECT_DEFAULT_CONSTRUCT(Op)
     DETECT_DEFAULT_CONSTRUCT(Call)
     DETECT_CONSTRUCT(Let, {
@@ -69,6 +75,7 @@ FeatureSet DetectFeature(const Expr& expr) {
             fs += fLetRec;
           }
         }
+        ExprVisitor::VisitExpr_(op);
       })
     DETECT_DEFAULT_CONSTRUCT(If)
     DETECT_DEFAULT_CONSTRUCT(RefCreate)
@@ -83,7 +90,7 @@ FeatureSet DetectFeature(const Expr& expr) {
 }
 
 FeatureSet DetectFeature(const Module& mod) {
-  FeatureSet fs = FeatureSet::NoFeature();
+  FeatureSet fs = FeatureSet::No();
   if (mod.defined()) {
     for (const auto& f : mod->functions) {
       fs += DetectFeature(f.second);

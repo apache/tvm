@@ -21,8 +21,10 @@ from __future__ import absolute_import as _abs
 from numbers import Integral as _Integral
 
 from ._ffi.base import string_types
+from ._ffi.object import register_object, Object
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
+from ._ffi.node_generic import _scalar_type_inference
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
@@ -73,7 +75,7 @@ def max_value(dtype):
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype):
+def const(value, dtype=None):
     """construct a constant
 
     Parameters
@@ -81,7 +83,7 @@ def const(value, dtype):
     value : number
         The content of the constant number.
 
-    dtype : str
+    dtype : str or None, optional
         The data type.
 
     Returns
@@ -89,6 +91,8 @@ def const(value, dtype):
     const_val: tvm.Expr
         The result expression.
     """
+    if dtype is None:
+        dtype = _scalar_type_inference(value)
     return _api_internal._const(value, dtype)
 
 
@@ -579,7 +583,7 @@ def decl_buffer(shape,
     buffer_type: str, optional, {"", "auto_broadcast"}
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
-        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
+        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
 
     Returns
     -------
@@ -598,8 +602,8 @@ def decl_buffer(shape,
         A = tvm.placeholder((m0, m1, m2), name='A')
         B = tvm.placeholder((n0, n1, n2), name='B')
         C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
-        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="broadcast")
-        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="broadcast")
+        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
         s = tvm.create_schedule(C.op)
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
         ctx = tvm.cpu(0)
@@ -886,6 +890,123 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+def div(a, b):
+    """Compute a / b as in C/C++ semantics.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    Note
+    ----
+    When operands are integers, returns truncdiv(a, b).
+    """
+    return _make._OpDiv(a, b)
+
+
+def indexdiv(a, b):
+    """Compute floor(a / b) where a and b are non-negative.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    Use this function to split non-negative indices.
+    This function may take advantage of operands'
+    non-negativeness.
+    """
+    return _make._OpIndexDiv(a, b)
+
+
+def indexmod(a, b):
+    """Compute the remainder of indexdiv. a and b are non-negative.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    Use this function to split non-negative indices.
+    This function may take advantage of operands'
+    non-negativeness.
+    """
+    return _make._OpIndexMod(a, b)
+
+
+def truncdiv(a, b):
+    """Compute the truncdiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _make._OpTruncDiv(a, b)
+
+
+def truncmod(a, b):
+    """Compute the truncmod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _make._OpTruncMod(a, b)
 
 
 def floordiv(a, b):

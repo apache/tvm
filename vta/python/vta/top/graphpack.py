@@ -85,8 +85,8 @@ def _pack_weight_conv2d_transpose(data, dshape, cfactor):
     return data
 
 
-def _pack_bias(data, dshape, dtype, bfactor, cfactor):
-    """Pack the bias parameter.
+def _pack_const(data, dshape, dtype, bfactor, cfactor):
+    """Pack a constant parameter.
     """
     dshape = _to_shape(dshape)
     assert len(dshape) == 3
@@ -124,6 +124,7 @@ class ExprPack(ExprMutator):
         self.conv2d = op.op.get("nn.conv2d")
         self.conv2d_transpose = op.op.get("nn.conv2d_transpose")
         self.add = op.op.get("add")
+        self.multiply = op.op.get("multiply")
         self.bias_add = op.op.get("nn.bias_add")
         self.number_of_conv2d = 0
         super().__init__()
@@ -203,23 +204,35 @@ class ExprPack(ExprMutator):
                         output_padding=call.attrs.output_padding,
                         out_dtype=call.attrs.out_dtype)
                 return conv2d
-            elif call.op == self.add and tuple(input_types[0].shape) == tuple(input_types[1].shape):
+            elif call.op == self.add and \
+                    tuple(input_types[0].shape) == tuple(input_types[1].shape):
                 pass
             elif call.op == self.add and len(input_types[1].shape) == 3:
-                data, bias = args
-                bias = _pack_bias(bias,
-                                  _to_shape(input_types[1].shape),
-                                  input_types[1].dtype,
-                                  self.bfactor,
-                                  self.cfactor)
-                return relay.Call(self.add, [data, bias])
+                data, const = args
+                const = _pack_const(const,
+                                    _to_shape(input_types[1].shape),
+                                    input_types[1].dtype,
+                                    self.bfactor,
+                                    self.cfactor)
+                return relay.Call(self.add, [data, const])
+            elif call.op == self.multiply and \
+                    tuple(input_types[0].shape) == tuple(input_types[1].shape):
+                pass
+            elif call.op == self.multiply and len(input_types[1].shape) == 3:
+                data, const = args
+                const = _pack_const(const,
+                                    _to_shape(input_types[1].shape),
+                                    input_types[1].dtype,
+                                    self.bfactor,
+                                    self.cfactor)
+                return relay.Call(self.multiply, [data, const])
             elif self.start_pack and call.op == self.bias_add:
                 data, bias = args
-                bias = _pack_bias(bias,
-                                  _to_shape(input_types[1].shape),
-                                  input_types[1].dtype,
-                                  self.bfactor,
-                                  self.cfactor)
+                bias = _pack_const(bias,
+                                   _to_shape(input_types[1].shape),
+                                   input_types[1].dtype,
+                                   self.bfactor,
+                                   self.cfactor)
                 return relay.Call(self.add, [data, bias])
             elif self.start_pack and call.op == op.op.get('cast') and \
                     input_types[0].dtype == 'int32':

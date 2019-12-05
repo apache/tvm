@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file storage_rewrite.cc
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
@@ -41,7 +40,7 @@ namespace ir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-// Find a linear pattern of storage acess
+// Find a linear pattern of storage access
 // Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
 // before_scope -> scope_body -> after_scope
@@ -193,6 +192,10 @@ class LinearAccessPatternFinder final : public IRVisitor {
     VisitNewScope(op);
   }
 
+  void Visit_(const AssertStmt* op) final {
+    VisitNewScope(op);
+  }
+
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
   // The storage scope of each buffer
@@ -239,13 +242,13 @@ class InplaceOpVerifier : public IRVisitor {
     dst_ = dst;
     src_ = src;
     result_ = true;
-    if (stmt->is_type<AttrStmt>()) {
+    if (stmt->IsInstance<AttrStmt>()) {
       Visit_(static_cast<const AttrStmt*>(stmt));
-    } else if (stmt->is_type<For>()) {
+    } else if (stmt->IsInstance<For>()) {
       Visit_(static_cast<const For*>(stmt));
-    } else if (stmt->is_type<IfThenElse>()) {
+    } else if (stmt->IsInstance<IfThenElse>()) {
       Visit_(static_cast<const IfThenElse*>(stmt));
-    } else if (stmt->is_type<Store>()) {
+    } else if (stmt->IsInstance<Store>()) {
       Visit_(static_cast<const Store*>(stmt));
     } else {
       return false;
@@ -606,8 +609,8 @@ class StoragePlanRewriter : public IRMutator {
           }
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
-          bool divided = analyzer_.CanProve(combo_size % type_bits == 0);
-          combo_size = combo_size / type_bits;
+          bool divided = analyzer_.CanProve(indexmod(combo_size, type_bits) == 0);
+          combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
             combo_size = combo_size + make_const(Int(32), 1);
@@ -772,7 +775,7 @@ class StoragePlanRewriter : public IRMutator {
         }
       }
       // enter/exit new scope
-      if (s.stmt->is_type<AttrStmt>()) {
+      if (s.stmt->IsInstance<AttrStmt>()) {
         const auto* op = static_cast<const AttrStmt*>(s.stmt);
         if (op->attr_key == attr::thread_extent ||
             op->attr_key == attr::virtual_thread ||
@@ -781,7 +784,7 @@ class StoragePlanRewriter : public IRMutator {
         } else {
           CHECK(op->attr_key == attr::extern_scope);
         }
-      } else if (s.stmt->is_type<For>()) {
+      } else if (s.stmt->IsInstance<For>()) {
         const auto* op = static_cast<const For*>(s.stmt);
         if (op->for_type == ForType::Parallel) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {

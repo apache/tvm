@@ -18,7 +18,6 @@
  */
 
  /*!
- *  Copyright (c) 2018 by Contributors
  *  Code mainly used for test purposes.
  * \file api_test.cc
  */

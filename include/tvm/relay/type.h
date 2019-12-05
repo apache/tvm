@@ -58,7 +58,7 @@ class TypeNode : public RelayNode {
 class Type : public NodeRef {
  public:
   Type() {}
-  explicit Type(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Type(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
 
   using ContainerType = TypeNode;
 };
@@ -96,7 +96,7 @@ class TensorTypeNode : public BaseTensorTypeNode {
   /*! \brief The content data type */
   DataType dtype;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("span", &span);
@@ -159,7 +159,7 @@ class TypeVarNode : public TypeNode {
   /*! \brief The kind of type parameter */
   Kind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
@@ -188,7 +188,7 @@ class GlobalTypeVarNode : public TypeNode {
   /*! \brief The kind of type parameter */
   Kind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
@@ -216,7 +216,7 @@ class TypeCallNode : public TypeNode {
   /*! \brief The arguments. */
   tvm::Array<Type> args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("args", &args);
     v->Visit("span", &span);
@@ -245,7 +245,7 @@ class IncompleteTypeNode : public TypeNode {
  public:
   Kind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("kind", &kind);
     v->Visit("span", &span);
   }
@@ -297,7 +297,7 @@ class FuncTypeNode : public TypeNode {
    */
   tvm::Array<TypeConstraint> type_constraints;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("arg_types", &arg_types);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
@@ -330,7 +330,7 @@ class TupleTypeNode : public TypeNode {
 
   TupleTypeNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
   }
@@ -357,7 +357,7 @@ class RefTypeNode : public TypeNode {
 
   RefTypeNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("span", &span);
   }
@@ -410,8 +410,14 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual void SetLocation(const NodeRef& ref) = 0;
 
+  /*!
+   * \brief Retrieve the current global module.
+   * \return The global module.
+   */
+  TVM_DLL virtual Module GetModule() = 0;
+
   // solver is not serializable.
-  void VisitAttrs(tvm::AttrVisitor* v) final {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.TypeReporter";
   TVM_DECLARE_NODE_TYPE_INFO(TypeReporterNode, Node);
@@ -424,10 +430,11 @@ class TypeReporterNode : public Node {
 class TypeReporter : public NodeRef {
  public:
   TypeReporter() {}
-  explicit TypeReporter(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+  explicit TypeReporter(::tvm::ObjectPtr<::tvm::Object> n) : NodeRef(n) {
   }
   TypeReporterNode* operator->() const {
-    return static_cast<TypeReporterNode*>(node_.get());
+    return const_cast<TypeReporterNode*>(
+        static_cast<const TypeReporterNode*>(get()));
   }
   using ContainerType = TypeReporterNode;
 };
@@ -481,7 +488,7 @@ class TypeRelationNode : public TypeConstraintNode {
   /*! \brief Attributes to the relation function */
   Attrs attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("args", &args);
     v->Visit("num_inputs", &num_inputs);

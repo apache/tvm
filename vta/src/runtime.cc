@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file runtime.cc
  * \brief Generic VTA runtime in C++11.
  *
@@ -348,7 +347,7 @@ class BaseQueue {
    * \brief Reset the pointer of the buffer.
    *  Set SRAM pointer to be the current end.
    */
-  void Reset() {
+  virtual void Reset() {
     dram_buffer_.clear();
     sram_begin_ = sram_end_;
   }
@@ -442,6 +441,12 @@ class UopQueue : public BaseQueue<VTAUop> {
       // Reset indices
       sram_begin_ = sram_end_;
     }
+  }
+  /*! \brief clear cache and reset base queue buffer.*/
+  void Reset() {
+    cache_.clear();
+    cache_idx_ = 0;
+    BaseQueue<VTAUop>::Reset();
   }
   void AutoReadBarrier() {
     ReadBarrier();
@@ -601,9 +606,11 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   void RewriteForceSerial() {
     int insn_count = count();
     VTAMemInsn* mem_ptr = reinterpret_cast<VTAMemInsn*>(data());
+    VTAMemInsn* mem_last_store_ptr = nullptr;
+    VTAMemInsn* mem_last_ptr = nullptr;
     for (int i = 1; i < insn_count; ++i) {
-      PipelineStage prev = GetPipelineStage(mem_ptr + i - 1);
-      PipelineStage now = GetPipelineStage(mem_ptr + i);
+      PipelineStage prev = GetPipelineStageAll(mem_ptr + i - 1);
+      PipelineStage now = GetPipelineStageAll(mem_ptr + i);
       if (prev == kLoadStage && now == kComputeStage) {
         mem_ptr[i - 1].push_prev_dep = false;
         mem_ptr[i - 1].push_next_dep = true;
@@ -630,7 +637,30 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         mem_ptr[i].pop_prev_dep = false;
         mem_ptr[i].pop_next_dep = false;
       }
+      if (now == kStoreStage) {
+        mem_last_store_ptr = &mem_ptr[i];
+      }
+      mem_last_ptr = &mem_ptr[i];
     }
+    // set dependency to make sure all core instruction get excuted
+    // before last FINISH instruction
+    if (mem_last_store_ptr && mem_last_ptr == mem_last_store_ptr) {
+      mem_last_store_ptr->push_prev_dep = true;
+      if (!pending_pop_next_[kComputeStage]) {
+        DepPop(kStoreStage, kComputeStage);
+      }
+      CommitPendingPop(kComputeStage);
+    } else {
+        pending_pop_next_[kComputeStage] = 0;
+    }
+    DepPush(kComputeStage, kLoadStage);
+    DepPop(kLoadStage, kComputeStage);
+    if (!pending_pop_next_[kLoadStage]) {
+      DepPop(kComputeStage, kLoadStage);
+    }
+    CommitPendingPop(kLoadStage);
+    DepPush(kLoadStage, kComputeStage);
+    CommitPendingPop(kComputeStage);
   }
   // Helper function: Get Opcode string
   const char* getOpcodeString(int opcode, bool use_imm) {
@@ -912,6 +942,14 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     LOG(FATAL) << "not reached";
     return kNoneStage;
   }
+
+  // Get stage of memory and computation
+  static PipelineStage GetPipelineStageAll(VTAMemInsn* insn) {
+      PipelineStage stage = GetPipelineStage(insn);
+      if (stage != kNoneStage) return stage;
+      return GetMemPipelineStage(insn->memory_type);
+  }
+
   // Push no-op
   void PushNoop(int stage,
                 bool push_prev_dep, bool push_next_dep,
@@ -977,7 +1015,7 @@ class CommandQueue {
           elem_bytes = VTA_ACC_ELEM_BYTES;
           break;
       case VTA_MEM_ID_OUT:
-          elem_bytes = VTA_INP_ELEM_BYTES;
+          elem_bytes = VTA_OUT_ELEM_BYTES;
           break;
       default:
           LOG(FATAL) << "Memory id not recognized:" << memory_id;
@@ -1069,13 +1107,14 @@ class CommandQueue {
     // Insert dependences to force serialization
     if (debug_flag_ & VTA_DEBUG_FORCE_SERIAL) {
       insn_queue_.RewriteForceSerial();
+    } else {
+      // This will issue finish after last store finishes
+      insn_queue_.DepPush(kStoreStage, kComputeStage);
+      insn_queue_.DepPush(kLoadStage, kComputeStage);
+      insn_queue_.DepPop(kStoreStage, kComputeStage);
+      insn_queue_.DepPop(kLoadStage, kComputeStage);
+      insn_queue_.CommitPendingPop(kComputeStage);
     }
-    // This will issue finish after last store finishes
-    insn_queue_.DepPush(kStoreStage, kComputeStage);
-    insn_queue_.DepPush(kLoadStage, kComputeStage);
-    insn_queue_.DepPop(kStoreStage, kComputeStage);
-    insn_queue_.DepPop(kLoadStage, kComputeStage);
-    insn_queue_.CommitPendingPop(kComputeStage);
     // NOTE: FINISH cannot contain pop
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
     insn->opcode = VTA_OPCODE_FINISH;
@@ -1095,24 +1134,11 @@ class CommandQueue {
 
     // Make sure that we don't exceed contiguous physical memory limits
     CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
-#ifdef USE_TSIM
-    int timeout = VTADeviceRun(
-        device_,
-        insn_queue_.dram_phy_addr(),
-        uop_queue_.dram_phy_addr(),
-        inp_phy_addr_,
-        wgt_phy_addr_,
-        acc_phy_addr_,
-        out_phy_addr_,
-        insn_queue_.count(),
-        wait_cycles);
-#else
     int timeout = VTADeviceRun(
         device_,
         insn_queue_.dram_phy_addr(),
         insn_queue_.count(),
         wait_cycles);
-#endif
     CHECK_EQ(timeout, 0);
     // Reset buffers
     uop_queue_.Reset();
@@ -1186,18 +1212,6 @@ class CommandQueue {
   static void Shutdown() {
     ThreadLocal().reset();
   }
-
-#ifdef USE_TSIM
-  void SetBufPhyAddr(uint32_t type, vta_phy_addr_t addr) {
-    switch (type) {
-      case VTA_MEM_ID_INP: inp_phy_addr_ = addr;
-      case VTA_MEM_ID_WGT: wgt_phy_addr_ = addr;
-      case VTA_MEM_ID_ACC: acc_phy_addr_ = addr;
-      case VTA_MEM_ID_OUT: out_phy_addr_ = addr;
-      default: break;
-    }
-  }
-#endif
 
  private:
   // Push GEMM uop to the command buffer
@@ -1303,16 +1317,6 @@ class CommandQueue {
   InsnQueue<VTA_MAX_XFER, kBufferCoherent, kAlwaysCache> insn_queue_;
   // Device handle
   VTADeviceHandle device_{nullptr};
-#ifdef USE_TSIM
-  // Input phy addr
-  vta_phy_addr_t inp_phy_addr_{0};
-  // Weight phy addr
-  vta_phy_addr_t wgt_phy_addr_{0};
-  // Accumulator phy addr
-  vta_phy_addr_t acc_phy_addr_{0};
-  // Output phy addr
-  vta_phy_addr_t out_phy_addr_{0};
-#endif
 };
 
 }  // namespace vta
@@ -1405,10 +1409,6 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
                      uint32_t y_pad_after,
                      uint32_t dst_sram_index,
                      uint32_t dst_memory_type) {
-#ifdef USE_TSIM
-  vta::DataBuffer* src = vta::DataBuffer::FromHandle(src_dram_addr);
-  static_cast<vta::CommandQueue*>(cmd)->SetBufPhyAddr(dst_memory_type, src->phy_addr());
-#endif
   static_cast<vta::CommandQueue*>(cmd)->
       LoadBuffer2D(src_dram_addr, src_elem_offset,
                    x_size, y_size, x_stride,
@@ -1425,10 +1425,6 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
                       uint32_t x_size,
                       uint32_t y_size,
                       uint32_t x_stride) {
-#ifdef USE_TSIM
-  vta::DataBuffer* dst = vta::DataBuffer::FromHandle(dst_dram_addr);
-  static_cast<vta::CommandQueue*>(cmd)->SetBufPhyAddr(src_memory_type, dst->phy_addr());
-#endif
   static_cast<vta::CommandQueue*>(cmd)->
       StoreBuffer2D(src_sram_index, src_memory_type,
                     dst_dram_addr, dst_elem_offset,

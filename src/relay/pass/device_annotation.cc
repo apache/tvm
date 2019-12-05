@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file deivce_annotation.cc
  * \brief Passes to rewrite annotated program and retrieve the device allocation
  * of expression.
@@ -30,6 +28,7 @@
  *  3. Collect the device allocation of each expression.
  */
 
+#include <tvm/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
@@ -46,13 +45,15 @@ namespace relay {
 namespace {
 
 bool IsOnDeviceNode(const ExprNode* node) {
-  const auto* call_node = dynamic_cast<const CallNode*>(node);
-  return call_node != nullptr && call_node->attrs.as<OnDeviceAttrs>();
+  if (!node->IsInstance<CallNode>()) return false;
+  const auto* call_node = static_cast<const CallNode*>(node);
+  return call_node->attrs.as<OnDeviceAttrs>();
 }
 
 bool IsDeviceCopyNode(const ExprNode* node) {
-  const auto* call_node = dynamic_cast<const CallNode*>(node);
-  return call_node != nullptr && call_node->attrs.as<DeviceCopyAttrs>();
+  if (!node->IsInstance<CallNode>()) return false;
+  const auto* call_node = static_cast<const CallNode*>(node);
+  return call_node->attrs.as<DeviceCopyAttrs>();
 }
 
 }  // namespace
@@ -257,12 +258,12 @@ class RewriteAnnotation : public ExprMutator {
         // Here we need across device data transferring only when `src` is a
         // CallNode or FunctionNode and the `dst` is annotated with any device
         // id other than fallback_device_.
-        if (src->is_type<CallNode>() || src->is_type<FunctionNode>()) {
+        if (src->IsInstance<CallNode>() || src->IsInstance<FunctionNode>()) {
           return annotation_map_.at(dst) != fallback_device_;
         } else {
           // There shouldn't be any copy nodes between var/constant and another
           // expression.
-          return !(src->is_type<VarNode>() || src->is_type<ConstantNode>());
+          return !(src->IsInstance<VarNode>() || src->IsInstance<ConstantNode>());
         }
       } else {
         return false;
@@ -349,7 +350,7 @@ class AnnotatationVisitor : private ExprVisitor {
  *           ancestors until encountering another copy op. For example, this way
  *           provides add, x, and y device types from the copy operator, `copy1`.
  *  -Pass 2: Propagating the destination device type of "the last" copy op to the
- *           remain nodes. For instance, this offers `subtract` and `exp` the 
+ *           remain nodes. For instance, this offers `subtract` and `exp` the
  *           same device type as `copy3`.
  */
 
@@ -415,7 +416,6 @@ class DeviceInfo {
 
     void VisitExpr_(const TupleGetItemNode* op) final {
       ExprVisitor::VisitExpr_(op);
-      std::make_pair(op, has_copy_);
     }
 
     void VisitExpr_(const VarNode* vn) final {
@@ -448,7 +448,8 @@ class DeviceInfo {
   static const ExprNode* GetDeviceCopyNode(const ExprNode* node) {
     if (IsDeviceCopyNode(node)) {
       return node;
-    } else if (const auto* call_node = dynamic_cast<const CallNode*>(node)) {
+    } else if (node->IsInstance<CallNode>()) {
+      const auto* call_node = static_cast<const CallNode*>(node);
       if (const auto* fn = call_node->op.as<FunctionNode>()) {
         const ExprNode* body = fn->body.operator->();
         if (IsDeviceCopyNode(body)) {
@@ -473,7 +474,8 @@ class DeviceInfo {
     for (auto it = post_visitor_.post_dfs_order_.crbegin();
          it != post_visitor_.post_dfs_order_.crend(); ++it) {
       if (const auto* node = GetDeviceCopyNode(it->first)) {
-        last_copy_node = dynamic_cast<const CallNode*>(node);
+        CHECK(node->IsInstance<CallNode>());
+        last_copy_node = static_cast<const CallNode*>(node);
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
         cur_dev_type = attrs->src_dev_type;
         if (out_dev_type == -1) out_dev_type = attrs->dst_dev_type;

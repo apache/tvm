@@ -97,7 +97,7 @@ pub struct TVMContext {
 impl<'a> From<&'a TVMContext> for DLContext {
     fn from(ctx: &'a TVMContext) -> Self {
         Self {
-            device_type: ctx.device_type as u32,
+            device_type: ctx.device_type as _,
             device_id: ctx.device_id as i32,
         }
     }

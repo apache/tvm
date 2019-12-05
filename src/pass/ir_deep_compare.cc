@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ir_deep_compare.cc
  */
 #include <tvm/ir_pass.h>

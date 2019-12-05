@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file api_registry.cc
  */
 #include <tvm/api_registry.h>
@@ -26,11 +25,12 @@
 namespace tvm {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<EnvFuncNode>([](const EnvFuncNode *op, IRPrinter *p) {
+.set_dispatch<EnvFuncNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const EnvFuncNode*>(node.get());
     p->stream << "EnvFunc(" << op->name << ")";
 });
 
-NodePtr<EnvFuncNode> CreateEnvNode(const std::string& name) {
+ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto* f = runtime::Registry::Get(name);
   CHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
   NodePtr<EnvFuncNode> n = make_node<EnvFuncNode>();
@@ -62,7 +62,7 @@ TVM_REGISTER_API("_EnvFuncGetPackedFunc")
 
 TVM_REGISTER_NODE_TYPE(EnvFuncNode)
 .set_creator(CreateEnvNode)
-.set_global_key([](const Node* n) {
+.set_global_key([](const Object* n) -> std::string {
     return static_cast<const EnvFuncNode*>(n)->name;
   });
 

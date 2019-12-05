@@ -20,10 +20,12 @@ from __future__ import absolute_import as _abs
 
 import json
 import tvm
+from topi.util import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from .. import module as _module
+from .. import scope_builder as _scope_builder
 from ... import nd as _nd
 
 from .common import StrAttrsDict
@@ -55,10 +57,17 @@ def _mx_fully_connected(inputs, attrs):
     use_flatten = attrs.get_bool("flatten", True)
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
+    data_shape = _infer_type(inputs[0]).checked_type.shape
+    if len(data_shape) > 2:
+        inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=-1)
+    if len(data_shape) > 2:
+        new_shape = data_shape[:-1]
+        new_shape.append(units)
+        res = _op.reshape(res, new_shape)
     return res
 
 
@@ -105,11 +114,55 @@ def _mx_zeros(inputs, attrs):
     return _op.zeros(shape=shape, dtype=dtype)
 
 
+def _mx_conv(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+def _mx_conv1d(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) != 1:
+        raise tvm.error.OpAttributeInvalid(
+            'Non 1D or 2D kernels are not supported for operator Convolution')
+    data_layout = attrs.get_str("layout", "NCW")
+    # MXNet Conv1D only supports ‘NCW’ layout for now.
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + kernel_size
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", False)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d(data, kernel, **new_attrs)
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
+    return res
+
+
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
         raise tvm.error.OpAttributeInvalid(
-            'Non-2D kernels are not supported for operator Conv2D.')
+            'Non 1D or 2D kernels are not supported for operator Convolution')
     data_layout = attrs.get_str("layout", "NCHW")
     channel_axis = _get_channel_axis(data_layout, "conv2d")
 
@@ -132,6 +185,51 @@ def _mx_conv2d(inputs, attrs):
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
+def _mx_conv_transpose(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) == 2:
+        return _mx_conv2d_transpose(inputs, attrs)
+    elif len(kernel_size) == 1:
+        return _mx_conv1d_transpose(inputs, attrs)
+    else:
+        raise tvm.error.OpAttributeInvalid(
+            '1D or 2D kernels only are supported for operator Convolution')
+
+
+def _mx_conv1d_transpose(inputs, attrs):
+    if "target_shape" in attrs.attrs:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
+    data_layout = attrs.get_str("layout", "NCW")
+    if data_layout != "NCW":
+        raise tvm.error.OpAttributeInvalid(
+            'Only "NCW" data layout is supported for 1D Convolution')
+    data_layout = "NCHW"
+    channel_axis = 1
+    kernel_layout = "OIHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = (1,) + attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
+    new_attrs["output_padding"] = (0,) + attrs.get_int_tuple("adj", (0,))
+    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", True)
+    data = _op.expand_dims(inputs[0], axis=2)
+    kernel = _op.expand_dims(inputs[1], axis=2)
+    res = _op.nn.conv2d_transpose(data, kernel, **new_attrs)
+
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    res = _op.squeeze(res, axis=[2])
     return res
 
 
@@ -228,6 +326,14 @@ def _mx_batch_norm(inputs, attrs):
     return _op.nn.batch_norm(*inputs, **new_attrs)
 
 
+def _mx_instance_norm(inputs, attrs):
+    assert len(inputs) == 3
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", 1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.instance_norm(*inputs, **new_attrs)
+
+
 def _mx_layer_norm(inputs, attrs):
     assert len(inputs) == 3
     if attrs.get_bool("output_mean_var", False):
@@ -241,8 +347,8 @@ def _mx_layer_norm(inputs, attrs):
 
 def _mx_slice(inputs, attrs):
     new_attrs = {}
-    begin = attrs.get_int_tuple('begin', None)
-    end = attrs.get_int_tuple('end', None)
+    begin = list(attrs.get_int_tuple('begin', None))
+    end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
     if begin is None:
         raise tvm.error.OpAttributeRequired(
@@ -250,12 +356,7 @@ def _mx_slice(inputs, attrs):
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    if None in begin:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "begin" of operator Slice is not valid.')
-    if None in end:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "end" of operator Slice is not valid.')
+    begin = tuple(x if x is not None else 0 for x in begin)
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -365,6 +466,27 @@ def _mx_expand_dims(inputs, attrs):
     axis = attrs.get_int("axis")
     return _op.expand_dims(inputs[0], axis=axis)
 
+def _mx_pad(inputs, attrs):
+    pad_mode = attrs.get_str('mode', None)
+    if pad_mode is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "mode" not found in operator pad.')
+    if pad_mode not in ['constant', 'edge', 'reflect']:
+        raise tvm.error.OpAttributeInvalid(
+            'Value ' + mode + ' in attribute "mode" is not valid')
+    pad_width = attrs.get_int_tuple('pad_width', None)
+    if pad_width is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "pad_width" not found in operator pad.')
+    if None in pad_width:
+        raise tvm.error.OpAttributeInvalid(
+            'Value None in attribute "pad_width" of operator Slice is not valid.')
+    constant_value = attrs.get_float('constant_value', 0.0)
+    padding = tuple(tuple((b, a)) for b, a in zip(pad_width[::2], pad_width[1::2]))
+    return _op.nn.pad(data=inputs[0],
+                      pad_width=padding,
+                      pad_value=constant_value,
+                      pad_mode=pad_mode)
 
 def _mx_leaky_relu(inputs, attrs):
     act_type = attrs.get_str("act_type")
@@ -495,11 +617,17 @@ def _mx_arange(inputs, attrs):
     if attrs.get_int("repeat", 1) != 1:
         raise tvm.error.OpAttributeUnimplemented(
             'Attribute "repeat" is not supported in operator arange.')
+    dtype = attrs.get_str("dtype", "float32")
+    stop = attrs.get_str("stop", "None")
+    if stop == "None":
+        stop = None
+    else:
+        stop = _expr.const(float(stop), dtype=dtype)
     new_attrs = {}
-    new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
-    new_attrs["stop"] = _expr.const(attrs.get_float("stop"))
-    new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
-    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0), dtype=dtype)
+    new_attrs["stop"] = stop
+    new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0), dtype=dtype)
+    new_attrs["dtype"] = dtype
     return _op.arange(**new_attrs)
 
 
@@ -742,7 +870,8 @@ def _mx_contrib_div_sqrt_dim(inputs, _):
     assert len(inputs) == 1
     ndim = len(_infer_type(inputs[0]).checked_type.shape)
     dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
-    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    dtype = _infer_type(inputs[0]).checked_type.dtype
+    sqrt_dim = _op.sqrt(dim.astype(dtype))
     out = inputs[0] / sqrt_dim
     return out
 
@@ -905,11 +1034,59 @@ def _mx_one_hot(inputs, attrs):
     return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
 
 
+def _mx_contrib_fifo_buffer(inputs, attrs):
+    new_attrs = {}
+    new_attrs['axis'] = attrs.get_int('axis')
+    return _op.nn.fifo_buffer(*inputs, **new_attrs)
+
+def _mx_cond(inputs, attrs, subgraphs):
+    assert len(subgraphs) == 3
+    cond_input_locs = json.loads(attrs.get_str("cond_input_locs"))
+    then_input_locs = json.loads(attrs.get_str("then_input_locs"))
+    else_input_locs = json.loads(attrs.get_str("else_input_locs"))
+    num_outputs = attrs.get_int("num_outputs")
+
+    input_args = []
+    for i, arg in enumerate(inputs):
+        var = _expr.var("arg%s" % i, _infer_type(arg).checked_type)
+        input_args.append(var)
+    cond_args = [input_args[i] for i in cond_input_locs]
+    then_args = [input_args[i] for i in then_input_locs]
+    else_args = [input_args[i] for i in else_input_locs]
+
+    cond_arg_shapes = [arg.type_annotation.shape for arg in cond_args]
+    cond_arg_dtype_info = [arg.type_annotation.dtype for arg in cond_args]
+    cond_func = _from_mxnet_impl(subgraphs[0], cond_arg_shapes, cond_arg_dtype_info)
+    cond = _expr.Call(cond_func, cond_args).astype("bool")
+    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
+    if len(cond_shape) > 0:
+        assert len(cond_shape) == 1 and cond_shape[0] == 1, "Condition is not scalar"
+        cond = _op.take(cond, _expr.const(1, "int"))
+
+    sb = _scope_builder.ScopeBuilder()
+    with sb.if_scope(cond):
+        then_arg_shapes = [arg.type_annotation.shape for arg in then_args]
+        then_arg_dtype_info = [arg.type_annotation.dtype for arg in then_args]
+        then_func = _from_mxnet_impl(subgraphs[1], then_arg_shapes, then_arg_dtype_info)
+        sb.ret(_expr.Call(then_func, then_args))
+    with sb.else_scope():
+        else_arg_shapes = [arg.type_annotation.shape for arg in else_args]
+        else_arg_dtype_info = [arg.type_annotation.dtype for arg in else_args]
+        else_func = _from_mxnet_impl(subgraphs[2], else_arg_shapes, else_arg_dtype_info)
+        sb.ret(_expr.Call(else_func, else_args))
+    func = _expr.Function(input_args, sb.get())
+    ret = _expr.Call(func, inputs)
+    if num_outputs > 1:
+        ret = _expr.TupleWrapper(ret, num_outputs)
+    return ret
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
     "log",
     "exp",
+    "erf",
     "sqrt",
     "floor",
     "ceil",
@@ -921,6 +1098,8 @@ _identity_list = [
     "ones_like",
     "where",
     "gather_nd",
+    "cos",
+    "sin"
 ]
 
 _convert_map = {
@@ -933,6 +1112,7 @@ _convert_map = {
     "broadcast_mod"          : _rename(_op.mod),
     "broadcast_maximum"      : _rename(_op.maximum),
     "broadcast_minimum"      : _rename(_op.minimum),
+    "arctan"                 : _rename(_op.atan),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),
@@ -1008,14 +1188,15 @@ _convert_map = {
     "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
     "Activation"    : _mx_activations,
-    "Convolution"   : _mx_conv2d,
+    "Convolution"   : _mx_conv,
     "Convolution_v1": _mx_conv2d,
-    "Deconvolution" : _mx_conv2d_transpose,
+    "Deconvolution" : _mx_conv_transpose,
     "Pooling"       : _mx_pooling,
     "Pooling_v1"    : _mx_pooling,
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "InstanceNorm"  : _mx_instance_norm,
     "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
@@ -1034,6 +1215,8 @@ _convert_map = {
     "_full"         : _mx_full,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
+    "pad"           : _mx_pad,
+    "Pad"           : _mx_pad,
     "take"          : _mx_take,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
@@ -1064,12 +1247,15 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    # control flow
+    "_cond"             : _mx_cond,
     # Depricated:
     "Crop"              : _mx_crop_like,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
+    "contrib_fifo_buffer" : _mx_contrib_fifo_buffer,
 }
 
 # set identity list
@@ -1104,9 +1290,13 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
         Converted relay Function
     """
     assert symbol is not None
-    jgraph = json.loads(symbol.tojson())
+    if isinstance(symbol, dict):
+        jgraph = symbol
+    else:
+        jgraph = json.loads(symbol.tojson())
     jnodes = jgraph["nodes"]
     node_map = {}
+    shape_idx = 0
 
     for nid, node in enumerate(jnodes):
         children = [node_map[e[0]][e[1]] for e in node["inputs"]]
@@ -1114,14 +1304,27 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
         node_name = node["name"]
         op_name = node["op"]
         if op_name == "null":
-            shape = shape_dict[node_name] if node_name in shape_dict else None
+            if isinstance(shape_dict, dict):
+                shape = shape_dict[node_name] if node_name in shape_dict else None
+            elif isinstance(shape_dict, (list, tuple)):
+                shape = shape_dict[shape_idx]
+            else:
+                raise ValueError("Unknown type of shape_dict: %s" + type(shape_dict))
             if isinstance(dtype_info, dict):
                 dtype = dtype_info[node_name] if node_name in dtype_info else "float32"
+            elif isinstance(dtype_info, (list, tuple)):
+                dtype = dtype_info[shape_idx]
             else:
                 dtype = dtype_info
+            if isinstance(shape_dict, (list, tuple)):
+                shape_idx += 1
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
         elif op_name in _convert_map:
-            res = _convert_map[op_name](children, attrs)
+            if op_name in ['_cond', '_foreach', '_while_loop']:
+                subgraphs = node['subgraphs']
+                res = _convert_map[op_name](children, attrs, subgraphs)
+            else:
+                res = _convert_map[op_name](children, attrs)
             if res is None:
                 # defer conversion, used in RNN state initialization
                 res = [node]

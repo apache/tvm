@@ -75,10 +75,13 @@ def context(dev_type, dev_id=0):
       assert tvm.context("cuda", 0) == tvm.gpu(0)
     """
     if isinstance(dev_type, string_types):
-        dev_type = dev_type.split()[0]
-        if dev_type not in TVMContext.STR2MASK:
-            raise ValueError("Unknown device type %s" % dev_type)
-        dev_type = TVMContext.STR2MASK[dev_type]
+        if '-device=micro_dev' in dev_type:
+            dev_type = 'micro_dev'
+        else:
+            dev_type = dev_type.split()[0]
+            if dev_type not in TVMContext.STR2MASK:
+                raise ValueError("Unknown device type %s" % dev_type)
+            dev_type = TVMContext.STR2MASK[dev_type]
     return TVMContext(dev_type, dev_id)
 
 

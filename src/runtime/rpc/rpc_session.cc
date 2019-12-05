@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,10 +18,10 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_session.cc
  * \brief RPC session for remote function call.
  */
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -35,10 +35,13 @@
 #include <cmath>
 #include <algorithm>
 #include "rpc_session.h"
+#include "../object_internal.h"
 #include "../../common/ring_buffer.h"
+#include "../../common/socket.h"
 
 namespace tvm {
 namespace runtime {
+
 // Temp buffer for data array
 struct RPCByteArrayBuffer {
   TVMByteArray arr;
@@ -199,23 +202,33 @@ class RPCSession::EventHandler : public dmlc::Stream {
     return ctx;
   }
   // Send Packed sequence to writer.
+  //
+  // client_mode: whether we are in client mode.
+  //
+  // funwrap: auxiliary function to unwrap remote Object
+  //          when it is provided, we need to unwrap objects.
+  //
   // return_ndarray is a special flag to handle returning of ndarray
   //    In this case, we return the shape, context and data of the array,
   //    as well as a customized PackedFunc that handles deletion of
   //    the array in the remote.
   void SendPackedSeq(const TVMValue* arg_values,
                      const int* type_codes,
-                     int n,
+                     int num_args,
+                     bool client_mode,
+                     FUnwrapRemoteObject funwrap = nullptr,
                      bool return_ndarray = false) {
-    this->Write(n);
-    for (int i = 0; i < n; ++i) {
+    std::swap(client_mode_, client_mode);
+
+    this->Write(num_args);
+    for (int i = 0; i < num_args; ++i) {
       int tcode = type_codes[i];
       if (tcode == kNDArrayContainer) tcode = kArrayHandle;
       this->Write(tcode);
     }
 
     // Argument packing.
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < num_args; ++i) {
       int tcode = type_codes[i];
       TVMValue value = arg_values[i];
       switch (tcode) {
@@ -238,7 +251,23 @@ class RPCSession::EventHandler : public dmlc::Stream {
           break;
         }
         case kFuncHandle:
-        case kModuleHandle:
+        case kModuleHandle: {
+          // always send handle in 64 bit.
+          uint64_t handle;
+          // allow pass module as argument to remote.
+          if (funwrap != nullptr) {
+            void* remote_handle = (*funwrap)(
+                rpc_sess_table_index_,
+                runtime::TVMArgValue(value, tcode));
+            handle = reinterpret_cast<uint64_t>(remote_handle);
+          } else {
+            CHECK(!client_mode_)
+                << "Cannot directly pass remote object as argument";
+            handle = reinterpret_cast<uint64_t>(value.v_handle);
+          }
+          this->Write(handle);
+          break;
+        }
         case kHandle: {
           // always send handle in 64 bit.
           uint64_t handle = reinterpret_cast<uint64_t>(value.v_handle);
@@ -297,6 +326,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
         }
       }
     }
+    std::swap(client_mode_, client_mode);
   }
 
   // Endian aware IO handling
@@ -427,11 +457,11 @@ class RPCSession::EventHandler : public dmlc::Stream {
       case kHandle:
       case kStr:
       case kBytes:
+      case kModuleHandle:
       case kTVMContext: {
         this->RequestBytes(sizeof(TVMValue)); break;
       }
-      case kFuncHandle:
-      case kModuleHandle: {
+      case kFuncHandle: {
         CHECK(client_mode_)
             << "Only client can receive remote functions";
         this->RequestBytes(sizeof(TVMValue)); break;
@@ -653,7 +683,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
         TVMValue ret_value;
         ret_value.v_str = e.what();
         int ret_tcode = kStr;
-        SendPackedSeq(&ret_value, &ret_tcode, 1);
+        SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       }
     }
     this->SwitchToState(kRecvCode);
@@ -708,7 +738,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
         }
       }
       this->Write(code);
-      SendPackedSeq(&ret_value, &ret_tcode, 1);
+      SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       arg_recv_stage_ = 0;
       this->SwitchToState(kRecvCode);
     }
@@ -731,7 +761,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
       if (rv.type_code() == kStr) {
         ret_value.v_str = rv.ptr<std::string>()->c_str();
         ret_tcode = kStr;
-        SendPackedSeq(&ret_value, &ret_tcode, 1);
+        SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       } else if (rv.type_code() == kBytes) {
         std::string* bytes = rv.ptr<std::string>();
         TVMByteArray arr;
@@ -739,14 +769,14 @@ class RPCSession::EventHandler : public dmlc::Stream {
         arr.size = bytes->length();
         ret_value.v_handle = &arr;
         ret_tcode = kBytes;
-        SendPackedSeq(&ret_value, &ret_tcode, 1);
+        SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       } else if (rv.type_code() == kFuncHandle ||
                  rv.type_code() == kModuleHandle) {
         // always send handle in 64 bit.
         CHECK(!client_mode_)
               << "Only server can send function and module handle back.";
         rv.MoveToCHost(&ret_value, &ret_tcode);
-        SendPackedSeq(&ret_value, &ret_tcode, 1);
+        SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       } else if (rv.type_code() == kNDArrayContainer) {
         // always send handle in 64 bit.
         CHECK(!client_mode_)
@@ -761,18 +791,18 @@ class RPCSession::EventHandler : public dmlc::Stream {
         NDArray::Container* nd = static_cast<NDArray::Container*>(ret_value_pack[0].v_handle);
         ret_value_pack[1].v_handle = nd;
         ret_tcode_pack[1] = kHandle;
-        SendPackedSeq(ret_value_pack, ret_tcode_pack, 2, true);
+        SendPackedSeq(ret_value_pack, ret_tcode_pack, 2, false, nullptr, true);
       } else {
         ret_value = rv.value();
         ret_tcode = rv.type_code();
-        SendPackedSeq(&ret_value, &ret_tcode, 1);
+        SendPackedSeq(&ret_value, &ret_tcode, 1, false);
       }
     } catch (const std::runtime_error& e) {
       RPCCode code = RPCCode::kException;
       this->Write(code);
       ret_value.v_str = e.what();
       ret_tcode = kStr;
-      SendPackedSeq(&ret_value, &ret_tcode, 1);
+      SendPackedSeq(&ret_value, &ret_tcode, 1, false);
     }
   }
 
@@ -870,7 +900,7 @@ void RPCSession::Init() {
       &reader_, &writer_, table_index_, name_, &remote_key_);
   // Quick function to call remote.
   call_remote_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      handler_->SendPackedSeq(args.values, args.type_codes, args.num_args);
+      handler_->SendPackedSeq(args.values, args.type_codes, args.num_args, true);
       RPCCode code = HandleUntilReturnEvent(rv, true, nullptr);
       CHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
     });
@@ -951,13 +981,16 @@ int RPCSession::ServerEventHandler(const std::string& bytes, int event_flag) {
 void RPCSession::CallFunc(void* h,
                           TVMArgs args,
                           TVMRetValue* rv,
+                          FUnwrapRemoteObject funwrap,
                           const PackedFunc* fwrap) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
+
   RPCCode code = RPCCode::kCallFunc;
   handler_->Write(code);
   uint64_t handle = reinterpret_cast<uint64_t>(h);
   handler_->Write(handle);
-  handler_->SendPackedSeq(args.values, args.type_codes, args.num_args);
+  handler_->SendPackedSeq(
+      args.values, args.type_codes, args.num_args, true, funwrap);
   code = HandleUntilReturnEvent(rv, true, fwrap);
   CHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
 }
@@ -1118,25 +1151,29 @@ void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
   }
   std::string file_name = args[0];
   TVMRetValue ret = (*fsys_load_)(file_name);
-  Module m = ret;
-  *rv = static_cast<void*>(new Module(m));
+  // pass via void*
+  TVMValue value;
+  int rcode;
+  ret.MoveToCHost(&value, &rcode);
+  CHECK_EQ(rcode, kModuleHandle);
+  *rv = static_cast<void*>(value.v_handle);
 }
 
 void RPCModuleImport(TVMArgs args, TVMRetValue *rv) {
   void* pmod = args[0];
   void* cmod = args[1];
-  static_cast<Module*>(pmod)->Import(
-      *static_cast<Module*>(cmod));
+  ObjectInternal::GetModuleNode(pmod)->Import(
+      GetRef<Module>(ObjectInternal::GetModuleNode(cmod)));
 }
 
 void RPCModuleFree(TVMArgs args, TVMRetValue *rv) {
   void* mhandle = args[0];
-  delete static_cast<Module*>(mhandle);
+  ObjectInternal::ObjectFree(mhandle);
 }
 
 void RPCModuleGetFunc(TVMArgs args, TVMRetValue *rv) {
   void* mhandle = args[0];
-  PackedFunc pf = static_cast<Module*>(mhandle)->GetFunction(
+  PackedFunc pf = ObjectInternal::GetModuleNode(mhandle)->GetFunction(
       args[1], false);
   if (pf != nullptr) {
     *rv = static_cast<void*>(new PackedFunc(pf));
@@ -1148,7 +1185,7 @@ void RPCModuleGetFunc(TVMArgs args, TVMRetValue *rv) {
 void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
   void* mhandle = args[0];
   std::string fmt = args[1];
-  *rv = (*static_cast<Module*>(mhandle))->GetSource(fmt);
+  *rv = ObjectInternal::GetModuleNode(mhandle)->GetSource(fmt);
 }
 
 void RPCNDArrayFree(TVMArgs args, TVMRetValue *rv) {
@@ -1210,11 +1247,45 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
+PackedFunc MicroTimeEvaluator(
+    PackedFunc pf,
+    TVMContext ctx,
+    int number,
+    int repeat) {
+  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
+    TVMRetValue temp;
+    std::ostringstream os;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+    for (int i = 0; i < repeat; ++i) {
+      double speed = 0.0;
+      for (int j = 0; j < number; ++j) {
+        pf.CallPacked(args, &temp);
+        DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+        speed += (temp.operator double()) / number;
+      }
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+    }
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  return PackedFunc(ftimer);
+}
+
 PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              TVMContext ctx,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
+  if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
+    return MicroTimeEvaluator(pf, ctx, number, repeat);
+  }
+
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
@@ -1258,6 +1329,27 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
     *rv = arr;
   };
   return PackedFunc(ftimer);
+}
+
+size_t CallbackChannel::Send(const void* data, size_t size) {
+  TVMByteArray bytes;
+  bytes.data = static_cast<const char*>(data);
+  bytes.size = size;
+  int64_t n = fsend_(bytes);
+  if (n == -1) {
+    common::Socket::Error("CallbackChannel::Send");
+  }
+  return static_cast<size_t>(n);
+}
+
+size_t CallbackChannel::Recv(void* data, size_t size) {
+  TVMRetValue ret = frecv_(size);
+  if (ret.type_code() != kBytes) {
+    common::Socket::Error("CallbackChannel::Recv");
+  }
+  std::string* bytes = ret.ptr<std::string>();
+  memcpy(static_cast<char*>(data), bytes->c_str(), bytes->length());
+  return bytes->length();
 }
 
 }  // namespace runtime

@@ -37,7 +37,8 @@ namespace tvm {
 using namespace ir;
 // HybridOpNode
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<HybridOpNode>([](const HybridOpNode *op, IRPrinter *p) {
+.set_dispatch<HybridOpNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const HybridOpNode*>(node.get());
     p->stream << "hybrid(" << op->name << ", " << op << ")";
   });
 
@@ -82,7 +83,25 @@ Operation HybridOpNode::make(std::string name,
 }
 
 Array<Tensor> HybridOpNode::InputTensors() const {
-  return inputs;
+  // Because input tensors could be potentially inlined into hybrid scripts,
+  // we need to check if all input tensors are used in the body.
+  std::unordered_set<Tensor> orig_inputs;
+  for (auto t : inputs) {
+    orig_inputs.insert(t);
+  }
+  std::unordered_set<Tensor> visited;
+  Array<Tensor> curr_inputs;
+  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const NodeRef& n) {
+      const ir::Call *call = n.as<ir::Call>();
+      if (call != nullptr && call->func.defined()) {
+        Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+        if (orig_inputs.count(t) && !visited.count(t)) {
+          curr_inputs.push_back(t);
+          visited.insert(t);
+        }
+      }
+  });
+  return curr_inputs;
 }
 
 Operation HybridOpNode::ReplaceInputs(
@@ -111,7 +130,8 @@ void HybridOpNode::PropBoundToInputs(
     arith::Analyzer* analyzer,
     const std::unordered_map<const Variable*, IntSet> &dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-  for (Tensor t : this->inputs) {
+  auto curr_inputs = InputTensors();
+  for (Tensor t : curr_inputs) {
     auto it = out_dom_map->find(t);
     if (it == out_dom_map->end()) continue;
     TensorDom &dom = it->second;
@@ -161,32 +181,6 @@ Stmt HybridOpNode::BuildProvide(
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt ret = AttrStmt::make(make_zero(Int(32)), attr::extern_scope, 0, this->body);
-  auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
-    Array<NodeRef> bind_spec;
-    Array<Expr> tuple;
-    bind_spec.push_back(buffer);
-    bind_spec.push_back(tensor);
-    for (size_t k = 0; k < buffer->shape.size(); ++k) {
-      tuple.push_back(make_const(buffer->shape[k].type(), 0));
-      tuple.push_back(buffer->shape[k]);
-    }
-    ret = AttrStmt::make(
-        bind_spec, attr::buffer_bind_scope,
-        Call::make(Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
-  };
-  for (int i = static_cast<int>(outputs.size()) - 1; i >= 0; --i) {
-    Buffer buffer = decl_buffer(
-      outputs[i]->shape,
-      outputs[i]->dtype);
-    f_push_bind(buffer, stage->op.output(i));
-  }
-  for (int i = static_cast<int>(inputs.size()) - 1; i >= 0; --i) {
-    Buffer buffer = decl_buffer(
-      inputs[i]->shape,
-      inputs[i]->dtype);
-    f_push_bind(buffer, inputs[i]);
-  }
-
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);
@@ -203,7 +197,7 @@ Stmt HybridOpNode::BuildProvide(
    *      tensors have the same names as the operation produces them.
    *   2. Once OpNode is wrapped up by an Operation node, it is finalized.
    *      Later access will be from a const OpNode*.
-   * This is a chiken-egg paradox. It is impossible to put the output
+   * This is a chicken-egg paradox. It is impossible to put the output
    * tensors into the function body without forming the op node. The
    * function body is immutable after the node is formed.
    *
@@ -291,7 +285,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
         return ir::Substitute(op->body, rmap);
@@ -299,7 +293,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         under_outer = true;
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent;
+        rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
         return For::make(parent->var, Expr(0), extent * op->extent,
@@ -307,7 +301,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (under_outer) {
         Stmt body = IRMutator::Mutate(op->body);
         std::unordered_map<const Variable *, Expr> rmap;
-        rmap[op->loop_var.get()] = parent / extent % op->extent;
+        rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = ir::Substitute(body, rmap);
         extent = extent * op->extent;
         return body;
@@ -490,7 +484,7 @@ class ProviderReplacer : public ir::IRMutator {
       : vmap_(vmap) {}
 
   Stmt Mutate_(const ir::Provide* op, const Stmt &s) {
-    Tensor t = Operation(op->func.node_).output(op->value_index);
+    Tensor t = Downcast<Operation>(op->func).output(op->value_index);
     auto it = vmap_.find(t);
     if (it != vmap_.end()) {
       Stmt ret = ir::Provide::make(

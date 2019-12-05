@@ -51,7 +51,7 @@ We use docker container to create stable CI environments
 that can be deployed to multiple machines.
 You can find the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_ .
 Because we want a relatively stable CI environment and make use of pre-cached image,
-all of the CI images are built and maintained by comitters.
+all of the CI images are built and maintained by committers.
 
 Upgrade of CI images can cause problems and need fixes to accommodate the new env.
 Here is the protocol to update CI image:
@@ -96,7 +96,7 @@ Necessary dependencies:
 
 .. code:: bash
 
-  pip install --user nose Cython
+  pip install --user pytest Cython
 
 If you want to run all tests:
 
@@ -118,4 +118,4 @@ If you want to run a single test:
   export PYTHONPATH=python:topi/python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  TVM_FFI=ctypes python -m nose -v tests/python/unittest/test_pass_storage_rewrite.py
+  TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file src/relay/pass/print_ir.cc
  *
@@ -32,10 +31,10 @@ namespace relay {
 
 namespace transform {
 
-Pass PrintIR() {
+Pass PrintIR(bool show_meta_data) {
   runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
     [=](Module m, PassContext pc) {
-      LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m);
+      LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m, show_meta_data);
       return m;
   };
   return CreateModulePass(pass_func, 0, "PrintIR", {});

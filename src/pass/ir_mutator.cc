@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file ir_mutator.cc
  */
 #include <tvm/ir.h>
@@ -76,7 +75,7 @@ Stmt IRTransform(const Stmt& ir_node,
                  const Array<Expr>& only_enable) {
   std::unordered_set<uint32_t> only_type_index;
   for (Expr s : only_enable) {
-    only_type_index.insert(Node::TypeKey2Index(s.as<StringImm>()->value.c_str()));
+    only_type_index.insert(Object::TypeKey2Index(s.as<StringImm>()->value.c_str()));
   }
   return IRTransformer(f_preorder, f_postorder, only_type_index)
       .Mutate(ir_node);
@@ -118,9 +117,9 @@ inline Array<IterVar> MutateIterVarArr(Array<IterVar> rdom, IRMutator *m) {
 
 // Mutate Stmt
 
-#define DISPATCH_TO_MUTATE_STMT(OP)                                 \
-  set_dispatch<OP>([](const OP* op, const Stmt& s, IRMutator* m) {  \
-      return m->Mutate_(op, s);                                     \
+#define DISPATCH_TO_MUTATE_STMT(OP)                                     \
+  set_dispatch<OP>([](const ObjectRef& node, const Stmt& s, IRMutator* m) { \
+      return m->Mutate_(static_cast<const OP*>(node.get()), s);         \
     })
 
 Stmt IRMutator::Mutate_(const AttrStmt* op, const Stmt& s) {
@@ -344,9 +343,9 @@ TVM_STATIC_IR_FUNCTOR(IRMutator, vtable_stmt)
 
 // Mutate Expr
 
-#define DISPATCH_TO_MUTATE_EXPR(OP)                                 \
-  set_dispatch<OP>([](const OP* op, const Expr& e, IRMutator* m) {  \
-      return m->Mutate_(op, e);                                     \
+#define DISPATCH_TO_MUTATE_EXPR(OP)                                         \
+  set_dispatch<OP>([](const ObjectRef& node, const Expr& e, IRMutator* m) { \
+      return m->Mutate_(static_cast<const OP*>(node.get()), e);             \
     })
 
 Expr IRMutator::Mutate_(const Variable *op, const Expr& e) {

@@ -41,10 +41,9 @@ cdef int tvm_callback(TVMValue* args,
     for i in range(num_args):
         value = args[i]
         tcode = type_codes[i]
-        if (tcode == kNodeHandle or
+        if (tcode == kObjectHandle or
             tcode == kFuncHandle or
             tcode == kModuleHandle or
-            tcode == kObjectCell or
             tcode > kExtBegin):
             CALL(TVMCbArgToReturn(&value, tcode))
 
@@ -98,9 +97,9 @@ cdef inline int make_arg(object arg,
                          list temp_args) except -1:
     """Pack arguments into c args tvm call accept"""
     cdef unsigned long long ptr
-    if isinstance(arg, NodeBase):
-        value[0].v_handle = (<NodeBase>arg).chandle
-        tcode[0] = kNodeHandle
+    if isinstance(arg, ObjectBase):
+        value[0].v_handle = (<ObjectBase>arg).chandle
+        tcode[0] = kObjectHandle
     elif isinstance(arg, NDArrayBase):
         value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = (kNDArrayContainer if
@@ -152,15 +151,12 @@ cdef inline int make_arg(object arg,
         temp_args.append(tstr)
     elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
         arg = convert_to_node(arg)
-        value[0].v_handle = (<NodeBase>arg).chandle
-        tcode[0] = kNodeHandle
+        value[0].v_handle = (<ObjectBase>arg).chandle
+        tcode[0] = kObjectHandle
         temp_args.append(arg)
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kModuleHandle
-    elif isinstance(arg, _CLASS_OBJECT):
-        value[0].v_handle = c_handle(arg.handle)
-        tcode[0] = kObjectCell
     elif isinstance(arg, FunctionBase):
         value[0].v_handle = (<FunctionBase>arg).chandle
         tcode[0] = kFuncHandle
@@ -188,8 +184,8 @@ cdef inline bytearray make_ret_bytes(void* chandle):
 
 cdef inline object make_ret(TVMValue value, int tcode):
     """convert result to return value."""
-    if tcode == kNodeHandle:
-        return make_ret_node(value.v_handle)
+    if tcode == kObjectHandle:
+        return make_ret_object(value.v_handle)
     elif tcode == kNull:
         return None
     elif tcode == kInt:
@@ -212,8 +208,6 @@ cdef inline object make_ret(TVMValue value, int tcode):
         fobj = _CLASS_FUNCTION(None, False)
         (<FunctionBase>fobj).chandle = value.v_handle
         return fobj
-    elif tcode == kObjectCell:
-        return make_ret_object(value.v_handle)
     elif tcode in _TVM_EXT_RET:
         return _TVM_EXT_RET[tcode](ctypes_handle(value.v_handle))
 
@@ -314,6 +308,7 @@ cdef class FunctionBase:
 _CLASS_FUNCTION = None
 _CLASS_MODULE = None
 _CLASS_OBJECT = None
+_CLASS_NODE = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -327,3 +322,7 @@ def _set_class_function(func_class):
 def _set_class_object(obj_class):
     global _CLASS_OBJECT
     _CLASS_OBJECT = obj_class
+
+def _set_class_node(node_class):
+    global _CLASS_NODE
+    _CLASS_NODE = node_class

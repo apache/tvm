@@ -217,16 +217,6 @@ TVM_DLL Expr operator*(Expr a, Expr b);
  */
 TVM_DLL Expr operator/(Expr a, Expr b);
 /*!
- * \brief mod operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL Expr operator%(Expr a, Expr b);
-/*!
  * \brief left shift operator
  *
  * \param a left operand
@@ -332,6 +322,73 @@ TVM_DLL Expr operator||(Expr a, Expr b);
  * \note This operator does eager constant folding.
  */
 TVM_DLL Expr operator!(Expr a);
+/*!
+ * \brief compute division in C semantics.
+ *
+ * a / b as in C/C++.
+ *
+ * When operands are integers, it directly corresponds to truncdiv.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr div(Expr a, Expr b);
+/*!
+ * \brief compute trunc(a / b)
+ *
+ * This is the default integer division behavior in C.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr truncdiv(Expr a, Expr b);
+/*!
+ * \brief compute the remainder of truncdiv
+ *
+ * This is the default integer division behavior in C.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr truncmod(Expr a, Expr b);
+/*!
+ * \brief compute floor(a / b) where a and b are non-negative.
+ *
+ * Use this function for index split calculation.
+ *
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr indexdiv(Expr a, Expr b);
+/*!
+ * \brief compute the remainder floor(a / b) where a and b are non-negative.
+ *
+ * Use this function for index split calculation.
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL Expr indexmod(Expr a, Expr b);
 /*!
  * \brief compute floor(a / b)
  *
@@ -441,6 +498,12 @@ TVM_DLL Expr pow(Expr x, Expr y);
  * \return The aboslute value of input data x
  */
 TVM_DLL Expr abs(Expr x);
+/*!
+ * \brief Check if x is NaN.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL Expr isnan(Expr x);
 
 /*!
  * \brief sum of of source expression over axis
@@ -455,6 +518,13 @@ TVM_DLL Expr sum(Expr source, Array<IterVar> axis);
  * \param axis List of iteration variables that will be used for reduction.
  */
 TVM_DLL Expr all(Expr source, Array<IterVar> axis);
+
+/*!
+ * \brief logical Or of of source expression over axis
+ * \param source The source expression.
+ * \param axis List of iteration variables that will be used for reduction.
+ */
+TVM_DLL Expr any(Expr source, Array<IterVar> axis);
 
 /*!
  * \brief max of of source expression over axis
@@ -499,6 +569,14 @@ TVM_DLL Expr ceil(Expr x);
 TVM_DLL Expr round(Expr x);
 
 /*!
+ * \brief Calculates std::nearbyint(x)
+ * \param x The input expression.
+ * \return The result expression.
+ * This is a faster alternate to round.
+ */
+TVM_DLL Expr nearbyint(Expr x);
+
+/*!
  * \brief Calculate trunc(x)
  * \param x The input expression.
  * \return The result expression.
@@ -512,6 +590,7 @@ TVM_DLL Expr trunc(Expr x);
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(erf);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
@@ -520,6 +599,7 @@ TVM_DECLARE_INTRIN_UNARY(log);
 TVM_DECLARE_INTRIN_UNARY(popcount);
 TVM_DECLARE_INTRIN_UNARY(cos);
 TVM_DECLARE_INTRIN_UNARY(sin);
+TVM_DECLARE_INTRIN_UNARY(atan);
 
 // Implementation details after this
 inline bool is_const(const Expr& x) {
@@ -627,6 +707,9 @@ inline Expr make_zero(Type t) {
   }                                                            \
   inline Expr Name(const Expr& a, int b) {                     \
     return Name(a, make_const(a.type(), b));                   \
+  }                                                            \
+  inline Expr Name(const Expr& a, double b) {                  \
+    return Name(a, make_const(Float(64), b));                  \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                  \
@@ -649,19 +732,23 @@ inline Expr make_zero(Type t) {
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator-=, operator-);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator*=, operator*);
-TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator/=, operator/);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator+);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator-);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator*);
-TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator/);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(max);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(min);
+TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(div);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator>);  // NOLINT(*)
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator>=);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<);  // NOLINT(*)
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator<=);
 // integer related ops
-TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator%);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(indexdiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(indexmod);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncdiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncmod);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floordiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floormod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator>>); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator<<); // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator&);
@@ -670,6 +757,46 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator^);
 // logical ops
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator&&);
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator||);
+
+
+/*!
+ * \brief Helper function to raise a compiler error about division ambiguity.
+ * \note The call to this function will always results in a compiler error.
+ * \tparam TA Any class type.
+ */
+template<typename TA>
+inline void DivAmbiguityError(const TA& a) {
+  constexpr bool div_ambiguity = !std::is_class<TA>::value;
+  static_assert(div_ambiguity,
+                "TVM supports multiple types of integer divisions, "
+                "please call div, indexdiv/indexmod, "
+                "floordiv/floormod or truncdiv/truncmod directly "
+                "to avoid ambiguity in the code. "
+                "Checkout these functions in expr_operator.h.");
+}
+
+// The following code are not intended to be used in the codebase.
+// Instead, they generate clear compiler errors that ask developers
+// to use the specific division function.
+// The second template argument is necessary to make sure the
+// code compiles lazily by the compiler during invocation.
+template<typename TB>
+inline Expr operator/(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
+
+template<typename TB>
+inline Expr operator/=(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
+
+template<typename TB>
+inline Expr operator%(const Expr& a, const TB& b) {
+  DivAmbiguityError(a);
+  return a;
+}
 
 }  // namespace tvm
 #endif  // TVM_EXPR_OPERATOR_H_

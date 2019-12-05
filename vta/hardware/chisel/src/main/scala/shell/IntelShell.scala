@@ -30,7 +30,7 @@ import vta.core._
   * system that can be used for simulation or real hardware.
   */
 class IntelShell(implicit p: Parameters) extends Module {
-  val io = IO(new Bundle{
+  val io = IO(new Bundle {
     val host = new AXIClient(p(ShellKey).hostParams)
     val mem = new AXIMaster(p(ShellKey).memParams)
   })

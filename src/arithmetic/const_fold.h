@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file const_fold.h
  * \brief Centralized location for constant folding.
  */
@@ -29,6 +28,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
+#include <cmath>
 #include "int_operator.h"
 
 namespace tvm {

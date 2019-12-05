@@ -38,6 +38,7 @@ lib/libtvm_runtime_pack.o: tvm_runtime_pack.cc
 
 # The code library built by TVM
 lib/test_addone_sys.o: prepare_test_libs.py
+	@mkdir -p $(@D)
 	python prepare_test_libs.py
 
 # Deploy using the all in one TVM package library
@@ -49,3 +50,5 @@ lib/cpp_deploy_pack: cpp_deploy.cc lib/test_addone_sys.o lib/libtvm_runtime_pack
 lib/cpp_deploy_normal: cpp_deploy.cc lib/test_addone_sys.o
 	@mkdir -p $(@D)
 	$(CXX) $(PKG_CFLAGS) -o $@  $^ -ltvm_runtime $(PKG_LDFLAGS)
+clean:
+	rm -rf lib

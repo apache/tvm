@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file pooling.cc
  * \brief Pooling operators
  */
@@ -47,15 +46,9 @@ Array<Array<Layout> > Pool2DInferCorrectLayout(
   T *params = const_cast<T*>(attrs.as<T>());
 
   if (new_in_layouts.defined()) {
+    // Set the pool with the new layout.
     CHECK_EQ(new_in_layouts.size(), 1);
-
-    Layout raw_layout(params->layout);
-    Layout input = new_in_layouts[0];
-    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
-    input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
-        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
-      params->layout = input.name();  // modify self to follow the input layout
-    }
+    params->layout = new_in_layouts[0].name();
   }
 
   Layout inferred_layout(params->layout);
@@ -108,14 +101,25 @@ bool Pool2DRel(const Array<Type>& types,
     oshape.push_back(e);
   }
 
-  if (param->ceil_mode) {
-    oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
-                    param->strides[0] - 1) / param->strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] +
-                    param->strides[1] - 1) / param->strides[1]) + 1;
+  if (dshape[hidx].as<ir::Any>()) {
+    oshape[hidx] = dshape[hidx];
   } else {
-    oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
+    if (param->ceil_mode) {
+      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
+                       param->strides[0] - 1) / param->strides[0]) + 1;
+    } else {
+      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
+    }
+  }
+  if (dshape[widx].as<ir::Any>()) {
+    oshape[widx] = dshape[widx];
+  } else {
+    if (param->ceil_mode) {
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] +
+                       param->strides[1] - 1) / param->strides[1]) + 1;
+    } else {
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
+    }
   }
 
   // assign output type
@@ -161,9 +165,12 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool2d does not support input split on width";
 
-  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
+  CHECK(inputs[0].ndim() == 4U ||
+        inputs[0].ndim() == 5U ||
+        inputs[0].ndim() == 6U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
-      << " or 5-D input (last dimension is a split of channel)";
+      << " or 5-D input (e.g. NCHWc on for vector instructions)"
+      << " or 6-D input (e.g. NCHWnc for tensor accelerators)";
 
   if (param->padding.size() == 1) {
     padding.push_back(padding[0]);
@@ -210,7 +217,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -265,7 +272,7 @@ Average pooling operation for one dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AvgPool2DAttrs")
+.set_attrs_type<AvgPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -352,7 +359,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
+.set_attrs_type<GlobalPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -383,7 +390,7 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
+.set_attrs_type<GlobalPool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -509,7 +516,7 @@ RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_attrs_type<AdaptivePool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
@@ -548,7 +555,7 @@ RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_attrs_type<AdaptivePool2DAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
@@ -656,7 +663,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -705,7 +712,7 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
+.set_attrs_type<MaxPool2DAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

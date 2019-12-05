@@ -21,13 +21,26 @@ from __future__ import absolute_import
 
 import sys
 from ast import literal_eval
-
 from collections import deque
+
+try:
+    # no typing.Deque in Python 3.5
+    # https://bugs.python.org/issue29011
+    from typing import Any, Dict, List, Optional, TypeVar, Tuple, Union, MutableSequence, T, Deque
+except ImportError:
+    class Deque(deque, MutableSequence[T], extra=deque):
+
+        def __new__(cls, *args, **kwds):
+            if _geqv(cls, Deque):
+                raise TypeError("Type Deque cannot be instantiated; "
+                                "use deque() instead")
+            return deque.__new__(cls, *args, **kwds)
 
 import tvm
 
 from . import module
 from .base import Span, SourceName
+from . import adt
 from . import expr
 from . import ty
 from . import op
@@ -53,8 +66,7 @@ sys.setrecursionlimit(10000)
 class ParseError(Exception):
     """Exception type for parse errors."""
 
-    def __init__(self, message):
-        # type: (str) -> None
+    def __init__(self, message: str) -> None:
         super(ParseError, self).__init__()
         self.message = message
 
@@ -77,7 +89,8 @@ class ExprOp(OpWrapper):
         try:
             return expr.Call(self.operator, args, attrs, type_args)
         except Exception:
-            raise Exception(str(self.operator) + " " + str(attrs))
+            raise Exception("Operator {} is not registered. It's attributes are {}"
+                            .format(self.operator, attrs))
 
 class FuncOp(OpWrapper):
     """Convert the attrs, call the python function with the attrs passed in as keyword arguments.
@@ -132,6 +145,7 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
+    "cast": op.cast
 }
 
 TYPE_PREFIXES = [
@@ -141,12 +155,11 @@ TYPE_PREFIXES = [
     "bool",
 ]
 
-T = ty.TypeVar("T")
-# Scope = Deque[Tuple[str, T]]
-# Scopes = Deque[Scope[T]]
+T = TypeVar("T")
+Scope = Deque[Tuple[str, T]]
+Scopes = Deque[Scope[T]]
 
-def lookup(scopes, name):
-    # type: (Scopes[T], str) -> Optional[T]
+def lookup(scopes: Scopes[T], name: str) -> Optional[T]:
     """Look up `name` in `scopes`."""
 
     for scope in scopes:
@@ -183,95 +196,93 @@ def spanify(f):
 class ParseTreeToRelayIR(RelayVisitor):
     """Parse Relay text format into Relay IR."""
 
-    def __init__(self, source_name):
-        # type: (str) -> None
+    def __init__(self, source_name: str) -> None:
         self.source_name = source_name
-        self.module = module.Module({})   # type: module.Module
+        self.module = module.Module({})  # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
-        self.var_scopes = deque([deque()])          # type: Scopes[expr.Var]
-        self.global_var_scope = deque()             # type: Scope[expr.GlobalVar]
-        self.type_param_scopes = deque([deque()])   # type: Scopes[ty.TypeVar]
-        self.graph_expr = []                        # type: List[expr.Expr]
+        self.var_scopes = deque([deque()])       # type: Scopes[expr.Var]
+        self.global_vars = {}                    # type: Scope[expr.GlobalVar]
+        self.type_var_scopes = deque([deque()])  # type: Scopes[ty.TypeVar]
+        self.global_type_vars = {}               # type: Scope[expr.GlobalVar]
+        self.graph_expr = []                     # type: List[expr.Expr]
 
         super(ParseTreeToRelayIR, self).__init__()
 
 
-    def enter_var_scope(self):
-        # type: () -> None
+    def enter_var_scope(self) -> None:
         """Enter a new Var scope so it can be popped off later."""
-
         self.var_scopes.appendleft(deque())
 
-    def exit_var_scope(self):
-        # type: () -> Scope[expr.Var]
+    def exit_var_scope(self) -> Scope[expr.Var]:
         """Pop off the current Var scope and return it."""
-
         return self.var_scopes.popleft()
 
-    def mk_var(self, name, type_):
-        # type: (str, ty.Type) -> expr.Var
+    def mk_var(self, name: str, typ: ty.Type = None):
         """Create a new Var and add it to the Var scope."""
-
-        var = expr.Var(name, type_)
+        var = expr.Var(name, typ)
         self.var_scopes[0].appendleft((name, var))
         return var
 
-    def mk_global_var(self, name):
-        # type: (str) -> expr.GlobalVar
+    def mk_global_var(self, name: str) -> expr.GlobalVar:
         """Create a new GlobalVar and add it to the GlobalVar scope."""
-
+        if name in self.global_vars:
+            raise ParseError("duplicate global var \"{0}\"".format(name))
         var = expr.GlobalVar(name)
-        self.global_var_scope.append((name, var))
+        self.global_vars[name] = var
         return var
 
-    def enter_type_param_scope(self):
-        # type: () -> None
+    def enter_type_param_scope(self) -> None:
         """Enter a new TypeVar scope so it can be popped off later."""
+        self.type_var_scopes.appendleft(deque())
 
-        self.type_param_scopes.appendleft(deque())
-
-    def exit_type_param_scope(self):
-        # type: () -> Scope[ty.TypeVar]
+    def exit_type_param_scope(self) -> Scope[ty.TypeVar]:
         """Pop off the current TypeVar scope and return it."""
+        return self.type_var_scopes.popleft()
 
-        return self.type_param_scopes.popleft()
-
-    def mk_typ(self, name, kind):
-        # (str, ty.Kind) -> ty.TypeVar
+    def mk_typ(self, name: str, kind: ty.Kind) -> ty.TypeVar:
         """Create a new TypeVar and add it to the TypeVar scope."""
-
         typ = ty.TypeVar(name, kind)
-        self.type_param_scopes[0].appendleft((name, typ))
+        self.type_var_scopes[0].append((name, typ))
         return typ
+
+    def mk_global_typ_var(self, name, kind):
+        # (str, ty.Kind) -> ty.GlobalTypeVar
+        """Create a new TypeVar and add it to the TypeVar scope."""
+        typ = ty.GlobalTypeVar(name, kind)
+        self._check_existing_typ_expr(name, typ)
+        self.global_type_vars[name] = typ
+        return typ
+
+    # TODO(weberlo): rethink whether we should have type constructors mixed with type vars.
+    def mk_global_typ_cons(self, name, cons):
+        self._check_existing_typ_expr(name, cons)
+        self.global_type_vars[name] = cons
+
+    def _check_existing_typ_expr(self, name, new_expr):
+        if name in self.global_type_vars:
+            new_typ_name = self._type_expr_name(new_expr)
+            existing_typ_name = self._type_expr_name(self.global_type_vars[name])
+            raise ParseError(
+                "{0} `{1}` conflicts with existing {2}".format(new_typ_name,\
+                                                                name, existing_typ_name))
+
+    def _type_expr_name(self, e):
+        if isinstance(e, adt.Constructor):
+            return "`{0}` ADT constructor".format(e.belong_to.var.name)
+        elif isinstance(e, ty.GlobalTypeVar):
+            if e.kind == ty.Kind.AdtHandle:
+                return "ADT definition"
+        return "function definition"
 
     def visitProjection(self, ctx):
         return expr.TupleGetItem(self.visit(ctx.expr()), self.visit(ctx.NAT()))
 
-    def visitTerminal(self, node):
-        # type: (TerminalNode) -> Union[expr.Expr, int, float]
+    def visitTerminal(self, node) -> Union[expr.Expr, int, float]:
         """Visit lexer tokens that aren't ignored or visited by other functions."""
-
         node_type = node.getSymbol().type
         node_text = node.getText()
-        name = node_text[1:]
 
-        # variables
-        if node_type == RelayLexer.GLOBAL_VAR:
-            return lookup(deque([self.global_var_scope]), node_text[1:])
-        if node_type == RelayLexer.LOCAL_VAR:
-            # Remove the leading '%' and lookup the name.
-            var = lookup(self.var_scopes, name)
-            if var is None:
-                raise ParseError("Couldn't resolve `{}`.".format(name))
-            return var
-        if node_type == RelayLexer.GRAPH_VAR:
-            try:
-                return self.graph_expr[int(name)]
-            except IndexError:
-                raise ParseError("Couldn't resolve `{}`".format(name))
-
-        # data types
         if node_type == RelayLexer.NAT:
             return int(node_text)
         if node_type == RelayLexer.FLOAT:
@@ -281,35 +292,69 @@ class ParseTreeToRelayIR(RelayVisitor):
                 return True
             if node_text == "False":
                 return False
-            raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
+            raise ParseError("unrecognized BOOL_LIT: `{}`".format(node_text))
         if node_type == RelayLexer.QUOTED_STRING:
             return literal_eval(node_text)
+        raise ParseError("unhandled terminal \"{0}\" of type `{1}`".format(node_text, node_type))
 
-        raise ParseError("todo: `{}`".format(node_text))
+    def visitGeneralIdent(self, ctx):
+        name = ctx.getText()
+        # Look through all type prefixes for a match.
+        for type_prefix in TYPE_PREFIXES:
+            if name.startswith(type_prefix):
+                return ty.scalar_type(name)
+        # Next, look it up in the local then global type params.
+        type_expr = lookup(self.type_var_scopes, name)
+        if type_expr is None:
+            type_expr = self.global_type_vars.get(name, None)
+        if type_expr is not None:
+            # Zero-arity constructor calls fall into the general ident case, so in that case,
+            # we construct a constructor call with no args.
+            if isinstance(type_expr, adt.Constructor) and not type_expr.inputs:
+                type_expr = expr.Call(type_expr, [])
+            return type_expr
+        # Check if it's an operator.
+        op_name = ".".join([name.getText() for name in ctx.CNAME()])
+        if op_name in FUNC_OPS:
+            return FuncOp(FUNC_OPS[op_name])
+        return ExprOp(op.get(op_name))
 
-    def visit_list(self, ctx_list):
-        # type: (List[ParserRuleContext]) -> List[Any]
+    def visitGlobalVar(self, ctx):
+        var_name = ctx.CNAME().getText()
+        global_var = self.global_vars.get(var_name, None)
+        if global_var is None:
+            raise ParseError("unbound global var `{0}`".format(var_name))
+        return global_var
+
+    def visitLocalVar(self, ctx):
+        var_name = ctx.CNAME().getText()
+        local_var = lookup(self.var_scopes, var_name)
+        if local_var is None:
+            raise ParseError("unbound local var `{0}`".format(var_name))
+        return local_var
+
+    def visitGraphVar(self, ctx):
+        return self.graph_expr[int(ctx.NAT().getText())]
+
+    def visit_list(self, ctx_list) -> List[Any]:
         """"Visit a list of contexts."""
         assert isinstance(ctx_list, list)
 
         return [self.visit(ctx) for ctx in ctx_list]
 
-    def getType_(self, ctx):
-        # type: (Optional[RelayParser.Type_Context]) -> Optional[ty.Type]
+    def getTypeExpr(self, ctx: Optional[RelayParser.TypeExprContext]) -> Optional[ty.Type]:
         """Return a (possibly None) Relay type."""
-
         if ctx is None:
             return None
 
         return self.visit(ctx)
 
-    def visitProg(self, ctx):
+    def visitProg(self, ctx: RelayParser.ProgContext) -> Union[expr.Expr, module.Module]:
         self.meta = None
         if ctx.METADATA():
-            header, data = str(ctx.METADATA()).split('\n', 1)
+            header, data = str(ctx.METADATA()).split("\n", 1)
             assert header == "METADATA:"
             self.meta = tvm.load_json(data)
-        # type: (RelayParser.ProgContext) -> Union[expr.Expr, module.Module]
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.module
@@ -320,37 +365,34 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.module
 
     # Exprs
-    def visitOpIdent(self, ctx):
-        # type: (RelayParser.OpIdentContext) -> op.Op
-        op_name = ctx.CNAME().getText()
+    def visitOpIdent(self, ctx) -> op.Op:
+        op_name = ".".join([name.getText() for name in ctx.CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])
         return ExprOp(op.get(op_name))
 
     # pass through
-    def visitParen(self, ctx):
-        # type: (RelayParser.ParenContext) -> expr.Expr
+    def visitParen(self, ctx: RelayParser.ParenContext) -> expr.Expr:
         return self.visit(ctx.expr())
 
     # pass through
-    def visitBody(self, ctx):
-        # type: (RelayParser.BodyContext) -> expr.Expr
+    def visitTypeParen(self, ctx: RelayParser.TypeParenContext) -> expr.Expr:
+        return self.visit(ctx.typeExpr())
+
+    # pass through
+    def visitBody(self, ctx: RelayParser.BodyContext) -> expr.Expr:
         return self.visit(ctx.expr())
 
-    def visitScalarFloat(self, ctx):
-        # type: (RelayParser.ScalarFloatContext) -> expr.Constant
+    def visitScalarFloat(self, ctx: RelayParser.ScalarFloatContext) -> expr.Constant:
         return expr.const(self.visit(ctx.FLOAT()))
 
-    def visitScalarInt(self, ctx):
-        # type: (RelayParser.ScalarIntContext) -> expr.Constant
+    def visitScalarInt(self, ctx: RelayParser.ScalarIntContext) -> expr.Constant:
         return expr.const(self.visit(ctx.NAT()))
 
-    def visitScalarBool(self, ctx):
-        # type: (RelayParser.ScalarBoolContext) -> expr.Constant
+    def visitScalarBool(self, ctx: RelayParser.ScalarBoolContext) -> expr.Constant:
         return expr.const(self.visit(ctx.BOOL_LIT()))
 
-    def visitNeg(self, ctx):
-        # type: (RelayParser.NegContext) -> Union[expr.Constant, expr.Call]
+    def visitNeg(self, ctx: RelayParser.NegContext) -> Union[expr.Constant, expr.Call]:
         val = self.visit(ctx.expr())
         if isinstance(val, expr.Constant) and val.data.asnumpy().ndim == 0:
             # fold Neg in for scalars
@@ -358,20 +400,18 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return op.negative(val)
 
-    def visitTuple(self, ctx):
-        # type: (RelayParser.TupleContext) -> expr.Tuple
+    def visitTuple(self, ctx: RelayParser.TupleContext) -> expr.Tuple:
         tup = self.visit_list(ctx.expr())
         return expr.Tuple(tup)
 
-    def visitLet(self, ctx):
-        # type: (RelayParser.SeqContext) -> expr.Let
+    def visitLet(self, ctx: RelayParser.LetContext) -> expr.Let:
         """Desugar various sequence constructs to Relay Let nodes."""
 
         if ctx.var() is None:
             # anonymous identity
             ident = "_"
-            type_ = None
-            var = self.mk_var(ident, type_)
+            typ = None
+            var = self.mk_var(ident, typ)
         else:
             var = self.visitVar(ctx.var())
 
@@ -383,66 +423,61 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Let(var, value, body)
 
-    def visitBinOp(self, ctx):
-        # type: (RelayParser.BinOpContext) -> expr.Call
+    def visitBinOp(self, ctx: RelayParser.BinOpContext) -> expr.Call:
         """Desugar binary operators."""
         arg0, arg1 = self.visit_list(ctx.expr())
         relay_op = BINARY_OPS.get(ctx.op.type)
 
         if relay_op is None:
-            raise ParseError("Unimplemented binary op.")
+            raise ParseError("unimplemented binary op.")
 
         return relay_op(arg0, arg1)
 
     @spanify
-    def visitVar(self, ctx):
-        # type: (RelayParser.VarContext) -> expr.Var
+    def visitVar(self, ctx: RelayParser.VarContext) -> expr.Var:
         """Visit a single variable."""
-        ident = ctx.LOCAL_VAR()
+        ident = ctx.localVar()
 
         if ident is None:
-            raise ParseError("Only local ids may be used in vars.")
+            raise ParseError("only local ids may be used in vars.")
 
-        type_ = self.getType_(ctx.type_())
+        typeExpr = self.getTypeExpr(ctx.typeExpr())
 
-        return self.mk_var(ident.getText()[1:], type_)
+        return self.mk_var(ident.getText()[1:], typeExpr)
 
-    def visitVarList(self, ctx):
-        # type: (RelayParser.VarListContext) -> List[expr.Var]
+    def visitVarList(self, ctx: RelayParser.VarListContext) -> List[expr.Var]:
         return self.visit_list(ctx.var())
 
     # TODO: support a larger class of values than just Relay exprs
-    def visitAttr(self, ctx):
-        # type: (RelayParser.AttrContext) -> Tuple[str, expr.Expr]
+    def visitAttr(self, ctx: RelayParser.AttrContext) -> Tuple[str, expr.Expr]:
         return (ctx.CNAME().getText(), self.visit(ctx.expr()))
 
-    def visitArgNoAttr(self, ctx):
+    def visitArgNoAttr(self, ctx: RelayParser.ArgNoAttrContext):
         return (self.visit_list(ctx.varList().var()), None)
 
-    def visitAttrSeq(self, ctx):
-        # type: (RelayParser.AttrListContext) -> Dict[str, expr.Expr]
+    def visitAttrSeq(self, ctx: RelayParser.AttrSeqContext) -> Dict[str, expr.Expr]:
         return dict(self.visit_list(ctx.attr()))
 
-    def visitArgWithAttr(self, ctx):
+    def visitArgWithAttr(self, ctx: RelayParser.AttrSeqContext) \
+        -> Tuple[List[expr.Var], Dict[str, expr.Expr]]:
         return (self.visit_list(ctx.var()), self.visitAttrSeq(ctx.attrSeq()))
 
-    def visitArgList(self,
-                     ctx    # type: RelayParser.ArgListContext
-                    ):
-        # type: (...) -> Tuple[Optional[List[expr.Var]], Optional[Dict[str, expr.Expr]]]
+    def visitArgList(self, ctx: RelayParser.ArgListContext) \
+            -> Tuple[Optional[List[expr.Var]], Optional[Dict[str, expr.Expr]]]:
         var_list = self.visit(ctx.varList()) if ctx.varList() else None
         attr_list = self.visit(ctx.attrList()) if ctx.attrList() else None
         return (var_list, attr_list)
 
-    def visitMeta(self, ctx):
+    def visitMeta(self, ctx: RelayParser.MetaContext):
         type_key = str(ctx.CNAME())
         index = int(self.visit(ctx.NAT()))
         return self.meta[type_key][index]
 
-    def mk_func(self, ctx):
-        # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> expr.Function
+    def mk_func(
+            self,
+            ctx: Union[RelayParser.FuncContext, RelayParser.DefnContext]) \
+            -> expr.Function:
         """Construct a function from either a Func or Defn."""
-
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
         # Capture type params in params.
@@ -450,7 +485,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         type_params = ctx.typeParamList()
 
         if type_params is not None:
-            type_params = type_params.ident()
+            type_params = type_params.typeExpr()
             assert type_params
             for ty_param in type_params:
                 name = ty_param.getText()
@@ -459,7 +494,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         var_list, attr_list = self.visit(ctx.argList())
         if var_list is None:
             var_list = []
-        ret_type = self.getType_(ctx.type_())
+        ret_type = self.getTypeExpr(ctx.typeExpr())
 
         body = self.visit(ctx.body())
         # NB(@jroesch): you must stay in the type parameter scope until
@@ -474,42 +509,130 @@ class ParseTreeToRelayIR(RelayVisitor):
         return expr.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify
-    def visitFunc(self, ctx):
-        # type: (RelayParser.FuncContext) -> expr.Function
+    def visitFunc(self, ctx: RelayParser.FuncContext) -> expr.Function:
         return self.mk_func(ctx)
 
     # TODO: how to set spans for definitions?
     # @spanify
-    def visitDefn(self, ctx):
-        # type: (RelayParser.DefnContext) -> None
-        ident = ctx.ident().GLOBAL_VAR()
-        if ident is None:
-            raise ParseError("Only global ids may be used in `def`s.")
-        ident_name = ident.getText()[1:]
+    def visitFuncDefn(self, ctx: RelayParser.DefnContext) -> None:
+        ident_name = ctx.globalVar().getText()[1:]
         ident = self.mk_global_var(ident_name)
-        self.module[ident] = self.mk_func(ctx)
+        func = self.mk_func(ctx)
+        self.module[ident] = func
 
-    def visitCallNoAttr(self, ctx):
+    def handle_adt_header(
+            self,
+            ctx: Union[RelayParser.ExternAdtDefnContext, RelayParser.AdtDefnContext]):
+        """Handles parsing of the name and type params of an ADT definition."""
+        adt_name = ctx.generalIdent().getText()
+        adt_var = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
+        # parse type params
+        type_params = ctx.typeParamList()
+        if type_params is None:
+            type_params = []
+        else:
+            type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
+                           for type_ident in type_params.typeExpr()]
+        return adt_var, type_params
+
+    def visitExternAdtDefn(self, ctx: RelayParser.ExternAdtDefnContext):
+        # TODO(weberlo): update this handler once extern is implemented
+        self.enter_type_param_scope()
+        adt_var, type_params = self.handle_adt_header(ctx)
+        # update module being built
+        self.module[adt_var] = adt.TypeData(adt_var, type_params, [])
+        self.exit_type_param_scope()
+
+    def visitAdtDefn(self, ctx: RelayParser.AdtDefnContext):
+        self.enter_type_param_scope()
+        adt_var, type_params = self.handle_adt_header(ctx)
+        # parse constructors
+        adt_cons_defns = ctx.adtConsDefnList()
+        if adt_cons_defns is None:
+            adt_cons_defns = []
+        else:
+            adt_cons_defns = adt_cons_defns.adtConsDefn()
+        parsed_constructors = []
+        for cons_defn in adt_cons_defns:
+            inputs = [self.visit(inp) for inp in cons_defn.typeExpr()]
+            cons_defn_name = cons_defn.constructorName().getText()
+            cons_defn = adt.Constructor(cons_defn_name, inputs, adt_var)
+            self.mk_global_typ_cons(cons_defn_name, cons_defn)
+            parsed_constructors.append(cons_defn)
+        # update module being built
+        self.module[adt_var] = adt.TypeData(adt_var, type_params, parsed_constructors)
+        self.exit_type_param_scope()
+
+    def visitMatch(self, ctx: RelayParser.MatchContext):
+        match_type = ctx.matchType().getText()
+        if match_type == "match":
+            complete_match = True
+        elif match_type == "match?":
+            complete_match = False
+        else:
+            raise RuntimeError("unknown match type {0}".format(match_type))
+
+        match_data = self.visit(ctx.expr())
+        match_clauses = ctx.matchClauseList()
+        if match_clauses is None:
+            match_clauses = []
+        else:
+            match_clauses = match_clauses.matchClause()
+        parsed_clauses = []
+        for clause in match_clauses:
+            self.enter_var_scope()
+            pattern = self.visit(clause.pattern())
+            clause_body = self.visit(clause.expr())
+            self.exit_var_scope()
+            parsed_clauses.append(adt.Clause(pattern, clause_body))
+        return adt.Match(match_data, parsed_clauses, complete=complete_match)
+
+    def visitWildcardPattern(self, ctx: RelayParser.WildcardPatternContext):
+        return adt.PatternWildcard()
+
+    def visitVarPattern(self, ctx: RelayParser.VarPatternContext):
+        text = ctx.localVar().getText()
+        typ = ctx.typeExpr()
+        if typ is not None:
+            typ = self.visit(typ)
+        var = self.mk_var(text[1:], typ=typ)
+        return adt.PatternVar(var)
+
+    def visitConstructorPattern(self, ctx: RelayParser.ConstructorPatternContext):
+        constructor_name = ctx.constructorName().getText()
+        constructor = self.global_type_vars[constructor_name]
+        pattern_list = ctx.patternList()
+        if pattern_list is None:
+            patterns = []
+        else:
+            patterns = [self.visit(pattern) for pattern in pattern_list.pattern()]
+        return adt.PatternConstructor(constructor, patterns)
+
+    def visitTuplePattern(self, ctx: RelayParser.TuplePatternContext):
+        return adt.PatternTuple([self.visit(pattern) for pattern in ctx.patternList().pattern()])
+
+    def visitCallNoAttr(self, ctx: RelayParser.CallNoAttrContext):
         return (self.visit_list(ctx.exprList().expr()), None)
 
-    def visitCallWithAttr(self, ctx):
+    def visitCallWithAttr(self, ctx: RelayParser.CallWithAttrContext):
         return (self.visit_list(ctx.expr()), self.visit(ctx.attrSeq()))
 
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
             return func(args, attrs, type_args)
+        elif isinstance(func, adt.Constructor):
+            return func(*args)
         return expr.Call(func, args, attrs, type_args)
 
     @spanify
-    def visitCall(self, ctx):
-        # type: (RelayParser.CallContext) -> expr.Call
+    def visitCall(self, ctx: RelayParser.CallContext) -> expr.Call:
         func = self.visit(ctx.expr())
         args, attrs = self.visit(ctx.callList())
-        return self.call(func, args, attrs, [])
+        res = self.call(func, args, attrs, [])
+        return res
 
     @spanify
-    def visitIfElse(self, ctx):
-        # type: (RelayParser.IfElseContext) -> expr.If
+    def visitIfElse(self, ctx: RelayParser.IfElseContext) -> expr.If:
         """Construct a Relay If node. Creates a new scope for each branch."""
         cond = self.visit(ctx.expr())
 
@@ -524,10 +647,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         return expr.If(cond, true_branch, false_branch)
 
     @spanify
-    def visitGraph(self, ctx):
-        # type: (RelayParser.GraphContext) -> expr.Expr
+    def visitGraph(self, ctx: RelayParser.GraphContext) -> expr.Expr:
         """Visit a graph variable assignment."""
-        graph_nid = int(ctx.GRAPH_VAR().getText()[1:])
+        graph_nid = int(ctx.graphVar().getText()[1:])
 
         self.enter_var_scope()
         value = self.visit(ctx.expr(0))
@@ -535,7 +657,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         if graph_nid != len(self.graph_expr):
             raise ParseError(
-                "Expected new graph variable to be `%{}`,".format(len(self.graph_expr)) + \
+                "expected new graph variable to be `%{}`,".format(len(self.graph_expr)) + \
                 "but got `%{}`".format(graph_nid))
         self.graph_expr.append(value)
 
@@ -545,84 +667,48 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Types
 
     # pylint: disable=unused-argument
-    def visitIncompleteType(self, ctx):
-        # type (RelayParser.IncompleteTypeContext) -> None:
+    def visitIncompleteType(self, ctx: RelayParser.IncompleteTypeContext) -> None:
         return None
 
-    def visitTypeIdent(self, ctx):
-        # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
-        '''
-        Handle type identifier.
-        '''
-        type_ident = ctx.CNAME().getText()
+    def visitTypeCallType(self, ctx: RelayParser.TypeCallTypeContext):
+        func = self.visit(ctx.generalIdent())
+        args = [self.visit(arg) for arg in ctx.typeParamList().typeExpr()]
+        return ty.TypeCall(func, args)
 
-        # Look through all type prefixes for a match
-        for type_prefix in TYPE_PREFIXES:
-            if type_ident.startswith(type_prefix):
-                return ty.scalar_type(type_ident)
-
-        type_param = lookup(self.type_param_scopes, type_ident)
-        if type_param is not None:
-            return type_param
-
-        raise ParseError("Unknown builtin type: {}".format(type_ident))
-
-    # def visitCallType(self, ctx):
-    #     # type: (RelayParser.CallTypeContext) -> Union[expr.Expr, ty.TensorType]
-    #     ident_type = ctx.identType().CNAME().getText()
-
-    #     args = self.visit_list(ctx.type_())
-
-    #     if not args:
-    #         raise ParseError("Type-level functions must have arguments!")
-
-    #     func_type = TYPE_FUNCS.get(ident_type)(args)
-
-    #     if func_type is None:
-    #         raise ParseError("Unknown type-level function: `{}`".format(ident_type))
-    #     else:
-    #         return func_type
-
-    def visitParensShape(self, ctx):
-        # type: (RelayParser.ParensShapeContext) -> int
+    def visitParensShape(self, ctx: RelayParser.ParensShapeContext) -> int:
         return self.visit(ctx.shape())
 
-    def visitShapeList(self, ctx):
-        # type: (RelayParser.ShapeListContext) -> List[int]
+    def visitShapeList(self, ctx: RelayParser.ShapeListContext) -> List[int]:
         return self.visit_list(ctx.shape())
 
-    def visitTensor(self, ctx):
+    def visitTensor(self, ctx: RelayParser.TensorContext):
         return tuple(self.visit_list(ctx.expr()))
 
-    def visitTensorType(self, ctx):
-        # type: (RelayParser.TensorTypeContext) -> ty.TensorType
+    def visitTensorType(self, ctx: RelayParser.TensorTypeContext) -> ty.TensorType:
         """Create a simple tensor type. No generics."""
 
         shape = self.visit(ctx.shapeList())
-        dtype = self.visit(ctx.type_())
+        dtype = self.visit(ctx.typeExpr())
 
         if not isinstance(dtype, ty.TensorType):
-            raise ParseError("Expected dtype to be a Relay base type.")
+            raise ParseError("expected dtype to be a Relay base type.")
 
         dtype = dtype.dtype
 
         return ty.TensorType(shape, dtype)
 
-    def visitTupleType(self, ctx):
-        # type: (RelayParser.TupleTypeContext) -> ty.TupleType
-        return ty.TupleType(self.visit_list(ctx.type_()))
+    def visitTupleType(self, ctx: RelayParser.TupleTypeContext) -> ty.TupleType:
+        return ty.TupleType(self.visit_list(ctx.typeExpr()))
 
-    def visitFuncType(self, ctx):
-        # type: (RelayParser.FuncTypeContext) -> ty.FuncType
-        types = self.visit_list(ctx.type_())
+    def visitFuncType(self, ctx: RelayParser.FuncTypeContext) -> ty.FuncType:
+        types = self.visit_list(ctx.typeExpr())
 
         arg_types = types[:-1]
         ret_type = types[-1]
 
         return ty.FuncType(arg_types, ret_type, [], None)
 
-def make_parser(data):
-    # type: (str) -> RelayParser
+def make_parser(data: str) -> RelayParser:
     """Construct a RelayParser a given data stream."""
     input_stream = InputStream(data)
     lexer = RelayLexer(input_stream)
@@ -657,11 +743,10 @@ class StrictErrorListener(ErrorListener):
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         raise Exception("Context Sensitivity in:\n" + self.text)
 
-def fromtext(data, source_name=None):
-    # type: (str, str) -> Union[expr.Expr, module.Module]
+def fromtext(data: str, source_name: str = None) -> Union[expr.Expr, module.Module]:
     """Parse a Relay program."""
     if data == "":
-        raise ParseError("Cannot parse the empty string.")
+        raise ParseError("cannot parse the empty string.")
 
     global __source_name_counter__
 

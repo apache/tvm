@@ -17,11 +17,11 @@
 """ Support level3 operator test cases.
 """
 import numpy as np
-from nose.tools import raises
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, check_grad
 
 def run_infer_type(expr):
     mod = relay.Module.from_expr(expr)
@@ -220,8 +220,7 @@ def test_squeeze_infer_type():
     assert yy.checked_type == relay.TensorType(
         (4,), "float32")
 
-
-@raises(tvm._ffi.base.TVMError)
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_squeeze_bad_axes_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
@@ -247,6 +246,7 @@ def test_reshape():
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
         func = relay.Function([x], z)
+        check_grad(func)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
         for target, ctx in ctx_list():
@@ -373,6 +373,8 @@ def test_split_infer_type():
         yy = run_infer_type(y.astuple())
         assert yy.checked_type == ret_type
 
+    idxd = tvm.indexdiv
+
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     axis = tvm.var("axis")
     verify_split((5, 5, 2, 2), 5,
@@ -393,15 +395,15 @@ def test_split_infer_type():
                   axis=0)
     verify_split((d1, d2, d3, d4), 4,
                  relay.ty.TupleType(tvm.convert([
-                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
-                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
-                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
-                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32")])),
+                     relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                     relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                     relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                     relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32")])),
                   axis=2)
     verify_split((d1, d2, d3, d4), 2,
                  relay.ty.TupleType(tvm.convert([
-                     relay.ty.TensorType((d1/2, d2, d3, d4), "float32"),
-                     relay.ty.TensorType((d1/2, d2, d3, d4), "float32")])),
+                     relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
+                     relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32")])),
                   axis=0)
     verify_split((d1, d2, d3, d4), (2, 4, 7),
                  relay.ty.TupleType(tvm.convert([

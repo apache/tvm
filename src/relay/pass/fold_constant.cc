@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
  */
 #include <tvm/relay/analysis.h>
@@ -27,6 +26,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
+#include "./pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -73,13 +73,12 @@ bool ConstantCheck(const Expr& e) {
 TVM_REGISTER_API("relay._analysis.check_constant")
 .set_body_typed(ConstantCheck);
 
-
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
 class ConstantFolder : public ExprMutator {
  public:
-  explicit ConstantFolder(FInterpreter executor)
-      : executor_(executor) {
+  explicit ConstantFolder(FInterpreter executor, Module module)
+      : executor_(executor), module_(module) {
   }
 
   Expr VisitExpr_(const LetNode* op) final {
@@ -102,6 +101,9 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+
+    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
+
     auto origin_args = call->args;
     Expr res = ExprMutator::VisitExpr_(call);
     call = res.as<CallNode>();
@@ -111,12 +113,24 @@ class ConstantFolder : public ExprMutator {
     if (call->args.size() == 0) return res;
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return res;
+    if (skip_list.count(op->name)) {
+        return res;
+    }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
     // Try to evaluate shape_of op
     if (call->op.same_as(Op::Get("shape_of"))) {
       return EvaluateShapeOf(res, origin_args, call->attrs);
     }
+
+    // We should think about potentially constant evaluation over these ops too.
+    if (call->op.same_as(Op::Get("memory.invoke_tvm_op")) ||
+        call->op.same_as(Op::Get("memory.shape_func")) ||
+        call->op.same_as(Op::Get("memory.alloc_tensor")) ||
+        call->op.same_as(Op::Get("memory.alloc_storage"))) {
+      return GetRef<Call>(call);
+    }
+
     bool all_const_args = true;
     for (Expr arg : call->args) {
       if (!checker_.Check(arg)) {
@@ -145,10 +159,16 @@ class ConstantFolder : public ExprMutator {
   FInterpreter executor_;
   // Internal constant checker
   ConstantChecker checker_;
+  // Module
+  Module module_;
 
   // Convert value to expression.
   Expr ValueToExpr(Value value) {
     if (const auto* val = value.as<TensorValueNode>()) {
+      for (auto dim : val->data.Shape()) {
+        CHECK_GT(dim, 0)
+          << "invalid dimension after constant eval";
+      }
       return ConstantNode::make(val->data);
     } else if (const auto* val = value.as<TupleValueNode>()) {
       Array<Expr> fields;
@@ -157,7 +177,7 @@ class ConstantFolder : public ExprMutator {
       }
       return TupleNode::make(fields);
     } else {
-      LOG(FATAL) << "Cannot handle " << value->type_key();
+      LOG(FATAL) << "Cannot handle " << value->GetTypeKey();
       return Expr();
     }
   }
@@ -165,18 +185,33 @@ class ConstantFolder : public ExprMutator {
   Expr ConstEvaluate(Expr expr) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0),
                                            transform::InferType()};
-    auto mod = ModuleNode::FromExpr(expr);
+    Function func;
+    if (expr.as<FunctionNode>()) {
+      func = Downcast<Function>(expr);
+    } else {
+      // TODO(@jroesch): fix this
+      func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
+    }
+    auto mod = ModuleNode::make(
+      {},
+      module_->type_definitions,
+      module_->Imports());
+    auto global = GlobalVarNode::make("main");
+    mod->Add(global, func);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
     auto entry_func = mod->Lookup("main");
     expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return ValueToExpr(executor_(expr));
   }
-  // Evaluate shape_of op
+
+  // Evaluate a call to the shape_of operator for tensors with constant
+  // shapes.
   Expr EvaluateShapeOf(Expr expr, Array<Expr> args, Attrs attrs) {
     Expr input = args[0];
     const auto* param = attrs.as<ShapeOfAttrs>();
     CHECK(param != nullptr);
+
     tvm::Array<IndexExpr> ishape;
     if (const ConstantNode* op = input.as<ConstantNode>()) {
       ishape = op->tensor_type()->shape;
@@ -185,33 +220,48 @@ class ConstantFolder : public ExprMutator {
     } else {
       return expr;
     }
+
     // Get the constant shape
     DLContext ctx;
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
-    auto val = runtime::NDArray::Empty(
-        {(int64_t)ishape.size()}, Type2TVMType(Int(32)), ctx);
-    int32_t* dims = static_cast<int32_t*>(val->data);
-    using ::tvm::ir::IntImm;
-    for (size_t i = 0; i < ishape.size(); ++i) {
-      if (const IntImm* dim = ishape[i].as<IntImm>()) {
-        dims[i] = dim->value;
-      } else {
-        return expr;
+    runtime::NDArray value;
+    auto cdtype = Type2TVMType(Int(32));
+    if (ishape.size() == 0) {
+      value = runtime::NDArray::Empty({}, cdtype, ctx);
+    } else {
+      CHECK_NE(ishape.size(), 0);
+      std::vector<int64_t> cshape = { static_cast<int64_t>(ishape.size()) };
+      value = runtime::NDArray::Empty(cshape, cdtype, ctx);
+      int32_t* dims = static_cast<int32_t*>(value->data);
+      using ::tvm::ir::IntImm;
+      for (size_t i = 0; i < ishape.size(); ++i) {
+        if (const IntImm* dim = ishape[i].as<IntImm>()) {
+          dims[i] = dim->value;
+        } else {
+          return expr;
+        }
       }
     }
-    Expr shape = ValueToExpr(TensorValueNode::make(val));
+
+    Constant shape = Downcast<Constant>(ValueToExpr(TensorValueNode::make(value)));
+
+    if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, ctx);
+      shape = ConstantNode::make(ndarray);
+    }
+
     // Cast the constant into correct dtype
     auto cast_attrs = make_node<CastAttrs>();
     cast_attrs->dtype = param->dtype;
     static const Op& cast_op = Op::Get("cast");
-    Expr ret = CallNode::make(cast_op, {shape}, Attrs(cast_attrs), {});
+    Expr ret = CallNode::make(cast_op, { shape }, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
   }
 };
 
 
-Expr FoldConstant(const Expr& expr) {
+Expr FoldConstant(const Expr& expr, const Module& mod) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
@@ -221,7 +271,7 @@ Expr FoldConstant(const Expr& expr) {
   With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return ConstantFolder(CreateInterpreter(
-      Module(nullptr), ctx, target)).Mutate(expr);
+      mod, ctx, target), mod).Mutate(expr);
 }
 
 namespace transform {
@@ -229,7 +279,7 @@ namespace transform {
 Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-      return Downcast<Function>(FoldConstant(f));
+      return Downcast<Function>(FoldConstant(f, m));
   };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }

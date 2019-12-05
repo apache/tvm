@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
@@ -35,17 +34,65 @@
 #include <limits>
 #include <mutex>
 #include <functional>
+#include <vector>
 #include <unordered_map>
+#include "../ir/type_functor.h"
 #include "compile_engine.h"
 
 namespace tvm {
 namespace relay {
+
+TVM_REGISTER_NODE_TYPE(CachedFuncNode);
+TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
+TVM_REGISTER_NODE_TYPE(CCacheValueNode);
+TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
 CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
   auto n = make_node<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
   return CCacheKey(n);
+}
+
+struct IsDynamicVisitor : public TypeVisitor {
+  bool is_dyn{false};
+  void VisitType_(const TensorTypeNode* tt) {
+    for (auto dim : tt->shape) {
+      if (dim.as<Any>()) {
+        is_dyn = true;
+        break;
+      }
+    }
+  }
+};
+
+bool IsDynamic(const Type& ty) {
+  IsDynamicVisitor v;
+  v.VisitType(ty);
+  return v.is_dyn;
+}
+
+// TODO(@jroesch): MOVE ME
+TVM_REGISTER_API("relay._make.IsDynamic")
+.set_body_typed(IsDynamic);
+
+Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
+  // for now, we always use int32 shape when possible
+  // even if the result of shape inference becomes int64.
+  Array<IndexExpr> res;
+  for (IndexExpr val : shape) {
+    const int64_t* pval = as_const_int(val);
+    if (pval != nullptr) {
+      CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
+      CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
+      res.push_back(ir::IntImm::make(Int(32), *pval));
+    } else if (val->IsInstance<ir::Any>()) {
+      res.push_back(val.as<ir::Any>()->ToVar());
+    } else {
+      res.push_back(val);
+    }
+  }
+  return res;
 }
 
 // The getter to get schedule from compile engine.
@@ -55,23 +102,6 @@ class ScheduleGetter :
  public:
   explicit ScheduleGetter(Target target)
       : target_(target) {}
-
-  Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
-    // for now, we always use int32 shape when possible
-    // even if the result of shape inference becomes int64.
-    Array<IndexExpr> res;
-    for (IndexExpr val : shape) {
-      const int64_t* pval = as_const_int(val);
-      if (pval != nullptr) {
-        CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
-        CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
-        res.push_back(ir::IntImm::make(Int(32), *pval));
-      } else {
-        res.push_back(val);
-      }
-    }
-    return res;
-  }
 
   std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
     static auto fschedule =
@@ -90,6 +120,7 @@ class ScheduleGetter :
         const auto* tuple_type = param->type_as<TupleTypeNode>();
         for (Type field : tuple_type->fields) {
           const auto* ttype = field.as<TensorTypeNode>();
+          // TODO(@icemelon): Allow recursive tuple
           CHECK(ttype != nullptr);
           tvm::Tensor tensor = tvm::placeholder(
               GetShape(ttype->shape), ttype->dtype);
@@ -196,6 +227,25 @@ class ScheduleGetter :
       CHECK_EQ(call_node->args.size(), 1U)
           << "Only allow function with a single tuple input";
     }
+
+    // Prepare the call_node->checked_type(). For the call node inputs, we ensure that the shape is
+    // Int32. Following code ensures the same for the output as well.
+    // TODO(@icemelon): Support recursive tuple
+    Type call_node_type = call_node->checked_type();
+    if (const auto* tt = call_node->checked_type().as<TensorTypeNode>()) {
+      call_node_type = TensorTypeNode::make(GetShape(tt->shape), tt->dtype);
+    } else if (const auto* tuple_t = call_node->checked_type().as<TupleTypeNode>()) {
+      std::vector<Type> new_fields;
+      for (auto field : tuple_t->fields) {
+        if (const auto* tt = field.as<TensorTypeNode>()) {
+          new_fields.push_back(TensorTypeNode::make(GetShape(tt->shape), tt->dtype));
+        } else {
+          new_fields.push_back(field);
+        }
+      }
+      call_node_type = TupleTypeNode::make(new_fields);
+    }
+
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
@@ -209,7 +259,7 @@ class ScheduleGetter :
                                          Operation(), 0));
     } else {
       outputs = fcompute[op](call_node->attrs, inputs,
-                             call_node->checked_type(), target_);
+                             call_node_type, target_);
     }
 
     int op_pattern = fpattern[op];
@@ -283,6 +333,255 @@ class ScheduleGetter :
   Array<Operation> scalars_;
 };
 
+// Creates shape function from functor.
+class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
+ public:
+  MakeShapeFunc() {}
+
+  std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
+    for (auto param : prim_func->params) {
+      param_states_[param] = kNoNeed;
+      Array<tvm::Tensor> data_inputs;
+      Array<tvm::Tensor> shape_inputs;
+
+      auto add_placeholder = [&data_inputs, &shape_inputs](const TensorTypeNode* ttype) {
+        // Add data placeholder
+        Shape shape = GetShape(ttype->shape);
+        tvm::Tensor data_tensor = tvm::placeholder(shape, ttype->dtype);
+        data_inputs.push_back(data_tensor);
+        // Add shape placeholder
+        int64_t ndim = shape.size();
+        Shape sshape;
+        if (ndim > 0) {
+          sshape.push_back(tvm::Integer(ndim));
+        }
+        tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64));
+        shape_inputs.push_back(shape_tensor);
+      };
+
+      if (const auto *ttype = param->checked_type().as<TensorTypeNode>()) {
+        add_placeholder(ttype);
+      } else {
+        // flatten tuple of tensor type.
+        const auto *tuple_type = param->type_as<TupleTypeNode>();
+        // TODO(@icemelon): Support recursive tuple
+        CHECK(tuple_type);
+        for (Type field : tuple_type->fields) {
+          const auto *ttype = field.as<TensorTypeNode>();
+          CHECK(ttype);
+          add_placeholder(ttype);
+        }
+      }
+      param_data_[param] = data_inputs;
+      param_shapes_[param] = shape_inputs;
+    }
+    readable_name_stream_ << "shape_func";
+    auto cache_node = make_node<CachedFuncNode>();
+    cache_node->outputs = VisitExpr(prim_func->body);
+    auto candidate_name = readable_name_stream_.str();
+    constexpr static size_t kMaxFuncNameLength = 80;
+    if (candidate_name.size() > kMaxFuncNameLength) {
+      std::stringstream truncated_name;
+      truncated_name <<  candidate_name.substr(0, kMaxFuncNameLength);
+      truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
+      candidate_name = truncated_name.str();
+    }
+    cache_node->func_name = candidate_name;
+
+    // set inputs
+    for (auto param : prim_func->params) {
+      int state = param_states_[param];
+      cache_node->shape_func_param_states.push_back(IntImm::make(Int(32), state));
+      if (state & kNeedInputData) {
+        for (auto t : param_data_[param]) {
+          cache_node->inputs.push_back(t);
+        }
+      }
+      if (state & kNeedInputShape) {
+        for (auto t : param_shapes_[param]) {
+          cache_node->inputs.push_back(t);
+        }
+      }
+    }
+
+    CachedFunc cfunc(cache_node);
+    // generate schedule for shape func
+    Array<Operation> out_ops;
+    for (auto t : cache_node->outputs) {
+      out_ops.push_back(t->op);
+    }
+    auto schedule = create_schedule(out_ops);
+    tvm::schedule::AutoInlineInjective(schedule);
+    for (const auto& scalar : scalars_) {
+      auto scalar_op = scalar->op;
+      if (schedule->Contain(scalar_op)) {
+        schedule[scalar_op].compute_inline();
+      }
+    }
+    return std::make_pair(schedule, cfunc);
+  }
+
+  Array<Tensor> VisitExpr(const Expr& expr) {
+    auto it = memo_.find(expr);
+    if (it != memo_.end()) {
+      return it->second;
+    } else {
+      Array<Tensor> res = ExprFunctor::VisitExpr(expr);
+      if (expr.as<VarNode>() == nullptr) {
+        // Do not memoize vars because shape functions could use either the data
+        // or the shape of a var each time.
+        memo_[expr] = res;
+      }
+      return res;
+    }
+  }
+
+  Array<Tensor> VisitExpr_(const VarNode* var_node) final {
+    auto var = GetRef<Var>(var_node);
+    auto it = param_states_.find(var);
+    if (it == param_states_.end()) {
+      LOG(FATAL) << "Free variable " << var->name_hint();
+      return {};
+    } else {
+      CHECK(data_dependants_.size());
+      bool data_dependant = data_dependants_.back();
+      if (data_dependant) {
+        param_states_[var] |= kNeedInputData;
+        return param_data_[var];
+      } else {
+        param_states_[var] |= kNeedInputShape;
+        return param_shapes_[var];
+      }
+    }
+  }
+
+  Array<Tensor> VisitExpr_(const ConstantNode* op) final {
+    CHECK(data_dependants_.size());
+    CHECK(op->is_scalar());
+    bool data_dependant = data_dependants_.back();
+    if (data_dependant) {
+      void* data = op->data->data;
+      DataType dtype = TVMType2Type(op->data->dtype);
+      Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
+          if (dtype == Int(32)) {
+            return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+          } else if (dtype == Int(64)) {
+            return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+          } else if (dtype == Float(32)) {
+            return make_const(dtype, static_cast<const float*>(data)[0]);
+          } else if (dtype == Float(64)) {
+            return make_const(dtype, static_cast<const double*>(data)[0]);
+          } else if (dtype == Bool()) {
+            return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+          } else {
+            LOG(FATAL) << "not handled";
+            return tvm::Expr();
+          }
+      }, "data_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
+    } else {
+      Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
+          return make_const(Int(64), 0);
+      }, "shape_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
+    }
+  }
+
+  Array<Tensor> VisitExpr_(const CallNode* call_node) final {
+    static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
+    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
+        "TShapeDataDependant");
+    CHECK(call_node->op.as<OpNode>())
+      << "Primitive function only allows call into primitive ops";
+    Op op = Downcast<Op>(call_node->op);
+    CHECK(data_dependants_.empty() || !data_dependants_.back())
+      << "Error in op fusion: output of the shape func is fed to a "
+      << "data-dependant shape func";
+    CHECK_GT(fshape_func.count(op), 0)
+      << "Internal error, cannot find ShapeFunc for " << op->name;
+    CHECK_GT(tshape_data_dependant.count(op), 0)
+      << "Internal error, cannot find TShapeDataDependant for " << op->name;
+
+    data_dependants_.push_back(tshape_data_dependant[op]);
+    // Visit all inputs
+    Array<Tensor> inputs;
+    int count_tuple = 0;
+    for (Expr arg : call_node->args) {
+      if (arg->checked_type().as<TupleTypeNode>()) {
+        ++count_tuple;
+      }
+      for (Tensor tensor : VisitExpr(arg)) {
+        inputs.push_back(tensor);
+      }
+    }
+    if (count_tuple) {
+      CHECK_EQ(call_node->args.size(), 1U)
+        << "Only allow function with a single tuple input";
+    }
+    // Get output ndims
+    auto ret_type = call_node->checked_type();
+    Array<IndexExpr> out_ndims;
+    if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
+      out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+    } else {
+      auto rtype = ret_type.as<TupleTypeNode>();
+      // TODO(@icemelon): Allow recursive tuple
+      CHECK(rtype);
+      for (size_t i = 0; i < rtype->fields.size(); ++i) {
+        auto ttype = rtype->fields[i].as<TensorTypeNode>();
+        CHECK(ttype);
+        out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+      }
+    }
+    // Call shape function
+    auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
+    data_dependants_.pop_back();
+    readable_name_stream_ << "_" << op->name;
+    return outputs;
+  }
+
+  Array<Tensor> VisitExpr_(const FunctionNode* op) final {
+    LOG(FATAL) << "Do not support sub function";
+    return Array<Tensor>();
+  }
+
+  Array<Tensor> VisitExpr_(const LetNode* op) final {
+    Array<Tensor> val = VisitExpr(op->value);
+    CHECK(!memo_.count(op->var));
+    memo_[op->var] = val;
+    return VisitExpr(op->body);
+  }
+
+  Array<Tensor> VisitExpr_(const TupleNode* op) final {
+    Array<Tensor> fields;
+    for (Expr field : op->fields) {
+      CHECK(field->checked_type().as<TensorTypeNode>())
+        << "Only allow Tuple of Tensor";
+      Array<Tensor> res = VisitExpr(field);
+      CHECK_EQ(res.size(), 1);
+      fields.push_back(res[0]);
+    }
+    return fields;
+  }
+
+ private:
+  /*! \brief String stream for function name */
+  std::ostringstream readable_name_stream_;
+  /*! \brief Map from parameter to its shape function usage state */
+  std::unordered_map<Expr, int, NodeHash, NodeEqual> param_states_;
+  /*! \brief Map from parameter to list of data placeholder */
+  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_data_;
+  /*! \brief Map from parameter to list of shape placeholder */
+  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_shapes_;
+  /*! \brief Memoized visit result */
+  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  /*! \brief Stack of data dependencies for shape function */
+  std::vector<bool> data_dependants_;
+  /*! \brief Scalars used in the shape function */
+  Array<Tensor> scalars_;
+};
 
 class CompileEngineImpl : public CompileEngineNode {
  public:
@@ -304,6 +603,11 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     return value->packed_func;
   }
+
+  CachedFunc LowerShapeFunc(const CCacheKey& key) final {
+    return LowerShapeFuncInternal(key)->cached_func;
+  }
+
   void Clear() final {
     cache_.clear();
   }
@@ -379,6 +683,40 @@ class CompileEngineImpl : public CompileEngineNode {
     value->cached_func = CachedFunc(cache_node);
     return value;
   }
+  // implement lowered shape func
+  CCacheValue LowerShapeFuncInternal(const CCacheKey& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    CCacheValue value;
+    auto it = shape_func_cache_.find(key);
+    if (it != shape_func_cache_.end()) {
+      it->second->use_count += 1;
+      if (it->second->cached_func.defined()) return it->second;
+      value = it->second;
+    } else {
+      value = CCacheValue(make_node<CCacheValueNode>());
+      value->use_count = 0;
+      shape_func_cache_[key] = value;
+    }
+    // Enforce use the target.
+    With<Target> target_scope(key->target);
+
+    CHECK(!value->cached_func.defined());
+    auto spair = MakeShapeFunc().Create(key->source_func);
+    auto cache_node = make_node<CachedFuncNode>(
+            *(spair.second.operator->()));
+    cache_node->func_name = GetUniqueName(cache_node->func_name);
+    cache_node->target = key->target;
+
+    Array<Tensor> all_args = cache_node->inputs;
+    for (Tensor arg : cache_node->outputs) {
+      all_args.push_back(arg);
+    }
+    tvm::BuildConfig bcfg = BuildConfig::Create();
+    std::unordered_map<Tensor, Buffer> binds;
+    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
+    value->cached_func = CachedFunc(cache_node);
+    return value;
+  }
   /*!
    * \brief Get unique name from name.
    * \param name The orginal name.
@@ -408,6 +746,8 @@ class CompileEngineImpl : public CompileEngineNode {
   std::unordered_map<std::string, int> name_map_;
   /*! \brief internal compiler cache */
   std::unordered_map<CCacheKey, CCacheValue> cache_;
+  /*! \brief internal compiler cache for shape funcs */
+  std::unordered_map<CCacheKey, CCacheValue> shape_func_cache_;
 };
 
 /*! \brief The global compile engine */
@@ -437,6 +777,12 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
 .set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
     [](CompileEngine self, CCacheKey key) {
       return self->Lower(key);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
+.set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
+    [](CompileEngine self, CCacheKey key) {
+      return self->LowerShapeFunc(key);
     });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")

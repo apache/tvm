@@ -55,6 +55,11 @@ class DenseAttrs(Attrs):
 
 
 @register_relay_attr_node
+class FIFOBufferAttrs(Attrs):
+    """Attributes for nn.fifo_buffer"""
+
+
+@register_relay_attr_node
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
 
@@ -264,3 +269,23 @@ class MaxPool2DAttrs(Attrs):
 @register_relay_attr_node
 class AvgPool2DAttrs(Attrs):
     """Attributes used in avg_pool2d operators"""
+
+
+@register_relay_attr_node
+class BitPackAttrs(Attrs):
+    """Attributes used in bitpack operator"""
+
+
+@register_relay_attr_node
+class BinaryConv2DAttrs(Attrs):
+    """Attributes used in bitserial conv2d operators"""
+
+
+@register_relay_attr_node
+class BinaryDenseAttrs(Attrs):
+    """Attributes used in bitserial dense operators"""
+
+
+@register_relay_attr_node
+class Conv2DTransposeAttrs(Attrs):
+    """Attributes used in Transposed Conv2D operators"""

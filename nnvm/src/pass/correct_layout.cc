@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file correct_layout.cc
  * \brief Infer and correct layout.
  */

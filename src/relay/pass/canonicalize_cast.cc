@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file canonicalize_cast.cc
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
  */

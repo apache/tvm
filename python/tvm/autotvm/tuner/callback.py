@@ -26,6 +26,7 @@ from .. import record
 
 logger = logging.getLogger('autotvm')
 
+
 def log_to_file(file_out, protocol='json'):
     """Log the tuning records into file.
     The rows of the log are stored in the format of autotvm.record.encode.
@@ -51,6 +52,11 @@ def log_to_file(file_out, protocol='json'):
         else:
             for inp, result in zip(inputs, results):
                 file_out.write(record.encode(inp, result, protocol) + "\n")
+
+    from pathlib import Path
+    if isinstance(file_out, Path):
+        file_out = str(file_out)
+
     return _callback
 
 

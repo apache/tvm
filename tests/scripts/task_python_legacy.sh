@@ -27,29 +27,29 @@ export OMP_NUM_THREADS=1
 make cython3
 
 echo "Running nnvm unittest..."
-python3 -m nose -v nnvm/tests/python/unittest
+python3 -m pytest -v nnvm/tests/python/unittest
 
 
 echo "Running nnvm compiler test..."
-python3 -m nose -v nnvm/tests/python/compiler
+python3 -m pytest -v nnvm/tests/python/compiler
 
 echo "Running nnvm ONNX frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/onnx
+python3 -m pytest -v nnvm/tests/python/frontend/onnx
 
 echo "Running nnvm MXNet frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/mxnet
+python3 -m pytest -v nnvm/tests/python/frontend/mxnet
 
 echo "Running nnvm DarkNet frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/darknet
+python3 -m pytest -v nnvm/tests/python/frontend/darknet
 
 echo "Running nnvm Keras frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/keras
+python3 -m pytest -v nnvm/tests/python/frontend/keras
 
 echo "Running nnvm Tensorflow frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/tensorflow
+python3 -m pytest -v nnvm/tests/python/frontend/tensorflow
 
 echo "Running nnvm CoreML frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/coreml
+python3 -m pytest -v nnvm/tests/python/frontend/coreml
 
 echo "Running nnvm Caffe2 frontend test..."
-python3 -m nose -v nnvm/tests/python/frontend/caffe2
+python3 -m pytest -v nnvm/tests/python/frontend/caffe2

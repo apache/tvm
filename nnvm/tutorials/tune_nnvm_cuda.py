@@ -31,7 +31,7 @@ the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some NVIDIA GPUs. You can go to
-`NVIDIA GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#nvidia-gpu>`_
+`NVIDIA GPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#nvidia-gpu>`_
 to see the results.
 """
 
@@ -204,7 +204,8 @@ def tune_tasks(tasks,
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
-        tuner_obj.tune(n_trial=min(n_trial, len(tsk.config_space)),
+        n_trial = min(n_trial, len(tsk.config_space))
+        tuner_obj.tune(n_trial=n_trial,
                        early_stopping=early_stopping,
                        measure_option=measure_option,
                        callbacks=[

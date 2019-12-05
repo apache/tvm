@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file reduce.cc
  * \brief Reduction operators.
  */
@@ -119,6 +118,59 @@ Array<Integer> GetExcludeAxes(size_t indim,
   return r_axes;
 }
 
+// Return the modified layout for AlterOpLayout pass.
+Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
+                                              const Array<Layout>& new_in_layouts,
+                                              const Array<Layout>& old_in_layouts,
+                                              const Array<Array<IndexExpr>>& old_in_shapes) {
+  // NOTE: Discard "const" qualifier here.
+  ReduceAttrs* params = const_cast<ReduceAttrs*>(attrs.as<ReduceAttrs>());
+
+  // Get the reduce axes.
+  uint32_t indim = old_in_shapes[0].size();
+  auto r_axes = GetReduceAxes(indim, params->axis, params->exclude);
+
+  Layout ret = Layout::Undef();
+  if (new_in_layouts.defined() && r_axes.size()) {
+    // Adapt to new layout. The axis has to change. Record original reduce axes. Convert to the
+    // modified layout axes.
+    CHECK_EQ(new_in_layouts.size(), 1);
+    CHECK_EQ(old_in_layouts.size(), 1);
+
+    // 1) Collect the original axes
+    std::unordered_set<std::string> old_r_dims;
+    for (auto r_axis : r_axes) {
+      old_r_dims.emplace(old_in_layouts[0][r_axis].name());
+    }
+
+    // 2) Collect the new axes by walking new_layout.
+    tvm::Array<tvm::Integer> new_r_axes;
+    std::string new_layout_string = "";
+    int axis_index = 0;
+    for (auto iter_var : new_in_layouts[0]->axes) {
+      const auto& layout_axis = LayoutAxis::Get(iter_var);
+      const std::string& layout_dim = layout_axis.name();
+      if (old_r_dims.count(layout_dim)) {
+        new_r_axes.push_back(tvm::Integer(axis_index));
+      }
+      // Collect only the primal axis.
+      if (layout_axis.IsPrimal()) {
+        new_layout_string += layout_dim;
+        axis_index++;
+      }
+    }
+
+    // 3) Set the new axis and layout.
+    ret = Layout(new_layout_string);
+    params->axis = new_r_axes;
+  } else if (old_in_layouts.defined()) {
+    // If the new layout is undefined, set the old layout as the inferred layout.
+    CHECK_EQ(old_in_layouts.size(), 1);
+    ret = old_in_layouts[0];
+  }
+
+  return Array<Array<Layout>>{{ret}, {ret}};
+}
 
 template<typename F>
 Array<Tensor> ReduceCompute(const Attrs& attrs,
@@ -158,11 +210,20 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   }
 
   auto max_shape = make_const(Int(64), 1);
+  bool is_dynamic_input = false;
   for (int64_t axis : r_axes) {
-    max_shape *= in_shape[axis];
+    if (in_shape[axis].as<IntImm>()) {
+      max_shape *= in_shape[axis];
+    } else {
+      is_dynamic_input = true;
+      break;
+    }
   }
-  CHECK(reporter->Assert(max_shape < make_const(Int(64), std::numeric_limits<int32_t>::max())))
-    << "The maximum possible index of reduced shape cannot be more than int32 max.";
+
+  if (is_dynamic_input) {
+    CHECK(reporter->Assert(max_shape < make_const(Int(64), std::numeric_limits<int32_t>::max())))
+      << "The maximum possible index of reduced shape cannot be more than int32 max.";
+  }
 
   if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
@@ -271,7 +332,7 @@ RELAY_REGISTER_REDUCE_OP("argmax")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
@@ -290,7 +351,7 @@ RELAY_REGISTER_REDUCE_OP("argmin")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
@@ -322,9 +383,10 @@ Example::
   [ 12.  19.  27.]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout)
 .set_attr<FTVMCompute>("FTVMCompute", SumCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
@@ -359,10 +421,47 @@ Example::
    [False,  True, False]]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> AnyCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::any);
+}
+
+
+RELAY_REGISTER_REDUCE_OP("any")
+.describe(R"code(Computes the logical OR of boolean array elements over given axes.
+
+Example::
+
+  data = [[[ True,  True,  True],
+           [ True,  True,  True],
+           [False,  True, False]],
+          [[ True, False, False],
+           [ True,  True, False],
+           [False,  True,  True]]]
+
+  any(data, axis=1)
+  [[True,  True, True],
+   [True,  True, True]]
+
+  any(data, axis=0)
+  [[ True,  True, True],
+   [ True,  True, True],
+   [False,  True, True]]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<ReduceAttrs>()
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", AnyCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 
@@ -377,7 +476,7 @@ RELAY_REGISTER_REDUCE_OP("max")
 .describe(R"code(Computes the max of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MaxCompute)
@@ -396,7 +495,7 @@ RELAY_REGISTER_REDUCE_OP("min")
 .describe(R"code(Computes the min of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MinCompute)
@@ -426,7 +525,7 @@ Example::
   [ 36  480  2058]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ProdCompute)
@@ -467,7 +566,7 @@ Example::
   [ 2.  3.16666667  4.5]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
@@ -542,7 +641,7 @@ RELAY_REGISTER_OP("variance")
 .describe(R"code(Computes the variance of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_attrs_type<ReduceAttrs>()
 .set_support_level(4)
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")

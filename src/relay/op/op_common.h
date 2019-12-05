@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file op_common.h
  * \brief A set of utilities and common functionality
  * for relay ops.
@@ -30,6 +29,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <vector>
+#include <string>
+#include <unordered_map>
+#include "type_relations.h"
 #include "../pass/alter_op_layout.h"
 
 namespace tvm {
@@ -103,6 +105,50 @@ namespace relay {
     .set_attr<TOpIsStateful>("TOpIsStateful", false)              \
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",         \
                                    BinaryBroadcastLayout)
+
+
+/*! \brief A helper class for matching and rewriting operators. */
+template<typename R>
+class OpMatch {
+ public:
+  using MatchFunc =
+      std::function<R(const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_args)>;
+
+  /*! \brief Match an operator with the given name.
+   *  \param op_name The name of the operator to match.
+   *  \param func The function to execute when it matches.
+   *  \return A self-reference for builder style API.
+   */
+  inline OpMatch& Match(const std::string& op_name, MatchFunc func) {
+    auto op = Op::Get(op_name);
+    match_map_.insert({op, func});
+    return *this;
+  }
+
+  /*! \brief Rewrite a call operation based on the operator and the registered
+   *  match functions.
+   * \param call The call to rewrite.
+   * \return The result of rewriting.
+   */
+  inline R operator()(const Call& call) {
+    auto it = match_map_.find(Downcast<Op>(call->op));
+    if (it != match_map_.end()) {
+      return it->second(call->args, call->attrs, call->type_args);
+    } else {
+      if (default_ != nullptr) {
+        return default_(call->args, call->attrs, call->type_args);
+      } else {
+        LOG(FATAL) << "unexpected operation " << call->op;
+      }
+    }
+  }
+
+ private:
+  /*! \brief The match function map. */
+  std::unordered_map<Op, MatchFunc, NodeHash, NodeEqual> match_map_;
+  /*! \brief An optional default case. */
+  MatchFunc default_;
+};
 
 }  // namespace relay
 }  // namespace tvm

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_nvptx.cc
  */
 #ifdef TVM_LLVM_VERSION
@@ -64,6 +63,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.erf")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fma")
 .set_body(DispatchExternLibDevice);
 
@@ -83,6 +85,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.cos")
 .set_body(DispatchExternLibDevice);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sin")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.atan")
 .set_body(DispatchExternLibDevice);
 
 }  // namespace llvm

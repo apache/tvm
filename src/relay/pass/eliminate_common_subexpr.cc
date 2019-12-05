@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file eliminate_common_subexpr.cc
  * \brief Combine common subexpressions.

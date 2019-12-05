@@ -47,6 +47,12 @@ namespace relay {
   (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
 }
 
+#define RELAY_DEBUG_INTERP(...) \
+{ auto fdebug = runtime::Registry::Get("relay.debug_interp"); \
+  CHECK(fdebug) << "Could not find Relay Python debugger function."; \
+  (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
+}
+
 /*!
  * \brief We always used NodeRef for referencing nodes.
  *
@@ -83,10 +89,12 @@ using NodeEqual = ::tvm::NodeEqual;
 #define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)          \
   class TypeName : public NodeRefBase {                                 \
    public:                                                              \
-    TypeName() {}                                                        \
-    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRefBase(n) {} \
+    TypeName() {}                                                       \
+    explicit TypeName(::tvm::ObjectPtr<::tvm::Object> n)                \
+        : NodeRefBase(n) {                                              \
+    }                                                                   \
     const NodeName* operator->() const {                                \
-      return static_cast<const NodeName*>(node_.get());                 \
+      return static_cast<const NodeName*>(get());                       \
     }                                                                   \
     operator bool() { return this->defined(); }                         \
     using ContainerType = NodeName;                                     \
@@ -105,7 +113,7 @@ class SourceNameNode : public Node {
   /*! \brief The source name. */
   std::string name;
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) final { v->Visit("name", &name); }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relay.SourceName";
   TVM_DECLARE_NODE_TYPE_INFO(SourceNameNode, Node);
@@ -127,7 +135,7 @@ class SourceName : public NodeRef {
    * \return the pointer to the internal node container
    */
   inline const SourceNameNode* operator->() const {
-    return static_cast<SourceNameNode*>(this->node_.get());
+    return static_cast<const SourceNameNode*>(get());
   }
 
   /*!
@@ -158,7 +166,7 @@ class SpanNode : public Node {
   /*! \brief column offset */
   int col_offset;
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("source", &source);
     v->Visit("lineno", &lineno);
     v->Visit("col_offset", &col_offset);
@@ -202,7 +210,7 @@ class IdNode : public Node {
    */
   std::string name_hint;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
   }
 

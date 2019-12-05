@@ -18,15 +18,16 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file storage_flatten.cc
  */
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
+#include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_visitor.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -36,6 +37,7 @@
 #include "ir_util.h"
 #include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
+#include "../arithmetic/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -49,8 +51,10 @@ using intrinsic::tvm_address_of;
 class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
-                            int cache_line_size, bool create_bound_attributes)
-      : create_bound_attributes_(create_bound_attributes) {
+                            int cache_line_size, bool create_bound_attributes,
+                            IRVisitorWithAnalyzer* bounded_analyzer)
+      : bounded_analyzer_(bounded_analyzer),
+        create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -67,7 +71,7 @@ class StorageFlattener : public IRMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
-      VarExpr buf_var(it->second.node_);
+      VarExpr buf_var = Downcast<VarExpr>(it->second);
       return Store::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
@@ -79,8 +83,8 @@ class StorageFlattener : public IRMutator {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
     } else if (op->attr_key == attr::double_buffer_scope &&
-               op->node.node_->derived_from<OperationNode>()) {
-      Operation func(op->node.node_);
+               op->node->IsInstance<OperationNode>()) {
+      Operation func = Downcast<Operation>(op->node);
       Stmt body = Mutate(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
         TensorKey key{func, i};
@@ -92,7 +96,7 @@ class StorageFlattener : public IRMutator {
       }
       return body;
     } else if (op->attr_key == attr::thread_extent) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
       Stmt stmt = IRMutator::Mutate_(op, s);
@@ -101,7 +105,7 @@ class StorageFlattener : public IRMutator {
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
     } else if (op->attr_key == attr::buffer_dim_align) {
-      Tensor tensor(op->node.node_);
+      Tensor tensor = Downcast<Tensor>(op->node);
       const Call* tuple = op->value.as<Call>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       TensorKey key{tensor->op, tensor->value_index};
@@ -206,7 +210,7 @@ class StorageFlattener : public IRMutator {
           if (dim < avec.size() && avec[dim].align_factor != 0) {
             Expr factor = make_const(stride.type(), avec[dim].align_factor);
             Expr offset = make_const(stride.type(), avec[dim].align_offset);
-            stride = stride + (factor + offset - stride % factor) % factor;
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
@@ -266,7 +270,7 @@ class StorageFlattener : public IRMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
-      VarExpr buf_var(it->second.node_);
+      VarExpr buf_var = Downcast<VarExpr>(it->second);
       return Load::make(op->type, buf_var, op->index, op->predicate);
     } else {
       return expr;
@@ -396,7 +400,7 @@ class StorageFlattener : public IRMutator {
   // We do support a few relaxed case, such as bindingx
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmt* op) {
-    Array<NodeRef> arr(op->node.node_);
+    Array<NodeRef> arr = Downcast<Array<NodeRef> > (op->node);
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const TensorNode* tensor = arr[1].as<TensorNode>();
@@ -419,7 +423,8 @@ class StorageFlattener : public IRMutator {
     } else {
       for (size_t i = 0; i < tuple->args.size(); i += 2) {
         begins.push_back(tuple->args[i]);
-        extents.push_back(tuple->args[i + 1]);
+        auto new_extent = bounded_analyzer_->Simplify(tuple->args[i+1]);
+        extents.push_back(new_extent);
       }
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
@@ -432,7 +437,7 @@ class StorageFlattener : public IRMutator {
     }
     // start binding
     ArgBinder binder(&var_remap_);
-    binder.BindBuffer(Buffer(arr[0].node_), slice, buffer->name, true);
+    binder.BindBuffer(Downcast<Buffer>(arr[0]), slice, buffer->name, true);
     // Apply the remaps
     Stmt body = MergeNest(binder.asserts(), op->body);
     body = MergeNest(binder.init_nest(), body);
@@ -510,6 +515,9 @@ class StorageFlattener : public IRMutator {
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
   std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
+  // bounds populator. We really need the analyzer from it.
+  // However
+  IRVisitorWithAnalyzer* bounded_analyzer_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
@@ -520,9 +528,11 @@ class StorageFlattener : public IRMutator {
 
 Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
+  IRVisitorWithAnalyzer bounded_analyzer;
+  bounded_analyzer.Visit(stmt);
   stmt =
-      StorageFlattener(extern_buffer, cache_line_size, create_bound_attributes)
-          .Mutate(stmt);
+      StorageFlattener(extern_buffer, cache_line_size,
+          create_bound_attributes, &bounded_analyzer).Mutate(stmt);
   return stmt;
 }
 

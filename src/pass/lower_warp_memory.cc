@@ -158,7 +158,7 @@ class WarpIndexFinder : private IRVisitor {
   /// Visitor implementation
   void Visit_(const AttrStmt *op) final {
     if (op->attr_key == attr::thread_extent) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
         int value;
         CHECK(arith::GetConstInt(op->value, &value) &&
@@ -264,14 +264,15 @@ class WarpAccessRewriter : protected IRMutator {
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
-      Expr x = analyzer_->canonical_simplify(index % m);
-      Expr z = analyzer_->canonical_simplify(index / m);
+      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
+      Expr z = analyzer_->canonical_simplify(indexdiv(index, m));
       return std::make_pair(x, z);
     } else {
-      Expr x = analyzer_->canonical_simplify(index % m);
+      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
       Expr y = index / make_const(index.type(), warp_coeff_ * warp_size_);
       y = y * m + x;
-      Expr z = index % make_const(index.type(), warp_coeff_ * warp_size_) / m;
+      Expr z = indexdiv(indexmod(index, make_const(index.type(), warp_coeff_ * warp_size_)),
+                        m);
       return std::make_pair(analyzer_->canonical_simplify(y),
                             analyzer_->canonical_simplify(z));
     }
@@ -302,7 +303,7 @@ class BindVarBoundInfo : public IRVisitor {
       : analyzer_(analyzer) {}
 
   void Visit_(const For* op) final {
-    Var loop_var(op->loop_var.node_);
+    const Var& loop_var = op->loop_var;
     analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
     IRVisitor::Visit_(op);
   }
@@ -310,7 +311,7 @@ class BindVarBoundInfo : public IRVisitor {
   void Visit_(const AttrStmt* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
-      IterVar iv(op->node.node_);
+      IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
         Range dom = Range::make_by_min_extent(0, op->value);

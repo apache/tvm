@@ -117,10 +117,26 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
     act_type = type(keras_layer).__name__
 
     if act_type == 'Softmax':
-        return _op.nn.softmax(inexpr, axis=1)
+        axis = keras_layer.axis
+        dims = len(keras_layer.input_shape)
+        if isinstance(axis, list):
+            raise tvm.error.OpAttributeUnImplemented(
+                'Softmax with axes {} is not supported.'.format(axis))
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims - 1 else 1
+        return _op.nn.softmax(inexpr, axis=axis)
     if act_type == 'ReLU':
-        if keras_layer.max_value:
+        threshold = _expr.const(keras_layer.threshold, dtype='float32')
+        if keras_layer.max_value and float(keras_layer.threshold) == 0:
+            # f(x) = max_value, for x >= max_value
+            # f(x) = x,         for threshold <= x < max_value
             return _op.clip(inexpr, a_min=0., a_max=float(keras_layer.max_value))
+        elif keras_layer.max_value and _op.greater(threshold, inexpr).astype('float32'):
+            # f(x) = negative_slope * (inexpr - threshold)
+            negative_slope = _expr.const(keras_layer.negative_slope, dtype='float32')
+            return _op.multiply(negative_slope, _op.subtract(inexpr, threshold))
         return _op.nn.relu(inexpr)
     if act_type == 'LeakyReLU':
         return _op.nn.leaky_relu(inexpr, alpha=float(keras_layer.alpha))
@@ -147,7 +163,26 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
 def _convert_merge(inexpr, keras_layer, _):
     merge_type = type(keras_layer).__name__
     ret = inexpr[0]
-    if merge_type == 'Subtract':
+    if merge_type == 'Dot':
+        axes = keras_layer.axes
+        if isinstance(keras_layer.axes, int):
+            axes = [keras_layer.axes, keras_layer.axes]
+        if isinstance(axes, list):
+            if len(axes) != 2:
+                raise tvm.error.OpAttributeUnImplemented(
+                    'Dot with axes {} is not supported.'.format(keras_layer.axes))
+            for i, axis in enumerate(axes):
+                if axis not in [1, 2]:
+                    raise tvm.error.OpAttributeUnImplemented(
+                        'Dot with axes {} is not supported.'.format(keras_layer.axes))
+                if axes[i] == 2:
+                    inexpr[i] = _op.transpose(inexpr[i], axes=[0, 2, 1])
+        else:
+            raise tvm.error.OpAttributeUnImplemented(
+                'Dot with axes {} is not supported.'.format(keras_layer.axes))
+        ret_dot = _op.nn.batch_matmul(inexpr[0], inexpr[1])
+        ret = _op.transpose(ret_dot, axes=[0, 2, 1])
+    elif merge_type == 'Subtract':
         assert len(inexpr) == 2, "Subtract merge takes 2 inputs."
         ret = _op.subtract(ret, inexpr[1])
     elif merge_type in ['Add', 'Multiply', 'Maximum']:
@@ -163,8 +198,10 @@ def _convert_merge(inexpr, keras_layer, _):
             'Operator {} is not supported in frontend Keras.'.format(merge_type))
     return ret
 
+
 def _convert_permute(inexpr, keras_layer, _):
     return _op.transpose(inexpr, axes=(0,) + keras_layer.dims)
+
 
 def _convert_dense(inexpr, keras_layer, etab):
     weightList = keras_layer.get_weights()
@@ -344,7 +381,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
         params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        raise tvm.error.OpAttributeUnimplemented(
+        raise tvm.error.OpAttributeUnImplemented(
             'Padding with {} is not supported in operator Pooling.'.format(keras_layer.padding))
     if pool_type == 'MaxPooling2D':
         return _op.nn.max_pool2d(inexpr, **params)
@@ -358,16 +395,17 @@ def _convert_pooling(inexpr, keras_layer, etab):
 def _convert_upsample(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
-    params = {'layout': 'NHWC'}
+    params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params['scale'] = h
+        params['scale_h'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
@@ -381,7 +419,8 @@ def _convert_upsample(inexpr, keras_layer, _):
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
@@ -421,6 +460,11 @@ def _convert_batchnorm(inexpr, keras_layer, etab):
     moving_var = keras_layer.get_weights()[idx + 1]
     params['moving_mean'] = etab.new_const(moving_mean)
     params['moving_var'] = etab.new_const(moving_var)
+    # in case beta or gamma is not defined
+    params['beta'] = etab.new_const(np.zeros(moving_mean.shape)) if \
+                     'beta' not in params else params['beta']
+    params['gamma'] = etab.new_const(np.ones(moving_mean.shape)) if \
+                      'gamma' not in params else params['gamma']
     result, moving_mean, moving_var = _op.nn.batch_norm(inexpr, **params)
     return result
 
@@ -462,11 +506,26 @@ def _convert_concat(inexpr, keras_layer, _):
 
 def _convert_reshape(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
-    ch = keras_layer.input_shape[-1]
-    assert ch == keras_layer.target_shape[-1], \
-        "Only supports last dimension in target shape being equal to " \
-        "the channel number of input tensor."
-    shape = (-1, ch) + keras_layer.target_shape[:-1]
+    inshape = keras_layer.input_shape # includes batch
+    tshape = keras_layer.target_shape # no batch
+    if len(inshape) == 3 and len(tshape) == 1:
+        # (?, a, b) -> (-1, ab)
+        shape = (-1, tshape[0])
+    elif len(inshape) in [2, 3] and len(tshape) == 2:
+        # (?, cc) -> (-1, c, c)
+        # (?, a, b) -> (-1, c, c)
+        assert tshape[0] == tshape[1], \
+            "Only supports square target shapes, but got {}".format(tshape)
+        shape = (-1, ) + tshape
+    else:
+        # (?, h, w, c) -> (-1, c, H, W)
+        # (?, h, w, c) -> (-1, c, hw)
+        # (?, hw, c) -> (-1, c, h, w)
+        ch = inshape[-1]
+        assert ch == tshape[-1], \
+            "Only supports last dimension in target shape being equal to " \
+            "the channel number of input tensor."
+        shape = (-1, ch) + tshape[:-1]
     return _op.reshape(inexpr, newshape=shape)
 
 
@@ -626,7 +685,7 @@ _convert_map = {
 
     'Average'                : _convert_merge,
     'Maximum'                : _convert_merge,
-    # 'Dot'                    : _convert_merge,
+    'Dot'                    : _convert_merge,
     'Permute'                : _convert_permute,
     # 'Embedding'              : _convert_embedding,
     # 'RepeatVector'           : _convert_repeat_vector,

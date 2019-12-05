@@ -28,7 +28,7 @@
 #include <utility>
 #include "expr.h"
 #include "ir.h"
-#include "tvm/node/ir_functor.h"
+#include "tvm/node/functor.h"
 
 namespace tvm {
 namespace ir {
@@ -36,13 +36,13 @@ namespace ir {
  * \brief a base class for mutator to iterative mutate the IR
  *
  *  This IRMutator is implemented via Visitor Pattern.
- *  Also you can implement via IRFunctor.
+ *  Also you can implement via NodeFunctor.
  *  This enables easy extensions of possible new Node.
  *  It also makes changing return types easier.
  *
  * \note If you want to return a different type other than Expr and Stmt,
  *       Simply following the same pattern as IRMutator and create a seperate class.
- * \sa IRFunctor
+ * \sa NodeFunctor
  */
 class TVM_DLL IRMutator {
  public:
@@ -65,9 +65,9 @@ class TVM_DLL IRMutator {
   /*! \brief destructor */
   virtual ~IRMutator() {}
   /*! \brief functor type of expr mutation */
-  using FMutateExpr = IRFunctor<Expr(const NodeRef&, const Expr&, IRMutator*)>;
+  using FMutateExpr = NodeFunctor<Expr(const ObjectRef&, const Expr&, IRMutator*)>;
   /*! \brief functor type of stmt mutation */
-  using FMutateStmt = IRFunctor<Stmt(const NodeRef&, const Stmt&, IRMutator*)>;
+  using FMutateStmt = NodeFunctor<Stmt(const ObjectRef&, const Stmt&, IRMutator*)>;
   /*! \return internal vtable of expr */
   static FMutateExpr& vtable_expr();  // NOLINT(*)
   /*! \return internal stmt of expr */

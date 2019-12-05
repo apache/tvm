@@ -45,7 +45,7 @@ def _smooth_distribution(p, eps=0.0001):
 
 
 # pylint: disable=invalid-name
-def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
+def _find_scale_by_kl(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
     """Given a tensor, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
     `q` is a truncated version of the original distribution.
@@ -54,6 +54,8 @@ def kl_divergence_scale(arr, quantized_dtype='int8', num_bins=8001, num_quantize
     http://on-demand.gputechconf.com/gtc/2017/presentation/s7310-8-bit-inference-with-tensorrt.pdf
     """
     assert isinstance(arr, np.ndarray)
+    assert stats is not None, "scipy needs to be installed for \
+    utilizing kl calibration during quantization"
 
     min_val = np.min(arr)
     max_val = np.max(arr)

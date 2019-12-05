@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application to demonstrate converted packed
  * function handle passed to another packed function.
  * \file pack_func_handle_arg.go

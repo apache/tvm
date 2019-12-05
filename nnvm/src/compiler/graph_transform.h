@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file graph_transform.h
  * \brief A mutator class that does local pattern matching and mutates a node.
 */

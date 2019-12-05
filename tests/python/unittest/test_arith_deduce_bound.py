@@ -35,9 +35,11 @@ def test_deduce():
     d_s = tvm.arith.IntervalSet(-3, -1)
     zero = tvm.const(0, "int32")
 
+    fdiv = tvm.floordiv
+
     e0 = (-b)*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d - c) /(b*-1) + (-1))
+    ans0 = fdiv(d - c, b*-1)
     assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
@@ -46,7 +48,7 @@ def test_deduce():
 
     e0 = d*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d-c)/d - 1)
+    ans0 = fdiv(d-c, d)
     assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
@@ -56,7 +58,7 @@ def test_deduce():
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (((c - b) + -1)/4 -1)
+    ans1 = fdiv(c-1-b, 4)
     assert_expr_equal(res1.max_value, ans1)
 
 
@@ -79,11 +81,49 @@ def test_deduce():
 
     e3 = (-b)+a*c-d
     res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    ans3 = 2/c+1
+    ans3 = fdiv(2,c)+1
     assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
 
     res3 = tvm.arith.DeduceBound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
     assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
+
+    # tests for `EQ` op
+    res4 = tvm.arith.DeduceBound(a, a == b, {}, {})
+    assert_expr_equal(res4.max_value, b)
+    assert_expr_equal(res4.min_value, b)
+
+    # Unsatisfiable `EQ`, variable as one of the Operand
+    res5 = tvm.arith.DeduceBound(a, (a == b), {b: b_s}, {b: b_s})
+    assert str(res5.max_value) == "neg_inf"
+    assert str(res5.min_value) == "pos_inf"
+
+    # variable `a` on the RHS side
+    res6 = tvm.arith.DeduceBound(a, 10 == a, {}, {})
+    assert_expr_equal(res6.max_value, 10)
+    assert_expr_equal(res6.min_value, 10)
+
+    # Add, Sub in `EQ`
+    e4 = ((a - c) == (b + d))
+    ans4 = (b + d + c)
+    res7 = tvm.arith.DeduceBound(a, e4, {b: b_s, c: c_s, d: d_s}, {})
+    assert_expr_equal(res7.max_value, ans4)
+    assert_expr_equal(res7.min_value, ans4)
+
+    # Satisfiable Mul in `EQ` with negative sign
+    res8 = tvm.arith.DeduceBound(a, (5 * a == -10), {}, {})
+    assert_expr_equal(res8.max_value, -2)
+    assert_expr_equal(res8.min_value, -2)
+
+    # Unsatisfiable Mul in `EQ`
+    e5 = (4 * a == b)
+    res9 = tvm.arith.DeduceBound(a, e5, {b: b_s}, {})
+    assert str(res9.max_value) == "neg_inf"
+    assert str(res9.min_value) == "pos_inf"
+
+    # Unsatisfiable Mul in `EQ`
+    res10 = tvm.arith.DeduceBound(a, (b * a == b), {b: b_s}, {})    # simplifier is not able to prove that (b % b == 0)
+    assert str(res10.max_value) == "neg_inf"
+    assert str(res10.min_value) == "pos_inf"
 
 
 def test_check():
@@ -175,5 +215,6 @@ def test_deduce_complex():
 
 if __name__ == "__main__":
     test_check()
+    test_deduce()
     test_deduce_basic()
     test_deduce_complex()

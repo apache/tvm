@@ -48,7 +48,6 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
         c_np = topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
         if add_bias:
-            b_np = np.random.uniform(size=bias_shape).astype(dtype)
             c_np += b_np
         if add_relu:
             c_np = np.maximum(c_np, 0)

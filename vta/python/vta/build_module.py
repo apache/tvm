@@ -69,7 +69,8 @@ def build_config(debug_flag=0, **kwargs):
             debug_flag)
 
         return tvm.make.stmt_seq(debug, stmt)
-    pass_list = [(1, ir_pass.inject_dma_intrin),
+    pass_list = [(0, ir_pass.inject_conv2d_transpose_skip),
+                 (1, ir_pass.inject_dma_intrin),
                  (1, ir_pass.inject_skip_copy),
                  (1, ir_pass.annotate_alu_coproc_scope),
                  (1, lambda x: tvm.ir_pass.LiftAttrScope(x, "coproc_uop_scope", True)),
@@ -79,6 +80,7 @@ def build_config(debug_flag=0, **kwargs):
     if debug_flag:
         pass_list.append((1, add_debug))
     pass_list.append((2, ir_pass.inject_alu_intrin))
+    pass_list.append((3, tvm.ir_pass.LowerStorageAccessInfo))
     pass_list.append((3, ir_pass.fold_uop_loop))
     pass_list.append((3, ir_pass.cpu_access_rewrite))
     return tvm.build_config(add_lower_pass=pass_list, **kwargs)

@@ -21,21 +21,8 @@ from __future__ import absolute_import
 import ctypes
 import sys
 from .. import _api_internal
+from .object import Object, register_object, _set_class_node
 from .node_generic import NodeGeneric, convert_to_node, const
-from .base import _LIB, check_call, c_str, py_str, _FFI_MODE
-
-IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
-try:
-    # pylint: disable=wrong-import-position
-    if _FFI_MODE == "ctypes":
-        raise ImportError()
-    if sys.version_info >= (3, 0):
-        from ._cy3.core import _register_node, NodeBase as _NodeBase
-    else:
-        from ._cy2.core import _register_node, NodeBase as _NodeBase
-except IMPORT_EXCEPT:
-    # pylint: disable=wrong-import-position
-    from ._ctypes.node import _register_node, NodeBase as _NodeBase
 
 
 def _new_object(cls):
@@ -43,20 +30,22 @@ def _new_object(cls):
     return cls.__new__(cls)
 
 
-class NodeBase(_NodeBase):
+class NodeBase(Object):
     """NodeBase is the base class of all TVM language AST object."""
     def __repr__(self):
         return _api_internal._format_str(self)
 
     def __dir__(self):
-        plist = ctypes.POINTER(ctypes.c_char_p)()
-        size = ctypes.c_uint()
-        check_call(_LIB.TVMNodeListAttrNames(
-            self.handle, ctypes.byref(size), ctypes.byref(plist)))
-        names = []
-        for i in range(size.value):
-            names.append(py_str(plist[i]))
-        return names
+        fnames = _api_internal._NodeListAttrNames(self)
+        size = fnames(-1)
+        return [fnames(i) for i in range(size)]
+
+    def __getattr__(self, name):
+        try:
+            return _api_internal._NodeGetAttr(self, name)
+        except AttributeError:
+            raise AttributeError(
+                "%s has no attribute %s" % (str(type(self)), name))
 
     def __hash__(self):
         return _api_internal._raw_ptr(self)
@@ -95,24 +84,6 @@ class NodeBase(_NodeBase):
         return self.__hash__() == other.__hash__()
 
 
-def register_node(type_key=None):
-    """register node type
-
-    Parameters
-    ----------
-    type_key : str or cls
-        The type key of the node
-    """
-    node_name = type_key if isinstance(type_key, str) else type_key.__name__
-
-    def register(cls):
-        """internal register function"""
-        tindex = ctypes.c_int()
-        ret = _LIB.TVMNodeTypeKey2Index(c_str(node_name), ctypes.byref(tindex))
-        if ret == 0:
-            _register_node(tindex.value, cls)
-        return cls
-
-    if isinstance(type_key, str):
-        return register
-    return register(type_key)
+# pylint: disable=invalid-name
+register_node = register_object
+_set_class_node(NodeBase)

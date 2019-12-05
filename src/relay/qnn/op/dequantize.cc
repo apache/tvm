@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/dequantize.cc
  * \brief QNN dequantize operator. Dequantize operator converts from quantized
  * domain to unquantized domain.
@@ -43,8 +42,9 @@ bool DequantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(input_dtype == Int(8) || input_dtype == UInt(8))
-    << "Input type should be one of the quantized types [unit8, int8] but was " <<  input_dtype;
+  CHECK(input_dtype == Int(8) || input_dtype == UInt(8) || input_dtype == Int(32))
+    << "Input type should be one of the quantized types [unit8, int8, int32] but was "
+    <<  input_dtype;
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type, output will always be float 32.
   reporter->Assign(types[1], TensorTypeNode::make(oshape, Float(32)));
@@ -72,9 +72,9 @@ Expr DequantizeLower(const Expr& input_tensor,
   return scaled_output;
 }
 
-Expr DequantizeLegalize(const Attrs& attrs,
-                        const Array<Expr>& new_args,
-                        const Array<tvm::relay::Type>& types) {
+Expr DequantizeQnnCanonicalize(const Attrs& attrs,
+                               const Array<Expr>& new_args,
+                               const Array<tvm::relay::Type>& types) {
   CHECK_EQ(new_args.size(), 1);
   auto& data = new_args[0];
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
@@ -88,12 +88,12 @@ RELAY_REGISTER_OP("qnn.dequantize")
 The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.DequantizeAttrs")
+.set_attrs_type<DequantizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The tensor to dequantize.")
 .set_support_level(11)
 .add_type_rel("Dequantize", DequantizeRel)
-.set_attr<FTVMLegalize>("FTVMLegalize", DequantizeLegalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", DequantizeQnnCanonicalize);
 
 TVM_REGISTER_API("relay.qnn.op._make.dequantize")
 .set_body_typed(MakeDequantize);

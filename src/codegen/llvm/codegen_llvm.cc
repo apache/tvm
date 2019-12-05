@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_llvm.cc
  */
 #ifdef TVM_LLVM_VERSION
@@ -423,8 +422,13 @@ void CodeGenLLVM::GetAlignment(Type t,
 
 std::unique_ptr<CodeGenLLVM::DebugInfo>
 CodeGenLLVM::CreateDebugInfo(llvm::Module* module) {
+#if TVM_LLVM_VERSION >= 100
+  auto debug_info = std::make_unique<CodeGenLLVM::DebugInfo>();
+  debug_info->di_builder_ = std::make_unique<llvm::DIBuilder>(*module);
+#else
   auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
+#endif
   // TODO(tulloch): pass this information through relay::Span classes to the LoweredFunc instance?
   debug_info->file_ = debug_info->di_builder_->createFile("model.tvm", "/tmp/");
   debug_info->compilation_unit_ = debug_info->di_builder_->createCompileUnit(
@@ -590,7 +594,11 @@ llvm::Value* CodeGenLLVM::GetConstString(const std::string& str) {
   llvm::Type* type = llvm::ArrayType::get(t_char_, str.length() + 1);
   llvm::GlobalVariable *global = new llvm::GlobalVariable(
       *module_, type, true, llvm::GlobalValue::PrivateLinkage, 0, ".str");
+#if TVM_LLVM_VERSION >= 100
+  global->setAlignment(llvm::Align(1));
+#else
   global->setAlignment(1);
+#endif
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, str));
   llvm::Constant* zero = ConstInt32(0);
   llvm::Constant* indices[] = {zero, zero};
@@ -741,6 +749,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(Call::reinterpret)) {
     llvm::Type * target = LLVMType(op->type);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+  } else if (op->is_intrinsic(Call::isnan)) {
+    // TODO(hgt312): set fast math flag
+    llvm::Value* a = MakeValue(op->args[0]);
+    return builder_->CreateFCmpUNO(a, a);
   } else if (op->is_intrinsic("vectorlow")) {
     llvm::Value *v = MakeValue(op->args[0]);
     int l = v->getType()->getVectorNumElements();
@@ -1141,7 +1153,11 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
             LLVMType(op->type), ConstInt32(constant_size));
       });
     if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+      alloca->setAlignment(llvm::Align(info.alignment));
+#else
       alloca->setAlignment(info.alignment);
+#endif
     }
     info.alignment = alloca->getAlignment();
     buf = alloca;
@@ -1156,7 +1172,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
 
 void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);

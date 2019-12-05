@@ -99,8 +99,20 @@ def test_db_latest_all():
     assert encode(inp1, load4[1]) == encode(inp1, res2)
     assert encode(inp1, load4[2]) == encode(inp1, res3)
 
+def test_db_filter():
+    logging.info("test db filter ...")
+    records = get_sample_records(5)
+    _db = database.DummyDatabase()
+    _db.flush()
+    for inp, result in records:
+        _db.save(inp, result)
+
+    records = _db.filter(lambda inp, ress: any(r.costs[0] <= 2 for r in ress))
+    assert len(records) == 2
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     test_save_load()
     test_db_hash()
     test_db_latest_all()
+    test_db_filter()

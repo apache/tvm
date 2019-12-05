@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_cuda.cc
  * \brief CUDA intrinsic rules.
  */
@@ -92,6 +91,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
+.set_body(DispatchExtern<CUDAMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 .set_body(DispatchExtern<CUDAFastMath>);
 
@@ -100,6 +102,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
 .set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan")
+.set_body(DispatchExtern<CUDAMath>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
 .set_body(DispatchExtern<CUDAMath>);

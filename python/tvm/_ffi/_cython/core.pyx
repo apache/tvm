@@ -16,7 +16,8 @@
 # under the License.
 
 include "./base.pxi"
-include "./node.pxi"
+include "./object.pxi"
+# include "./node.pxi"
 include "./function.pxi"
 include "./ndarray.pxi"
-include "./vmobj.pxi"
+

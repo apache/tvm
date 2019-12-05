@@ -43,6 +43,7 @@ class SplitExpr;
  */
 class CanonicalExprNode : public BaseExprNode {
  public:
+  virtual ~CanonicalExprNode() {}
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \note Can mutate the internal data structure.
@@ -51,7 +52,7 @@ class CanonicalExprNode : public BaseExprNode {
   virtual Expr Normalize() const = 0;
 
   // overrides
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
@@ -67,7 +68,7 @@ enum DivMode {
 
 inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
   if (mode == kTruncDiv) {
-    return a % b;
+    return truncmod(a, b);
   } else {
     CHECK_EQ(mode, kFloorDiv);
     return floormod(a, b);
@@ -76,7 +77,7 @@ inline Expr ModImpl(Expr a, Expr b, DivMode mode) {
 
 inline Expr DivImpl(Expr a, Expr b, DivMode mode) {
   if (mode == kTruncDiv) {
-    return a / b;
+    return truncdiv(a, b);
   } else {
     CHECK_EQ(mode, kFloorDiv);
     return floordiv(a, b);
@@ -485,7 +486,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return Normalized expr.
    */
   Expr Normalize(Expr expr) {
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       return op->Normalize();
     } else {
       return expr;
@@ -503,7 +504,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       if (op->base == 0 && op->args.size() == 1) return op->args[0];
     }
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
@@ -629,7 +630,7 @@ Mutate_(const Mul* op, const Expr& self) {
   }
   if (const auto* bconst = b.as<IntImm>()) {
     if (a.as<SumExprNode>()) {
-      SumExpr ret(std::move(a.node_));
+      SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
       return std::move(ret);
     } else {
@@ -744,8 +745,8 @@ Mutate_(const Div* op, const Expr& self) {
         return std::move(lhs);
       }
       // both lhs and extra are non-negative
-      if (parent_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
-          parent_->CanProveGreaterEqual(extra->Normalize(), 0)) {
+      if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
+          analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         lhs.CopyOnWrite()->DivideBy(cval);
         Expr temp = Normalize(extra);
         if (const auto* pconst = temp.as<IntImm>()) {
@@ -761,7 +762,7 @@ Mutate_(const Div* op, const Expr& self) {
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
-      auto cbound = parent_->const_int_bound(Normalize(a));
+      auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
         return make_zero(a.type());
       }
@@ -809,7 +810,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
         lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
-        if (!(TryCompare(temp, cval) == kLT && parent_->CanProveGreaterEqual(temp, 0))) {
+        if (!(TryCompare(temp, cval) == kLT && analyzer_->CanProveGreaterEqual(temp, 0))) {
           lhs.CopyOnWrite()->AddToSelf(
               SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
         }
@@ -817,7 +818,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
       return std::move(lhs);
     } else {
       // if a >= 0 && a < cval, then result == 0
-      auto cbound = parent_->const_int_bound(Normalize(a));
+      auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
         return make_zero(a.type());
       }
@@ -908,11 +909,11 @@ Mutate_(const Mod* op, const Expr& self) {
         return make_zero(a.type());
       }
       // both lhs and extra are non-negative
-      if (parent_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
-          parent_->CanProveGreaterEqual(extra->Normalize(), 0)) {
+      if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
+          analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         Expr temp = Normalize(extra);
         if (temp.as<IntImm>()) {
-          return temp % c1.Eval();
+          return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
           if (TryCompare(temp, cval) == kLT) {
@@ -927,17 +928,17 @@ Mutate_(const Mod* op, const Expr& self) {
       }
       // Simplify the offset constant if necessary.
       // (x - 5) % 3 => (x - 2) % 3 if x - 5 >= 0
-      auto cbound = parent_->const_int_bound(Normalize(a));
+      auto cbound = analyzer_->const_int_bound(Normalize(a));
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 &&
           cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr(std::move(a.node_));
+        SumExpr sum_expr = Downcast<SumExpr>(a);
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
-      auto cbound = parent_->const_int_bound(Normalize(a));
+      auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
         return a;
       }
@@ -980,7 +981,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
       } else {
         // If temp < cval && temp >=0 then can remove the mod.
         if (TryCompare(temp, cval) == kLT &&
-            parent_->CanProveGreaterEqual(temp, 0)) {
+            analyzer_->CanProveGreaterEqual(temp, 0)) {
           return temp;
         } else {
           // contonue to use logic below.
@@ -992,12 +993,12 @@ Mutate_(const FloorMod* op, const Expr& self) {
       // Simplify the offset constant if necessary.
       // floormod(x - 5, 3) => floormod(x + 1, 3)
       int64_t new_base = floormod(psum->base, cval);
-      SumExpr sum_expr(std::move(a.node_));
+      SumExpr sum_expr = Downcast<SumExpr>(std::move(a));
       sum_expr.CopyOnWrite()->base = new_base;
       return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
     } else {
       // if a >= 0 && a < cval, then result == a
-      auto cbound = parent_->const_int_bound(Normalize(a));
+      auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
         return a;
       }
@@ -1087,12 +1088,8 @@ SimplifyReduceCombiner(const Reduce* op) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Reduce* op, const Expr& self) {
-  // Setup the domain information before simplification.
-  for (const IterVar& iv : op->axis) {
-    parent_->Bind(iv->var, iv->dom);
-  }
   // Recursively call simplification when necessary.
-  Expr ret = IRMutator::Mutate_(op, self);
+  Expr ret = RewriteSimplifier::Impl::Mutate_(op, self);
   op = ret.as<Reduce>();
   // already been simplified by const reduction axis removal
   if (op == nullptr) return ret;
@@ -1120,7 +1117,6 @@ void CanonicalSimplifier::Update(const Var& var,
                                  bool override) {
   impl_->Update(var, info, override);
 }
-
 
 CanonicalSimplifier::CanonicalSimplifier(Analyzer* parent)
     : impl_(new Impl(parent)) {

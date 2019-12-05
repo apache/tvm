@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file attr_functor.h
  * \brief A way to define arbitrary function signature
  *        with dispatch on common attributes.
@@ -31,6 +30,7 @@
 #ifndef TVM_LANG_ATTR_FUNCTOR_H_
 #define TVM_LANG_ATTR_FUNCTOR_H_
 
+#include <tvm/node/functor.h>
 #include <utility>
 
 namespace tvm {
@@ -44,17 +44,17 @@ class AttrFunctor;
 
 #define ATTR_FUNCTOR_DISPATCH(OP)                                       \
   vtable.template set_dispatch<OP>(                                     \
-      [](const NodeRef& n, TSelf* self, Args... args) {                 \
-        return self->VisitAttr_(static_cast<const OP*>(n.node_.get()),  \
+      [](const ObjectRef& n, TSelf* self, Args... args) {                 \
+        return self->VisitAttr_(static_cast<const OP*>(n.get()),  \
                                 std::forward<Args>(args)...);           \
       });                                                               \
 
 // A functor for common attribute information.
 template <typename R, typename... Args>
-class AttrFunctor<R(const NodeRef& n, Args...)> {
+class AttrFunctor<R(const ObjectRef& n, Args...)> {
  private:
-  using TSelf = AttrFunctor<R(const NodeRef& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const NodeRef& n, TSelf* self, Args...)>;
+  using TSelf = AttrFunctor<R(const ObjectRef& n, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -65,7 +65,7 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R VisitAttr(const NodeRef& n, Args... args) {
+  virtual R VisitAttr(const ObjectRef& n, Args... args) {
     static FType vtable = InitVTable();
     if (vtable.can_dispatch(n)) {
       return vtable(n, this, std::forward<Args>(args)...);
@@ -73,7 +73,7 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
       return VisitAttrDefault_(n.get(), std::forward<Args>(args)...);
     }
   }
-  virtual R VisitAttrDefault_(const Node* node, Args... args) = 0;
+  virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::IntImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -87,6 +87,8 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
   virtual R VisitAttr_(const ir::Mul* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Div* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Mod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloorDiv* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloorMod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Min* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Max* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::GE* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -119,6 +121,9 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(Sub);
     ATTR_FUNCTOR_DISPATCH(Mul);
     ATTR_FUNCTOR_DISPATCH(Div);
+    ATTR_FUNCTOR_DISPATCH(Mod);
+    ATTR_FUNCTOR_DISPATCH(FloorDiv);
+    ATTR_FUNCTOR_DISPATCH(FloorMod);
     ATTR_FUNCTOR_DISPATCH(Min);
     ATTR_FUNCTOR_DISPATCH(Max);
     ATTR_FUNCTOR_DISPATCH(GE);
@@ -138,58 +143,60 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
 };
 
 class AttrsEqualHandler :
-      protected AttrFunctor<bool(const NodeRef&, const NodeRef&)> {
+      protected AttrFunctor<bool(const ObjectRef&, const ObjectRef&)> {
  public:
   /*!
    * \brief Check if lhs equals rhs
    * \param lhs The left operand.
    * \param rhs The right operand.
    */
-  bool Equal(const NodeRef& lhs, const NodeRef& rhs);
+  bool Equal(const ObjectRef& lhs, const ObjectRef& rhs);
 
  protected:
-  bool VisitAttrDefault_(const Node* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ArrayNode* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const StrMapNode* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::IntImm* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::UIntImm* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::FloatImm* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::StringImm* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Add* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Sub* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Mul* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Div* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Mod* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Min* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Max* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::GE* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::GT* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::LT* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::LE* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::EQ* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::NE* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::And* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Or* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Not* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Cast* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Call* lhs, const NodeRef& other) final;
-  bool VisitAttr_(const ir::Select* lhs, const NodeRef& other) final;
+  bool VisitAttrDefault_(const Object* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::IntImm* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::UIntImm* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::FloatImm* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::StringImm* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Add* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Sub* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Mul* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Div* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Mod* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::FloorDiv* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::FloorMod* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Min* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Max* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::GE* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::GT* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::LT* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::LE* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::EQ* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::NE* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::And* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Or* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Not* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Cast* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Call* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::Select* lhs, const ObjectRef& other) final;
 };
 
 class AttrsHashHandler :
-      protected AttrFunctor<size_t(const NodeRef&)> {
+      protected AttrFunctor<size_t(const ObjectRef&)> {
  public:
   /*!
    * \brief Get hash value of node
    * \param node The node to be hashed.
    */
-  size_t Hash(const NodeRef& node) {
+  size_t Hash(const ObjectRef& node) {
     if (!node.defined()) return 0;
     return this->VisitAttr(node);
   }
 
  protected:
-  size_t VisitAttrDefault_(const Node* lhs) final;
+  size_t VisitAttrDefault_(const Object* lhs) final;
   size_t VisitAttr_(const ir::IntImm* lhs) final;
   size_t VisitAttr_(const ir::UIntImm* lhs) final;
   size_t VisitAttr_(const ir::FloatImm* lhs) final;
@@ -201,6 +208,8 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::Mul* op) final;
   size_t VisitAttr_(const ir::Div* op) final;
   size_t VisitAttr_(const ir::Mod* op) final;
+  size_t VisitAttr_(const ir::FloorDiv* op) final;
+  size_t VisitAttr_(const ir::FloorMod* op) final;
   size_t VisitAttr_(const ir::Min* op) final;
   size_t VisitAttr_(const ir::Max* op) final;
   size_t VisitAttr_(const ir::GE* op) final;

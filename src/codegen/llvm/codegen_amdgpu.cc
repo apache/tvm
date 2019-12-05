@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_amdgpu.cc
  * \brief AMDGPU code generator.
  */
@@ -36,6 +35,29 @@
 namespace tvm {
 namespace codegen {
 
+namespace {
+
+// calls the device api to get the max threads per block
+static inline int DetectROCMmaxThreadsPerBlock() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kDLROCM;
+  tvm_ctx.device_id = 0;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  if (api != nullptr) {
+    TVMRetValue val;
+    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
+    if (val.operator int() == 1) {
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->
+        GetAttr(tvm_ctx, tvm::runtime::kMaxThreadsPerBlock, &val);
+      return val.operator int();
+    }
+  }
+  LOG(WARNING) << "Cannot get maximum number of threads for AMD codegen";
+  return 256;  // see the discussion at PR #4342 for the choice of default
+}
+
+}  // namespace
+
 // AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
@@ -43,6 +65,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
+    std::ostringstream attr;
+    attr << "1," << DetectROCMmaxThreadsPerBlock();
+    function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
   void VisitStmt_(const Allocate* op) final {
@@ -71,7 +96,11 @@ class CodeGenAMDGPU : public CodeGenLLVM {
                 LLVMType(op->type), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+          alloca->setAlignment(llvm::Align(info.alignment));
+#else
           alloca->setAlignment(info.alignment);
+#endif
         }
         buf = alloca;
       } else {
@@ -84,7 +113,11 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
             nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
+#if TVM_LLVM_VERSION >= 100
+        global->setAlignment(llvm::Align(info.alignment));
+#else
         global->setAlignment(info.alignment);
+#endif
         buf = global;
       }
     }
@@ -166,21 +199,27 @@ inline int DetectROCMComputeVersion(const std::string& target) {
     TVMRetValue val;
     api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
     if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kGcnArch, &val);
       return val.operator int();
     }
   }
-  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx803";
-  return 803;
+  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx900";
+  return 900;
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+#if TVM_LLVM_VERSION < 90
+  LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
+  // Lower versions will crash when loading the bitcode, see
+  // issue #4087 for a discussion
+#endif
   InitializeLLVM();
   CHECK(target.length() >= 4 &&
         target.substr(0, 4) == "rocm");
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
          << DetectROCMComputeVersion(target)
+         << " -mattr=-code-object-v3 "
          << target.substr(4, target.length() - 4);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
@@ -231,9 +270,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+            pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*mObj);
@@ -244,9 +287,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_AssemblyFile";
+#else
+  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
+                                llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);

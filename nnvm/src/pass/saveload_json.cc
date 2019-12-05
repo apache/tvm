@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file saveload_json.cc
  * \brief Save and load graph to/from JSON file.
  */

@@ -17,16 +17,19 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from __future__ import absolute_import
+import os
+from sys import setrecursionlimit
 from ..api import register_func
 from . import base
 from . import ty
 from . import expr
+from . import type_functor
 from . import expr_functor
 from . import module
 from . import adt
 from . import analysis
 from . import transform
-from .build_module import build, create_executor
+from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import prelude
 from . import parser
@@ -35,8 +38,6 @@ from . import param_dict
 from . import feature
 from .backend import vm
 from .backend import profiler_vm
-from .backend import serializer
-from .backend import deserializer
 from .backend import vmobj
 
 # Root operators
@@ -58,6 +59,11 @@ from . import quantize
 from . import qnn
 
 from .scope_builder import ScopeBuilder
+# Load Memory pass
+from . import memory_alloc
+
+# Required to traverse large programs
+setrecursionlimit(10000)
 
 # Span
 Span = base.Span
@@ -101,6 +107,7 @@ RefWrite = expr.RefWrite
 PatternWildcard = adt.PatternWildcard
 PatternVar = adt.PatternVar
 PatternConstructor = adt.PatternConstructor
+PatternTuple = adt.PatternTuple
 Constructor = adt.Constructor
 TypeData = adt.TypeData
 Clause = adt.Clause
@@ -113,6 +120,11 @@ bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
 alpha_equal = analysis.alpha_equal
+
+# TypeFunctor
+TypeFunctor = type_functor.TypeFunctor
+TypeVisitor = type_functor.TypeVisitor
+TypeMutator = type_functor.TypeMutator
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor

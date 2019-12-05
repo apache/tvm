@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_c.cc
  */
 #include <iomanip>
@@ -576,6 +575,12 @@ void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     os << " *)(&(";
     this->PrintExpr(op->args[0], os);
     os << ")))";
+  } else if (op->is_intrinsic(Call::isnan)) {
+    os << "(";
+    this->PrintExpr(op->args[0], os);
+    os << " != ";
+    this->PrintExpr(op->args[0], os);
+    os << ")";
   } else {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
@@ -800,7 +805,7 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
 
 void CodeGenC::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == ir::attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
         BindThreadIndex(iv);

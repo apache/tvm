@@ -39,6 +39,14 @@ namespace runtime {
 inline bool TypeMatch(TVMType t, int code, int bits, int lanes = 1) {
   return t.code == code && t.bits == bits && t.lanes == lanes;
 }
+/*!
+ * \brief Check whether two types are equal .
+ * \param lhs The left operand.
+ * \param rhs The right operand.
+ */
+inline bool TypeEqual(TVMType lhs, TVMType rhs) {
+  return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
+}
 }  // namespace runtime
 }  // namespace tvm
 // Forward declare the intrinsic id we need

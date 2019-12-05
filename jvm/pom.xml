@@ -3,15 +3,15 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>ml.dmlc.tvm</groupId>
+  <groupId>org.apache.tvm</groupId>
   <artifactId>tvm4j-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM4J Package - Parent</name>
-  <url>https://github.com/dmlc/tvm/tree/master/jvm</url>
+  <url>https://github.com/apache/incubator-tvm/tree/master/jvm</url>
   <description>TVM4J Package</description>
   <organization>
-    <name>Distributed (Deep) Machine Learning Community</name>
-    <url>http://dmlc.ml</url>
+    <name>Apache Software Foundation</name>
+    <url>https://apache.org</url>
   </organization>
   <licenses>
     <license>
@@ -20,9 +20,9 @@
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git@github.com:dmlc/tvm.git</connection>
-    <developerConnection>scm:git:git@github.com:dmlc/tvm.git</developerConnection>
-    <url>https://github.com/dmlc/tvm</url>
+    <connection>scm:git:git@github.com:apache/incubator-tvm.git</connection>
+    <developerConnection>scm:git:git@github.com:apache/incubator-tvm.git</developerConnection>
+    <url>https://github.com/apache/incubator-tvm</url>
   </scm>
 
   <properties>
@@ -164,8 +164,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.3</version>
         <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
+          <source>1.7</source>
+          <target>1.7</target>
           <encoding>UTF-8</encoding>
         </configuration>
       </plugin>

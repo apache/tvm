@@ -18,7 +18,8 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm import relay
+from tvm.expr import FloatImm, IntImm
+from tvm.relay.expr import Tuple
 from . import _make
 
 def requantize(data,
@@ -26,7 +27,7 @@ def requantize(data,
                input_zero_point,
                output_scale,
                output_zero_point,
-               rounding="TONEAREST",
+               rounding="UPWARD",
                out_dtype="int8"):
     r"""Requantized operator.
 
@@ -95,7 +96,7 @@ def quantize(data,
         The output zero_point.
     output_scale : float
         The output scale.
-    input_dtype : str, optional
+    out_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8]
     Returns
     -------
@@ -134,6 +135,8 @@ def dequantize(data,
     return _make.dequantize(data,
                             input_scale,
                             input_zero_point)
+
+
 def concatenate(data,
                 input_scales,
                 input_zero_points,
@@ -169,42 +172,250 @@ def concatenate(data,
     """
 
     data = list(data)
-    requantized_exprs = list(data)
+    if not data:
+        raise ValueError("relay.concatenate requires data to be non-empty.")
+    if not isinstance(axis, int):
+        raise ValueError("For now, we only support integer axis")
 
-    # Find the dtype of the input expr. This is required for the requantize op. Since, this is
-    # concatenate op, the dtype of the input is same as dtype of the output.
-    mod = relay.Module.from_expr(data[0])
-    mod = relay.transform.InferType()(mod)
-    entry = mod["main"]
-    data0 = entry if isinstance(data[0], relay.Function) else entry.body
-    in_dtype = data0.checked_type.dtype
+    return _make.concatenate(Tuple(data),
+                             [FloatImm("float64", x) for x in input_scales],
+                             [IntImm("int32", x) for x in input_zero_points],
+                             output_scale,
+                             output_zero_point,
+                             axis)
 
-    # First check if all the input qnn params match. If yes, we can call concatenate first, followed
-    # by a requantize.
-    if all(scale == input_scales[0] for scale in input_scales)\
-            and all(zero_point == input_zero_points[0] for zero_point in input_zero_points):
-        out = relay.concatenate(tuple(data), axis)
-        input_scale = input_scales[0]
-        input_zero_point = input_zero_points[0]
-        if input_scale != output_scale or input_zero_point != output_zero_point:
-            out = requantize(data=out,
-                             input_scale=input_scales[0],
-                             input_zero_point=input_zero_points[0],
-                             output_scale=output_scale,
-                             output_zero_point=output_zero_point,
-                             out_dtype=in_dtype)
-        return out
 
-    # If the output qnn params do not match the input qnn params, we can call requantize on the
-    # input expr first, followed by a concatenate on the requantized input exprs.
-    for idx, quantized_expr in enumerate(data):
-        input_scale = input_scales[idx]
-        input_zero_point = input_zero_points[idx]
-        if input_scale != output_scale or input_zero_point != output_zero_point:
-            requantized_exprs[idx] = requantize(data=quantized_expr,
-                                                input_scale=input_scale,
-                                                input_zero_point=input_zero_point,
-                                                output_scale=output_scale,
-                                                output_zero_point=output_zero_point,
-                                                out_dtype=in_dtype)
-    return relay.concatenate(tuple(requantized_exprs), axis)
+def conv2d(data,
+           kernel,
+           input_zero_point,
+           kernel_zero_point,
+           input_scale,
+           kernel_scale,
+           strides=(1, 1),
+           padding=(0, 0),
+           dilation=(1, 1),
+           groups=1,
+           channels=None,
+           kernel_size=None,
+           data_layout="NCHW",
+           kernel_layout="OIHW",
+           out_layout="",
+           out_dtype="int32"):
+    r"""Quantized 2D convolution.
+
+    This operator convolves quantized data with quantized kernel. The scale of
+    the output quantized tensor is the product of the kernel_scale and
+    input_scale of the input quantized tensors. The zero point of the output
+    quantized tensor is 0. By default, the dtype of output is int32. Please also
+    refer to Requantize operator to understand how to scale back the int32
+    output to (u)int8.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    kernel : tvm.relay.Expr
+        The kernel expressions.
+
+    input_zero_point: int
+           The zero point of the data distribution.
+
+    input_scale: float
+           The scale for the input tensor. The scale for the input tensor is
+           stored purely for convenience here. See more commentary below.
+
+    kernel_scale: float
+           The scale for the weight tensor. The scale for the weight tensor is
+           stored for access to this during relay. This information is not
+           needed in the pass pipeline after qnn.conv2d is lowered to the
+           sequence of steps as in nn.conv2d. See also input_scale in Requantize.
+
+    kernel_zero_point: int
+           The zero point of the quantized_kernel distribution.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the kernel.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.conv2d(data, kernel,
+                        input_zero_point, kernel_zero_point,
+                        input_scale, kernel_scale,
+                        strides, padding, dilation,
+                        groups, channels, kernel_size,
+                        data_layout, kernel_layout, out_layout, out_dtype)
+
+
+def add(lhs,
+        rhs,
+        lhs_scale,
+        lhs_zero_point,
+        rhs_scale,
+        rhs_zero_point,
+        output_scale,
+        output_zero_point):
+    """Quantized addition with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side quantized input data.
+
+    rhs : relay.Expr
+        The right hand side quantized input data.
+
+    lhs_scale: float
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: int
+       The zero point of lhs quantized expr.
+
+    rhs_scale: float
+        The scale of the rhs quantized expr.
+
+    rhs_zero_point: int
+       The zero point of rhs quantized expr.
+
+    output_scale: float
+        The scale of the output quantized expr.
+
+    output_zero_point: int
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.add(lhs, rhs,
+                     lhs_scale, lhs_zero_point,
+                     rhs_scale, rhs_zero_point,
+                     output_scale, output_zero_point)
+
+
+def dense(data,
+          weight,
+          input_zero_point,
+          kernel_zero_point,
+          input_scale,
+          kernel_scale,
+          units=None,
+          out_dtype="int32"):
+    """Qnn Dense operator.
+    Applies a quantized linear transformation
+
+     .. math::
+
+     `Y = X * W`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The quantized input data to the operator.
+    weight : tvm.relay.Expr
+        The quantized weight expressions.
+    input_zero_point: int
+        The input zero point.
+    kernel_zero_point: int
+        The kernel zero point.
+    input_scale: float
+        The scale for the input tensor.
+    kernel_scale: float
+        The scale for the weight tensor. The scale for the weight tensor is
+        stored for access to this during relay. This information is not
+        needed in the pass pipeline after qnn.conv2d is lowered to the
+        sequence of steps as in nn.conv2d. See also input_scale in Requantize.
+    units : int, optional
+        Number of hidden units of the dense transformation.
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense can be int32 or int16.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.dense(data,
+                       weight,
+                       input_zero_point,
+                       kernel_zero_point,
+                       input_scale,
+                       kernel_scale,
+                       units,
+                       out_dtype)
+
+
+def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
+        output_scale, output_zero_point):
+    """Quantized multiplication with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side quantized input data.
+
+    rhs : relay.Expr
+        The right hand side quantized input data.
+
+    lhs_scale: float
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: int
+       The zero point of lhs quantized expr.
+
+    rhs_scale: float
+        The scale of the rhs quantized expr.
+
+    rhs_zero_point: int
+       The zero point of rhs quantized expr.
+
+    output_scale: float
+        The scale of the output quantized expr.
+
+    output_zero_point: int
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.mul(lhs, rhs,
+                     lhs_scale, lhs_zero_point,
+                     rhs_scale, rhs_zero_point,
+                     output_scale, output_zero_point)

@@ -21,6 +21,8 @@ set -u
 
 export PYTHONPATH=python:topi/python:apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
+export TVM_BIND_THREADS=0
+export TVM_NUM_THREADS=2
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
@@ -33,13 +35,13 @@ rm -rf lib
 make
 cd ../..
 
-python3 -m nose -v apps/extension/tests
+python3 -m pytest -v apps/extension/tests
 
-TVM_FFI=ctypes python3 -m nose -v tests/python/integration
-TVM_FFI=ctypes python3 -m nose -v tests/python/contrib
+TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
+TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
 
-TVM_FFI=ctypes python3 -m nose -v tests/python/relay
+TVM_FFI=ctypes python3 -m pytest -v tests/python/relay
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m nose -v tests/webgl
-# TVM_FFI=ctypes python3 -m nose -v tests/webgl
+# TVM_FFI=cython python -m pytest -v tests/webgl
+# TVM_FFI=ctypes python3 -m pytest -v tests/webgl

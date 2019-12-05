@@ -268,16 +268,34 @@ class Vectorizer : public IRMutator {
     if (op->name == intrinsic::tvm_if_then_else) {
       return MutateIfThenElseExpr_(op, e);
     }
-    int lane = 0;
-    Array<Expr> new_args = MutateArray(op->args, &lane);
-
-    // normal code path.
-    if (op->args.same_as(new_args)) {
-      return e;
+    if (!op->is_vectorizable()) {
+      // Cannot vectorize this op
+      Array<Expr> new_args;
+      for (auto arg : op->args) {
+        auto new_arg = this->Mutate(arg);
+        if (new_arg.type().is_vector()) {
+          need_scalarize_ = true;
+          return e;
+        }
+        new_args.push_back(new_arg);
+      }
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type, op->name, new_args, op->call_type, op->func, op->value_index);
+      }
     } else {
-      return Call::make(
-          op->type.with_lanes(lane), op->name, new_args,
-          op->call_type, op->func, op->value_index);
+      int lane = 0;
+      Array<Expr> new_args = MutateArray(op->args, &lane);
+      // normal code path.
+      if (op->args.same_as(new_args)) {
+        return e;
+      } else {
+        return Call::make(
+            op->type.with_lanes(lane), op->name, new_args,
+            op->call_type, op->func, op->value_index);
+      }
     }
   }
   // Load
@@ -350,7 +368,6 @@ class Vectorizer : public IRMutator {
     CHECK(!op->extent.type().is_vector());
     Expr extent = Mutate(op->extent);
     if (extent.type().is_vector()) {
-      LOG(WARNING) << "Detect vectorized extent type, scalarizing...";
       return Scalarize(s);
     }
     Stmt body = Mutate(op->body);
@@ -368,7 +385,6 @@ class Vectorizer : public IRMutator {
     CHECK(!op->condition.type().is_vector());
     Expr condition = this->Mutate(op->condition);
     if (condition.type().is_vector()) {
-      LOG(WARNING) << "Detect vector condition in Vectorized Loop, scalarizing...";
       return Scalarize(s);
     }
     Stmt then_case = this->Mutate(op->then_case);
@@ -515,8 +531,7 @@ class LoopVectorizer : public IRMutator {
       if (!succ || lanes < 1) {
         LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
       }
-      Var var(op->loop_var.node_);
-      return Vectorizer(var, lanes).Mutate(op->body);
+      return Vectorizer(op->loop_var, lanes).Mutate(op->body);
     } else {
       return IRMutator::Mutate_(op, s);
     }

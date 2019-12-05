@@ -219,7 +219,7 @@ def args_to_workload(x, topi_compute_func=None):
         workload = get_const_tuple(x.shape) + (x.dtype, )
     elif isinstance(x, (tuple, list, container.Array)):
         workload = tuple([args_to_workload(a) for a in x])
-    elif isinstance(x, (str, int, float, np.int, np.float)):
+    elif isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
         workload = x
     elif isinstance(x, (expr.StringImm, expr.UIntImm, expr.IntImm, expr.FloatImm)):
         workload = x.value
@@ -227,7 +227,7 @@ def args_to_workload(x, topi_compute_func=None):
         workload = 0
     else:
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
-                           'primitive types only' % type(x))
+                           'primitive types or tvm.expr.Var only' % type(x))
     return (get_func_name(topi_compute_func), ) + workload  if topi_compute_func else workload
 
 def template(func):
@@ -350,7 +350,9 @@ def compute_flop(sch):
             return _count_flop(exp.value)
         if isinstance(exp, expr.Var):
             return 0
-        if isinstance(exp, (expr.Add, expr.Sub, expr.Mul, expr.Div, expr.Mod,
+        if isinstance(exp, (expr.Add, expr.Sub, expr.Mul,
+                            expr.Div, expr.Mod,
+                            expr.FloorDiv, expr.FloorMod,
                             expr.Max, expr.Min,
                             expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
                             expr.And, expr.Or, expr.Not)):

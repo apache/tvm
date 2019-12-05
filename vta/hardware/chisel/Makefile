@@ -32,7 +32,7 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-CONFIG = DefaultF1Config
+CONFIG = DefaultPynqConfig
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
@@ -82,7 +82,6 @@ cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 ld_flags = -fPIC -shared
 
 cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
-cxx_objs += $(patsubst %.cpp,%.o,$(wildcard $(verilator_build_dir)/*.cpp))
 
 ifneq ($(USE_TRACE), 0)
   verilator_opt += --trace
@@ -103,18 +102,24 @@ else
   lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
-default: lib
+default: lint lib
+
+lint:
+	sbt scalafmt
 
 lib: $(lib_path)
 
 $(verilator_build_dir)/%.o: %.cpp
-	$(CXX) -c $(cxx_flags) $^ -o $@
+	$(CXX) -fPIC $(cxx_flags) -c $^ -o $@
 
 $(verilator_build_dir)/tsim_device.o: tsim_device.cc
-	$(CXX) -c $(cxx_flags) $^ -o $@
+	$(CXX) -fPIC $(cxx_flags) -c $^ -o $@
 
 $(lib_path): $(verilator_build_dir)/V$(TOP_TEST).cpp $(cxx_objs)
-	$(CXX) $(cxx_flags) $(ld_flags) $(cxx_objs) -o $@
+	for f in $(shell find $(verilator_build_dir)/*.cpp); do \
+		$(CXX) -fPIC $(cxx_flags) -c $${f} -o $${f}.o ; \
+	done
+	$(CXX) $(ld_flags) $(cxx_flags) $(cxx_objs) $(patsubst %.cpp,%.cpp.o,$(shell find $(verilator_build_dir)/*.cpp)) -o $@
 
 verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp
 $(verilator_build_dir)/V$(TOP_TEST).cpp: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v

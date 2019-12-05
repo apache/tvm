@@ -25,7 +25,7 @@
 #ifndef TVM_RELAY_EXPR_FUNCTOR_H_
 #define TVM_RELAY_EXPR_FUNCTOR_H_
 
-#include <tvm/node/ir_functor.h>
+#include <tvm/node/functor.h>
 #include <string>
 #include <utility>
 #include <unordered_map>
@@ -57,8 +57,8 @@ class ExprFunctor;
 
 #define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                \
   vtable.template set_dispatch<OP>(                                    \
-      [](const NodeRef& n, TSelf* self, Args... args) {                \
-        return self->VisitExpr_(static_cast<const OP*>(n.node_.get()), \
+      [](const ObjectRef& n, TSelf* self, Args... args) {                \
+        return self->VisitExpr_(static_cast<const OP*>(n.get()), \
                                 std::forward<Args>(args)...);          \
       });
 
@@ -66,7 +66,7 @@ template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const NodeRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -117,7 +117,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
-    throw Error(std::string("Do not have a default for ") + op->type_key());
+    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    throw;
   }
 
  private:

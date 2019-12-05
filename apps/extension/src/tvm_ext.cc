@@ -19,7 +19,6 @@
 
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Example package that uses TVM.
  * \file tvm_ext.cc
  */

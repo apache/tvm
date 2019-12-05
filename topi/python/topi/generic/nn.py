@@ -35,6 +35,24 @@ def _default_schedule(outs, auto_inline):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_hwcn(outs):
+    """Schedule for conv2d_hwcn
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_hwcn
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw
 
@@ -96,6 +114,25 @@ def schedule_conv2d_NCHWc(outs):
     ----------
     outs : Array of Tensor
         The computation graph description of conv2d_NCHWc
+        in the format of an array of tensors.
+        The number of filter, i.e., the output channel.
+
+    Returns
+    -------
+    sch : Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv2d_NCHWc_int8(outs):
+    """Schedule for conv2d_NCHW[x]c_int8
+
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The computation graph description of conv2d_NCHWc_int8
         in the format of an array of tensors.
         The number of filter, i.e., the output channel.
 
@@ -181,6 +218,24 @@ def schedule_conv2d_winograd_nnpack_without_weight_transform(outs):
           The computation graph description of this operator
           in the format of an array of tensors.
      Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv3d_ncdhw(outs):
+    """Schedule for conv3d_ncdhw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
     -------
     sch: Schedule
         The computation schedule for the op.
@@ -461,6 +516,23 @@ def schedule_binarize_pack(outs):
     outs: Array of Tensor
           The computation graph description of binarize_pack
           in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.override_native_generic_func("schedule_bitpack")
+def schedule_bitpack(outs):
+    """Schedule for bitpack
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of bitpack
+        in the format of an array of tensors.
 
     Returns
     -------

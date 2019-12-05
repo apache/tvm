@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file aocl_module.cc
  */
 #include <dmlc/memory_io.h>

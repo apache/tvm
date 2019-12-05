@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file simplify_inference.cc
  */
 #include <tvm/relay/analysis.h>
@@ -75,7 +74,7 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   const auto param = attrs.as<LayerNormAttrs>();
   CHECK(param);
 
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr mean = Mean(data, {param->axis}, true, false);
   Expr var = Variance(data, mean, {param->axis}, true, false);
   Expr denom = Sqrt(Add(var, epsilon));
@@ -91,6 +90,41 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   }
   return out;
 }
+
+
+Expr InstanceNormToInferUnpack(const Attrs attrs,
+                               Expr data,
+                               Expr gamma,
+                               Expr beta,
+                               Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
+  const auto param = attrs.as<InstanceNormAttrs>();
+  CHECK(param);
+
+  int ndim = ttype->shape.size();
+  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
+  Array<Integer> reduced_axes;
+  for (int i = 1; i < ndim; ++i) {
+      if (i != axis)
+          reduced_axes.push_back(i);
+  }
+
+  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr mean = Mean(data, reduced_axes, true, false);
+  Expr var = Variance(data, mean, reduced_axes, true, false);
+  Expr denom = Sqrt(Add(var, epsilon));
+  Expr out = Divide(Subtract(data, mean), denom);
+
+  if (param->scale) {
+    out = Multiply(out, ExpandBiasToMatchAxis(gamma, ndim, {axis}));
+  }
+  if (param->center) {
+    out = Add(out, ExpandBiasToMatchAxis(beta, ndim, {axis}));
+  }
+  return out;
+}
+
 
 class InferenceSimplifier : public ExprMutator {
  public:
@@ -116,6 +150,7 @@ class InferenceSimplifier : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* n) {
     static const Op& batch_norm = Op::Get("nn.batch_norm");
+    static const Op& instance_norm = Op::Get("nn.instance_norm");
     static const Op& layer_norm = Op::Get("nn.layer_norm");
     auto new_n = ExprMutator::VisitExpr_(n);
     if (n->op.same_as(batch_norm)) {
@@ -123,6 +158,10 @@ class InferenceSimplifier : public ExprMutator {
     } else if (n->op.same_as(layer_norm)) {
       const auto* call = new_n.as<CallNode>();
       return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1],
+                                    call->args[2], n->args[0]->checked_type());
+    } else if (n->op.same_as(instance_norm)) {
+      const auto* call = new_n.as<CallNode>();
+      return InstanceNormToInferUnpack(call->attrs, call->args[0], call->args[1],
                                     call->args[2], n->args[0]->checked_type());
     }
     return new_n;

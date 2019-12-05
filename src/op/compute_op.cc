@@ -40,7 +40,8 @@ namespace tvm {
 using namespace ir;
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
+.set_dispatch<ComputeOpNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const ComputeOpNode*>(node.get());
     p->stream << "compute(" << op->name << ", " << op << ")";
 });
 
@@ -147,7 +148,7 @@ Operation ComputeOpNode::make(std::string name,
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->is_type<ir::Reduce>()) {
+  if (n->body[0]->IsInstance<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
     n->reduce_axis = reduce->axis;
   }
@@ -163,7 +164,7 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
     ir::PostOrderVisit(e, [&ret, &visited](const NodeRef& n) {
         const ir::Call *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
-          Tensor t = Operation(call->func.node_).output(call->value_index);
+          Tensor t = Downcast<Operation>(call->func).output(call->value_index);
           if (!visited.count(t)) {
             ret.push_back(t);
             visited.insert(t);
@@ -180,7 +181,7 @@ Operation ComputeOpNode::ReplaceInputs(
   CHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
   Array<Expr> arr;
-  if (this->body[0]->is_type<ir::Reduce>()) {
+  if (this->body[0]->IsInstance<ir::Reduce>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
     Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
@@ -217,7 +218,7 @@ void ComputeOpNode::PropBoundToInputs(
   auto fvisit = [&dom_map, out_dom_map, analyzer](const NodeRef& n) {
     auto *call = n.as<ir::Call>();
     if (call != nullptr && call->func.defined()) {
-      Tensor t = Operation(call->func.node_).output(call->value_index);
+      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {

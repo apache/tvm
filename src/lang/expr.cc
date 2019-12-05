@@ -156,7 +156,7 @@ Var var(std::string name_hint, Type t) {
   return Var(name_hint, t);
 }
 
-void IRPrinter::Print(const NodeRef& ir) {
+void IRPrinter::Print(const ObjectRef& ir) {
   static const FType& f = vtable();
   if (!ir.defined()) {
     stream << "(nullptr)";
@@ -165,7 +165,7 @@ void IRPrinter::Print(const NodeRef& ir) {
       f(ir, this);
     } else {
       // default value, output type key and addr.
-      stream << ir->type_key() << "(" << ir.get() << ")";
+      stream << ir->GetTypeKey() << "(" << ir.get() << ")";
     }
   }
 }
@@ -182,7 +182,8 @@ IRPrinter::FType& IRPrinter::vtable() {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntImm>([](const IntImm *op, IRPrinter *p) {
+.set_dispatch<IntImm>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const IntImm*>(node.get());
     if (op->type == Int(32)) {
       p->stream << op->value;
     } else {
@@ -191,7 +192,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IterVarNode>([](const IterVarNode *op, IRPrinter *p) {
+.set_dispatch<IterVarNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const IterVarNode*>(node.get());
     p->stream << "iter_var(";
     if (op->var->name_hint.length() != 0) {
       p->stream  << op->var->name_hint << ", ";
@@ -206,7 +208,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RangeNode>([](const RangeNode* op, IRPrinter* p) {
+.set_dispatch<RangeNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const RangeNode*>(node.get());
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });
 

@@ -38,7 +38,7 @@ android {
     compileSdkVersion 26
     buildToolsVersion "26.0.1"
     defaultConfig {
-        applicationId "ml.dmlc.tvm.android.demo"
+        applicationId "org.apache.tvm.android.demo"
         minSdkVersion 17
         targetSdkVersion 26
         versionCode 1
@@ -68,6 +68,6 @@ dependencies {
     compile 'com.android.support:appcompat-v7:26.0.1'
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     compile 'com.android.support:design:26.0.1'
-    compile 'ml.dmlc.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
     testCompile 'junit:junit:4.12'
 }

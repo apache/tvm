@@ -107,6 +107,10 @@ class Module(ModuleBase):
         kwargs : dict, optional
             Additional arguments passed to fcompile
         """
+        from pathlib import Path
+        if isinstance(file_name, Path):
+            file_name = str(file_name)
+
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
                 raise ValueError("Module[%s]: can only be saved as stackvm format."
@@ -140,7 +144,12 @@ class Module(ModuleBase):
             else:
                 fcompile = _cc.create_shared
         if self.type_key == "c":
-            kwargs.update({'options': ["-I" + path for path in find_include_path()]})
+            options = []
+            if "options" in kwargs:
+                opts = kwargs["options"]
+                options = opts if isinstance(opts, (list, tuple)) else [opts]
+            opts = options + ["-I" + path for path in find_include_path()]
+            kwargs.update({'options': opts})
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
@@ -256,6 +265,9 @@ def load(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files)
         path += ".so"
+    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
+    elif path.endswith(".obj"):
+        fmt = "micro_dev"
     # Redirect to the load API
     return _LoadFromFile(path, fmt)
 

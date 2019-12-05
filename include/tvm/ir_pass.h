@@ -208,6 +208,28 @@ Stmt StorageFlatten(Stmt stmt,
                     bool create_bound_attribute = false);
 
 /*!
+ * \brief Try to modify the AST to support TensorCore
+ *
+ * \param stmt The stmt to be trasnformed.
+ * \param schedule The original schedule.
+ * \param extern_buffer Map specifies external
+ *    buffer assignment of input and outputs.
+ * \return Transformed stmt.
+ */
+Stmt RewriteForTensorCore(Stmt stmt,
+                          Schedule schedule,
+                          Map<Tensor, Buffer> extern_buffer);
+
+/*!
+ * \brief Verify if there is any argument bound to compact buffer.
+ *
+ * \param stmt The stmt to be verified.
+ * \return true if there is any buffer_bind_scope attribute found,
+ *        otherwise, false.
+ */
+bool VerifyCompactBuffer(Stmt stmt);
+
+/*!
  * \brief Remove No Op from the Stmt.
  * \param stmt The stmt to be trasnformed
  * \return Transformed stmt.
@@ -370,6 +392,13 @@ Stmt LowerStorageAccessInfo(Stmt stmt);
 Stmt DecorateDeviceScope(Stmt stmt);
 
 /*!
+ * \brief Loop invariant code motion which locates and hoists if statements.
+ * \param stmt The stmt to do if statement hoisting.
+ * \return Transformed stmt.
+ */
+Stmt HoistIfThenElse(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
@@ -499,6 +528,15 @@ LoweredFunc CombineContextCall(LoweredFunc f);
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 
 /*!
+ * \brief Lower attached storage access information on device.
+ * Do this pass after all storage access analysis finish.
+ *
+ * \param func The device function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc func);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.
@@ -516,6 +554,21 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
  * \return Transformed function.
  */
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Infer the TensorCore fragment infomation using tensor intrinsics
+ *
+ * \param f The device function to be lowered.
+ * \return Transformed function.
+ */
+LoweredFunc InferFragment(LoweredFunc f);
+
+/*!
+ * \brief skip assert stmt generation
+ * \param f The function to be transformed.
+ * \return Transformed function.
+ */
+LoweredFunc SkipAssert(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

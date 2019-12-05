@@ -18,11 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_runtime.cc
  */
-#include "graph_runtime.h"
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -31,11 +28,14 @@
 
 #include <algorithm>
 #include <functional>
-#include <numeric>
-#include <vector>
-#include <string>
 #include <memory>
+#include <numeric>
+#include <string>
+#include <unordered_set>
 #include <utility>
+#include <vector>
+
+#include "graph_runtime.h"
 
 namespace tvm {
 namespace runtime {
@@ -78,6 +78,11 @@ void GraphRuntime::Init(const std::string& graph_json,
   ctxs_ = ctxs;
   this->SetupStorage();
   this->SetupOpExecs();
+  for (size_t i = 0; i < input_nodes_.size(); i++) {
+    const uint32_t nid = input_nodes_[i];
+    std::string& name = nodes_[nid].name;
+    input_map_[name] = i;
+  }
 }
 /*!
  * \brief Get the input index given the name of input.
@@ -85,11 +90,9 @@ void GraphRuntime::Init(const std::string& graph_json,
  * \return The index of input.
  */
 int GraphRuntime::GetInputIndex(const std::string& name) {
-  for (size_t i = 0; i< input_nodes_.size(); ++i) {
-    uint32_t nid = input_nodes_[i];
-    if (nodes_[nid].name == name) {
-      return static_cast<int>(i);
-    }
+  auto it = input_map_.find(name);
+  if (it != input_map_.end()) {
+    return it->second;
   }
   LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
   return -1;
@@ -125,16 +128,8 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   }
 
   // Update the data pointer for each argument of each op
-  for (auto& op_arg : op_args_) {
-    if (op_arg) {
-      const auto it = op_arg->input_entry_ids.find(eid);
-      if (it != op_arg->input_entry_ids.end()) {
-        for (const auto i : it->second) {
-          DLTensor* t = static_cast<DLTensor*>(op_arg->arg_values[i].v_handle);
-          t->data = data_ref->data;
-        }
-      }
-    }
+  for (DLTensor* t : input_dltensors_[eid]) {
+    t->data = data_ref->data;
   }
 }
 /*!
@@ -324,17 +319,21 @@ void GraphRuntime::SetupStorage() {
 
 void GraphRuntime::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
-  op_args_.resize(this->GetNumOfNodes());
+  input_dltensors_.resize(num_node_entries());
+  std::unordered_set<uint32_t> input_node_eids;
+  for (size_t i = 0; i < input_nodes_.size(); i++) {
+    uint32_t nid = input_nodes_[i];
+    input_node_eids.insert(entry_id(nid, 0));
+  }
+
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<DLTensor> args;
-    std::vector<uint32_t> input_entry_ids;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
       args.push_back(*(data_entry_[eid].operator->()));
-      input_entry_ids.push_back(eid);
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
@@ -342,16 +341,16 @@ void GraphRuntime::SetupOpExecs() {
     }
     CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
-    std::tie(op_execs_[nid], op_args_[nid]) =
+    std::shared_ptr<OpArgs> op_args = nullptr;
+    std::tie(op_execs_[nid], op_args) =
         CreateTVMOp(inode.param, args, inode.inputs.size());
-    auto& entry_to_input_pos = op_args_[nid]->input_entry_ids;
-    for (uint32_t i = 0; i < input_entry_ids.size(); ++i) {
-      const auto eid = input_entry_ids[i];
-      auto it = entry_to_input_pos.find(eid);
-      if (it == entry_to_input_pos.end()) {
-        entry_to_input_pos.emplace(eid, std::vector<uint32_t>{i});
-      } else {
-        it->second.push_back(i);
+
+    for (size_t i = 0; i < inode.inputs.size(); i++) {
+      uint32_t eid = this->entry_id(inode.inputs[i]);
+      // check if op input is model input
+      if (input_node_eids.count(eid) > 0) {
+        input_dltensors_[eid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
     }
   }
@@ -396,7 +395,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
   // Get compiled function from the module that contains both host and device
   // code.
-  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
+  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
   auto fexec = [arg_ptr, pf]() {
@@ -411,7 +410,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
 PackedFunc GraphRuntime::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -478,7 +477,7 @@ PackedFunc GraphRuntime::GetFunction(
 Module GraphRuntimeCreate(const std::string& sym_json,
                           const tvm::runtime::Module& m,
                           const std::vector<TVMContext>& ctxs) {
-  std::shared_ptr<GraphRuntime> exec = std::make_shared<GraphRuntime>();
+  auto exec = make_object<GraphRuntime>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
@@ -510,18 +509,6 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
         << args.num_args;
     const auto& contexts = GetAllContext(args);
     *rv = GraphRuntimeCreate(args[0], args[1], contexts);
-  });
-
-TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                  "graph_runtime.remote_create is "
-                                  "at least 4, but it has "
-                               << args.num_args;
-    void* mhandle = args[1];
-    const auto& contexts = GetAllContext(args);
-    *rv = GraphRuntimeCreate(
-        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
   });
 }  // namespace runtime
 }  // namespace tvm

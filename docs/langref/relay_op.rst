@@ -137,6 +137,7 @@ This level enables additional math and transform operators.
    tvm.relay.less
    tvm.relay.less_equal
    tvm.relay.all
+   tvm.relay.any
    tvm.relay.logical_and
    tvm.relay.logical_or
    tvm.relay.logical_not
@@ -211,6 +212,7 @@ This level supports dialect operators.
    :nosignatures:
 
    tvm.relay.qnn.op.requantize
+   tvm.relay.qnn.op.conv2d
 
 
 Level 1 Definitions
@@ -224,7 +226,9 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.subtract
 .. autofunction:: tvm.relay.multiply
 .. autofunction:: tvm.relay.divide
+.. autofunction:: tvm.relay.floor_divide
 .. autofunction:: tvm.relay.mod
+.. autofunction:: tvm.relay.floor_mod
 .. autofunction:: tvm.relay.tanh
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.expand_dims
@@ -299,6 +303,7 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.less
 .. autofunction:: tvm.relay.less_equal
 .. autofunction:: tvm.relay.all
+.. autofunction:: tvm.relay.any
 .. autofunction:: tvm.relay.logical_and
 .. autofunction:: tvm.relay.logical_or
 .. autofunction:: tvm.relay.logical_not
@@ -357,3 +362,4 @@ Level 10 Definitions
 Level 11 Definitions
 --------------------
 .. autofunction:: tvm.relay.qnn.op.requantize
+.. autofunction:: tvm.relay.qnn.op.conv2d

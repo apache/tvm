@@ -45,7 +45,7 @@ class UIntImm : public ExprNode {
   /*! \brief The constant value content. */
   uint64_t value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
   }
@@ -62,7 +62,7 @@ class FloatImm : public ExprNode {
   /*! \brief The constant value content. */
   double value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
   }
@@ -79,7 +79,7 @@ class StringImm : public ExprNode {
   /*! \brief The constant value content. */
   std::string value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
   }
@@ -99,7 +99,7 @@ class Cast : public ExprNode {
   /*! \brief Original data type. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
   }
@@ -122,7 +122,7 @@ class BinaryOpNode : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->type));
     v->Visit("a", &a);
     v->Visit("b", &b);
@@ -214,7 +214,7 @@ class CmpOpNode : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->type));
     v->Visit("a", &a);
     v->Visit("b", &b);
@@ -278,7 +278,7 @@ class And : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->type));
     v->Visit("a", &a);
     v->Visit("b", &b);
@@ -298,7 +298,7 @@ class Or : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("a", &a);
     v->Visit("b", &b);
@@ -316,7 +316,7 @@ class Not : public ExprNode {
   /*! \brief The input operand. */
   Expr a;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("a", &a);
   }
@@ -343,7 +343,7 @@ class Select : public ExprNode {
   /*! \brief value to be returned when condition is false. */
   Expr false_value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("condition", &condition);
     v->Visit("true_value", &true_value);
@@ -380,7 +380,7 @@ class Load : public ExprNode {
   /*! \brief The predicate to mask which lanes would be loaded. */
   Expr predicate;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("buffer_var", &buffer_var);
     v->Visit("index", &index);
@@ -411,7 +411,7 @@ class Ramp : public ExprNode {
   /*! \brief Total number of lanes. */
   int lanes;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("base", &base);
     v->Visit("stride", &stride);
@@ -432,7 +432,7 @@ class Broadcast : public ExprNode {
   /*! \brief The numerb of lanes. */
   int lanes;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("value", &value);
     v->Visit("lanes", &lanes);
@@ -456,7 +456,7 @@ class Let : public ExprNode {
   /*! \brief The result expression. */
   Expr body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("var", &var);
     v->Visit("value", &value);
@@ -522,7 +522,7 @@ class Call : public ExprNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index{0};
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("name", &name);
     v->Visit("args", &args);
@@ -556,6 +556,9 @@ class Call : public ExprNode {
          name == intrin_name);
   }
 
+  /*! \return Whether call node can be vectorized. */
+  bool is_vectorizable() const;
+
   static constexpr const char* _type_key = "Call";
   TVM_DECLARE_NODE_TYPE_INFO(Call, ExprNode);
 
@@ -571,6 +574,10 @@ class Call : public ExprNode {
   static constexpr const char* likely = "likely";
   static constexpr const char* glsl_texture_store = "glsl_texture_store";
   static constexpr const char* prefetch = "prefetch";
+  static constexpr const char* isnan = "isnan";
+
+  /*! \brief Vectorizable intrinsic list. */
+  static const char* vectorizable_intrinsics[];
 };
 
 /*!
@@ -585,7 +592,7 @@ class Shuffle : public ExprNode {
   /*! \brief The indices of each element. */
   Array<Expr> indices;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("vectors", &vectors);
     v->Visit("indices", &indices);
   }
@@ -645,7 +652,7 @@ class CommReducerNode : public Node {
                                   Array<Expr> result,
                                   Array<Expr> identity_element);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("lhs", &lhs);
     v->Visit("rhs", &rhs);
     v->Visit("result", &result);
@@ -657,10 +664,10 @@ class CommReducerNode : public Node {
 };
 
 inline const CommReducerNode* CommReducer::get() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return static_cast<const CommReducerNode*>(data_.get());
 }
 inline const CommReducerNode* CommReducer::operator->() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return get();
 }
 
 /*! \brief Reduction operator operator */
@@ -687,7 +694,7 @@ class Reduce : public ExprNode {
                            Expr condition,
                            int value_index);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &type);
     v->Visit("combiner", &combiner);
     v->Visit("source", &source);
@@ -703,7 +710,11 @@ class Reduce : public ExprNode {
 /*! \brief Any shape. */
 class Any : public ExprNode {
  public:
-  void VisitAttrs(AttrVisitor* v) final {}
+  void VisitAttrs(AttrVisitor* v) {}
+  /*! \brief Convert to var. */
+  Var ToVar() const {
+    return Variable::make(Int(32), "any_dim");
+  }
 
   TVM_DLL static Expr make();
 
@@ -724,7 +735,7 @@ class LetStmt : public StmtNode {
   /*! \brief The body block. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -757,7 +768,7 @@ class AttrStmt : public StmtNode {
   /*! \brief The body statement to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("node", &node);
     v->Visit("attr_key", &attr_key);
     v->Visit("value", &value);
@@ -788,7 +799,7 @@ class AssertStmt : public StmtNode {
    */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("condition", &condition);
     v->Visit("message", &message);
     v->Visit("body", &body);
@@ -811,7 +822,7 @@ class ProducerConsumer : public StmtNode {
   /*! \brief Body to be executed. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("is_producer", &is_producer);
     v->Visit("body", &body);
@@ -852,7 +863,7 @@ class Store : public StmtNode {
   /*! \brief The predicate to mask which lanes would be stored. */
   Expr predicate;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("value", &value);
     v->Visit("index", &index);
@@ -882,7 +893,7 @@ class Provide : public StmtNode {
   /*! \brief The index arguments of the function. */
   Array<Expr> args;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
     v->Visit("value", &value);
@@ -918,7 +929,7 @@ class Allocate : public StmtNode {
   Expr new_expr;
   std::string free_function;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("dtype", &type);
     v->Visit("extents", &extents);
@@ -961,7 +972,7 @@ class Free : public StmtNode {
   /*! \brief The buffer variable. */
   Var buffer_var;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
   }
 
@@ -990,7 +1001,7 @@ class Realize : public StmtNode {
   /*! \brief The body of realization. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
     v->Visit("dtype", &type);
@@ -1020,7 +1031,7 @@ class Block : public StmtNode {
   /*! \brief The restof statments. */
   Stmt rest;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("first", &first);
     v->Visit("rest", &rest);
   }
@@ -1044,7 +1055,7 @@ class IfThenElse : public StmtNode {
   /*! \brief The branch to be executed when condition is false, can be null. */
   Stmt else_case;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("condition", &condition);
     v->Visit("then_case", &then_case);
     v->Visit("else_case", &else_case);
@@ -1067,7 +1078,7 @@ class Evaluate : public StmtNode {
   /*! \brief The expression to be evaluated. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
   }
 
@@ -1131,7 +1142,7 @@ class For : public StmtNode {
                            DeviceAPI device_api,
                            Stmt body);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
     v->Visit("extent", &extent);
@@ -1158,7 +1169,7 @@ class Prefetch : public StmtNode {
   /*! \brief Bounds to be prefetched. */
   Region bounds;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
     v->Visit("type", &type);
@@ -1237,6 +1248,8 @@ constexpr const char* reduce_scope = "reduce_scope";
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Try to modify the AST to support Tensor Core */
+constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope
@@ -1298,6 +1311,16 @@ constexpr const char* opengl_stage_scope = "opengl_stage_scope";
  * \brief Mark that it is in the device scope.
  */
 constexpr const char* device_scope = "device_scope";
+
+/*!
+ * \brief Mark that the shape of TensorCore fragment
+ */
+constexpr const char* fragment_shape = "fragment_shape";
+
+/*!
+ * \brief Mark that the layout of TensorCore fragment
+ */
+constexpr const char* fragment_layout = "fragment_layout";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
@@ -1541,6 +1564,54 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
+/*!
+ * \brief tvm intrinsic for tensor core load operators.
+ *
+ *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                            Expr index, Expr buffer_ptr, Expr stride,
+ *                            StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment.
+ *    // Determine fragment layout(column-major or row major) by layout.
+ *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
+ *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
+ *  }
+ */
+constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
+/*!
+ * \brief tvm intrinsic for tensor core mma_sync operators.
+ *
+ *  void tvm_mma_sync(Var fragment_d, Expr index_d,
+ *                    Var fragment_a, Expr index_a,
+ *                    Var fragment_b, Expr index_b,
+ *                    Var fragment_c, Expr index_c) {
+ *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
+ *                           fragment_b[index_b], fragment_c[index_c]);
+ *  }
+ */
+constexpr const char* tvm_mma_sync = "tvm_mma_sync";
+/*!
+ * \brief tvm intrinsic for tensor core fill_fragment operators.
+ *
+ *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                         Expr index, Expr value) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::fill_fragment(fragment[index], value);
+ *  }
+ */
+constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
+/*!
+ * \brief tvm intrinsic for tensor core store operators.
+ *
+ *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                             Expr index, Expr buffer_ptr, Expr stride,
+ *                             StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
+ *  }
+ */
+constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
 
 }   // namespace intrinsic
 
@@ -1565,7 +1636,7 @@ namespace std {
 template <>
 struct hash<::tvm::ir::TensorKey> {
   std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
-    size_t lhs = k.f.hash();
+    size_t lhs = ::tvm::NodeHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;

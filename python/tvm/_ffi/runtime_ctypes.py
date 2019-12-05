@@ -36,13 +36,12 @@ class TypeCode(object):
     TVM_TYPE = 5
     TVM_CONTEXT = 6
     ARRAY_HANDLE = 7
-    NODE_HANDLE = 8
+    OBJECT_HANDLE = 8
     MODULE_HANDLE = 9
     FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
     NDARRAY_CONTAINER = 13
-    OBJECT_CELL = 14
     EXT_BEGIN = 15
 
 

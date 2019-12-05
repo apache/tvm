@@ -16,6 +16,15 @@
 # under the License.
 import tvm
 
+def check_throws(f):
+    try:
+        f()
+    except tvm.TVMError:
+        pass
+    else:
+        raise AssertionError("Should have raised an exception but didn't.")
+
+
 def test_const_fold():
     def check(f, *args):
         x = f(*[tvm.const(x, "int32") for x in args])
@@ -23,10 +32,11 @@ def test_const_fold():
         if not isinstance(x, (tvm.expr.IntImm, tvm.expr.UIntImm)) or x.value != int(y):
             raise ValueError("check error: %s vs %s " % (x, y))
 
+    tmod = tvm.truncmod
     check(lambda x, y: x + y, 3, 4)
     check(lambda x, y: x * y, 3, 12)
     check(lambda x, y: x * y - 10, 3, 12)
-    check(lambda x, y: x - y % 10, 3, 12)
+    check(lambda x, y: x - tmod(y, 10), 3, 12)
     check(lambda x, y: x // y + 10, 100, 12)
     check(lambda x, y: x & y + 10, 112, 128)
     check(lambda x, y: x > y, 112, 128)
@@ -38,23 +48,17 @@ def test_const_fold():
 
 def test_const_fold2():
     x = tvm.var("x")
+    tmod = tvm.truncmod
+    tdiv = tvm.truncdiv
     assert (x + 0).same_as(x)
     assert (0 + x).same_as(x)
     assert (x - 0).same_as(x)
-    assert (x % 1).value == 0
+    assert tmod(x, 1).value == 0
     assert (x * 1).same_as(x)
     assert (1 * x).same_as(x)
-    assert isinstance((1 / x), tvm.expr.Div)
+    assert isinstance(tdiv(1, x), tvm.expr.Div)
 
 def test_const_fold3():
-    def check_throws(f):
-        try:
-            f()
-        except tvm.TVMError:
-            pass
-        else:
-            raise AssertionError("Should have raised an exception but didn't.")
-
     # Test that using ints with logic operations is forbidden
     x = tvm.var("x")
     for val in [0, 1]:
@@ -87,8 +91,9 @@ def test_const_fold3():
 def test_const_fold4():
     x1 = tvm.const(4, "int32")
     x2 = x1 + 5
+    tdiv = tvm.truncdiv
     assert isinstance(x2, tvm.expr.IntImm) and x2.value == 9
-    x3 = x2 / 3
+    x3 = tdiv(x2, 3)
     assert isinstance(x3, tvm.expr.IntImm) and x3.value == 3
     x4 = x3 + 0.55
     assert isinstance(x4, tvm.expr.FloatImm) and abs(x4.value - 3.55) < 1e-6
@@ -100,8 +105,92 @@ def test_const_fold4():
     assert isinstance(y, tvm.expr.IntImm) and y.value == 6
 
 
+def test_binary_dtype_match():
+    def verify_general_dtype_support(f, is_conditional=False):
+        rules = [[('bool', 'int32'), 'int32'],
+                 [('int32', 'float32'), 'float32'],
+                 [('int32', 'int64'), 'int64'],
+                 [('uint32', 'int32'), 'int32']]
+        for (lhs_dtype, rhs_dtype), out_dtype in rules:
+            lhs = tvm.var('lhs', dtype=lhs_dtype)
+            rhs = tvm.var('rhs', dtype=rhs_dtype)
+            out = f(lhs, rhs)
+            if not is_conditional:
+                assert out.dtype == out_dtype
+            else:
+                assert out.dtype == 'bool'
+            if hasattr(out, 'a'):
+                assert out.a.dtype == out_dtype
+                assert out.b.dtype == out_dtype
+            elif hasattr(out, 'args'):
+                # CallOp
+                assert out.args[0].dtype == out_dtype
+                assert out.args[1].dtype == out_dtype
+            else:
+                raise ValueError('Unknown binary op format!')
+
+    def verify_callop_float_only(f):
+        for lhs_dtype in ['int32', 'float32', 'float64']:
+            for rhs_dtype in ['int32', 'float32', 'float64']:
+                lhs = tvm.var('lhs', dtype=lhs_dtype)
+                rhs = tvm.var('rhs', dtype=rhs_dtype)
+                if 'float' not in lhs_dtype and 'float' not in rhs_dtype:
+                    check_throws(lambda: f(lhs, rhs))
+                elif 'float' in lhs_dtype and 'float' in rhs_dtype and lhs_dtype != rhs_dtype:
+                    check_throws(lambda: f(lhs, rhs))
+                elif 'float' in lhs_dtype:
+                    out = f(lhs, rhs)
+                    assert out.dtype == lhs_dtype
+                    assert out.args[0].dtype == lhs_dtype
+                    assert out.args[1].dtype == lhs_dtype
+                else:
+                    out = f(lhs, rhs)
+                    assert out.dtype == rhs_dtype
+                    assert out.args[0].dtype == rhs_dtype
+                    assert out.args[1].dtype == rhs_dtype
+
+    verify_general_dtype_support(lambda a, b: a + b)
+    verify_general_dtype_support(lambda a, b: a * b)
+    verify_general_dtype_support(lambda a, b: a >= b, is_conditional=True)
+    verify_general_dtype_support(lambda a, b: a <= b, is_conditional=True)
+    verify_callop_float_only(lambda a, b: tvm.power(a, b))
+
+
+def test_if_then_else():
+    cases = [[(tvm.var('cond', dtype='bool'), 'bool', 'int32'), 'int32'],
+             [(True, 'int32', 'float32'), 'float32'],
+             [(False, 'int32', 'int64'), 'int64'],
+             [(tvm.var('cond', dtype='bool'), 'uint32', 'int32'), 'int32'],
+             [(tvm.var('cond', dtype='int32'), 'uint32', 'int32'), 'int32']]
+    for (cond, lhs_dtype, rhs_dtype), out_dtype in cases:
+        lhs = tvm.var('lhs', dtype=lhs_dtype)
+        rhs = tvm.var('rhs', dtype=rhs_dtype)
+        if cond is True or cond is False:
+            out = tvm.if_then_else(cond, lhs, rhs)
+            out2 = tvm.if_then_else(not cond, rhs, lhs)
+            out3 = tvm.if_then_else(not cond, lhs, rhs)
+            assert tvm.ir_pass.Equal(out, out2) == 1
+            if cond:
+                assert tvm.ir_pass.Equal(out, lhs.astype(out_dtype)) == 1
+                assert tvm.ir_pass.Equal(out3, rhs.astype(out_dtype)) == 1
+            else:
+                assert tvm.ir_pass.Equal(out, rhs.astype(out_dtype)) == 1
+                assert tvm.ir_pass.Equal(out3, lhs.astype(out_dtype)) == 1
+        elif cond.dtype == 'bool':
+            out = tvm.if_then_else(cond, lhs, rhs)
+            assert out.dtype == out_dtype
+            assert out.args[1].dtype == out_dtype
+            assert out.args[2].dtype == out_dtype
+        elif cond.dtype != 'bool':
+            check_throws(lambda: tvm.if_then_else(cond, lhs, rhs))
+        else:
+            raise ValueError('Unknown combinations')
+
+
 if __name__ == "__main__":
     test_const_fold()
     test_const_fold2()
     test_const_fold3()
     test_const_fold4()
+    test_binary_dtype_match()
+    test_if_then_else()

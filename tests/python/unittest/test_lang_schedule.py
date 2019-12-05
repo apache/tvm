@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from nose.tools import raises
+import pytest
 import tvm
 import pickle as pkl
 
@@ -103,16 +103,20 @@ def test_fuse():
 
 
 def test_singleton():
+    print("test singleton")
     A = tvm.placeholder((), name='A')
     T = tvm.compute((), lambda : A() + 1)
     s = tvm.create_schedule(T.op)
+    print("test singleton fin1")
     fused = s[T].fuse()
     assert any(isinstance(x, tvm.schedule.Singleton) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused,)
     dump = pkl.dumps(s)
+    print("test singleton fin3")
     s_loaded = pkl.loads(dump)
+    print("test singleton fin2")
     assert isinstance(s_loaded, tvm.schedule.Schedule)
-
+    print("test singleton fin")
 
 def test_vectorize():
     m = tvm.var('m')
@@ -129,7 +133,7 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
-@raises(Exception)
+@pytest.mark.xfail
 def test_vectorize_commreduce():
     V = tvm.placeholder((128,), name='V')
     ax = tvm.reduce_axis((0, 128), name='ax')

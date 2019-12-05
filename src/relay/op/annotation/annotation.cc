@@ -18,20 +18,20 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file src/relay/op/annotation/annotation.cc
  * \brief Registration of annotation operators.
  */
 
+#include <tvm/expr.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
-#include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
+#include "../type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -142,6 +142,33 @@ Mark the end of bitpacking.
                        [](const Attrs& attrs, const Array<Tensor>& inputs,
                           const Type& out_dtype, const Target& target) -> Array<Tensor> {
                          return {topi::identity(inputs[0])};
+                       });
+
+TVM_REGISTER_API("relay.op.annotation._make.checkpoint")
+.set_body_typed<Expr(Expr)>([](Expr data) {
+  static const Op& op = Op::Get("annotation.checkpoint");
+  return CallNode::make(op, {data}, Attrs{}, {});
+});
+
+RELAY_REGISTER_OP("annotation.checkpoint")
+.describe(R"code(
+Mark a checkpoint for checkpointing memory optimization.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         Array<Tensor> outputs;
+                         for (size_t i = 0; i < inputs.size(); ++i) {
+                           outputs.push_back(topi::identity(inputs[i]));
+                         }
+                         return outputs;
                        });
 
 }  // namespace relay

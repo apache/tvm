@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file symbolic.cc
  * \brief Symbolic graph composition API.
  */

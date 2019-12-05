@@ -101,7 +101,7 @@ class PassContextNode : public RelayNode {
 
   PassContextNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
@@ -134,16 +134,16 @@ class PassContext : public NodeRef {
    * \return const access pointer.
    */
   const PassContextNode* operator->() const {
-    CHECK(node_.get() != nullptr);
-    return static_cast<const PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<const PassContextNode*>(get());
   }
   /*!
    * \brief mutable accessor.
    * \return mutable access pointer.
    */
   PassContextNode* operator->() {
-    CHECK(node_.get() != nullptr);
-    return static_cast<PassContextNode*>(node_.get());
+    CHECK(get() != nullptr);
+    return static_cast<PassContextNode*>(get_mutable());
   }
   /*!
    * \brief Construct a PassContext containing the default configurations.
@@ -196,7 +196,7 @@ class PassInfoNode : public RelayNode {
 
   PassInfoNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
@@ -221,6 +221,7 @@ class Pass;
  */
 class PassNode : public RelayNode {
  public:
+  virtual ~PassNode() {}
   /*!
    * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
@@ -247,7 +248,7 @@ class PassNode : public RelayNode {
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(tvm::AttrVisitor* v) override {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.Pass";
   TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
@@ -483,6 +484,17 @@ TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip = nullptr);
 TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
 
 /*!
+ * \brief Combine parallel dense ops into a single batch_matmul if the
+ * number of branches of this dense operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branches The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3);
+
+/*!
  * \brief Backward fold axis scaling into weights of conv/dense operators.
  *
  * \return The pass.
@@ -522,10 +534,15 @@ TVM_DLL Pass AlterOpLayout();
 
 /*!
  * \brief Legalizes an expr with another expression.
+ * \param legalize_map_attr_name The Op's attr name which corresponds to the legalize rule function.
+ * One can collect and isolate similar type of legalize transformations using this param. For
+ * example, transformations that only apply to Dialects can be isolated into a FTVMDialectLegalize
+ * string. This pass calls only those transformations that have been registered using the supplied
+ * legalize_map_attr_name.
  *
  * \return The pass.
  */
-TVM_DLL Pass Legalize();
+TVM_DLL Pass Legalize(const std::string& legalize_map_attr_name = "FTVMLegalize");
 
 /*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
@@ -535,24 +552,29 @@ TVM_DLL Pass Legalize();
 TVM_DLL Pass CanonicalizeCast();
 
 /*!
- * \brief Add abstraction over a function
+ * \brief Add abstraction over a constructor or global variable bound to a function.
  *
  * For example: `square` is transformed to
- * `fun x -> square x`.
+ * `fn (%x: int32) -> int32 { square(x) }`.
  *
  * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
  * for more details.
  *
+ * \param expand_constructor Whether to expand constructors.
+ * \param expand_global_var Whether to expand global variables.
+ *
  * \return The pass.
  */
-TVM_DLL Pass EtaExpand();
+TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
 
 /*!
  * \brief Print the IR for a module to help debugging.
  *
+ * \param show_meta_data The flag to control if meta data needs to be printed.
+ *
  * \return the pass.
  */
-TVM_DLL Pass PrintIR();
+TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
 }  // namespace transform
 

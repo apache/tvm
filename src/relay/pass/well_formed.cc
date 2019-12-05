@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file well_formed.cc
  * \brief check that expression is well formed.
  */
@@ -43,7 +42,7 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   struct Scope {
     WellFormedChecker* wfc;
     explicit Scope(WellFormedChecker* wfc) : wfc(wfc) {
-      wfc->scope.push_back({});
+      wfc->scope.push_back({{}});
     }
     ~Scope() {
       CHECK_GE(wfc->scope.size(), 0);

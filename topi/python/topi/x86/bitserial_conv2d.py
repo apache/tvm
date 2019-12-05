@@ -35,9 +35,10 @@ def schedule_bitserial_conv2d(cfg, outs):
         if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
-            for tensor in op.input_tensors and tensor.op not in scheduled_ops:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
-                    traverse(tensor.op)
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors and (tensor.op not in scheduled_ops):
+                    if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                        traverse(tensor.op)
 
         elif 'spatial_bitserial_conv_nchw' in op.tag or 'spatial_bitserial_conv_nhwc' in op.tag:
             conv_out = op.input_tensors[0]
@@ -99,7 +100,7 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
         s[data_pad].compute_inline()
 
     _, _, h, _, _, _, _ = s[data_vec].op.axis
-    cfg.define_split("tile_ah", cfg.axis(h), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_ah", cfg.axis(h), num_outputs=2, max_factor=32)
     oh, ih = cfg["tile_ah"].apply(s, data_vec, h)
     if cfg["tile_ah"].size[1] == 1:
         oaxis = oh
@@ -116,7 +117,7 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
 
     ##### Schedule Kenerl bitpacking
     co, _, _, _, _, _ = s[kernel_vec].op.axis
-    cfg.define_split("tile_bco", cfg.axis(co), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_bco", cfg.axis(co), num_outputs=2, max_factor=32)
     oco, ico = cfg["tile_bco"].apply(s, kernel_vec, co)
     if cfg["tile_bco"].size[1] == 1:
         oaxis = oco
@@ -185,13 +186,13 @@ def _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
         s[data_pad].compute_inline()
 
     _, h, _, _, _, _, _ = s[data_vec].op.axis
-    cfg.define_split("tile_ah", cfg.axis(h), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_ah", cfg.axis(h), num_outputs=2, max_factor=32)
     oh, ih = cfg["tile_ah"].apply(s, data_vec, h)
     s[data_vec].parallel(oh)
 
     ##### Schedule kernel packing
     co, _, _, _, _, _ = s[kernel_vec].op.axis
-    cfg.define_split("tile_bco", cfg.axis(co), policy="all", num_outputs=2, max_factor=32)
+    cfg.define_split("tile_bco", cfg.axis(co), num_outputs=2, max_factor=32)
     oco, ico = cfg["tile_bco"].apply(s, kernel_vec, co)
     s[kernel_vec].parallel(oco)
 

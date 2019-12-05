@@ -137,7 +137,7 @@ Schedule ScheduleReduce(const Target& target,
  * \param op The current op in the traversal
  */
 void TraverseBeforeReduce(Schedule s, Operation op) {
-  if (op->derived_from<PlaceholderOpNode>()) {
+  if (op->IsInstance<PlaceholderOpNode>()) {
     return;
   } else if (is_injective(op->tag)) {
     s[op].compute_inline();

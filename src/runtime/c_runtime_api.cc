@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file c_runtime_api.cc
  * \brief Device specific implementations
  */
@@ -41,6 +40,7 @@
 #include <cstdlib>
 #include <cctype>
 #include "runtime_base.h"
+#include "object_internal.h"
 
 namespace tvm {
 namespace runtime {
@@ -370,16 +370,20 @@ int TVMModLoadFromFile(const char* file_name,
                        const char* format,
                        TVMModuleHandle* out) {
   API_BEGIN();
-  Module m = Module::LoadFromFile(file_name, format);
-  *out = new Module(m);
+  TVMRetValue ret;
+  ret = Module::LoadFromFile(file_name, format);
+  TVMValue val;
+  int type_code;
+  ret.MoveToCHost(&val, &type_code);
+  *out = val.v_handle;
   API_END();
 }
 
 int TVMModImport(TVMModuleHandle mod,
                  TVMModuleHandle dep) {
   API_BEGIN();
-  static_cast<Module*>(mod)->Import(
-      *static_cast<Module*>(dep));
+  ObjectInternal::GetModuleNode(mod)->Import(
+      GetRef<Module>(ObjectInternal::GetModuleNode(dep)));
   API_END();
 }
 
@@ -388,7 +392,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
                       int query_imports,
                       TVMFunctionHandle *func) {
   API_BEGIN();
-  PackedFunc pf = static_cast<Module*>(mod)->GetFunction(
+  PackedFunc pf = ObjectInternal::GetModuleNode(mod)->GetFunction(
       func_name, query_imports != 0);
   if (pf != nullptr) {
     *func = new PackedFunc(pf);
@@ -399,9 +403,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
 }
 
 int TVMModFree(TVMModuleHandle mod) {
-  API_BEGIN();
-  delete static_cast<Module*>(mod);
-  API_END();
+  return TVMObjectFree(mod);
 }
 
 int TVMBackendGetFuncFromEnv(void* mod_node,
@@ -471,7 +473,7 @@ int TVMFuncCall(TVMFunctionHandle func,
       TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
   if (rv.type_code() == kStr ||
-     rv.type_code() == kTVMType ||
+      rv.type_code() == kTVMType ||
       rv.type_code() == kBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
     if (rv.type_code() != kTVMType) {

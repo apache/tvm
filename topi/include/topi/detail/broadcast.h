@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Detail broadcast.
  * \file topi/detail/broadcast.h
  */
@@ -52,6 +51,9 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   tvm::Expr one(1);
   int i;
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
+    // TODO(@icemelon9): Need to revisit this part
+    const Variable* var1 = shape1[s1_size - i].as<Variable>();
+    const Variable* var2 = shape2[s2_size - i].as<Variable>();
     bh.all_vars.push_front(tvm::Var());
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
@@ -64,6 +66,18 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
     } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
+    } else if (var1 && var2) {
+      bh.common_shape.push_front(max(shape1[s1_size - i], shape2[s2_size - i]));
+      bh.vars1.push_front(bh.all_vars[0]);
+      bh.vars2.push_front(bh.all_vars[0]);
+    } else if (var1) {
+      bh.common_shape.push_front(shape2[s2_size - i]);
+      bh.vars2.push_front(bh.all_vars[0]);
+      bh.vars1.push_front(bh.all_vars[0]);
+    } else if (var2) {
+      bh.common_shape.push_front(shape1[s1_size - i]);
+      bh.vars1.push_front(bh.all_vars[0]);
+      bh.vars2.push_front(bh.all_vars[0]);
     } else {
       CHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i]
                    << " and " << shape2[s2_size - i] << " in: "
@@ -85,16 +99,18 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
 }
 
 inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
-    const tvm::Array<tvm::Var>& ovars, const tvm::Tensor& T,
-    const std::deque<tvm::Var>& my_vars, const std::deque<tvm::Var>& all_vars) {
+    const tvm::Array<tvm::Var>& ovars,
+    const tvm::Tensor& T,
+    const std::deque<tvm::Var>& my_vars,
+    const std::deque<tvm::Var>& all_vars) {
   tvm::Array<tvm::Expr> ivars;
   CHECK_EQ(ovars.size(), all_vars.size());
-  // N^2, could use a map but NBD..
+  // N^2, could use a map but NBD.
   size_t expected_dims = T->shape.size();
   for (size_t i = 0; i < ovars.size(); ++i) {
     bool found = false;
     for (size_t j = 0; j < my_vars.size(); ++j) {
-    if (all_vars[i].same_as(my_vars[j])) {
+      if (all_vars[i].same_as(my_vars[j])) {
         ivars.push_back(ovars[i]);
         found = true;
         break;
@@ -110,13 +126,12 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
   return ivars;
 }
 
-
 template <typename FBinaryExpr>
 inline tvm::Tensor WithBroadcast(FBinaryExpr op,
                                  const tvm::Tensor& A,
                                  const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = "") {
+                                 const std::string& name = "tensor",
+                                 const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
   auto l = [&](tvm::Array<tvm::Var> ovars) {
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),

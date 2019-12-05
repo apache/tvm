@@ -29,7 +29,7 @@ To get started, clone TVM repo from github. It is important to clone the submodu
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm tvm
 
 For windows users who use github tools, you can open the git shell, and type the following command.
 
@@ -54,13 +54,14 @@ Our goal is to build the shared libraries:
 .. code:: bash
 
     sudo apt-get update
-    sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
+    sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
+- If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
 - It is possible to build TVM without the LLVM dependency if you only want to use CUDA/OpenCL
 - If you want to use the NNVM compiler, then LLVM is required
 
@@ -85,7 +86,7 @@ The configuration of TVM can be modified by `config.cmake`.
 
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
 
-  - LLVM 4.0 or higher is needed for build with LLVM. Note that verison of LLVM from default apt may lower than 4.0.
+  - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     `LLVM Download Page <http://releases.llvm.org/download.html>`_.
 
@@ -112,8 +113,7 @@ Building on Windows
 ~~~~~~~~~~~~~~~~~~~
 
 TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
-In order to generate the VS solution file using cmake,
-make sure you have a recent version of cmake added to your path and then from the TVM directory:
+In order to generate the VS solution file using cmake, make sure you have a recent version of cmake added to your path and then from the TVM directory:
 
 .. code:: bash
 
@@ -195,10 +195,11 @@ Python dependencies
 
        pip3 install --user tornado psutil xgboost
 
-   * If you want to parse Relay text format progams, you must use Python 3 and run the following
+   * If you want to build tvm to compile a model, you must use Python 3 and run the following
 
    .. code:: bash
 
+       sudo apt install antlr4
        pip3 install --user mypy orderedset antlr4-python3-runtime
 
 
@@ -226,11 +227,5 @@ tests in TVM. The easiest way to install GTest is from source.
        make
        make install
 
-Now, you'll need to modify ``build/config.cmake`` and change ``set(USE_GTEST
-OFF)`` to ``set(USE_GTEST ON)``.
 
-TVM can then be built `as usual`__.
-
-__ build-shared-library_
-
-After building, the C++ tests can be run with ``make cpptest``.
+After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.

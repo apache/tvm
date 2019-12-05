@@ -126,7 +126,7 @@ def test_concatenate():
     def before(dshape):
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
-        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(pooled, scale_h=2, scale_w=2, layout="NCHW")
         concat = relay.concatenate((upsampled, x), axis=1)
         out = relay.add(concat, relay.const(1, "float32"))
         return relay.Function(relay.analysis.free_vars(out), out)
@@ -138,7 +138,7 @@ def test_concatenate():
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
         p1 = relay.var("p1", shape=dshape)
-        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(p0, scale_h=2, scale_w=2, layout="NCHW")
         concat = relay.concatenate((upsampled, p1), axis=1)
         out = relay.add(concat, relay.const(1, "float32"))
         f1 = relay.Function([p0, p1], out)
@@ -164,7 +164,7 @@ def test_tuple_root():
     def before(dshape):
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
-        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(pooled, scale_h=2, scale_w=2, layout="NCHW")
         out = relay.Tuple((upsampled, x))
         return relay.Function(relay.analysis.free_vars(out), out)
 
@@ -174,7 +174,7 @@ def test_tuple_root():
         f0 = relay.Function([x], pooled)
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
-        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(p0, scale_h=2, scale_w=2, layout="NCHW")
         f1 = relay.Function([p0], upsampled)
 
         x = relay.var("x", shape=dshape)
@@ -541,6 +541,51 @@ def test_immutable():
     assert relay.analysis.alpha_equal(new_mod, expected())
 
 
+def test_split():
+    """Test that the result is well formed."""
+    x = relay.var("x", shape=(6, 9))
+    y = relay.split(x, 3).astuple()
+    a = relay.TupleGetItem(y, 0)
+    b = relay.TupleGetItem(y, 1)
+    c = relay.TupleGetItem(y, 2)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
+    mod = transform.FuseOps()(mod)
+
+def test_fuse_max():
+    """Test the constraint of number of nodes in op fusion."""
+    max_fused_ops = 256
+    # n is the number of nodes to be fused, should be less than 2*max_fused_ops
+    n = 300
+    def before():
+        x = relay.var("x", shape=(10, 20))
+        y = x
+        for i in range(n):
+            y = relay.exp(y)
+        return relay.Function([x], y)
+
+    def expected():
+        x = relay.var("p", shape=(10, 20))
+        y = x
+        for i in range(max_fused_ops):
+            y = relay.exp(y)
+        f1 = relay.Function([x], y)
+        x = relay.var("x", shape=(10, 20))
+        z = relay.Call(f1, [x])
+        xx = relay.var("pp", shape=(10, 20))
+        yy = xx
+        for i in range(n-max_fused_ops):
+            yy = relay.exp(yy)
+        f2 = relay.Function([xx], yy)
+        zz = relay.Call(f2, [z])
+        return relay.Function([x], zz)
+
+    z = before()
+    zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
+    zz = run_opt_pass(z, transform.FuseOps())
+    after = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.alpha_equal(zz, after)
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -555,3 +600,5 @@ if __name__ == "__main__":
     test_inception_like()
     test_fuse_parallel_injective()
     test_immutable()
+    test_split()
+    test_fuse_max()

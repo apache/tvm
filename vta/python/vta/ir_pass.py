@@ -335,6 +335,9 @@ def inject_dma_intrin(stmt_in):
         Transformed statement
     """
     env = get_env()
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     def _check_compact(buf):
         ndim = len(buf.shape)
         size = tvm.const(1, buf.shape[0].dtype)
@@ -369,7 +372,7 @@ def inject_dma_intrin(stmt_in):
             x_size = 1
             x_stride = buf.strides[ndim - base]
             next_base = base
-            if not util.equal_const_int(x_stride % elem_block, 0):
+            if not util.equal_const_int(idxm(x_stride, elem_block), 0):
                 raise RuntimeError(
                     "scope %s need to have block=%d, shape=%s, strides=%s" % (
                         scope, elem_block, buf.shape, buf.strides))
@@ -394,7 +397,7 @@ def inject_dma_intrin(stmt_in):
             raise RuntimeError("Expect buffer type to be %s instead of %s" %
                                (dtype, buf.dtype))
         shape, strides = buf.shape, buf.strides
-        if not util.equal_const_int(buf.elem_offset % elem_block, 0):
+        if not util.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
             raise RuntimeError("scope %s need to have block=%d" % (scope, elem_block))
         if allow_fold:
             shape, strides = _fold_buffer_dim(buf, scope, elem_block)
@@ -421,7 +424,7 @@ def inject_dma_intrin(stmt_in):
                 x_size = 1
                 x_stride = 1
                 y_size = 1
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
             if not util.equal_const_int(strides[-2] - elem_block, 0):
                 raise_error()
 
@@ -429,15 +432,15 @@ def inject_dma_intrin(stmt_in):
                 x_size = shape[-2]
                 x_stride = shape[-2]
                 y_size = 1
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
-            if not util.equal_const_int(strides[-3] % elem_block, 0):
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
+            if not util.equal_const_int(idxm(strides[-3], elem_block), 0):
                 raise_error()
 
             if ndim == 3:
                 x_size = shape[-2]
-                x_stride = strides[-3] / elem_block
+                x_stride = idxd(strides[-3], elem_block)
                 y_size = shape[-3]
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
 
         else:
             if not util.equal_const_int(strides[-1], 1):
@@ -451,7 +454,7 @@ def inject_dma_intrin(stmt_in):
                 x_size = 1
                 x_stride = 1
                 y_size = 1
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
             if not util.equal_const_int(strides[-3], elem_block):
                 raise_error()
 
@@ -459,15 +462,15 @@ def inject_dma_intrin(stmt_in):
                 x_size = shape[-3]
                 x_stride = shape[-3]
                 y_size = 1
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
-            if not util.equal_const_int(strides[-4] % elem_block, 0):
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
+            if not util.equal_const_int(idxm(strides[-4], elem_block), 0):
                 raise_error()
 
             if ndim == 4:
                 x_size = shape[-3]
-                x_stride = strides[-4] / elem_block
+                x_stride = idxd(strides[-4], elem_block)
                 y_size = shape[-4]
-                return x_size, y_size, x_stride, buf.elem_offset / elem_block
+                return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
 
         raise_error()
 
@@ -579,6 +582,145 @@ def inject_dma_intrin(stmt_in):
     return tvm.ir_pass.InjectCopyIntrin(stmt_in, "dma_copy", _inject_copy)
 
 
+def _get_gemm_intrin_buffer():
+    env = get_env()
+    wgt_lanes = env.WGT_ELEM_BITS // env.WGT_WIDTH
+    assert wgt_lanes == env.BLOCK_OUT * env.BLOCK_IN
+    wgt_shape = (env.BLOCK_OUT, env.BLOCK_IN)
+    assert wgt_shape[0] * wgt_shape[1] == wgt_lanes
+    inp_lanes = env.INP_ELEM_BITS // env.INP_WIDTH
+    assert inp_lanes == env.BATCH * env.BLOCK_IN
+    inp_shape = (env.BATCH, env.BLOCK_IN)
+    assert inp_shape[0] * inp_shape[1] == inp_lanes
+    out_lanes = env.ACC_ELEM_BITS // env.ACC_WIDTH
+    assert out_lanes == env.BATCH * env.BLOCK_OUT
+    out_shape = (env.BATCH, env.BLOCK_OUT)
+    assert out_shape[0] * out_shape[1] == out_lanes
+    wgt = tvm.placeholder((wgt_shape[0], wgt_shape[1]),
+                          dtype="int%d" % env.WGT_WIDTH,
+                          name=env.wgt_scope)
+    inp = tvm.placeholder((inp_shape[0], inp_shape[1]),
+                          dtype="int%d" % env.INP_WIDTH,
+                          name=env.inp_scope)
+    k = tvm.reduce_axis((0, wgt_shape[1]), name="k")
+    out_dtype = "int%d" % env.ACC_WIDTH
+    out = tvm.compute((out_shape[0], out_shape[1]),
+                      lambda i, j: tvm.sum(inp[i, k].astype(out_dtype) *
+                                           wgt[j, k].astype(out_dtype),
+                                           axis=[k]),
+                      name="out")
+    wgt_layout = tvm.decl_buffer(
+        wgt.shape, wgt.dtype, env.wgt_scope,
+        scope=env.wgt_scope, offset_factor=wgt_lanes, data_alignment=wgt_lanes)
+    inp_layout = tvm.decl_buffer(
+        inp.shape, inp.dtype, env.inp_scope,
+        scope=env.inp_scope, offset_factor=inp_lanes, data_alignment=inp_lanes)
+    out_layout = tvm.decl_buffer(
+        out.shape, out.dtype, env.acc_scope,
+        scope=env.acc_scope, offset_factor=out_lanes, data_alignment=out_lanes)
+
+    return wgt_layout, inp_layout, out_layout
+
+
+def inject_conv2d_transpose_skip(stmt_in):
+    """Pass to skip 0-weights in conv2d transpose with stride > 1.
+
+    Parameters
+    ----------
+    stmt_in : Stmt
+        Input statement
+
+    Returns
+    -------
+    stmt_out : Stmt
+        Transformed statement
+    """
+    env = get_env()
+    dwgt, dinp, dout = _get_gemm_intrin_buffer()
+
+    calls = []
+    selects = []
+
+    def _find_basics(op):
+        if isinstance(op, tvm.expr.Call):
+            calls.append(op)
+        elif isinstance(op, tvm.expr.Select):
+            selects.append(op)
+
+    def _do_fold(op):
+        if _match_pragma(op, "conv2d_transpose_gemm"):
+            is_init = ".init" in str(op)
+            tvm.ir_pass.PostOrderVisit(op, _find_basics)
+
+            if is_init:
+                # create inner most block
+                irb = tvm.ir_builder.create()
+                dev = env.dev
+                irb.scope_attr(dev.vta_axis, "coproc_scope", dev.get_task_qid(dev.QID_COMPUTE))
+                irb.scope_attr(dev.vta_axis, "coproc_uop_scope", dev.vta_push_uop)
+                irb.emit(tvm.call_extern("int32", "VTAUopPush",
+                                         0, 1,
+                                         dout.access_ptr("rw", "int32"),
+                                         0, 0,
+                                         0, 0, 0))
+                inner = irb.get()
+                args = op.body.body.args
+                res_tensor = op.body.body.func.output(0)
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
+                inner = tvm.make.AttrStmt(
+                    [dout, res_tensor], 'buffer_bind_scope',
+                    tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
+                return inner
+            else:
+                conv_call, data_call, kernel_call = calls[-3:]
+                pad_data_tensor = data_call.func.output(0)
+                kernel_tensor = kernel_call.func.output(0)
+                res_tensor = conv_call.func.output(0)
+
+                if selects:
+                    condition = selects[0].condition
+                else:
+                    condition = tvm.const(1, 'int')
+
+                # create inner most block
+                irb = tvm.ir_builder.create()
+                with irb.if_scope(condition):
+                    dev = env.dev
+                    irb.scope_attr(dev.vta_axis, "coproc_scope", dev.get_task_qid(dev.QID_COMPUTE))
+                    irb.scope_attr(dev.vta_axis, "coproc_uop_scope", dev.vta_push_uop)
+                    irb.emit(tvm.call_extern("int32", "VTAUopPush",
+                                             0, 0,
+                                             dout.access_ptr("rw", "int32"),
+                                             dinp.access_ptr("r", "int32"),
+                                             dwgt.access_ptr("r", "int32"),
+                                             0, 0, 0))
+                inner = irb.get()
+
+                args = conv_call.args
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
+                       1, 0, 1, 0, env.BLOCK_OUT)
+                inner = tvm.make.AttrStmt(
+                    [dout, res_tensor], 'buffer_bind_scope',
+                    tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
+                args = kernel_call.args
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
+                       1, 0, env.BLOCK_OUT, 0, env.BLOCK_IN)
+                inner = tvm.make.AttrStmt(
+                    [dwgt, kernel_tensor], 'buffer_bind_scope',
+                    tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
+                args = data_call.args
+                tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
+                       1, 0, 1, 0, env.BLOCK_IN)
+                inner = tvm.make.AttrStmt(
+                    [dinp, pad_data_tensor], 'buffer_bind_scope',
+                    tvm.call_intrin('handle', 'tvm_tuple', *tpl), inner)
+                return inner
+        return None
+    ret = tvm.ir_pass.IRTransform(
+        stmt_in, _do_fold, None, ["AttrStmt"])
+    return ret
+
+
 def annotate_alu_coproc_scope(stmt_in):
     """Pass to insert ALU instruction.
 
@@ -626,6 +768,8 @@ def inject_alu_intrin(stmt_in):
         Transformed statement
     """
     env = get_env()
+    idxm = tvm.indexmod
+
     def _do_fold(stmt):
         def _equal(x, y):
             return tvm.ir_pass.Equal(tvm.ir_pass.Simplify(x - y), 0)
@@ -771,10 +915,10 @@ def inject_alu_intrin(stmt_in):
             assert len(extents) != 0
             assert tvm.ir_pass.Equal(
                 tvm.ir_pass.Simplify(
-                    src_coeff[-1] % (env.BATCH * env.BLOCK_OUT)), 0)
+                    idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir_pass.Equal(
                 tvm.ir_pass.Simplify(
-                    dst_coeff[-1] % (env.BATCH * env.BLOCK_OUT)), 0)
+                    idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir_pass.Equal(src_coeff[-2], 1)
             assert tvm.ir_pass.Equal(dst_coeff[-2], 1)
             if env.BATCH > 1:

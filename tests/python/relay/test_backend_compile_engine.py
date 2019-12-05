@@ -79,8 +79,39 @@ def test_compile_tuple_dup():
     relay.build(relay.Module.from_expr(f), 'llvm')
 
 
+def test_compile_full():
+    # Shape calculations can happen in int64. The test checks that full operator
+    # can handle when shapes are not int32
+    shape = (tvm.expr.IntImm('int32', 1),
+             tvm.expr.IntImm('int64', 16),
+             tvm.expr.IntImm('int64', 16),
+             tvm.expr.IntImm('int32', 64))
+    output = relay.full(relay.const(0, 'int32'), shape=shape, dtype='int32')
+    f = relay.Function([], output)
+    mod = relay.Module.from_expr(f)
+    mod = relay.qnn.transform.CanonicalizeOps()(mod)
+    relay.build(mod, 'llvm')
+
+
+def test_compile_nhwc_pack():
+    data = relay.var("data", shape=(1, 1, 1, 1024), dtype="uint8")
+    weight = relay.var("weight", shape=(1, 1, 1024, 1001), dtype="int8")
+    p2 = relay.var("p2", shape=(1, 1, 1, 1), dtype="int32")
+    conv = relay.nn.conv2d(data, weight, kernel_size=(1, 1), data_layout="NHWC",
+                           kernel_layout="HWIO", out_dtype="int32")
+    multiply = relay.multiply(relay.const(-22, dtype='int32'), p2)
+    tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
+    subtract = relay.subtract(conv, tile)
+
+    func = subtract
+    mod = relay.Function(relay.analysis.free_vars(func), func)
+    relay.build(mod, target="llvm")
+
+
 if __name__ == "__main__":
     test_compile_engine()
     test_compile_placeholder_bypass()
     test_compile_injective_with_tuple()
     test_compile_tuple_dup()
+    test_compile_full()
+    test_compile_nhwc_pack()

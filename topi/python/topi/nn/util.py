@@ -118,3 +118,57 @@ def get_pad_tuple(padding, kernel):
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
+
+
+def get_pad_tuple3d(padding, kernel):
+    """Common code to get the pad option
+
+    Parameters
+    ----------
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    kernel : tuple of int
+        Conv kernel size
+
+    Returns
+    -------
+    pad_front : int
+        Padding size on front.
+
+    pad_top : int
+        Padding size on top
+
+    pad_left : int
+        Padding size on left
+
+    pad_back : int
+        Padding size on back.
+
+    pad_down : int
+        Padding size on down.
+
+    pad_right : int
+        Padding size on right.
+    """
+    # compute the padding size
+    if isinstance(padding, (tuple, list)):
+        pad_h = padding[0] * 2
+        pad_w = padding[1] * 2
+        pad_d = padding[2] * 2
+    elif isinstance(padding, int):
+        pad_d = pad_w = pad_h = padding * 2
+    elif padding == "VALID":
+        pad_h = 0
+        pad_w = 0
+        pad_d = 0
+    elif padding == "SAME":
+        pad_h = kernel[0] - 1
+        pad_w = kernel[1] - 1
+        pad_d = kernel[2] - 1
+    else:
+        raise ValueError("Unknown padding option %s" % padding)
+    pad_top = (pad_h + 1) // 2
+    pad_left = (pad_w + 1) // 2
+    pad_front = (pad_d + 1) // 2
+    return pad_front, pad_top, pad_left, pad_d - pad_front, pad_h - pad_top, pad_w - pad_left

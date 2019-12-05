@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file modular_set.cc
  * \brief Modular set analysis
  */
@@ -42,11 +41,12 @@ ModularSet::ModularSet(int64_t coeff, int64_t base) {
   node->coeff = coeff;
   node->base = base;
   // finish construction.
-  node_ = std::move(node);
+  data_ = std::move(node);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ModularSetNode>([](const ModularSetNode *op, IRPrinter *p) {
+.set_dispatch<ModularSetNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const ModularSetNode*>(node.get());
     p->stream << "ModularSet("
               << "coeff=" << op->coeff << ", base="
               << op->base << ')';
@@ -111,7 +111,8 @@ class ModularSetAnalyzer::Impl :
     PVar<Var> var;
     PVar<Integer> coeff, base;
     // pattern match interesting constraints
-    if (((var % coeff) == base).Match(constraint)) {
+    if ((truncmod(var, coeff) == base).Match(constraint) ||
+        (floormod(var, coeff) == base).Match(constraint)) {
       Entry entry(coeff.Eval()->value, base.Eval()->value);
       return UpdateByIntersect(var.Eval(), entry);
     }

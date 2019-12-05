@@ -378,7 +378,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             f(tvm_cls_prob, tvm_bbox_pred, tvm_im_info, tvm_out)
             tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
 
-    for device in ['cuda']:
+    for device in ['llvm', 'cuda']:
         check_device(device)
 
 

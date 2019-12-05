@@ -22,8 +22,9 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.pad import pad
 from ..nn.util import infer_pad, get_pad_tuple
+from ..generic import conv2d as conv2d_generic
 from ..util import get_const_tuple, simplify
-from .tensor_intrin import dot_16x1x16_int8_int8_int32
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -73,7 +74,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     if DOPAD:
         s[A0].compute_inline()
     batch, ic_chunk, ih, ic_block, iw = s[A1].op.axis
-    parallel_axis = s[A1].fuse(ic_chunk, ih)
+    parallel_axis = s[A1].fuse(batch, ic_chunk, ih)
     s[A1].parallel(parallel_axis)
 
     # schedule kernel pack
@@ -115,7 +116,7 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
     ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
     s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
-    parallel_axis = s[O].fuse(oc_chunk, oh_outer)
+    parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
     s[C].compute_at(s[O], parallel_axis)
     s[O].vectorize(oc_block)
 
@@ -180,71 +181,9 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
 
 
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
-    """
-    Defines the schedule for INT8 for intel machines
-    Uses the Intel intrinsics to use INT8 operations
-    More details - https://software.intel.com/en-us/articles/
-    lower-numerical-precision-deep-learning-inference-and-training
-    """
-    int32_lanes = 16
-
-    oh_factor, ow_factor = cfg["tile_oh"].val, cfg["tile_ow"].size[-1]
-    _, _, _, _, ic_bn = get_const_tuple(data.shape)
-    _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
-
-    # schedule data
-    A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
-        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
-        s[A].parallel(parallel_axis)
-
-    C, O = conv_out, last
-    CC = s.cache_write(C, 'global')
-
-    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
-    ow_outer, ow_inner = s[C].split(ow, factor=ow_factor)
-    s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-    s[C].vectorize(oc_block)
-
-    parallel_axis = s[C].fuse(batch, oc_chunk, oh_outer)
-    s[CC].compute_at(s[C], parallel_axis)
-    if C == O:
-        s[C].parallel(parallel_axis)
-
-    _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
-    kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
-
-    # Skylake and future processors have 16 vector lanes
-    assert oc_bn % int32_lanes == 0
-
-    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
-
-    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
-
-    s[CC].reorder(oc_chunk, oh_outer, ow_outer, kh, kw, ic_outer, ic_f_inner, oh_inner,
-                  ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
-    s[CC].fuse(oc_chunk, oh_outer)
-
-    pc = dot_16x1x16_int8_int8_int32()
-    s[CC].tensorize(oc_s_inner, pc)
-    s[CC].unroll(ow_inner)
-    s[CC].unroll(oh_inner)
-
-    if C != O:
-        batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
-        ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-        parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-        s[C].compute_at(s[O], parallel_axis)
-        s[O].vectorize(oc_block)
-        s[O].parallel(parallel_axis)
-
-    return s
+    return conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last,
+                                                           int32_lanes=16,
+                                                           intrin=dot_16x1x16_uint8_int8_int32())
 
 
 def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, out_dtype):
@@ -279,8 +218,15 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
 
     # packing the Filter to let memory access be consecutive for AVX512 intrinsic
     # Done in pre-compute stage
-    packw_shape = (kernel_h, kernel_w, num_filter/16, 16*(channel/4), 4)
-    PackW = tvm.compute(packw_shape, lambda a, b, c, d, e: Filter[a][b][c*16+d%16][d/16*4+e],
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
+    packw_shape = (kernel_h, kernel_w, idxd(num_filter, 16), 16 * idxd(channel, 4), 4)
+    PackW = tvm.compute(packw_shape,
+                        lambda a, b, c, d, e:
+                        Filter[a, b,
+                               c*16 + idxm(d, 16),
+                               idxd(d, 16) * 4 + e],
                         name="packed_filter")
 
     rc = tvm.reduce_axis((0, in_channel), name='rc')
@@ -291,7 +237,9 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
         lambda nn, yy, xx, ff: tvm.sum(
             PaddedInput[nn, yy * stride_h + ry * dilation_h,
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
-            PackW[ry, rx, ff/16, (rc/4)*16+ff%16, rc%4].astype(out_dtype), axis=[ry, rx, rc]),
+            PackW[ry, rx, idxd(ff, 16),
+                  idxd(rc, 4) * 16 + idxm(ff, 16),
+                  idxm(rc, 4)].astype(out_dtype), axis=[ry, rx, rc]),
         name="Conv2d_1x1_Output_int8", tag="conv2d_nhwc_pack_int8")
     return Output
 
@@ -303,7 +251,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     packing of weight to make the address access be friendly to int8
     intrinsic
     """
-    # FIXME - https://github.com/dmlc/tvm/issues/3598
+    # FIXME - https://github.com/apache/incubator-tvm/issues/3598
     # pylint: disable=unreachable
     return s
 
@@ -334,7 +282,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     ic_f_outer, ic_s_outer = s[C].split(ic_outer, factor=ic_factor)
     s[C].reorder(oc_outer, oh, ow, ic_f_outer, ic_s_outer, kh, kw, oc_inner, ic_inner)
 
-    pc = dot_16x1x16_int8_int8_int32()
+    pc = dot_16x1x16_uint8_int8_int32()
     s[C].tensorize(oc_inner, pc)
 
     if C != O:

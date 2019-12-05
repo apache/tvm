@@ -38,7 +38,8 @@ def test_prelude():
         Feature.fLet,
         Feature.fIf,
         Feature.fConstructor,
-        Feature.fMatch
+        Feature.fMatch,
+        Feature.fGraph
     ])
 
 
@@ -63,7 +64,8 @@ def test_ad():
         Feature.fLet,
         Feature.fRefCreate,
         Feature.fRefRead,
-        Feature.fRefWrite
+        Feature.fRefWrite,
+        Feature.fGraph
     ])
 
 

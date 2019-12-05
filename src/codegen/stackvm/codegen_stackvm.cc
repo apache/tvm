@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_stackvm.cc
  */
 #include <tvm/runtime/registry.h>
