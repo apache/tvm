@@ -41,7 +41,7 @@ class RPCWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue *rv) const {
-    sess_->CallFunc(handle_, args, rv, &fwrap_);
+    sess_->CallFunc(handle_, args, rv, UnwrapRemote, &fwrap_);
   }
   ~RPCWrappedFunc() {
     try {
@@ -54,6 +54,9 @@ class RPCWrappedFunc {
   static void WrapRemote(std::shared_ptr<RPCSession> sess,
                          TVMArgs args,
                          TVMRetValue* rv);
+
+  static void* UnwrapRemote(int rpc_sess_table_index,
+                            const TVMArgValue& arg);
 
   // deleter of RPC remote array
   static void RemoteNDArrayDeleter(NDArray::Container* ptr) {
@@ -180,6 +183,25 @@ class RPCModuleNode final : public ModuleNode {
   // Wrap function to wrap remote module/function.
   PackedFunc fwrap_;
 };
+
+void* RPCWrappedFunc::UnwrapRemote(int rpc_sess_table_index,
+                                   const TVMArgValue& arg) {
+  if (arg.type_code() == kModuleHandle) {
+    Module mod = arg;
+    std::string tkey = mod->type_key();
+    CHECK_EQ(tkey, "rpc")
+        << "ValueError: Cannot pass a non-RPC module to remote";
+    auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
+    CHECK_EQ(rmod->sess()->table_index(), rpc_sess_table_index)
+        << "ValueError: Cannot pass in module into a different remote session";
+    return rmod->module_handle();
+  } else {
+    LOG(FATAL) << "ValueError: Cannot pass type "
+               << runtime::TypeCode2Str(arg.type_code())
+               << " as an argument to the remote";
+    return nullptr;
+  }
+}
 
 void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
                                 TVMArgs args,

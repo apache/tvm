@@ -345,3 +345,75 @@ def get_shape(src_shape, src_layout, dst_layout):
         tvm.convert([i for i in range(len(src_layout))]))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
+
+
+def within_index(b, e, s, i):
+    """Return a boolean value that indicates if i is within the given index.
+
+    Parameter
+    ---------
+    b : Expr
+      beginning of the index
+
+    e : Expr
+      end of the index
+
+    s : Expr
+      strides of index
+
+    i : Expr
+      array position
+
+    Returns
+    -------
+    selected: Expr
+        bool expression that is True is the array position would be selected
+        by the index and False otherwise
+    """
+    bc = tvm.expr.Select(s < 0, i <= e, i < b)
+    ec = tvm.expr.Select(s < 0, i > b, i >= e)
+    ss = tvm.if_then_else(s < 0,
+                          ((i - e) + (e % tvm.abs(s)) + 1) % tvm.abs(s),
+                          (i - b) % s)
+    return tvm.expr.Select(tvm.expr.Or(bc, ec), tvm.const(False), ss.equal(0))
+
+
+def make_idx(b, e, s, z, i):
+    """Return the array position in the selection that corresponds to an
+    array position in the full array.
+
+    The returned value is only meaningful if within_index() returns True
+    for the same set of parameters.
+
+    Parameter
+    ---------
+    b : Expr
+      beginning of the index
+
+    e : Expr
+      end of the index
+
+    s : Expr
+      strides of index
+
+    z : Expr
+      size of the indexed dimension
+
+    i : Expr
+      array position
+
+    Returns
+    -------
+    postion: Expr
+        int expression that corresponds to an array position in the selection.
+    """
+    bc = tvm.expr.Select(s < 0, i <= e, i < b)
+    ec = tvm.expr.Select(s < 0, i > b, i >= e)
+
+    # Clamp to array size
+    b = tvm.expr.Select(z < b, z - 1, b)
+
+    ss = tvm.if_then_else(s < 0,
+                          (b - i) // tvm.abs(s),
+                          (i - b) // s)
+    return tvm.if_then_else(tvm.expr.Or(bc, ec), 88, ss)

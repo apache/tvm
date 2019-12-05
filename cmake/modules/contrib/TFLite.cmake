@@ -15,29 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=wildcard-import
-"""Neural network operators"""
-from __future__ import absolute_import as _abs
+if(NOT USE_TFLITE STREQUAL "OFF")
+  message(STATUS "Build with contrib.tflite")
+  if (USE_TENSORFLOW_PATH STREQUAL "none") 
+    set(USE_TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
+  endif()
 
-from .conv2d import *
-from .conv3d import *
-from .deformable_conv2d import *
-from .depthwise_conv2d import *
-from .elemwise import *
-from .dilate import *
-from .flatten import *
-from .dense import *
-from .mapping import *
-from .pooling import *
-from .softmax import *
-from .conv2d_transpose import *
-from .bnn import *
-from .upsampling import *
-from .local_response_norm import *
-from .bitserial_conv2d import *
-from .bitserial_dense import *
-from .l2_normalize import *
-from .batch_matmul import *
-from .sparse import *
-from .pad import *
-from .fifo_buffer import *
+  file(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
+  list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
+  include_directories(${USE_TENSORFLOW_PATH})
+
+  if (USE_TFLITE STREQUAL "ON")
+    set(USE_TFLITE ${USE_TENSORFLOW_PATH}/tensorflow/lite/tools/make/gen/*/lib)
+  endif()
+  find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
+
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS rt dl flatbuffers)
+endif()

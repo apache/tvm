@@ -48,6 +48,7 @@ _reg.register_schedule("cast", schedule_injective)
 _reg.register_schedule("cast_like", schedule_injective)
 _reg.register_schedule("reinterpret", schedule_injective)
 _reg.register_schedule("strided_slice", schedule_injective)
+_reg.register_schedule("strided_set", schedule_injective)
 _reg.register_schedule("slice_like", schedule_injective)
 _reg.register_schedule("split", schedule_injective)
 _reg.register_schedule("take", schedule_injective)
@@ -304,6 +305,11 @@ def compute_argwhere(attrs, inputs, output_type, _):
     new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]
 
+@_reg.register_compute("strided_set")
+def compute_strided_set(attrs, inputs, output_type, _):
+    """Compute definition of strided_set"""
+    return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
+
 @script
 def _layout_transform_shape_func(data_shape,
                                  out_layout_len,
@@ -495,3 +501,35 @@ def reshape_like_shape_func(attrs, inputs, _):
     Shape function for reshape_like op.
     """
     return [_reshape_like_shape_func(inputs[1])]
+
+@script
+def _tile_shape_func(data, reps, ndim, tndim, rndim):
+    out = output_tensor((tndim,), "int64")
+
+    if ndim == rndim:
+        for i in const_range(tndim):
+            out[i] = data[i] * int64(reps[i])
+    elif ndim > rndim:
+        ngap = ndim - rndim
+        for i in const_range(ndim):
+            if i < ngap:
+                out[i] = data[i]
+            else:
+                out[i] = data[i] * int64(reps[i - ngap])
+    else:
+        rgap = rndim - ndim
+        for i in const_range(rndim):
+            if i < rgap:
+                out[i] = int64(reps[i])
+            else:
+                out[i] = int64(reps[i]) * data[i - rgap]
+    return out
+
+@_reg.register_shape_func("tile", False)
+def tile_shape_func(attrs, inputs, _):
+    reps = get_const_tuple(attrs.reps)
+    ndim = inputs[0].shape[0].value
+    rndim = len(reps)
+    tndim = ndim if ndim > rndim else rndim
+    return [_tile_shape_func(inputs[0], convert(reps), convert(ndim),
+                             convert(tndim), convert(rndim))]
