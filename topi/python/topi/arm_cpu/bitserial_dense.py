@@ -158,7 +158,7 @@ def schedule_bitserial_dense(cfg, outs):
         return s
 
     def traverse(op):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
             if op not in s.outputs:

@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Exposre of pass functions.
+ *  Exposure of pass functions.
  * \file api_pass.cc
  */
 #include <tvm/expr.h>
