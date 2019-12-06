@@ -82,6 +82,13 @@ def dimension_constraint():
 
     return _dim_check, "Only 2d kernel supported."
 
+def transform_layout_axis(layout, axis):
+    """onnx transform axis depend the layout 'NCHW' and 'NHWC'."""
+    if layout == 'NHWC' and axis == 1:
+        return 3
+    else:
+        return axis
+
 
 class OnnxOpConverter(object):
     """ A helper class for holding onnx op converters.
@@ -127,7 +134,7 @@ class Elemwise(OnnxOpConverter):
         conv_ops = ["conv2d", "conv2d_transpose"]
         if attr.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
             # TODO(zhreshold): remove hard coded infershape
-            axis = int(attr.get('axis', 0))
+            axis = 0 if attr['_target_layout'] == 'NHWC' else int(attr.get('axis', 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_relay_op(op_name)(*inputs)
 
@@ -143,6 +150,7 @@ class Pool(OnnxOpConverter):
             op_name=dimension_picker(cls.name),
             transforms={
                 'kernel_shape': 'pool_size',
+                '_target_layout': 'layout',
                 'pads': ('padding', (0, 0), revert_caffe2_pad)
             },
             # very weird attributes here in onnx, force check
@@ -180,6 +188,8 @@ class BatchNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
+        axis = attr.get('axis', 1)
+        attr['axis'] = transform_layout_axis(attr['_target_layout'], axis)
         out = AttrCvt(
             op_name='batch_norm',
             ignores=['spatial', 'is_test', 'consumed_inputs', 'momentum'])(inputs, attr,
@@ -202,17 +212,27 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if attr['_target_layout'] == 'NHWC':
+            if attr['group'] != 1:
+                #depthwise conv2d
+                attr['kernel_layout'] = 'HWOI'
+                inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 0, 1))
+            else:
+                attr['kernel_layout'] = 'HWIO'
+                inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 1, 0))
         out = AttrCvt(op_name=dimension_picker('conv'),
                       transforms={
                           'kernel_shape': 'kernel_size',
                           'dilations': ('dilation', (0, 0)),
                           'pads': ('padding', (0, 0), revert_caffe2_pad),
-                          'group': ('groups', 1)},
+                          'group': ('groups', 1),
+                          '_target_layout': 'data_layout'},
                       ignores=['auto_pad'],
                       custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
-            out = _op.nn.bias_add(out, inputs[2])
+            channel_axis = 3 if attr['_target_layout'] == 'NHWC' else 1
+            out = _op.nn.bias_add(out, inputs[2], channel_axis)
         return out
 
 
@@ -221,6 +241,9 @@ class ConvTranspose(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if attr['_target_layout'] == 'NHWC':
+            args['kernel_layout'] = 'HWIO'
+            inputs[1] = _op.transpose(inputs[1], axes=(2, 3, 1, 0))
         # get number of channels
         channels = infer_channels(inputs[1], True)
         attr['channels'] = channels
@@ -231,13 +254,15 @@ class ConvTranspose(OnnxOpConverter):
             transforms={
                 'kernel_shape': 'kernel_size',
                 'dilations': ('dilation', (0, 0)),
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                '_target_layout': 'data_layout'
             },
             disables=['output_shape'],
             custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
-            out = _op.nn.bias_add(out, inputs[2])
+            channel_axis = 3 if attr['_target_layout'] == 'NHWC' else 1
+            out = _op.nn.bias_add(out, inputs[2], channel_axis)
         return out
 
 
@@ -322,6 +347,7 @@ class MaxPool(Pool):
 
     @classmethod
     def _impl_v8(cls, inputs, attr, params):
+        attr['storage_order'] = 1 if attr['_target_layout'] == 'NHWC' else attr.get('storage_order', 0)
         return AttrCvt(
             op_name=dimension_picker(cls.name),
             transforms={
@@ -366,6 +392,9 @@ class Pad(OnnxOpConverter):
         dims = int(len(pads) / 2)
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
+        if attr['_target_layout'] == 'NHWC' and dims == 4:
+            pad_width = [pad_width[0], pad_width[2], pad_width[3], pad_width[1]]
+
         attr['pad_width'] = pad_width
         pad_mode = attr.get('mode', 'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
@@ -389,6 +418,9 @@ class Pad(OnnxOpConverter):
         dims = int(len(pads) / 2)
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
+        if attr['_target_layout'] == 'NHWC' and dims == 4:
+            pad_width = [pad_width[0], pad_width[2], pad_width[3], pad_width[1]]
+
         attr['pad_width'] = pad_width
         pad_mode = attr.get('mode', 'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
@@ -443,6 +475,8 @@ class Flatten(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 1)
+        if attr['_target_layout'] == 'NHWC':
+            inputs[0] = _op.transpose(inputs[0], axes=(0,3,1,2))
         if axis == 1:
             out = _op.nn.batch_flatten(inputs[0])
         else:
@@ -548,6 +582,8 @@ class Concat(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, args, params):
+        axis = args.get('axis', 1)
+        attr['axis'] = transform_layout_axis(args['_target_layout'], axis)
         return AttrCvt(op_name='concatenate')((inputs,), args)
 
 class Scale(OnnxOpConverter):
@@ -715,6 +751,7 @@ class Unsqueeze(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         for axes in attr['axes']:
+            axes = transform_layout_axis(attr['_target_layout'], axes)
             inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
@@ -810,6 +847,7 @@ class Gather(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
+        axis = transform_layout_axis(attr['_target_layout'], axis)
         return AttrCvt('take',
                        extras={'axis':axis})(inputs, {})
 
@@ -900,6 +938,7 @@ class Reduce(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         if 'axes' in attr:
             axis = attr.get('axes', 0)
+            axis = (1,2) if attr['_target_layout'] == 'NHWC' and axis == (2,3) else axis
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
@@ -1222,7 +1261,7 @@ class GraphProto(object):
         The input types to the graph
     """
 
-    def __init__(self, shape, dtype):
+    def __init__(self, shape, dtype, layout):
         self._nodes = {}
         self._params = {}
         self._renames = {}
@@ -1230,6 +1269,7 @@ class GraphProto(object):
         self._num_param = 0
         self._shape = shape if shape else {}
         self._dtype = dtype
+        self._layout = layout
 
     def from_onnx(self, graph, opset):
         """Construct Relay expression from ONNX graph.
@@ -1321,6 +1361,7 @@ class GraphProto(object):
                 i_name = self._parse_value_proto(node)
                 attr['tvm_custom'] = {}
                 attr['tvm_custom']['name'] = i_name
+                attr['_target_layout'] = self._layout
 
                 op = self._convert_operator(op_name, inputs, attr, opset)
                 node_output = self._fix_outputs(op_name, node.output)
@@ -1442,6 +1483,7 @@ class GraphProto(object):
 def from_onnx(model,
               shape=None,
               dtype="float32",
+              layout="NCHW",
               opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -1487,7 +1529,7 @@ def from_onnx(model,
                 warnings.warn(str(e))
     except ImportError:
         pass
-    g = GraphProto(shape, dtype)
+    g = GraphProto(shape, dtype, layout)
     graph = model.graph
     if opset is None:
         try:
