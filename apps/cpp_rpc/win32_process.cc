@@ -256,24 +256,18 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
  */
 void ChildProcSocketHandler(const std::string& mmap_path) {
   SOCKET socket;
-  const auto last_thread_priority = GetThreadPriority(GetCurrentThread());
 
   // Set high thread priority to avoid the thread scheduler from
   // interfering with any measurements in the RPC server.
   SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-
-  try {
-    if ((socket = GetSocket(mmap_path)) != INVALID_SOCKET) {
-      tvm::runtime::ServerLoopFromChild(socket);
-    }
-    else {
-      LOG(FATAL) << "GetSocket() failed";
-    }
-  } catch (...) {
-    // Restore thread priority
-    SetThreadPriority(GetCurrentThread(), last_thread_priority);
-    throw;
+ 
+  if ((socket = GetSocket(mmap_path)) != INVALID_SOCKET) {
+    tvm::runtime::ServerLoopFromChild(socket);
   }
+  else {
+    LOG(FATAL) << "GetSocket() failed";
+  }
+  
 }
 }  // namespace runtime
 }  // namespace tvm
