@@ -393,9 +393,6 @@ class AttrCvt(object):
                                           ' supported.', k, op_name)
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
-            elif k in self._ignores:
-                if k != 'tvm_custom':
-                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -406,6 +403,9 @@ class AttrCvt(object):
                     new_attrs[new_name] = defaults
                 else:
                     new_attrs[new_name] = transform(new_attr)
+            elif k in self._ignores:
+                if k != 'tvm_custom':
+                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
             else:
                 # copy
                 new_attrs[k] = attrs[k]
@@ -545,4 +545,8 @@ class Renamer(object):
     def __call__(self, inputs, attrs, *args):
         if 'tvm_custom' in attrs:
             attrs.pop('tvm_custom')
+        if "global_" in self._new_name:
+            attrs['layout'] = attrs['_target_layout']
+        if '_target_layout' in attrs:
+            attrs.pop('_target_layout')
         return get_relay_op(self._new_name)(*inputs, **attrs)
