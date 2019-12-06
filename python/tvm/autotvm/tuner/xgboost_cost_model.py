@@ -169,14 +169,10 @@ class XGBoostCostModel(CostModel):
             # To ensure each process in the pool is properly set, we have to do
             # some synchronization by sending an async call and waiting for
             # the queue to have an item set
-
-            #pool_size = min(32, int(self.num_threads))
-            pool_size = self.num_threads
+            pool_size = self.num_threads if self.num_threads != None else multiprocessing.cpu_count()
             if self.pool == None:
                 self.pool = ProcessPool(pool_size)
-
             manager = pathos_multiprocess.Manager()
-
             pipe_syncs = []
 
             # A simple pathos.map would be cleaner, but it seems that in some cases,
