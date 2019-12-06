@@ -12,7 +12,11 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_executable(tvm_rpc ${TVM_RPC_SOURCES})
 set_property(TARGET tvm_rpc PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-target_compile_definitions(tvm_rpc PUBLIC -DNOMINMAX)
+
+if(WIN32)
+  target_compile_definitions(tvm_rpc PUBLIC -DNOMINMAX)
+endif()
+
 target_include_directories(
   tvm_rpc
   PUBLIC "../../include"
