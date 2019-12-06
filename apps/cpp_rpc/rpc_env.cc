@@ -182,7 +182,7 @@ void WindowsShared(const std::string& output,
                    const std::string& options = "", 
                    const std::string& cc = "clang") {
   std::string cmd = cc;
-  cmd += " -fuse-ld=lld-link -Wl,/EXPORT:__tvm_main__ -shared ";
+  cmd += " -O2 -flto=full -fuse-ld=lld-link -Wl,/EXPORT:__tvm_main__ -shared ";
   cmd += " -o " + output;
   for (const auto& file : files) {
     cmd += " " + file;
@@ -191,7 +191,6 @@ void WindowsShared(const std::string& output,
   std::string err_msg;
   const auto executed_status = common::Execute(cmd, &err_msg);
   if (executed_status) {
-      printf("compile error: %s\n", err_msg.c_str());
     LOG(FATAL) << err_msg;
   }
 }
