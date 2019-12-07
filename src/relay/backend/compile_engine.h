@@ -26,6 +26,7 @@
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
 #include <tvm/lowered_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
@@ -186,6 +187,12 @@ class CompileEngineNode : public Node {
    * \return The result.
    */
   virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
+  /*!
+   * \brief Lower the external function using external codegen tools.
+   * \return The runtime moduels for each needed external codegen tool.
+   */
+  virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
+
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
 

@@ -25,7 +25,7 @@ import tvm.relay.transform
 from tvm import relay
 from tvm.contrib import util
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-7):
+def check_result(mod, map_inputs, out_shape, result, tol=1e-5):
     with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
         json, lib, _ = relay.build(mod, "llvm")
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
@@ -172,6 +172,7 @@ def test_extern_gcc():
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
 
 
+@pytest.mark.skip(reason="Only for DEMO purpose, need to have dnnl for usage")
 def test_extern_dnnl():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
@@ -215,4 +216,4 @@ if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
     test_extern_gcc()
-    test_extern_dnnl()
+    # test_extern_dnnl()

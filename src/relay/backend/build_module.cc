@@ -73,12 +73,8 @@ struct GraphCodegen {
     return CallFunc<std::string>("get_graph_json", nullptr);
   }
 
-  Array<Function> GetExternalFuncs() {
-    return CallFunc<Array<Function> >("get_external_funcs", nullptr);
-  }
-
-  runtime::Module GetExternalModule() {
-    return CallFunc<runtime::Module>("get_external_module", nullptr);
+  Array<tvm::runtime::Module> GetExternalModules() {
+    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
   }
 
   Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
@@ -156,13 +152,9 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
       });
-    } else if (name == "get_external_funcs") {
+    } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetExternalFuncs();
-      });
-    } else if (name == "get_external_module") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetExternalModule();
+          *rv = this->graph_codegen_->GetExternalModules();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -490,14 +482,18 @@ class RelayBuildModule : public runtime::ModuleNode {
         target_host_,
         BuildConfig::Current());
     }
-    Array<Function> external_funcs = graph_codegen_->GetExternalFuncs();
-    if (!external_funcs.empty()) {
-      auto ext_rt_mod = graph_codegen_->GetExternalModule();
-      // Execute the whole module using external runtime.
+    Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
+    if (!ext_mods.empty()) {
+      CHECK(lowered_funcs.size() > 0 || ext_mods.size() == 1)
+          << "Expect to have a TVM DSOModule when multiple external runtime modules exist";
       if (lowered_funcs.size() == 0) {
-        ret_.mod = ext_rt_mod;
+        // Execute the whole module using external runtime.
+        ret_.mod = ext_mods[0];
       } else {
-        ret_.mod.Import(ext_rt_mod);
+        // Import all external runtime modules.
+        for (const auto& it : ext_mods) {
+          ret_.mod.Import(it);
+        }
       }
     }
   }

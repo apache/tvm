@@ -185,7 +185,7 @@ TVM_REGISTER_API("relay._expr.FunctionGetParams")
 bool FunctionNode::IsExternal() const {
   NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kExternal);
   const ir::StringImm* pval = res.as<ir::StringImm>();
-  return pval;
+  return pval != nullptr;
 }
 
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
