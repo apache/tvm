@@ -406,6 +406,68 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
 };
 
 
+/*! \brief Attributes for 3D max pool operator */
+struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+
+  TVM_DECLARE_ATTRS(MaxPool3DAttrs, "relay.attrs.MaxPool3DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back, bottom, right will use same padding as front, top, left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCDHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+                "'W' dimensions.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+  }
+};
+
+/*! \brief Attributes for 3D avg pool operator */
+struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+  bool count_include_pad;
+
+  TVM_DECLARE_ATTRS(AvgPool3DAttrs, "relay.attrs.AvgPool3DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back, bottom, right will use same padding as front, top, left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCDHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+                "'W' dimensions.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+    TVM_ATTR_FIELD(count_include_pad).set_default(false)
+      .describe("When true, will include padding to compute the average");
+  }
+};
+
+
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
