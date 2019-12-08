@@ -185,8 +185,24 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
                 cfg.define_knob("unroll_explicit", [0, 1])
 
             if cfg.is_fallback:
-                N, F, Y, X = get_const_tuple(conv.shape)
-                _fallback_schedule(N, F, Y, X)
+                ko = int(kernel.shape[1])
+                kh = int(kernel.shape[2])
+                kw = int(kernel.shape[3])
+                stride_h, stride_w = cfg.stride
+                # Workaround to make CUDA compilation work. Issue #4470
+                # TODO make _fallback_schedule work for all kernel/strides combinations
+                #  after issue #4470 is resolved
+                do_fallback = True
+                if ko == 1:
+                    do_fallback = False
+                elif (kh, kw) == (1, 1):
+                    do_fallback = True
+                elif (kh, kw) == (stride_h, stride_w):
+                    do_fallback = False
+
+                if do_fallback:
+                    N, F, Y, X = get_const_tuple(conv.shape)
+                    _fallback_schedule(N, F, Y, X)
 
             ##### space definition end #####
 
