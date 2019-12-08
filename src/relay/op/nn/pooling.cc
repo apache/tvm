@@ -37,7 +37,7 @@ TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename T>
-Array<Array<Layout> > Pool2DInferCorrectLayout(
+Array<Array<Layout> > PoolInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
@@ -222,7 +222,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<MaxPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 
@@ -277,7 +277,7 @@ Average pooling operation for one dimensional data.
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<AvgPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.global_pool_2d & relay.nn.max_pool_2d
@@ -365,7 +365,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
 .set_support_level(2)
 .add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
+                               PoolInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
 
 // GlobalMaxPool
@@ -396,7 +396,7 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
 .set_support_level(2)
 .add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
+                               PoolInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
 
 
@@ -522,7 +522,7 @@ RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
 .set_support_level(10)
 .add_type_rel("AdaptiveAvgPool2D", AdaptivePool2DRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Pool2DInferCorrectLayout<AdaptivePool2DAttrs>)
+                               PoolInferCorrectLayout<AdaptivePool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
 
 
@@ -561,7 +561,7 @@ RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
 .set_support_level(10)
 .add_type_rel("AdaptiveMaxPool2D", AdaptivePool2DRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Pool2DInferCorrectLayout<AdaptivePool2DAttrs>)
+                               PoolInferCorrectLayout<AdaptivePool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
 
 
@@ -723,25 +723,6 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
 // relay.nn.max_pool3d & relay.nn.avg_pool3d
 TVM_REGISTER_NODE_TYPE(MaxPool3DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool3DAttrs);
-
-template <typename T>
-Array<Array<Layout> > Pool3DInferCorrectLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
-  // NOTE: Discard "const" qualifier here.
-  T *params = const_cast<T*>(attrs.as<T>());
-
-  if (new_in_layouts.defined()) {
-    // Set the pool with the new layout.
-    CHECK_EQ(new_in_layouts.size(), 1);
-    params->layout = new_in_layouts[0].name();
-  }
-
-  Layout inferred_layout(params->layout);
-  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
-}
 
 template <typename AttrType>
 bool Pool3DRel(const Array<Type>& types,
@@ -913,7 +894,7 @@ RELAY_REGISTER_OP("nn.max_pool3d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("MaxPool3D", Pool3DRel<MaxPool3DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool3DInferCorrectLayout<MaxPool3DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool3DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<MaxPool3DAttrs, topi::nn::kMaxPool>);
 
 
@@ -969,7 +950,7 @@ Average pooling operation for three dimensional data.
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("AvgPool3D", Pool3DRel<AvgPool3DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool3DInferCorrectLayout<AvgPool3DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool3DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<AvgPool3DAttrs, topi::nn::kAvgPool>);
 
 }  // namespace relay
