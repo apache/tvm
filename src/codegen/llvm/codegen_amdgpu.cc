@@ -209,8 +209,8 @@ inline int DetectROCMComputeVersion(const std::string& target) {
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 #if TVM_LLVM_VERSION < 90
-  LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
-  // Lower versions will crash when loading the bitcode, see
+  LOG(FATAL) << "AMDGPU codegen supports LLVM 9/LLVM 10 at this moment";
+  // Navi bc is not compatible with earlier LLVM, see
   // issue #4087 for a discussion
 #endif
   InitializeLLVM();
@@ -257,20 +257,11 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   dest_ll.SetUnbuffered();
   destAsm.SetUnbuffered();
   module->print(dest_ll, nullptr);
-#if TVM_LLVM_VERSION <= 60
-  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
-  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
-#else
   std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(*module.get());
   std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(*module.get());
-#endif
   llvm::legacy::PassManager pass;
 
-#if TVM_LLVM_VERSION <= 60
-  CHECK(tm->addPassesToEmitFile(
-            pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
-            << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 90
+#if TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
@@ -283,11 +274,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::string obj(dataObj.begin(), dataObj.end());
 
   llvm::legacy::PassManager passAsm;
-#if TVM_LLVM_VERSION <= 60
-  CHECK(tm->addPassesToEmitFile(passAsm, destAsm,
-                                llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_AssemblyFile";
-#elif TVM_LLVM_VERSION <= 90
+#if TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
