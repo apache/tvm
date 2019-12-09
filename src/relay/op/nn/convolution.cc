@@ -248,10 +248,17 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   }
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
-  oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
-                 2 * param->padding[0] + param->output_padding[0]));
-  oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
-                 2 * param->padding[1] + param->output_padding[1]));
+  if ( param->padding.size() == 2 ) {
+    oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
+                   2 * param->padding[0] + param->output_padding[0]));
+    oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
+                   2 * param->padding[1] + param->output_padding[1]));
+  } else if (param->padding.size() == 4) {
+    oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
+                   param->padding[0] - param->padding[2] + param->output_padding[0]));
+    oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
+                   param->padding[1] - param->padding[3] + param->output_padding[1]));
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
