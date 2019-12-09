@@ -28,7 +28,7 @@
 #include "llvm_common.h"
 #include "codegen_llvm.h"
 #include "../../runtime/file_util.h"
-#include "../../runtime/module_util.h"
+#include "../../runtime/library_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -286,7 +286,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       *ctx_addr = this;
     }
     runtime::InitContextFunctions([this](const char *name) {
-        return GetGlobalAddr(name);
+        return reinterpret_cast<void*>(GetGlobalAddr(name));
       });
   }
   // Get global address from execution engine.
