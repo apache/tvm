@@ -405,6 +405,10 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
   }
 }
 
+void CodeGenC::VisitExpr_(const AssertLowerBound *op, std::ostream& os) {
+  PrintExpr(op->value, os);
+}
+
 void CodeGenC::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }

@@ -176,15 +176,14 @@ Expr Let::make(Var var, Expr value, Expr body) {
   return Expr(node);
 }
 
-Expr AssertLowerBound::make(Expr value, Expr bound) {
+Expr AssertLowerBound::make(Expr value, int64_t bound) {
   CHECK(value.defined());
-  CHECK(bound.defined());
-  CHECK_EQ(value.type(), bound.type());
+//  CHECK_EQ(value.type(), bound.type());
 
   NodePtr<AssertLowerBound> node = make_node<AssertLowerBound>();
   node->type = value.type();
   node->value = std::move(value);
-  node->bound = std::move(bound);
+  node->bound = bound;
   return Expr(node);
 }
 
@@ -852,8 +851,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     auto* op = static_cast<const AssertLowerBound*>(node.get());
     p->stream << "assert_lower_bound(";
     p->Print(op->value);
-    p->stream << ", ";
-    p->Print(op->bound);
+    p->stream << ", " << op->bound;
     p->stream << ")";
 });
 

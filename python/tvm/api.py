@@ -297,6 +297,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
+    shape = tuple(_make.AssertLowerBound(size, 0) for size in shape)
     ndim = len(shape)
     code = fcompute.__code__
 

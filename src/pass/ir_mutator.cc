@@ -489,7 +489,7 @@ Expr IRMutator::Mutate_(const Shuffle *op, const Expr& e) {
 
 Expr IRMutator::Mutate_(const AssertLowerBound *op, const Expr& e) {
   Expr value = this->Mutate(op->value);
-  return value;
+  return AssertLowerBound::make(value, 0);
 }
 
 #define DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(OP)              \

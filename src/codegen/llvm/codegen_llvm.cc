@@ -1043,6 +1043,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
   return CreateBroadcast(MakeValue(op->value), op->lanes);
 }
 
+llvm::Value* CodeGenLLVM::VisitExpr_(const AssertLowerBound* op) {
+  return this->VisitExpr(op->value);
+}
+
 void CodeGenLLVM::VisitStmt_(const Store* op) {
   CHECK(is_one(op->predicate));
   Type t = op->value.type();

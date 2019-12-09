@@ -472,14 +472,14 @@ class Let : public ExprNode {
 class AssertLowerBound : public ExprNode {
  public:
   Expr value;
-  Expr bound;
+  int64_t bound;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("bound", &bound);
   }
 
-  TVM_DLL static Expr make(Expr value, Expr bound);
+  TVM_DLL static Expr make(Expr value, int64_t bound);
 
   static constexpr const char* _type_key = "AssertLowerBound";
   TVM_DECLARE_NODE_TYPE_INFO(AssertLowerBound, ExprNode);

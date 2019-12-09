@@ -131,6 +131,7 @@ class CodeGenC :
   void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const StringImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const AssertLowerBound* op, std::ostream& os) override;  // NOLINT(*)
   // statment
   void VisitStmt_(const LetStmt* op) override;
   void VisitStmt_(const Store* op) override;

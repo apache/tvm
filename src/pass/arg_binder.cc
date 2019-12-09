@@ -46,18 +46,28 @@ void BinderAddAssert(Expr cond,
   }
 }
 
+const Expr GetVariable(const Expr& expr) {
+  if (expr.as<Variable>()) {
+    return expr;
+  } else if (const auto* v = expr.as<AssertLowerBound>()) {
+    return GetVariable(v->value);
+  }
+  return Expr();
+}
+
 bool ArgBinder::Bind_(const Expr& arg,
                       const Expr& value,
                       const std::string& arg_name,
                       bool with_lets) {
   CHECK_EQ(arg.type(), value.type());
-  if (const Variable* v = arg.as<Variable>()) {
+  Expr arg_as_var = GetVariable(arg);
+  if (const Variable* v = arg_as_var.as<Variable>()) {
     auto it = def_map_->find(v);
     if (it == def_map_->end()) {
-      Var v_arg = Downcast<Var>(arg);
+      Var v_arg = Downcast<Var>(arg_as_var);
       defs_.emplace_back(v_arg);
       if (with_lets) {
-        (*def_map_)[v] = arg;
+        (*def_map_)[v] = arg_as_var;
         init_nest_.emplace_back(LetStmt::make(v_arg, value, Evaluate::make(0)));
       } else {
         (*def_map_)[v] = value;

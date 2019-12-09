@@ -282,6 +282,10 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
+  Entry VisitExpr_(const AssertLowerBound* op) final {
+    return MakeBound(op->bound, kPosInf);
+  }
+
   Entry VisitExpr_(const Variable* op) final {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
