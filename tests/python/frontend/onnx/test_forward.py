@@ -142,6 +142,37 @@ def test_reshape():
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
+def test_expand():
+    in_shape = (1, 3, 1, 4)
+    shape = (4, 3, 3, 4)
+    ref_shape = (4, 3, 3, 4)
+
+    shape_array = np.array(shape)
+    ref_node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=['shape'],
+                                 value=onnx.helper.make_tensor(name = 'const_tensor',
+                                                               data_type = onnx.TensorProto.INT32,
+                                                               dims = shape_array.shape,
+                                                               vals = shape_array.flatten().astype(int)))
+    expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+    graph = helper.make_graph([ref_node, expand_node],
+                              "expand_node",
+                              inputs = [helper.make_tensor_value_info("in",
+                                            TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.FLOAT, list(ref_shape))])
+
+    model = helper.make_model(graph, producer_name='expand_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=in_shape).astype('int32')
+        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
+
+    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
+
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
     node = onnx.helper.make_node('DepthToSpace',
                                  inputs=['x'],
