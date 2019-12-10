@@ -280,7 +280,6 @@ TVM_HALF_OPERATOR(bool, <)
 TVM_HALF_OPERATOR(bool, >=)
 TVM_HALF_OPERATOR(bool, <=)
 
-
 TVM_XINLINE half __float2half_rn(const float a) {
   return half(a);
 }
