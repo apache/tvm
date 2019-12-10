@@ -68,7 +68,7 @@ def schedule_adaptive_pool(outs):
     scheduled_ops = []
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -131,7 +131,7 @@ def schedule_pool(outs, layout):
     scheduled_ops = []
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

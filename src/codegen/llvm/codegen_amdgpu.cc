@@ -276,7 +276,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
             << "Cannot emit target CGFT_ObjectFile";
 #else
   CHECK(tm->addPassesToEmitFile(
-            pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
+            pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*mObj);
@@ -293,7 +293,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
       << "Cannot emit target CGFT_AssemblyFile";
 #else
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
-                                llvm::CGFT_AssemblyFile) == 0)
+                                llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);

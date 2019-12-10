@@ -971,6 +971,27 @@ def test_forward_pack():
 
 
 #######################################################################
+# Unpack
+# ------
+
+def _test_unpack(data, axis, num_unpacks):
+    """ One iteration of UNPACK """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = gen_array_ops.unpack(in_data, num=num_unpacks, axis=axis, name='unpack')
+        out_names = ['out_' + str(n) + ':0' for n in range(num_unpacks)]
+        compare_tflite_with_tvm([data], 'Placeholder:0',  [in_data], out, out_names=out_names)
+
+def test_forward_unpack():
+    """ UNPACK """
+    _test_unpack(np.array(np.random.uniform(0, 5, (3, 1)), dtype=np.int32), axis=1, num_unpacks=1)
+    _test_unpack(np.array(np.random.uniform(0, 5, (3, 4)), dtype=np.float32), axis=0, num_unpacks=3)
+    # tflite 1.13 doesn't accept negative axis
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_unpack(np.array(np.random.uniform(0, 5, (3, 6)), dtype=np.int32), axis=-2, num_unpacks=3)
+        _test_unpack(np.array(np.random.uniform(0, 5, (2, 3, 4)), dtype=np.int32), axis=-3, num_unpacks=2)
+
+#######################################################################
 # Logistic
 # --------
 
@@ -1280,6 +1301,7 @@ if __name__ == '__main__':
     test_forward_concatenation()
     test_forward_pad()
     test_forward_pack()
+    test_forward_unpack()
     test_forward_reshape()
     test_all_resize()
     test_forward_squeeze()

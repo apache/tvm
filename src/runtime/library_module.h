@@ -18,17 +18,16 @@
  */
 
 /*!
- * \file module_util.h
- * \brief Helper utilities for module building
+ * \file library_module.h
+ * \brief Module that builds from a libary of symbols.
  */
-#ifndef TVM_RUNTIME_MODULE_UTIL_H_
-#define TVM_RUNTIME_MODULE_UTIL_H_
+#ifndef TVM_RUNTIME_LIBRARY_MODULE_H_
+#define TVM_RUNTIME_LIBRARY_MODULE_H_
 
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <memory>
-#include <vector>
+#include <functional>
 
 extern "C" {
 // Function signature for generated packed function in shared library
@@ -40,41 +39,47 @@ typedef int (*BackendPackedCFunc)(void* args,
 namespace tvm {
 namespace runtime {
 /*!
+ * \brief Library is the common interface
+ *  for storing data in the form of shared libaries.
+ *
+ * \sa dso_library.cc
+ * \sa system_library.cc
+ */
+class Library : public Object {
+ public:
+  /*!
+   * \brief Get the symbol address for a given name.
+   * \param name The name of the symbol.
+   * \return The symbol.
+   */
+  virtual void *GetSymbol(const char* name) = 0;
+  // NOTE: we do not explicitly create an type index and type_key here for libary.
+  // This is because we do not need dynamic type downcasting.
+};
+
+/*!
  * \brief Wrap a BackendPackedCFunc to packed function.
  * \param faddr The function address
  * \param mptr The module pointer node.
  */
 PackedFunc WrapPackedFunc(BackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
-/*!
- * \brief Load and append module blob to module list
- * \param mblob The module blob.
- * \param module_list The module list to append to
- */
-void ImportModuleBlob(const char* mblob, std::vector<Module>* module_list);
 
 /*!
  * \brief Utility to initialize conext function symbols during startup
- * \param flookup A symbol lookup function.
- * \tparam FLookup a function of signature string->void*
+ * \param fgetsymbol A symbol lookup function.
  */
-template<typename FLookup>
-void InitContextFunctions(FLookup flookup) {
-  #define TVM_INIT_CONTEXT_FUNC(FuncName)                     \
-    if (auto *fp = reinterpret_cast<decltype(&FuncName)*>     \
-      (flookup("__" #FuncName))) {                            \
-      *fp = FuncName;                                         \
-    }
-  // Initialize the functions
-  TVM_INIT_CONTEXT_FUNC(TVMFuncCall);
-  TVM_INIT_CONTEXT_FUNC(TVMAPISetLastError);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendParallelLaunch);
-  TVM_INIT_CONTEXT_FUNC(TVMBackendParallelBarrier);
+void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
-  #undef TVM_INIT_CONTEXT_FUNC
-}
+/*!
+ * \brief Create a module from a library.
+ *
+ * \param lib The library.
+ * \return The corresponding loaded module.
+ *
+ * \note This function can create multiple linked modules
+ *       by parsing the binary blob section of the library.
+ */
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib);
 }  // namespace runtime
 }  // namespace tvm
-#endif   // TVM_RUNTIME_MODULE_UTIL_H_
+#endif   // TVM_RUNTIME_LIBRARY_MODULE_H_

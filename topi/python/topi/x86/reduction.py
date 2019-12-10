@@ -78,7 +78,7 @@ def schedule_reduce(outs):
     scheduled_ops = []
 
     def traverse_before_reduce(operator):
-        """Internal travserse function"""
+        """Internal traverse function"""
         if isinstance(operator, tvm.tensor.PlaceholderOp):
             return
         if tag.is_injective(operator.tag):
@@ -92,7 +92,7 @@ def schedule_reduce(outs):
         scheduled_ops.append(operator)
 
     def traverse_after_reduce(operator):
-        """Internal travserse function"""
+        """Internal traverse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
                 generic.schedule_injective_from_existing(sch, operator)

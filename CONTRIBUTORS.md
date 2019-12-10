@@ -40,27 +40,27 @@ We add tag along with committer name to show areas that they are familiar with.
 We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
-- [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
+- [Tianqi Chen](https://github.com/tqchen) (PPMC): @tqchen - topi, compiler, relay, docs
 - [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
-- [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Ziheng Jiang](https://github.com/ZihengJiang) (PPMC): @ZihengJiang - relay, compiler
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
-- [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Yizhi Liu](https://github.com/yzhliu) (PPMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
-- [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
+- [Thierry Moreau](https://github.com/tmoreau89) (PPMC): @tmoreau89 - vta
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
-- [Jared Roesch](https://github.com/jroesch): @jroesch - relay
+- [Jared Roesch](https://github.com/jroesch) (PPMC): @jroesch - relay
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
-- [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
+- [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
-- [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
-- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
+- [Eddie Yan](https://github.com/eqy) (PPMC): @eqy - runtime, autotvm, rpc, topi
+- [Lianmin Zheng](https://github.com/merrymercy) (PPMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
 
