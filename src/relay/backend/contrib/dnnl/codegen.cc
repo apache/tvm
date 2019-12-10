@@ -109,7 +109,7 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
         args.push_back(std::to_string(s));
       }
 
-      // Args: epilson
+      // Args: epsilon
       args.push_back(std::to_string(bn_attr->epsilon));
     } else if (IsOp(call, "add")) {
       decl_stream << "dnnl_add";

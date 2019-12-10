@@ -165,7 +165,7 @@ class CSourceCodegen : public ExternCodegenBase {
     code_stream_ << "#include <dlpack/dlpack.h>\n";
 
     // Append some common macro for operator definition.
-    const char* operator_macro = R"op_marco(
+    const char* operator_macro = R"op_macro(
     #define CSOURCE_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)       \
       extern "C" void p_ID_(float* a, float* b, float* out) { \
         for (int64_t i = 0; i < p_DIM1_; ++i) {               \
@@ -182,7 +182,7 @@ class CSourceCodegen : public ExternCodegenBase {
           }                                                       \
         }                                                         \
       }
-    )op_marco";
+    )op_macro";
 
     code_stream_ << operator_macro << "\n\n";
 

@@ -425,7 +425,7 @@ class GraphRuntimeCodegen
     Target target;
     // Handle external function
     if (func->IsExternal()) {
-      target = tvm::target::ext_dev();
+      target = tvm::target::ext();
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
       CHECK(ext_func.defined()) << "External function is not defined.";

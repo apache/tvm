@@ -697,7 +697,7 @@ class CompileEngineImpl : public CompileEngineNode {
           FunctionGetAttr(key->source_func, attr::kFuncName).as<tvm::ir::StringImm>();
       CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
       cache_node->func_name = name_node->value;
-      cache_node->target = tvm::target::ext_dev();
+      cache_node->target = tvm::target::ext();
       value->cached_func = CachedFunc(cache_node);
       return value;
     }
