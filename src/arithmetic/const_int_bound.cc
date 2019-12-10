@@ -283,7 +283,8 @@ class ConstIntBoundAnalyzer::Impl :
   }
 
   Entry VisitExpr_(const AssertLowerBound* op) final {
-    return MakeBound(op->bound, kPosInf);
+    Entry bound = VisitExpr(op->bound);
+    return MakeBound(bound.max_value, kPosInf);
   }
 
   Entry VisitExpr_(const Variable* op) final {
