@@ -205,6 +205,12 @@ def _conv(opname):
             attr['strides'][1], attr['strides'][2], attr['strides'][3] = \
                 attr['strides'][3], attr['strides'][1], attr['strides'][2]
             attr['data_format'] = 'NCHW'
+
+            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
+                tmp_shape = attr['_output_shapes'][0]
+                tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
+                attr['_output_shapes'][0] = tmp_shape
+
             flip_layout = True
 
         inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
@@ -281,12 +287,17 @@ def _conv(opname):
         elif attr['padding'] == 'SAME':
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
+
+            pdata_shape = input_shape
+            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
+                pdata_shape = attr['_output_shapes'][0]
+
             if attr['data_format'] == 'NHWC':
-                in_h = input_shape[1]
-                in_w = input_shape[2]
+                in_h = pdata_shape[1]
+                in_w = pdata_shape[2]
             else:
-                in_h = input_shape[2]
-                in_w = input_shape[3]
+                in_h = pdata_shape[2]
+                in_w = pdata_shape[3]
 
             dilation_h = attr['dilations'][0]
             dilation_w = attr['dilations'][1]
