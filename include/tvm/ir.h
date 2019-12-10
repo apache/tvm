@@ -429,7 +429,7 @@ class Broadcast : public ExprNode {
  public:
   /*! \brief The base value. */
   Expr value;
-  /*! \brief The numerb of lanes. */
+  /*! \brief The number of lanes. */
   int lanes;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -840,7 +840,7 @@ class ProducerConsumer : public StmtNode {
  *  Equivalent to ((DType*)buffer_var)[index] = value.
  *  where DType is the type specified by type().element_of().
  *
- *  For example, if type = float32x3, then the load will corresponds to
+ *  For example, if type = float32x3, then the store will corresponds to
  *
  * \code
  *
