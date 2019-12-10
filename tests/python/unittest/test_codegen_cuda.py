@@ -17,6 +17,7 @@
 # under the License.
 import tvm
 import numpy as np
+import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
 
@@ -263,6 +264,32 @@ def test_rfactor_predicates():
     fcuda = tvm.build(s, [A, B], "cuda")
 
 
+@unittest.skipIf(not tvm.gpu(0).exist or not tvm.module.enabled("cuda"), "skip because cuda is not enabled..")
+def test_cuda_const_float_to_half():
+    # This import is required to use nvcc to perform code gen;
+    # otherwise it is found that the code gen is done by nvrtc.
+    from tvm import autotvm
+    shape = (2, 3, 4)
+    a = tvm.placeholder(shape, dtype='float16', name='a')
+    b = tvm.const(0.5, dtype='float16')
+    c = tvm.compute(shape, lambda i, j, k: a[i, j, k] > b, name='c')
+    s = tvm.create_schedule(c.op)
+    axes = [axis for axis in c.op.axis]
+    fused = s[c].fuse(*axes)
+    bx, tx = s[c].split(fused, factor=64)
+    s[c].bind(bx, tvm.thread_axis('blockIdx.x'))
+    s[c].bind(tx, tvm.thread_axis('threadIdx.x'))
+
+    func = tvm.build(s, [a, c], 'cuda')
+    ctx = tvm.gpu(0)
+    a_np = np.random.uniform(size=shape).astype(a.dtype)
+    c_np = np.zeros(shape=shape, dtype=c.dtype)
+    a = tvm.nd.array(a_np, ctx)
+    c = tvm.nd.array(c_np, ctx)
+    func(a, c)
+    np.testing.assert_equal(c.asnumpy(), a_np > b.value)
+
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -272,3 +299,4 @@ if __name__ == "__main__":
     test_cuda_shuffle()
     test_cuda_reducition_binding()
     test_rfactor_predicates()
+    test_cuda_const_float_to_half()
