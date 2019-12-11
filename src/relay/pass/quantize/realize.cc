@@ -278,13 +278,9 @@ Expr MulRealize(const Call& ref_call,
     DataType dtype = cfg->dtype_activation;
     if (lhs->dtype != dtype) {
       ldata = Cast(ldata, dtype);
-    } else {
-      CHECK_EQ(lhs->dtype, dtype);
     }
     if (rhs->dtype != dtype) {
       rdata = Cast(rdata, dtype);
-    } else {
-      CHECK_EQ(rhs->dtype, dtype);
     }
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
