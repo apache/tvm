@@ -23,9 +23,10 @@ INCLUDE_DIR = ../../../include
 DRIVER_DIR = ../../../src/pynq
 TESTLIB_DIR = ../common
 VPATH = $(DRIVER_DIR):$(TESTLIB_DIR)
-SOURCES = pynq_driver.cc test_lib.cc
-OBJECTS = pynq_driver.o test_lib.o metal_test.o
+SOURCES = pynq_driver.cc test_lib.cc test_func.cc
+OBJECTS = pynq_driver.o test_lib.o metal_test.o test_func.o
 EXECUTABLE = vta
+SHAREDLIB = lib.so
 
 # Include VTA config
 VTA_CONFIG = python ../../../config/vta_config.py
@@ -41,15 +42,23 @@ VTA_BIT = "vta.bit"
 CFLAGS += -I $(INCLUDE_DIR) -DNO_SIM -DVTA_DEBUG=0
 
 # All Target
-all: vtainstall $(EXECUTABLE)
+all: vtainstall $(EXECUTABLE) sharedlib macros
 
 %.o: %.cc $(SOURCES)
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) -c -fPIC -o $@ $< $(CFLAGS)
 
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@ $(LIBS)
 
+sharedlib: 
+	$(CC) -shared -o $(SHAREDLIB) $(OBJECTS) $(LIBS)
+
 vtainstall:
 	${VTA_PROGRAM} ${VTA_TARGET} ${VTA_BIT}
+
+macros:
+	python3 ../../../config/vta_config.py --cflags > macros.txt
+	python3 macro_setup.py
+	rm macros.txt
 clean:
-	rm -rf *.o $(EXECUTABLE)
+	rm -rf *.o $(EXECUTABLE) *.so *.dat

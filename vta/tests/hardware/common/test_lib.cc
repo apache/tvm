@@ -27,7 +27,7 @@
 #ifdef NO_SIM
 #ifdef VTA_TARGET_PYNQ
 
-uint64_t vta(
+extern "C" uint64_t vta(
   uint32_t insn_count,
   VTAGenericInsn *insns,
   VTAUop *uops,
@@ -1445,4 +1445,25 @@ int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression
     printf("INFO - Blocked GEMM test failed, got %d errors!\n", err);
     return -1;
   }
+}
+
+extern "C" void packBufferWrap(int SRC_T, void *dst, void **src, int y_size, int x_size, int y_block, int x_block) {
+	if (SRC_T == 0) {
+		// 0 = inp_T
+		packBuffer<uint32_t, 32, inp_T, VTA_INP_WIDTH>((uint32_t *)dst, (inp_T **)src, y_size, x_size, y_block, x_block);
+	} else if (SRC_T == 1) {
+		// 1 = wgt_T
+		packBuffer<uint32_t, 32, wgt_T, VTA_WGT_WIDTH>((uint32_t *)dst, (wgt_T **)src, y_size, x_size, y_block, x_block);
+	} else if (SRC_T == 2) {
+		// 2 = acc_T
+		packBuffer<uint32_t, 32, acc_T, VTA_ACC_WIDTH>((uint32_t *)dst, (acc_T **)src, y_size, x_size, y_block, x_block);
+	}
+}
+
+extern "C" void unpackBufferWrap(out_T **dst, uint32_t *src, int y_size, int x_size, int y_block, int x_block) {
+  unpackBuffer<out_T, VTA_OUT_WIDTH, uint32_t, 32>(dst, src, y_size, x_size, y_block, x_block);
+}
+
+extern "C" out_T** alloc2dArrayWrap(int row, int clmn) {
+  return alloc2dArray<out_T>(row, clmn);
 }

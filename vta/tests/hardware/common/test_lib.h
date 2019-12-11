@@ -66,7 +66,7 @@ uint64_t vta(
 * \param use_imm Boolean that indicates if the operation uses an immediate value.
 * \return The opcode string.
 */
-const char* getOpcodeString(int opcode, bool use_imm);
+extern "C" const char* getOpcodeString(int opcode, bool use_imm);
 
 /*!
 * \brief Performs buffer data packing and tiling.
@@ -148,6 +148,10 @@ T *** alloc3dArray(int rows, int cols, int depth);
 */
 template <typename T>
 void free3dArray(T *** array, int rows, int cols, int depth);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*!
 * \brief Performs memory allocation in a physically contiguous region of memory.
@@ -336,5 +340,8 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
 * \return Number of errors from the test run.
 */
 int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression);
+#ifdef __cplusplus
+} // extern C
+#endif
 
 #endif  //  TESTS_HARDWARE_COMMON_TEST_LIB_H_
