@@ -45,6 +45,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5):
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
+
     rt_mod.run()
     out = tvm.nd.empty(out_shape, ctx=ctx)
     out = rt_mod.get_output(0, out)
@@ -172,8 +173,11 @@ def test_extern_gcc():
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
 
 
-@pytest.mark.skip(reason="Only for DEMO purpose, need to have dnnl for usage")
 def test_extern_dnnl():
+    if not tvm.get_global_func("relay.contrib.dnnl.enable", True):
+        print("skip because DNNL codegen is not available")
+        return
+
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
@@ -216,4 +220,4 @@ if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
     test_extern_gcc()
-    # test_extern_dnnl()
+    test_extern_dnnl()

@@ -17,11 +17,10 @@
 
 message(STATUS "Build with relay.backend.contrib")
 
-file(GLOB GCC_RELAY_CONTRIB_SRC src/relay/backend/contrib/csource/codegen.cc)
-list(APPEND COMPILER_SRCS ${GCC_RELAY_CONTRIB_SRC})
+file(GLOB CSOURCE_RELAY_CONTRIB_SRC src/relay/backend/contrib/csource/codegen.cc)
+list(APPEND COMPILER_SRCS ${CSOURCE_RELAY_CONTRIB_SRC})
 
-list(FIND USE_EXTERN "dnnl" DNNL_IDX)
-if(DNNL_IDX GREATER -1)
+if(USE_DNNL_CODEGEN STREQUAL "ON")
   file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
   list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
 
@@ -29,6 +28,6 @@ if(DNNL_IDX GREATER -1)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
   file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
   list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
-  message(STATUS "Use extern library: MKLDNN" ${EXTERN_LIBRARY_DNNL})
+  message(STATUS "Use DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
 endif()
 

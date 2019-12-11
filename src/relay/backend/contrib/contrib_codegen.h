@@ -156,7 +156,7 @@ class ExternSourcePrinter {
     EnterScope();
     PrintIndents();
     code_stream_ << "printf(\"" << func_name << " expects " << arg_cnt
-                 << "arguments, but received %d\\n\", nargs);\n";
+                 << " arguments, but received %d\\n\", nargs);\n";
     PrintIndents();
     code_stream_ << "return 1;\n";
     ExitScope();

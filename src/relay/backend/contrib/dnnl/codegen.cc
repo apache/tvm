@@ -284,6 +284,11 @@ runtime::Module DNNLCompiler(const NodeRef& ref) {
 TVM_REGISTER_API("relay.ext.dnnl")
 .set_body_typed(DNNLCompiler);
 
+TVM_REGISTER_GLOBAL("relay.contrib.dnnl.enable")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = 1;
+});
+
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
