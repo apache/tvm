@@ -61,4 +61,4 @@ macros:
 	python3 macro_setup.py
 	rm macros.txt
 clean:
-	rm -rf *.o $(EXECUTABLE) *.so *.dat
+	rm -rf *.o $(EXECUTABLE) *.so *.dat *.pyc _macros_h.py
