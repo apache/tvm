@@ -16,7 +16,7 @@ that functionallity to VTA.
 
 **Run Test**
 * run 'sudo make' to create shared library and macros
-* two examples are provided: `alu.py` and `gemm.pyi`
+* two examples are provided: `alu.py` and `gemm.py`
 
 **Some Notes for adding additional functions**
 * to add C++ functions, remember to add the `extern "C"` header to prevent the compiler from modifying the function name
