@@ -19,15 +19,8 @@ from tvm import relay
 from tvm.relay import testing
 
 
-def test_mul_rewrite():
-    data = relay.var("data", shape=(1, 16, 64, 64))
-    conv = relay.nn.conv2d(data, relay.var("weight"),
-                           kernel_size=(3, 3),
-                           padding=(1, 1),
-                           channels=16)
-    act = relay.nn.relu(data=conv)
-    pool = relay.nn.global_avg_pool2d(data=act)
-    f = relay.Function(relay.analysis.free_vars(act), act * pool)
+def quantize_and_build(out):
+    f = relay.Function(relay.analysis.free_vars(out), out)
     mod, params = testing.create_workload(f)
 
     with relay.quantize.qconfig(skip_conv_layers=[]):
@@ -35,6 +28,22 @@ def test_mul_rewrite():
 
     relay.build(qmod, "llvm", params=params)
 
+
+def test_mul_rewrite():
+    """a test case where rhs of mul is not constant"""
+    data = relay.var("data", shape=(1, 16, 64, 64))
+    multiplier = relay.sigmoid(relay.var("data", shape=(1, 16, 1, 1)))
+    conv = relay.nn.conv2d(data, relay.var("weight"),
+                           kernel_size=(3, 3),
+                           padding=(1, 1),
+                           channels=16)
+    act = relay.nn.relu(data=conv)
+
+    quantize_and_build(act * multiplier)
+
+    pool = relay.nn.global_avg_pool2d(data=act)
+
+    quantize_and_build(act * pool)
 
 if __name__ == "__main__":
     test_mul_rewrite()
