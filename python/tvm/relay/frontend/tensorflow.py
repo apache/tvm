@@ -416,7 +416,7 @@ def _expand_dims():
                        extras={'axis': int(axis), 'num_newaxis': 1})(inputs, attr)
     return _impl
 
-def _resize_bilinear():
+def _resize_bilinear(bilinear_op):
     def _impl(inputs, attr, params):
         size = attr['_output_shapes'][0][1:3]
         # Important that the size is defined. If an axis is not, we need to infer what
@@ -429,24 +429,9 @@ def _resize_bilinear():
         attr['layout'] = 'NHWC'
 
         # Ignore the new attributes from TF2.0, for now.
-        return AttrCvt(op_name="resize",
+        return AttrCvt(op_name='resize',
                        ignores=['Tdim', 'half_pixel_centers'],
-                       extras={'method': "bilinear"})(inputs, attr)
-    return _impl
-
-def _resize_nearest_neighbor():
-    def _impl(inputs, attr, params):
-        size = attr['_output_shapes'][0][1:3]
-        if -1 in size:
-            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
-        attr['size'] = size
-        inputs.pop(1)
-        # NHWC
-        attr['layout'] = 'NHWC'
-
-        return AttrCvt(op_name="resize",
-                       ignores=['Tdim'],
-                       extras={'method': "nearest_neighbor"})(inputs, attr)
+                       extras={'method': bilinear_op})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -1503,9 +1488,9 @@ _convert_map = {
     'Relu'                              : AttrCvt('relu'),
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
-    'ResizeBilinear'                    : _resize_bilinear(),
-    'ResizeBicubic'                     : _resize_bilinear(),
-    'ResizeNearestNeighbor'             : _resize_nearest_neighbor(),
+    'ResizeBilinear'                    : _resize_bilinear('bilinear'),
+    'ResizeBicubic'                     : _resize_bilinear('bilinear'),
+    'ResizeNearestNeighbor'             : _resize_bilinear('nearest_neighbor'),
     'ReverseV2'                         : _reverse_v2(),
     'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),
