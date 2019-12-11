@@ -168,7 +168,7 @@ class JSONAttrGetter : public AttrVisitor {
 
   void Visit(const char* key, double* value) final {
     std::ostringstream s;
-    // Type <double> have approximately 16 decimal digits 
+    // Type <double> have approximately 16 decimal digits
     s.precision(16);
     s << (*value);
     node_->attrs[key] = s.str();
