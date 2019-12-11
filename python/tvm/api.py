@@ -257,7 +257,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
-    shape = tuple(_make.AssertLowerBound(size, 0) for size in shape)
+    shape = tuple(assert_bound(size, 0, None) for size in shape)
     dtype = float32 if dtype is None else dtype
     return _api_internal._Placeholder(
         shape, dtype, name)
@@ -297,7 +297,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
-    shape = tuple(_make.AssertLowerBound(size, 0) for size in shape)
+    shape = tuple(assert_bound(size, 0, None) for size in shape)
     ndim = len(shape)
     code = fcompute.__code__
 
@@ -1047,6 +1047,27 @@ def floormod(a, b):
         The result expression.
     """
     return _make._OpFloorMod(a, b)
+
+
+def assert_bound(value, lower=None, upper=None):
+    """Pass bound information of value.
+
+    Parameters
+    ----------
+    value : Expr
+            The input expression.
+    lower : Expr
+            The lower bound of value (inclusive). Default +inf
+    upper : Expr
+            The upper bound of value (inclusive). Default -inf
+
+    Returns
+    -------
+    res : Expr
+        Call node indicates lower and upper bound of input expression.
+        This intrinsic will be removed before codegen.
+    """
+    return _make._OpAssertBound(value, lower, upper)
 
 
 _init_api("tvm.api")

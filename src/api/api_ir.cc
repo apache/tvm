@@ -152,7 +152,6 @@ REGISTER_MAKE(Broadcast);
 REGISTER_MAKE(Shuffle);
 REGISTER_MAKE(Let);
 REGISTER_MAKE(LetStmt);
-REGISTER_MAKE(AssertLowerBound);
 REGISTER_MAKE(AssertStmt);
 REGISTER_MAKE(ProducerConsumer);
 REGISTER_MAKE(Provide);
@@ -194,7 +193,6 @@ TVM_REGISTER_API("make.Allocate")
       }                                                                 \
     })
 
-
 REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
 REGISTER_MAKE_BINARY_OP(_OpSub, operator-);
 REGISTER_MAKE_BINARY_OP(_OpMul, operator*);
@@ -225,6 +223,10 @@ REGISTER_MAKE_BIT_OP(right_shift, operator>>);
 TVM_REGISTER_API("make._OpIfThenElse")
 .set_body_typed<Expr(Expr, Expr, Expr)>([] (Expr cond, Expr true_value, Expr false_value) {
   return if_then_else(cond, true_value, false_value);
+});
+TVM_REGISTER_API("make._OpAssertBound")
+.set_body_typed<Expr(Expr, Expr, Expr)>([] (Expr value, Expr lower, Expr upper) {
+  return assert_bound(value, lower, upper);
 });
 
 }  // namespace ir

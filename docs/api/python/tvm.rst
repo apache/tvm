@@ -45,6 +45,7 @@ The user facing API for computation declaration.
    tvm.min
    tvm.max
    tvm.tag_scope
+   tvm.assert_bound
 
 .. autofunction:: tvm.load_json
 .. autofunction:: tvm.save_json
@@ -70,3 +71,4 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
 .. autofunction:: tvm.tag_scope
+.. autofunction:: tvm.assert_bound

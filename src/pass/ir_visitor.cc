@@ -127,10 +127,6 @@ void IRVisitor::Visit_(const Call *op) {
   VisitArray(op->args, this);
 }
 
-void IRVisitor::Visit_(const AssertLowerBound *op) {
-  this->Visit(op->value);
-}
-
 #define DEFINE_BINOP_VISIT_(OP)                     \
   void IRVisitor::Visit_(const OP* op) {            \
     this->Visit(op->a);                             \
@@ -281,7 +277,6 @@ TVM_STATIC_IR_FUNCTOR(IRVisitor, vtable)
 .DISPATCH_TO_VISIT(Ramp)
 .DISPATCH_TO_VISIT(Shuffle)
 .DISPATCH_TO_VISIT(Broadcast)
-.DISPATCH_TO_VISIT(AssertLowerBound)
 .DISPATCH_TO_VISIT(AssertStmt)
 .DISPATCH_TO_VISIT(ProducerConsumer)
 .DISPATCH_TO_VISIT(Provide)

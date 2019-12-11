@@ -73,6 +73,7 @@ tvm.ir_pass
    tvm.ir_pass.SplitPipeline
    tvm.ir_pass.LowerThreadAllreduce
    tvm.ir_pass.LowerIntrin
+   tvm.ir_pass.RemoveIntrin
    tvm.ir_pass.LowerTVMBuiltin
    tvm.ir_pass.NarrowChannelAccess
 

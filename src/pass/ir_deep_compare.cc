@@ -246,10 +246,6 @@ class IRDeepCompare :
     if (CompareArray(op->source, rhs->source) != 0) return;
   }
 
-  void VisitExpr_(const AssertLowerBound *op, const Expr& other) final {
-    VisitExpr(op->value, other);
-  }
-
   void VisitExpr_(const IntImm *op, const Expr& other) final {
     CompareValue(op->value, other.as<IntImm>()->value);
   }

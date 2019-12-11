@@ -583,6 +583,16 @@ TVM_DLL Expr nearbyint(Expr x);
  */
 TVM_DLL Expr trunc(Expr x);
 
+/*!
+ * \brief Pass bound information of value.
+ * \param value The input expression.
+ * \param lower The lower bound of value (inclusive).
+ * \param upper The upper bound of value (inclusive).
+ * \return The Call node indicates lower and upper bound of input expression.
+ *         This intrinsic will be removed before codegen.
+ */
+TVM_DLL Expr assert_bound(Expr value, Expr lower, Expr upper);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \

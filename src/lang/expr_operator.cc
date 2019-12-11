@@ -23,6 +23,7 @@
 #include <tvm/base.h>
 #include <tvm/ir.h>
 #include <tvm/expr_operator.h>
+#include <tvm/arithmetic.h>
 #include <cmath>
 // Centralized header for constant folders.
 #include "../arithmetic/const_fold.h"
@@ -565,6 +566,19 @@ Expr trunc(Expr x) {
                                      std::floor(fx->value)));
   }
   return ir::Call::make(x.type(), "trunc", {x}, ir::Call::PureIntrinsic);
+}
+
+Expr assert_bound(Expr value, Expr lower, Expr upper) {
+  if (is_const(value) || value.as<ir::FloatImm>()) {
+    return value;
+  }
+  Expr lb = lower.defined() ? lower : IntImm::make(Int(64), arith::ConstIntBound::kNegInf);
+  Expr ub = upper.defined() ? upper : IntImm::make(Int(64), arith::ConstIntBound::kPosInf);
+  return ir::Call::make(
+      value.type(),
+      ir::intrinsic::tvm_assert_bound,
+      {value, lb, ub},
+      ir::Call::PureIntrinsic);
 }
 
 }  // namespace tvm

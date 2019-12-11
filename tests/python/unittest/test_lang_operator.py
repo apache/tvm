@@ -187,6 +187,18 @@ def test_if_then_else():
             raise ValueError('Unknown combinations')
 
 
+def test_assert_bound():
+    for dtype in ["int32", "int64"]:
+        var = tvm.var("var", dtype=dtype)
+        out = tvm.assert_bound(var, lower=0)
+        out = tvm.ir_pass._LowerIntrinStmt(
+            tvm.stmt.Evaluate(
+                tvm.floordiv(out, tvm.const(127, dtype))
+            ), "c")
+        out = tvm.ir_pass._RemoveIntrinStmt(out)
+        assert tvm.ir_pass.Equal(out, tvm.stmt.Evaluate(tvm.truncdiv(var, 127)))
+
+
 if __name__ == "__main__":
     test_const_fold()
     test_const_fold2()
@@ -194,3 +206,4 @@ if __name__ == "__main__":
     test_const_fold4()
     test_binary_dtype_match()
     test_if_then_else()
+    test_assert_bound()

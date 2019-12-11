@@ -277,14 +277,14 @@ class ConstIntBoundAnalyzer::Impl :
       return VisitRightShift(op);
     } else if (op->is_intrinsic(Call::bitwise_and)) {
       return VisitBitwiseAnd(op);
+    } else if (op->is_intrinsic(intrinsic::tvm_assert_bound)) {
+      Expr value = op->args[0];
+      Entry lower = VisitExpr(op->args[1]);
+      Entry upper = VisitExpr(op->args[2]);
+      return MakeBound(lower.min_value, upper.max_value);
     } else {
       return Everything(op->type);
     }
-  }
-
-  Entry VisitExpr_(const AssertLowerBound* op) final {
-    Entry bound = VisitExpr(op->bound);
-    return MakeBound(bound.max_value, kPosInf);
   }
 
   Entry VisitExpr_(const Variable* op) final {

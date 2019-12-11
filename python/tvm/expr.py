@@ -860,20 +860,3 @@ class Let(Expr):
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
             _make.Let, var, value, body)
-
-
-@register_node
-class AssertLowerBound(Expr):
-    """AssertLowerBound node.
-
-    Parameters
-    ----------
-    value : Expr
-        The value in to be asserted.
-
-    bound : Expr
-        The lower bound of the value.
-    """
-    def __init__(self, value, bound):
-        self.__init_handle_by_constructor__(
-            _make.AssertLowerBound, value, bound)

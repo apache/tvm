@@ -545,6 +545,13 @@ LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc func);
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 
 /*!
+ * \brief Remove intrinsic function calls if possible.
+ * \param f The function to be processed.
+ * \return Transformed function.
+ */
+LoweredFunc RemoveIntrin(LoweredFunc f);
+
+/*!
  * \brief Lower custom datatypes.
  *
  * See tvm::datatypes::Registry for more information on adding custom datatypes.

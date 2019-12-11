@@ -49,8 +49,10 @@ void BinderAddAssert(Expr cond,
 const Expr GetVariable(const Expr& expr) {
   if (expr.as<Variable>()) {
     return expr;
-  } else if (const auto* v = expr.as<AssertLowerBound>()) {
-    return GetVariable(v->value);
+  } else if (const auto* call = expr.as<Call>()) {
+    if (call->is_intrinsic(intrinsic::tvm_assert_bound)) {
+      return GetVariable(call->args[0]);
+    }
   }
   return Expr();
 }

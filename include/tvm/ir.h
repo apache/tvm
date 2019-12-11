@@ -469,22 +469,6 @@ class Let : public ExprNode {
   TVM_DECLARE_NODE_TYPE_INFO(Let, ExprNode);
 };
 
-class AssertLowerBound : public ExprNode {
- public:
-  Expr value;
-  Expr bound;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("bound", &bound);
-  }
-
-  TVM_DLL static Expr make(Expr value, Expr bound);
-
-  static constexpr const char* _type_key = "AssertLowerBound";
-  TVM_DECLARE_NODE_TYPE_INFO(AssertLowerBound, ExprNode);
-};
-
 // Call node, represent a function call or a multi-dimensional array load.
 //
 // TODO(tvm-team):
@@ -1628,6 +1612,16 @@ constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
  *  }
  */
 constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
+
+/*!
+ * \brief tvm intrinsic for passing bound information of the variables.
+ *        It simply represents the value, while it helps BoundAnalyzer
+ *        understand the upper and lower bound of the value.
+ *   Expr tvm_assert_bound(Expr value, Expr lower_bound, Expr upper_bound) {
+ *     return value;
+ *   }
+ */
+constexpr const char* tvm_assert_bound = "tvm_assert_bound";
 
 }   // namespace intrinsic
 
