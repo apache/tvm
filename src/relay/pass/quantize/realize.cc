@@ -499,6 +499,9 @@ Expr AvgPoolRealize(const Call& ref_call,
 RELAY_REGISTER_OP("nn.avg_pool2d")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", AvgPoolRealize);
 
+RELAY_REGISTER_OP("nn.global_avg_pool2d")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", AvgPoolRealize);
+
 Expr CastHintRealize(const Call& ref_call,
                      const Array<Expr>& new_args,
                      const NodeRef& ctx) {
