@@ -408,7 +408,16 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.sigmoid(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
         return out
 
     def convert_softmax(self, op):
