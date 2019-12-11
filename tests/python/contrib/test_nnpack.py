@@ -17,6 +17,7 @@
 import tvm
 import numpy as np
 import scipy.signal
+from topi.nn.util import get_pad_tuple
 from tvm.contrib import nnpack
 import pytest
 
@@ -59,17 +60,9 @@ def np_conv(na, nw, padding, stride=1):
     else:
         stride_h, stride_w = stride
 
-    if isinstance(padding, int):
-        pad_h = pad_w = padding * 2
-    else:
-        pad_h, pad_w = padding
-        pad_h *= 2
-        pad_w *= 2
-
-    pad_top = int(np.ceil(float(pad_h) / 2))
-    pad_bottom = pad_h - pad_top
-    pad_left = int(np.ceil(float(pad_w) / 2))
-    pad_right = pad_w - pad_left
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
+    pad_h = pad_top + pad_bottom
+    pad_w = pad_left + pad_right
 
     out_channel = num_filter
     out_height = (in_height - kernel_h + pad_h) // stride_h + 1

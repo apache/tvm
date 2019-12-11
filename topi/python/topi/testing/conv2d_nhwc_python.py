@@ -18,6 +18,7 @@
 """Convolution in python"""
 import numpy as np
 import scipy.signal
+from topi.nn.util import get_pad_tuple
 
 
 def conv2d_nhwc_python(a_np, w_np, stride, padding):
@@ -34,8 +35,10 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or str or a list/tuple of 2 or 4 ints
+        Padding size, or ['VALID', 'SAME'], or 
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
 
     Returns
     -------
@@ -48,18 +51,11 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
-    if isinstance(padding, int):
-        pad_h = pad_w = padding * 2
-    elif padding == 'VALID':
-        pad_h = 0
-        pad_w = 0
-    else: # 'SAME'
-        pad_h = kernel_h - 1
-        pad_w = kernel_w - 1
-    pad_top = int(np.ceil(float(pad_h) / 2))
-    pad_bottom = pad_h - pad_top
-    pad_left = int(np.ceil(float(pad_w) / 2))
-    pad_right = pad_w - pad_left
+
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
+    pad_h = pad_top + pad_bottom
+    pad_w = pad_left + pad_right
+
     # compute the output shape
     out_channel = num_filter
     out_height = (in_height - kernel_h + pad_h) // stride_h + 1

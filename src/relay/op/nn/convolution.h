@@ -117,15 +117,17 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   if (!dshape_nchw[2].as<ir::Any>()) {
-    oshape.Set(2, indexdiv(dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y,
+    oshape.Set(2, indexdiv(dshape_nchw[2] + pad_h - dilated_ksize_y,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
 
   if (!dshape_nchw[3].as<ir::Any>()) {
-    oshape.Set(3, indexdiv(dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x,
+    oshape.Set(3, indexdiv(dshape_nchw[3] + pad_w - dilated_ksize_x,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
