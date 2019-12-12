@@ -42,3 +42,12 @@ header_parse('../../../include/vta/hw_spec.h', macros)
 header_parse('../../../src/pynq/pynq_driver.h', macros)
 
 macro_gen(macros)
+# definitions with line breaks
+with open('_macros_h.py', 'a') as outfile:
+    outfile.write('VTA_LOG_WGT_BUFF_DEPTH = \\\n')
+    outfile.write('\t(VTA_LOG_WGT_BUFF_SIZE - VTA_LOG_BLOCK_OUT - VTA_LOG_BLOCK_IN - VTA_LOG_WGT_WIDTH + 3)\n')
+    outfile.write('VTA_LOG_INP_BUFF_DEPTH = \\\n')
+    outfile.write('\t(VTA_LOG_INP_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_IN - VTA_LOG_INP_WIDTH + 3)\n')
+    outfile.write('VTA_LOG_ACC_BUFF_DEPTH = \\\n')
+    outfile.write('\t(VTA_LOG_ACC_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_OUT - VTA_LOG_ACC_WIDTH + 3)\n')
+

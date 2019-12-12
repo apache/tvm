@@ -21,12 +21,26 @@ from insn_lib import *
 import numpy as np
 
 # dictionary that maps actions to their corresponding value
-ACTIONS = {"1DLOAD":VTA_OPCODE_LOAD, "2DLOAD":VTA_OPCODE_LOAD, "ALU":None, "GEMM":None, 
- "1DSTORE":VTA_OPCODE_STORE, "2DSTORE":VTA_OPCODE_STORE, "FINISH":None}
+ACTIONS = {"1DLOAD":VTA_OPCODE_LOAD, 
+           "2DLOAD":VTA_OPCODE_LOAD, 
+           "ALU":None, 
+           "GEMM":None, 
+           "1DSTORE":VTA_OPCODE_STORE, 
+           "2DSTORE":VTA_OPCODE_STORE, 
+           "FINISH":None}
+
 # dictionary that maps items to their corresponding ID
-ITEMS = {"UOP":VTA_MEM_ID_UOP, "INP":VTA_MEM_ID_INP, "WGT":VTA_MEM_ID_WGT, "ACC":VTA_MEM_ID_ACC, "OUT":VTA_MEM_ID_OUT,
+ITEMS = {"UOP":VTA_MEM_ID_UOP, 
+         "INP":VTA_MEM_ID_INP, 
+         "WGT":VTA_MEM_ID_WGT, 
+         "ACC":VTA_MEM_ID_ACC, 
+         "OUT":VTA_MEM_ID_OUT,
 # alu opcodes to their corresponding value
-"MIN":VTA_ALU_OPCODE_MIN, "MAX":VTA_ALU_OPCODE_MAX, "ADD":VTA_ALU_OPCODE_ADD, "SHR":VTA_ALU_OPCODE_SHR, "EMPTY":None}
+         "MIN":VTA_ALU_OPCODE_MIN, 
+         "MAX":VTA_ALU_OPCODE_MAX, 
+         "ADD":VTA_ALU_OPCODE_ADD, 
+         "SHR":VTA_ALU_OPCODE_SHR, 
+         "EMPTY":None}
 
 class InsnStream:
 
@@ -255,24 +269,3 @@ class Device:
 		print("Time is {:.4} ms".format(time))
 		print("Throughput is {:.4} Gops/s \n".format(gops))
 		return (time, gops)
-
-
-
-
-
-
-# use_imm = True
-# input_sets = 1 if use_imm else 2
-# tx_size = 128 // VTA_BLOCK_OUT
-# istream.add("2DLOAD", "ACC", sram=0, dram=(int)(0 / VTA_BATCH * tx_size * input_sets), 
-# 	y_size=1, x_size=(int) (tx_size * input_sets), x_stride=(int) (tx_size * input_sets), y_pad=0, x_pad=0)
-
-# istream.add("ALU", "SHR", use_imm=use_imm, imm_val=-1, vec_len=tx_size)
-
-# istream.add("2DSTORE", "OUT", sram=0, dram=(int)(0 / VTA_BATCH * tx_size), 
-# 	y_size=1, x_size=tx_size, x_stride=tx_size, y_pad=0, x_pad=0)
-
-# istream.add("FINISH")
-# dev = Device(batch, in_channels, out_channels, istream, uop_compression=True)
-# dev.print_insn()
-# dev.print_uop()

@@ -105,15 +105,18 @@ extern "C" {
 // ! \brief On-chip weight buffer depth
 #define VTA_WGT_BUFF_DEPTH (VTA_WGT_BUFF_SIZE / VTA_WGT_ELEM_BYTES)
 /*! log2 of weight micro-op buffer depth */
-#define VTA_LOG_WGT_BUFF_DEPTH (VTA_LOG_WGT_BUFF_SIZE - VTA_LOG_BLOCK_OUT - VTA_LOG_BLOCK_IN - VTA_LOG_WGT_WIDTH + 3)
+#define VTA_LOG_WGT_BUFF_DEPTH \
+	(VTA_LOG_WGT_BUFF_SIZE - VTA_LOG_BLOCK_OUT - VTA_LOG_BLOCK_IN - VTA_LOG_WGT_WIDTH + 3)
 /*! On-chip activation buffer depth */
 #define VTA_INP_BUFF_DEPTH (VTA_INP_BUFF_SIZE / VTA_INP_ELEM_BYTES)
 /*! log2 of activation micro-op buffer depth */
-#define VTA_LOG_INP_BUFF_DEPTH (VTA_LOG_INP_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_IN - VTA_LOG_INP_WIDTH + 3)
+#define VTA_LOG_INP_BUFF_DEPTH \
+	(VTA_LOG_INP_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_IN - VTA_LOG_INP_WIDTH + 3)
 /*! On-chip accumulator buffer depth */
 #define VTA_ACC_BUFF_DEPTH (VTA_ACC_BUFF_SIZE / VTA_ACC_ELEM_BYTES)
 /*! log2 of on-chip accumulator buffer depth */
-#define VTA_LOG_ACC_BUFF_DEPTH (VTA_LOG_ACC_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_OUT - VTA_LOG_ACC_WIDTH + 3)
+#define VTA_LOG_ACC_BUFF_DEPTH \
+	(VTA_LOG_ACC_BUFF_SIZE - VTA_LOG_BATCH - VTA_LOG_BLOCK_OUT - VTA_LOG_ACC_WIDTH + 3)
 
 /*! Instruction opcode field bitwidth */
 #define VTA_OPCODE_BIT_WIDTH 3
