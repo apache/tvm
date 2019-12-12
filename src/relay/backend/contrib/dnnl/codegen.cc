@@ -229,13 +229,13 @@ class DNNLCodegen : public ExternCodegenBase {
    * to compile the generated C source code, users need to specify the paths to
    * some libraries, including some TVM required and dnnl specific ones. To make
    * linking simpiler, the DNNL kernels are wrapped in a TVM compatible manner
-   * and are live under include/tvm/runtime/contrib/dnnl folder.
+   * and live under tvm/src/runtime/contrib/dnnl folder.
    *
    * \param ref A object ref that could be either a Relay function or module.
    *
    * \return The runtime module that contains C source code.
    */
-  runtime::Module CreateExternModule(const NodeRef& ref) {
+  runtime::Module CreateExternModule(const NodeRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";

@@ -177,7 +177,7 @@ def test_extern_dnnl():
     if not tvm.get_global_func("relay.contrib.dnnl.enable", True):
         print("skip because DNNL codegen is not available")
         return
-
+   
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
