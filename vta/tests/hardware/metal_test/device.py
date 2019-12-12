@@ -50,12 +50,12 @@ class InsnStream:
 	"""
 	Add a instruction to the instruction stream
 		Args:
-		action: Instruction type (ignores case)
-		item: Item or ALU opcode for ALU actions (ignores case)
-		others: micro-ops for different instructions
+			action: Instruction type (ignores case)
+			item: Item or ALU opcode for ALU actions (ignores case)
+			others: micro-ops for different instructions
 
 		Raises:	
-		ValueError: If action or item is invalid
+			ValueError: If action or item is invalid
 	"""
 	def add(self, action, item="EMPTY", sram=0, dram=0, use_imm=False, imm_val=0, 
 	 y_size=1, x_size=0, x_stride=0, x_pad=0, y_pad=0, vec_len=0):
@@ -87,8 +87,10 @@ class Device:
 		# get every computing stage and set uop_size buffer accordingly
 		self.uop_size_buf = []
 		self.action_buf = []
+		# loop through instruction
 		for i in range(self.ins_size):
 			insn = self.insn_stream.insn_buf[i]
+			# if instruction is GEMM or ALU, save to action buffer and uop size for that instruction to uop size buffer
 			if insn[0] == "GEMM" or insn[0] == "ALU":
 				if insn[0] == "GEMM":
 					uop_size = (int) (batch / VTA_BATCH) if uop_compression else \
@@ -157,6 +159,7 @@ class Device:
 			push_next = 1 if (ps == "load" and ns == "compute") else 0
 
 			# make sure dependancies, ACC don't need push_next dependencies
+			# generate instructions based on different instructions in the buffer and add them into instruction buffer
 			if action == "1DLOAD":
 				self.insn_buf[index] = get_1Dloadstore_insn(ACTIONS.get(action), ITEMS.get(item), sram, dram, size, 
 				 0, pop_next, 0, push_next)
@@ -169,7 +172,7 @@ class Device:
 				self.insn_buf[index] = get_gemm_insn(0, (int) (self.batch / VTA_BATCH), (int) (self.in_channels / VTA_BLOCK_IN),
 				 (int) (self.out_channels / VTA_BLOCK_OUT), self.uop_compression, 1, 0, 0, 1)
 				cmp_ind += 1
-
+			# ALU opcodes are viewed as items
 			elif action == "ALU":
 				self.insn_buf[index] = get_alu_insn(ITEMS.get(item), vec_len, use_imm, imm_val, self.uop_compression, 
 				 0, 0, 0, 1)
