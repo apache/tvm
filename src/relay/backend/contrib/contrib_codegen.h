@@ -212,7 +212,7 @@ class ExternSourcePrinter {
   }
 
   /*!
-   * \briefa A common interface that that used by various external runtime to
+   * \brief A common interface that is used by various external runtime to
    * generate the wrapper to invoke external kernels.
    *
    * \param subgraph_id The unique id of an external function. It will be used
