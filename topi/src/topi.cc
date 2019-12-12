@@ -66,6 +66,10 @@
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
+#include <topi/rocm/injective.h>
+#include <topi/rocm/pooling.h>
+#include <topi/rocm/reduction.h>
+#include <topi/rocm/softmax.h>
 #include <topi/rocm/normalization.h>
 
 namespace topi {
@@ -531,6 +535,13 @@ TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
                           args[3]);
 });
 
+TVM_REGISTER_GLOBAL("topi.nn.pool3d")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::pool3d(args[0], args[1], args[2], args[3],
+                   static_cast<nn::PoolType>(static_cast<int>(args[4])),
+                   args[5], args[6], args[7]);
+  });
+
 /* Ops from nn/softmax.h */
 TVM_REGISTER_GLOBAL("topi.nn.softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -595,7 +606,7 @@ TVM_REGISTER_GLOBAL("topi.generic.schedule_injective")
 TVM_REGISTER_GLOBAL("topi.generic.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::generic::schedule_injective_from_existing(args[0], args[1]);
- });
+  });
 
 /* x86 schedules */
 TVM_REGISTER_GLOBAL("topi.x86.schedule_binarize_pack")
@@ -625,7 +636,7 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::x86::schedule_injective_from_existing(args[0], args[1]);
- });
+  });
 
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
@@ -636,6 +647,36 @@ TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::rocm::schedule_dense(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_injective")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_injective(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_injective_from_existing(args[0], args[1]);
+ });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_pool")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_pool(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_global_pool")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_global_pool(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_reduce")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_reduce(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_softmax")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_softmax(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
@@ -667,7 +708,7 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective_from_existing")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_injective_from_existing(args[0], args[1]);
- });
+  });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -790,7 +831,8 @@ inline PackedFunc WrapScheduleFromExisting(FTVMScheduleFromExistingBuilder build
 TVM_REGISTER_GENERIC_FUNC(schedule_injective_from_existing)
 .set_default(WrapScheduleFromExisting(topi::generic::schedule_injective_from_existing))
 .register_func({ "cpu" }, WrapScheduleFromExisting(topi::x86::schedule_injective_from_existing))
-.register_func({ "cuda", "gpu" }, WrapScheduleFromExisting(topi::cuda::schedule_injective_from_existing));
+.register_func({ "cuda", "gpu" }, WrapScheduleFromExisting(
+  topi::cuda::schedule_injective_from_existing));
 
 /*! \brief Builder function for instantiating dense ops. */
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
