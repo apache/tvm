@@ -327,29 +327,44 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   }
 }
 
-inline bool find_height_width(const std::string& layout,
-                              int* height_axis,
-                              int* width_axis) {
-  *height_axis = -1, *width_axis = -1;
+inline bool find_depth_height_width(const std::string& layout,
+                                    int* depth_axis,
+                                    int* height_axis,
+                                    int* width_axis) {
+  *depth_axis = -1, *height_axis = -1, *width_axis = -1;
   int curr_idx = 0;
   for (size_t i = 0; i < layout.size(); ++i) {
     if ((layout[i] >= 'A' && layout[i] <= 'Z') ||
         (layout[i] >= 'a' && layout[i] <= 'z')) {
-      if (layout[i] == 'H') {
+      if (layout[i] == 'D') {
+        if (*depth_axis != -1) return false;
+        *depth_axis = curr_idx;
+      } else if (layout[i] == 'H') {
         if (*height_axis != -1) return false;
         *height_axis = curr_idx;
       } else if (layout[i] == 'W') {
         if (*width_axis != -1) return false;
         *width_axis = curr_idx;
-      } else if (layout[i] == 'h' || layout[i] == 'w') {
+      } else if (layout[i] == 'd' || layout[i] == 'h' || layout[i] == 'w') {
         // do not support split on height or width, e.g., NCHW16w
         return false;
       }
       ++curr_idx;
     }
   }
-  if (*height_axis == -1 || *width_axis == -1) return false;
+  if (*depth_axis == -1 || *height_axis == -1 || *width_axis == -1) return false;
   return true;
+}
+
+inline bool find_height_width(const std::string& layout,
+                              int* height_axis,
+                              int* width_axis) {
+  int dummy;
+  CHECK_EQ(find_depth_height_width(layout, &dummy, height_axis, width_axis),  false);
+  if (*height_axis != -1 && *width_axis != -1) {
+    return true;
+  }
+  return false;
 }
 
 /*!
@@ -721,35 +736,6 @@ inline Tensor pool_impl_nd(const Tensor& x,
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
   }
-}
-
-inline bool find_depth_height_width(const std::string& layout,
-                                    int* depth_axis,
-                                    int* height_axis,
-                                    int* width_axis) {
-  *depth_axis = -1, *height_axis = -1, *width_axis = -1;
-  int curr_idx = 0;
-  for (size_t i = 0; i < layout.size(); ++i) {
-    if ((layout[i] >= 'A' && layout[i] <= 'Z') ||
-        (layout[i] >= 'a' && layout[i] <= 'z')) {
-      if (layout[i] == 'D') {
-        if (*depth_axis != -1) return false;
-        *depth_axis = curr_idx;
-      } else if (layout[i] == 'H') {
-        if (*height_axis != -1) return false;
-        *height_axis = curr_idx;
-      } else if (layout[i] == 'W') {
-        if (*width_axis != -1) return false;
-        *width_axis = curr_idx;
-      } else if (layout[i] == 'd' || layout[i] == 'h' || layout[i] == 'w') {
-        // do not support split on height or width, e.g., NCHW16w
-        return false;
-      }
-      ++curr_idx;
-    }
-  }
-  if (*depth_axis == -1 || *height_axis == -1 || *width_axis == -1) return false;
-  return true;
 }
 
 /*!

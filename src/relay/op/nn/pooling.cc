@@ -55,6 +55,44 @@ Array<Array<Layout> > PoolInferCorrectLayout(
   return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
 }
 
+template <typename T>
+Expr MakeMaxPool(Expr data,
+                 Array<IndexExpr> pool_size,
+                 Array<IndexExpr> strides,
+                 Array<IndexExpr> padding,
+                 std::string layout,
+                 bool ceil_mode,
+                 std::string op_name) {
+  auto attrs = make_node<T>();
+  attrs->pool_size = std::move(pool_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->layout = std::move(layout);
+  attrs->ceil_mode = ceil_mode;
+  static const Op& op = Op::Get(op_name);
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+template <typename T>
+Expr MakeAvgPool(Expr data,
+                 Array<IndexExpr> pool_size,
+                 Array<IndexExpr> strides,
+                 Array<IndexExpr> padding,
+                 std::string layout,
+                 bool ceil_mode,
+                 bool count_include_pad,
+                 std::string op_name) {
+  auto attrs = make_node<T>();
+  attrs->pool_size = std::move(pool_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->layout = std::move(layout);
+  attrs->ceil_mode = ceil_mode;
+  attrs->count_include_pad = count_include_pad;
+  static const Op& op = Op::Get(op_name);
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types,
                int num_inputs,
@@ -127,23 +165,6 @@ bool Pool2DRel(const Array<Type>& types,
   return true;
 }
 
-// MaxPool2D
-Expr MakeMaxPool2D(Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode) {
-  auto attrs = make_node<MaxPool2DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  static const Op& op = Op::Get("nn.max_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
-
 template<typename AttrType, topi::nn::PoolType mode>
 Array<Tensor> Pool2DCompute(const Attrs& attrs,
                             const Array<Tensor>& inputs,
@@ -193,7 +214,16 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.max_pool2d")
-.set_body_typed(MakeMaxPool2D);
+.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
+  std::string, bool)>([](Expr data,
+                         Array<IndexExpr> pool_size,
+                         Array<IndexExpr> strides,
+                         Array<IndexExpr> padding,
+                         std::string layout,
+                         bool ceil_mode) {
+  return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+    "nn.max_pool2d");
+});
 
 
 RELAY_REGISTER_OP("nn.max_pool2d")
@@ -227,28 +257,18 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 
 
 // AvgPool2D
-Expr MakeAvgPool2D(Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode,
-                   bool count_include_pad) {
-  auto attrs = make_node<AvgPool2DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  attrs->count_include_pad = count_include_pad;
-  static const Op& op = Op::Get("nn.avg_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_API("relay.op.nn._make.avg_pool2d")
-.set_body_typed(MakeAvgPool2D);
-
+.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
+  std::string, bool, bool)>([](Expr data,
+                               Array<IndexExpr> pool_size,
+                               Array<IndexExpr> strides,
+                               Array<IndexExpr> padding,
+                               std::string layout,
+                               bool ceil_mode,
+                               bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+    count_include_pad, "nn.avg_pool2d");
+});
 
 RELAY_REGISTER_OP("nn.avg_pool2d")
 .describe(R"code(
@@ -795,22 +815,6 @@ bool Pool3DRel(const Array<Type>& types,
   return true;
 }
 
-// MaxPool3D
-Expr MakeMaxPool3D(Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode) {
-  auto attrs = make_node<MaxPool3DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  static const Op& op = Op::Get("nn.max_pool3d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<Tensor> Pool3DCompute(const Attrs& attrs,
@@ -864,8 +868,16 @@ Array<Tensor> Pool3DCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.max_pool3d")
-.set_body_typed(MakeMaxPool3D);
-
+.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
+  std::string, bool)>([](Expr data,
+                         Array<IndexExpr> pool_size,
+                         Array<IndexExpr> strides,
+                         Array<IndexExpr> padding,
+                         std::string layout,
+                         bool ceil_mode) {
+  return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+    "nn.max_pool3d");
+});
 
 RELAY_REGISTER_OP("nn.max_pool3d")
 .describe(R"code(Max pooling operation for three dimensional data.
@@ -899,28 +911,18 @@ RELAY_REGISTER_OP("nn.max_pool3d")
 
 
 // AvgPool3D
-Expr MakeAvgPool3D(Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode,
-                   bool count_include_pad) {
-  auto attrs = make_node<AvgPool3DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  attrs->count_include_pad = count_include_pad;
-  static const Op& op = Op::Get("nn.avg_pool3d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_API("relay.op.nn._make.avg_pool3d")
-.set_body_typed(MakeAvgPool3D);
-
+.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
+  std::string, bool, bool)>([](Expr data,
+                               Array<IndexExpr> pool_size,
+                               Array<IndexExpr> strides,
+                               Array<IndexExpr> padding,
+                               std::string layout,
+                               bool ceil_mode,
+                               bool count_include_pad) {
+  return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+    count_include_pad, "nn.avg_pool3d");
+});
 
 RELAY_REGISTER_OP("nn.avg_pool3d")
 .describe(R"code(
