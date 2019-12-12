@@ -26,15 +26,16 @@ def main():
 	istream = InsnStream()
 	tx_size = vec_size // VTA_BLOCK_OUT
 
-	# create instructions
+	# create instructions in the order of load, compute(ALU), store for each row of vector
 	istream.add("1DLOAD", "UOP")
 	for b in range(0, batch, VTA_BATCH):
+		# we are using Immediates
 		use_imm = True
 		input_sets = 1 if use_imm else 2
 
 		istream.add("2DLOAD", "ACC", sram=0, dram=(int)(b / VTA_BATCH * tx_size * input_sets), 
 		y_size=1, x_size=(int) (tx_size * input_sets), x_stride=(int) (tx_size * input_sets), y_pad=0, x_pad=0)
-
+		# Shift right by -1 = Shift Left by 1
 		istream.add("ALU", "SHR", use_imm=use_imm, imm_val=-1, vec_len=tx_size)
 
 		istream.add("2DSTORE", "OUT", sram=0, dram=(int)(b / VTA_BATCH * tx_size), 
