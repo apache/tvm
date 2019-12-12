@@ -189,7 +189,7 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (0, 2))
     verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "VALID")
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, "VALID")
-    # Currnt not working 
+    # Currnt not working
     #verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "SAME")
 
 if __name__ == "__main__":

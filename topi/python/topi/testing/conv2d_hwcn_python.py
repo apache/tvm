@@ -36,7 +36,7 @@ def conv2d_hwcn_python(a_np, w_np, stride, padding):
         Stride size, or [stride_height, stride_width]
 
     padding : int or str or a list/tuple of 2 or 4 ints
-        Padding size, or ['VALID', 'SAME'], or 
+        Padding size, or ['VALID', 'SAME'], or
         [pad_height, pad_width] for 2 ints, or
         [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
 

@@ -40,7 +40,7 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
         Stride size, or [stride_height, stride_width]
 
     padding : int or str or a list/tuple of 2 or 4 ints
-        Padding size, or ['VALID', 'SAME'], or 
+        Padding size, or ['VALID', 'SAME'], or
         [pad_height, pad_width] for 2 ints, or
         [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
 
@@ -70,9 +70,7 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
     else:
         stride_h, stride_w = stride
 
-    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
-    pad_h = pad_top + pad_bottom
-    pad_w = pad_left + pad_right
+    pad_top, pad_left, _, _ = get_pad_tuple(padding, (kernel_h, kernel_w))
 
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
