@@ -50,7 +50,7 @@ class UIntImm : public ExprNode {
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, uint64_t value);
+  TVM_DLL static Expr make(DataType t, uint64_t value);
 
   static constexpr const char* _type_key = "UIntImm";
   TVM_DECLARE_NODE_TYPE_INFO(UIntImm, ExprNode);
@@ -67,7 +67,7 @@ class FloatImm : public ExprNode {
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, double value);
+  TVM_DLL static Expr make(DataType t, double value);
 
   static constexpr const char* _type_key = "FloatImm";
   TVM_DECLARE_NODE_TYPE_INFO(FloatImm, ExprNode);
@@ -104,7 +104,7 @@ class Cast : public ExprNode {
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, Expr v);
+  TVM_DLL static Expr make(DataType t, Expr v);
 
   static constexpr const char* _type_key = "Cast";
   TVM_DECLARE_NODE_TYPE_INFO(Cast, ExprNode);
@@ -387,7 +387,7 @@ class Load : public ExprNode {
     v->Visit("predicate", &predicate);
   }
 
-  TVM_DLL static Expr make(Type type, Var buffer_var, Expr index, Expr predicate);
+  TVM_DLL static Expr make(DataType type, Var buffer_var, Expr index, Expr predicate);
 
   static constexpr const char* _type_key = "Load";
   TVM_DECLARE_NODE_TYPE_INFO(Load, ExprNode);
@@ -531,7 +531,7 @@ class Call : public ExprNode {
     v->Visit("value_index", &value_index);
   }
 
-  TVM_DLL static Expr make(Type type,
+  TVM_DLL static Expr make(DataType type,
                            std::string name,
                            Array<Expr> args,
                            CallType call_type,
