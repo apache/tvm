@@ -66,6 +66,10 @@
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
+#include <topi/rocm/injective.h>
+#include <topi/rocm/pooling.h>
+#include <topi/rocm/reduction.h>
+#include <topi/rocm/softmax.h>
 #include <topi/rocm/normalization.h>
 
 namespace topi {
@@ -636,6 +640,36 @@ TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::rocm::schedule_dense(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_injective")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_injective(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_injective_from_existing")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_injective_from_existing(args[0], args[1]);
+ });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_pool")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_pool(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_global_pool")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_global_pool(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_reduce")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_reduce(args[0], args[1]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.rocm.schedule_softmax")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::rocm::schedule_softmax(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
