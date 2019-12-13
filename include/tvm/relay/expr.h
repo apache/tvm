@@ -270,7 +270,7 @@ class FunctionNode : public ExprNode {
 
   /*!
    * \brief Check whether the function is an external function.
-   * External functions are subgraphes that supported by external libraries.
+   * External functions are supported by external libraries.
    *
    * \return Whether the function is external or not.
    */
