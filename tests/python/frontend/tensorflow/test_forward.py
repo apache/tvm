@@ -28,7 +28,6 @@ from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
@@ -1438,8 +1437,8 @@ def _test_resize_bilinear_from_tensor(in_shape, align_corners):
 
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(
-            shape=[in_shape[0], in_shape[1], None, None], dtype=data.dtype)
-        to_shape = tf.shape(in_data)[2:]
+            shape=[in_shape[0], None, None, in_shape[3]], dtype=data.dtype)
+        to_shape = tf.shape(in_data)[1:3]
         tf.image.resize_bilinear(
             in_data, to_shape, align_corners=align_corners)
 
@@ -1462,14 +1461,29 @@ def _test_resize_nearest_neighbor(in_shape, to_shape):
         compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
 
 
+def _test_resize_nearest_neighbor_dynamic_shape(in_shape, scale):
+    """ One iteration of resize nearest neighbor for graph with dynamic input shape """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=None, dtype=data.dtype)
+        # multiply input shape by scale factor
+        new_shape = tf.shape(in_data)[1:3] * tf.constant(scale, dtype=tf.int32)
+        tf.image.resize_nearest_neighbor(
+            in_data, new_shape, name='resize_nearest_neighbor')
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
+
+
 def test_forward_resize():
     """ Resize Bilinear, Nearest_Neighbor """
-
-    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
-    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
-    _test_resize_bilinear_from_tensor((4, 16, 32, 32), False)
-    _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
-    _test_resize_nearest_neighbor((6, 32, 64, 64), [20, 20])
+    # TF default layout is NHWC
+    _test_resize_bilinear((4, 32, 32, 3), [50, 50], False)
+    _test_resize_bilinear((6, 32, 32, 3), [20, 20], True)
+    _test_resize_bilinear_from_tensor((4, 32, 32, 3), False)
+    _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
+    _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
+    _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
 
 
 #######################################################################
