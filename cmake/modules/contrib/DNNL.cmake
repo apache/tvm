@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-message(STATUS "Build with relay.backend.contrib")
-
-file(GLOB CSOURCE_RELAY_CONTRIB_SRC src/relay/backend/contrib/csource/codegen.cc)
-list(APPEND COMPILER_SRCS ${CSOURCE_RELAY_CONTRIB_SRC})
-
 if(USE_DNNL_CODEGEN STREQUAL "ON")
   file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
   list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
@@ -28,6 +23,6 @@ if(USE_DNNL_CODEGEN STREQUAL "ON")
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
   file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
   list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
-  message(STATUS "Use DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
+  message(STATUS "Build with DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
 endif()
 

@@ -32,7 +32,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "../contrib_codegen.h"
+#include "../codegen_c/codegen_c.h"
 
 namespace tvm {
 namespace relay {
@@ -40,12 +40,12 @@ namespace contrib {
 
 // TODO(@zhiics, @comaniac): This is basic implementation. We should implement
 // all utilities and make a base class for users to implement.
-class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
+class CodegenDNNL : public ExprVisitor, public CodgenCBase {
  public:
-  explicit DnnlBuilder(const std::string& id) { this->subgraph_id_ = id; }
+  explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
   void VisitExpr_(const VarNode* node) final {
-    subgraph_args_.push_back(node->name_hint());
+    ext_func_args_.push_back(node->name_hint());
     out_.clear();
     out_.push_back({node->name_hint(), 0});
   }
@@ -154,10 +154,10 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
 
     // Attach attribute arguments
     for (size_t i = 0; i < args.size(); ++i) {
-      decl_stream  << ", " << args[i];
+      decl_stream << ", " << args[i];
     }
     decl_stream << ");";
-    subgraph_body.push_back(decl_stream.str());
+    ext_func_body.push_back(decl_stream.str());
 
     // Update output buffer
     out_.clear();
@@ -165,21 +165,21 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
   }
 
   std::string JIT(void) {
-    return JitImpl(subgraph_id_, subgraph_args_, buf_decl_, subgraph_body, out_);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
   }
 
  private:
-  /*! \brief The id of the external dnnl subgraph. */
-  std::string subgraph_id_{""};
+  /*! \brief The id of the external dnnl ext_func. */
+  std::string ext_func_id_{""};
   /*!
    * \brief The index to track the output buffer. Each kernel will redirect the
    * output to a buffer that may be consumed by other kernels.
    */
   int buf_idx_{0};
   /*! \brief The arguments used by a wrapped external function. */
-  std::vector<std::string> subgraph_args_;
+  std::vector<std::string> ext_func_args_;
   /*! \brief statement of the external function. */
-  std::vector<std::string> subgraph_body;
+  std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
   /*! \brief The name of the the outputs. */
@@ -207,19 +207,18 @@ class DnnlBuilder : public ExprVisitor, public ExternSourcePrinter {
  * libraries. The code is a CSourceModule that can be compiled separately and
  * linked together with a DSOModule.
  */
-class DNNLCodegen : public ExternCodegenBase {
+class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  public:
-  // Create a corresponding external function for the given relay Function.
-  void CreateExternFunction(const Function& func) {
-    CHECK(func.defined())
-        << "Input error: external codegen expects a Relay function.";
+  // Create a corresponding DNNL function for the given relay Function.
+  void GenDNNLFunc(const Function& func) {
+    CHECK(func.defined()) << "Input error: expect a Relay function.";
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "DNNL expects a single convolution or dense op";
 
-    // Record subgraph ID for runtime invoke.
-    auto sid = GetSubgraphID(func, "dnnl");
+    // Record external function ID for runtime invoke.
+    auto sid = ParseExtFuncName(func, "dnnl");
 
-    auto builder = DnnlBuilder("dnnl_" + sid);
+    auto builder = CodegenDNNL("dnnl_" + sid);
     builder.VisitExpr(func->body);
     code_stream_ << builder.JIT();
   }
@@ -235,7 +234,7 @@ class DNNLCodegen : public ExternCodegenBase {
    *
    * \return The runtime module that contains C source code.
    */
-  runtime::Module CreateExternModule(const NodeRef& ref) override {
+  runtime::Module CreateCSourceModule(const NodeRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
@@ -250,11 +249,11 @@ class DNNLCodegen : public ExternCodegenBase {
     code_stream_ << "\n";
 
     if (ref->IsInstance<FunctionNode>()) {
-      CreateExternFunction(Downcast<Function>(ref));
+      GenDNNLFunc(Downcast<Function>(ref));
     } else if (ref->IsInstance<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
       for (const auto& it : mod->functions) {
-        CreateExternFunction(Downcast<Function>(it.second));
+        GenDNNLFunc(Downcast<Function>(it.second));
       }
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
@@ -277,17 +276,11 @@ class DNNLCodegen : public ExternCodegenBase {
  * compile it into a runtime module.
  */
 runtime::Module DNNLCompiler(const NodeRef& ref) {
-  DNNLCodegen dnnl;
-  return dnnl.CreateExternModule(ref);
+  DNNLModuleCodegen dnnl;
+  return dnnl.CreateCSourceModule(ref);
 }
 
-TVM_REGISTER_API("relay.ext.dnnl")
-.set_body_typed(DNNLCompiler);
-
-TVM_REGISTER_GLOBAL("relay.contrib.dnnl.enable")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = 1;
-});
+TVM_REGISTER_API("relay.ext.dnnl").set_body_typed(DNNLCompiler);
 
 }  // namespace contrib
 }  // namespace relay

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/contrib_codegen.h
+ * \file src/relay/backend/contrib/codegen_c/codegen_c.h
  * \brief The base class for external codegen tools.
  */
-#ifndef TVM_RELAY_BACKEND_CONTRIB_CONTRIB_CODEGEN_H_
-#define TVM_RELAY_BACKEND_CONTRIB_CONTRIB_CODEGEN_H_
+#ifndef TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_H_
+#define TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_H_
 
 #include <tvm/relay/expr.h>
 #include <sstream>
@@ -34,9 +34,9 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-class ExternCodegenBase {
+class CSourceModuleCodegenBase {
  public:
-  ExternCodegenBase() = default;
+  CSourceModuleCodegenBase() = default;
 
   /*!
    * \brief Create a runtime module for the external library. For example, it
@@ -44,11 +44,11 @@ class ExternCodegenBase {
    * with a DSOModule, or a json style module that emitts a json artifact that
    * is able to be executed by a customized json runtime.
    *
-   * \param ref The subgraph Relay expression/module to be executed using extern ops.
+   * \param ref The ext_func Relay expression/module to be executed using extern ops.
    *
    * \return A runtime module.
    */
-  virtual runtime::Module CreateExternModule(const NodeRef& ref) = 0;
+  virtual runtime::Module CreateCSourceModule(const NodeRef& ref) = 0;
 
   /*!
    * \brief Split the Relay function name to tokens.
@@ -58,12 +58,11 @@ class ExternCodegenBase {
    *
    * \return A vector of tokenized function name splitted by "_".
    */
-  std::string GetSubgraphID(const Function& func, const std::string& prefix) const {
-    const auto name_node =
-        FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
-    CHECK(name_node != nullptr) << "Fail to retrieve subgraph name.";
+  std::string ParseExtFuncName(const Function& func, const std::string& prefix) const {
+    const auto name_node = FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
+    CHECK(name_node != nullptr) << "Fail to retrieve function name.";
     std::string name = name_node->value;
-    return GetSubgraphID(name, prefix);
+    return ParseExtFuncName(name, prefix);
   }
 
   /*!
@@ -73,7 +72,7 @@ class ExternCodegenBase {
    *
    * \return a vector of tokenized function name splitted by "_".
    */
-  std::string GetSubgraphID(const std::string& name, const std::string& prefix) const {
+  std::string ParseExtFuncName(const std::string& name, const std::string& prefix) const {
     std::string temp = name;
     std::vector<std::string> tokens;
     std::string delimiter = "_";
@@ -86,16 +85,14 @@ class ExternCodegenBase {
     }
     tokens.push_back(temp);
 
-    CHECK(tokens.size() >= 2) << "Invalid subgraph name: " << name;
-    CHECK(tokens[0] == prefix)
-        << "Function name: " << name
-        << " does not start with: " << prefix;
+    CHECK(tokens.size() >= 2) << "Invalid external function name: " << name;
+    CHECK(tokens[0] == prefix) << "Function name: " << name << " does not start with: " << prefix;
     return tokens[1];
   }
 };
 
-// A helper class to write the declaration of external functions.
-class ExternSourcePrinter {
+// The base class to generate the declaration functions in C.
+class CodgenCBase {
  protected:
   /*! \brief Print indents using spaces. */
   void PrintIndents() {
@@ -118,14 +115,14 @@ class ExternSourcePrinter {
   }
 
   /*!
-   * \brief Gerenate a wrapper for the subgraph that will use external codegen.
+   * \brief Gerenate C code for the external function.
    *
-   * \param func_name The name of wrapper function.
-   * \param arg_cnt The expected number of arguments for the wrapper.
+   * \param func_name The name of the external function.
+   * \param arg_cnt The expected number of arguments.
    *
    * \code
    *
-   * // An example code for the wrapper.
+   * // An example code for the generated C function.
    * extern "C" void foo(TVMValue* value, int* type_code, int nargs) {
    *   if (nargs != 3) {
    *     printf("foo expects 3 args, but received %d\n", nargs);
@@ -144,7 +141,7 @@ class ExternSourcePrinter {
    *
    * \endcode
    */
-  void GenerateSubgraphWrapper(const std::string& func_name, int arg_cnt) {
+  void GenerateBackendCFunc(const std::string& func_name, int arg_cnt) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name;
@@ -215,7 +212,7 @@ class ExternSourcePrinter {
    * \brief A common interface that is used by various external runtime to
    * generate the wrapper to invoke external kernels.
    *
-   * \param subgraph_id The unique id of an external function. It will be used
+   * \param ext_func_id The unique id of an external function. It will be used
    * during runtime to pick the correct external function.
    * \param args The arguments used by the external function.
    * \param buf_decl The declaration of temporary buffers that used to store the
@@ -225,14 +222,12 @@ class ExternSourcePrinter {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(std::string subgraph_id,
-                  std::vector<std::string> args,
-                  std::vector<std::string> buf_decl,
-                  std::vector<std::string> body,
-                  std::vector<std::pair<std::string, int>> out) {
+  std::string JitImpl(std::string ext_func_id, std::vector<std::string> args,
+                      std::vector<std::string> buf_decl, std::vector<std::string> body,
+                      std::vector<std::pair<std::string, int>> out) {
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
-    code_stream_ << "extern \"C\" void " << subgraph_id << "_(";
+    code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
 
     for (const auto& arg : args) {
       code_stream_ << "float* " << arg << ", ";
@@ -265,8 +260,8 @@ class ExternSourcePrinter {
     this->ExitScope();
     code_stream_ << "}\n";
 
-    // Create the wrapper to call the subgraph
-    this->GenerateSubgraphWrapper(subgraph_id, args.size() + 1 /* output */);
+    // Create the wrapper to call the ext_func
+    this->GenerateBackendCFunc(ext_func_id, args.size() + 1 /* output */);
     return code_stream_.str();
   }
 
@@ -281,4 +276,4 @@ class ExternSourcePrinter {
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_BACKEND_CONTRIB_CONTRIB_CODEGEN_H_
+#endif  // TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_H_

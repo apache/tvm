@@ -25,7 +25,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "../contrib_codegen.h"
+#include "codegen_c.h"
 
 namespace tvm {
 namespace relay {
@@ -33,15 +33,15 @@ namespace contrib {
 
 /*!
  * \brief An example codegen that is only used for quick prototyping and testing
- * purpose. Only several binary options are covered in the CSource builder. Users
+ * purpose. Only several binary options are covered. Users
  * may need to extend them to cover more operators.
  */
-class CSourceBuilder : public ExprVisitor, public ExternSourcePrinter {
+class CodegenC : public ExprVisitor, public CodgenCBase {
  public:
-  explicit CSourceBuilder(const std::string& id) { this->subgraph_id_ = id; }
+  explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
   void VisitExpr_(const VarNode* node) {
-    subgraph_args_.push_back(node->name_hint());
+    ext_func_args_.push_back(node->name_hint());
     out_.clear();
     out_.push_back({node->name_hint(), 0});
   }
@@ -52,7 +52,7 @@ class CSourceBuilder : public ExprVisitor, public ExternSourcePrinter {
     std::ostringstream buf_stream;
 
     auto op_node = call->op.as<OpNode>();
-    std::string func_name = subgraph_id_ + "_" + std::to_string(func_idx++);
+    std::string func_name = ext_func_id_ + "_" + std::to_string(func_idx++);
 
     // Make function declaration
     macro_stream << "CSOURCE_BINARY_OP_" << call->args.size() << "D(" << func_name << ", ";
@@ -101,7 +101,7 @@ class CSourceBuilder : public ExprVisitor, public ExternSourcePrinter {
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";
-    subgraph_body.push_back(decl_stream.str());
+    ext_func_body.push_back(decl_stream.str());
 
     // Update output buffer
     out_.clear();
@@ -118,20 +118,20 @@ class CSourceBuilder : public ExprVisitor, public ExternSourcePrinter {
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
     }
-    return JitImpl(subgraph_id_, subgraph_args_, buf_decl_, subgraph_body, out_);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
   }
 
  private:
-  /*! \brief The subgraph id that represents an C source external function. */
-  std::string subgraph_id_ = "";
+  /*! \brief The function id that represents an C source external function. */
+  std::string ext_func_id_ = "";
   /*! \brief The index of an external function. */
   int func_idx = 0;
   /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
   /*! \brief The arguments of a C compiler compatible external function. */
-  std::vector<std::string> subgraph_args_;
+  std::vector<std::string> ext_func_args_;
   /*! \brief The statements of a C compiler compatible external function. */
-  std::vector<std::string> subgraph_body;
+  std::vector<std::string> ext_func_body;
   /*! \brief The declaration statements of a C compiler compatible external function. */
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
@@ -140,21 +140,20 @@ class CSourceBuilder : public ExprVisitor, public ExternSourcePrinter {
   std::vector<std::pair<std::string, int>> out_;
 };
 
-class CSourceCodegen : public ExternCodegenBase {
+class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  void CreateExternFunction(const Function& func) {
-    CHECK(func.defined())
-        << "Input error: external codegen expects a Relay function.";
+  void GenCFunc(const Function& func) {
+    CHECK(func.defined()) << "Input error: expect a Relay function.";
 
-    // Record subgraph ID for runtime invoke.
-    auto sid = GetSubgraphID(func, "ccompiler");
+    // Record external function ID for runtime invoke.
+    auto sid = ParseExtFuncName(func, "ccompiler");
 
-    auto builder = CSourceBuilder("ccompiler_" + sid);
+    auto builder = CodegenC("ccompiler_" + sid);
     builder.VisitExpr(func->body);
     code_stream_ << builder.JIT();
   }
 
-  runtime::Module CreateExternModule(const NodeRef& ref) override {
+  runtime::Module CreateCSourceModule(const NodeRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <iostream>\n";
@@ -187,11 +186,11 @@ class CSourceCodegen : public ExternCodegenBase {
     code_stream_ << operator_macro << "\n\n";
 
     if (ref->IsInstance<FunctionNode>()) {
-      CreateExternFunction(Downcast<Function>(ref));
+      GenCFunc(Downcast<Function>(ref));
     } else if (ref->IsInstance<relay::ModuleNode>()) {
       relay::Module mod = Downcast<relay::Module>(ref);
       for (const auto& it : mod->functions) {
-        CreateExternFunction(Downcast<Function>(it.second));
+        GenCFunc(Downcast<Function>(it.second));
       }
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
@@ -218,11 +217,10 @@ class CSourceCodegen : public ExternCodegenBase {
  */
 runtime::Module CCompiler(const NodeRef& ref) {
   CSourceCodegen csource;
-  return csource.CreateExternModule(ref);
+  return csource.CreateCSourceModule(ref);
 }
 
-TVM_REGISTER_API("relay.ext.ccompiler")
-.set_body_typed(CCompiler);
+TVM_REGISTER_API("relay.ext.ccompiler").set_body_typed(CCompiler);
 
 }  // namespace contrib
 }  // namespace relay

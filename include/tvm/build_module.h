@@ -171,7 +171,7 @@ TVM_DLL Target stackvm(const std::vector<std::string>& options =
                       std::vector<std::string>());
 
 /*! \return A target for external device */
-TVM_DLL Target ext(const std::vector<std::string>& options =
+TVM_DLL Target ext_dev(const std::vector<std::string>& options =
                    std::vector<std::string>());
 }  // namespace target
 
