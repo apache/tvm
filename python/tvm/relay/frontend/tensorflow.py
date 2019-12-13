@@ -416,9 +416,11 @@ def _expand_dims():
                        extras={'axis': int(axis), 'num_newaxis': 1})(inputs, attr)
     return _impl
 
-def _resize_bilinear(bilinear_op):
+def _resize(method):
     def _impl(inputs, attr, params):
-        size = attr['_output_shapes'][0][1:3]
+        output_shape0 = attr['_output_shapes'][0]
+        # Dynamic size models might have _output_shapes attr equal to [None] here
+        size = output_shape0[1:3] if output_shape0 is not None else [-1, -1]
         # Important that the size is defined. If an axis is not, we need to infer what
         # the shape should be.
         if -1 in size:
@@ -431,7 +433,7 @@ def _resize_bilinear(bilinear_op):
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(op_name='resize',
                        ignores=['Tdim', 'half_pixel_centers'],
-                       extras={'method': bilinear_op})(inputs, attr)
+                       extras={'method': method})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -1488,9 +1490,9 @@ _convert_map = {
     'Relu'                              : AttrCvt('relu'),
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
-    'ResizeBilinear'                    : _resize_bilinear('bilinear'),
-    'ResizeBicubic'                     : _resize_bilinear('bilinear'),
-    'ResizeNearestNeighbor'             : _resize_bilinear('nearest_neighbor'),
+    'ResizeBilinear'                    : _resize('bilinear'),
+    'ResizeBicubic'                     : _resize('bilinear'),
+    'ResizeNearestNeighbor'             : _resize('nearest_neighbor'),
     'ReverseV2'                         : _reverse_v2(),
     'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),
