@@ -16,6 +16,7 @@
 # under the License.
 """Unit tests for graph partitioning."""
 import os
+import sys
 import numpy as np
 import pytest
 
@@ -26,6 +27,10 @@ from tvm import relay
 from tvm.contrib import util
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5):
+    if sys.platform == "win32":
+        print("Skip test on Windows for now")
+        return
+
     with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
         json, lib, _ = relay.build(mod, "llvm")
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
