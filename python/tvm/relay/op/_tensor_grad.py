@@ -381,7 +381,7 @@ def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
     data, bias = orig.args
     return [collapse_sum_like(grad, data),
-            collapse_sum_like(grad, bias)]
+            _sum(grad, orig.attrs.axis, keepdims=False, exclude=True)]
 
 
 @register_gradient("nn.dense")
