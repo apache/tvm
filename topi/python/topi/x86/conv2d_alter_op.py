@@ -28,6 +28,7 @@ from ..util import get_const_tuple, get_shape
 from ..nn import conv2d_legalize
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_NCHWc_int8, conv2d_alter_layout
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
+from ..nn.util import get_pad_tuple
 
 logger = logging.getLogger('topi')
 
@@ -221,12 +222,14 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     if data_tensor.dtype == 'int8' and kernel_tensor.dtype == 'int8':
         is_int8_inputs = True
         padding = attrs.get_int_tuple("padding")
+        kh, kw = attrs.get_int_tuple("kernel_size")
+        pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
 
         if attrs['data_layout'] == 'NHWC' and attrs['kernel_layout'] == 'HWIO':
             adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(0, 1, 2))
-            pad_width = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+            pad_width = ((0, 0), (pt, pb), (pl, pr), (0, 0))
         elif attrs['data_layout'] == 'NCHW' and attrs['kernel_layout'] == 'OIHW':
-            pad_width = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
+            pad_width = ((0, 0), (0, 0), (pt, pb), (pl, pr))
             adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(1, 2, 3))
             adjust_shift = relay.expand_dims(adjust_shift, axis=1, num_newaxis=2)
         else:

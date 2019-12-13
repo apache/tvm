@@ -27,7 +27,8 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
-def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
+def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,\
+        use_cudnn=False):
 
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
     padding_sum = pad_top + pad_left + pad_bottom + pad_right
@@ -89,6 +90,9 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     for device in get_all_backend():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
+
+    if use_cudnn:
+        check_device("cuda -model=unknown -libs=cudnn")
 
 
 def test_conv2d_nchw():
@@ -187,10 +191,13 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1,  64,  56,  64, 1, 1, (1, 2))
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (3, 1))
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (0, 2))
+    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (1, 2), use_cudnn=True)
     verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "VALID")
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, "VALID")
+    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, "VALID", use_cudnn=True)
     # Currnt not working
     #verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "SAME")
+
 
 if __name__ == "__main__":
     test_conv2d_nchw()
