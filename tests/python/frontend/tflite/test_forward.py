@@ -1030,7 +1030,7 @@ def _test_tanh(data):
     """ One iteration of TANH """
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = math_ops.sigmoid(in_data)
+        out = math_ops.tanh(in_data)
         compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
 def test_forward_tanh():
