@@ -32,6 +32,8 @@ The whole workflow is illustrated by a matrix multiplication example.
 # Install dependencies
 # --------------------
 # To use autotvm package in TVM, we need to install some extra dependencies.
+# This step is needed if you decide to use xgboost for tuning. This example
+# as it is doesn't need xgboost.
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -294,8 +296,9 @@ measure_option = autotvm.measure_option(
     builder='local',
     runner=autotvm.LocalRunner(number=5))
 
-# begin tuning, log records to file `matmul.log`
-tuner = autotvm.tuner.XGBTuner(task)
+# begin tuning with RandomTuner, log records to file `matmul.log`
+# You can use alternatives like XGBTuner.
+tuner = autotvm.tuner.RandomTuner(task)
 tuner.tune(n_trial=10,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('matmul.log')])
