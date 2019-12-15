@@ -185,18 +185,23 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1,  256,   3, 126, 3, 1, 1)
 
     # Asymmetric padding
-    verify_conv2d_nchw(1,   3, 224,  64, 7, 2, (0, 0, 1, 1))
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (3, 3, 2, 2))
-    verify_conv2d_nchw(1,  64,  56,  64, 1, 1, (1, 2, 2, 1))
-    verify_conv2d_nchw(1,  64,  56,  64, 1, 1, (1, 2))
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (3, 1))
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (0, 2))
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, (1, 2), use_cudnn=True)
-    verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "VALID")
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, "VALID")
-    verify_conv2d_nchw(1,  64,  56,  64, 3, 1, "VALID", use_cudnn=True)
-    # Currnt not working
-    #verify_conv2d_nchw(1,  64,  56,  64, 1, 1, "SAME")
+    verify_conv2d_nchw(1,   3,  224,  64,  7, 2, (0, 0, 1, 1))
+    verify_conv2d_nchw(1,  64,   56, 128,  3, 1, (3, 3, 2, 2))
+    verify_conv2d_nchw(1,  64,   56,  64,  1, 1, (1, 2, 2, 1))
+    verify_conv2d_nchw(1,  64,  288, 192,  1, 1, (1, 2))
+    verify_conv2d_nchw(1,  64,   56,  64,  3, 1, (3, 1))
+    verify_conv2d_nchw(1, 128,   56, 384,  3, 1, (0, 2))
+    verify_conv2d_nchw(1,  64,  384,  64,  3, 1, (1, 2), use_cudnn=True)
+    verify_conv2d_nchw(1,  64,   56,  64,  1, 1, "VALID")
+    verify_conv2d_nchw(1, 388,   56,  64,  3, 1, "VALID")
+    verify_conv2d_nchw(1,  64, 1280,  48,  3, 1, "VALID", use_cudnn=True)
+    verify_conv2d_nchw(1, 512,   19,  64,  1, 1, "SAME")
+    verify_conv2d_nchw(1,  64, 2048,  32,  2, 1, "SAME")
+    verify_conv2d_nchw(1,  64,    8,  64,  3, 1, "SAME", use_cudnn=True)
+    verify_conv2d_nchw(1,  64,   56,  64,  3, 1, (1, 2, 2, 1), add_relu=True)
+    verify_conv2d_nchw(1,  64,   56,  64,  5, 2, (1, 3), add_bias=True)
+    verify_conv2d_nchw(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
+    verify_conv2d_nchw(1,  64,   56,  64, 24, 1, "SAME", add_bias=True, add_relu=True)
 
 
 if __name__ == "__main__":

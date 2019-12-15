@@ -23,12 +23,15 @@ from tvm.autotvm.task.space import FallbackConfigEntity
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
+from topi.nn.util import get_pad_tuple
 from topi.util import get_const_tuple
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
         devices=['cuda', 'llvm -device=arm_cpu', 'opencl -device=mali']):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
+    padding_sum = pad_top + pad_left + pad_bottom + pad_right
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
 
     in_height = in_width = in_size
 
@@ -76,10 +79,10 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, b, c)
         else:
-            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, c)
 
         rtol = 1e-3
@@ -132,6 +135,23 @@ def test_conv2d_nchw():
         verify_conv2d_nchw(1, 1, 1, 1, 3, 1, 1)
         verify_conv2d_nchw(3, 3, 3, 3, 3, 1, 1)
         verify_conv2d_nchw(2, 13, 71, 59, 3, 1, 1)
+
+        # Asymmetric padding
+        verify_conv2d_nchw(1,   3,  224,  64,  7, 2, (0, 0, 1, 1))
+        verify_conv2d_nchw(1,  64,   56, 128,  3, 1, (3, 3, 2, 2), devices=['cuda'])
+        verify_conv2d_nchw(1,  64,   56,  64,  1, 1, (1, 2, 2, 1))
+        verify_conv2d_nchw(1,  56,  288, 256,  1, 1, (1, 2))
+        verify_conv2d_nchw(1,  64,   56,  64,  3, 1, (3, 1), devices=['cuda'])
+        verify_conv2d_nchw(1,  64,   56, 512,  3, 1, (0, 2))
+        verify_conv2d_nchw(1,  64,   56,  64,  1, 1, "VALID")
+        verify_conv2d_nchw(1,  56,   56,  64,  3, 1, "VALID", devices=['cuda'])
+        verify_conv2d_nchw(1,  64,   19,  64,  1, 1, "SAME")
+        verify_conv2d_nchw(1,  64,   56,  32,  2, 1, "SAME", devices=['cuda'])
+        verify_conv2d_nchw(1,  64,   56,  64,  3, 1, (1, 2, 2, 1), add_relu=True)
+        verify_conv2d_nchw(1,  64,   56,  64,  5, 2, (1, 3), add_bias=True)
+        verify_conv2d_nchw(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
+        verify_conv2d_nchw(1,  64,   56,  64, 24, 1, "SAME", add_bias=True, add_relu=True)
+
 
 if __name__ == "__main__":
     test_conv2d_nchw()

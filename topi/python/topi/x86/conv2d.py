@@ -142,12 +142,12 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
         dilation_h, dilation_w = dilation
 
     HSTR, WSTR = strides
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, kernel)
-    pad_h = pad_top + pad_down
-    pad_w = pad_left + pad_right
-
     batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
     num_filter, _, kernel_height, kernel_width = get_const_tuple(kernel.shape)
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_height, kernel_width))
+    pad_h = pad_top + pad_down
+    pad_w = pad_left + pad_right
 
     pad_height = in_height + pad_h
     pad_width = in_width + pad_w

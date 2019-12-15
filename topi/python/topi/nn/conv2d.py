@@ -23,7 +23,7 @@ import tvm
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, get_const_tuple
+from ..util import simplify, get_const_tuple, get_const_int
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -155,7 +155,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     else:
         KH, KW, CIG, CO = [x.value for x in kernel.shape]
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -225,7 +225,6 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     rc = tvm.reduce_axis((0, in_channel), name='rc')
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
-
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda nn, ff, yy, xx: tvm.sum(

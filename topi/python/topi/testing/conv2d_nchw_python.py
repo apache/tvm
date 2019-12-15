@@ -54,7 +54,6 @@ def _conv2d_nchw_python(a_np, w_np, stride, padding):
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
     pad_h = pad_top + pad_bottom
     pad_w = pad_left + pad_right
-
     # compute the output shape
     out_channel = num_filter
     out_height = (in_height - kernel_h + pad_h) // stride_h + 1
@@ -66,12 +65,7 @@ def _conv2d_nchw_python(a_np, w_np, stride, padding):
             for c in range(in_channel):
                 if pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    if pad_h == 0:
-                        apad[:, pad_left:-pad_right] = a_np[n, c]
-                    elif pad_w == 0:
-                        apad[pad_top:-pad_bottom, :] = a_np[n, c]
-                    else:
-                        apad[pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
+                    apad[pad_top:pad_top + in_height, pad_left:pad_left + in_width] = a_np[n, c]
                 else:
                     apad = a_np[n, c]
                 out = scipy.signal.convolve2d(

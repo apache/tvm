@@ -68,9 +68,9 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
-                if pad_h > 0:
+                if pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    apad[pad_top:-pad_bottom, pad_left:-pad_right] = at[n, c]
+                    apad[pad_top:pad_top + in_height, pad_left:pad_left + in_width] = at[n, c]
                 else:
                     apad = at[n, c]
                 out = scipy.signal.convolve2d(
