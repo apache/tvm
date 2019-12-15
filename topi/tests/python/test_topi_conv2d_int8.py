@@ -188,7 +188,7 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(32,  32, 149,  32, 3, 1, 0)
 
         # Asymmetric padding
-        verify_conv2d_NCHWc_int8(1,   3,  224,  64,  7, 2, (0, 0, 1, 1))
+        verify_conv2d_NCHWc_int8(1,  32,  224,  64,  7, 2, (0, 0, 1, 1))
         verify_conv2d_NCHWc_int8(1,  64,   56, 128,  3, 1, (3, 3, 2, 2))
         verify_conv2d_NCHWc_int8(1,  64,   56,  64,  1, 1, (1, 2, 2, 1))
         verify_conv2d_NCHWc_int8(1,  64,  288, 192,  1, 1, (1, 2))
