@@ -463,7 +463,8 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
-            shape = tuple(params[inputs[1].name_hint].asnumpy())
+            # pop shape out of parameters since it wont be needed later.
+            shape = tuple(params.pop(inputs[1].name_hint).asnumpy())
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
