@@ -52,9 +52,16 @@ def test_file_io():
     inputs = [MeasureInput(target, tsk, tsk.config_space.get(i)) for i in range(0, 10)]
     results = [MeasureResult((i, ), 0, 0, 0) for i in range(0, 10)]
 
+    invalid_inp = MeasureInput(target, tsk, tsk.config_space.get(10))
+    invalid_res = MeasureResult((10, ), 0, 0, 0)
+
+    # Erase the entity map to test if it will be ignored when loading back.
+    invalid_inp.config._entity_map = {}
+
     with open(file_path, "w") as fo:
         cb = autotvm.callback.log_to_file(fo)
         cb(None, inputs, results)
+        cb(None, [invalid_inp], [invalid_res])
 
     ref = zip(inputs, results)
     for x, y in zip(ref, autotvm.record.load_from_file(file_path)):
