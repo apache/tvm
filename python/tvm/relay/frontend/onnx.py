@@ -1085,9 +1085,7 @@ class Expand(OnnxOpConverter):
     """
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 2, "ONNX Expand must have 2 inputs."
-        assert isinstance(inputs[1], tvm.relay.expr.Var), "2nd operand of ONNX Expand must be a constant."
+    def _impl_v8(cls, inputs, attr, params):
         shape_data = params[inputs[1].name_hint]
         shape = tuple(shape_data.asnumpy())
         return _op.broadcast_to(inputs[0], shape=shape)
