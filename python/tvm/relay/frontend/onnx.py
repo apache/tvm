@@ -687,8 +687,7 @@ class Shape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # TODO(@jroesch): use shape_of once it has been fixed)
-        return _op.shape_of(inputs[0])
+        return _op.shape_of(inputs[0], "int64")
 
 class Cast(OnnxOpConverter):
     """ Operator converter for Cast.
