@@ -40,7 +40,7 @@ namespace contrib {
 
 // TODO(@zhiics, @comaniac): This is basic implementation. We should implement
 // all utilities and make a base class for users to implement.
-class CodegenDNNL : public ExprVisitor, public CodgenCBase {
+class CodegenDNNL : public ExprVisitor, public CodegenCBase {
  public:
   explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
@@ -184,22 +184,6 @@ class CodegenDNNL : public ExprVisitor, public CodgenCBase {
   std::vector<std::string> buf_decl_;
   /*! \brief The name of the the outputs. */
   std::vector<std::pair<std::string, int>> out_;
-
-  /*!
-   * \brief Check if a call has the provided name.
-   *
-   * \param call A Relay call node.
-   * \param op_name The name of the expected call.
-   *
-   * \return true if the call's name is equivalent to the given name. Otherwise,
-   * false.
-   */
-  bool IsOp(const CallNode* call, std::string op_name) const {
-    const auto* op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "Expects a single op.";
-    Op op = GetRef<Op>(op_node);
-    return op == Op::Get(op_name);
-  }
 };
 
 /*!

@@ -92,7 +92,7 @@ class CSourceModuleCodegenBase {
 };
 
 // The base class to generate the declaration functions in C.
-class CodgenCBase {
+class CodegenCBase {
  protected:
   /*! \brief Print indents using spaces. */
   void PrintIndents() {
@@ -206,6 +206,22 @@ class CodgenCBase {
       shape.push_back(val->value);
     }
     return shape;
+  }
+
+  /*!
+   * \brief Check if a call has the provided name.
+   *
+   * \param call A Relay call node.
+   * \param op_name The name of the expected call.
+   *
+   * \return true if the call's name is equivalent to the given name. Otherwise,
+   * false.
+   */
+  bool IsOp(const CallNode* call, std::string op_name) const {
+    const auto* op_node = call->op.as<OpNode>();
+    CHECK(op_node) << "Expects a single op.";
+    Op op = GetRef<Op>(op_node);
+    return op == Op::Get(op_name);
   }
 
   /*!

@@ -36,7 +36,7 @@ namespace contrib {
  * purpose. Only several binary options are covered. Users
  * may need to extend them to cover more operators.
  */
-class CodegenC : public ExprVisitor, public CodgenCBase {
+class CodegenC : public ExprVisitor, public CodegenCBase {
  public:
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
@@ -51,17 +51,16 @@ class CodegenC : public ExprVisitor, public CodgenCBase {
     std::ostringstream decl_stream;
     std::ostringstream buf_stream;
 
-    auto op_node = call->op.as<OpNode>();
     std::string func_name = ext_func_id_ + "_" + std::to_string(func_idx++);
 
     // Make function declaration
     macro_stream << "CSOURCE_BINARY_OP_" << call->args.size() << "D(" << func_name << ", ";
 
-    if (GetRef<Op>(op_node) == Op::Get("add")) {
+    if (IsOp(call, "add")) {
       macro_stream << "+";
-    } else if (GetRef<Op>(op_node) == Op::Get("subtract")) {
+    } else if (IsOp(call, "subtract")) {
       macro_stream << "-";
-    } else if (GetRef<Op>(op_node) == Op::Get("multiply")) {
+    } else if (IsOp(call, "multiply")) {
       macro_stream << "*";
     } else {
       LOG(FATAL) << "Unrecognized op";
