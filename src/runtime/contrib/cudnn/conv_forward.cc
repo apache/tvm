@@ -74,7 +74,15 @@ void ConvolutionForward(
                                                entry_ptr->conv_entry.mode,
                                                entry_ptr->conv_entry.data_type));
     int ni, ci, hi, wi;
-    if (entry_ptr->conv_entry.tensor_format ==  CUDNN_TENSOR_NHWC) {
+    if (entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
+      // Set Filter for NHWC (HWIO -> OIHW)
+      CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
+                                            data_type, entry_ptr->conv_entry.tensor_format,
+                                            static_cast<int>(w->shape[3]),
+                                            static_cast<int>(w->shape[2]),
+                                            static_cast<int>(w->shape[0]),
+                                            static_cast<int>(w->shape[1])));
+
       ni = 0;
       ci = 3;
       hi = 1;
@@ -84,16 +92,17 @@ void ConvolutionForward(
       ci = 1;
       hi = 2;
       wi = 3;
+
+      // Set Filter for NCHW (OIHW -> OIHW)
+      CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
+                                            data_type,
+                                            entry_ptr->conv_entry.tensor_format,
+                                            static_cast<int>(w->shape[ni]),
+                                            static_cast<int>(w->shape[ci]),
+                                            static_cast<int>(w->shape[hi]),
+                                            static_cast<int>(w->shape[wi])));
     }
 
-    // Set Filter
-    CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
-                                          data_type,
-                                          entry_ptr->conv_entry.tensor_format,
-                                          static_cast<int>(w->shape[ni]),
-                                          static_cast<int>(w->shape[ci]),
-                                          static_cast<int>(w->shape[hi]),
-                                          static_cast<int>(w->shape[wi])));
     // Set Input
     CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                           entry_ptr->conv_entry.tensor_format,
@@ -210,7 +219,7 @@ void OutputShape(
                                              CUDNN_CROSS_CORRELATION,
                                              entry_ptr->conv_entry.data_type));
 
-  if (dims == 2 && entry_ptr->conv_entry.tensor_format ==  CUDNN_TENSOR_NHWC) {
+  if (dims == 2 && entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
     // Set Input
     CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                           entry_ptr->conv_entry.tensor_format,
@@ -220,14 +229,14 @@ void OutputShape(
                                           x_dim[1],
                                           x_dim[2]));
 
-    // filter desc
+    // filter desc (OIHW -> OIHW)
     CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc,
                                           data_type,
                                           entry_ptr->conv_entry.tensor_format,
-                                          w_dim[0],
                                           w_dim[3],
-                                          w_dim[1],
-                                          w_dim[2]));
+                                          w_dim[2],
+                                          w_dim[0],
+                                          w_dim[1]));
 
     CUDNN_CALL(cudnnGetConvolution2dForwardOutputDim(entry_ptr->conv_entry.conv_desc,
                                                      entry_ptr->conv_entry.input_desc,
