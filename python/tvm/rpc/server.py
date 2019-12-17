@@ -144,12 +144,12 @@ def _parse_server_opt(opts):
             ret["timeout"] = float(kv[9:])
     return ret
 
-trial_counter = 0
+# For Windows
+_trial_counter = 0
+# For Windows
+_executor_pool = None
 
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
-    global trial_counter
-    executerPool = MyPool(processes=1)
-
     """Listening loop of the server master."""
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.
@@ -278,10 +278,15 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 # terminate the worker
                 server_proc.terminate()
         def handle_win32():
-            global trial_counter
-            nonlocal executerPool
+            global _trial_counter
+            global _executor_pool
+           
+            if _trial_counter % 5 == 0 or _executor_pool == None:
+                if _executor_pool != None:
+                    _executor_pool.terminate()
+                _executor_pool = MyPool(processes=1)
 
-            trial_counter += 1
+            _trial_counter += 1
 
             args = {
                 "sock" : conn,
@@ -290,10 +295,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 "work_path" : work_path
             }
 
-            executerPool.map(_serve_loop_pool, [args])
-            if trial_counter % 1 == 0:
-                executerPool.terminate()
-                executerPool = MyPool(processes=1)
+            _executor_pool.map(_serve_loop_pool, [args])
 
             try:
                 conn.close()
