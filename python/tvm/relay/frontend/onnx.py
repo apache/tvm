@@ -1156,7 +1156,7 @@ class Resize(OnnxOpConverter):
         in_size = np.array(infer_shape(inputs[0]))
         if len(scale) != 0:
             assert len(size) == 0, "One of scale or size should be passed, not both"
-            size = in_size * scale
+            size = (in_size * scale).astype(np.int64)
         else:
             assert len(size) != 0, "One of scale or size should be passed, not both"
         coord_trans = attr.get('coordinate_transformation_mode')
