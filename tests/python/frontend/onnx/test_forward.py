@@ -1809,7 +1809,6 @@ def test_convtranspose():
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
 
-<<<<<<< HEAD
 def test_unsqueeze_constant():
     from torch.nn import Linear, Sequential, Module
     class Flatten(Module):
@@ -1826,7 +1825,8 @@ def test_unsqueeze_constant():
 
         onnx_model = onnx.load(file_name)
         relay.frontend.from_onnx(onnx_model, {'0': input_size})
-=======
+
+
 def test_resize():
     def make_constant_node(name, data_type, dims, vals):
         return helper.make_node('Constant',
@@ -1837,21 +1837,26 @@ def test_resize():
                                                          dims=dims,
                                                          vals=vals))
     def verify(ishape, oshape, scales, mode, coord_trans):
-        roi_node = make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), [])
-        scales_node = make_constant_node('scales', onnx.TensorProto.FLOAT, (len(scales),), scales)
-        sizes_node = make_constant_node('sizes', onnx.TensorProto.INT64, (len(oshape),), oshape)
-        resize_node = helper.make_node(
+        nodes = [
+            make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), []),
+            make_constant_node('scales', onnx.TensorProto.FLOAT, (len(scales),), scales)
+        ]
+        input_names = ['X', 'roi', 'scales']
+        if oshape != []:
+            nodes.append(make_constant_node('sizes', onnx.TensorProto.INT64, (len(oshape),), oshape))
+            input_names.append('sizes')
+        nodes.append(helper.make_node(
             'Resize',
-            inputs=['X', 'roi', 'scales', 'sizes'],
+            inputs=input_names,
             outputs=['Y'],
             mode=mode,
             coordinate_transformation_mode=coord_trans
-        )
+        ))
 
         if oshape == []:
             oshape = [dim * scale for (dim, scale) in zip(ishape, scales)]
 
-        graph = helper.make_graph([roi_node, scales_node, sizes_node, resize_node],
+        graph = helper.make_graph(nodes,
                                   "resize_test",
                                   inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, ishape)],
                                   outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, oshape)])
@@ -1860,12 +1865,12 @@ def test_resize():
 
         for target, ctx in ctx_list():
             x = np.random.uniform(size=ishape).astype('float32')
-            tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
             onnx_out = get_onnxruntime_output(model, x, 'float32')
+            tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
 
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
 
-    # NCHW and upsampling
+    # # NCHW and upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
@@ -1873,13 +1878,9 @@ def test_resize():
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
     verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
-    # NHWC and upsampling
-    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "nearest", "asymmetric")
-    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "linear", "align_corners")
-    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "linear", "half_pixel")
     # scales are specified instead of sizes
-    # verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
->>>>>>> adding onnx resize tests
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
 
 
 if __name__ == '__main__':
