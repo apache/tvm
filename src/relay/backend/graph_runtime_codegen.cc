@@ -424,7 +424,7 @@ class GraphRuntimeCodegen
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
     // Handle external function
-    if (func->IsExternal()) {
+    if (!func->UseDefaultCompiler()) {
       target = tvm::target::ext_dev();
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
@@ -490,7 +490,7 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    CHECK(op->IsExternal()) << "Only external function is supported";
+    CHECK(!op->UseDefaultCompiler()) << "Only functions supported by custom codegen";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {

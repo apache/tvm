@@ -38,7 +38,7 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-// TODO(@zhiics, @comaniac): This is basic implementation. We should implement
+// TODO(@zhiics, @comaniac): This is a basic implementation. We should implement
 // all utilities and make a base class for users to implement.
 class CodegenDNNL : public ExprVisitor, public CodegenCBase {
  public:
@@ -60,65 +60,22 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     // Args: ID
     std::vector<std::string> args;
 
+    // Get the arguments for various DNNL kernels.
     if (IsOp(call, "nn.conv2d")) {
       decl_stream << "dnnl_conv2d";
-      const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
-
-      auto ishape = GetShape(call->args[0]->checked_type());
-      auto wshape = GetShape(call->args[1]->checked_type());
-
-      // Args: N, C, H, W
-      for (auto s : ishape) {
-        args.push_back(std::to_string(s));
-      }
-
-      // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
-      args.push_back(std::to_string(wshape[0]));
-      args.push_back(std::to_string(conv2d_attr->groups));
-      args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImm>()->value));
-      args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImm>()->value));
-      args.push_back(std::to_string(wshape[2]));
-      args.push_back(std::to_string(wshape[3]));
-      args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
-      args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
+      args = Conv2d(call);
     } else if (IsOp(call, "nn.dense")) {
       decl_stream << "dnnl_dense";
-      auto ishape = GetShape(call->args[0]->checked_type());
-      auto wshape = GetShape(call->args[1]->checked_type());
-
-      // Args: N, C, O
-      args.push_back(std::to_string(ishape[0]));
-      args.push_back(std::to_string(ishape[1]));
-      args.push_back(std::to_string(wshape[0]));
-
+      args = Dense(call);
     } else if (IsOp(call, "nn.relu")) {
       decl_stream << "dnnl_relu";
-      auto ishape = GetShape(call->args[0]->checked_type());
-
-      // Args: N, C, H, W
-      for (auto s : ishape) {
-        args.push_back(std::to_string(s));
-      }
+      args = Relu(call);
     } else if (IsOp(call, "nn.batch_norm")) {
       decl_stream << "dnnl_bn";
-      const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
-      auto ishape = GetShape(call->args[0]->checked_type());
-
-      // Args: N, C, H, W
-      for (auto s : ishape) {
-        args.push_back(std::to_string(s));
-      }
-
-      // Args: epsilon
-      args.push_back(std::to_string(bn_attr->epsilon));
+      args = BatchNorm(call);
     } else if (IsOp(call, "add")) {
       decl_stream << "dnnl_add";
-      auto ishape = GetShape(call->args[0]->checked_type());
-
-      // Args: H, W
-      for (auto s : ishape) {
-        args.push_back(std::to_string(s));
-      }
+      args = Add(call);
     } else {
       LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
     }
@@ -169,6 +126,85 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   }
 
  private:
+  std::vector<std::string> Conv2d(const CallNode* call) {
+    std::vector<std::string> args;
+    const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
+    CHECK(conv2d_attr);
+
+    auto ishape = GetShape(call->args[0]->checked_type());
+    auto wshape = GetShape(call->args[1]->checked_type());
+
+    // Args: N, C, H, W
+    for (auto s : ishape) {
+      args.push_back(std::to_string(s));
+    }
+
+    // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
+    args.push_back(std::to_string(wshape[0]));
+    args.push_back(std::to_string(conv2d_attr->groups));
+    args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImm>()->value));
+    args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImm>()->value));
+    args.push_back(std::to_string(wshape[2]));
+    args.push_back(std::to_string(wshape[3]));
+    args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
+    args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
+
+    return args;
+  }
+
+  std::vector<std::string> Dense(const CallNode* call) {
+    std::vector<std::string> args;
+    auto ishape = GetShape(call->args[0]->checked_type());
+    auto wshape = GetShape(call->args[1]->checked_type());
+
+    // Args: N, C, O
+    args.push_back(std::to_string(ishape[0]));
+    args.push_back(std::to_string(ishape[1]));
+    args.push_back(std::to_string(wshape[0]));
+
+    return args;
+  }
+
+  std::vector<std::string> Relu(const CallNode* call) {
+    std::vector<std::string> args;
+    auto ishape = GetShape(call->args[0]->checked_type());
+
+    // Args: N, C, H, W
+    for (auto s : ishape) {
+      args.push_back(std::to_string(s));
+    }
+
+    return args;
+  }
+
+  std::vector<std::string> BatchNorm(const CallNode* call) {
+    std::vector<std::string> args;
+    const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
+    auto ishape = GetShape(call->args[0]->checked_type());
+
+    // Args: N, C, H, W
+    for (auto s : ishape) {
+      args.push_back(std::to_string(s));
+    }
+
+    // Args: epsilon
+    args.push_back(std::to_string(bn_attr->epsilon));
+
+    return args;
+  }
+
+  std::vector<std::string> Add(const CallNode* call) {
+    std::vector<std::string> args;
+    auto ishape = GetShape(call->args[0]->checked_type());
+
+    // Args: H, W
+    for (auto s : ishape) {
+      args.push_back(std::to_string(s));
+    }
+
+    return args;
+  }
+
   /*! \brief The id of the external dnnl ext_func. */
   std::string ext_func_id_{""};
   /*!
@@ -176,9 +212,9 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
    * output to a buffer that may be consumed by other kernels.
    */
   int buf_idx_{0};
-  /*! \brief The arguments used by a wrapped external function. */
+  /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
   std::vector<std::string> ext_func_args_;
-  /*! \brief statement of the external function. */
+  /*! \brief statement of the function that will be compiled using DNNL kernels. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
@@ -199,10 +235,10 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     const auto* call = func->body.as<CallNode>();
     CHECK(call) << "DNNL expects a single convolution or dense op";
 
-    // Record external function ID for runtime invoke.
-    auto sid = ParseExtFuncName(func, "dnnl");
+    // Record the external symbol for runtime lookup.
+    auto sid = GetExtSymbol(func);
 
-    auto builder = CodegenDNNL("dnnl_" + sid);
+    auto builder = CodegenDNNL(sid);
     builder.VisitExpr(func->body);
     code_stream_ << builder.JIT();
   }
@@ -214,7 +250,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
    * linking simpiler, the DNNL kernels are wrapped in a TVM compatible manner
    * and live under tvm/src/runtime/contrib/dnnl folder.
    *
-   * \param ref A object ref that could be either a Relay function or module.
+   * \param ref An object ref that could be either a Relay function or module.
    *
    * \return The runtime module that contains C source code.
    */
@@ -246,12 +282,15 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
-    CHECK(pf != nullptr) << "Cannot find csource module to create the external function";
+    CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code_stream_.str(), "cc");
   }
 
  private:
-  /*! \brief The code stream that prints the external functions. */
+  /*!
+   * \brief The code stream that prints the code that will be compiled using
+   * external codegen tools.
+   */
   std::ostringstream code_stream_;
 };
 

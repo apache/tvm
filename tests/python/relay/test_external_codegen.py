@@ -58,10 +58,10 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5):
     tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
 
-def set_external_func_attr(func, compiler, subgraph_id):
+def set_external_func_attr(func, compiler, ext_symbol):
     func = func.set_attribute("Primitive", tvm.expr.IntImm("int32", 1))
-    func = func.set_attribute("External", tvm.expr.StringImm(compiler))
-    func = func.set_attribute("FuncName", tvm.expr.StringImm(subgraph_id))
+    func = func.set_attribute("Compiler", tvm.expr.StringImm(compiler))
+    func = func.set_attribute("ExternalSymbol", tvm.expr.StringImm(ext_symbol))
     return func
 
 

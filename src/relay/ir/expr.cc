@@ -182,10 +182,10 @@ TVM_REGISTER_API("relay._expr.FunctionGetParams")
   return func->GetParams();
 });
 
-bool FunctionNode::IsExternal() const {
-  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kExternal);
+bool FunctionNode::UseDefaultCompiler() const {
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
   const ir::StringImm* pval = res.as<ir::StringImm>();
-  return pval != nullptr;
+  return pval == nullptr || pval->value == "default";
 }
 
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {

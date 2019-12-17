@@ -25,6 +25,7 @@
 #define TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 
 #include <tvm/relay/expr.h>
+#include <tvm/relay/op.h>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -51,43 +52,17 @@ class CSourceModuleCodegenBase {
   virtual runtime::Module CreateCSourceModule(const NodeRef& ref) = 0;
 
   /*!
-   * \brief Split the Relay function name to tokens.
+   * \brief Get the external symbol of the Relay function name.
    *
    * \param func The provided function.
-   * \param prefix The prefix of the function name, i.e. dnnl.
    *
-   * \return A vector of tokenized function name splitted by "_".
+   * \return An external symbol.
    */
-  std::string ParseExtFuncName(const Function& func, const std::string& prefix) const {
-    const auto name_node = FunctionGetAttr(func, attr::kFuncName).as<tvm::ir::StringImm>();
-    CHECK(name_node != nullptr) << "Fail to retrieve function name.";
-    std::string name = name_node->value;
-    return ParseExtFuncName(name, prefix);
-  }
-
-  /*!
-   * \brief Split the encoded function name to tokens.
-   *
-   * \param the function name string.
-   *
-   * \return a vector of tokenized function name splitted by "_".
-   */
-  std::string ParseExtFuncName(const std::string& name, const std::string& prefix) const {
-    std::string temp = name;
-    std::vector<std::string> tokens;
-    std::string delimiter = "_";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = temp.find(delimiter)) != std::string::npos) {
-      token = temp.substr(0, pos);
-      tokens.push_back(token);
-      temp.erase(0, pos + delimiter.length());
-    }
-    tokens.push_back(temp);
-
-    CHECK(tokens.size() >= 2) << "Invalid external function name: " << name;
-    CHECK(tokens[0] == prefix) << "Function name: " << name << " does not start with: " << prefix;
-    return tokens[1];
+  std::string GetExtSymbol(const Function& func) const {
+    const auto name_node = FunctionGetAttr(func, attr::kExternalSymbol).as<tvm::ir::StringImm>();
+    CHECK(name_node != nullptr) << "Fail to retrieve external symbol.";
+    std::string ext_symbol = name_node->value;
+    return ext_symbol;
   }
 };
 

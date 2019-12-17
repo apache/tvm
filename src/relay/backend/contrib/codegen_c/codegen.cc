@@ -121,17 +121,17 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   }
 
  private:
-  /*! \brief The function id that represents an C source external function. */
+  /*! \brief The function id that represents a C source function. */
   std::string ext_func_id_ = "";
-  /*! \brief The index of an external function. */
+  /*! \brief The index of a wrapped C function. */
   int func_idx = 0;
   /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
-  /*! \brief The arguments of a C compiler compatible external function. */
+  /*! \brief The arguments of a C compiler compatible function. */
   std::vector<std::string> ext_func_args_;
-  /*! \brief The statements of a C compiler compatible external function. */
+  /*! \brief The statements of a C compiler compatible function. */
   std::vector<std::string> ext_func_body;
-  /*! \brief The declaration statements of a C compiler compatible external function. */
+  /*! \brief The declaration statements of a C compiler compatible function. */
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
@@ -144,10 +144,10 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
   void GenCFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
-    // Record external function ID for runtime invoke.
-    auto sid = ParseExtFuncName(func, "ccompiler");
+    // Record the external symbol for runtime lookup.
+    auto sid = GetExtSymbol(func);
 
-    auto builder = CodegenC("ccompiler_" + sid);
+    auto builder = CodegenC(sid);
     builder.VisitExpr(func->body);
     code_stream_ << builder.JIT();
   }
@@ -198,7 +198,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
-    CHECK(pf != nullptr) << "Cannot find csource module to create the external function";
+    CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code_stream_.str(), "cc");
   }
 

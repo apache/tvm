@@ -615,17 +615,17 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (src_func->IsExternal()) {
-        auto compiler = FunctionGetAttr(src_func, attr::kExternal);
+      if (!src_func->UseDefaultCompiler()) {
+        auto compiler = FunctionGetAttr(src_func, attr::kCompiler);
         const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
         CHECK(code_gen) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
           ext_mods[code_gen->value] = relay::ModuleNode::make({}, {});
         }
-        auto ext_func_name = FunctionGetAttr(src_func, attr::kFuncName);
-        const tvm::ir::StringImm* func_name = ext_func_name.as<tvm::ir::StringImm>();
-        CHECK(func_name) << "No external function name is set for:\n" << AsText(src_func, false);
-        auto gv = GlobalVarNode::make(func_name->value);
+        auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
+        const tvm::ir::StringImm* symbol_name = ext_symbol.as<tvm::ir::StringImm>();
+        CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
+        auto gv = GlobalVarNode::make(symbol_name->value);
         ext_mods[code_gen->value]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
@@ -689,12 +689,12 @@ class CompileEngineImpl : public CompileEngineNode {
       value->use_count = 0;
       cache_[key] = value;
     }
-    // No need to lower external function for now. We will invoke the external
+    // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (key->source_func->IsExternal()) {
+    if (!key->source_func->UseDefaultCompiler()) {
       auto cache_node = make_node<CachedFuncNode>();
       const auto name_node =
-          FunctionGetAttr(key->source_func, attr::kFuncName).as<tvm::ir::StringImm>();
+          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::ir::StringImm>();
       CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
       cache_node->func_name = name_node->value;
       cache_node->target = tvm::target::ext_dev();
