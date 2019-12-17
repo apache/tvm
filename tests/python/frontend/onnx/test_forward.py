@@ -144,39 +144,42 @@ def test_reshape():
 
 def test_expand():
 
-    def _test(name, in_shap, shape, ref_shape):
+    def _test_expand(name, data, shape, ref_data):
         shape_array = np.array(shape)
-        ref_node = onnx.helper.make_node('Constant',
+        shape_node = onnx.helper.make_node('Constant',
                                     inputs=[],
                                     outputs=['shape'],
                                     value=onnx.helper.make_tensor(name = 'const_tensor',
-                                                                data_type = onnx.TensorProto.INT32,
-                                                                dims = shape_array.shape,
-                                                                vals = shape_array.flatten().astype(int)))
+                                                                  data_type = onnx.TensorProto.INT32,
+                                                                  dims = shape_array.shape,
+                                                                  vals = shape_array.flatten().astype('int32')))
         expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
 
-        graph = helper.make_graph([ref_node, expand_node],
-                                "expand_node",
+        graph = helper.make_graph([shape_node, expand_node],
+                                "expand_test",
                                 inputs = [helper.make_tensor_value_info("in",
-                                                TensorProto.FLOAT, list(in_shape))],
+                                                TensorProto.FLOAT, list(data.shape))],
                                 outputs = [helper.make_tensor_value_info("out",
-                                                TensorProto.FLOAT, list(ref_shape))])
+                                                TensorProto.FLOAT, list(ref_data.shape))])
 
         model = helper.make_model(graph, producer_name=name)
 
         for target, ctx in ctx_list():
-            x = np.random.uniform(size=in_shape).astype('int32')
-            tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
+            tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, 'float32')
 
-        tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+        tvm.testing.assert_allclose(ref_data, tvm_out)
 
-    in_shape = (1, 3, 1, 4)
-    shape = (4, 3, 3, 4)
-    _test('expand_with_dim_unchanged_test', in_shape, shape, shape)
+    in_shape = (3, 1)
+    shape = (3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, 4)
+    _test_expand('expand_with_dim_unchanged_test', data, shape, ref_data)
 
-    in_shape = (3, 2, 1)
-    shape = (4, 3, 2, 4)
-    _test('expand_with_dim_changed_test', in_shape, shape, shape)
+    in_shape = (3, 1)
+    shape = (2, 1, 6)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand('expand_with_dim_changed_test', data, shape, ref_data)
 
 
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
@@ -1745,55 +1748,55 @@ def test_or():
 
 if __name__ == '__main__':
     test_flatten()
-    test_reshape()
-    test_shape()
+    # test_reshape()
+    # test_shape()
     test_expand()
-    test_power()
-    test_squeeze()
-    test_unsqueeze()
-    test_slice()
-    test_floor()
-    test_ceil()
-    test_clip()
-    test_onehot()
-    test_matmul()
-    test_batch_matmul()
-    test_gather()
-    test_lrn()
-    test_instance_norm()
-    test_upsample()
-    test_forward_min()
-    test_forward_max()
-    test_forward_mean()
-    test_forward_hardsigmoid()
-    test_forward_arg_min_max()
-    test_softmax()
-    test_constantofshape()
-    test_reduce_max()
-    test_reduce_min()
-    test_reduce_sum()
-    test_reduce_mean()
-    test_pad()
-    test_split()
-    test_binary_ops()
-    test_single_ops()
-    test_leaky_relu()
-    test_elu()
-    test_selu()
-    test_ThresholdedRelu()
-    test_ScaledTanh()
-    test_ParametricSoftplus()
-    test_Scale()
-    test_LogSoftmax()
-    test_resnet()
-    test_inception()
-    test_densenet()
-    test_sign()
-    test_not()
-    test_and()
-    test_tile()
-    test_erf()
-    test_where()
-    test_or()
-    test_depth_to_space()
-    test_space_to_depth()
+    # test_power()
+    # test_squeeze()
+    # test_unsqueeze()
+    # test_slice()
+    # test_floor()
+    # test_ceil()
+    # test_clip()
+    # test_onehot()
+    # test_matmul()
+    # test_batch_matmul()
+    # test_gather()
+    # test_lrn()
+    # test_instance_norm()
+    # test_upsample()
+    # test_forward_min()
+    # test_forward_max()
+    # test_forward_mean()
+    # test_forward_hardsigmoid()
+    # test_forward_arg_min_max()
+    # test_softmax()
+    # test_constantofshape()
+    # test_reduce_max()
+    # test_reduce_min()
+    # test_reduce_sum()
+    # test_reduce_mean()
+    # test_pad()
+    # test_split()
+    # test_binary_ops()
+    # test_single_ops()
+    # test_leaky_relu()
+    # test_elu()
+    # test_selu()
+    # test_ThresholdedRelu()
+    # test_ScaledTanh()
+    # test_ParametricSoftplus()
+    # test_Scale()
+    # test_LogSoftmax()
+    # test_resnet()
+    # test_inception()
+    # test_densenet()
+    # test_sign()
+    # test_not()
+    # test_and()
+    # test_tile()
+    # test_erf()
+    # test_where()
+    # test_or()
+    # test_depth_to_space()
+    # test_space_to_depth()
