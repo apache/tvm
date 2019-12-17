@@ -505,6 +505,20 @@ class IntervalSetEvaluator :
     return Union(analyzer_, false_set, true_set);
   }
 
+  IntervalSet VisitExpr_(const Call* op) final {
+    if (op->is_intrinsic(intrinsic::tvm_assert_bound)) {
+      Expr expr = GetRef<Expr>(op);
+      Expr value = op->args[0];
+      Expr lb = op->args[1];
+      Expr ub = op->args[2];
+      // TODO(yizhi): remove following "hack"
+      lb = lb.same_as(value) ? expr : lb;
+      ub = ub.same_as(value) ? expr : ub;
+      return IntervalSet(lb, ub);
+    }
+    return VisitExprDefault_(op);
+  }
+
   IntervalSet VisitExprDefault_(const Node* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();

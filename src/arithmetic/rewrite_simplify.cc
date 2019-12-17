@@ -1715,6 +1715,13 @@ Mutate_(const Call* op, const Expr& self) {
       // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }
+  } else if (op->is_intrinsic(intrinsic::tvm_assert_bound)) {
+    Expr value = this->Mutate(op->args[0]);
+    if (const Call* v = value.as<Call>()) {
+      if (v->is_intrinsic(intrinsic::tvm_assert_bound)) {
+        return value;
+      }
+    }
   }
   if (op->is_intrinsic(Call::likely)) {
     for (const auto& constraint : literal_constraints_) {

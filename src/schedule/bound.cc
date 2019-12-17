@@ -238,7 +238,7 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     InferRootBound(stage, ctx, &ret);
 
     // bind bound of root iter vars.
-    for (auto iv :  stage->op->root_iter_vars()) {
+    for (auto iv : stage->op->root_iter_vars()) {
       auto it = ret.find(iv);
       if (it != ret.end()) {
         analyzer.Bind(iv->var, it->second);

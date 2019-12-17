@@ -207,7 +207,6 @@ Expr operator%(Expr a, Expr b) {
   return truncmod(a, b);
 }
 
-// TODO(tqchen): switch to floordiv
 Expr indexdiv(Expr a, Expr b) {
   return floordiv(a, b);
 }
@@ -569,11 +568,13 @@ Expr trunc(Expr x) {
 }
 
 Expr assert_bound(Expr value, Expr lower, Expr upper) {
-  if (is_const(value) || value.as<ir::FloatImm>()) {
+  if (!value.as<Variable>()) {
+    return value;
+  } else if (!lower.defined() && !upper.defined()) {
     return value;
   }
-  Expr lb = lower.defined() ? lower : IntImm::make(Int(64), arith::ConstIntBound::kNegInf);
-  Expr ub = upper.defined() ? upper : IntImm::make(Int(64), arith::ConstIntBound::kPosInf);
+  Expr lb = lower.defined() ? lower : value;
+  Expr ub = upper.defined() ? upper : value;
   return ir::Call::make(
       value.type(),
       ir::intrinsic::tvm_assert_bound,
