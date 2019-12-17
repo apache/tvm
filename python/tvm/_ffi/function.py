@@ -82,6 +82,9 @@ class ModuleBase(object):
     def __del__(self):
         check_call(_LIB.TVMModFree(self.handle))
 
+    def __hash__(self):
+        return ctypes.cast(self.handle, ctypes.c_void_p).value
+
     @property
     def entry_func(self):
         """Get the entry function
