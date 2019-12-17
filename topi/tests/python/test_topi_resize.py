@@ -37,8 +37,8 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
     else:
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
-
-    B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners, method=method)
+    coord_trans = "align_corners" if align_corners else "asymmetric"
+    B = topi.image.resize(A, (out_height, out_width), layout=layout, coordinate_transformation_mode=coord_trans, method=method)
 
     if method == "bilinear":
         b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
