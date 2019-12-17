@@ -582,7 +582,7 @@ def _crop_and_resize():
             raise tvm.error.OpAttributeUnImplemented(
                 'Attribute method=nearest is not supported')
         else:
-            attrs['align_corners'] = True
+            attrs['coordinate_transformation_mode'] = 'align_corners'
             attrs['method'] = 'bilinear'
 
         out = None

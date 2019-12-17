@@ -48,8 +48,8 @@ def resize(data,
     method : str, optional
         Scale method to used [nearest_neighbor, bilinear, bicubic].
 
-    align_corners : int, optional
-        Should be true to preserve the values at the corner pixels
+    coordinate_transformation_mode : string, optional
+        TODO
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
