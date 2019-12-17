@@ -1141,6 +1141,8 @@ class Expand(OnnxOpConverter):
 
 
 class Resize(OnnxOpConverter):
+    """Operator converter for Resize
+    """
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         mode = attr.get('mode')
