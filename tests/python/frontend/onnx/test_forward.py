@@ -1854,7 +1854,7 @@ def test_resize():
         ))
 
         if oshape == []:
-            oshape = [dim * scale for (dim, scale) in zip(ishape, scales)]
+            oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
 
         graph = helper.make_graph(nodes,
                                   "resize_test",
