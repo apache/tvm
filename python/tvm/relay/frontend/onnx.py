@@ -1155,10 +1155,10 @@ class Resize(OnnxOpConverter):
         size = infer_value_simulated(inputs[3], params).asnumpy()
         in_size = np.array(infer_shape(inputs[0]))
         if len(scale) != 0:
-            assert len(size) == 0
+            assert len(size) == 0, "One of scale or size should be passed, not both"
             size = in_size * scale
         else:
-            assert len(size) != 0
+            assert len(size) != 0, "One of scale or size should be passed, not both"
         coord_trans = attr.get('coordinate_transformation_mode')
         if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
             coord_trans = "half_pixel"
@@ -1169,7 +1169,8 @@ class Resize(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
-        return _op.image.resize(inputs[0], (size[-2], size[-1]), "NCHW", method, coord_trans)
+        layout = "NHWC" if in_size[-1] == size[-1] else "NCHW"
+        return _op.image.resize(inputs[0], (size[-2], size[-1]), layout, method, coord_trans)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
