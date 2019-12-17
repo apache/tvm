@@ -98,23 +98,6 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_super_resolution_example():
-    verify_onnx_forward_impl(
-        super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
-
-
-def verify_squeezenet1_1():
-    verify_onnx_forward_impl(squeezenet1_1, (1, 3, 224, 224), (1, 1000))
-
-
-def verify_lenet():
-    verify_onnx_forward_impl(lenet, (1, 1, 28, 28), (1, 10))
-
-
-def verify_resnet18():
-    verify_onnx_forward_impl(resnet18_1_0, (1, 3, 224, 224), (1, 1000))
-
-
 def test_reshape():
     in_shape = (4, 3, 3, 4)
     ref_shape = (6, 2, 4, 3)
@@ -1826,6 +1809,7 @@ def test_convtranspose():
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
 
+<<<<<<< HEAD
 def test_unsqueeze_constant():
     from torch.nn import Linear, Sequential, Module
     class Flatten(Module):
@@ -1842,6 +1826,60 @@ def test_unsqueeze_constant():
 
         onnx_model = onnx.load(file_name)
         relay.frontend.from_onnx(onnx_model, {'0': input_size})
+=======
+def test_resize():
+    def make_constant_node(name, data_type, dims, vals):
+        return helper.make_node('Constant',
+                                inputs=[],
+                                outputs=[name],
+                                value=helper.make_tensor(name=name,
+                                                         data_type=data_type,
+                                                         dims=dims,
+                                                         vals=vals))
+    def verify(ishape, oshape, scales, mode, coord_trans):
+        roi_node = make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), [])
+        scales_node = make_constant_node('scales', onnx.TensorProto.FLOAT, (len(scales),), scales)
+        sizes_node = make_constant_node('sizes', onnx.TensorProto.INT64, (len(oshape),), oshape)
+        resize_node = helper.make_node(
+            'Resize',
+            inputs=['X', 'roi', 'scales', 'sizes'],
+            outputs=['Y'],
+            mode=mode,
+            coordinate_transformation_mode=coord_trans
+        )
+
+        if oshape == []:
+            oshape = [dim * scale for (dim, scale) in zip(ishape, scales)]
+
+        graph = helper.make_graph([roi_node, scales_node, sizes_node, resize_node],
+                                  "resize_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, ishape)],
+                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, oshape)])
+
+        model = helper.make_model(graph, producer_name='resize_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=ishape).astype('float32')
+            tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
+            onnx_out = get_onnxruntime_output(model, x, 'float32')
+
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+
+    # NCHW and upsampling
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+    # NCHW and downsampling
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+    # NHWC and upsampling
+    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "nearest", "asymmetric")
+    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "linear", "align_corners")
+    # verify([1, 32, 32, 16], [1, 64, 64, 16], [], "linear", "half_pixel")
+    # scales are specified instead of sizes
+    # verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+>>>>>>> adding onnx resize tests
 
 
 if __name__ == '__main__':
@@ -1901,3 +1939,4 @@ if __name__ == '__main__':
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
+    test_resize()

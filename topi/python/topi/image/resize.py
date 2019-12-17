@@ -38,8 +38,8 @@ def resize(data, size, layout="NCHW", method="bilinear",
     layout: string, optional
         "NCHW", "NHWC", or "NCHWc".
 
-    align_corners: Boolean, optional
-        To preserve the values at the corner pixels.
+    coordinate_transformation_mode: string, optional
+        TODO
 
     method: {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for resizing.
@@ -113,7 +113,7 @@ def resize(data, size, layout="NCHW", method="bilinear",
         in_y = y_ratio * y
         in_x = x_ratio * x
 
-        if align_corners:
+        if coordinate_transformation_mode == "align_corners":
             yint = tvm.round(in_y).astype('int32')
             xint = tvm.round(in_x).astype('int32')
         else:
