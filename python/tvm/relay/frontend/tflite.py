@@ -331,7 +331,8 @@ class OperatorConverter(object):
 
         # Use layout NHWC
         coord_trans = "align_corners" if align_corners else "asymmetric"
-        out = _op.image.resize(in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans)
+        out = _op.image.resize(in_expr, target_size, "NHWC", method,
+                               coordinate_transformation_mode=coord_trans)
         return out
 
     def convert_resize_bilinear(self, op):
