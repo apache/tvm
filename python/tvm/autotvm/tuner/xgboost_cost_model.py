@@ -167,8 +167,8 @@ class XGBoostCostModel(CostModel):
             # Pool's process side, where the *nix impl simply sets globals
             # then forks.
             # To ensure each process in the pool is properly set, we have to do
-            # some synchronization by sending an async call and waiting for
-            # the queue to have an item set
+            # some synchronization by sending an async call, setting space, target and task, then
+            # waiting for the queue to have an item set
             pool_size = self.num_threads if self.num_threads != None else multiprocessing.cpu_count()
             if self.pool == None:
                 self.pool = ProcessPool(pool_size)
@@ -178,7 +178,7 @@ class XGBoostCostModel(CostModel):
             # A simple pathos.map would be cleaner, but it seems that in some cases,
             # some of the pools processes will be missed, with some processes running
             # the method twice.  It seems that just passing a Queue in this manner,
-            # hits all the processes in the pool. Some assertion should be built to verify
+            # hits all the processes in the pool. Some assertion could be built to verify
             for i in range(pool_size):
                 queue = manager.Queue(1)
                 results = {
@@ -197,7 +197,7 @@ class XGBoostCostModel(CostModel):
                 if all_ready:
                     break;
                 else:
-                    time.sleep(0.1)
+                    time.sleep(0.05)
             # complete the async requests on the pool
             for pipe_sync in pipe_syncs:
                 pipe_sync["apipe"].get()
