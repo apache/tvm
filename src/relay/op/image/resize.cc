@@ -71,13 +71,13 @@ Expr MakeResize(Expr data,
                 Array<IndexExpr> size,
                 std::string layout,
                 std::string method,
-                bool align_corners,
+                std::string coordinate_transformation_mode,
                 DataType out_dtype) {
   auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
-  attrs->align_corners = align_corners;
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize");
   return CallNode::make(op, {data}, Attrs(attrs), {});

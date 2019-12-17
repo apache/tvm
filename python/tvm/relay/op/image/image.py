@@ -22,7 +22,7 @@ def resize(data,
            size,
            layout="NCHW",
            method="bilinear",
-           align_corners=True,
+           coordinate_transformation_mode="half_pixel",
            out_dtype=None):
     """Image resize operator.
 
@@ -59,4 +59,4 @@ def resize(data,
     result: relay.Expr
         The resized result.
     """
-    return _make.resize(data, size, layout, method, align_corners, out_dtype)
+    return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
