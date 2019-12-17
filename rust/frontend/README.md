@@ -35,14 +35,12 @@ Here's a Python snippet for downloading and building a pretrained Resnet18 via A
 
 ```python
 block = get_model('resnet18_v1', pretrained=True)
-    
-sym, params = nnvm.frontend.from_mxnet(block)
-# add the softmax layer for prediction
-net = nnvm.sym.softmax(sym)
+
+sym, params = relay.frontend.from_mxnet(block, shape_dict)
 # compile the model
-with nnvm.compiler.build_config(opt_level=opt_level):
-    graph, lib, params = nnvm.compiler.build(
-        net, target, shape={"data": data_shape}, params=params)
+with relay.build_config(opt_level=opt_level):
+    graph, lib, params = relay.build(
+        net, target, params=params)
 # same the model artifacts
 lib.save(os.path.join(target_dir, "deploy_lib.o"))
 cc.create_shared(os.path.join(target_dir, "deploy_lib.so"),
@@ -51,7 +49,7 @@ cc.create_shared(os.path.join(target_dir, "deploy_lib.so"),
 with open(os.path.join(target_dir, "deploy_graph.json"), "w") as fo:
     fo.write(graph.json())
 with open(os.path.join(target_dir,"deploy_param.params"), "wb") as fo:
-    fo.write(nnvm.compiler.save_param_dict(params))
+    fo.write(relay.save_param_dict(params))
 ```
 
 Now, we need to input the artifacts to create and run the *Graph Runtime* to detect our input cat image
@@ -113,7 +111,7 @@ and the model correctly predicts the input image as **tiger cat**.
 
 Please follow TVM [installations](https://docs.tvm.ai/install/index.html), `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
 
-*Note:* To run the end-to-end examples and tests, `tvm`, `nnvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
+*Note:* To run the end-to-end examples and tests, `tvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
 
 ## Supported TVM Functionalities
 

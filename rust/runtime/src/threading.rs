@@ -296,7 +296,7 @@ pub(crate) fn sgx_join_threads() {
     ocall_packed!("__sgx_thread_group_join__", 0);
 }
 
-// @see https://github.com/apache/incubator-tvm/issues/988 for information on why this function is used.
+// @see issue 988 for information on why this function is used.
 #[no_mangle]
 pub extern "C" fn TVMBackendParallelBarrier(_task_id: usize, penv: *const TVMParallelGroupEnv) {
     let barrier: &Arc<Barrier> = unsafe { &*((*penv).sync_handle as *const Arc<Barrier>) };
