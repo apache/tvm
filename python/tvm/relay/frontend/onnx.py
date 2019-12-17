@@ -1161,7 +1161,7 @@ class Resize(OnnxOpConverter):
             size = infer_value_simulated(inputs[3], params).asnumpy().astype(np.int32)
         else:
             assert len(scale) != 0, "One of scale or size should be passed."
-            size = (in_size * scale).astype(np.int64)
+            size = (in_size * scale).astype(np.int32)
 
         coord_trans = attr.get('coordinate_transformation_mode')
         if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
