@@ -1091,6 +1091,7 @@ class Or(Elemwise):
     def _impl_v7(cls, inputs, attr, params):
         return _op.logical_or(inputs[0], inputs[1])
 
+
 class Expand(OnnxOpConverter):
     """ Operator converter for Expand.
     """
@@ -1137,6 +1138,38 @@ class Expand(OnnxOpConverter):
 
         shape = expand_shape(in_shape, shape)
         return _op.broadcast_to(inputs[0], shape=tuple(shape))
+
+
+class Resize(OnnxOpConverter):
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        mode = attr.get('mode')
+        if mode == b'nearest':
+            method = "nearest_neighbor"
+        elif mode == b'linear':
+            method = "bilinear"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode))
+        scale = infer_value_simulated(inputs[2], params).asnumpy()
+        size = infer_value_simulated(inputs[3], params).asnumpy()
+        in_size = np.array(infer_shape(inputs[0]))
+        if len(scale) != 0:
+            assert len(size) == 0
+            size = in_size * scale
+        else:
+            assert len(size) != 0
+        coord_trans = attr.get('coordinate_transformation_mode')
+        if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
+            coord_trans = "half_pixel"
+        elif coord_trans == b'align_corners':
+            coord_trans = "align_corners"
+        elif coord_trans == b'asymmetric' or method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
+        return _op.image.resize(inputs[0], (size[-2], size[-1]), "NCHW", method, coord_trans)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1263,7 +1296,8 @@ def _get_convert_map(opset):
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
-        'Or': Or.get_converter(opset)
+        'Or': Or.get_converter(opset),
+        'Resize': Resize.get_converter(opset),
     }
 
 
