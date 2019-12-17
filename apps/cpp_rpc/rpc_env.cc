@@ -223,7 +223,7 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
  */
 Module Load(std::string *fileIn, const std::string& fmt) {
   const std::string& file = *fileIn;
-  if (common::EndsWith(file, ".so")) {
+  if (common::EndsWith(file, ".so") || common::EndsWith(file, ".dll")) {
     return Module::LoadFromFile(file, fmt);
   }
 

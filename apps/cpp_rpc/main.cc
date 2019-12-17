@@ -292,6 +292,9 @@ int main(int argc, char * argv[]) {
 
   // Runs WSAStartup on Win32, no-op on POSIX
   Socket::Startup();
+#if defined(_WIN32)
+  SetEnvironmentVariableA("CUDA_CACHE_DISABLE", "1");
+#endif
 
   if (0 == strcmp(argv[1], "server")) {
     return RpcServer(argc, argv);
