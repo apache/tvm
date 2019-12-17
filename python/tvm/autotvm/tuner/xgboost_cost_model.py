@@ -249,7 +249,6 @@ class XGBoostCostModel(CostModel):
                 self.base_model = None
             else:
                 dtrain.set_base_margin(discount * self.base_model.predict(xs, output_margin=True))
-        
         self.bst = xgb.train(self.xgb_params, dtrain,
                              num_boost_round=8000,
                              callbacks=[custom_callback(
@@ -536,7 +535,6 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                 res = [x.split(':') for x in bst_eval.split()]
                 for kv in res[1:]:
                     res_dict[kv[0]] = [float(kv[1])]
-        
         eval_res = []
         keys = list(res_dict.keys())
         keys.sort(key=lambda x: x if metric_shortname not in x else "a" + x)
