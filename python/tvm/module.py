@@ -133,7 +133,16 @@ class Module(ModuleBase):
         self.save(path_obj)
         files = [path_obj]
         is_system_lib = self.type_key == "llvm" and self.get_function("__tvm_is_system_module")()
+        has_imported_c_file = False
         if self.imported_modules:
+            for i, m in enumerate(self.imported_modules):
+                if m.type_key == "c":
+                    has_imported_c_file = True
+                    c_file_name = "tmp_" + str(i) + ".cc"
+                    path_cc = temp.relpath(c_file_name)
+                    with open(path_cc, "w") as f:
+                        f.write(m.get_source())
+                    files.append(path_cc)
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
                 f.write(_PackImportsToC(self, is_system_lib))
@@ -143,7 +152,7 @@ class Module(ModuleBase):
                 fcompile = _tar.tar
             else:
                 fcompile = _cc.create_shared
-        if self.type_key == "c":
+        if self.type_key == "c" or has_imported_c_file:
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]
