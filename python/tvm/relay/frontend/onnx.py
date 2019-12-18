@@ -1173,11 +1173,8 @@ class Resize(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
-        layout = "NCHW"
+        layout = "NCHW" # ONNX assumes NCHW layout
         out_size = (size[2], size[3])
-        if in_size[-1] == size[-1]:
-            layout = "NHWC"
-            out_size = (size[1], size[2])
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
 
 # compatible operators that do NOT require any conversion.
