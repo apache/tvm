@@ -42,9 +42,6 @@ python3 -m pytest -v tests/python/frontend/onnx
 echo "Running relay CoreML frontend test..."
 python3 -m pytest -v tests/python/frontend/coreml
 
-echo "Running nnvm to relay frontend test..."
-python3 -m pytest -v tests/python/frontend/nnvm_to_relay
-
 echo "Running relay Tensorflow frontend test..."
 python3 -m pytest -v tests/python/frontend/tensorflow
 

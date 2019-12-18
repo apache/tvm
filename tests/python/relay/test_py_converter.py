@@ -510,7 +510,6 @@ def test_op_stack():
 
 # test an op with a tuple output
 # adapted from test_split_infer_type in test_op_level3
-# and test_split in nnvm's test_top_level1
 def test_split():
     def verify_split(shape, indices_or_sections, axis=0):
         x = np.random.normal(size=shape).astype('float32')
@@ -529,7 +528,6 @@ def test_split():
 
 
 # ensure we can generate code for batch_norm, since it requires simplify_inference
-# adapted from test_batchnorm in nnvm's test_top_level1
 def test_batch_norm():
     def verify_batch_norm(shapes):
         data = [np.absolute(np.random.normal(size=shape).astype('float32'))

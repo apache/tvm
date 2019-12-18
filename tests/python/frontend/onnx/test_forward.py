@@ -23,7 +23,7 @@ import topi.testing
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
-from nnvm.testing.config import ctx_list
+from tvm.relay.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto, mapping
 import scipy
