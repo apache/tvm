@@ -141,6 +141,7 @@ FUNC_OPS = {
     "nn.softmax": op.nn.softmax,
     "reshape": op.reshape,
     "nn.conv2d_transpose": op.nn.conv2d_transpose,
+    "nn.conv1d_transpose": op.nn.conv1d_transpose,
     "concatenate": op.concatenate,
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,

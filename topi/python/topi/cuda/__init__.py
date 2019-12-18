@@ -20,7 +20,7 @@
 from __future__ import absolute_import as _abs
 
 from . import conv2d, depthwise_conv2d, conv2d_transpose_nchw, deformable_conv2d, \
-              group_conv2d_nchw, dense
+              group_conv2d_nchw, dense, conv1d_transpose_ncw
 from . import conv3d
 from .conv2d_hwcn import schedule_conv2d_hwcn
 from .depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
