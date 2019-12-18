@@ -239,7 +239,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // Finally if the operator position is not a call node we will
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
-    if (const OpNode* opnode = call->op.as<OpNode>()) {
+    const OpNode* opnode = call->op.as<OpNode>();
+    if (opnode != nullptr && call->op != Op::Get("nn.batch_norm")) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
     } else {
       this->Update(call->op, node, kOpaque);
@@ -932,7 +933,7 @@ class FuseMutator : private ExprMutator {
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
+    func = FunctionSetAttr(func, attr::kPrimitive, tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 

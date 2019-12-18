@@ -126,6 +126,7 @@ void ImportModuleBlob(const char* mblob, std::vector<Module>* mlist) {
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
     CHECK(stream->Read(&tkey));
+    if (tkey == "c") continue;
     std::string fkey = "module.loadbinary_" + tkey;
     const PackedFunc* f = Registry::Get(fkey);
     CHECK(f != nullptr)

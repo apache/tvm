@@ -69,6 +69,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
         << "Only support simply one-level hierarchy";
     std::string tkey = im->type_key();
     stream->Write(tkey);
+    if (tkey == "c") continue;
     im->SaveToBinary(stream);
   }
   // translate to C program
