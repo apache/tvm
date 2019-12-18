@@ -632,6 +632,10 @@ def _resize(method):
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
+        if attr.pop('align_corners') == True:
+            attr['coordinate_transformation_mode'] = 'align_corners'
+        else:
+            attr['coordinate_transformation_mode'] = 'asymmetric'
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(op_name='resize',
