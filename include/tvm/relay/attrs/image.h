@@ -53,7 +53,10 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
                   "bilinear - Bilinear Interpolation"
                   "bicubic - Bicubic Interpolation");
     TVM_ATTR_FIELD(coordinate_transformation_mode).set_default("half_pixel")
-        .describe("TODO");
+        .describe("Describes how to transform the coordinate in the resized tensor"
+                  "to the coordinate in the original tensor."
+                  "Refer to the ONNX Resize operator specification for details".
+                  "Available options are half_pixel, align_corners and asymmetric");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type.");
