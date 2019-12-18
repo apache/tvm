@@ -142,6 +142,46 @@ def test_reshape():
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
+def test_expand():
+
+    def _test_expand(name, data, shape, ref_data):
+        shape_array = np.array(shape)
+        shape_node = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['shape'],
+                                    value=onnx.helper.make_tensor(name = 'const_tensor',
+                                                                  data_type = onnx.TensorProto.INT32,
+                                                                  dims = shape_array.shape,
+                                                                  vals = shape_array.flatten().astype('int32')))
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph([shape_node, expand_node],
+                                "expand_test",
+                                inputs = [helper.make_tensor_value_info("in",
+                                                TensorProto.FLOAT, list(data.shape))],
+                                outputs = [helper.make_tensor_value_info("out",
+                                                TensorProto.FLOAT, list(ref_data.shape))])
+
+        model = helper.make_model(graph, producer_name=name)
+
+        for target, ctx in ctx_list():
+            tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, 'float32')
+
+        tvm.testing.assert_allclose(ref_data, tvm_out)
+
+    in_shape = (3, 1)
+    shape = (3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, 4)
+    _test_expand('expand_with_dim_unchanged_test', data, shape, ref_data)
+
+    in_shape = (3, 1)
+    shape = (2, 1, 6)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand('expand_with_dim_changed_test', data, shape, ref_data)
+
+
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
     node = onnx.helper.make_node('DepthToSpace',
                                  inputs=['x'],
@@ -1710,6 +1750,7 @@ if __name__ == '__main__':
     test_flatten()
     test_reshape()
     test_shape()
+    test_expand()
     test_power()
     test_squeeze()
     test_unsqueeze()
