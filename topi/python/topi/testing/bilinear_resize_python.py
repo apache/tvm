@@ -19,7 +19,7 @@
 import math
 import numpy as np
 
-def bilinear_resize_python(image, out_size, layout, align_corners=True):
+def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mode="align_corners"):
     """ Bilinear scaling using python"""
     (new_h, new_w) = out_size
 
@@ -30,7 +30,7 @@ def bilinear_resize_python(image, out_size, layout, align_corners=True):
         (batch, channel, h, w) = image.shape
         scaled_image = np.ones((batch, channel, new_h, new_w))
 
-    if align_corners:
+    if coordinate_transformation_mode == "align_corners":
         height_scale = np.float32(h-1) / np.float32(out_size[0]-1)
         width_scale = np.float32(w-1) / np.float32(out_size[1]-1)
     else:
@@ -41,7 +41,10 @@ def bilinear_resize_python(image, out_size, layout, align_corners=True):
         for i in range(channel):
             for j in range(new_h):
                 for k in range(new_w):
-                    in_y = j * height_scale
+                    if coordinate_transformation_mode == "half_pixel":
+                        in_y = (j + 0.5) * height_scale - 0.5
+                    else:
+                        in_y = j * height_scale
                     y0 = math.floor(in_y)
                     y1 = min(math.ceil(in_y), h - 1)
                     y_lerp = in_y - y0
@@ -49,7 +52,10 @@ def bilinear_resize_python(image, out_size, layout, align_corners=True):
                     y0 = int(y0)
                     y1 = int(y1)
 
-                    in_x = k * width_scale
+                    if coordinate_transformation_mode == "half_pixel":
+                        in_x = (k + 0.5) * width_scale - 0.5
+                    else:
+                        in_x = k * width_scale
                     x0 = math.floor(in_x)
                     x1 = min(math.ceil(in_x), w - 1)
                     x_lerp = in_x - x0
