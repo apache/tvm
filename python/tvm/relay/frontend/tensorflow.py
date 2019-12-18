@@ -632,7 +632,7 @@ def _resize(method):
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
-        if attr.pop('align_corners') == True:
+        if attr.pop('align_corners') is True:
             attr['coordinate_transformation_mode'] = 'align_corners'
         else:
             attr['coordinate_transformation_mode'] = 'asymmetric'
