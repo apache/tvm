@@ -105,15 +105,11 @@ def _server_env(load_library, work_path=None):
 
 def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
-    try:
-        sockfd = sock.fileno()
-        temp = _server_env(load_library, work_path)
-        base._ServerLoop(sockfd)
-        if not work_path:
-            temp.remove()
-    except Exception as ex:
-        print(ex)
-        pass
+    sockfd = sock.fileno()
+    temp = _server_env(load_library, work_path)
+    base._ServerLoop(sockfd)
+    if not work_path:
+        temp.remove()
 
     logger.info("Finish serving %s", addr)
 
@@ -130,8 +126,7 @@ def _serve_loop_pool(args):
         base._ServerLoop(sockfd)
         if not work_path:
             temp.remove()
-    except Exception as ex:
-        print(ex)
+    except Exception:
         pass
 
     logger.info("Finish serving %s", addr)    
