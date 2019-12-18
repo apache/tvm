@@ -207,29 +207,23 @@ def _mx_conv1d_transpose(inputs, attrs):
     if data_layout != "NCW":
         raise tvm.error.OpAttributeInvalid(
             'Only "NCW" data layout is supported for 1D Convolution')
-    data_layout = "NCHW"
     channel_axis = 1
-    kernel_layout = "OIHW"
-
+    kernel_layout = "OIW"
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")
-    new_attrs["kernel_size"] = (1,) + attrs.get_int_tuple("kernel")
-    new_attrs["strides"] = (1,) + attrs.get_int_tuple("stride", (1,))
-    new_attrs["output_padding"] = (0,) + attrs.get_int_tuple("adj", (0,))
-    new_attrs["padding"] = (0,) + attrs.get_int_tuple("pad", (0,))
-    new_attrs["dilation"] = (1,) +  attrs.get_int_tuple("dilate", (1,))
+    new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = attrs.get_int_tuple("stride", (1,))
+    new_attrs["output_padding"] = attrs.get_int_tuple("adj", (0,))
+    new_attrs["padding"] = attrs.get_int_tuple("pad", (0,))
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1,))
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
     new_attrs["kernel_layout"] = kernel_layout
     use_bias = not attrs.get_bool("no_bias", True)
-    data = _op.expand_dims(inputs[0], axis=2)
-    kernel = _op.expand_dims(inputs[1], axis=2)
-    res = _op.nn.conv2d_transpose(data, kernel, **new_attrs)
-
+    res = _op.nn.conv1d_transpose(inputs[0], inputs[1], **new_attrs)
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
-    res = _op.squeeze(res, axis=[2])
     return res
 
 
