@@ -15,25 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Makefile Example to deploy TVM modules.
-ROCM_PATH=/opt/rocm
+[package]
+name = "test-nn"
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["TVM Contributors"]
 
-TVM_ROOT=$(shell cd ../..; pwd)
-DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
+[dependencies]
+ndarray="0.12.1"
+serde = "1.0.59"
+serde_json = "1.0.17"
+tvm-runtime = { path = "../../" }
 
-PKG_CFLAGS = -std=c++11 -O2 -fPIC\
-	-I${TVM_ROOT}/include\
-	-I${DMLC_CORE}/include\
-	-I${TVM_ROOT}/3rdparty/dlpack/include\
-	-I${ROCM_PATH}/include
-
-PKG_LDFLAGS = -L${ROCM_PATH}/lib -L${TVM_ROOT}/lib -ldl -lpthread -lhip_hcc -lMIOpen
-
-.PHONY: clean all
-
-all: lib/libtvm_runtime_rocm.so
-
-# Build rule for all in one TVM package library
-lib/libtvm_runtime_rocm.so: rocm_runtime_pack.cc
-	@mkdir -p $(@D)
-	$(CXX) $(PKG_CFLAGS) -shared -o $@ $(filter %.cc %.o %.a, $^) $(PKG_LDFLAGS)
+[build-dependencies]
+ar = "0.6.0"

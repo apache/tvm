@@ -15,17 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "test-nnvm"
-version = "0.0.0"
-license = "Apache-2.0"
-authors = ["TVM Contributors"]
+if(USE_DNNL_CODEGEN STREQUAL "ON")
+  file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/codegen.cc)
+  list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
 
-[dependencies]
-ndarray="0.12.1"
-serde = "1.0.59"
-serde_json = "1.0.17"
-tvm-runtime = { path = "../../" }
+  find_library(EXTERN_LIBRARY_DNNL dnnl)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
+  file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
+  list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
+  message(STATUS "Build with DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
+endif()
 
-[build-dependencies]
-ar = "0.6.0"

@@ -17,7 +17,6 @@
 
 # Makefile Example to deploy TVM modules.
 TVM_ROOT=$(shell cd ../..; pwd)
-NNVM_PATH=nnvm
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 
 PKG_CFLAGS = -std=c++11 -O2 -fPIC\
@@ -25,7 +24,7 @@ PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${DMLC_CORE}/include\
 	-I${TVM_ROOT}/3rdparty/dlpack/include\
 
-PKG_LDFLAGS = -L${TVM_ROOT}/build -ldl -lpthread
+PKG_LDFLAGS = -L${TVM_ROOT}/build -ldl -pthread
 
 .PHONY: clean all
 
@@ -39,7 +38,7 @@ lib/libtvm_runtime_pack.o: tvm_runtime_pack.cc
 # The code library built by TVM
 lib/test_addone_sys.o: prepare_test_libs.py
 	@mkdir -p $(@D)
-	python prepare_test_libs.py
+	python3 prepare_test_libs.py
 
 # Deploy using the all in one TVM package library
 lib/cpp_deploy_pack: cpp_deploy.cc lib/test_addone_sys.o lib/libtvm_runtime_pack.o

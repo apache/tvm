@@ -19,13 +19,13 @@
 """Builds a simple graph for testing."""
 
 from os import path as osp
+import sys
 
 import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import testing
 
-CWD = osp.dirname(osp.abspath(osp.expanduser(__file__)))
 
 def _get_model(dshape):
     data = relay.var('data', shape=dshape)
@@ -35,17 +35,19 @@ def _get_model(dshape):
     one = relay.const(1, dtype="float32")
     return relay.Tuple([(left + one), (right - one), fc])
 
-
 def main():
-    dshape = (32, 16)
+    dshape = (4, 8)
     net = _get_model(dshape)
     mod, params = testing.create_workload(net)
     graph, lib, params = relay.build(
-        mod, 'llvm', params=params)
+        mod, 'llvm --system-lib', params=params)
 
-    with open(osp.join(CWD, 'graph.json'), 'w') as f_resnet:
+    out_dir = sys.argv[1]
+    lib.save(osp.join(sys.argv[1], 'graph.o'))
+    with open(osp.join(out_dir, 'graph.json'), 'w') as f_resnet:
         f_resnet.write(graph)
-    with open(osp.join(CWD, 'graph.params'), 'wb') as f_params:
+
+    with open(osp.join(out_dir, 'graph.params'), 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
 
 if __name__ == '__main__':
