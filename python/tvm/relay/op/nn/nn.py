@@ -257,6 +257,72 @@ def conv2d_transpose(data,
                                   kernel_layout, out_layout, output_padding, out_dtype)
 
 
+def conv1d_transpose(data,
+                     weight,
+                     strides=(1,),
+                     padding=(0,),
+                     dilation=(1,),
+                     groups=1,
+                     channels=None,
+                     kernel_size=None,
+                     data_layout="NCW",
+                     kernel_layout="OIW",
+                     out_layout="",
+                     output_padding=(0,),
+                     out_dtype=""):
+    """One dimensional transposed convolution operator.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Tuple[int], optional
+        The strides of convolution.
+
+    padding : Tuple[int], optional
+        The padding of convolution on both sides of inputs.
+
+    dilation : Tuple[int], optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    output_padding : Tuple[int], optional
+        Additional zero-padding to be added to one side of the output.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.conv1d_transpose(data, weight, strides, padding, dilation,
+                                  groups, channels, kernel_size, data_layout,
+                                  kernel_layout, out_layout, output_padding, out_dtype)
+
+
 def softmax(data, axis=-1):
     r"""Computes softmax.
 

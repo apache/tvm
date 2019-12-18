@@ -348,6 +348,37 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# conv1d_transpose
+@reg.register_compute("nn.conv1d_transpose")
+def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
+    """Compute definition of conv1d_transpose"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+    assert layout == "NCW", "conv1d_transpose ncw only supported"
+    assert dilation == (1,), "conv1d_transpose dilation is not supported"
+    assert groups == 1, "conv1d_transpose groups == 1 only supported"
+    out = topi.nn.conv1d_transpose_ncw(
+        inputs[0], inputs[1], strides, padding, out_dtype)
+    output_padding = get_const_tuple(attrs.output_padding)
+    out = topi.nn.pad(out,
+                      [0, 0, 0], [0, 0, output_padding[0]])
+    return [out]
+
+
+@reg.register_schedule("nn.conv1d_transpose")
+def schedule_conv1d_transpose(attrs, outs, target):
+    """Schedule definition of conv1d_transpose"""
+    with target:
+        return topi.generic.schedule_conv1d_transpose_ncw(outs)
+
+reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
 # bias_add
 reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)

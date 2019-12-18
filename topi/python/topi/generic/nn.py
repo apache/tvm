@@ -262,6 +262,24 @@ def schedule_conv2d_transpose_nchw(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv1d_transpose_ncw(outs):
+    """Schedule for conv1d_transpose_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv2d_transpose_ncw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d_nchw
 
