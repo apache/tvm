@@ -511,7 +511,11 @@ class IntervalSetEvaluator :
       Expr value = op->args[0];
       Expr lb = op->args[1];
       Expr ub = op->args[2];
-      // TODO(yizhi): remove following "hack"
+      // keep the assert_bound intrinsic in the interval,
+      // e.g., interval of assert_bound(n, 0, n) is [0, assert_bound(n, 0, n)]
+      // this makes sure variable n NEVER escape the assert_bound CallNode and appear standalone,
+      // it simplifies the rewrite simplification rules,
+      // e.g., no need to write things like TVM_TRY_REWRITE((x + y) - assert_bound(x, b1, b2), y)
       lb = lb.same_as(value) ? expr : lb;
       ub = ub.same_as(value) ? expr : ub;
       return IntervalSet(lb, ub);

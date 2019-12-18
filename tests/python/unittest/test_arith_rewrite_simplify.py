@@ -833,6 +833,11 @@ def test_cast_simplify():
             for i in [0, 1, 2, 3]:
                 ck.verify(tvm.expr.Cast(dtype1, tvm.const(i, dtype2)), tvm.const(i, dtype1))
 
+def test_assert_bound_simplify():
+    ck = RewriteChecker()
+    x = tvm.var("x")
+    ck.verify(tvm.assert_bound(x, 0) + 1 >= 1, tvm.const(True, "bool"))
+
 if __name__ == "__main__":
     test_floordiv_index_simplify()
     test_floormod_index_simplify()
@@ -849,3 +854,4 @@ if __name__ == "__main__":
     test_logical_simplify()
     test_let_simplify()
     test_cast_simplify()
+    test_assert_bound_simplify()
