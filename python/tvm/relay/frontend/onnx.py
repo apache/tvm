@@ -1275,7 +1275,7 @@ class GraphProto(object):
         self._renames = {}
         self._num_input = 0
         self._num_param = 0
-        self.shape_list = shape if shape else {}
+        self._shape = shape if shape else {}
         self._dtype = dtype
 
     def from_onnx(self, graph, opset):
@@ -1325,8 +1325,8 @@ class GraphProto(object):
                                               dtype=self._params[i_name].dtype)
             else:
                 self._num_input += 1
-                if i_name in self.shape_list:
-                    tshape = self.shape_list[i_name]
+                if i_name in self._shape:
+                    tshape = self._shape[i_name]
                 else:
                     raise ValueError("Must provide an input shape for `{0}`.".format(i_name))
                 if isinstance(self._dtype, dict):
