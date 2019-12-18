@@ -476,30 +476,39 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       argument_registers.push_back(reg->second);
     }
 
-    // Next generate the invoke instruction.
     Target target;
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      for (auto kv : targets_) {
-        target = kv.second;
-      }
+
+    if (!func->UseDefaultCompiler()) {
+      target = tvm::target::ext_dev();
     } else {
-      // heterogeneous execution.
-      LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      // Next generate the invoke instruction.
+      if (targets_.size() == 1) {
+        // homogeneous execution.
+        const auto& it = targets_.begin();
+        target = (*it).second;
+      } else {
+        // heterogeneous execution.
+        LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      }
     }
 
     auto key = CCacheKeyNode::make(func, target);
     auto cfunc = engine_->Lower(key);
 
-    // TODO(jroesch): support lowered funcs for multiple targets
-    CHECK_EQ(cfunc->funcs.size(), 1);
     auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+    if (!func->UseDefaultCompiler()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
+      // TODO(jroesch): support lowered funcs for multiple targets
+      CHECK_EQ(cfunc->funcs.size(), 1);
+      if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+        op_index = context_->cached_funcs.size();
+        context_->cached_funcs.push_back(cfunc);
+        context_->seen_funcs[cfunc->funcs[0]] = op_index;
+      } else {
+        op_index = context_->seen_funcs[cfunc->funcs[0]];
+      }
     }
 
     Emit(Instruction::InvokePacked(op_index,
@@ -950,32 +959,46 @@ void VMCompiler::LibraryCodegen() {
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, Array<LoweredFunc>> tgt_funcs;
-  for (auto &cfunc : cached_funcs) {
+  std::unordered_map<std::string, Array<LoweredFunc>> funcs;
+  for (auto& cfunc : cached_funcs) {
     std::string target_str = cfunc->target->str();
-    if (tgt_funcs.count(target_str) == 0) {
-      tgt_funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+    if (target_str == "ext_dev") {
+      continue;
+    } else if (funcs.count(target_str) == 0) {
+      funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
     } else {
-      tgt_funcs[target_str].push_back(cfunc->funcs[0]);
+      funcs[target_str].push_back(cfunc->funcs[0]);
     }
   }
-  Map<Target, Array<LoweredFunc>> funcs;
-  for (auto &it : tgt_funcs) {
-    funcs.Set(Target::Create(it.first), it.second);
-  }
 
-  if (const auto *f = runtime::Registry::Get("relay.backend.build")) {
-    // The target is just a dummy arg because funcs already contains corresponding target
-    // therefore target won't be used in the build function
-    runtime::Module mod = (*f)(funcs, Target(), target_host_);
+  auto compile_engine = CompileEngine::Global();
+  auto ext_mods = compile_engine->LowerExternalFunctions();
+  runtime::Module mod;
+  if (funcs.size() > 0) {
+    mod = tvm::build(funcs, target_host_, tvm::BuildConfig::Current());
     CHECK(mod.operator->());
-    exec_->lib = mod;
   } else {
-    LOG(FATAL) << "relay.backend.build is not registered";
+    CHECK_EQ(ext_mods.size(), 1U)
+        << "Expect to have a TVM DSOModule when multiple runtime modules exist";
   }
+  if (!ext_mods.empty()) {
+    if (funcs.size() == 0) {
+      mod = ext_mods[0];
+    } else {
+      // Import all external runtime modules.
+      for (auto it : ext_mods) {
+        mod.Import(it);
+      }
+    }
+  }
+  exec_->lib = mod;
   size_t primitive_index = 0;
   for (auto cfunc : cached_funcs) {
-    exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    if (cfunc->target->str() == "ext_dev") {
+      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    } else {
+      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    }
   }
 }
 

@@ -26,36 +26,54 @@ import tvm.relay.transform
 from tvm import relay
 from tvm.contrib import util
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5):
+def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
+                 ctx=tvm.cpu()):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
 
-    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, "llvm")
-    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    source_dir = os.path.join(test_dir, "..", "..", "..")
-    contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
+    def update_lib(lib):
+        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+        source_dir = os.path.join(test_dir, "..", "..", "..")
+        contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++11", "-I" + contrib_path]
-    tmp_path = util.tempdir()
-    lib_name = 'lib.so'
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.module.load(lib_path)
+        kwargs = {}
+        kwargs["options"] = ["-O2", "-std=c++11", "-I" + contrib_path]
+        tmp_path = util.tempdir()
+        lib_name = 'lib.so'
+        lib_path = tmp_path.relpath(lib_name)
+        lib.export_library(lib_path, fcompile=False, **kwargs)
+        lib = tvm.module.load(lib_path)
 
-    ctx = tvm.cpu()
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        return lib
 
-    for name, data in map_inputs.items():
-        rt_mod.set_input(name, data)
+    def check_vm_result():
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            exe = relay.vm.compile(mod, target=target)
+        code, lib = exe.save()
+        lib = update_lib(lib)
+        exe = relay.vm.Executable.load_exec(code, lib)
+        vm = relay.vm.VirtualMachine(exe)
+        vm.init(ctx)
+        out = vm.run(**map_inputs)
+        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
-    rt_mod.run()
-    out = tvm.nd.empty(out_shape, ctx=ctx)
-    out = rt_mod.get_output(0, out)
+    def check_graph_runtime_result():
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            json, lib, _ = relay.build(mod, target=target)
+        lib = update_lib(lib)
+        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
 
-    tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        for name, data in map_inputs.items():
+            rt_mod.set_input(name, data)
+        rt_mod.run()
+        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = rt_mod.get_output(0, out)
+
+        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+
+    check_vm_result()
+    check_graph_runtime_result()
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
