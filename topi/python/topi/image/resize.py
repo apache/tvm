@@ -39,7 +39,10 @@ def resize(data, size, layout="NCHW", method="bilinear",
         "NCHW", "NHWC", or "NCHWc".
 
     coordinate_transformation_mode: string, optional
-        TODO
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
 
     method: {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for resizing.

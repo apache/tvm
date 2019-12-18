@@ -49,7 +49,10 @@ def resize(data,
         Scale method to used [nearest_neighbor, bilinear, bicubic].
 
     coordinate_transformation_mode : string, optional
-        TODO
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        [half_pixel, align_corners, asymmetric]
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
