@@ -154,7 +154,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         } else if (t.lanes() == 32) {
           os << "int"; return;
         } else {
-          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type, int1 handling need more impl for lane " << t.lanes();
+          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
         }
       }
       case 4: {
@@ -172,7 +172,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         } else if (t.lanes() == 64) {
           os << "int8"; return;
         } else {
-          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type, int4 handling need more impl for lane " << t.lanes();
+          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
         }
       }
       case 8: {
@@ -451,9 +451,10 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
         CHECK(op->dtype == DataType::Float(16) ||
               op->dtype == DataType::Int(8) ||
               op->dtype == DataType::UInt(8) ||
-              op->dtype == Int(4) ||
-              op->dtype == Int(1))
-          << "Matrix_a and matrix_b only support half or char or unsigned char or uint4 or int4 or int1 type for now";
+              op->dtype == DataType::Int(4) ||
+              op->dtype == DataType::Int(1))
+          << "Matrix_a and matrix_b only support half or char or unsigned char "
+          << "or uint4 or int4 or int1 type for now";
       } else {
         CHECK(op->dtype == DataType::Float(16) ||
               op->dtype == DataType::Float(32) ||
