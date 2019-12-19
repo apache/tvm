@@ -117,6 +117,8 @@ class OperatorConverter(object):
             'PRELU': self.convert_prelu,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
+            'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_OR': self.convert_logical_or,
         }
 
     def check_unsupported_ops(self):
@@ -222,6 +224,9 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.INT64:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int64).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
+        if tensor_wrapper.tensor.Type() == TensorType.BOOL:
+            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.bool_).reshape(
+                tensor_wrapper.tensor.ShapeAsNumpy())
         raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_wrapper.tensor.Type())))
 
@@ -240,6 +245,8 @@ class OperatorConverter(object):
             return "int32"
         if tensor_type == TensorType.INT64:
             return "int64"
+        if tensor_type == TensorType.BOOL:
+            return "bool"
         raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_type)))
 
@@ -791,6 +798,33 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NOT_EQUAL operator is not supported yet.')
         return self._convert_elemwise(_op.not_equal, op)
+
+    def _convert_logical_binary(self, relay_op, op):
+        """Generic method to convert logical binary ops"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        lhs_tensor = input_tensors[0]
+        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        rhs_tensor = input_tensors[1]
+        rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+        out = relay_op(lhs_expr, rhs_expr)
+
+        return out
+
+    def convert_logical_and(self, op):
+        """Convert tflite LOGICAL_AND"""
+        return self._convert_logical_binary(_op.logical_and, op)
+
+    def convert_logical_or(self, op):
+        """Convert tflite LOGICAL_OR"""
+        return self._convert_logical_binary(_op.logical_or, op)
 
     def convert_zeros_like(self, op):
         """Convert TFLite ZEROS LIKE"""

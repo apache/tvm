@@ -956,6 +956,32 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_not_equal)
 
 #######################################################################
+# Logical operators
+# -----------------
+
+def _test_logical_binary(logical_bin_op, data):
+
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='bool', name='in_0'),
+                   array_ops.placeholder(shape=data[1].shape, dtype='bool', name='in_1')]
+        out = logical_bin_op(in_data[0], in_data[1], name='out')
+        compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
+
+def _test_forward_logical_and(data):
+    """ One iteration of logical and """
+    return _test_logical_binary(math_ops.logical_and, data)
+
+def _test_forward_logical_or(data):
+    """ One iteration of logical or """
+    return _test_logical_binary(math_ops.logical_or, data)
+
+def test_all_logical():
+    data = [np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool'),
+            np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool')]
+    _test_forward_logical_and(data)
+    _test_forward_logical_or(data)
+
+#######################################################################
 # Zeros like
 # --------
 
@@ -1518,6 +1544,9 @@ if __name__ == '__main__':
 
     # Reduce
     test_all_reduce()
+
+    # Logical
+    test_all_logical()
 
     # End to End
     test_forward_mobilenet_v1()
