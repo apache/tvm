@@ -76,6 +76,11 @@ cdef class NDArrayBase:
         if self.c_is_view == 0:
             CALL(TVMArrayFree(self.chandle))
 
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        CALL(TVMArrayCopyFromTo(self.chandle, (<NDArrayBase>target_nd).chandle, NULL))
+        return target_nd
+
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
 

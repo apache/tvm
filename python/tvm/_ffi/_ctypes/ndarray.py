@@ -85,6 +85,11 @@ class NDArrayBase(object):
     def _tvm_handle(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
 
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        check_call(_LIB.TVMArrayCopyFromTo(self.handle, target_nd.handle, None))
+        return target_nd
+
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
 

@@ -294,14 +294,12 @@ class NDArrayBase(_NDArrayBase):
         target : NDArray
             The target array to be copied, must have same shape as this array.
         """
-        if isinstance(target, TVMContext):
-            target = empty(self.shape, self.dtype, target)
         if isinstance(target, NDArrayBase):
-            check_call(_LIB.TVMArrayCopyFromTo(
-                self.handle, target.handle, None))
-        else:
-            raise ValueError("Unsupported target type %s" % str(type(target)))
-        return target
+            return self._copyto(target)
+        elif isinstance(target, TVMContext):
+            res = empty(self.shape, self.dtype, target)
+            return self._copyto(res)
+        raise ValueError("Unsupported target type %s" % str(type(target)))
 
 
 def free_extension_handle(handle, type_code):
