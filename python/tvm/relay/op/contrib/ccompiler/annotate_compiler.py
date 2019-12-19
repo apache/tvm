@@ -14,9 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Neural network related operators."""
-from __future__ import absolute_import as _abs
-from .contrib import *
-from .annotate_compiler import *
-from . import _contrib
+# pylint: disable=invalid-name, unused-argument
+"""C/C++ compiler supported operators."""
+from __future__ import absolute_import
+
+def conv2d(attrs, args):
+    """Check if the external C source codegen should be used.
+    """
+    return False
+
+def subtract(attrs, args):
+    """Check if the external C source codegen should be used.
+    """
+    return True
+
+def add(attrs, args):
+    """Check if the external C source codegen should be used.
+    """
+    return True
+
+def multiply(attrs, args):
+    """Check if the external C source codegen should be used.
+    """
+    return True

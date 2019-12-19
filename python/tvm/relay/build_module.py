@@ -30,6 +30,7 @@ from . import expr as _expr
 from .module import Module as _Module
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
+from . import transform as _transform
 
 def _update_target(target):
     target = target if target else _target.current_target()
@@ -294,6 +295,34 @@ def optimize(mod, target=None, params=None):
         bld_mod = BuildModule()
         mod, params = bld_mod.optimize(func, target, params)
     return mod, params
+
+
+def build_extern_compiler(mod, compiler):
+    """Helper function that annotates a Relay module and patitions the
+    expression init into various regions. These regions will be handled
+    by either default compilers in TVM stack or the provided external compiler.
+
+    Parameters
+    ----------
+    mod : relay.Module
+        The module to build. Using relay.Function is deprecated.
+
+    compiler : str
+        The name of the external compiler.
+
+    Returns
+    -------
+    mod : relay.Module
+        The relay module contains partitioned program regions (e.g. functions)
+        that will be compiled using different compilers.
+    """
+    if isinstance(mod, _expr.Function):
+        mod = _Module.from_expr(mod)
+
+    seq = _transform.Sequential([_transform.AnnotateCompiler(compiler),
+                                 _transform.PartitionGraph()])
+    mod = seq(mod)
+    return mod
 
 
 class GraphExecutor(_interpreter.Executor):

@@ -123,7 +123,7 @@ using FTVMSchedule = runtime::TypedPackedFunc<
  *  operator with other expressions. This function will be invoked
  *  in AlterOpLayout pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
+ * \param args The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
@@ -153,8 +153,8 @@ using FTVMConvertOpLayout = runtime::TypedPackedFunc<
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
- * \param tinfos An array of placeholders, use for getting the inferred shape
+ * \param args The input symbols of the original node.
+ * \param arg_types An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
@@ -162,6 +162,22 @@ using FTVMLegalize = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
        const Array<tvm::relay::Type>& arg_types)>;
+
+/*!
+ * \brief Annotates an expression to indicate which compiler an op
+ * should be used for codegen.
+ *
+ * \param attrs The attribute of the original expr.
+ * \param args The arguments of the original expr.
+ * \param compiler The compiler that is used to compile the op.
+ *
+ * \return true if this op should be registered to invoke a specific compiler
+ * for codegen, otherwise, false.
+ */
+using FTVMAnnotateCompiler = runtime::TypedPackedFunc<
+  bool(const Attrs& attrs,  // NOLINT(*)
+       const Array<Expr>& args,
+       const std::string& compiler)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

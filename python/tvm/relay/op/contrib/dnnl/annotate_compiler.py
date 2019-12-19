@@ -14,9 +14,37 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Neural network related operators."""
-from __future__ import absolute_import as _abs
-from .contrib import *
-from .annotate_compiler import *
-from . import _contrib
+# pylint: disable=invalid-name, unused-argument
+"""DNNL library supported operators."""
+from __future__ import absolute_import
+
+
+def conv2d(attrs, args):
+    """Check if the external DNNL codegen should be used.
+    """
+    return True
+
+
+def dense(attrs, args):
+    """Check if the external DNNL codegen should be used.
+    """
+    return True
+
+
+def relu(attrs, args):
+    """Check if the external DNNL codegen should be used.
+    """
+    return True
+
+
+def batch_norm(attrs, args):
+    """Check if the external DNNL codegen should be used.
+    FIXME(@zhiics, @comaniac): Turn off due to not support of multiple outputs.
+    """
+    return False
+
+
+def add(attrs, args):
+    """Check if the external DNNL codegen should be used.
+    """
+    return True
