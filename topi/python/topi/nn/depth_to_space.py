@@ -1,0 +1,58 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name
+"""TVM operator depth_to_space compute."""
+from __future__ import absolute_import
+import tvm
+from .. import tag
+
+def depth_to_space(data, block_size, layout='NCHW'):
+    if layout == 'NCHW':
+        in_n, in_c, in_h, in_w = data.shape
+        channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
+        output_shape = [in_n, channel_factor, in_h * block_size, in_w * block_size]
+    elif layout == 'NHWC':
+        in_n, in_h, in_w, in_c = data.shape
+        channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
+        output_shape = [in_n, in_h * block_size, in_w * block_size, channel_factor]
+    else:
+        raise ValueError("Only NCHW and NHWC layouts are currently supported.")
+    
+    def _get_indices(*indices):
+        if layout == 'NCHW':
+            n, c, y, x = indices
+        elif layout == 'NHWC':
+            n, y, x, c = indices
+        return n, c, y, x
+    
+    def _get_pixel(n, c, y, x):
+        block_x = tvm.truncdiv(x, block_size)
+        block_y = tvm.truncdiv(y, block_size)
+        idx_x = tvm.truncmod(x, block_size)
+        idx_y = tvm.truncmod(y, block_size)
+        channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
+        
+        if layout == 'NCHW':
+            return data(n, channel_idx, block_y, block_x)
+        else:
+            return data(n, block_y, block_x, channel_idx)
+    
+    def _compute(*indices):
+        n, c, y, x = _get_indices(*indices)
+        return _get_pixel(n, c, y, x)
+    
+    return tvm.compute(output_shape, _compute, name='depth_to_space', tag=tag.INJECTIVE)
