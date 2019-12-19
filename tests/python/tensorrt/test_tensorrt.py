@@ -19,6 +19,7 @@ import random
 import logging
 logging.basicConfig(level=logging.INFO)
 import numpy as np
+import json
 
 import nnvm.compiler
 import nnvm.testing
@@ -30,15 +31,11 @@ from tvm.contrib import graph_runtime
 
 
 def test_tensorrt_image_classification_models():
-    def compile_model(graph, params, data_shapes, subgraph_backend=None, op_names=None, **kwargs):
+    def compile_model(graph, params, data_shapes, **kwargs):
         _, output_shapes = nnvm.compiler.graph_util.infer_shape(graph, **data_shapes)
         assert len(output_shapes) == 1
-        flags = kwargs
-        if subgraph_backend is not None and op_names is not None:
-            graph = nnvm.subgraph._partition(graph, subgraph_backend, op_names)
-            flags = {}
         target = tvm.target.cuda()
-        with nnvm.compiler.build_config(opt_level=3, **flags):
+        with nnvm.compiler.build_config(opt_level=3, **kwargs):
             graph, lib, params = nnvm.compiler.build(
                 graph, target, shape=data_shapes, params=params)
         return graph, lib, params, output_shapes[0]
@@ -60,7 +57,16 @@ def test_tensorrt_image_classification_models():
     def check_trt_model(baseline_module, baseline_params, graph, params, data_shape,
                         subgraph_backend=None, op_names=None, **kwargs):
         trt_graph, trt_lib, trt_params, output_shape = compile_model(graph, params, {'data': data_shape},
-                                                                     subgraph_backend, op_names, **kwargs)
+                                                                     **kwargs)
+        # Verify that TRT subgraphs are partitioned
+        def check_trt_used(graph):
+            graph = json.loads(graph.json())
+            num_trt_subgraphs = sum([1 for n in graph['nodes'] if n['op'] == '_tensorrt_subgraph_op'])
+            assert num_trt_subgraphs >= 1
+        check_trt_used(trt_graph)
+
+        if not tvm.module.enabled("gpu"):
+            return
         data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
         baseline_out = get_output(baseline_module, data, baseline_params, output_shape)
         trt_module = graph_runtime.create(trt_graph, trt_lib, tvm.gpu())
@@ -94,7 +100,8 @@ def test_tensorrt_image_classification_models():
                 shape={'data': data_shape}, params=copy_params(params))
         baseline_module = graph_runtime.create(baseline_graph, baseline_lib, tvm.gpu())
 
-        # test whole graph run using tensorrt, nnvm.compiler.build_config has graph partitioning turned on
+        # Test whole graph run using tensorrt. nnvm.compiler.build_config has
+        # graph partitioning turned on when ext_accel='tensorrt'.
         check_trt_model(baseline_module, baseline_params, nnvm.graph.load_json(graph_json_str),
                         copy_params(params), data_shape, ext_accel='tensorrt')
 

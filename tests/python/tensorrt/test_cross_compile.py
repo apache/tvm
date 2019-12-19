@@ -22,6 +22,7 @@ import nnvm
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+import json
 
 batch_size = 1
 
@@ -96,6 +97,14 @@ if __name__ == '__main__':
     with nnvm.compiler.build_config(opt_level=opt_level, ext_accel=ext_accel):
         graph, lib, params = nnvm.compiler.build(
             net, target, shape={"data": data_shape}, params=params, target_host=target_host)
+
+    # Verify that TRT subgraphs are partitioned
+    def check_trt_used(graph):
+        graph = json.loads(graph.json())
+        num_trt_subgraphs = sum([1 for n in graph['nodes'] if n['op'] == '_tensorrt_subgraph_op'])
+        assert num_trt_subgraphs >= 1
+    check_trt_used(graph)
+
     print("===========Compiling model %s took %.3fs" % (network, time.time() - start))
 
     print("===========Saving lowered graph for model %s" % network)

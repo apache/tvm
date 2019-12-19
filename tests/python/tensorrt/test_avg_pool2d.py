@@ -21,6 +21,7 @@ from mxnet import gluon
 import nnvm
 import tvm
 from tvm.contrib import graph_runtime
+import json
 
 
 def test_avg_pool2d():
@@ -28,14 +29,13 @@ def test_avg_pool2d():
     # Generate the data
     np.random.seed(0)
     input_shape = [1, 1, 28, 28]
-    output_shape = [1, 10]
+    output_shape = [1, 1, 28, 28]
     data = np.random.random(input_shape).astype('float32')
     
     # Baseline model in MXNet
     net = gluon.nn.HybridSequential()
     with net.name_scope():
         net.add(gluon.nn.AvgPool2D(pool_size=3, strides=1, padding=1))
-        net.add(gluon.nn.Dense(10))
     net.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu())
     net.hybridize()
     baseline_input = mx.nd.array(data, ctx=mx.cpu())
@@ -48,6 +48,17 @@ def test_avg_pool2d():
         graph, lib, params = nnvm.compiler.build(sym, target,
                                                  shape={'data': input_shape},
                                                  params=params)
+
+    # Verify that TRT subgraphs are partitioned
+    def check_trt_used(graph):
+        graph = json.loads(graph.json())
+        num_trt_subgraphs = sum([1 for n in graph['nodes'] if n['op'] == '_tensorrt_subgraph_op'])
+        assert num_trt_subgraphs == 1
+    check_trt_used(graph)
+
+    # Execute
+    if not tvm.module.enabled("gpu"):
+        return
     compiled_model = graph_runtime.create(graph, lib, tvm.gpu())
     compiled_input = tvm.nd.array(data, ctx=tvm.gpu())
     compiled_model.set_input('data', compiled_input)

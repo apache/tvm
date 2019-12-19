@@ -335,7 +335,7 @@ def build(graph, target=None, shape=None, dtype="float32",
         graph = _annotate_graph(graph, device_target,
                                 AnnotationType.DEVICE_TARGET)
         # Apply optimization
-        graph = optimize(graph, shape, dtype, layout)
+        graph = optimize(graph, shape, dtype, layout, target)
 
         # Clear extra params without nodes.
         _remove_noref_params(params, graph)
