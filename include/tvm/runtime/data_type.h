@@ -231,9 +231,7 @@ inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool()) return 1;
-  CHECK_EQ(data_bits % 8, 0U)
-      << "Need to load/store by multiple of bytes";
-  return data_bits / 8;
+  return data_bits;
 }
 
 /*!

@@ -44,7 +44,6 @@ inline void VerifyDataType(DLDataType dtype) {
   } else {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
-    CHECK_EQ(dtype.bits % 8, 0);
   }
   CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
