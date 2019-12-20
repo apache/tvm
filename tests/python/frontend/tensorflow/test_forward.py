@@ -237,16 +237,43 @@ def _test_pooling_iteration(input_shape, **kwargs):
 def _test_pooling(input_shape, **kwargs):
     _test_pooling_iteration(input_shape, **kwargs)
 
-    if is_gpu_available() and (len(input_shape) == 4):
-        input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
-        kwargs['data_format'] = 'NCHW'
-        _test_pooling_iteration(input_shape, **kwargs)
+    if is_gpu_available():
+        if len(input_shape) == 4:
+            input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            kwargs['data_format'] = 'NCHW'
+            _test_pooling_iteration(input_shape, **kwargs)
+        elif len(input_shape) == 5:
+            input_shape = [input_shape[ii] for ii in (0, 4, 1, 2, 3)]
+            kwargs['data_format'] = 'NCDHW'
+            _test_pooling_iteration(input_shape, **kwargs)
 
 
 def test_forward_pooling():
     """ Pooling """
+    # TensorFlow only supports NDHWC for max_pool3d on CPU
+    for pool_type in ['MAX', 'AVG']:
 
-    for pool_type in ['AVG', 'MAX']:
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='VALID',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[1, 1, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[1, 1, 1])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
         _test_pooling(input_shape=[2, 9, 10, 2],
                       window_shape=[1, 1],
                       padding='SAME',
@@ -2855,7 +2882,6 @@ if __name__ == '__main__':
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
-    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
@@ -2916,5 +2942,3 @@ if __name__ == '__main__':
     test_forward_where()
     test_forward_matmul()
     test_forward_batch_matmul()
-
-    # TODO missing tests: rank
