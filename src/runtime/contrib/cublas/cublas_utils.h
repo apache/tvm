@@ -32,7 +32,7 @@
 #include <cstdint>
 #if CUDART_VERSION >= 10010
 #include <cublasLt.h>
-#endif // CUDART_VERSION >= 10010
+#endif  // CUDART_VERSION >= 10010
 
 namespace tvm {
 namespace contrib {

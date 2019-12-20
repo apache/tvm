@@ -182,7 +182,7 @@ bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_s
 }
 
 int roundoff(int v, int d) {
-   return (v + d - 1) / d * d;
+  return (v + d - 1) / d * d;
 }
 
 #if CUDART_VERSION >= 10010
@@ -234,11 +234,17 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue *ret, cublasLtHandle_t hdl) {
           operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &opTranspose, sizeof(opTranspose)));
   cublasOperation_t opTransA = BooleanToTranspose(transa);
   cublasOperation_t opTransB = BooleanToTranspose(transb);
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &opTransA, sizeof(opTransA)));
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &opTransB, sizeof(opTransB)));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+          operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &opTransA, sizeof(opTransA)));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+          operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &opTransB, sizeof(opTransB)));
   // Create descriptors for the original matrices
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Adesc, CUDA_R_8I, opTransA == CUBLAS_OP_N ? m : k , opTransA == CUBLAS_OP_N ? k : m, lda));
-  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Bdesc, CUDA_R_8I, opTransB == CUBLAS_OP_N ? k : n , opTransB == CUBLAS_OP_N ? n : k, ldb));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(
+          &Adesc, CUDA_R_8I, opTransA == CUBLAS_OP_N ? m : k ,
+          opTransA == CUBLAS_OP_N ? k : m, lda));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(
+          &Bdesc, CUDA_R_8I, opTransB == CUBLAS_OP_N ? k : n ,
+          opTransB == CUBLAS_OP_N ? n : k, ldb));
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, CUDA_R_32I, m, n, ldc));
 
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
@@ -264,7 +270,6 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue *ret, cublasLtHandle_t hdl) {
                                     NULL,
                                     0,
                                     0));
-
 }
 #endif
 
@@ -439,16 +444,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
 
     int version;
     CHECK_CUBLAS_ERROR(cublasGetVersion(entry_ptr->handle, &version));
-    #if CUDART_VERSION >= 10010
     if (TypeMatch(A->dtype, kDLInt, 8) && version >= 10100) {
+      #if CUDART_VERSION >= 10010
       cublasLtHandle_t ltHandle;
       CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
       CallLtIgemm(args, ret, ltHandle);
       CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
-    } else
-    #endif // CUDART_VERSION >= 10010
+      #endif  // CUDART_VERSION >= 10010
+    } else {
       LOG(FATAL) << "Cublas version needs to be equal or larger than 10.1, but currently is "
       << version;
+    }
 });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
