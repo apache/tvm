@@ -90,6 +90,11 @@ class NDArrayBase(object):
         check_call(_LIB.TVMArrayCopyFromTo(self.handle, target_nd.handle, None))
         return target_nd
 
+    @property
+    def shape(self):
+        """Shape of this array"""
+        return tuple(self.handle.contents.shape[i] for i in range(self.handle.contents.ndim))
+
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
 
