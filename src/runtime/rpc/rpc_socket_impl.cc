@@ -40,7 +40,6 @@ class SockChannel final : public RPCChannel {
         sock_.Close();
       }
     } catch (...) {
-
     }
   }
   size_t Send(const void* data, size_t size) final {
