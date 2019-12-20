@@ -68,6 +68,11 @@ cdef class NDArrayBase:
         def __set__(self, value):
             self._set_handle(value)
 
+    @property
+    def shape(self):
+        """Shape of this array"""
+        return tuple(self.chandle.shape[i] for i in range(self.chandle.ndim))
+
     def __init__(self, handle, is_view):
         self._set_handle(handle)
         self.c_is_view = is_view
@@ -75,6 +80,11 @@ cdef class NDArrayBase:
     def __dealloc__(self):
         if self.c_is_view == 0:
             CALL(TVMArrayFree(self.chandle))
+
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        CALL(TVMArrayCopyFromTo(self.chandle, (<NDArrayBase>target_nd).chandle, NULL))
+        return target_nd
 
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory

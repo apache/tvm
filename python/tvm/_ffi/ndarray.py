@@ -157,10 +157,6 @@ def from_dlpack(dltensor):
 
 class NDArrayBase(_NDArrayBase):
     """A simple Device/CPU Array object in runtime."""
-    @property
-    def shape(self):
-        """Shape of this array"""
-        return tuple(self.handle.contents.shape[i] for i in range(self.handle.contents.ndim))
 
     @property
     def dtype(self):
@@ -240,6 +236,7 @@ class NDArrayBase(_NDArrayBase):
             except:
                 raise TypeError('array must be an array_like data,' +
                                 'type %s is not supported' % str(type(source_array)))
+
         t = TVMType(self.dtype)
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
@@ -294,14 +291,12 @@ class NDArrayBase(_NDArrayBase):
         target : NDArray
             The target array to be copied, must have same shape as this array.
         """
-        if isinstance(target, TVMContext):
-            target = empty(self.shape, self.dtype, target)
         if isinstance(target, NDArrayBase):
-            check_call(_LIB.TVMArrayCopyFromTo(
-                self.handle, target.handle, None))
-        else:
-            raise ValueError("Unsupported target type %s" % str(type(target)))
-        return target
+            return self._copyto(target)
+        elif isinstance(target, TVMContext):
+            res = empty(self.shape, self.dtype, target)
+            return self._copyto(res)
+        raise ValueError("Unsupported target type %s" % str(type(target)))
 
 
 def free_extension_handle(handle, type_code):
