@@ -39,6 +39,7 @@ if os.name == 'nt':
     EXECUTOR_POOL = None
 
 #pylint: disable=wrong-import-position
+#pylint: disable=ungrouped-imports
 from multiprocessing import Process, Queue, cpu_count
 try:
     from queue import Empty
@@ -51,6 +52,7 @@ except ImportError:
     psutil = None
 
 from . import executor
+#pylint: enable=ungrouped-imports
 #pylint: enable=wrong-import-position
 
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):
