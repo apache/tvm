@@ -107,7 +107,7 @@ The configuration of TVM can be modified by `config.cmake`.
       cmake ..
       make -j4
 
-  - You can also use Ninja build system instead of Unix Makefiles. It is said that Ninja runs faster than Makefiles.
+  - You can also use Ninja build system instead of Unix Makefiles. It can be faster to build than using Makefiles.
 
   .. code:: bash
 
