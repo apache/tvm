@@ -107,6 +107,14 @@ The configuration of TVM can be modified by `config.cmake`.
       cmake ..
       make -j4
 
+  - You can also use Ninja build system instead of Unix Makefiles. It is said that Ninja runs faster than Makefiles.
+
+  .. code:: bash
+
+      cd build
+      cmake .. -G Ninja
+      ninja
+
 If everything goes well, we can go to :ref:`python-package-installation`
 
 Building on Windows
