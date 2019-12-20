@@ -39,10 +39,12 @@ import subprocess
 import time
 import sys
 import signal
-
+import psutil
+#pylint: disable=wrong-import-position
 if os.name == 'nt':
     from pathos.helpers import ProcessPool
     import threading
+    #pylint: disable=ungrouped-imports
     import multiprocessing.pool
 
 from .._ffi.function import register_func
@@ -52,7 +54,7 @@ from ..module import load as _load_module
 from ..contrib import util
 from . import base
 from . base import TrackerCode
-
+#pylint: enable=wrong-import-position
 logger = logging.getLogger('RPCServer')
 
 _temp = None
@@ -67,6 +69,7 @@ class NoDaemonProcess(multiprocessing.Process):
 
 # We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
 # because the latter is only a wrapper function, not a proper class.
+# pylint: disable=W0223
 class MyPool(multiprocessing.pool.Pool):
     Process = NoDaemonProcess
 
@@ -129,7 +132,7 @@ def _serve_loop_pool(args):
     except Exception: # pylint: disable=broad-except
         pass
 
-    logger.info("Finish serving %s", addr)    
+    logger.info("Finish serving %s", addr)
 
 def _parse_server_opt(opts):
     # parse client options
@@ -211,11 +214,10 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 conn.close()
                 logger.warning("mismatch key from %s", addr)
                 continue
-            else:
-                conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
-                conn.sendall(struct.pack("<i", len(server_key)))
-                conn.sendall(server_key.encode("utf-8"))
-                return conn, addr, _parse_server_opt(arr[1:])
+            conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
+            conn.sendall(struct.pack("<i", len(server_key)))
+            conn.sendall(server_key.encode("utf-8"))
+            return conn, addr, _parse_server_opt(arr[1:])
 
     # Server logic
     tracker_conn = None
@@ -261,7 +263,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             server_proc.join(opts.get("timeout", None))
             if server_proc.is_alive():
                 logger.info("Timeout in RPC session, kill..")
-                import psutil
+
                 try:
                     parent = psutil.Process(server_proc.pid)
                     # terminate worker childs
@@ -278,8 +280,8 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             global _trial_counter
             global _executor_pool
 
-            if _trial_counter % 5 == 0 or _executor_pool == None:
-                if _executor_pool != None:
+            if _trial_counter % 5 == 0 or _executor_pool is None:
+                if _executor_pool is not None:
                     _executor_pool.terminate()
                 _executor_pool = MyPool(processes=1)
 
@@ -323,7 +325,7 @@ def _connect_proxy_loop(addr, key, load_library):
             magic = struct.unpack("<i", base.recvall(sock, 4))[0]
             if magic == base.RPC_CODE_DUPLICATE:
                 raise RuntimeError("key: %s has already been used in proxy" % key)
-            elif magic == base.RPC_CODE_MISMATCH:
+            if magic == base.RPC_CODE_MISMATCH:
                 logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError("%s is not RPC Proxy" % str(addr))
@@ -467,7 +469,8 @@ class Server(object):
             if os.name == 'nt':
                 self.proc = ProcessPool(1)
                 self.proc.apply(start_server_from_pool, args=(host, port, port_end, is_proxy,
-                                                              use_popen, tracker_addr, key, load_library, custom_addr, silent))
+                                                              use_popen, tracker_addr, key,
+                                                              load_library, custom_addr, silent))
             else:
                 # prexec_fn is not thread safe and may result in deadlock.
                 # python 3.2 introduced the start_new_session parameter as
@@ -477,8 +480,7 @@ class Server(object):
                 # rewritten in favour of start_new_session.  In the
                 # interim, stop the pylint diagnostic.
                 #
-                # pylint: disable=subprocess-popen-preexec-fn
-                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)  # pylint: disable=subprocess-popen-preexec-fn
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
@@ -495,8 +497,7 @@ class Server(object):
                         sock_errno -= 10000
                     if sock_errno in [98, 48]:
                         continue
-                    else:
-                        raise sock_err
+                    raise sock_err
             if not self.port:
                 raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
             logger.info("bind to %s:%d", host, self.port)
@@ -504,7 +505,8 @@ class Server(object):
             self.sock = sock
 
             if os.name == 'nt':
-                _listen_loop(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr)
+                _listen_loop(self.sock, self.port, key, tracker_addr,
+                             load_library, self.custom_addr)
             else:
                 self.proc = multiprocessing.Process(
                     target=_listen_loop, args=(

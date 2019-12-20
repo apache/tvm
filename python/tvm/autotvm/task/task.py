@@ -108,7 +108,8 @@ class Task(object):
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
         # Use pickled function on Windows
-        self.func = state["func"] if os.name == 'nt' else TASK_TABLE.get(state["name"], _raise_error)
+        self.func = state["func"] if os.name == 'nt' else \
+                                    TASK_TABLE.get(state["name"], _raise_error)
         self.workload = state["workload"]
         self.flop = state["flop"]
         self.target = state["target"]

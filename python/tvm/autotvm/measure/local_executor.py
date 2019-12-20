@@ -36,8 +36,9 @@ if os.name == 'nt':
     # Since there is no fork() on Windows, to mitigate performance impact
     # we will use a process pool for executers, vs the *nix based systems
     # that will fork() a new process for each executor
-    _executor_pool = None
+    EXECUTOR_POOL = None
 
+#pylint: disable=wrong-import-position
 from multiprocessing import Process, Queue, cpu_count
 try:
     from queue import Empty
@@ -50,7 +51,7 @@ except ImportError:
     psutil = None
 
 from . import executor
-
+#pylint: enable=wrong-import-position
 
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):
     """kill all child processes recursively"""
@@ -216,18 +217,19 @@ class LocalExecutor(executor.Executor):
                               args=(queue, self.timeout, func, args, kwargs))
             process.start()
             return LocalFuture(process, queue)
-        else:
-            global _executor_pool
 
-            if _executor_pool is None:
-                # We use a static pool for executor processes because Process.start(entry)
-                # is so slow on Windows, we lose a lot of parallelism.
-                # Right now cpu_count() is used, which isn't optimal from a user configuration
-                # perspective, but is reasonable at this time.
-                _executor_pool = ProcessPool(cpu_count() * 2)
+        global EXECUTOR_POOL
 
-            # Windows seemed to be missing some valuable environ variables
-            # on the pool's process side.  We might be able to get away with
-            # just sending the PATH variable, but for now, we just clone our env
-            return LocalFuturePool(_executor_pool.apply_async(call_from_pool, 
-                                                            (func, args, kwargs, self.timeout, os.environ.copy())))
+        if EXECUTOR_POOL is None:
+            # We use a static pool for executor processes because Process.start(entry)
+            # is so slow on Windows, we lose a lot of parallelism.
+            # Right now cpu_count() is used, which isn't optimal from a user configuration
+            # perspective, but is reasonable at this time.
+            EXECUTOR_POOL = ProcessPool(cpu_count() * 2)
+
+        # Windows seemed to be missing some valuable environ variables
+        # on the pool's process side.  We might be able to get away with
+        # just sending the PATH variable, but for now, we just clone our env
+        return LocalFuturePool(EXECUTOR_POOL.apply_async(call_from_pool,
+                                                         (func, args, kwargs,
+                                                          self.timeout, os.environ.copy())))

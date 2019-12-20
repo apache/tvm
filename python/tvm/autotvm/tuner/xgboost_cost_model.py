@@ -28,7 +28,7 @@ if os.name == 'nt':
     # support fork()
     from pathos.helpers import mp as pathos_multiprocess
     from pathos.helpers import ProcessPool
-
+#pylint: disable=wrong-import-position
 import numpy as np
 try:
     import xgboost as xgb
@@ -39,7 +39,7 @@ from .. import feature
 from ..util import get_rank
 from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
-
+#pylint: enable=wrong-import-position
 logger = logging.getLogger('autotvm')
 
 class XGBoostCostModel(CostModel):
@@ -169,7 +169,7 @@ class XGBoostCostModel(CostModel):
             # some synchronization by sending an async call, setting space, target and task, then
             # waiting for the queue to have an item set
             num_threads = self.num_threads
-            pool_size = num_threads if num_threads != None else multiprocessing.cpu_count()
+            pool_size = num_threads if num_threads is not None else multiprocessing.cpu_count()
             if self.pool is None:
                 self.pool = ProcessPool(pool_size)
             manager = pathos_multiprocess.Manager()
@@ -192,13 +192,12 @@ class XGBoostCostModel(CostModel):
             while True:
                 all_ready = True
                 for pipe_sync in pipe_syncs:
-                    if pipe_sync["apipe"].ready() == False:
+                    if pipe_sync["apipe"].ready() is False:
                         all_ready = False
                         break
                 if all_ready:
                     break
-                else:
-                    time.sleep(0.05)
+                time.sleep(0.05)
             # complete the async requests on the pool
             for pipe_sync in pipe_syncs:
                 pipe_sync["apipe"].get()
@@ -484,10 +483,11 @@ def _extract_curve_feature_log(arg):
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                     maximize=False, verbose_eval=True):
     """callback function for xgboost to support multiple custom evaluation functions"""
+    #pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
     from xgboost.training import aggcv
-
+    #pylint: enable=import-outside-toplevel
     state = {}
     metric_shortname = metric.split("-")[1]
 

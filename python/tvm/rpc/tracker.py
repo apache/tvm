@@ -60,10 +60,11 @@ except ImportError as error_msg:
     raise ImportError(
         "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
+#pylint: disable=wrong-import-position
 from .._ffi.base import py_str
 from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
-
+#pylint: enable=wrong-import-position
 logger = logging.getLogger("RPCTracker")
 
 class Scheduler(object):
@@ -411,8 +412,7 @@ class Tracker(object):
                     sock_errno -= 10000
                 if sock_errno in [98, 48]:
                     continue
-                else:
-                    raise sock_err
+                raise sock_err
         if not self.port:
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
         logger.info("bind to %s:%d", host, self.port)
