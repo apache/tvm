@@ -28,7 +28,7 @@ def main(args):
     """Main funciton"""
     tracker = Tracker(args.host, port=args.port, port_end=args.port_end,
                       silent=args.silent)
-    if os.name =='nt':
+    if os.name == 'nt':
         while True:
             input()
     else:

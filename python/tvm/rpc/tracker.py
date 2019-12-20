@@ -444,7 +444,7 @@ class Tracker(object):
     def terminate(self):
         """Terminate the server process"""
         if self.proc:
-            if os.name =='nt':
+            if os.name == 'nt':
                 self.proc.close()
                 self.proc.join()
             else:

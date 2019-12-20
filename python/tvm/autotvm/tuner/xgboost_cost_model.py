@@ -28,7 +28,6 @@ if os.name == 'nt':
     # support fork()
     from pathos.helpers import mp as pathos_multiprocess
     from pathos.helpers import ProcessPool
-    import pathos.multiprocessing
 
 import numpy as np
 try:
@@ -169,8 +168,9 @@ class XGBoostCostModel(CostModel):
             # To ensure each process in the pool is properly set, we have to do
             # some synchronization by sending an async call, setting space, target and task, then
             # waiting for the queue to have an item set
-            pool_size = self.num_threads if self.num_threads != None else multiprocessing.cpu_count()
-            if self.pool == None:
+            num_threads = self.num_threads
+            pool_size = num_threads if num_threads != None else multiprocessing.cpu_count()
+            if self.pool is None:
                 self.pool = ProcessPool(pool_size)
             manager = pathos_multiprocess.Manager()
             pipe_syncs = []
@@ -179,11 +179,12 @@ class XGBoostCostModel(CostModel):
             # some of the pools processes will be missed, with some processes running
             # the method twice.  It seems that just passing a Queue in this manner,
             # hits all the processes in the pool. Some assertion could be built to verify
-            for i in range(pool_size):
+            for _ in range(pool_size):
                 queue = manager.Queue(1)
                 results = {
-                   "queue": queue,
-                   "apipe": self.pool.apply_async(_set_pool_process_state, args=(space, target, task, queue))
+                    "queue": queue,
+                    "apipe": self.pool.apply_async(_set_pool_process_state,
+                                                   args=(space, target, task, queue))
                 }
                 pipe_syncs.append(results)
 
@@ -195,7 +196,7 @@ class XGBoostCostModel(CostModel):
                         all_ready = False
                         break
                 if all_ready:
-                    break;
+                    break
                 else:
                     time.sleep(0.05)
             # complete the async requests on the pool
@@ -214,7 +215,7 @@ class XGBoostCostModel(CostModel):
     def _close_pool(self, force_close=False):
         if os.name == 'nt' and not force_close:
             return
-        
+
         if self.pool:
             self.pool.terminate()
             self.pool.join()

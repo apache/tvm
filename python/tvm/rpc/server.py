@@ -117,7 +117,7 @@ def _serve_loop_pool(args):
     """Server loop"""
     sock = args["sock"]
     addr = args["addr"]
-    load_library = args["load_library"] 
+    load_library = args["load_library"]
     work_path = args["work_path"]
 
     try:
@@ -126,7 +126,7 @@ def _serve_loop_pool(args):
         base._ServerLoop(sockfd)
         if not work_path:
             temp.remove()
-    except Exception:
+    except Exception: # pylint: disable=broad-except
         pass
 
     logger.info("Finish serving %s", addr)    
@@ -242,7 +242,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 tracker_conn.close()
                 tracker_conn = None
             continue
-        except RuntimeError as exc:
+        except RuntimeError as exc: # pylint: disable=broad-except
             raise exc
 
         # step 3: serving
@@ -250,8 +250,9 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         logger.info("connection from %s", addr)
 
         def handle_posix():
+            """Handles serving on non-Windows OS"""
             server_proc = multiprocessing.Process(target=_serve_loop,
-                                                args=(conn, addr, load_library, work_path))
+                                                  args=(conn, addr, load_library, work_path))
             server_proc.deamon = True
             server_proc.start()
             # close from our side.
@@ -267,15 +268,16 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                     # this can throw on Windows
                     for child in parent.children(recursive=True):
                         child.terminate()
-                except: # pylint: disable=broad-except
+                except Exception: # pylint: disable=broad-except
                     pass
 
                 # terminate the worker
                 server_proc.terminate()
         def handle_win32():
+            """Handles serving on Windows OS"""
             global _trial_counter
             global _executor_pool
-           
+
             if _trial_counter % 5 == 0 or _executor_pool == None:
                 if _executor_pool != None:
                     _executor_pool.terminate()
@@ -295,7 +297,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             try:
                 conn.close()
                 conn.shutdown(1)
-            except:
+            except Exception: # pylint: disable=broad-except
                 pass
 
         if os.name != 'nt':
@@ -358,13 +360,16 @@ def _popen(cmd):
         raise RuntimeError(msg)
 
 if os.name == 'nt':
-    def start_server_from_pool(host, port, port_end, is_proxy, use_popen, 
-                                tracker_addr, key, load_library, custom_addr, silent):
+    def start_server_from_pool(host, port, port_end, is_proxy, use_popen,
+                               tracker_addr, key, load_library, custom_addr, silent):
+        """Starts the RPC server from within a process pool"""
         def run():
             server = Server(host,
                             port,
                             port_end,
                             key=key,
+                            is_proxy=is_proxy,
+                            use_popen=use_popen,
                             tracker_addr=tracker_addr,
                             load_library=load_library,
                             custom_addr=custom_addr,
@@ -439,7 +444,7 @@ class Server(object):
         self.custom_addr = custom_addr
         self.use_popen = use_popen
         self.proc = None
-        
+
         if silent:
             logger.setLevel(logging.ERROR)
 
@@ -462,7 +467,7 @@ class Server(object):
             if os.name == 'nt':
                 self.proc = ProcessPool(1)
                 self.proc.apply(start_server_from_pool, args=(host, port, port_end, is_proxy,
-                                use_popen, tracker_addr, key, load_library, custom_addr, silent))
+                                                              use_popen, tracker_addr, key, load_library, custom_addr, silent))
             else:
                 # prexec_fn is not thread safe and may result in deadlock.
                 # python 3.2 introduced the start_new_session parameter as

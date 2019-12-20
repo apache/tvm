@@ -36,7 +36,7 @@ if os.name == 'nt':
     # Since there is no fork() on Windows, to mitigate performance impact
     # we will use a process pool for executers, vs the *nix based systems
     # that will fork() a new process for each executor
-    executor_pool = None
+    _executor_pool = None
 
 from multiprocessing import Process, Queue, cpu_count
 try:
@@ -89,7 +89,7 @@ def call_with_timeout(queue, timeout, func, args, kwargs):
     p.join()
 
 if os.name == 'nt':
-    def call_from_pool(func, args, kwargs, timeout, env):
+    def call_from_pool(func, args, kwargs, timeout, env): # pylint: disable=unused-argument
         """A wrapper to support timeout of a function call for a pool process"""
 
         # Restore environment variables from parent
@@ -213,20 +213,21 @@ class LocalExecutor(executor.Executor):
         if os.name != 'nt':
             queue = Queue(2)
             process = Process(target=call_with_timeout,
-                            args=(queue, self.timeout, func, args, kwargs))
+                              args=(queue, self.timeout, func, args, kwargs))
             process.start()
             return LocalFuture(process, queue)
         else:
-            global executor_pool
+            global _executor_pool
 
-            if executor_pool is None:
+            if _executor_pool is None:
                 # We use a static pool for executor processes because Process.start(entry)
                 # is so slow on Windows, we lose a lot of parallelism.
                 # Right now cpu_count() is used, which isn't optimal from a user configuration
                 # perspective, but is reasonable at this time.
-                executor_pool = ProcessPool(cpu_count() * 2)
+                _executor_pool = ProcessPool(cpu_count() * 2)
 
             # Windows seemed to be missing some valuable environ variables
             # on the pool's process side.  We might be able to get away with
             # just sending the PATH variable, but for now, we just clone our env
-            return LocalFuturePool(executor_pool.apply_async(call_from_pool, (func, args, kwargs, self.timeout, os.environ.copy())))
+            return LocalFuturePool(_executor_pool.apply_async(call_from_pool, 
+                                                            (func, args, kwargs, self.timeout, os.environ.copy())))

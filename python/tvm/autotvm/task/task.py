@@ -22,8 +22,8 @@ func is a state-less function, or a string that
 registers the standard task.
 """
 
-import numpy as np
 import os
+import numpy as np
 from ... import tensor, expr, container, target as _target
 
 from ..util import get_const_int, get_const_tuple, get_func_name
@@ -195,7 +195,7 @@ def create(func_name, args, target, target_host=None, template_key=None):
             try:
                 # getattr will throw here on Windows, as of an Oct 2019 commit
                 ret.config_space.code_hash = getattr(sch, 'code_hash', None)
-            except:
+            except: # pylint: disable=bare-except
                 ret.config_space.code_hash = None
 
     ret.workload = ctx.workload
