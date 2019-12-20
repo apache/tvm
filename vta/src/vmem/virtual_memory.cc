@@ -78,7 +78,7 @@ vta_phy_addr_t VirtualMemoryManager::GetPhyAddr(void* buf) {
     CHECK(it != pmap_.end());
   }
   Page* p = it->second.get();
-  return (p->ptable_begin + 1) << kPageBits;
+  return ((p->ptable_begin + 1) << kPageBits) + offset;
 }
 
 /*!
