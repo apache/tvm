@@ -45,3 +45,5 @@ from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
 from .pool_grad_python import pool_grad_nchw
 from .one_hot import one_hot
+from .depth_to_space import depth_to_space_python
+from .space_to_depth import space_to_depth_python
